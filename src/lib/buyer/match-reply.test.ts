@@ -148,7 +148,78 @@ function dbForAvailableEnquiry(withBrief = true) {
   };
 }
 
+function dbForPortalPlotLead() {
+  const rows: Record<string, Record<string, unknown>[]> = {
+    contacts: [
+      {
+        id: 'sandhiya',
+        account_id: 'account',
+        name: 'sandhiya durai',
+        pref_property_types: ['Vacant plot'],
+        property_interests: ['Vacant plot'],
+        pref_areas: ['KHB Suryanagar Phase'],
+        last_inquired_property_id: null,
+      },
+    ],
+    properties: [
+      {
+        id: 'commercial',
+        account_id: 'account',
+        title: 'Semi-Commercial Plot in Suryanagar Phase 1',
+        type: 'Commercial Land',
+        listing_type: 'Sale',
+        location: 'Suryanagar phase 1, Bangalore',
+        price: 60_000_000,
+        status: 'Available',
+        is_published: true,
+      },
+    ],
+  };
+  const matches = (table: string, filters: Record<string, unknown>) =>
+    rows[table].filter((row) =>
+      Object.entries(filters).every(([column, value]) => row[column] === value)
+    );
+
+  return {
+    rpc: async () => ({ data: [], error: null }),
+    from(table: string) {
+      const filters: Record<string, unknown> = {};
+      const query = {
+        select: () => query,
+        eq: (column: string, value: unknown) => {
+          filters[column] = value;
+          return query;
+        },
+        order: () => query,
+        limit: () => query,
+        maybeSingle: async () => ({
+          data: matches(table, filters)[0] || null,
+        }),
+        then(resolve: (value: { data: unknown[] }) => unknown) {
+          return Promise.resolve({ data: matches(table, filters) }).then(
+            resolve
+          );
+        },
+      };
+      return query;
+    },
+  };
+}
+
 describe('buildBuyerMatchReply', () => {
+  it('[INB-014] asks a portal lead with no budget for one instead of dead-ending', async () => {
+    const reply = await buildBuyerMatchReply({
+      accountId: 'account',
+      contactId: 'sandhiya',
+      db: dbForPortalPlotLead() as never,
+    });
+
+    expect(reply).toBe(
+      "Hi sandhiya — I don't have a vacant plot in KHB Suryanagar Phase live right now, but I'm watching for one. " +
+        "What budget are you working with? I'll widen the search to everything within it."
+    );
+  });
+
   it('shows the available enquiry first even when the current brief would exclude it', async () => {
     const reply = await buildBuyerMatchReply({
       accountId: 'account',

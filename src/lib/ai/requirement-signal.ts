@@ -10,12 +10,19 @@ const PROPERTY_TYPE_SIGNAL =
 const BUDGET_SIGNAL =
   /(\d+\s*(?:\.\d+)?\s*(?:cr|crore|crores|lakh|lakhs|lac|lacs|l|k)\b)|\b\d{6,}\b/i;
 
+const SIZE_SIGNAL =
+  /\b\d[\d,.]*\s*(?:sq\.?\s*(?:ft|feet|yds?|yards?|mtrs?|m)|sqft|sft|square\s*(?:feet|foot|yards?|met(?:er|re)s?)|guntas?|grounds?)\b|\b\d{2,3}\s*(?:x|×|\*|by)\s*\d{2,3}\b/i;
+
 /**
  * True when an inbound message plausibly carries requirement detail —
- * a property type, a budget figure, or an explicit "looking for".
+ * a property type, a budget figure, a size, or an explicit "looking for".
  */
 export function carriesRequirementSignal(text?: string | null): boolean {
   const clean = (text || '').trim();
   if (!clean) return false;
-  return PROPERTY_TYPE_SIGNAL.test(clean) || BUDGET_SIGNAL.test(clean);
+  return (
+    PROPERTY_TYPE_SIGNAL.test(clean) ||
+    BUDGET_SIGNAL.test(clean) ||
+    SIZE_SIGNAL.test(clean)
+  );
 }

@@ -178,6 +178,17 @@ describe('buildNoMatchesMessage', () => {
       'nothing in our inventory fits'
     );
   });
+
+  it('names what was searched and asks for the missing piece', () => {
+    expect(
+      buildNoMatchesMessage('Ravi Kumar', {
+        brief: 'a villa in Whitefield',
+        question: 'What budget are you working with?',
+      })
+    ).toBe(
+      "Hi Ravi — I don't have a villa in Whitefield live right now, but I'm watching for one. What budget are you working with?"
+    );
+  });
 });
 
 describe('buildUnavailableEnquiryMessage', () => {

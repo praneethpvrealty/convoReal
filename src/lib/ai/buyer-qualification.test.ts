@@ -36,6 +36,10 @@ import {
   prefsFromContact,
   buildEnquiryBudgetDisparityReply,
   resolveInventoryLocalityReply,
+  impliedListingTypes,
+  earlierBurstRequirements,
+  buildWidenSearchQuestion,
+  describeBrief,
 } from './buyer-qualification';
 import {
   EMPTY_PREFERENCES,
@@ -126,11 +130,14 @@ describe('portal enquiry context', () => {
     expect(saved.property_types).toEqual(['Villa']);
     expect(saved.budget_max).toBe(30_000_000);
     expect(saved.areas).toEqual(['KR Puram']);
-    // The CRM fields answer type, budget and area; buy-or-rent is the
-    // one rung an agent-entered profile carries no column for until
-    // someone asks.
-    expect(nextQualifier(saved)).toBe('intent');
-    expect(nextQualifier({ ...saved, listing_types: ['Sale'] })).toBeNull();
+    // The CRM fields answer type, budget and area, and a ₹3 Cr villa
+    // budget answers buy-or-rent too. A figure that could be a rent
+    // still leaves that rung open.
+    expect(nextQualifier(saved)).toBeNull();
+    expect(nextQualifier({ ...saved, budget_max: 60_000 })).toBe('intent');
+    expect(
+      nextQualifier({ ...saved, budget_max: 60_000, listing_types: ['Sale'] })
+    ).toBeNull();
   });
 
   it('keeps the known Villa type when the buyer only adds budget and area', () => {
@@ -261,6 +268,15 @@ To help me understand your requirement and recommend the most relevant propertie
 Based on your preferences, I’ll shortlist the right options for you.`;
 
     expect(carriesRequirementSignal(genericReply)).toBe(false);
+  });
+
+  it('[INB-014] accepts a bare plot size — "1200 sqft" is a requirement', () => {
+    expect(carriesRequirementSignal('1200 sqft')).toBe(true);
+    expect(carriesRequirementSignal('1,200 sq.ft')).toBe(true);
+    expect(carriesRequirementSignal('30x40')).toBe(true);
+    expect(carriesRequirementSignal('30 by 40 site')).toBe(true);
+    expect(carriesRequirementSignal('200 sq yards')).toBe(true);
+    expect(carriesRequirementSignal('call me at 5')).toBe(false);
   });
 
   it('rejects a bare locality — that only reads as an answer in context', () => {
@@ -1246,5 +1262,83 @@ describe('a shortlist of one', () => {
     expect(reply).toContain('*1.');
     expect(reply).toContain('*2.');
     expect(reply).toContain('any of these');
+  });
+});
+
+describe('portal plot lead replay (sandhiya)', () => {
+  const portalBrief = prefs({
+    property_types: ['Vacant plot'],
+    areas: ['KHB Suryanagar Phase'],
+  });
+
+  it('[INB-014] reads a ₹30–35 L plot budget as a purchase, so buy-or-rent is not asked', () => {
+    const answered = prefs({
+      ...portalBrief,
+      budget_min: 3_000_000,
+      budget_max: 3_500_000,
+      land_area_min_sqft: 1200,
+      land_area_max_sqft: 1200,
+    });
+    expect(impliedListingTypes(answered)).toEqual(['Sale']);
+    expect(nextQualifier(answered)).toBeNull();
+  });
+
+  it('[INB-014] still asks buy-or-rent when the figure could be a rent', () => {
+    expect(
+      impliedListingTypes(prefs({ ...portalBrief, budget_max: 45_000 }))
+    ).toEqual([]);
+    expect(
+      impliedListingTypes(
+        prefs({ property_categories: ['commercial'], budget_max: 2_500_000 })
+      )
+    ).toEqual([]);
+    expect(nextQualifier(portalBrief)).toBe('intent');
+  });
+
+  it('[INB-014] plays the known brief back instead of only the type', () => {
+    expect(
+      buildQualifierQuestion(
+        'intent',
+        prefs({
+          ...portalBrief,
+          land_area_min_sqft: 1200,
+          land_area_max_sqft: 1200,
+        })
+      )
+    ).toBe(
+      'Got it — vacant plot, 1,200 sq.ft. Are you looking to buy or to rent?'
+    );
+  });
+
+  it('[INB-014] keeps an earlier line of the same burst in the brief', () => {
+    expect(
+      earlierBurstRequirements([
+        { sender_type: 'customer', content_text: '1200 sqft' },
+        { sender_type: 'customer', content_text: '3000000 to 3500000' },
+        { sender_type: 'customer', content_text: 'ok' },
+        { sender_type: 'bot', content_text: 'Hi sandhiya' },
+        { sender_type: 'customer', content_text: '2 BHK' },
+      ])
+    ).toEqual(['3000000 to 3500000']);
+    expect(
+      earlierBurstRequirements([
+        { sender_type: 'customer', content_text: 'Buy' },
+        {
+          sender_type: 'bot',
+          content_text: 'Are you looking to buy or to rent?',
+        },
+      ])
+    ).toEqual([]);
+  });
+
+  it('[INB-014] describes the searched brief and asks a rung its fingerprint recognises', () => {
+    expect(describeBrief(portalBrief)).toBe(
+      'a vacant plot in KHB Suryanagar Phase'
+    );
+    for (const field of ['type', 'intent', 'budget', 'location'] as const) {
+      expect(askedQualifiers([buildWidenSearchQuestion(field)]), field).toEqual(
+        [field]
+      );
+    }
   });
 });
