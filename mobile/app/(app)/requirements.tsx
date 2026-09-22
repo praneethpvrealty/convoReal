@@ -400,7 +400,7 @@ export default function RequirementsScreen() {
                 Share full detail
               </Text>
             </Pressable>
-            {sharing.classification === 'Buyer' ? (
+            {canEdit && sharing.classification === 'Buyer' ? (
               <Pressable
                 onPress={() => {
                   const row = sharing;
@@ -583,10 +583,18 @@ function RequirementCard({
       {categories || areas ? (
         <View style={styles.chipWrap}>
           {categories?.value.map((c) => (
-            <Tag key={`c-${c}`} label={c} />
+            <PreferenceChip
+              key={`c-${c}`}
+              label={c}
+              ai={categories.source === 'ai'}
+            />
           ))}
           {areas?.value.map((a) => (
-            <Tag key={`a-${a}`} label={`📍 ${a}`} />
+            <PreferenceChip
+              key={`a-${a}`}
+              label={`📍 ${a}`}
+              ai={areas.source === 'ai'}
+            />
           ))}
         </View>
       ) : null}
@@ -666,6 +674,27 @@ function RequirementCard({
   );
 }
 
+function PreferenceChip({ label, ai }: { label: string; ai: boolean }) {
+  const { colors, fonts: f } = useTheme();
+  if (!ai) return <Tag label={label} />;
+  return (
+    <View
+      accessibilityLabel={`${label}, extracted by AI from the demands statement`}
+      style={[
+        styles.aiChip,
+        { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+      ]}
+    >
+      <Ionicons name="sparkles" size={11} color={colors.primary} />
+      <Text
+        style={{ fontFamily: f.medium, fontSize: 12, color: colors.primary }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 function CardAction({
   icon,
   label,
@@ -740,6 +769,15 @@ const styles = StyleSheet.create({
   },
   badges: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  aiChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
   suggestion: {
     flexDirection: 'row',
     alignItems: 'center',
