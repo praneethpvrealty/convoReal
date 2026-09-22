@@ -28,6 +28,7 @@ import {
 } from '@/lib/whatsapp/template-validators'
 import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons'
 import { stampFor } from '@/lib/whatsapp/copy-revision-stamp'
+import { withMetaHeldCategory } from '@/lib/whatsapp/template-category-lock'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
@@ -92,6 +93,28 @@ export async function POST(request: Request) {
       )
     }
 
+    // A draft wears the category it will be submitted under. Meta
+    // fixes a name's category at its first review, so when another
+    // language of this template already reached Meta the draft takes
+    // that category rather than the builder's request — the submit
+    // route would send it that way regardless, and the badge the
+    // reviewer reads should not promise Utility on a Marketing name.
+    const requestedCategory = payload.category
+    const { data: siblings, error: siblingsError } = await supabase
+      .from('message_templates')
+      .select('category, meta_template_id, status')
+      .eq('account_id', accountId)
+      .eq('name', payload.name)
+      .not('meta_template_id', 'is', null)
+    if (siblingsError) {
+      console.error('[templates/draft] category lookup error:', siblingsError)
+      return NextResponse.json(
+        { error: 'Could not confirm the category Meta holds for this template. Try again.' },
+        { status: 500 },
+      )
+    }
+    payload = withMetaHeldCategory(payload, siblings ?? []).payload
+
     const { data, error } = await supabase
       .from('message_templates')
       .insert({
@@ -128,7 +151,20 @@ export async function POST(request: Request) {
       )
     }
 
-    return NextResponse.json({ data: { id: data.id } }, { status: 201 })
+    return NextResponse.json(
+      {
+        data: { id: data.id },
+        ...(payload.category !== requestedCategory
+          ? {
+              category_changed: {
+                requested: requestedCategory,
+                assigned: payload.category,
+              },
+            }
+          : {}),
+      },
+      { status: 201 },
+    )
   } catch (err) {
     return toErrorResponse(err)
   }
