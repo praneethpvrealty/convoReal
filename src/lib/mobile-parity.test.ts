@@ -52,6 +52,7 @@ import {
   areaFilterVariants,
   areaOptionLabel,
   areaOverlapFilter,
+  areaSearchTerms,
   areaSearchVariants,
   areaVariantKey,
   MAX_AREA_FILTER_VARIANTS,
@@ -1314,6 +1315,7 @@ describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', 
     areaFilterVariants: typeof areaFilterVariants;
     areaOptionLabel: typeof areaOptionLabel;
     areaOverlapFilter: typeof areaOverlapFilter;
+    areaSearchTerms: typeof areaSearchTerms;
     areaSearchVariants: typeof areaSearchVariants;
     areaVariantKey: typeof areaVariantKey;
   }>('lib/contact-area-options.ts');
@@ -1381,9 +1383,15 @@ describe('mobile/lib/contact-area-options.ts mirrors the area filter builders', 
       'Praneeth',
       '   ',
       'Café Layout',
+      'buyers in Brookfield',
+      'in brookefield, Bengaluru',
+      '2 bhk near AECS Layout for 1 cr',
+      'around Whitefield with 3 bhk',
+      'from Hosur',
     ];
     for (const term of typed) {
       expect(mobile.areaVariantKey(term), term).toBe(areaVariantKey(term));
+      expect(mobile.areaSearchTerms(term), term).toEqual(areaSearchTerms(term));
       expect(mobile.areaSearchVariants(term, options), term).toEqual(
         areaSearchVariants(term, options)
       );

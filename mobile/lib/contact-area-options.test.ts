@@ -4,6 +4,7 @@ import {
   areaFilterVariants,
   areaOptionLabel,
   areaOverlapFilter,
+  areaSearchTerms,
   areaSearchVariants,
   areaVariantKey,
   MAX_AREA_FILTER_VARIANTS,
@@ -44,6 +45,22 @@ describe('areaSearchVariants', () => {
     ]);
     expect(areaSearchVariants('Praneeth', options)).toEqual([]);
     expect(areaSearchVariants('   ', options)).toEqual([]);
+  });
+
+  it('[CTM-008] reads the locality out of a phrase', () => {
+    expect(areaSearchTerms('buyers in Brookfield')).toEqual([
+      'buyers in Brookfield',
+      'Brookfield',
+    ]);
+    for (const phrase of [
+      'buyers in Brookfield',
+      'at brookefield',
+      'near Brookfield for 2 cr',
+      'around AECS Layout',
+    ]) {
+      expect(areaSearchVariants(phrase, options), phrase).not.toEqual([]);
+    }
+    expect(areaSearchVariants('buyers in Hosur', options)).toEqual([]);
   });
 });
 

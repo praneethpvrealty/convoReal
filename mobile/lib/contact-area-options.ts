@@ -77,14 +77,41 @@ export function areaFilterVariants(
   ).slice(0, MAX_AREA_FILTER_VARIANTS);
 }
 
+/** "buyers in Brookfield", "at AECS Layout", "near Whitefield for 2 cr":
+ *  the locality phrases a search names, the same way the web query
+ *  parser reads them. The whole text is a candidate too, for a bare
+ *  locality. */
+const LOCALITY_PHRASE =
+  /\b(?:in|at|near|around|from)\s+([a-z][a-z\s]{2,40}?)(?=\s+(?:with|for|under|above|below|price|area|bhk|\d)|[,.]|$)/gi;
+
+export function areaSearchTerms(query: string): string[] {
+  const text = query.trim();
+  if (!text) return [];
+  const terms = [text];
+  for (const match of text.matchAll(LOCALITY_PHRASE)) {
+    const phrase = match[1].trim().replace(/\s+/g, ' ');
+    if (phrase.length >= 3) terms.push(phrase);
+  }
+  return Array.from(new Set(terms));
+}
+
+/** The stored spellings a search stands for: every spelling in each
+ *  group the text, or a locality phrase in it, keys to — or nothing
+ *  when no contact carries one, so the caller keeps its plain text
+ *  match. */
 export function areaSearchVariants(
-  term: string,
+  query: string,
   options: AreaOption[]
 ): string[] {
-  const key = areaVariantKey(term);
-  if (!key) return [];
+  const keys = new Set(
+    areaSearchTerms(query)
+      .map((term) => areaVariantKey(term))
+      .filter(Boolean)
+  );
   return areaFilterVariants(
-    options.filter((option) => option.key === key).map((option) => option.key),
+    options
+      .filter((option) => keys.has(option.key))
+      .map((option) => option.key),
     options
   );
 }
