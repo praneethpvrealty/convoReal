@@ -169,6 +169,19 @@
               "case": "[INB-010]"
             }
           ]
+        },
+        {
+          "id": "INB-011",
+          "rule": "A funnel entry keyword buried in a lead’s question never opens the welcome menu: once a listing has been sent to that lead their question is answered from it, a request for a person is always claimed by the handover, and a lead who has been sent nothing is still qualified by the funnel. Entry only — an active flow run still advances.",
+          "tests": [
+            {
+              "file": "src/lib/ai/lead-question.test.ts",
+              "case": "[INB-011]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260922113000_property_shares_contact_index.sql"
+          ]
         }
       ]
     },

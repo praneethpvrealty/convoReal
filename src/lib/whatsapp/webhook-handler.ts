@@ -126,6 +126,7 @@ import {
   looksLikeQuestion,
   mergeLeadAnswers,
   questionSubjectProperties,
+  repliesRatherThanOpens,
   requestsHumanContact,
   subjectPortalListings,
   type LeadAnswer,
@@ -257,6 +258,7 @@ import {
   type WhatsAppCatalogOrder,
 } from '@/lib/whatsapp/property-interest';
 import {
+  hasBeenSentAListing,
   logListingsSent,
   logPropertyShare,
 } from '@/lib/whatsapp/share-property-send';
@@ -3280,8 +3282,31 @@ async function processMessage(
     }
   }
 
+  const inboundText = contentText ?? message.text?.body ?? '';
+
+  // A lead asking us something is replying, not arriving. Suppress flow
+  // ENTRY so a funnel keyword buried in their words — `rent`, in "rent
+  // received per tenant??" — cannot serve the welcome menu to someone
+  // already reading a listing we sent. The question is answered below
+  // from that listing instead. Active runs still advance.
+  const repliesToUs =
+    isTextMessage &&
+    !ownerCheck.isOwner &&
+    repliesRatherThanOpens(inboundText, {
+      // Only a question needs the ledger — a request for a person
+      // outranks funnel entry on its own, and the read is skipped for
+      // every message that opens one normally.
+      listingAlreadySent: looksLikeQuestion(inboundText)
+        ? await hasBeenSentAListing(
+            supabaseAdmin(),
+            accountId,
+            contactRecord.id
+          )
+        : false,
+    });
+
   console.log(
-    `[webhook] Dispatching to flows. accountId=${accountId}, contact=${contactRecord.id}, text="${contentText ?? message.text?.body ?? ''}"`
+    `[webhook] Dispatching to flows. accountId=${accountId}, contact=${contactRecord.id}, text="${inboundText}"`
   );
   const flowResult = await dispatchInboundToFlows({
     accountId,
@@ -3289,7 +3314,10 @@ async function processMessage(
     contactId: contactRecord.id,
     conversationId: conversation.id,
     allowEntry:
-      !isPropertyOwnerSender && !agentHandling && !buyerRequirementMessage,
+      !isPropertyOwnerSender &&
+      !agentHandling &&
+      !buyerRequirementMessage &&
+      !repliesToUs,
     message: interactiveReplyId
       ? {
           kind: 'interactive_reply',
@@ -3299,7 +3327,7 @@ async function processMessage(
         }
       : {
           kind: 'text',
-          text: contentText ?? message.text?.body ?? '',
+          text: inboundText,
           meta_message_id: message.id,
         },
     isFirstInboundMessage,
@@ -3308,8 +3336,6 @@ async function processMessage(
     `[webhook] Flow result: consumed=${flowResult.consumed}, outcome=${flowResult.outcome || 'n/a'}, flow_run_id=${flowResult.flow_run_id || 'n/a'}`
   );
   const flowConsumed = flowResult.consumed;
-
-  const inboundText = contentText ?? message.text?.body ?? '';
 
   if (!flowConsumed && (message.type === 'text' || message.type === 'button')) {
     const agentInventoryHandled = await handleAgentInventoryDetailsRequest({

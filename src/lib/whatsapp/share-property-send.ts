@@ -136,6 +136,36 @@ export async function logListingsSent(
   }
 }
 
+/**
+ * Has this lead ever been sent a listing?
+ *
+ * The read side of the ledger above. Cheap enough to ask on an inbound,
+ * because it decides whether a question is about something we put in
+ * front of them — and so whether the welcome funnel has any business
+ * answering it.
+ */
+export async function hasBeenSentAListing(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string
+): Promise<boolean> {
+  const { data, error } = await db
+    .from('property_shares')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error(
+      '[share-property-send] share ledger read failed:',
+      error.message
+    );
+    return false;
+  }
+  return Boolean(data);
+}
+
 /** Renders a template body with its params, for the persisted text. */
 function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
   return bodyTemplateText.replace(/\{\{(\d+)\}\}/g, (match, numberStr) => {
