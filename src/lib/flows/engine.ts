@@ -1182,11 +1182,34 @@ async function isDuplicateInbound(
   return (count ?? 0) > 0;
 }
 
+/** Has this contact already been through this flow? */
+async function hasRunBefore(
+  db: AdminClient,
+  accountId: string,
+  flowId: string,
+  contactId: string,
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("flow_runs")
+    .select("id")
+    .eq("account_id", accountId)
+    .eq("flow_id", flowId)
+    .eq("contact_id", contactId)
+    .limit(1);
+  if (error) {
+    console.error("[flows] hasRunBefore error:", error.message);
+    return false;
+  }
+  return ((data as unknown[] | null) ?? []).length > 0;
+}
+
 async function findEntryFlow(
   db: AdminClient,
   accountId: string,
+  contactId: string,
   message: ParsedInbound,
   isFirstInbound: boolean,
+  repliesRatherThanOpens: boolean,
 ): Promise<FlowRow | null> {
   // Text messages and interactive button replies can match entry triggers.
   // Interactive list replies are excluded — they advance existing flows.
@@ -1234,6 +1257,13 @@ async function findEntryFlow(
       const matched = matchesKeywordTrigger(matchText, cfg);
       console.log(`[flows][findEntryFlow]   Match result: ${matched}`);
       if (matched) {
+        if (
+          repliesRatherThanOpens &&
+          (await hasRunBefore(db, accountId, flow.id, contactId))
+        ) {
+          console.log(`[flows][findEntryFlow]   Skipped: this contact has already been through this flow and the message replies rather than opens`);
+          continue;
+        }
         return flow;
       }
     } else if (flow.trigger_type === "first_inbound_message" && isFirstInbound) {
@@ -2217,8 +2247,10 @@ export async function dispatchInboundToFlows(
     const flow = await findEntryFlow(
       db,
       input.accountId,
+      input.contactId,
       input.message,
       input.isFirstInboundMessage,
+      input.repliesRatherThanOpens === true,
     );
     if (!flow || !flow.entry_node_id) {
       console.log(`${logPrefix} No matching flow found.`);

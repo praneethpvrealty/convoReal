@@ -172,10 +172,14 @@
         },
         {
           "id": "INB-011",
-          "rule": "A funnel entry keyword buried in a lead’s question never opens the welcome menu: once a listing has been sent to that lead their question is answered from it, a request for a person is always claimed by the handover, and a lead who has been sent nothing is still qualified by the funnel. Entry only — an active flow run still advances.",
+          "rule": "A funnel keyword buried in a lead’s text question never restarts a flow that lead has already been through: once a listing has been sent to them, or they ask for a person, the matched flow is skipped and the question is answered from that listing instead. A flow they have never entered still opens on its own keyword, and a lead who has been sent nothing is still qualified by the funnel. Entry only — an active run still advances.",
           "tests": [
             {
               "file": "src/lib/ai/lead-question.test.ts",
+              "case": "[INB-011]"
+            },
+            {
+              "file": "src/lib/flows/entry-reentry.test.ts",
               "case": "[INB-011]"
             }
           ],

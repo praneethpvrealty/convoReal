@@ -136,14 +136,8 @@ export async function logListingsSent(
   }
 }
 
-/**
- * Has this lead ever been sent a listing?
- *
- * The read side of the ledger above. Cheap enough to ask on an inbound,
- * because it decides whether a question is about something we put in
- * front of them — and so whether the welcome funnel has any business
- * answering it.
- */
+/** Has this lead ever been sent a listing? The read side of the ledger
+ *  above, cheap enough to ask on an inbound. */
 export async function hasBeenSentAListing(
   db: SupabaseClient,
   accountId: string,

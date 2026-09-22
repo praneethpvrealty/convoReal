@@ -3284,18 +3284,10 @@ async function processMessage(
 
   const inboundText = contentText ?? message.text?.body ?? '';
 
-  // A lead asking us something is replying, not arriving. Suppress flow
-  // ENTRY so a funnel keyword buried in their words — `rent`, in "rent
-  // received per tenant??" — cannot serve the welcome menu to someone
-  // already reading a listing we sent. The question is answered below
-  // from that listing instead. Active runs still advance.
   const repliesToUs =
     isTextMessage &&
     !ownerCheck.isOwner &&
     repliesRatherThanOpens(inboundText, {
-      // Only a question needs the ledger — a request for a person
-      // outranks funnel entry on its own, and the read is skipped for
-      // every message that opens one normally.
       listingAlreadySent: looksLikeQuestion(inboundText)
         ? await hasBeenSentAListing(
             supabaseAdmin(),
@@ -3314,10 +3306,8 @@ async function processMessage(
     contactId: contactRecord.id,
     conversationId: conversation.id,
     allowEntry:
-      !isPropertyOwnerSender &&
-      !agentHandling &&
-      !buyerRequirementMessage &&
-      !repliesToUs,
+      !isPropertyOwnerSender && !agentHandling && !buyerRequirementMessage,
+    repliesRatherThanOpens: repliesToUs,
     message: interactiveReplyId
       ? {
           kind: 'interactive_reply',

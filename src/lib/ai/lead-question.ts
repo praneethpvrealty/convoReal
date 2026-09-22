@@ -231,24 +231,8 @@ export function requestsHumanContact(text?: string | null): boolean {
 
 /**
  * Is this a reply to a conversation already under way, rather than a
- * message opening one?
- *
- * Funnel entry keywords — hi, buy, rent, properties — are written for
- * openers, and a whole-word match is all they check. A buyer who had
- * just been sent a commercial building's card asked "Who are the
- * tenants and rent received per tenant??", `rent` matched, and the
- * welcome menu went out underneath four specific questions about the
- * listing they were reading.
- *
- * Two shapes outrank funnel entry. A question, but only once a listing
- * has actually been sent to this lead: that is the same share ledger
- * the Q&A answers from, so suppressing entry hands the message to
- * something that can do better with it, while a lead who has been sent
- * nothing still gets qualified by the funnel. And a request for a
- * person, always — nobody asking to be called is served a menu.
- *
- * Entry only. An active run still advances, because a lead mid-answer
- * is expecting the next question.
+ * message opening one? A question counts only once a listing has been
+ * sent to this lead — that is the share ledger the Q&A answers from.
  */
 export function repliesRatherThanOpens(
   text: string | null | undefined,
