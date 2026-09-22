@@ -25,10 +25,11 @@ than a written entry. Newest first.
   click had got through to Meta (and been approved) and a failed retry
   then overwrote the local row back to an unsubmitted draft. When Meta
   refuses a create because the language exists, the submit route now
-  looks up the variant Meta holds and adopts its id, status and
-  category. A refused submit no longer rewrites a row Meta already
-  holds; it only records the error. And the submit buttons ignore a
-  second click while the first is in flight.
+  looks up the variant Meta holds and adopts its id, status, category
+  and wording, exactly as Sync from Meta would. A refused submit no
+  longer rewrites a row Meta already holds; it only records the error.
+  And every submit button ignores a second click while the first is in
+  flight.
 
 - **The Requirements page search matches areas, spellings merged.** The
   search box on Requirements now looks at each brief's areas as well as

@@ -344,7 +344,8 @@ export function TemplateManager() {
   async function handleSubmit() {
     // AUTHENTICATION is blocked by the persistent banner + disabled
     // submit button; this is a defensive second line of defense.
-    if (form.category === 'Authentication') return;
+    if (form.category === 'Authentication' || submitLockRef.current) return;
+    submitLockRef.current = true;
     try {
       setSubmitting(true);
       const isEdit = isEditingSubmittedTemplate;
@@ -386,6 +387,7 @@ export function TemplateManager() {
       console.error('Submit error:', err);
       toast.error(err instanceof Error ? err.message : 'Failed to submit');
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   }

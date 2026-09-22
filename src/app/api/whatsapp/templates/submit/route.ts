@@ -23,6 +23,7 @@ import {
 } from '@/lib/whatsapp/template-status-normalize'
 import { stampFor } from '@/lib/whatsapp/copy-revision-stamp'
 import { withMetaHeldCategory } from '@/lib/whatsapp/template-category-lock'
+import { metaTemplatePayloadFields } from '@/lib/whatsapp/meta-template-row'
 import {
   requiresTranslationReview,
   isTranslationReviewed,
@@ -148,14 +149,21 @@ async function recordSubmissionFailure(
   payload: TemplatePayload,
   message: string,
 ) {
-  const { data: existing } = await supabase
+  // Every row for this (name, language) in the account, not one: the
+  // unique index is per user, so teammates can each hold one, and a
+  // lookup that fails must not fall through to the draft upsert.
+  const { data: rows, error: lookupError } = await supabase
     .from('message_templates')
     .select('id, meta_template_id')
     .eq('account_id', accountId)
     .eq('name', payload.name)
     .eq('language', payload.language)
-    .maybeSingle()
-  if (existing?.meta_template_id) {
+  if (lookupError) {
+    console.error('[templates/submit] failure lookup error:', lookupError)
+    return
+  }
+  const held = (rows ?? []).find((r) => r.meta_template_id)
+  if (held) {
     await supabase
       .from('message_templates')
       // eslint-disable-next-line convoreal/supabase-write-guard
@@ -163,7 +171,7 @@ async function recordSubmissionFailure(
         submission_error: message,
         last_submitted_at: new Date().toISOString(),
       })
-      .eq('id', existing.id)
+      .eq('id', held.id)
     return
   }
   await upsertTemplateRow(
@@ -387,6 +395,9 @@ export async function POST(request: Request) {
             }).catch(() => null)
           : null
         if (held) {
+          // Adopt Meta's words too: the local payload may be a later
+          // rewording that Meta never accepted.
+          payload = { ...payload, ...metaTemplatePayloadFields(held) }
           metaTemplateId = held.id
           metaStatus = held.status
           metaCategory = held.category ? normalizeCategory(held.category) : null

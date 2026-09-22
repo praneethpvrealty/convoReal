@@ -220,8 +220,18 @@ describe('POST /api/whatsapp/templates/submit', () => {
     );
     findMessageTemplate.mockResolvedValue({
       id: 'meta-kn-existing',
+      name: 'contact_number_update',
+      language: 'kn',
       status: 'APPROVED',
       category: 'MARKETING',
+      components: [
+        { type: 'BODY', text: 'ಮೆಟಾ ಹಿಡಿದಿರುವ ಪದಗಳು {{1}}' },
+        { type: 'FOOTER', text: 'ನಿಲ್ಲಿಸಲು STOP' },
+        {
+          type: 'BUTTONS',
+          buttons: [{ type: 'QUICK_REPLY', text: 'ಸರಿ' }],
+        },
+      ],
     });
     queues['message_templates'] = [
       {
@@ -253,7 +263,28 @@ describe('POST /api/whatsapp/templates/submit', () => {
       status: 'APPROVED',
       category: 'Marketing',
       submission_error: null,
+      body_text: 'ಮೆಟಾ ಹಿಡಿದಿರುವ ಪದಗಳು {{1}}',
+      footer_text: 'ನಿಲ್ಲಿಸಲು STOP',
+      buttons: [{ type: 'QUICK_REPLY', text: 'ಸರಿ' }],
     });
+  });
+
+  it('[CLG-005] writes nothing when the failure lookup itself errors', async () => {
+    submitMessageTemplate.mockRejectedValue(
+      new Error('[Error 100] Something else')
+    );
+    queues['message_templates'] = [
+      { data: [] },
+      REVIEWED,
+      { data: null, error: { message: 'duplicate rows' } },
+    ];
+    queues['whatsapp_config'] = [CONFIG];
+
+    const res = await POST(makeRequest(buildNumberChangeTemplatePayload('kn')));
+
+    expect(res.status).toBe(502);
+    expect(inserts).toHaveLength(0);
+    expect(updates).toHaveLength(0);
   });
 
   it('[CLG-005] a refused submit never drags a Meta-held row back to draft', async () => {
@@ -263,7 +294,12 @@ describe('POST /api/whatsapp/templates/submit', () => {
     queues['message_templates'] = [
       { data: [] },
       REVIEWED,
-      { data: { id: 'row-kn', meta_template_id: 'meta-kn' } },
+      {
+        data: [
+          { id: 'row-kn-teammate', meta_template_id: null },
+          { id: 'row-kn', meta_template_id: 'meta-kn' },
+        ],
+      },
       { data: null },
     ];
     queues['whatsapp_config'] = [CONFIG];

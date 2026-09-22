@@ -804,6 +804,7 @@ export async function sendTemplateMessage(
 // ============================================================
 
 import type { MetaTemplateSubmitPayload } from './template-components'
+import type { MetaTemplate } from './meta-template-row'
 
 export interface SubmitMessageTemplateArgs {
   wabaId: string
@@ -865,18 +866,19 @@ export interface FindMessageTemplateArgs {
 }
 
 /**
- * The variant Meta holds for this (name, language), or null. Used to
- * recover when a create is refused because the language already
- * exists — Meta accepted an earlier submission the local row never
- * recorded — so the row can adopt what Meta has instead of failing.
+ * The variant Meta holds for this (name, language), components
+ * included, or null. Used to recover when a create is refused because
+ * the language already exists — Meta accepted an earlier submission
+ * the local row never recorded — so the row can adopt what Meta has,
+ * words included, instead of failing or keeping the refused words.
  */
 export async function findMessageTemplate(
   args: FindMessageTemplateArgs
-): Promise<SubmitMessageTemplateResult | null> {
+): Promise<MetaTemplate | null> {
   const { wabaId, accessToken, name, language } = args
   const params = new URLSearchParams({
     name,
-    fields: 'id,name,language,status,category',
+    fields: 'id,name,language,status,category,components,quality_score',
     limit: '50',
   })
   const response = await fetch(
@@ -886,18 +888,11 @@ export async function findMessageTemplate(
   if (!response.ok) {
     await throwMetaError(response, `Meta API error: ${response.status}`)
   }
-  const data = (await response.json()) as {
-    data?: Array<{ id: string; name: string; language: string; status?: string; category?: string }>
-  }
+  const data = (await response.json()) as { data?: MetaTemplate[] }
   const match = (data.data ?? []).find(
     (t) => t.name === name && t.language === language
   )
-  if (!match) return null
-  return {
-    id: String(match.id),
-    status: typeof match.status === 'string' ? match.status : 'PENDING',
-    category: typeof match.category === 'string' ? match.category : undefined,
-  }
+  return match ? { ...match, id: String(match.id) } : null
 }
 
 export interface UploadSampleMediaArgs {
