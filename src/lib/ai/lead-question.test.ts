@@ -15,6 +15,7 @@ import {
   answerFromSellerFinalPrice,
   answerFromPortalListing,
   looksLikeQuestion,
+  quickReplyHumanRequest,
   repliesRatherThanOpens,
   requestsHumanContact,
   HANDOVER_TEXT,
@@ -170,6 +171,55 @@ describe('repliesRatherThanOpens', () => {
         String(text)
       ).toBe(false);
     }
+  });
+});
+
+describe('quickReplyHumanRequest', () => {
+  it('[INB-011] reads a quick-reply tap asking for a person as a callback request', async () => {
+    for (const text of [
+      'Talk to someone',
+      'Call me back',
+      'Speak to an agent',
+    ]) {
+      const label = quickReplyHumanRequest({
+        type: 'button',
+        button: { text },
+      });
+      expect(label, text).toBe(text);
+      expect(
+        repliesRatherThanOpens(label, { listingAlreadySent: false }),
+        text
+      ).toBe(true);
+      await expect(
+        answerLeadQuestion({
+          accountId: 'acct-1',
+          question: label!,
+          property: null,
+        })
+      ).resolves.toEqual({ text: CALLBACK_HANDOVER_TEXT, source: 'handover' });
+    }
+  });
+
+  it('[INB-011] leaves every other quick-reply label to the handlers that own it', () => {
+    for (const text of [
+      'More info?',
+      'Send more details',
+      'Close my enquiry',
+      '',
+    ]) {
+      expect(
+        quickReplyHumanRequest({ type: 'button', button: { text } }),
+        text
+      ).toBeNull();
+    }
+    expect(quickReplyHumanRequest({ type: 'button' })).toBeNull();
+  });
+
+  it('[INB-011] is only about template taps, not typed text', () => {
+    expect(
+      quickReplyHumanRequest({ type: 'text', button: { text: 'Call me back' } })
+    ).toBeNull();
+    expect(quickReplyHumanRequest({ type: 'interactive' })).toBeNull();
   });
 });
 
