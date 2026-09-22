@@ -18,7 +18,9 @@ interface QueuedResponse {
 let queues: Record<string, QueuedResponse[]>;
 let inserts: Array<{ table: string; row: Record<string, unknown> }>;
 let filters: Array<{ table: string; op: string; args: unknown[] }>;
+let updates: Array<{ table: string; row: Record<string, unknown> }>;
 const submitMessageTemplate = vi.fn();
+const findMessageTemplate = vi.fn();
 
 function next(table: string): QueuedResponse {
   return (queues[table] ?? []).shift() ?? { data: null, error: null };
@@ -41,7 +43,10 @@ function makeDb() {
           inserts.push({ table, row: row as Record<string, unknown> });
           return builder;
         },
-        update: () => builder,
+        update: (row: unknown) => {
+          updates.push({ table, row: row as Record<string, unknown> });
+          return builder;
+        },
         single: () => Promise.resolve(next(table)),
         maybeSingle: () => Promise.resolve(next(table)),
         then: (resolve: unknown, reject: unknown) =>
@@ -70,6 +75,7 @@ vi.mock('@/lib/auth/account', () => ({
 
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   submitMessageTemplate: (...args: unknown[]) => submitMessageTemplate(...args),
+  findMessageTemplate: (...args: unknown[]) => findMessageTemplate(...args),
   uploadSampleMedia: vi.fn(),
 }));
 
@@ -101,6 +107,9 @@ beforeEach(() => {
   queues = {};
   inserts = [];
   filters = [];
+  updates = [];
+  findMessageTemplate.mockReset();
+  findMessageTemplate.mockResolvedValue(null);
   submitMessageTemplate.mockReset();
   submitMessageTemplate.mockResolvedValue({
     id: 'meta-kn',
@@ -201,6 +210,110 @@ describe('POST /api/whatsapp/templates/submit', () => {
       requested: 'Utility',
       assigned: 'Marketing',
     });
+  });
+
+  it('[CLG-005] adopts the variant Meta already holds when the create is refused as existing', async () => {
+    submitMessageTemplate.mockRejectedValue(
+      new Error(
+        '[Error 100] Invalid parameter: There is already Kannada content for this template. You can create a new template and try again. (Content in this language already exists)'
+      )
+    );
+    findMessageTemplate.mockResolvedValue({
+      id: 'meta-kn-existing',
+      name: 'contact_number_update',
+      language: 'kn',
+      status: 'APPROVED',
+      category: 'MARKETING',
+      components: [
+        { type: 'BODY', text: 'ಮೆಟಾ ಹಿಡಿದಿರುವ ಪದಗಳು {{1}}' },
+        { type: 'FOOTER', text: 'ನಿಲ್ಲಿಸಲು STOP' },
+        {
+          type: 'BUTTONS',
+          buttons: [{ type: 'QUICK_REPLY', text: 'ಸರಿ' }],
+        },
+      ],
+    });
+    queues['message_templates'] = [
+      {
+        data: [
+          {
+            category: 'Marketing',
+            meta_template_id: 'meta-en',
+            status: 'APPROVED',
+          },
+        ],
+      },
+      REVIEWED,
+      { data: null },
+      { data: { id: 'row-kn', status: 'APPROVED' } },
+    ];
+    queues['whatsapp_config'] = [CONFIG];
+
+    const res = await POST(makeRequest(buildNumberChangeTemplatePayload('kn')));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(findMessageTemplate.mock.calls[0][0]).toMatchObject({
+      name: 'contact_number_update',
+      language: 'kn',
+    });
+    expect(inserts[0].row).toMatchObject({
+      meta_template_id: 'meta-kn-existing',
+      status: 'APPROVED',
+      category: 'Marketing',
+      submission_error: null,
+      body_text: 'ಮೆಟಾ ಹಿಡಿದಿರುವ ಪದಗಳು {{1}}',
+      footer_text: 'ನಿಲ್ಲಿಸಲು STOP',
+      buttons: [{ type: 'QUICK_REPLY', text: 'ಸರಿ' }],
+    });
+  });
+
+  it('[CLG-005] writes nothing when the failure lookup itself errors', async () => {
+    submitMessageTemplate.mockRejectedValue(
+      new Error('[Error 100] Something else')
+    );
+    queues['message_templates'] = [
+      { data: [] },
+      REVIEWED,
+      { data: null, error: { message: 'duplicate rows' } },
+    ];
+    queues['whatsapp_config'] = [CONFIG];
+
+    const res = await POST(makeRequest(buildNumberChangeTemplatePayload('kn')));
+
+    expect(res.status).toBe(502);
+    expect(inserts).toHaveLength(0);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('[CLG-005] a refused submit never drags a Meta-held row back to draft', async () => {
+    submitMessageTemplate.mockRejectedValue(
+      new Error('[Error 100] Something else')
+    );
+    queues['message_templates'] = [
+      { data: [] },
+      REVIEWED,
+      {
+        data: [
+          { id: 'row-kn-teammate', meta_template_id: null },
+          { id: 'row-kn', meta_template_id: 'meta-kn' },
+        ],
+      },
+      { data: null },
+    ];
+    queues['whatsapp_config'] = [CONFIG];
+
+    const res = await POST(makeRequest(buildNumberChangeTemplatePayload('kn')));
+
+    expect(res.status).toBe(502);
+    expect(inserts).toHaveLength(0);
+    expect(updates).toHaveLength(1);
+    expect(updates[0].row).toMatchObject({
+      submission_error: '[Error 100] Something else',
+    });
+    expect(updates[0].row).not.toHaveProperty('status');
+    expect(updates[0].row).not.toHaveProperty('meta_template_id');
   });
 
   it('[CLG-003] refuses to submit when the Meta-held category cannot be confirmed', async () => {

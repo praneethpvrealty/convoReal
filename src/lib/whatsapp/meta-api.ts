@@ -804,6 +804,7 @@ export async function sendTemplateMessage(
 // ============================================================
 
 import type { MetaTemplateSubmitPayload } from './template-components'
+import type { MetaTemplate } from './meta-template-row'
 
 export interface SubmitMessageTemplateArgs {
   wabaId: string
@@ -855,6 +856,43 @@ export async function submitMessageTemplate(
     status: typeof data.status === 'string' ? data.status : 'PENDING',
     category: typeof data.category === 'string' ? data.category : undefined,
   }
+}
+
+export interface FindMessageTemplateArgs {
+  wabaId: string
+  accessToken: string
+  name: string
+  language: string
+}
+
+/**
+ * The variant Meta holds for this (name, language), components
+ * included, or null. Used to recover when a create is refused because
+ * the language already exists — Meta accepted an earlier submission
+ * the local row never recorded — so the row can adopt what Meta has,
+ * words included, instead of failing or keeping the refused words.
+ */
+export async function findMessageTemplate(
+  args: FindMessageTemplateArgs
+): Promise<MetaTemplate | null> {
+  const { wabaId, accessToken, name, language } = args
+  const params = new URLSearchParams({
+    name,
+    fields: 'id,name,language,status,category,components,quality_score',
+    limit: '50',
+  })
+  const response = await fetch(
+    `${META_API_BASE}/${wabaId}/message_templates?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  )
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API error: ${response.status}`)
+  }
+  const data = (await response.json()) as { data?: MetaTemplate[] }
+  const match = (data.data ?? []).find(
+    (t) => t.name === name && t.language === language
+  )
+  return match ? { ...match, id: String(match.id) } : null
 }
 
 export interface UploadSampleMediaArgs {

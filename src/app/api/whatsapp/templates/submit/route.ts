@@ -7,6 +7,7 @@ import {
 } from '@/lib/auth/account'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
+  findMessageTemplate,
   submitMessageTemplate,
   uploadSampleMedia,
 } from '@/lib/whatsapp/meta-api'
@@ -22,6 +23,7 @@ import {
 } from '@/lib/whatsapp/template-status-normalize'
 import { stampFor } from '@/lib/whatsapp/copy-revision-stamp'
 import { withMetaHeldCategory } from '@/lib/whatsapp/template-category-lock'
+import { metaTemplatePayloadFields } from '@/lib/whatsapp/meta-template-row'
 import {
   requiresTranslationReview,
   isTranslationReviewed,
@@ -123,6 +125,63 @@ async function upsertTemplateRow(
       .select()
       .single()
   }
+}
+
+/**
+ * Meta refusing a create because this language already exists means
+ * an earlier submission got through and the local row never learnt
+ * of it (a retry racing the first request, or a save that failed).
+ */
+const LANGUAGE_EXISTS_RE =
+  /already exists|already .*content for this template|content in this language already exists/i
+
+/**
+ * Record a refused submit without losing what Meta holds. A row that
+ * already carries a meta_template_id is Meta's record — pending,
+ * approved, whatever — and a failed retry must not drag it back to a
+ * local DRAFT with no id, which is how an approved translation came
+ * to read as an unsubmitted draft.
+ */
+async function recordSubmissionFailure(
+  supabase: SupabaseClient,
+  accountId: string,
+  userId: string,
+  payload: TemplatePayload,
+  message: string,
+) {
+  // Every row for this (name, language) in the account, not one: the
+  // unique index is per user, so teammates can each hold one, and a
+  // lookup that fails must not fall through to the draft upsert.
+  const { data: rows, error: lookupError } = await supabase
+    .from('message_templates')
+    .select('id, meta_template_id')
+    .eq('account_id', accountId)
+    .eq('name', payload.name)
+    .eq('language', payload.language)
+  if (lookupError) {
+    console.error('[templates/submit] failure lookup error:', lookupError)
+    return
+  }
+  const held = (rows ?? []).find((r) => r.meta_template_id)
+  if (held) {
+    await supabase
+      .from('message_templates')
+      // eslint-disable-next-line convoreal/supabase-write-guard
+      .update({
+        submission_error: message,
+        last_submitted_at: new Date().toISOString(),
+      })
+      .eq('id', held.id)
+    return
+  }
+  await upsertTemplateRow(
+    supabase,
+    buildUpsertRow(accountId, userId, payload, {
+      status: 'DRAFT',
+      metaTemplateId: null,
+      submissionError: message,
+    }),
+  )
 }
 
 /**
@@ -323,25 +382,43 @@ export async function POST(request: Request) {
         metaCategory = meta.category ? normalizeCategory(meta.category) : null
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Meta submit failed.'
-        // Persist the failure so the user can retry; row stays DRAFT
-        // until they fix and re-submit.
-        await upsertTemplateRow(
-          supabase,
-          buildUpsertRow(accountId, userId, payload, {
-            status: 'DRAFT',
-            metaTemplateId: null,
-            submissionError: message,
-          }),
-        )
-        const isRateLimit = /\b429\b/.test(message)
-        return NextResponse.json(
-          {
-            error: isRateLimit
-              ? 'Meta rate limit hit (100 template creates per hour). Try again later.'
-              : message,
-          },
-          { status: isRateLimit ? 429 : 502 },
-        )
+        // "Already exists" is not a failure to record: Meta has the
+        // variant, so adopt it. The row ends up exactly as a sync would
+        // leave it, and the reviewer is not told to create a new
+        // template for words Meta already approved.
+        const held = LANGUAGE_EXISTS_RE.test(message)
+          ? await findMessageTemplate({
+              wabaId: config.waba_id,
+              accessToken,
+              name: payload.name,
+              language: payload.language,
+            }).catch(() => null)
+          : null
+        if (held) {
+          // Adopt Meta's words too: the local payload may be a later
+          // rewording that Meta never accepted.
+          payload = { ...payload, ...metaTemplatePayloadFields(held) }
+          metaTemplateId = held.id
+          metaStatus = held.status
+          metaCategory = held.category ? normalizeCategory(held.category) : null
+        } else {
+          await recordSubmissionFailure(
+            supabase,
+            accountId,
+            userId,
+            payload,
+            message,
+          )
+          const isRateLimit = /\b429\b/.test(message)
+          return NextResponse.json(
+            {
+              error: isRateLimit
+                ? 'Meta rate limit hit (100 template creates per hour). Try again later.'
+                : message,
+            },
+            { status: isRateLimit ? 429 : 502 },
+          )
+        }
       }
     }
 

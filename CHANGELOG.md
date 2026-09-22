@@ -19,6 +19,18 @@ than a written entry. Newest first.
 
 #### 22 September 2026
 
+- **A translation Meta already holds is adopted, not refused.** Submitting
+  the Kannada `post_call_options` failed with "There is already Kannada
+  content for this template" while the row still read Draft: an earlier
+  click had got through to Meta (and been approved) and a failed retry
+  then overwrote the local row back to an unsubmitted draft. When Meta
+  refuses a create because the language exists, the submit route now
+  looks up the variant Meta holds and adopts its id, status, category
+  and wording, exactly as Sync from Meta would. A refused submit no
+  longer rewrites a row Meta already holds; it only records the error.
+  And every submit button ignores a second click while the first is in
+  flight.
+
 - **The Requirements page search matches areas, spellings merged.** The
   search box on Requirements now looks at each brief's areas as well as
   the client, phone, requirement text and notes, and a typed locality
