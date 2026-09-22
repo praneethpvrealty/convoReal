@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { EmptyState, FilterChip, SearchBar } from '@/components/ui';
+import { areasMatchSearch } from '@/lib/contact-area-options';
 import {
   fetchRequirementShares,
   requirementBudget,
@@ -36,18 +37,21 @@ export default function SharedRequirementsScreen() {
   const shown = useMemo(() => {
     const value = search.trim().toLowerCase();
     if (!value) return query.data ?? [];
-    return (query.data ?? []).filter((share) =>
-      [
-        share.reference,
-        share.senderName,
-        share.senderAccountName,
-        share.brief.requirements,
-        ...share.brief.areas,
-        ...share.brief.projects,
-        ...share.brief.propertyTypes,
-      ]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(value))
+    return (query.data ?? []).filter(
+      (share) =>
+        [
+          share.reference,
+          share.senderName,
+          share.senderAccountName,
+          share.brief.requirements,
+          ...share.brief.areas,
+          ...share.brief.projects,
+          ...share.brief.propertyTypes,
+        ]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(value)) ||
+        // Web parity: a typed locality stands for every spelling of it.
+        areasMatchSearch(search, share.brief.areas)
     );
   }, [query.data, search]);
 
@@ -99,7 +103,9 @@ export default function SharedRequirementsScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="swap-horizontal-outline"
-              title={search ? 'No matching requirements' : `No ${box} requirements`}
+              title={
+                search ? 'No matching requirements' : `No ${box} requirements`
+              }
               subtitle={
                 box === 'received'
                   ? 'Masked briefs shared directly with your account appear here.'
@@ -147,7 +153,9 @@ function ShareCard({
     >
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: colors.text, fontFamily: f.bold, fontSize: 15 }}>
+          <Text
+            style={{ color: colors.text, fontFamily: f.bold, fontSize: 15 }}
+          >
             {share.reference}
           </Text>
           <Text
@@ -162,7 +170,9 @@ function ShareCard({
           </Text>
         </View>
         <View style={[styles.status, { backgroundColor: colors.primarySoft }]}>
-          <Text style={{ color: colors.primary, fontFamily: f.bold, fontSize: 10 }}>
+          <Text
+            style={{ color: colors.primary, fontFamily: f.bold, fontSize: 10 }}
+          >
             {requirementShareStatus(share.status).toUpperCase()}
           </Text>
         </View>
@@ -178,11 +188,19 @@ function ShareCard({
       ) : null}
 
       <View style={styles.row}>
-        <Text style={{ color: colors.primary, fontFamily: f.semibold, fontSize: 12 }}>
+        <Text
+          style={{
+            color: colors.primary,
+            fontFamily: f.semibold,
+            fontSize: 12,
+          }}
+        >
           {requirementBudget(share.brief)}
         </Text>
         {share.responseCount > 0 ? (
-          <Text style={{ color: colors.success, fontFamily: f.bold, fontSize: 12 }}>
+          <Text
+            style={{ color: colors.success, fontFamily: f.bold, fontSize: 12 }}
+          >
             {share.responseCount} match{share.responseCount === 1 ? '' : 'es'}
           </Text>
         ) : (
@@ -190,7 +208,10 @@ function ShareCard({
         )}
       </View>
       {share.brief.areas.length ? (
-        <Text numberOfLines={1} style={{ color: colors.textFaint, fontSize: 11.5 }}>
+        <Text
+          numberOfLines={1}
+          style={{ color: colors.textFaint, fontSize: 11.5 }}
+        >
           {share.brief.areas.join(', ')}
         </Text>
       ) : null}
@@ -215,5 +236,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
-  status: { borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 4 },
+  status: {
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
 });

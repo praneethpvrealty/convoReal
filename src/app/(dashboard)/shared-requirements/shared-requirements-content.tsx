@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { areasMatchSearch } from '@/lib/contacts/area-variants';
 
 type Box = 'received' | 'sent';
 type ShareStatus = 'sent' | 'viewed' | 'responded' | 'declined';
@@ -115,10 +116,10 @@ function BriefBlock({ brief }: { brief: Brief }) {
   return (
     <div className="space-y-2 text-sm text-slate-300">
       {brief.requirements ? (
-        <p className="whitespace-pre-wrap leading-6">{brief.requirements}</p>
+        <p className="leading-6 whitespace-pre-wrap">{brief.requirements}</p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+        <span className="bg-primary/10 text-primary rounded-full px-2.5 py-1 text-xs font-semibold">
           {budget(brief)}
         </span>
         {brief.propertyTypes.map((type) => (
@@ -156,7 +157,9 @@ export function SharedRequirementsContent({
   const [box, setBox] = useState<Box>(initialBox);
   const [selectedId, setSelectedId] = useState<string | null>(initialShareId);
   const [search, setSearch] = useState('');
-  const [selectedProperties, setSelectedProperties] = useState<string[] | null>(null);
+  const [selectedProperties, setSelectedProperties] = useState<string[] | null>(
+    null
+  );
   const [note, setNote] = useState('');
 
   const list = useQuery({
@@ -187,17 +190,14 @@ export function SharedRequirementsContent({
     mutationFn: async () => {
       if (!selectedId) throw new Error('Select a requirement');
       return readJson<{ data: { responseCount: number } }>(
-        await fetch(
-          `/api/requirement-account-shares/${selectedId}/respond`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              property_ids: selectedPropertyIds,
-              note,
-            }),
-          }
-        )
+        await fetch(`/api/requirement-account-shares/${selectedId}/respond`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            property_ids: selectedPropertyIds,
+            note,
+          }),
+        })
       );
     },
     onSuccess: async () => {
@@ -242,18 +242,22 @@ export function SharedRequirementsContent({
   const shown = useMemo(() => {
     const value = search.trim().toLowerCase();
     if (!value) return list.data ?? [];
-    return (list.data ?? []).filter((share) =>
-      [
-        share.reference,
-        share.senderName,
-        share.senderAccountName,
-        share.brief.requirements,
-        ...share.brief.areas,
-        ...share.brief.projects,
-        ...share.brief.propertyTypes,
-      ]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(value))
+    return (list.data ?? []).filter(
+      (share) =>
+        [
+          share.reference,
+          share.senderName,
+          share.senderAccountName,
+          share.brief.requirements,
+          ...share.brief.areas,
+          ...share.brief.projects,
+          ...share.brief.propertyTypes,
+        ]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(value)) ||
+        // A typed locality stands for every spelling of it, as on the
+        // Contacts and Requirements searches.
+        areasMatchSearch(search, share.brief.areas)
     );
   }, [list.data, search]);
 
@@ -263,7 +267,7 @@ export function SharedRequirementsContent({
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-black text-white">
-            <Inbox className="size-6 text-primary" />
+            <Inbox className="text-primary size-6" />
             Shared Requirements
           </h1>
           <p className="mt-1 text-sm text-slate-400">
@@ -300,7 +304,7 @@ export function SharedRequirementsContent({
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500" />
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -311,7 +315,7 @@ export function SharedRequirementsContent({
 
       {list.isPending ? (
         <div className="flex min-h-48 items-center justify-center">
-          <Loader2 className="size-6 animate-spin text-primary" />
+          <Loader2 className="text-primary size-6 animate-spin" />
         </div>
       ) : list.isError ? (
         <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-5 text-sm text-rose-300">
@@ -342,7 +346,7 @@ export function SharedRequirementsContent({
                 setSelectedProperties(null);
                 setNote('');
               }}
-              className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 text-left transition-colors hover:border-primary/40 hover:bg-slate-900"
+              className="hover:border-primary/40 rounded-2xl border border-slate-800 bg-slate-900/50 p-4 text-left transition-colors hover:bg-slate-900"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -353,7 +357,7 @@ export function SharedRequirementsContent({
                     {share.senderName ? ` · ${share.senderName}` : ''}
                   </p>
                 </div>
-                <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-300">
+                <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] font-bold tracking-wide text-slate-300 uppercase">
                   {statusCopy(share.status)}
                 </span>
               </div>
@@ -407,7 +411,7 @@ export function SharedRequirementsContent({
 
           {detail.isPending ? (
             <div className="flex min-h-48 items-center justify-center">
-              <Loader2 className="size-6 animate-spin text-primary" />
+              <Loader2 className="text-primary size-6 animate-spin" />
             </div>
           ) : detail.isError ? (
             <p className="text-sm text-rose-300">
@@ -435,7 +439,9 @@ export function SharedRequirementsContent({
                   <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                     {selected.properties.length ? (
                       selected.properties.map((property) => {
-                        const checked = selectedPropertyIds.includes(property.id);
+                        const checked = selectedPropertyIds.includes(
+                          property.id
+                        );
                         return (
                           <button
                             key={property.id}
@@ -471,7 +477,11 @@ export function SharedRequirementsContent({
                                 {property.title}
                               </span>
                               <span className="mt-0.5 block text-xs text-slate-500">
-                                {[property.location, money(property.price), property.status]
+                                {[
+                                  property.location,
+                                  money(property.price),
+                                  property.status,
+                                ]
                                   .filter(Boolean)
                                   .join(' · ')}
                               </span>
@@ -535,7 +545,11 @@ export function SharedRequirementsContent({
                           {property.title}
                         </p>
                         <p className="mt-1 text-xs text-slate-400">
-                          {[property.location, money(property.price), property.status]
+                          {[
+                            property.location,
+                            money(property.price),
+                            property.status,
+                          ]
                             .filter(Boolean)
                             .join(' · ')}
                         </p>

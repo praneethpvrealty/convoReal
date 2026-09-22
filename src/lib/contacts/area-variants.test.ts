@@ -180,7 +180,7 @@ describe('areaFilterVariants + areaOverlapFilter', () => {
     expect(areaSearchVariants('buyers in Hosur', options)).toEqual([]);
   });
 
-  it('[CTM-008] matches a loaded contact by area the same way', () => {
+  it('[CTM-008] [REQ-003] matches a loaded contact by area the same way', () => {
     const areas = ['Brookefield', 'HSR Layout'];
     expect(areasMatchSearch('brookfield', areas)).toBe(true);
     expect(areasMatchSearch('buyers in Brookfield', areas)).toBe(true);
