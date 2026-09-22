@@ -132,6 +132,33 @@ export function attachmentUploadTimeoutMs(sizeBytes: number): number {
 }
 
 /**
+ * What to tell the agent when storage refuses an upload.
+ *
+ * Supabase answers with `{ error, message }` and a status. Saying which
+ * is the difference between a refusal an agent can act on and the
+ * "try again" that hid a broken upload path for as long as it did — a
+ * bucket that will not take the file's type never succeeds on a retry.
+ */
+export function storageErrorMessage(result: {
+  status: number;
+  body: string;
+}): string {
+  let detail = '';
+  try {
+    const parsed = JSON.parse(result.body) as {
+      message?: string;
+      error?: string;
+    };
+    detail = parsed.message || parsed.error || '';
+  } catch {
+    detail = result.body.trim().slice(0, 120);
+  }
+  return detail
+    ? `Storage refused the file (${result.status}): ${detail}`
+    : `Storage refused the file (${result.status}).`;
+}
+
+/**
  * Which kind of bubble a picked file will become.
  *
  * The upload response says the same thing, but only once the file is

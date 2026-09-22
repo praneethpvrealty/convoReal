@@ -34,6 +34,7 @@ import {
   SUPPORTED_MEDIA_MIME_TYPES,
   rejectMedia,
 } from '@/lib/whatsapp/media-kinds';
+import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 import {
   AMENITIES_BY_CATEGORY,
   AREA_UNITS,
@@ -2823,5 +2824,35 @@ describe('mobile/lib/attachments.ts mirrors media-kinds', () => {
         rejectMedia(mimeType, size)?.error ?? null
       );
     }
+  });
+});
+
+describe('mobile deal document upload mirrors the web one', () => {
+  // Both surfaces stage into the same signed path and file the same row
+  // afterwards. If either drifts, one of them uploads a file the other's
+  // route will not accept — which is how a 50 MB folder ended up with a
+  // 4.5 MB ceiling nobody could see.
+  const mobile = mobileSource('lib/deal-workspace-api.ts');
+  const web = webSource('lib/deals/upload-document.ts');
+
+  it('[INV-008] carries the same size cap as the server', () => {
+    const mb = DOCUMENT_SIZE_LIMIT / (1024 * 1024);
+    expect(mobileSource('lib/deal-workspace.ts')).toContain(
+      `DEAL_DOCUMENT_SIZE_LIMIT = ${mb} * 1024 * 1024`
+    );
+  });
+
+  it('[INV-008] stages through the same two routes on both surfaces', () => {
+    for (const source of [mobile, web]) {
+      expect(source).toContain('/documents/upload-url');
+      expect(source).toContain('storage_path');
+    }
+  });
+
+  it('[INV-008] names the file type on the upload, which storage requires', () => {
+    // A PUT that reaches Supabase without a usable content-type is
+    // answered 400 invalid_mime_type, whatever the bucket allows.
+    expect(mobileSource('lib/api.ts')).toContain("'content-type': opts.contentType");
+    expect(web).toContain("'content-type': mime_type");
   });
 });

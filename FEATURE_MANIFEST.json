@@ -624,6 +624,29 @@
               "case": "[INV-007]"
             }
           ]
+        },
+        {
+          "id": "INV-008",
+          "rule": "A deal document is staged straight into its own account-and-deal prefix under a server-signed, single-path upload URL rather than through the app, so the 50 MB the folder accepts is the size that actually uploads; the upload carries the file's real content type, without which storage refuses it, and a storage refusal is reported with its status and reason rather than as a retry prompt. Filing the row reads the stored object back: a path outside this account or deal, one nothing was written to, or a file that landed over the limit or of a type the folder does not take is refused and the object cleared, and the row records the size and type storage holds rather than the ones the caller declared.",
+          "tests": [
+            {
+              "file": "src/app/api/deals/[id]/documents/upload-url/route.test.ts",
+              "case": "[INV-008]"
+            },
+            {
+              "file": "src/app/api/deals/[id]/documents/route.test.ts",
+              "case": "[INV-008]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[INV-008]"
+            }
+          ],
+          "guards": [
+            "src/lib/storage/deal-documents.ts",
+            "src/lib/deals/upload-document.ts",
+            ".github/workflows/eas-update.yml"
+          ]
         }
       ]
     },

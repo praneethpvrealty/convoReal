@@ -5,6 +5,7 @@ import { FileText, Loader2, Paperclip, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Label } from '@/components/ui/label';
 import { DEAL_DOCUMENT_MIME_TYPES } from '@/lib/invoices/types';
+import { uploadDealDocument } from '@/lib/deals/upload-document';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 import type { DealDocument } from '@/lib/invoices/types';
 
@@ -49,23 +50,14 @@ export function DealInvoices({ dealId }: DealInvoicesProps) {
       return;
     }
     setUploading(true);
-    const form = new FormData();
-    form.append('file', file);
-    form.append('category', 'invoice');
     try {
-      const res = await fetch(`/api/deals/${dealId}/documents`, {
-        method: 'POST',
-        body: form,
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        toast.error(json?.error || 'Could not upload the invoice');
-        return;
-      }
-      setInvoices((current) => [json.data as DealDocument, ...current]);
+      const doc = await uploadDealDocument(dealId, file, 'invoice');
+      setInvoices((current) => [doc, ...current]);
       toast.success('Invoice filed in the deal folder');
-    } catch {
-      toast.error('Could not upload the invoice');
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Could not upload the invoice'
+      );
     } finally {
       setUploading(false);
     }

@@ -18,6 +18,10 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import {
+  dealDocumentObjectPath,
+  stagedDealDocument,
+} from '@/lib/storage/deal-documents';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const CATEGORIES = DEAL_DOCUMENT_CATEGORIES.map((c) => c.value) as string[];
@@ -65,8 +69,18 @@ export async function GET(
   }
 }
 
-// POST /api/deals/[id]/documents — upload a file into the deal folder.
-// multipart/form-data: file, category, title?, contact_id?
+// POST /api/deals/[id]/documents — file a document into the deal folder.
+//
+// JSON: { storage_path, category, title?, contact_id?, source? }, where
+// storage_path is what /documents/upload-url signed and the client has
+// already PUT the bytes to. The size and type on the row are read back
+// from storage rather than taken from the caller, because the server no
+// longer sees the file itself.
+//
+// multipart/form-data with a `file` part is the path clients shipped
+// before the signed upload existed still take. It works up to the 4.5 MB
+// a serverless function will accept, which is why it is not the one the
+// app uses any more.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -92,68 +106,136 @@ export async function POST(
       return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
     }
 
-    const form = await request.formData().catch(() => null);
-    const file = form?.get('file');
-    if (!form || !(file instanceof File)) {
-      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+    const isJson = (request.headers.get('content-type') ?? '').includes(
+      'application/json'
+    );
+
+    let objectPath: string;
+    let mimeType: string;
+    let sizeBytes: number;
+    let filename: string;
+    let category: string;
+    let contactId: unknown;
+    let title: string;
+    let source: unknown;
+
+    if (isJson) {
+      const body = await request.json().catch(() => null);
+      const storagePath = body?.storage_path;
+
+      // The prefix proves the caller cannot name another account's — or
+      // another deal's — file. It does not prove anything was written
+      // there, so the object is read back below.
+      if (
+        typeof storagePath !== 'string' ||
+        !storagePath.startsWith(
+          `${DEAL_DOCUMENT_BUCKET}/${ctx.accountId}/${dealId}/`
+        )
+      ) {
+        return NextResponse.json(
+          { error: 'storage_path must be an upload staged for this deal' },
+          { status: 400 }
+        );
+      }
+
+      const staged = await stagedDealDocument(storagePath);
+      if (!staged) {
+        return NextResponse.json(
+          { error: 'That upload did not finish — pick the file again.' },
+          { status: 400 }
+        );
+      }
+
+      objectPath = storagePath.slice(`${DEAL_DOCUMENT_BUCKET}/`.length);
+      mimeType = staged.mimeType || 'application/octet-stream';
+      sizeBytes = staged.size;
+      filename = objectPath.split('/').pop() ?? 'Document';
+      category = String(body?.category ?? 'other');
+      contactId = body?.contact_id;
+      title = String(body?.title ?? '')
+        .trim()
+        .slice(0, 200);
+      source = body?.source;
+    } else {
+      const form = await request.formData().catch(() => null);
+      const file = form?.get('file');
+      if (!form || !(file instanceof File)) {
+        return NextResponse.json(
+          { error: 'No file uploaded' },
+          { status: 400 }
+        );
+      }
+
+      objectPath = dealDocumentObjectPath(ctx.accountId, dealId, file.name);
+      mimeType = file.type || 'application/octet-stream';
+      sizeBytes = file.size;
+      filename = file.name;
+      category = String(form.get('category') ?? 'other');
+      contactId = form.get('contact_id');
+      title = String(form.get('title') ?? '')
+        .trim()
+        .slice(0, 200);
+      source = form.get('source');
+
+      if (
+        sizeBytes <= DOCUMENT_SIZE_LIMIT &&
+        ALLOWED_MIME_TYPES.includes(mimeType)
+      ) {
+        const { error: uploadError } = await supabaseAdmin()
+          .storage.from(DEAL_DOCUMENT_BUCKET)
+          .upload(objectPath, Buffer.from(await file.arrayBuffer()), {
+            contentType: mimeType,
+            upsert: false,
+          });
+
+        if (uploadError) {
+          return NextResponse.json(
+            { error: `Upload failed: ${uploadError.message}` },
+            { status: 502 }
+          );
+        }
+      }
     }
 
-    if (file.size > DOCUMENT_SIZE_LIMIT) {
+    // Checked against what actually landed, whichever way it got here,
+    // so a client that declared one thing and stored another is refused
+    // before the row records the lie.
+    const refuse = async (payload: object, status: number) => {
+      if (isJson) {
+        await supabaseAdmin()
+          .storage.from(DEAL_DOCUMENT_BUCKET)
+          .remove([objectPath]);
+      }
+      return NextResponse.json(payload, { status });
+    };
+
+    if (sizeBytes > DOCUMENT_SIZE_LIMIT) {
       const mb = Math.round(DOCUMENT_SIZE_LIMIT / (1024 * 1024));
-      return NextResponse.json(
+      return refuse(
         {
           error: `That file is over the ${mb} MB limit.`,
           code: 'FILE_TOO_LARGE',
         },
-        { status: 413 }
+        413
       );
     }
 
-    const mimeType = file.type || 'application/octet-stream';
     if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
-      return NextResponse.json(
+      return refuse(
         {
           error:
             'Upload a PDF, a photo (JPEG, PNG, WebP or HEIC), or a Word or Excel file.',
           code: 'UNSUPPORTED_TYPE',
         },
-        { status: 415 }
+        415
       );
     }
 
-    const category = String(form.get('category') ?? 'other');
     if (!CATEGORIES.includes(category)) {
-      return NextResponse.json({ error: 'Unknown category' }, { status: 400 });
+      return refuse({ error: 'Unknown category' }, 400);
     }
 
-    const contactId = form.get('contact_id');
-    const title =
-      String(form.get('title') ?? '')
-        .trim()
-        .slice(0, 200) ||
-      file.name ||
-      'Document';
-
-    // Namespaced by account and deal so one deal's papers cannot be
-    // reached by guessing at another's, even if a signed URL leaks.
-    const safeName = (file.name || 'document')
-      .replace(/[^a-zA-Z0-9.\-_]/g, '_')
-      .slice(-80);
-    const objectPath = `${ctx.accountId}/${dealId}/${Date.now()}-${safeName}`;
-
-    const { error: uploadError } = await supabaseAdmin()
-      .storage.from(DEAL_DOCUMENT_BUCKET)
-      .upload(objectPath, Buffer.from(await file.arrayBuffer()), {
-        contentType: mimeType,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      return NextResponse.json(
-        { error: `Upload failed: ${uploadError.message}` },
-        { status: 502 }
-      );
-    }
+    const documentTitle = title || filename || 'Document';
 
     const { data, error } = await ctx.supabase
       .from('deal_documents')
@@ -163,10 +245,10 @@ export async function POST(
         contact_id:
           typeof contactId === 'string' && contactId ? contactId : null,
         category,
-        title,
+        title: documentTitle,
         storage_path: `${DEAL_DOCUMENT_BUCKET}/${objectPath}`,
         mime_type: mimeType,
-        size_bytes: file.size,
+        size_bytes: sizeBytes,
         uploaded_by: ctx.userId,
       })
       .select('*')
@@ -185,11 +267,11 @@ export async function POST(
       accountId: ctx.accountId,
       dealId,
       eventType: 'document_added',
-      title: `Document added: ${title}`,
+      title: `Document added: ${documentTitle}`,
       actorId: ctx.userId,
       actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
-      source: parseEventSource(form.get('source')),
-      metadata: { document_id: data.id, category, title },
+      source: parseEventSource(source),
+      metadata: { document_id: data.id, category, title: documentTitle },
     });
 
     return NextResponse.json({ data }, { status: 201 });

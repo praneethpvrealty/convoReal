@@ -7,7 +7,14 @@
  * what makes it testable.
  */
 
-import { apiFetch } from './api';
+import {
+  apiFetch,
+  ApiError,
+  localFileSize,
+  putFileToSignedUrl,
+} from './api';
+import { attachmentUploadTimeoutMs } from './attachments';
+import { dealDocumentRejection } from './deal-workspace';
 import type {
   DealDocumentCategory,
   DealDocumentRow,
@@ -96,9 +103,12 @@ export function deleteDealDocument(dealId: string, docId: string) {
 /**
  * Upload a document into the deal folder.
  *
- * Streamed off disk as multipart rather than read into a base64 string
- * first — the same reason `uploadChatMedia` does: a scanned deed turned
- * into a JavaScript string is how a phone runs out of memory mid-upload.
+ * Two calls, the same shape as a chat attachment: the route signs one
+ * upload for one path under this deal's folder, then the file is PUT
+ * straight to storage. It never passes through a serverless function,
+ * which caps a request body at 4.5 MB — an eleventh of the 50 MB this
+ * folder accepts, and the reason a scanned deed died as a dropped
+ * connection rather than a refusal anyone could read.
  */
 export async function uploadDealDocument(
   dealId: string,
@@ -106,21 +116,41 @@ export async function uploadDealDocument(
   category: DealDocumentCategory,
   contactId?: string | null
 ): Promise<DealDocumentRow> {
-  const form = new FormData();
-  // React Native's FormData takes this shape for a file on disk; the
-  // cast is the standard workaround for the DOM lib's File-only type.
-  form.append('file', {
+  const size = await localFileSize(file.uri);
+
+  const rejection = dealDocumentRejection(file.mimeType, size);
+  if (rejection) throw new ApiError(415, rejection);
+
+  const { data: signed } = await apiFetch<{
+    data: { upload_url: string; storage_path: string; mime_type: string };
+  }>(`/api/deals/${dealId}/documents/upload-url`, {
+    method: 'POST',
+    body: JSON.stringify({
+      filename: file.name,
+      mime_type: file.mimeType,
+      size,
+    }),
+  });
+
+  await putFileToSignedUrl({
     uri: file.uri,
-    name: file.name,
-    type: file.mimeType,
-  } as unknown as Blob);
-  form.append('category', category);
-  form.append('title', file.name);
-  if (contactId) form.append('contact_id', contactId);
+    uploadUrl: signed.upload_url,
+    contentType: signed.mime_type,
+    timeoutMs: attachmentUploadTimeoutMs(size),
+  });
 
   const { data } = await apiFetch<{ data: DealDocumentRow }>(
     `/api/deals/${dealId}/documents`,
-    { method: 'POST', body: form, timeoutMs: 120_000 }
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        storage_path: signed.storage_path,
+        category,
+        title: file.name,
+        source: 'mobile',
+        ...(contactId ? { contact_id: contactId } : {}),
+      }),
+    }
   );
   return data;
 }
