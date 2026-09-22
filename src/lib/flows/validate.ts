@@ -25,6 +25,32 @@
 
 import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
 
+/** Bare words that fire mid-conversation as a `contains` entry keyword. */
+export const GENERIC_ENTRY_KEYWORDS: ReadonlySet<string> = new Set([
+  "buy",
+  "rent",
+  "sale",
+  "sell",
+  "invest",
+  "property",
+  "properties",
+  "home",
+  "homes",
+  "house",
+  "flat",
+  "apartment",
+  "villa",
+  "plot",
+  "land",
+  "listing",
+  "listings",
+  "price",
+  "budget",
+  "available",
+  "details",
+  "interested",
+]);
+
 export interface ValidationIssue {
   severity: "error" | "warning";
   scope: "flow" | "trigger" | "node";
@@ -170,6 +196,22 @@ function validateTrigger(
           field: "trigger_config.keywords",
           message: `${blanks} keyword${blanks === 1 ? " is" : "s are"} blank — they won't match anything.`,
         });
+      }
+      if (trigger_config.match_type !== "exact") {
+        const generic = keywords.filter(
+          (k): k is string =>
+            typeof k === "string" &&
+            GENERIC_ENTRY_KEYWORDS.has(k.trim().toLowerCase()),
+        );
+        if (generic.length > 0) {
+          const list = generic.map((k) => `"${k.trim()}"`).join(", ");
+          issues.push({
+            severity: "warning",
+            scope: "trigger",
+            field: "trigger_config.keywords",
+            message: `${list} ${generic.length === 1 ? "is a word" : "are words"} every property conversation uses — as a bare keyword it fires on any message that mentions it, mid-conversation included. Use a phrase a new lead would open with instead, like "looking to buy" or "show properties".`,
+          });
+        }
       }
     }
   }

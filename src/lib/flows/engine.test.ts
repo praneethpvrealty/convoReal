@@ -234,7 +234,7 @@ describe("real_estate_onboarding entry keywords", () => {
     "hey there",
     "menu",
     "Looking to rent a 2BHK in Whitefield",
-  ])("opens on %j", (text) => {
+  ])("[INB-012] opens on %j", (text) => {
     expect(matchesKeywordTrigger(text, cfg)).toBe(true);
   });
 
@@ -253,7 +253,7 @@ describe("real_estate_onboarding entry keywords", () => {
     "Should I buy this one?",
     "Commercial good rental property\nAround 10 cr",
     "I want to invest around 2 cr",
-  ])("stays out of %j", (text) => {
+  ])("[INB-012] stays out of %j", (text) => {
     expect(matchesKeywordTrigger(text, cfg)).toBe(false);
   });
 });
