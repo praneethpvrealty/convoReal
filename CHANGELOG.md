@@ -19,6 +19,19 @@ than a written entry. Newest first.
 
 #### 22 September 2026
 
+- **One submit button per translation, and none once it is at Meta.** A
+  reviewed Kannada draft showed two ways to submit: the review strip's
+  "Submit to Meta" and the generic per-row "Submit" that opens the edit
+  dialog, and on an unreviewed draft the generic one led to a dialog the
+  server then refused. The review strip is now the only door for a
+  translation behind the gate. The strip also stayed on rows already
+  pending at Meta, offering a resubmit that Meta would reject as a
+  duplicate name; it now disappears while Meta holds the row. A
+  translation Meta rejects goes back behind the gate instead of
+  straight into the edit dialog: reword it on the card, mark it
+  reviewed, and "Submit to Meta" re-submits through the Meta edit, which
+  now refuses unreviewed or altered translated wording.
+
 - **The Contacts search box merges spellings too.** Typing "Brookfield",
   or "buyers in Brookfield", now finds contacts saved with "Brookefield"
   or "brookefield, Bengaluru" as well, on web and on the phone. The
