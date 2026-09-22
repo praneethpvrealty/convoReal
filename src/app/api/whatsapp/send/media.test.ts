@@ -209,7 +209,7 @@ describe('POST /api/whatsapp/send (media)', () => {
     expect(dispatched).toBeNull();
   });
 
-  it('[INB-012] refuses a path the upload never finished writing to', async () => {
+  it('[INB-013] refuses a path the upload never finished writing to', async () => {
     stagedObject = null;
 
     const res = await send({ media_url: staged(), media_kind: 'image' });
@@ -220,7 +220,7 @@ describe('POST /api/whatsapp/send (media)', () => {
     expect(dispatched).toBeNull();
   });
 
-  it('[INB-012] refuses a file that landed past the cap it was signed for', async () => {
+  it('[INB-013] refuses a file that landed past the cap it was signed for', async () => {
     stagedObject = { size: 40 * 1024 * 1024, mimeType: 'video/mp4' };
 
     const res = await send({

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { validateFlowForActivation, reachableFromEntry } from "./validate";
+import { listFlowTemplates } from "./templates";
 
 const validFlow = {
   name: "Welcome",
@@ -125,6 +126,70 @@ describe("validateFlowForActivation — trigger", () => {
       validNodes,
     );
     expect(issues.some((i) => i.scope === "trigger")).toBe(true);
+  });
+
+  describe("bare generic keywords", () => {
+    const genericWarnings = (keywords: string[], match_type?: "exact") =>
+      validateFlowForActivation(
+        { ...validFlow, trigger_config: { keywords, match_type } },
+        validNodes,
+      ).filter(
+        (i) =>
+          i.scope === "trigger" &&
+          i.severity === "warning" &&
+          i.message.includes("every property conversation"),
+      );
+
+    it("[INB-012] warns on the word that opened the funnel on a tenant question", () => {
+      const [issue] = genericWarnings(["hi", "rent"]);
+      expect(issue).toBeDefined();
+      expect(issue.severity).toBe("warning");
+      expect(issue.message).toContain('"rent"');
+      expect(issue.message).not.toContain('"hi"');
+    });
+
+    it("[INB-012] names every generic word in one warning, case-insensitively", () => {
+      const warnings = genericWarnings(["Buy", "RENT", "properties", "hello"]);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('"Buy", "RENT", "properties"');
+      expect(warnings[0].message).toContain("are words");
+    });
+
+    it("[INB-012] stays quiet for openers and phrases", () => {
+      expect(
+        genericWarnings([
+          "hi",
+          "hello",
+          "menu",
+          "show properties",
+          "looking to rent",
+          "buy property",
+        ]),
+      ).toEqual([]);
+    });
+
+    it("[INB-012] stays quiet under exact matching, where a bare word is the whole message", () => {
+      expect(genericWarnings(["rent", "buy"], "exact")).toEqual([]);
+    });
+
+    it("[INB-012] never fires on a shipped template", () => {
+      for (const template of listFlowTemplates()) {
+        const warnings = validateFlowForActivation(
+          {
+            name: template.name,
+            trigger_type: template.trigger_type,
+            trigger_config: template.trigger_config as Record<string, unknown>,
+            entry_node_id: template.entry_node_id,
+          },
+          template.nodes.map((n) => ({
+            node_key: n.node_key,
+            node_type: n.node_type,
+            config: n.config as Record<string, unknown>,
+          })),
+        ).filter((i) => i.message.includes("every property conversation"));
+        expect(warnings, template.slug).toEqual([]);
+      }
+    });
   });
 
   it("warns when keywords contain blanks", () => {
