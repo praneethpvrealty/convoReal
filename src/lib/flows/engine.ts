@@ -291,13 +291,6 @@ export function matchesKeywordTrigger(
   return false;
 }
 
-/**
- * The words a tap is matched on. A template quick reply arrives as a
- * 'button' message whose inbox text is decorated (`🔘 Button: "…"`),
- * so matching on that meant an exact-match keyword never fired on a
- * tap and a "button" keyword fired on every one. Keywords are written
- * against what the lead saw: the label.
- */
 export function inboundReplyTitle(
   message: { type?: string; button?: { text?: string | null } | null },
   contentText: string | null | undefined,
