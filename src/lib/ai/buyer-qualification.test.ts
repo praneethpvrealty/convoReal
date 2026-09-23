@@ -130,9 +130,6 @@ describe('portal enquiry context', () => {
     expect(saved.property_types).toEqual(['Villa']);
     expect(saved.budget_max).toBe(30_000_000);
     expect(saved.areas).toEqual(['KR Puram']);
-    // The CRM fields answer type, budget and area, and a ₹3 Cr villa
-    // budget answers buy-or-rent too. A figure that could be a rent
-    // still leaves that rung open.
     expect(nextQualifier(saved)).toBeNull();
     expect(nextQualifier({ ...saved, budget_max: 60_000 })).toBe('intent');
     expect(

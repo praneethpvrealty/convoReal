@@ -218,15 +218,6 @@ function hasIntent(prefs: ExtractedPreferences): boolean {
 const PURCHASE_BUDGET_FLOOR = 1_000_000;
 const COMMERCIAL_PURCHASE_BUDGET_FLOOR = 10_000_000;
 
-/**
- * Buy-or-rent, when the budget already answers it.
- *
- * A lead who replied "3000000 to 3500000" about a vacant plot was then
- * asked "are you looking to buy or to rent?" — nobody rents a plot for
- * ₹30 L a month. Residential rents never reach ₹10 L a month, and
- * commercial ones rarely reach ₹1 Cr, so a figure at or above those
- * floors is a purchase budget and the question is only noise.
- */
 export function impliedListingTypes(
   prefs: ExtractedPreferences
 ): ExtractedPreferences['listing_types'] {
@@ -401,17 +392,12 @@ function typeAndSize(prefs: ExtractedPreferences): string {
   return size ? `${typeLabel(prefs)} of ${size}` : typeLabel(prefs);
 }
 
-/** What the lead has told us so far, as one line to play back. */
 function knownBrief(prefs: ExtractedPreferences): string {
   return [typeLabel(prefs), formatSize(prefs), formatBudget(prefs)]
     .filter(Boolean)
     .join(', ');
 }
 
-/**
- * The brief as a noun phrase — "vacant plot in KHB Suryanagar Phase" —
- * for a sentence that says we have none of it live yet.
- */
 export function describeBrief(prefs: ExtractedPreferences): string {
   const type = typeLabel(prefs);
   const size = formatSize(prefs);
@@ -617,11 +603,6 @@ export function buildFollowUpQuestion(field: QualifierField): string {
   return 'One thing — which area suits you best? You can name a locality or a market zone such as CBD, ORR, PBD East, South or North Bengaluru.';
 }
 
-/**
- * The rung, asked after telling a lead nothing live fits yet. The
- * answer is what lets the search widen, so the question says so —
- * and keeps its fingerprint, so the reply is read as the answer.
- */
 export function buildWidenSearchQuestion(field: QualifierField): string {
   if (field === 'type') {
     return 'What kind of property are you looking for — land/plot, apartment, villa or commercial?';
@@ -1115,19 +1096,6 @@ export function appendRequirement(
 
 const MAX_BURST_LINES = 4;
 
-/**
- * The lead's earlier lines in the burst this message ends, oldest
- * first, that carry a requirement of their own.
- *
- * "3000000 to 3500000" and "1200 sqft" sent seconds apart arrive as two
- * webhooks, and each read the contact before the other had written its
- * line — so the later one filed its brief without the budget, the
- * earlier one filed it without the size, and whichever wrote last won.
- * The lead's plot size simply vanished. Folding the burst into the
- * latest message makes that message's brief whole whatever the timing.
- *
- * `thread` is newest first with the current message at index 0.
- */
 export function earlierBurstRequirements(
   thread: { sender_type?: string | null; content_text?: string | null }[]
 ): string[] {
