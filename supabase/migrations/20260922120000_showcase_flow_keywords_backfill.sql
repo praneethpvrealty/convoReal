@@ -1,9 +1,9 @@
 -- Flows cloned from the Real Estate Showcase template carry its old entry
 -- keywords in their own row. Move the ones still on a stock list; leave
--- any list someone edited alone.
+-- any list someone edited, or a flow switched to exact matching, alone.
 
 UPDATE flows
-SET trigger_config = jsonb_build_object(
+SET trigger_config = trigger_config || jsonb_build_object(
       'keywords', jsonb_build_array(
         'hi', 'hello', 'hey', 'menu',
         'show properties', 'show me properties',
@@ -15,6 +15,7 @@ SET trigger_config = jsonb_build_object(
     ),
     updated_at = now()
 WHERE trigger_type = 'keyword'
+  AND COALESCE(trigger_config->>'match_type', 'contains') = 'contains'
   AND (
     (
       trigger_config->'keywords' @> '["hi","hello","invest","buy","rent","properties","homes","listing","show properties"]'::jsonb
