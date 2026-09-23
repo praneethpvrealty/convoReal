@@ -19,7 +19,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property } from '@/types';
 import { storagePublicUrl } from '@/lib/storage/url';
-import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
+import {
+  isLocationGuarded,
+  localityLabel,
+} from '@/lib/inventory/location-guard';
 import type { MaskedPropertySnapshot } from '@/lib/den/masking';
 import { buyerAdmin, type BuyerContactLink, type BuyerContext } from './auth';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
@@ -42,14 +45,40 @@ const DEAL_MODE_LIMIT = 12;
  *  ride along just because the row was selected. Mirrors the column
  *  discipline of /api/buyer/shortlist. */
 const MATCH_PROPERTY_COLUMNS = [
-  'id', 'account_id', 'title', 'type', 'listing_type', 'status',
-  'price', 'rent_per_month', 'maintenance', 'location', 'location_privacy',
+  'id',
+  'account_id',
+  'title',
+  'type',
+  'listing_type',
+  'status',
+  'price',
+  'rent_per_month',
+  'maintenance',
+  'location',
+  'location_privacy',
   'sublocality',
-  'city', 'state', 'project', 'bedrooms', 'bathrooms', 'area_sqft',
-  'area_unit', 'land_area', 'land_area_unit', 'super_built_area',
-  'facing_direction', 'features', 'nearby_highlights', 'rental_income',
-  'roi', 'property_code', 'images', 'created_at', 'description', 'notes',
-  'tags', 'floor_tenancies',
+  'city',
+  'state',
+  'project',
+  'bedrooms',
+  'bathrooms',
+  'area_sqft',
+  'area_unit',
+  'land_area',
+  'land_area_unit',
+  'super_built_area',
+  'facing_direction',
+  'features',
+  'nearby_highlights',
+  'rental_income',
+  'roi',
+  'property_code',
+  'images',
+  'created_at',
+  'description',
+  'notes',
+  'tags',
+  'floor_tenancies',
 ].join(', ');
 
 export interface BuyerMatchCard {
@@ -175,7 +204,11 @@ async function dealModeForLink(
     const snapshot = row.subject_snapshot as MaskedPropertySnapshot | null;
     if (!snapshot) continue;
     const target = (
-      (row.matches || []) as Array<{ id: string; score?: number; chips?: string[] }>
+      (row.matches || []) as Array<{
+        id: string;
+        score?: number;
+        chips?: string[];
+      }>
     ).find((m) => m.id === link.contactId);
     cards.push({
       event_id: row.id as string,
@@ -205,7 +238,9 @@ async function dealModeForLink(
   return cards;
 }
 
-export async function getBuyerMatchFeed(ctx: BuyerContext): Promise<BuyerMatchFeed> {
+export async function getBuyerMatchFeed(
+  ctx: BuyerContext
+): Promise<BuyerMatchFeed> {
   const empty: BuyerMatchFeed = {
     curated: [],
     deal_mode: [],
@@ -223,7 +258,9 @@ export async function getBuyerMatchFeed(ctx: BuyerContext): Promise<BuyerMatchFe
     );
 
   const [curatedResults, dealModeResults] = await Promise.all([
-    Promise.all(briefed.map(({ link, contact }) => curatedForLink(db, link, contact))),
+    Promise.all(
+      briefed.map(({ link, contact }) => curatedForLink(db, link, contact))
+    ),
     Promise.all(ctx.links.map((link) => dealModeForLink(db, link))),
   ]);
 
@@ -258,7 +295,9 @@ export async function getBuyerMatchFeed(ctx: BuyerContext): Promise<BuyerMatchFe
     curated,
     deal_mode: dealModeResults
       .flat()
-      .sort((a, b) => b.score - a.score || b.created_at.localeCompare(a.created_at))
+      .sort(
+        (a, b) => b.score - a.score || b.created_at.localeCompare(a.created_at)
+      )
       .slice(0, DEAL_MODE_LIMIT),
     pool_capped: curatedResults.some((r) => r.capped),
     has_preferences: briefed.length > 0,

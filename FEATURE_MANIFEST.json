@@ -256,6 +256,28 @@
               "case": "[INB-014]"
             }
           ]
+        },
+        {
+          "id": "INB-015",
+          "rule": "When nothing fits a lead's brief but their own locality has live listings of the same deal type at another price or type, the no-match reply (the requirement playback card and the on-demand matches reply) names how many, their price band and whether it is above or below the lead's budget, with a link scoped to those listings. Housing-board prefixes such as \"KHB\" never stop a locality from matching.",
+          "tests": [
+            {
+              "file": "src/lib/buyer/area-near-misses.test.ts",
+              "case": "[INB-015]"
+            },
+            {
+              "file": "src/lib/whatsapp/requirement-review.test.ts",
+              "case": "[INB-015]"
+            },
+            {
+              "file": "src/lib/buyer/match-reply.test.ts",
+              "case": "[INB-015]"
+            },
+            {
+              "file": "src/lib/locality-match.test.ts",
+              "case": "[INB-015]"
+            }
+          ]
         }
       ]
     },

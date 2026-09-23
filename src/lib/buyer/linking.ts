@@ -214,12 +214,10 @@ async function seedShortlistFromInterest(
   const inserts = [...rows.values()].filter((r) => r.account_id);
   if (inserts.length === 0) return;
 
-  const { error } = await db
-    .from('buyer_shortlist_items')
-    .upsert(inserts, {
-      onConflict: 'buyer_user_id,property_id',
-      ignoreDuplicates: true,
-    });
+  const { error } = await db.from('buyer_shortlist_items').upsert(inserts, {
+    onConflict: 'buyer_user_id,property_id',
+    ignoreDuplicates: true,
+  });
   if (error) {
     console.error(
       '[seedShortlistFromInterest] upsert failed (non-fatal):',

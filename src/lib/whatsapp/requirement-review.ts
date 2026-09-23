@@ -15,6 +15,7 @@ import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import { areaNearMissLine } from '@/lib/buyer/area-near-misses';
 import type { Contact } from '@/types';
 
 /** Every id this module owns starts with this. */
@@ -118,11 +119,24 @@ export async function sendRequirementReview(args: {
   if (!summary) return false;
 
   try {
-    const showcaseUrl = await accountShowcaseBrowseUrl(
-      args.db,
-      args.accountId,
-      args.contactId,
-    );
+    const source = resolveRequirementSource(args.contact);
+    const nearMiss = await areaNearMissLine({
+      db: args.db,
+      accountId: args.accountId,
+      contactId: args.contactId,
+      brief: {
+        areas: [
+          ...(source.areas_of_interest ?? []),
+          ...(source.pref_areas ?? []),
+        ],
+        listingTypes: source.pref_listing_types ?? [],
+        budgetMin: source.pref_budget_min ?? source.min_budget ?? null,
+        budgetMax: source.pref_budget_max ?? source.max_budget ?? null,
+      },
+    });
+    const showcaseUrl = nearMiss
+      ? null
+      : await accountShowcaseBrowseUrl(args.db, args.accountId, args.contactId);
     const result = await sendWhatsAppMessageAndPersist({
       accountId: args.accountId,
       userId: args.userId,
@@ -138,8 +152,12 @@ export async function sendRequirementReview(args: {
         '',
         "You'll hear from us the moment a matching listing arrives. Spot something off? Tweak it below.",
         '',
-        '🔎 Meanwhile, explore all our live properties yourself:',
-        showcaseUrl,
+        ...(nearMiss
+          ? [nearMiss]
+          : [
+              '🔎 Meanwhile, explore all our live properties yourself:',
+              showcaseUrl,
+            ]),
       ].join('\n'),
       interactiveButtonLabel: 'Review / tweak',
       interactiveSections: [

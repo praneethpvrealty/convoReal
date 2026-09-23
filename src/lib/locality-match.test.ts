@@ -170,6 +170,24 @@ describe('rowMatchesLocality', () => {
     ).toBe(true);
   });
 
+  it('[INB-015] reads "KHB" as a housing-board designator, not a place', () => {
+    expect(
+      rowMatchesLocality(
+        { sublocality: 'Suryanagar phase 1' },
+        'KHB Suryanagar Phase'
+      )
+    ).toBe(true);
+    expect(
+      rowMatchesLocality(
+        { location: 'Surya city phase 3, Bangalore' },
+        'KHB Suryanagar Phase'
+      )
+    ).toBe(true);
+    expect(rowMatchesLocality(koramangalaRow, 'KHB Suryanagar Phase')).toBe(
+      false
+    );
+  });
+
   it('does not match an unrelated locality', () => {
     expect(rowMatchesLocality(koramangalaRow, 'Whitefield')).toBe(false);
     expect(

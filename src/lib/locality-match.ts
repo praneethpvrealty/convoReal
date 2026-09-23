@@ -44,6 +44,7 @@ const DESIGNATOR_TOKENS = new Set([
   'taluk',
   'hobli',
   'district',
+  'khb',
 ]);
 
 // Designator suffixes commonly written both fused and separate
