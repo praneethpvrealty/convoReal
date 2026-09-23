@@ -195,17 +195,26 @@ export function buildEnquiryConsentRequestMessage(args: {
  */
 export function buildNoMatchesMessage(
   contactName: string | null | undefined,
-  opts: { brief?: string | null; question?: string | null } = {}
+  opts: {
+    brief?: string | null;
+    question?: string | null;
+    nearMiss?: string | null;
+  } = {}
 ): string {
-  const opening = opts.brief
+  const greeting = opts.brief
     ? `Hi ${firstName(contactName)} — I don't have ${opts.brief} live right now, but I'm watching for one.`
     : `Hi ${firstName(contactName)} — nothing in our inventory fits your brief right now. ` +
       `The moment something does, you'll hear from us here.`;
-  if (opts.question) return `${opening} ${opts.question}`;
+  const opening = opts.nearMiss
+    ? `${greeting}\n\n${opts.nearMiss}\n\n`
+    : `${greeting} `;
+  if (opts.question) return `${opening}${opts.question}`;
+  if (opts.nearMiss)
+    return `${opening}Reply with anything that's changed (budget, area, type) and I'll search again.`;
   return opts.brief
-    ? `${opening} The moment one comes in, you'll hear from us here. ` +
+    ? `${opening}The moment one comes in, you'll hear from us here. ` +
         `Reply with anything that's changed (budget, area, type) and I'll search again.`
-    : `${opening} Reply with what's changed (budget, area, type) and we'll re-run the search.`;
+    : `${opening}Reply with what's changed (budget, area, type) and we'll re-run the search.`;
 }
 
 export function buildUnavailableEnquiryMessage(args: {

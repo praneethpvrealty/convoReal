@@ -4,6 +4,7 @@ const sendWhatsAppMessageAndPersist = vi.fn();
 const sendPropertyTypePrompt = vi.fn();
 const sendBudgetBandPrompt = vi.fn();
 const accountShowcaseBrowseUrl = vi.fn();
+const accountPropertiesShowcaseUrl = vi.fn();
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: (...args: unknown[]) =>
@@ -22,6 +23,8 @@ vi.mock('@/lib/whatsapp/budget-band', () => ({
 vi.mock('@/lib/showcase/account-showcase-url', () => ({
   accountShowcaseBrowseUrl: (...args: unknown[]) =>
     accountShowcaseBrowseUrl(...args),
+  accountPropertiesShowcaseUrl: (...args: unknown[]) =>
+    accountPropertiesShowcaseUrl(...args),
 }));
 
 const {
@@ -53,7 +56,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
   accountShowcaseBrowseUrl.mockResolvedValue(
-    'https://aryavarta.convoreal.com/?v=c1',
+    'https://aryavarta.convoreal.com/?v=c1'
   );
 });
 
@@ -138,15 +141,15 @@ describe('sendRequirementReview', () => {
     expect(call.interactiveBody).toContain('Commercial Land');
     expect(call.interactiveBody).toContain('Aryan');
     expect(call.interactiveBody).toContain(
-      'Meanwhile, explore all our live properties yourself:',
+      'Meanwhile, explore all our live properties yourself:'
     );
     expect(call.interactiveBody).toContain(
-      'https://aryavarta.convoreal.com/?v=c1',
+      'https://aryavarta.convoreal.com/?v=c1'
     );
     expect(accountShowcaseBrowseUrl).toHaveBeenCalledWith(
       expect.anything(),
       'acct-1',
-      'c1',
+      'c1'
     );
     const ids = call.interactiveSections[0].rows.map((r) => r.id);
     expect(ids).toEqual([
@@ -159,6 +162,85 @@ describe('sendRequirementReview', () => {
     for (const row of call.interactiveSections[0].rows) {
       expect(row.title.length).toBeLessThanOrEqual(24);
     }
+  });
+
+  it('[INB-015] names the live stock in the lead\'s area and its price band instead of "explore all"', async () => {
+    accountPropertiesShowcaseUrl.mockResolvedValue(
+      'https://aryavarta.convoreal.com/?ids=P1,P2&v=c1'
+    );
+    const rows = [
+      {
+        id: 'p1',
+        property_code: 'P1',
+        title: 'North facing 50x80 Semi-Commercial Plot in Suryanagar Phase 1',
+        price: '60000000',
+        listing_type: 'Sale',
+        sublocality: 'Suryanagar phase 1',
+      },
+      {
+        id: 'p2',
+        property_code: 'P2',
+        title:
+          '3933 Sq.Ft. North East corner Residential Plot in Surya city phase 3',
+        price: '24000000',
+        listing_type: 'Sale',
+        location: 'Surya city phase 3, Bangalore, Karnataka',
+      },
+      {
+        id: 'p3',
+        title: 'House in Koramangala 7th phase',
+        price: '120000000',
+        listing_type: 'Sale',
+        sublocality: 'KHB Colony',
+      },
+    ];
+    const query = {
+      select: () => query,
+      eq: () => query,
+      then: (resolve: (value: { data: unknown[] }) => unknown) =>
+        Promise.resolve({ data: rows }).then(resolve),
+    };
+
+    const sent = await sendRequirementReview({
+      db: { from: () => query } as never,
+      accountId: 'acct-1',
+      userId: 'u1',
+      contactId: 'c1',
+      conversationId: 'conv-1',
+      contact: {
+        id: 'c1',
+        name: 'sandhiya durai',
+        pref_property_types: ['Vacant plot'],
+        pref_areas: ['KHB Suryanagar Phase'],
+        pref_listing_types: ['Sale'],
+        pref_budget_min: 3_000_000,
+        pref_budget_max: 3_500_000,
+        pref_land_area_min_sqft: 1200,
+        pref_land_area_max_sqft: 1200,
+      } as unknown as Contact,
+    });
+
+    expect(sent).toBe(true);
+    const body = (
+      sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+        interactiveBody: string;
+      }
+    ).interactiveBody;
+    expect(body).toContain(
+      '📍 We do have 2 listings in KHB Suryanagar Phase, at ₹2.4 Cr–₹6 Cr — above your budget. Take a look: https://aryavarta.convoreal.com/?ids=P1,P2&v=c1'
+    );
+    expect(body).not.toContain('explore all our live properties');
+    expect(body.length).toBeLessThanOrEqual(1024);
+    expect(accountPropertiesShowcaseUrl).toHaveBeenCalledWith(
+      expect.anything(),
+      'acct-1',
+      [
+        expect.objectContaining({ id: 'p2' }),
+        expect.objectContaining({ id: 'p1' }),
+      ],
+      'c1'
+    );
+    expect(accountShowcaseBrowseUrl).not.toHaveBeenCalled();
   });
 
   it('declines to send when there is nothing on file to review', async () => {

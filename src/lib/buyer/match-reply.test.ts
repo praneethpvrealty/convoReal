@@ -207,7 +207,7 @@ function dbForPortalPlotLead() {
 }
 
 describe('buildBuyerMatchReply', () => {
-  it('[INB-014] asks a portal lead with no budget for one instead of dead-ending', async () => {
+  it('[INB-014] [INB-015] asks a portal lead with no budget for one and names the stock in their area', async () => {
     const reply = await buildBuyerMatchReply({
       accountId: 'account',
       contactId: 'sandhiya',
@@ -215,7 +215,8 @@ describe('buildBuyerMatchReply', () => {
     });
 
     expect(reply).toBe(
-      "Hi sandhiya — I don't have a vacant plot in KHB Suryanagar Phase live right now, but I'm watching for one. " +
+      "Hi sandhiya — I don't have a vacant plot in KHB Suryanagar Phase live right now, but I'm watching for one.\n\n" +
+        '📍 We do have 1 listing in KHB Suryanagar Phase, at ₹6 Cr. Take a look: https://www.convoreal.com?property_id=commercial&v=sandhiya\n\n' +
         "What budget are you working with? I'll widen the search to everything within it."
     );
   });

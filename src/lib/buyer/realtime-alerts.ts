@@ -401,7 +401,11 @@ export async function deliverRealtimeBuyerAlertsForConnectedAccounts(
       total.failed += result.failed;
     } catch (error) {
       total.failed++;
-      console.error('[buyer-alerts] account delivery failed:', accountId, error);
+      console.error(
+        '[buyer-alerts] account delivery failed:',
+        accountId,
+        error
+      );
     }
   }
   return total;

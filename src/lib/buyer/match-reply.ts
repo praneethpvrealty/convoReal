@@ -20,6 +20,7 @@ import {
   type CuratedMatch,
 } from './matches-ranking';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
+import { areaNearMissLine } from './area-near-misses';
 import {
   buildWidenSearchQuestion,
   describeBrief,
@@ -69,14 +70,31 @@ function pinEnquiredProperty(
   ].slice(0, MAX_DIGEST_MATCHES);
 }
 
-function noMatchesFollowUp(contact: Contact): {
+async function noMatchesFollowUp(
+  db: SupabaseClient,
+  accountId: string,
+  contact: Contact
+): Promise<{
   brief: string;
   question: string | null;
-} {
+  nearMiss: string | null;
+}> {
+  const prefs = prefsFromContact(contact);
   const missing = nextQualifierForContact(contact, { defaultBuying: true });
   return {
-    brief: describeBrief(prefsFromContact(contact)),
+    brief: describeBrief(prefs),
     question: missing ? buildWidenSearchQuestion(missing) : null,
+    nearMiss: await areaNearMissLine({
+      db,
+      accountId,
+      contactId: contact.id,
+      brief: {
+        areas: prefs.areas,
+        listingTypes: prefs.listing_types,
+        budgetMin: prefs.budget_min,
+        budgetMax: prefs.budget_max,
+      },
+    }),
   };
 }
 
@@ -166,7 +184,10 @@ export async function buildBuyerMatchReplyWithListings(args: {
               propertyTitle: unavailableEnquiryTitle,
               hasAlternatives: false,
             })
-          : buildNoMatchesMessage(contact.name, noMatchesFollowUp(contact)),
+          : buildNoMatchesMessage(
+              contact.name,
+              await noMatchesFollowUp(db, args.accountId, contact)
+            ),
         propertyIds: [],
       };
     }
