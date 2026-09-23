@@ -33,9 +33,10 @@ const rowEls = new Map();
 const totals = { done: 0, working: 0, failed: 0, rates: 0 };
 
 class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, code) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -113,7 +114,11 @@ async function api(settings, path, init = {}) {
   }
   const body = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new ApiError(body?.error || `ConvoReal answered ${res.status}`, res.status);
+    throw new ApiError(
+      body?.error || `ConvoReal answered ${res.status}`,
+      res.status,
+      body?.code
+    );
   }
   return body;
 }
@@ -171,6 +176,35 @@ function isPdf(bytes) {
   );
 }
 
+async function readCapped(res, maxBytes) {
+  const declared = Number(res.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel().catch(() => {});
+    throw new Error('PDF is over 14 MB');
+  }
+  if (!res.body) return new Uint8Array(await res.arrayBuffer());
+  const reader = res.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw new Error('PDF is over 14 MB');
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 function fileName(url) {
   try {
     return decodeURIComponent(new URL(url).pathname.split('/').pop() || 'notification.pdf');
@@ -183,9 +217,8 @@ async function uploadRow(settings, row) {
   setRow(row, 'downloading');
   const res = await fetch(row.url, { credentials: 'include' });
   if (!res.ok) throw new Error(`IGR answered ${res.status} for the PDF`);
-  const bytes = new Uint8Array(await res.arrayBuffer());
+  const bytes = await readCapped(res, MAX_PDF_BYTES);
   if (!isPdf(bytes)) throw new Error('IGR did not return a PDF for this row');
-  if (bytes.length > MAX_PDF_BYTES) throw new Error('PDF is over 14 MB');
 
   setRow(row, 'uploading');
   const { data } = await api(settings, '/api/admin/guidance-values/sources', {
@@ -234,6 +267,7 @@ async function parseRow(settings, row, sourceId) {
       if (data.status === 'ready') return data;
     } catch (err) {
       if (err.status === 401 || err.status === 403) throw err;
+      if (err.code === 'SOURCE_NOT_STORED') throw err;
       failures += 1;
       if (failures >= PARSE_RETRIES) throw err;
       setRow(row, 'retrying', err.message);
@@ -246,8 +280,19 @@ async function processRow(settings, row) {
   totals.working += 1;
   refreshTotals();
   try {
-    const sourceId = row.source_id || (await uploadRow(settings, row));
-    const result = await parseRow(settings, row, sourceId);
+    let sourceId = row.source_id || (await uploadRow(settings, row));
+    let result;
+    try {
+      result = await parseRow(settings, row, sourceId);
+    } catch (err) {
+      if (err.code !== 'SOURCE_NOT_STORED') throw err;
+      setRow(row, 'uploading again', 'The last upload was interrupted');
+      await api(settings, `/api/admin/guidance-values/sources/${sourceId}`, {
+        method: 'DELETE',
+      });
+      sourceId = await uploadRow(settings, row);
+      result = await parseRow(settings, row, sourceId);
+    }
     if (result === 'stopped') {
       setRow(row, 'stopped', 'Resumes on the next run');
       return;

@@ -1812,7 +1812,7 @@
         },
         {
           "id": "GVL-007",
-          "rule": "The Guidance Value Import Chrome extension imports every IGR notification with one click and no manual steps: it reads the rendered IGR page in the admin's browser and hands the HTML to ConvoReal, which maps rows to districts and SROs and reports each PDF's existing source and status without fetching IGR itself; imported notifications are skipped, unfinished ones resume, and new PDFs are registered with their karnataka.gov.in source_url (any other source_url is refused) before the extension drives the parse to completion.",
+          "rule": "The Guidance Value Import Chrome extension imports every IGR notification with one click and no manual steps: it reads the rendered IGR page in the admin's browser and hands the HTML to ConvoReal, which maps rows to districts and SROs and reports each PDF's existing source and status without fetching IGR itself; imported notifications are skipped, unfinished ones resume, and new PDFs are registered with their karnataka.gov.in source_url (any other source_url is refused) before the extension drives the parse to completion. A source whose PDF never finished uploading is reported by the parse endpoint as 409 SOURCE_NOT_STORED, and the extension deletes and re-uploads it instead of looping; PDF downloads are capped at 14 MB while streaming.",
           "tests": [
             {
               "file": "src/app/api/admin/guidance-values/import/route.test.ts",
@@ -1820,6 +1820,14 @@
             },
             {
               "file": "src/app/api/admin/guidance-values/sources/route.test.ts",
+              "case": "[GVL-007]"
+            },
+            {
+              "file": "src/lib/guidance-value/server.test.ts",
+              "case": "[GVL-007]"
+            },
+            {
+              "file": "src/app/api/admin/guidance-values/sources/[id]/parse/route.test.ts",
               "case": "[GVL-007]"
             }
           ]

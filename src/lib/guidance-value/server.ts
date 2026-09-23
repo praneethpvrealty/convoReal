@@ -27,6 +27,14 @@ import type {
 
 export const GUIDANCE_SOURCE_BUCKET = 'guidance-value-sources';
 
+export class SourceNotStoredError extends Error {
+  readonly code = 'SOURCE_NOT_STORED' as const;
+  constructor() {
+    super('The PDF for this notification never finished uploading.');
+    this.name = 'SourceNotStoredError';
+  }
+}
+
 export type GuidanceCaller =
   | { kind: 'staff'; userId: string; ctx: AccountContext }
   | { kind: 'portal'; userId: string };
@@ -220,6 +228,9 @@ export async function parseNextSourceChunk(
       .from(GUIDANCE_SOURCE_BUCKET)
       .download(source.storage_path);
     if (downloadError || !file) {
+      if (source.pages_parsed === 0) {
+        throw new SourceNotStoredError();
+      }
       throw new Error(
         downloadError?.message ?? 'Could not read the stored PDF.'
       );
