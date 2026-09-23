@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const LEASE_TABLE = 'conversation_qualification_leases';
+const DEFERRED_TABLE = 'conversation_deferred_messages';
 
 export class QualificationLeaseBusyError extends Error {
   constructor(
@@ -22,7 +23,12 @@ export interface ConversationLeaseOptions {
   pollMs?: number;
   maxHoldMs?: number;
   maxDeferredRounds?: number;
+  deferPayload?: unknown;
   sleep?: (ms: number) => Promise<void>;
+}
+
+export interface LeaseRunInfo {
+  waited: boolean;
 }
 
 type Db = ReturnType<typeof supabaseAdmin>;
@@ -40,11 +46,65 @@ async function callRpc<T>(
   return data as T;
 }
 
+async function deferToHolder(
+  db: Db,
+  accountId: string,
+  conversationId: string,
+  messageId: string,
+  payload: unknown
+): Promise<boolean> {
+  if (payload !== undefined) {
+    try {
+      return (
+        (await callRpc<boolean>(db, 'defer_conversation_message', {
+          p_account_id: accountId,
+          p_conversation_id: conversationId,
+          p_message_id: messageId,
+          p_payload: payload,
+        })) === true
+      );
+    } catch (err) {
+      console.error(
+        '[qualification-lease] deferring with payload failed, deferring the id alone:',
+        err
+      );
+    }
+  }
+  return (
+    (await callRpc<boolean>(db, 'defer_conversation_qualification', {
+      p_conversation_id: conversationId,
+      p_message_id: messageId,
+    })) === true
+  );
+}
+
+export async function takeDeferredMessage(
+  accountId: string,
+  conversationId: string,
+  messageId: string
+): Promise<unknown> {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from(DEFERRED_TABLE)
+      .delete()
+      .eq('conversation_id', conversationId)
+      .eq('account_id', accountId)
+      .eq('message_id', messageId)
+      .select('payload')
+      .maybeSingle();
+    if (error) throw error;
+    return (data as { payload?: unknown } | null)?.payload ?? null;
+  } catch (err) {
+    console.error('[qualification-lease] deferred payload read failed:', err);
+    return null;
+  }
+}
+
 export async function withConversationLease(
   accountId: string,
   conversationId: string,
   messageId: string | null,
-  run: (messageId: string | null) => Promise<boolean>,
+  run: (messageId: string | null, info: LeaseRunInfo) => Promise<boolean>,
   {
     ttlSeconds = 30,
     renewEveryMs = (ttlSeconds * 1000) / 3,
@@ -52,6 +112,7 @@ export async function withConversationLease(
     pollMs = 250,
     maxHoldMs = 240_000,
     maxDeferredRounds = 5,
+    deferPayload,
     sleep = defaultSleep,
   }: ConversationLeaseOptions = {}
 ): Promise<boolean> {
@@ -60,11 +121,12 @@ export async function withConversationLease(
     db = supabaseAdmin();
   } catch (err) {
     console.error('[qualification-lease] no client, running unlocked:', err);
-    return run(messageId);
+    return run(messageId, { waited: false });
   }
 
   const holder = crypto.randomUUID();
   const deadline = Date.now() + waitMs;
+  let waited = false;
   for (;;) {
     let claimed: boolean;
     try {
@@ -80,19 +142,22 @@ export async function withConversationLease(
         '[qualification-lease] claim failed, running unlocked:',
         err
       );
-      return run(messageId);
+      return run(messageId, { waited });
     }
     if (claimed) break;
+    waited = true;
 
     if (Date.now() >= deadline) {
       if (!messageId) throw new QualificationLeaseBusyError(conversationId);
       let deferred: boolean;
       try {
-        deferred =
-          (await callRpc<boolean>(db, 'defer_conversation_qualification', {
-            p_conversation_id: conversationId,
-            p_message_id: messageId,
-          })) === true;
+        deferred = await deferToHolder(
+          db,
+          accountId,
+          conversationId,
+          messageId,
+          deferPayload
+        );
       } catch (err) {
         throw new QualificationLeaseBusyError(conversationId, { cause: err });
       }
@@ -161,7 +226,7 @@ export async function withConversationLease(
       if (pending.length === 0) return;
       for (const deferredId of pending) {
         try {
-          await run(deferredId);
+          await run(deferredId, { waited: true });
         } catch (err) {
           console.error('[qualification-lease] deferred run failed:', err);
         }
@@ -174,7 +239,7 @@ export async function withConversationLease(
   };
 
   try {
-    return await run(messageId);
+    return await run(messageId, { waited });
   } finally {
     try {
       await drainDeferred();
