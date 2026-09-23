@@ -184,15 +184,6 @@ export function buildEnquiryConsentRequestMessage(args: {
   );
 }
 
-/**
- * Reply to an on-demand "MATCHES" request when nothing fits yet.
- *
- * A portal lead who taps "Show Properties" has usually told us only
- * what the portal knew — a type and an area. Answering "nothing fits
- * your brief, reply with what's changed" to someone who never gave a
- * brief is a dead end; say what was searched and ask for the missing
- * piece, so their answer widens the search.
- */
 export function buildNoMatchesMessage(
   contactName: string | null | undefined,
   opts: {

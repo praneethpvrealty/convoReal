@@ -6,16 +6,6 @@ import { authHeaders } from '@/lib/api';
 import { mediaSource } from '@/lib/media-source';
 import { radius, useTheme } from '@/lib/theme';
 
-/**
- * Renders a message image, from either place `messages.media_url` can
- * point (see mediaSource): the auth-gated proxy for media a contact
- * sent, or public storage for an attachment the agent sent.
- *
- * The two need opposite handling. The proxy wants a bearer token and
- * the app's own origin; storage is a different host and wants no
- * headers at all — prefixing it with the API base is what rendered
- * every agent-sent photo as "media no longer available".
- */
 export function MediaImage({ mediaUrl }: { mediaUrl: string }) {
   const { colors } = useTheme();
   const resolved = useMemo(() => mediaSource(mediaUrl), [mediaUrl]);
