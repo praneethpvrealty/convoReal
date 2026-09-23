@@ -9,7 +9,7 @@ export class QualificationLeaseBusyError extends Error {
     options?: { cause?: unknown }
   ) {
     super(
-      `Qualification lease for conversation ${conversationId} is held and the message could not be deferred`,
+      `Qualification lease for conversation ${conversationId} could not be taken and the message could not be deferred`,
       options
     );
     this.name = 'QualificationLeaseBusyError';
@@ -23,6 +23,9 @@ export interface ConversationLeaseOptions {
   pollMs?: number;
   maxHoldMs?: number;
   maxDeferredRounds?: number;
+  claimRetries?: number;
+  claimRetryMs?: number;
+  drainDeferred?: boolean;
   deferPayload?: unknown;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -112,6 +115,9 @@ export async function withConversationLease(
     pollMs = 250,
     maxHoldMs = 240_000,
     maxDeferredRounds = 5,
+    claimRetries = 3,
+    claimRetryMs = 250,
+    drainDeferred: drainsDeferred = true,
     deferPayload,
     sleep = defaultSleep,
   }: ConversationLeaseOptions = {}
@@ -120,13 +126,13 @@ export async function withConversationLease(
   try {
     db = supabaseAdmin();
   } catch (err) {
-    console.error('[qualification-lease] no client, running unlocked:', err);
-    return run(messageId, { waited: false });
+    throw new QualificationLeaseBusyError(conversationId, { cause: err });
   }
 
   const holder = crypto.randomUUID();
   const deadline = Date.now() + waitMs;
   let waited = false;
+  let claimErrors = 0;
   for (;;) {
     let claimed: boolean;
     try {
@@ -138,12 +144,17 @@ export async function withConversationLease(
           p_ttl_seconds: ttlSeconds,
         })) === true;
     } catch (err) {
+      if (++claimErrors > claimRetries) {
+        throw new QualificationLeaseBusyError(conversationId, { cause: err });
+      }
       console.error(
-        '[qualification-lease] claim failed, running unlocked:',
+        `[qualification-lease] claim failed, retrying (${claimErrors}/${claimRetries}):`,
         err
       );
-      return run(messageId, { waited });
+      await sleep(claimRetryMs * 2 ** (claimErrors - 1));
+      continue;
     }
+    claimErrors = 0;
     if (claimed) break;
     waited = true;
 
@@ -199,28 +210,33 @@ export async function withConversationLease(
       p_ttl_seconds: ttlSeconds,
     });
 
-  const release = async () => {
+  const expire = async () => {
+    clearInterval(heartbeat);
     try {
       const { error } = await db
         .from(LEASE_TABLE)
-        .delete()
+        .update({ expires_at: new Date().toISOString() })
         .eq('conversation_id', conversationId)
         .eq('account_id', accountId)
         .eq('holder', holder);
       if (error) throw error;
     } catch (err) {
-      console.error('[qualification-lease] release failed:', err);
+      console.error('[qualification-lease] expiring the lease failed:', err);
     }
   };
 
   const drainDeferred = async () => {
+    if (!drainsDeferred) {
+      await expire();
+      return;
+    }
     for (let round = 0; round < maxDeferredRounds; round++) {
       let pending: string[];
       try {
         pending = (await finish()) ?? [];
       } catch (err) {
         console.error('[qualification-lease] finish failed:', err);
-        await release();
+        await expire();
         return;
       }
       if (pending.length === 0) return;
@@ -233,9 +249,9 @@ export async function withConversationLease(
       }
     }
     console.error(
-      `[qualification-lease] deferred rounds exhausted, releasing: conversation=${conversationId}`
+      `[qualification-lease] deferred rounds exhausted, leaving the rest to the next holder: conversation=${conversationId}`
     );
-    await release();
+    await expire();
   };
 
   try {
