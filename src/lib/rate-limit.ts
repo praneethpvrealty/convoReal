@@ -352,6 +352,15 @@ export const RATE_LIMITS = {
    *  runaway loop. Applied before the key is looked up, so guessing is
    *  bounded on the same budget. */
   apiKeyV1: { limit: 120, windowMs: 60_000 },
+  /** Guidance value schedule reads, per user. Each is a Gemini call
+   *  over an uploaded document; re-matching an edited schedule does
+   *  not count. */
+  guidanceValueRead: { limit: 10, windowMs: 60_000 },
+  /** The same reads for Portfolio users, per person per day. They have
+   *  no credit wallet, so this is the whole cost bound. */
+  guidanceValuePortalDaily: { limit: 10, windowMs: 86_400_000 },
+  /** Re-matching an edited schedule: database reads only. */
+  guidanceValueMatch: { limit: 60, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

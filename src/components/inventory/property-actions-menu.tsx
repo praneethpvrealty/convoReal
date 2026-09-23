@@ -8,6 +8,7 @@ import {
   Copy,
   Edit,
   Globe,
+  Scale,
   Loader2,
   Mail,
   Megaphone,
@@ -103,6 +104,11 @@ export function PropertyActionsMenu({
           onClick={() => router.push(`/journey?property=${property.id}`)}
         >
           <Waypoints className="size-3.5 text-sky-400" /> Journey map
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => router.push(`/guidance-value?property=${property.id}`)}
+        >
+          <Scale className="size-3.5 text-amber-400" /> Guidance value
         </DropdownMenuItem>
         {canEdit && onDuplicate && (
           <DropdownMenuItem

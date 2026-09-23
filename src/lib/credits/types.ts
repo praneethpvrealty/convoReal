@@ -179,6 +179,11 @@ export const AI_FEATURE_COSTS = {
    *  the work is the same, a single multimodal call over one document,
    *  and refunded when the read fails. */
   deal_document_extract: 5,
+  /** Reading a sale deed schedule to look up its guidance value
+   *  (src/lib/guidance-value/schedule.ts). The same single multimodal
+   *  read as `deal_document_extract`; matching it against the rate
+   *  table afterwards is free. Refunded when the read fails. */
+  guidance_value_lookup: 5,
 } as const;
 
 export type AiFeatureKey = keyof typeof AI_FEATURE_COSTS;

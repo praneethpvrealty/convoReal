@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, HandCoins, Settings, LogOut, KeyRound } from "lucide-react";
+import { Home, Building2, HandCoins, Settings, LogOut, KeyRound, Landmark } from "lucide-react";
 
 import { useDen } from "./den-provider";
 import { DenWelcome } from "./den-welcome";
@@ -18,6 +18,7 @@ const NAV = [
   { href: "/den", label: "Overview", icon: Home, exact: true },
   { href: "/den/properties", label: "My Properties", icon: Building2, exact: false },
   { href: "/den/bids", label: "Offers", icon: HandCoins, exact: false },
+  { href: "/den/guidance-value", label: "Guidance value", icon: Landmark, exact: false },
   { href: "/den/settings", label: "Settings", icon: Settings, exact: false },
 ];
 

@@ -116,6 +116,21 @@ export const CHUNKS: KnowledgeChunk[] = [
     ],
   },
   {
+    id: 'guidance-value.overview',
+    route: '/guidance-value',
+    title: 'Guidance value',
+    kind: 'page',
+    body: 'Find the Karnataka government guidance value of a property. Upload the schedule page of its sale deed and ConvoReal reads the area, road, type and extent, matches the published notification, and shows the rate and total. Fix any field and search again, and enter the site area when only built-up area is given. Open it from a property or transaction to save the value there.',
+    keywords: [
+      'guidance value',
+      'government value',
+      'stamp duty',
+      'sale deed',
+      'schedule',
+      'kaveri',
+    ],
+  },
+  {
     id: 'calendar.overview',
     route: '/calendar',
     title: 'Calendar',

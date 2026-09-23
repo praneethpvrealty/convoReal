@@ -14,6 +14,7 @@ import {
   Settings,
   LogOut,
   Home,
+  Landmark,
 } from 'lucide-react';
 
 import { useBuyer } from './buyer-provider';
@@ -28,6 +29,12 @@ const NAV = [
     href: '/buyer/preferences',
     label: 'Preferences',
     icon: SlidersHorizontal,
+    exact: false,
+  },
+  {
+    href: '/buyer/guidance-value',
+    label: 'Guidance value',
+    icon: Landmark,
     exact: false,
   },
   { href: '/buyer/settings', label: 'Settings', icon: Settings, exact: false },

@@ -19,6 +19,11 @@ export const MENU_LINKS = {
     label: 'Deals: board & records',
   },
   radar: { href: '/(app)/radar', icon: 'radio-outline', label: 'Match Radar' },
+  guidanceValue: {
+    href: '/(app)/guidance-value',
+    icon: 'scale-outline',
+    label: 'Guidance value',
+  },
   requirements: {
     href: '/(app)/requirements',
     icon: 'clipboard-outline',
@@ -123,6 +128,7 @@ export const MENU_SECTIONS: { title: string; ids: readonly MenuRouteId[] }[] = [
       'deals',
       'radar',
       'journey',
+      'guidanceValue',
       'dashboard',
     ],
   },

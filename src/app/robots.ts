@@ -29,6 +29,7 @@ export default function robots(): MetadataRoute.Robots {
           '/docs/',
           '/flows',
           '/forgot-password',
+          '/guidance-value',
           '/inbox',
           '/inventory',
           '/join/',

@@ -1679,6 +1679,58 @@
           ]
         }
       ]
+    },
+    {
+      "id": "guidance-value",
+      "name": "Guidance value — Karnataka government value of a property from its sale deed schedule",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "GVL-001",
+          "rule": "A schedule read is one Gemini call over an uploaded PDF or photo of at most 4 MB. Staff pay guidance_value_lookup credits, burned before the read and refunded when it fails; Portfolio buyers and owners read free under a per-person daily limit. An unsupported or oversized file is refused before any charge, and re-matching an edited schedule never reads or charges.",
+          "tests": [
+            {
+              "file": "src/app/api/guidance-value/lookup/route.test.ts",
+              "case": "[GVL-001]"
+            }
+          ]
+        },
+        {
+          "id": "GVL-002",
+          "rule": "Matching ranks imported rates by area, road and survey number against the schedule and prefers the rate column for the schedule's type and usage: a road-specific rate of the right block beats an area-wide one, a different block or stage is demoted, and a rate whose area name shares nothing with the schedule is never offered.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/match.test.ts",
+              "case": "[GVL-002]"
+            }
+          ]
+        },
+        {
+          "id": "GVL-003",
+          "rule": "Value is rate converted to per sq.ft times area: land or site area for site, house, agricultural and industrial rates, built-up area for apartment rates, plus an optional building component. A missing area yields no value and names the area to enter; a built-up area is never used as land extent.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/match.test.ts",
+              "case": "[GVL-003]"
+            },
+            {
+              "file": "mobile/lib/guidance-value.test.ts",
+              "case": "[GVL-003]"
+            }
+          ]
+        },
+        {
+          "id": "GVL-004",
+          "rule": "A saved guidance value belongs to one account and a property or transaction of it; its total is recomputed on the server from the stored rate and a snapshot of that rate is kept, so a client-sent total is ignored and deleting a notification does not change saved values.",
+          "tests": [
+            {
+              "file": "src/app/api/guidance-value/saved/route.test.ts",
+              "case": "[GVL-004]"
+            }
+          ],
+          "guards": ["supabase/migrations/20260923051521_guidance_values.sql"]
+        }
+      ]
     }
   ]
 }

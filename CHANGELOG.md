@@ -17,6 +17,21 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 23 September 2026
+
+- **Guidance value from a sale deed schedule.** Upload the schedule of a
+  Karnataka sale deed (PDF or photo) and ConvoReal reads its location,
+  type and extent, matches it against the government guidance value
+  notification, and shows the rate and the value. The schedule is
+  editable, so a missing site area or a misread road is one field away,
+  and a value can be saved against a property or a transaction. It is on
+  the dashboard (`/guidance-value`, the property menu and each
+  transaction), in the mobile app, and in the Portfolio portals for
+  buyers and owners, who use it free under a daily limit. Staff reads
+  cost 5 credits, refunded when the read fails. Rates come from the IGR
+  PDFs a platform admin imports under Admin → Guidance values. **Migration
+  required:** `20260923051521_guidance_values.sql`.
+
 #### 22 September 2026
 
 - **An attachment the agent sent now shows in the thread.** Sending

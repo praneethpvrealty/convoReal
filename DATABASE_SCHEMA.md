@@ -421,6 +421,25 @@ them by construction; their data access happens through `/api/den/*`
   `phone_confirmed_at` (once per account — Google re-logins are never
   re-asked) via `/verify-phone`.
 
+### Group J: Guidance values (migration 20260923051521)
+
+- `guidance_value_sources` and `guidance_value_rates`: Karnataka guidance
+  value notifications imported from the IGR PDFs by a platform admin
+  (`/admin` → Guidance values), one rate row per area / road / survey
+  range and property class (`residential_site`, `residential_apartment`,
+  `commercial_site`, `commercial_apartment`, `industrial`, `agricultural`,
+  `other`) with its unit (`sqm`, `sqft`, `acre`, `gunta`, `hectare`).
+  Public government data shared by every tenant, so these two tables
+  deliberately have **no `account_id`**; RLS is on with no policies and
+  only the service role reads or writes them.
+  `search_guidance_value_rates(query, district_pattern, limit)` returns
+  trigram candidates (service role only). PDFs live in the private
+  `guidance-value-sources` bucket.
+- `property_guidance_values`: a guidance value saved against a property
+  or transaction — the schedule, the chosen rate id plus a snapshot of
+  it, areas in sq.ft, and land / building / total value recomputed by
+  the server. Account-scoped with `is_account_member()` RLS.
+
 ---
 
 ## 3. Database Indexes Strategy
