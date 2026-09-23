@@ -16,14 +16,35 @@ const sendRequirementReview = vi.fn();
 const extractContactPreferences = vi.fn();
 
 let queues: Record<string, unknown[]> = {};
+let updates: { table: string; payload: Record<string, unknown> }[] = [];
+let rpcCalls: { fn: string; args: Record<string, unknown> }[] = [];
+let finishResults: string[][] = [];
+let filterCalls: { table: string; method: string; args: unknown[] }[] = [];
 
 vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      rpcCalls.push({ fn, args });
+      if (fn === 'finish_conversation_qualification_lease') {
+        return { data: finishResults.shift() ?? [], error: null };
+      }
+      return { data: true, error: null };
+    },
     from: (table: string) => {
       const chain: Record<string, unknown> = {};
-      for (const m of ['select', 'eq', 'gt', 'order', 'limit', 'update']) {
+      for (const m of ['select', 'eq', 'gt', 'limit', 'delete']) {
         chain[m] = () => chain;
       }
+      for (const m of ['or', 'order']) {
+        chain[m] = (...args: unknown[]) => {
+          filterCalls.push({ table, method: m, args });
+          return chain;
+        };
+      }
+      chain.update = (payload: Record<string, unknown>) => {
+        updates.push({ table, payload });
+        return chain;
+      };
       chain.maybeSingle = async () => ({
         data: (queues[table] ?? []).shift() ?? null,
       });
@@ -84,7 +105,8 @@ vi.mock('@/lib/ai/preference-extraction', async (importOriginal) => {
 
 const { processBuyerQualificationMessage } =
   await import('./buyer-qualification');
-const { EMPTY_PREFERENCES } = await import('./preference-extraction');
+const { EMPTY_PREFERENCES, buildPreferenceSourceText, preferenceSourceHash } =
+  await import('./preference-extraction');
 
 const fullPrefs = {
   ...EMPTY_PREFERENCES,
@@ -120,6 +142,10 @@ const run = (ownerUserId?: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  updates = [];
+  rpcCalls = [];
+  filterCalls = [];
+  finishResults = [];
   sendTextMessage.mockResolvedValue({ messageId: 'wamid.1' });
   generateMatchEventForContact.mockResolvedValue(undefined);
   rankPropertiesForContact.mockResolvedValue([]);
@@ -643,5 +669,337 @@ describe('processBuyerQualificationMessage — relative size feedback', () => {
         ]),
       })
     );
+  });
+});
+
+describe('processBuyerQualificationMessage — one burst, two webhooks', () => {
+  it('[INB-014] folds a newer line of the burst that was stored before this one ran', async () => {
+    queues.contacts = [contactRow({ requirements: null })];
+    queues.messages = [
+      [
+        {
+          sender_type: 'customer',
+          content_text: '1200 sqft',
+          message_id: 'wamid.newer',
+        },
+        {
+          sender_type: 'customer',
+          content_text: '3000000 to 3500000',
+          message_id: 'wamid.older',
+        },
+        { sender_type: 'bot', content_text: 'Hi Aryan' },
+      ],
+      { created_at: '2026-09-23T10:00:00.000Z' },
+      { count: 1 },
+    ];
+
+    await processBuyerQualificationMessage(
+      '3000000 to 3500000',
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1',
+      'wamid.older'
+    );
+
+    const filed = updates.find((u) => u.table === 'contacts');
+    expect(filed?.payload.requirements).toContain('1200 sqft');
+    expect(filed?.payload.requirements).toContain('3000000 to 3500000');
+  });
+
+  it("[INB-014] files the newer line's buy-or-rent when an older line of the burst runs last", async () => {
+    queues.contacts = [contactRow({ requirements: null })];
+    queues.messages = [
+      [
+        {
+          sender_type: 'customer',
+          content_text: '2 BHK flat for rent',
+          message_id: 'wamid.newer',
+        },
+        {
+          sender_type: 'customer',
+          content_text: 'Buy 2 BHK flat',
+          message_id: 'wamid.older',
+        },
+        { sender_type: 'bot', content_text: 'Hi Aryan' },
+      ],
+      { created_at: '2026-09-23T10:00:00.000Z' },
+      { count: 1 },
+    ];
+
+    await processBuyerQualificationMessage(
+      'Buy 2 BHK flat',
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1',
+      'wamid.older'
+    );
+
+    expect(recordLearnedFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facts: expect.arrayContaining([
+          { field: 'pref_listing_types', value: ['Rent'] },
+        ]),
+      })
+    );
+  });
+
+  it('[INB-006] [INB-014] never files a newer "More site" as part of the burst', async () => {
+    queues.contacts = [contactRow({ requirements: null })];
+    queues.messages = [
+      [
+        {
+          sender_type: 'customer',
+          content_text: 'More site',
+          message_id: 'wamid.newer',
+        },
+        {
+          sender_type: 'customer',
+          content_text: '3000000 to 3500000',
+          message_id: 'wamid.older',
+        },
+        { sender_type: 'bot', content_text: 'Hi Aryan' },
+      ],
+      { created_at: '2026-09-23T10:00:00.000Z' },
+      { count: 1 },
+    ];
+
+    await processBuyerQualificationMessage(
+      '3000000 to 3500000',
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1',
+      'wamid.older'
+    );
+
+    const filed = updates.find((u) => u.table === 'contacts');
+    expect(filed?.payload.requirements).toBe('3000000 to 3500000');
+  });
+
+  it('[INB-014] stores the purchase a budget implies when the brief itself is unchanged', async () => {
+    const line = 'budget 50 lakh';
+    queues.contacts = [
+      contactRow({
+        requirements: line,
+        pref_source_hash: preferenceSourceHash(
+          buildPreferenceSourceText(line, [])
+        ),
+        pref_property_types: ['Residential Plot'],
+        pref_areas: ['Koramangala'],
+        pref_budget_max: 5_000_000,
+        pref_listing_types: [],
+      }),
+    ];
+    queues.messages = [[{ sender_type: 'customer', content_text: line }]];
+
+    await processBuyerQualificationMessage(
+      line,
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(extractContactPreferences).not.toHaveBeenCalled();
+    expect(recordLearnedFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facts: [{ field: 'pref_listing_types', value: ['Sale'] }],
+      })
+    );
+    expect(rankPropertiesForContact).toHaveBeenCalled();
+    expect(recordLearnedFacts.mock.invocationCallOrder[0]).toBeLessThan(
+      rankPropertiesForContact.mock.invocationCallOrder[0]
+    );
+  });
+});
+
+describe('processBuyerQualificationMessage — a buy-or-rent correction', () => {
+  const prompt = {
+    sender_type: 'bot',
+    content_text: 'Are you looking to buy or to rent?',
+  };
+  const buy = {
+    sender_type: 'customer',
+    content_text: 'Buy',
+    message_id: 'wamid.buy',
+  };
+  const rent = {
+    sender_type: 'customer',
+    content_text: 'Rent',
+    message_id: 'wamid.rent',
+  };
+  const send = (line: string, id: string) =>
+    processBuyerQualificationMessage(
+      line,
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1',
+      id
+    );
+  const filedIntent = () =>
+    recordLearnedFacts.mock.calls
+      .map(
+        ([arg]) =>
+          (arg as { facts: { field: string; value: unknown }[] }).facts.find(
+            (f) => f.field === 'pref_listing_types'
+          )?.value
+      )
+      .filter(Boolean)
+      .at(-1);
+  const briefFor = (requirements: string) => ({
+    requirements,
+    pref_source_hash: preferenceSourceHash(
+      buildPreferenceSourceText(requirements, [])
+    ),
+  });
+
+  it('[INB-014] files Rent when "Rent" is processed after "Buy"', async () => {
+    queues.contacts = [contactRow({ requirements: null })];
+    queues.messages = [
+      [buy, prompt],
+      { id: 'm-buy', created_at: '2026-09-23T10:00:00.000Z' },
+      { count: 0 },
+    ];
+    extractContactPreferences.mockResolvedValue(fullPrefs);
+    await send('Buy', 'wamid.buy');
+    expect(filedIntent()).toEqual(['Sale']);
+
+    queues.whatsapp_config = [{ auto_qualify_leads: true }];
+    queues.contacts = [
+      contactRow({ ...briefFor('Buy'), pref_listing_types: ['Sale'] }),
+    ];
+    queues.messages = [
+      [rent, buy, prompt],
+      { id: 'm-rent', created_at: '2026-09-23T10:00:01.000Z' },
+      { count: 0 },
+    ];
+    await send('Rent', 'wamid.rent');
+
+    expect(filedIntent()).toEqual(['Rent']);
+    expect(updates.at(-1)?.payload.requirements).toBe('Buy\nRent');
+  });
+
+  it('[INB-014] files Rent when "Buy" is processed after "Rent"', async () => {
+    queues.contacts = [contactRow({ requirements: null })];
+    queues.messages = [
+      [rent, prompt],
+      { id: 'm-rent', created_at: '2026-09-23T10:00:01.000Z' },
+      { count: 0 },
+    ];
+    extractContactPreferences.mockResolvedValue(fullPrefs);
+    await send('Rent', 'wamid.rent');
+    expect(filedIntent()).toEqual(['Rent']);
+
+    queues.whatsapp_config = [{ auto_qualify_leads: true }];
+    queues.contacts = [
+      contactRow({ ...briefFor('Rent'), pref_listing_types: ['Rent'] }),
+    ];
+    queues.messages = [
+      [rent, buy, prompt],
+      { id: 'm-buy', created_at: '2026-09-23T10:00:00.000Z' },
+      { count: 1 },
+    ];
+    await send('Buy', 'wamid.buy');
+
+    expect(filedIntent()).toEqual(['Rent']);
+    expect(updates.at(-1)?.payload.requirements).toBe('Buy\nRent');
+  });
+
+  it('[INB-014] orders same-second lines by a stable key, and a tied sibling still supersedes', async () => {
+    queues.contacts = [contactRow({ requirements: null })];
+    queues.messages = [
+      [buy, prompt],
+      { id: 'm-buy', created_at: '2026-09-23T10:00:00.000Z', ingest_seq: 41 },
+      { count: 1 },
+    ];
+
+    await send('Buy', 'wamid.buy');
+
+    expect(
+      filterCalls.filter((c) => c.table === 'messages' && c.method === 'order')
+    ).toEqual([
+      {
+        table: 'messages',
+        method: 'order',
+        args: ['created_at', { ascending: false }],
+      },
+      {
+        table: 'messages',
+        method: 'order',
+        args: ['ingest_seq', { ascending: false, nullsFirst: false }],
+      },
+      {
+        table: 'messages',
+        method: 'order',
+        args: ['id', { ascending: false }],
+      },
+    ]);
+    expect(
+      filterCalls.find((c) => c.table === 'messages' && c.method === 'or')
+        ?.args[0]
+    ).toBe(
+      'created_at.gt."2026-09-23T10:00:00.000Z",and(created_at.eq."2026-09-23T10:00:00.000Z",ingest_seq.gt.41)'
+    );
+    expect(sendTextMessage).not.toHaveBeenCalled();
+  });
+
+  it('[INB-014] qualifies each conversation under its lease', async () => {
+    queues.messages = [[{ sender_type: 'bot' }], { count: 0 }];
+    await run('owner-1');
+    expect(rpcCalls.map((c) => c.fn)).toEqual([
+      'claim_conversation_qualification_lease',
+      'finish_conversation_qualification_lease',
+    ]);
+    expect(rpcCalls[0].args).toEqual(
+      expect.objectContaining({
+        p_account_id: 'acct-1',
+        p_conversation_id: 'conv-1',
+      })
+    );
+  });
+
+  it('[INB-014] qualifies a line another webhook left with the lease holder', async () => {
+    finishResults = [['wamid.deferred']];
+    queues.whatsapp_config = [
+      { auto_qualify_leads: true },
+      { auto_qualify_leads: true },
+    ];
+    queues.contacts = [
+      contactRow({ requirements: null }),
+      contactRow({ requirements: null }),
+    ];
+    queues.messages = [
+      [{ sender_type: 'customer', content_text: 'ok', message_id: 'wamid.ok' }],
+      { content_text: '1200 sqft' },
+      [
+        {
+          sender_type: 'customer',
+          content_text: '1200 sqft',
+          message_id: 'wamid.deferred',
+        },
+        { sender_type: 'customer', content_text: 'ok', message_id: 'wamid.ok' },
+      ],
+      { id: 'm-1200', created_at: '2026-09-23T10:00:01.000Z', ingest_seq: 7 },
+      { count: 0 },
+    ];
+
+    await send('ok', 'wamid.ok');
+
+    expect(
+      updates.find((u) => u.table === 'contacts')?.payload.requirements
+    ).toBe('1200 sqft');
   });
 });

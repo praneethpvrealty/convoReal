@@ -37,7 +37,9 @@ import {
   buildEnquiryBudgetDisparityReply,
   resolveInventoryLocalityReply,
   impliedListingTypes,
-  earlierBurstRequirements,
+  burstRequirements,
+  latestIntentTurn,
+  rebuildRequirements,
   buildWidenSearchQuestion,
   describeBrief,
 } from './buyer-qualification';
@@ -1309,23 +1311,134 @@ describe('portal plot lead replay (sandhiya)', () => {
 
   it('[INB-014] keeps an earlier line of the same burst in the brief', () => {
     expect(
-      earlierBurstRequirements([
-        { sender_type: 'customer', content_text: '1200 sqft' },
-        { sender_type: 'customer', content_text: '3000000 to 3500000' },
-        { sender_type: 'customer', content_text: 'ok' },
-        { sender_type: 'bot', content_text: 'Hi sandhiya' },
-        { sender_type: 'customer', content_text: '2 BHK' },
-      ])
-    ).toEqual(['3000000 to 3500000']);
+      burstRequirements(
+        [
+          { sender_type: 'customer', content_text: '1200 sqft' },
+          { sender_type: 'customer', content_text: '3000000 to 3500000' },
+          { sender_type: 'customer', content_text: 'ok' },
+          { sender_type: 'bot', content_text: 'Hi sandhiya' },
+          { sender_type: 'customer', content_text: '2 BHK' },
+        ],
+        '1200 sqft'
+      )
+    ).toEqual(['3000000 to 3500000', '1200 sqft']);
     expect(
-      earlierBurstRequirements([
-        { sender_type: 'customer', content_text: 'Buy' },
-        {
-          sender_type: 'bot',
-          content_text: 'Are you looking to buy or to rent?',
-        },
-      ])
-    ).toEqual([]);
+      burstRequirements(
+        [
+          { sender_type: 'customer', content_text: 'Buy' },
+          {
+            sender_type: 'bot',
+            content_text: 'Are you looking to buy or to rent?',
+          },
+        ],
+        'Buy'
+      )
+    ).toEqual(['Buy']);
+  });
+
+  it('[INB-014] keeps a newer line of the same burst that landed first, in order', () => {
+    const thread = [
+      { sender_type: 'customer', content_text: '1200 sqft' },
+      { sender_type: 'customer', content_text: '3000000 to 3500000' },
+      { sender_type: 'bot', content_text: 'Hi sandhiya' },
+    ];
+    expect(burstRequirements(thread, '3000000 to 3500000', 1)).toEqual([
+      '3000000 to 3500000',
+      '1200 sqft',
+    ]);
+    expect(burstRequirements(thread, '1200 sqft', 0)).toEqual([
+      '3000000 to 3500000',
+      '1200 sqft',
+    ]);
+    expect(
+      burstRequirements(
+        [
+          { sender_type: 'customer', content_text: 'Rent 2 BHK' },
+          { sender_type: 'customer', content_text: 'Buy 2 BHK' },
+          { sender_type: 'customer', content_text: '1200 sqft' },
+          { sender_type: 'bot', content_text: 'What are you looking for?' },
+        ],
+        'Buy 2 BHK',
+        1
+      )
+    ).toEqual(['1200 sqft', 'Buy 2 BHK', 'Rent 2 BHK']);
+    expect(
+      burstRequirements(
+        [
+          { sender_type: 'customer', content_text: '1200 sqft' },
+          { sender_type: 'bot', content_text: 'What budget?' },
+          { sender_type: 'customer', content_text: '3000000 to 3500000' },
+        ],
+        '3000000 to 3500000',
+        2
+      )
+    ).toEqual(['3000000 to 3500000']);
+  });
+
+  it('[INB-006] [INB-014] never folds a more-listings request from either side of the burst', () => {
+    expect(
+      burstRequirements(
+        [
+          { sender_type: 'customer', content_text: 'More site' },
+          { sender_type: 'customer', content_text: '3000000 to 3500000' },
+          { sender_type: 'customer', content_text: 'More site' },
+          { sender_type: 'customer', content_text: '1200 sqft' },
+        ],
+        '3000000 to 3500000',
+        1
+      )
+    ).toEqual(['1200 sqft', '3000000 to 3500000']);
+  });
+
+  it('[INB-014] folds a bare buy-or-rent line only into a burst the ladder opened', () => {
+    const prompt = {
+      sender_type: 'bot',
+      content_text: 'Are you looking to buy or to rent?',
+    };
+    expect(
+      burstRequirements(
+        [
+          { sender_type: 'customer', content_text: 'Rent' },
+          { sender_type: 'customer', content_text: 'Buy' },
+          prompt,
+        ],
+        'Buy',
+        1
+      )
+    ).toEqual(['Buy', 'Rent']);
+    expect(
+      burstRequirements(
+        [
+          { sender_type: 'customer', content_text: 'Rent' },
+          { sender_type: 'customer', content_text: '1200 sqft' },
+          { sender_type: 'bot', content_text: 'Hi sandhiya' },
+        ],
+        '1200 sqft',
+        1
+      )
+    ).toEqual(['1200 sqft']);
+  });
+
+  it('[INB-014] rebuilds the brief in burst order whichever line was filed first', () => {
+    expect(rebuildRequirements('Plot\nRent', ['Buy', 'Rent'])).toBe(
+      'Plot\nBuy\nRent'
+    );
+    expect(rebuildRequirements('Plot\nBuy', ['Buy', 'Rent'])).toBe(
+      'Plot\nBuy\nRent'
+    );
+  });
+
+  it('[INB-014] takes buy-or-rent from the newest line of the burst that states it', () => {
+    expect(
+      latestIntentTurn(
+        ['Buy 2 BHK flat', '2 BHK flat for rent'],
+        'Buy 2 BHK flat'
+      )
+    ).toBe('2 BHK flat for rent');
+    expect(
+      latestIntentTurn(['2 BHK flat for rent', '1200 sqft'], '1200 sqft')
+    ).toBe('2 BHK flat for rent');
+    expect(latestIntentTurn(['1200 sqft'], '1200 sqft')).toBe('1200 sqft');
   });
 
   it('[INB-014] describes the searched brief and asks a rung its fingerprint recognises', () => {

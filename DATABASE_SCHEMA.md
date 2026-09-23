@@ -187,6 +187,7 @@ Individual message records.
 - `meta_message_id` (TEXT): Meta Graph API message ID.
 - `error_code` (INTEGER) / `error_info` (TEXT): Structured delivery failure metadata kept out of `content_text`.
 - `retry_after` (TIMESTAMPTZ): Earliest safe retry time for a temporary delivery failure such as Meta 131049.
+- `ingest_seq` (BIGINT, migration 20260923120000): insertion order from `messages_ingest_seq`, set by default on every new row and NULL on rows older than the migration. `created_at` holds Meta's second-resolution timestamp, so lines sent in the same second tie on it; readers that need arrival order sort `created_at DESC, ingest_seq DESC NULLS LAST, id DESC`.
 
 #### 13. `message_reactions`
 - `id`, `message_id`, `reaction` (TEXT emoji), `agent_id` (`profiles.user_id`).
@@ -225,6 +226,16 @@ Ledger of which contacts have been told that the brokerage messages from a new n
 One row per `(account_id, phone_number_id, sender_phone)` (UNIQUE) recording when a retired saved number last auto-replied to a sender, so each sender hears from it at most once per 24 hours. Claimed before the send (insert, or an update guarded by `last_replied_at < now - 24h`) and rolled back when Meta rejects the reply.
 - `reply_count` (INTEGER), `last_replied_at` (TIMESTAMPTZ).
 - Written only by the service-role webhook path; RLS: members read, admins delete.
+
+#### 15a-iv. `conversation_qualification_leases` (migration 20260923060000)
+One row per conversation (UNIQUE `conversation_id`) while a webhook runs buyer qualification for it, so overlapping webhooks for one lead are qualified one at a time.
+- `holder` (UUID), `expires_at` (TIMESTAMPTZ), `pending_message_ids` (TEXT[], migration 20260923120000): WhatsApp ids of lines whose webhooks gave up waiting and left them for the holder.
+- `claim_conversation_qualification_lease(p_account_id, p_conversation_id, p_holder, p_ttl_seconds)`: inserts the lease or takes over an expired one in one statement and returns whether it was claimed. A takeover keeps the crashed holder's pending ids.
+- `renew_conversation_qualification_lease(p_conversation_id, p_holder, p_ttl_seconds)`: the holder's heartbeat; returns whether it still holds the lease.
+- `defer_conversation_qualification(p_conversation_id, p_message_id)`: adds a line to a live lease's pending ids; false when no live lease exists.
+- `finish_conversation_qualification_lease(p_conversation_id, p_holder, p_ttl_seconds)`: returns and clears the pending ids while keeping the lease, or deletes the lease when none are pending.
+- All four are SECURITY DEFINER with execute granted to the service role only.
+- Written only by the service-role webhook path; RLS: members read.
 
 #### 15b. `whatsapp_meta_flows` (migration 125)
 Registry of native Meta WhatsApp Flows (form-screen flows) created per account via the Graph API. Distinct from the in-app chatbot flow builder tables (`flows` / `flow_runs`).
