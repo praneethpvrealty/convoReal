@@ -105,6 +105,8 @@ vi.mock('@/lib/ai/preference-extraction', async (importOriginal) => {
 
 const { processBuyerQualificationMessage } =
   await import('./buyer-qualification');
+const { runSerializedInbound } =
+  await import('@/lib/whatsapp/serialized-inbound');
 const { EMPTY_PREFERENCES, buildPreferenceSourceText, preferenceSourceHash } =
   await import('./preference-extraction');
 
@@ -956,9 +958,29 @@ describe('processBuyerQualificationMessage — a buy-or-rent correction', () => 
     expect(sendTextMessage).not.toHaveBeenCalled();
   });
 
-  it('[INB-014] qualifies each conversation under its lease', async () => {
+  it('[INB-014] [INB-016] qualifies without taking a lease of its own', async () => {
     queues.messages = [[{ sender_type: 'bot' }], { count: 0 }];
     await run('owner-1');
+    expect(rpcCalls.map((c) => c.fn)).not.toContain(
+      'claim_conversation_qualification_lease'
+    );
+  });
+
+  it('[INB-016] qualifies inside the inbound chain lease without claiming a second one', async () => {
+    queues.messages = [[{ sender_type: 'bot' }], { count: 0 }];
+    let handled: boolean | undefined;
+    await runSerializedInbound({
+      accountId: 'acct-1',
+      conversationId: 'conv-1',
+      messageId: 'wamid.1',
+      payload: {},
+      handle: async () => {
+        handled = await run('owner-1');
+      },
+      handleWithoutPayload: async () => {},
+    });
+
+    expect(handled).toBe(true);
     expect(rpcCalls.map((c) => c.fn)).toEqual([
       'claim_conversation_qualification_lease',
       'finish_conversation_qualification_lease',
@@ -969,37 +991,5 @@ describe('processBuyerQualificationMessage — a buy-or-rent correction', () => 
         p_conversation_id: 'conv-1',
       })
     );
-  });
-
-  it('[INB-014] qualifies a line another webhook left with the lease holder', async () => {
-    finishResults = [['wamid.deferred']];
-    queues.whatsapp_config = [
-      { auto_qualify_leads: true },
-      { auto_qualify_leads: true },
-    ];
-    queues.contacts = [
-      contactRow({ requirements: null }),
-      contactRow({ requirements: null }),
-    ];
-    queues.messages = [
-      [{ sender_type: 'customer', content_text: 'ok', message_id: 'wamid.ok' }],
-      { content_text: '1200 sqft' },
-      [
-        {
-          sender_type: 'customer',
-          content_text: '1200 sqft',
-          message_id: 'wamid.deferred',
-        },
-        { sender_type: 'customer', content_text: 'ok', message_id: 'wamid.ok' },
-      ],
-      { id: 'm-1200', created_at: '2026-09-23T10:00:01.000Z', ingest_seq: 7 },
-      { count: 0 },
-    ];
-
-    await send('ok', 'wamid.ok');
-
-    expect(
-      updates.find((u) => u.table === 'contacts')?.payload.requirements
-    ).toBe('1200 sqft');
   });
 });

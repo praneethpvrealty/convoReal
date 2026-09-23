@@ -55,10 +55,6 @@ import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
 import { localityLabelsMatch } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
-import {
-  QualificationLeaseBusyError,
-  withConversationLease,
-} from '@/lib/ai/qualification-lease';
 import type { Contact, Property } from '@/types';
 
 export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
@@ -1327,54 +1323,6 @@ async function lastShownListingAreaSqft(
   return built && built > 0 ? built : null;
 }
 
-export async function processBuyerQualificationMessage(
-  contentText: string | null,
-  contactRecord: { id: string; phone: string; name?: string | null },
-  conversation: { id: string },
-  accountId: string,
-  accessToken: string,
-  phoneNumberId: string,
-  configOwnerUserId?: string,
-  metaMessageId?: string | null
-): Promise<boolean> {
-  const text = contentText?.trim();
-  if (!text || standsDownFromQualification(text)) return false;
-  const qualify = async (messageId: string | null) => {
-    let line: string | null | undefined = text;
-    if (messageId && messageId !== metaMessageId) {
-      const { data } = await supabaseAdmin()
-        .from('messages')
-        .select('content_text')
-        .eq('conversation_id', conversation.id)
-        .eq('message_id', messageId)
-        .maybeSingle();
-      line = data?.content_text as string | null | undefined;
-    }
-    return qualifyLeadMessage(
-      line ?? null,
-      contactRecord,
-      conversation,
-      accountId,
-      accessToken,
-      phoneNumberId,
-      configOwnerUserId,
-      messageId
-    );
-  };
-  try {
-    return await withConversationLease(
-      accountId,
-      conversation.id,
-      metaMessageId ?? null,
-      qualify
-    );
-  } catch (err) {
-    if (!(err instanceof QualificationLeaseBusyError)) throw err;
-    console.error('[buyer-qualification] lease busy, not qualifying:', err);
-    return false;
-  }
-}
-
 export function laterSiblingFilter(current: {
   id: string;
   created_at: string;
@@ -1388,7 +1336,7 @@ export function laterSiblingFilter(current: {
   return `created_at.gt."${current.created_at}",${tie}`;
 }
 
-async function qualifyLeadMessage(
+export async function processBuyerQualificationMessage(
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string | null },
   conversation: { id: string },

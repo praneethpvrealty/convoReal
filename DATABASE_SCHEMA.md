@@ -228,13 +228,21 @@ One row per `(account_id, phone_number_id, sender_phone)` (UNIQUE) recording whe
 - Written only by the service-role webhook path; RLS: members read, admins delete.
 
 #### 15a-iv. `conversation_qualification_leases` (migration 20260923060000)
-One row per conversation (UNIQUE `conversation_id`) while a webhook runs buyer qualification for it, so overlapping webhooks for one lead are qualified one at a time.
+One row per conversation (UNIQUE `conversation_id`) while a webhook runs the inbound handler chain for it (qualification, flows, automations and the other automated replies), so overlapping webhooks for one lead are handled one at a time.
 - `holder` (UUID), `expires_at` (TIMESTAMPTZ), `pending_message_ids` (TEXT[], migration 20260923120000): WhatsApp ids of lines whose webhooks gave up waiting and left them for the holder.
 - `claim_conversation_qualification_lease(p_account_id, p_conversation_id, p_holder, p_ttl_seconds)`: inserts the lease or takes over an expired one in one statement and returns whether it was claimed. A takeover keeps the crashed holder's pending ids.
 - `renew_conversation_qualification_lease(p_conversation_id, p_holder, p_ttl_seconds)`: the holder's heartbeat; returns whether it still holds the lease.
 - `defer_conversation_qualification(p_conversation_id, p_message_id)`: adds a line to a live lease's pending ids; false when no live lease exists.
 - `finish_conversation_qualification_lease(p_conversation_id, p_holder, p_ttl_seconds)`: returns and clears the pending ids while keeping the lease, or deletes the lease when none are pending.
 - All four are SECURITY DEFINER with execute granted to the service role only.
+- Written only by the service-role webhook path; RLS: members read.
+
+#### 15a-v. `conversation_deferred_messages` (migration 20260923130000)
+The handler context of an inbound message whose webhook gave up waiting for its conversation's lease, so the holder can rerun the whole inbound chain for it. UNIQUE (`conversation_id`, `message_id`).
+- `message_id` (TEXT): the WhatsApp message id, also appended to the lease's `pending_message_ids`.
+- `payload` (JSONB): the raw inbound message plus what the webhook resolved before the lease (sender, contact and conversation rows, parsed content, routing, enquiry match, first-inbound flag, owner check). Never the access token.
+- `defer_conversation_message(p_account_id, p_conversation_id, p_message_id, p_payload)`: in one transaction adds the id to a live lease's pending ids and stores the payload; false when no live lease exists. SECURITY DEFINER, execute granted to the service role only.
+- The holder deletes the row as it takes it, so each deferred message is rerun once.
 - Written only by the service-role webhook path; RLS: members read.
 
 #### 15b. `whatsapp_meta_flows` (migration 125)

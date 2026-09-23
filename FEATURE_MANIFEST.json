@@ -245,7 +245,7 @@
         },
         {
           "id": "INB-014",
-          "rule": "The qualification ladder never drops or re-asks what a lead already said: a bare size (\"1200 sqft\", \"30x40\") is filed as a requirement, lines of one burst are filed together and in order whatever order their webhooks land in, one conversation is qualified by one webhook at a time (a webhook that cannot get the lease in time hands its line to the holder rather than running unlocked; same-second lines are ordered by their ingestion sequence), buy-or-rent follows the newest line of the burst that states it (a bare \"Rent\" correcting \"Buy\" included) so no older webhook undoes a newer one, and a budget no rent could reach (₹10 L+, ₹1 Cr+ for commercial) answers buy-or-rent. A lead who asks for matches when nothing fits is told what was searched and asked the next missing rung, never told to change a brief they never gave.",
+          "rule": "The qualification ladder never drops or re-asks what a lead already said: a bare size (\"1200 sqft\", \"30x40\") is filed as a requirement, lines of one burst are filed together and in order whatever order their webhooks land in, one conversation is qualified by one webhook at a time under the inbound chain's conversation lease (INB-016), never a second lease of its own (same-second lines are ordered by their ingestion sequence), buy-or-rent follows the newest line of the burst that states it (a bare \"Rent\" correcting \"Buy\" included) so no older webhook undoes a newer one, and a budget no rent could reach (₹10 L+, ₹1 Cr+ for commercial) answers buy-or-rent. A lead who asks for matches when nothing fits is told what was searched and asked the next missing rung, never told to change a brief they never gave.",
           "tests": [
             {
               "file": "src/lib/ai/buyer-qualification.test.ts",
@@ -285,6 +285,27 @@
               "file": "src/lib/locality-match.test.ts",
               "case": "[INB-015]"
             }
+          ]
+        },
+        {
+          "id": "INB-016",
+          "rule": "Every automated handler for an inbound WhatsApp message (control replies, the owner chatbot, update sessions, qualification, flows, lead Q&A and automations) runs for one conversation one message at a time under a single conversation lease taken after the message is stored, so overlapping webhooks never start two flow runs, advance a flow step twice, or double-send a condition-guarded automation, and only the earliest of racing first messages fires first_inbound_message. A run that waited reads the contact and conversation afresh. A webhook that cannot get the lease in time hands the holder its whole handler context (never the access token), and the holder reruns the full chain for it exactly once; a deferred id with no stored context is only qualified, and a live lease that cannot take the message logs and skips the handlers rather than running them unlocked. Different conversations run in parallel.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/serialized-inbound.test.ts",
+              "case": "[INB-016]"
+            },
+            {
+              "file": "src/lib/ai/qualification-lease.test.ts",
+              "case": "[INB-016]"
+            },
+            {
+              "file": "src/lib/ai/buyer-qualification.process.test.ts",
+              "case": "[INB-016]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260923130000_conversation_deferred_messages.sql"
           ]
         }
       ]

@@ -245,6 +245,10 @@ import {
 import type { SandboxSenderMapping } from '@/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
+  isEarliestCustomerMessage,
+  runSerializedInbound,
+} from '@/lib/whatsapp/serialized-inbound';
+import {
   buildSoldPriceReply,
   SOLD_PRICE_BUTTON_PREFIX,
   SOLD_SIMILAR_BUTTON_PREFIX,
@@ -1222,6 +1226,49 @@ async function handleReaction(
   }
 }
 
+interface InboundChainPayload {
+  message: WhatsAppMessage;
+  configOwnerUserId: string;
+  phoneNumberId: string;
+  senderPhone: string;
+  contactWasCreated: boolean;
+  contactRecord: ContactRow;
+  conversation: ConversationRow;
+  contentText: string | null;
+  interactiveReplyId: string | null;
+  nfmResponseJson: string | null;
+  routingUpdate: {
+    assigned_agent_id?: string | null;
+    assigned_team_id?: string | null;
+    routing_rule_used?: string | null;
+    assigned_at?: string | null;
+  };
+  enquiryPropertyId: string | null;
+  enquiryByCode: boolean;
+  enquiryPropertyTitle: string | null;
+  specificPropertyInterest: boolean;
+  propertyReferenceNeedsAgent: boolean;
+  isFirstInboundMessage: boolean;
+  ownerCheck: Awaited<ReturnType<typeof checkIsAccountOwner>>;
+}
+
+async function reloadRow<T extends { id: string }>(
+  table: 'contacts' | 'conversations',
+  accountId: string,
+  row: T
+): Promise<T> {
+  const { data, error } = await supabaseAdmin()
+    .from(table)
+    .select('*')
+    .eq('id', row.id)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (error) {
+    console.error(`[webhook] reloading ${table} ${row.id} failed:`, error);
+  }
+  return data ? { ...row, ...(data as Partial<T>) } : row;
+}
+
 async function processMessage(
   message: WhatsAppMessage,
   contact: { profile?: { name?: string }; wa_id: string },
@@ -1568,6 +1615,78 @@ async function processMessage(
   if (convError) {
     console.error('Error updating conversation:', convError);
   }
+
+  await runSerializedInbound<InboundChainPayload>({
+    accountId,
+    conversationId: conversation.id,
+    messageId: message.id,
+    payload: {
+      message,
+      configOwnerUserId,
+      phoneNumberId,
+      senderPhone,
+      contactWasCreated: contactOutcome.wasCreated,
+      contactRecord,
+      conversation,
+      contentText,
+      interactiveReplyId,
+      nfmResponseJson,
+      routingUpdate,
+      enquiryPropertyId,
+      enquiryByCode,
+      enquiryPropertyTitle,
+      specificPropertyInterest,
+      propertyReferenceNeedsAgent,
+      isFirstInboundMessage,
+      ownerCheck,
+    },
+    handle: (payload, info) =>
+      handleInboundChain(payload, info, accountId, accessToken),
+    handleWithoutPayload: (deferredId) =>
+      qualifyDeferredLine(
+        deferredId,
+        contactRecord,
+        conversation,
+        accountId,
+        accessToken,
+        phoneNumberId,
+        configOwnerUserId
+      ),
+  });
+}
+
+async function handleInboundChain(
+  payload: InboundChainPayload,
+  { waited }: { waited: boolean },
+  accountId: string,
+  accessToken: string
+) {
+  const {
+    message,
+    configOwnerUserId,
+    phoneNumberId,
+    senderPhone,
+    contactWasCreated,
+    contentText,
+    interactiveReplyId,
+    nfmResponseJson,
+    routingUpdate,
+    enquiryPropertyId,
+    enquiryByCode,
+    enquiryPropertyTitle,
+    specificPropertyInterest,
+    propertyReferenceNeedsAgent,
+    ownerCheck,
+  } = payload;
+  const contactRecord = waited
+    ? await reloadRow('contacts', accountId, payload.contactRecord)
+    : payload.contactRecord;
+  const conversation = waited
+    ? await reloadRow('conversations', accountId, payload.conversation)
+    : payload.conversation;
+  const isFirstInboundMessage =
+    payload.isFirstInboundMessage &&
+    (await isEarliestCustomerMessage(conversation.id, message.id));
 
   // A staff member quote-replying one of our agent pings is answering
   // the lead that ping was about — send it on and stop, so the text
@@ -3541,8 +3660,7 @@ async function processMessage(
   if (!flowConsumed) {
     automationTriggers.push('new_message_received', 'keyword_match');
   }
-  if (contactOutcome.wasCreated)
-    automationTriggers.unshift('new_contact_created');
+  if (contactWasCreated) automationTriggers.unshift('new_contact_created');
   if (isFirstInboundMessage)
     automationTriggers.unshift('first_inbound_message');
   for (const triggerType of automationTriggers) {
@@ -3560,6 +3678,38 @@ async function processMessage(
       console.error('[automations] dispatch failed:', err);
     }
   }
+}
+
+async function qualifyDeferredLine(
+  messageId: string,
+  contactRecord: ContactRow,
+  conversation: ConversationRow,
+  accountId: string,
+  accessToken: string,
+  phoneNumberId: string,
+  configOwnerUserId: string
+) {
+  const { data } = await supabaseAdmin()
+    .from('messages')
+    .select('content_type, content_text')
+    .eq('conversation_id', conversation.id)
+    .eq('message_id', messageId)
+    .maybeSingle();
+  const line = data?.content_type === 'text' ? data.content_text : null;
+  console.error(
+    `[webhook] deferred message ${messageId} carried no payload; ${line ? 'qualifying it only' : 'nothing to rerun'}`
+  );
+  if (!line) return;
+  await processBuyerQualificationMessage(
+    line,
+    contactRecord,
+    conversation,
+    accountId,
+    accessToken,
+    phoneNumberId,
+    configOwnerUserId,
+    messageId
+  );
 }
 
 async function parseMessageContent(

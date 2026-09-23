@@ -7,6 +7,7 @@ interface Lease {
 }
 
 let leases = new Map<string, Lease>();
+let payloads = new Map<string, unknown>();
 let failing = new Set<string>();
 let adminThrows = false;
 let calls: string[] = [];
@@ -39,6 +40,13 @@ vi.mock('@/lib/supabase/admin', () => ({
             }
             lease.expiresAt = Date.now() + ttl;
             return { data: true, error: null };
+          case 'defer_conversation_message':
+            if (!lease || !live(lease)) return { data: false, error: null };
+            if (!lease.pending.includes(args.p_message_id as string)) {
+              lease.pending.push(args.p_message_id as string);
+            }
+            payloads.set(`${key}:${args.p_message_id}`, args.p_payload);
+            return { data: true, error: null };
           case 'defer_conversation_qualification':
             if (!lease || !live(lease)) return { data: false, error: null };
             if (!lease.pending.includes(args.p_message_id as string)) {
@@ -60,13 +68,22 @@ vi.mock('@/lib/supabase/admin', () => ({
         }
         return { data: null, error: { message: `unknown ${fn}` } };
       },
-      from: () => {
+      from: (table: string) => {
         const filters: Record<string, unknown> = {};
         const chain = {
           delete: () => chain,
           eq: (column: string, value: unknown) => {
             filters[column] = value;
             return chain;
+          },
+          select: () => chain,
+          maybeSingle: async () => {
+            const key = `${filters.conversation_id}:${filters.message_id}`;
+            calls.push(`take ${table}`);
+            if (!payloads.has(key)) return { data: null, error: null };
+            const payload = payloads.get(key);
+            payloads.delete(key);
+            return { data: { payload }, error: null };
           },
           then: (resolve: (v: unknown) => unknown) => {
             const key = filters.conversation_id as string;
@@ -81,13 +98,17 @@ vi.mock('@/lib/supabase/admin', () => ({
   },
 }));
 
-const { withConversationLease, QualificationLeaseBusyError } =
-  await import('./qualification-lease');
+const {
+  withConversationLease,
+  takeDeferredMessage,
+  QualificationLeaseBusyError,
+} = await import('./qualification-lease');
 
 const tick = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 beforeEach(() => {
   leases = new Map();
+  payloads = new Map();
   failing = new Set();
   adminThrows = false;
   calls = [];
@@ -270,7 +291,7 @@ describe('withConversationLease', () => {
     await expect(
       withConversationLease('acct-1', 'conv-1', 'wamid.1', run)
     ).resolves.toBe(true);
-    expect(run).toHaveBeenCalledWith('wamid.1');
+    expect(run).toHaveBeenCalledWith('wamid.1', { waited: false });
     expect(calls).not.toContain('finish_conversation_qualification_lease');
   });
 
@@ -300,5 +321,88 @@ describe('withConversationLease', () => {
     );
     expect(calls).toContain('delete');
     expect(leases.size).toBe(0);
+  });
+
+  it('[INB-016] tells a run whether it waited for another holder', async () => {
+    const seen: [string | null, boolean][] = [];
+    const run = async (id: string | null, info: { waited: boolean }) => {
+      seen.push([id, info.waited]);
+      await tick(20);
+      return true;
+    };
+    await Promise.all([
+      withConversationLease('acct-1', 'conv-1', 'wamid.1', run, { pollMs: 5 }),
+      tick(5).then(() =>
+        withConversationLease('acct-1', 'conv-1', 'wamid.2', run, {
+          pollMs: 5,
+        })
+      ),
+    ]);
+    expect(seen).toEqual([
+      ['wamid.1', false],
+      ['wamid.2', true],
+    ]);
+  });
+
+  it('[INB-016] hands the holder the deferred payload with the id, and the holder takes it exactly once', async () => {
+    const run = async (id: string | null) => {
+      await tick(id === 'wamid.1' ? 60 : 1);
+      return true;
+    };
+    const taken: unknown[] = [];
+    const holder = withConversationLease(
+      'acct-1',
+      'conv-1',
+      'wamid.1',
+      async (id) => {
+        if (id !== 'wamid.1') {
+          taken.push(await takeDeferredMessage('acct-1', 'conv-1', id!));
+          taken.push(await takeDeferredMessage('acct-1', 'conv-1', id!));
+          return true;
+        }
+        return run(id);
+      },
+      { pollMs: 5 }
+    );
+    await tick(5);
+    await withConversationLease('acct-1', 'conv-1', 'wamid.2', run, {
+      pollMs: 5,
+      waitMs: 10,
+      deferPayload: { text: 'Rent' },
+    });
+    await holder;
+
+    expect(calls).toContain('defer_conversation_message');
+    expect(calls).not.toContain('defer_conversation_qualification');
+    expect(taken).toEqual([{ text: 'Rent' }, null]);
+    expect(leases.size).toBe(0);
+  });
+
+  it('[INB-016] still hands over the id alone when the payload cannot be stored', async () => {
+    failing.add('defer_conversation_message');
+    const ran: (string | null)[] = [];
+    const holder = withConversationLease(
+      'acct-1',
+      'conv-1',
+      'wamid.1',
+      async (id) => {
+        ran.push(id);
+        await tick(id === 'wamid.1' ? 60 : 1);
+        return true;
+      },
+      { pollMs: 5 }
+    );
+    await tick(5);
+    await expect(
+      withConversationLease('acct-1', 'conv-1', 'wamid.2', async () => true, {
+        pollMs: 5,
+        waitMs: 10,
+        deferPayload: { text: 'Rent' },
+      })
+    ).resolves.toBe(true);
+    await holder;
+
+    expect(calls).toContain('defer_conversation_qualification');
+    expect(ran).toEqual(['wamid.1', 'wamid.2']);
   });
 });
