@@ -81,7 +81,7 @@ function makeDb(): SupabaseClient {
   } as unknown as SupabaseClient;
 }
 
-const NOW = Date.parse('2026-09-18T12:00:00.000Z');
+const NOW = Date.now();
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
