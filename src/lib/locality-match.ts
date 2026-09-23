@@ -231,9 +231,6 @@ export function rowMatchesLocality(
   });
 }
 
-/** PostgREST .or() expression that admits every row rowMatchesLocality
- *  can accept for this label, and more: an ILIKE probe on the longest
- *  stem across LOCALITY_MATCH_FIELDS. Null when the label is blank. */
 export function localityRowPrefilter(label: string): string | null {
   const stems = localityStems(label);
   const probe = stems.length

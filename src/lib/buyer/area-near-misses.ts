@@ -54,8 +54,6 @@ export interface NearMissBrief {
   budgetMax: number | null;
 }
 
-/** The deal types the matching engine would show this lead: the ones
- *  they stated, else Sale and Rent — never a niche deal unasked. */
 export function nearMissListingTypes(listingTypes: string[]): ListingType[] {
   const stated = LISTING_TYPES.filter((type) => listingTypes.includes(type));
   return stated.length > 0
@@ -144,8 +142,6 @@ function budgetRelation(nearMiss: AreaNearMiss, brief: BudgetBrief): string {
   return '';
 }
 
-/** The listings the link carries: the ones closest to the lead's
- *  budget when it applies to this deal type, else the cheapest. */
 export function nearMissLinkedListings(
   nearMiss: AreaNearMiss,
   brief: BudgetBrief
