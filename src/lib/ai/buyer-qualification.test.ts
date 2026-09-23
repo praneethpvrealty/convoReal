@@ -1331,6 +1331,26 @@ describe('portal plot lead replay (sandhiya)', () => {
     ).toEqual([]);
   });
 
+  it('[INB-014] keeps a newer line of the same burst that landed first', () => {
+    const thread = [
+      { sender_type: 'customer', content_text: '1200 sqft' },
+      { sender_type: 'customer', content_text: '3000000 to 3500000' },
+      { sender_type: 'bot', content_text: 'Hi sandhiya' },
+    ];
+    expect(earlierBurstRequirements(thread, 1)).toEqual(['1200 sqft']);
+    expect(earlierBurstRequirements(thread, 0)).toEqual(['3000000 to 3500000']);
+    expect(
+      earlierBurstRequirements(
+        [
+          { sender_type: 'customer', content_text: '1200 sqft' },
+          { sender_type: 'bot', content_text: 'What budget?' },
+          { sender_type: 'customer', content_text: '3000000 to 3500000' },
+        ],
+        2
+      )
+    ).toEqual([]);
+  });
+
   it('[INB-014] describes the searched brief and asks a rung its fingerprint recognises', () => {
     expect(describeBrief(portalBrief)).toBe(
       'a vacant plot in KHB Suryanagar Phase'

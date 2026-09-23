@@ -252,6 +252,10 @@
               "case": "[INB-014]"
             },
             {
+              "file": "src/lib/ai/buyer-qualification.process.test.ts",
+              "case": "[INB-014]"
+            },
+            {
               "file": "src/lib/buyer/match-reply.test.ts",
               "case": "[INB-014]"
             }

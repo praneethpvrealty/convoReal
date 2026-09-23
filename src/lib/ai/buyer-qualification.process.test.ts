@@ -16,14 +16,19 @@ const sendRequirementReview = vi.fn();
 const extractContactPreferences = vi.fn();
 
 let queues: Record<string, unknown[]> = {};
+let updates: { table: string; payload: Record<string, unknown> }[] = [];
 
 vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
       const chain: Record<string, unknown> = {};
-      for (const m of ['select', 'eq', 'gt', 'order', 'limit', 'update']) {
+      for (const m of ['select', 'eq', 'gt', 'order', 'limit']) {
         chain[m] = () => chain;
       }
+      chain.update = (payload: Record<string, unknown>) => {
+        updates.push({ table, payload });
+        return chain;
+      };
       chain.maybeSingle = async () => ({
         data: (queues[table] ?? []).shift() ?? null,
       });
@@ -84,7 +89,8 @@ vi.mock('@/lib/ai/preference-extraction', async (importOriginal) => {
 
 const { processBuyerQualificationMessage } =
   await import('./buyer-qualification');
-const { EMPTY_PREFERENCES } = await import('./preference-extraction');
+const { EMPTY_PREFERENCES, buildPreferenceSourceText, preferenceSourceHash } =
+  await import('./preference-extraction');
 
 const fullPrefs = {
   ...EMPTY_PREFERENCES,
@@ -120,6 +126,7 @@ const run = (ownerUserId?: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  updates = [];
   sendTextMessage.mockResolvedValue({ messageId: 'wamid.1' });
   generateMatchEventForContact.mockResolvedValue(undefined);
   rankPropertiesForContact.mockResolvedValue([]);
@@ -642,6 +649,82 @@ describe('processBuyerQualificationMessage — relative size feedback', () => {
           { field: 'pref_land_area_max_sqft', value: null },
         ]),
       })
+    );
+  });
+});
+
+describe('processBuyerQualificationMessage — one burst, two webhooks', () => {
+  it('[INB-014] folds a newer line of the burst that was stored before this one ran', async () => {
+    queues.contacts = [contactRow({ requirements: null })];
+    queues.messages = [
+      [
+        {
+          sender_type: 'customer',
+          content_text: '1200 sqft',
+          message_id: 'wamid.newer',
+        },
+        {
+          sender_type: 'customer',
+          content_text: '3000000 to 3500000',
+          message_id: 'wamid.older',
+        },
+        { sender_type: 'bot', content_text: 'Hi Aryan' },
+      ],
+      { created_at: '2026-09-23T10:00:00.000Z' },
+      { count: 1 },
+    ];
+
+    await processBuyerQualificationMessage(
+      '3000000 to 3500000',
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1',
+      'wamid.older'
+    );
+
+    const filed = updates.find((u) => u.table === 'contacts');
+    expect(filed?.payload.requirements).toContain('1200 sqft');
+    expect(filed?.payload.requirements).toContain('3000000 to 3500000');
+  });
+
+  it('[INB-014] stores the purchase a budget implies when the brief itself is unchanged', async () => {
+    const line = 'budget 50 lakh';
+    queues.contacts = [
+      contactRow({
+        requirements: line,
+        pref_source_hash: preferenceSourceHash(
+          buildPreferenceSourceText(line, [])
+        ),
+        pref_property_types: ['Residential Plot'],
+        pref_areas: ['Koramangala'],
+        pref_budget_max: 5_000_000,
+        pref_listing_types: [],
+      }),
+    ];
+    queues.messages = [[{ sender_type: 'customer', content_text: line }]];
+
+    await processBuyerQualificationMessage(
+      line,
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(extractContactPreferences).not.toHaveBeenCalled();
+    expect(recordLearnedFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facts: [{ field: 'pref_listing_types', value: ['Sale'] }],
+      })
+    );
+    expect(rankPropertiesForContact).toHaveBeenCalled();
+    expect(recordLearnedFacts.mock.invocationCallOrder[0]).toBeLessThan(
+      rankPropertiesForContact.mock.invocationCallOrder[0]
     );
   });
 });

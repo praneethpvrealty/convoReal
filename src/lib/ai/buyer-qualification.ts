@@ -1129,13 +1129,30 @@ const MAX_BURST_LINES = 4;
  * `thread` is newest first with the current message at index 0.
  */
 export function earlierBurstRequirements(
-  thread: { sender_type?: string | null; content_text?: string | null }[]
+  thread: { sender_type?: string | null; content_text?: string | null }[],
+  currentIndex = 0
 ): string[] {
-  const lines: string[] = [];
-  for (const message of thread.slice(1, 1 + MAX_BURST_LINES)) {
-    if (message.sender_type !== 'customer') break;
+  const burstLine = (message: (typeof thread)[number]): string | null => {
     const text = message.content_text?.trim();
-    if (text && carriesRequirementSignal(text)) lines.unshift(text);
+    return text && carriesRequirementSignal(text) ? text : null;
+  };
+  const lines: string[] = [];
+  for (const message of thread.slice(
+    currentIndex + 1,
+    currentIndex + 1 + MAX_BURST_LINES
+  )) {
+    if (message.sender_type !== 'customer') break;
+    const text = burstLine(message);
+    if (text) lines.unshift(text);
+  }
+  for (
+    let i = currentIndex - 1;
+    i >= Math.max(0, currentIndex - MAX_BURST_LINES);
+    i--
+  ) {
+    if (thread[i].sender_type !== 'customer') break;
+    const text = burstLine(thread[i]);
+    if (text) lines.push(text);
   }
   return lines;
 }
@@ -1345,10 +1362,16 @@ export async function processBuyerQualificationMessage(
     // reply keeps the bot listening without talking over the person.
     const { data: thread } = await db
       .from('messages')
-      .select('sender_type, content_text')
+      .select('sender_type, content_text, message_id')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
       .limit(ASKED_WINDOW);
+    const currentIndex = Math.max(
+      0,
+      metaMessageId
+        ? (thread || []).findIndex((m) => m.message_id === metaMessageId)
+        : 0
+    );
     const recent = (thread || []).slice(0, RECENT_CONTEXT_WINDOW);
     const humanActive = humanOwnsQualificationThread(thread || []);
 
@@ -1411,7 +1434,7 @@ export async function processBuyerQualificationMessage(
     // somebody else's, and its answer belongs to them: a date given to
     // a journey check-in is not a buying requirement. Anything else
     // needs to look like a requirement on its own.
-    const previous = (recent || [])[1];
+    const previous = (thread || [])[currentIndex + 1];
     const awaitingAnswer =
       previous?.sender_type === 'bot' &&
       isQualifierQuestion(previous.content_text as string | null);
@@ -1436,7 +1459,7 @@ export async function processBuyerQualificationMessage(
       ? `Preferred location: ${resolvedLocation}`
       : text;
     const requirements = [
-      ...earlierBurstRequirements(thread || []),
+      ...earlierBurstRequirements(thread || [], currentIndex),
       requirementTurn,
     ].reduce(appendRequirement, contact.requirements || '');
     const sourceText = buildPreferenceSourceText(
@@ -1536,6 +1559,22 @@ export async function processBuyerQualificationMessage(
         .eq('id', contact.id)
         .eq('account_id', accountId);
       if (updateErr) throw updateErr;
+    } else if (
+      prefs.listing_types.length > 0 &&
+      !(contact.pref_listing_types?.length ?? 0)
+    ) {
+      await recordLearnedFacts({
+        db,
+        accountId,
+        entity: 'contact',
+        entityId: contact.id,
+        current: contact as unknown as Record<string, unknown>,
+        facts: [{ field: 'pref_listing_types', value: prefs.listing_types }],
+        evidence: text,
+        source: 'lead_message',
+        contactId: contact.id,
+        conversationId: conversation.id,
+      });
     }
 
     // Learned and filed. The guard bites here, on the reply: the
