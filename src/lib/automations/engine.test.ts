@@ -36,6 +36,9 @@ vi.mock("./admin-client", () => {
       return { data: { steps_executed: [], status: "success" }, error: null };
     }
     if (table === "automation_steps") return { data: state.steps, error: null };
+    if (table === "automation_pending_executions" && type === "update") {
+      state.updateCalls.push({ table, filters: ops.filters });
+    }
     return { data: null, error: null };
   }
 
@@ -81,7 +84,7 @@ vi.mock("./meta-send", () => ({
   engineSendTemplate: vi.fn(async () => ({ whatsapp_message_id: "m1" })),
 }));
 
-import { runAutomationsForTrigger } from "./engine";
+import { resumePendingExecution, runAutomationsForTrigger } from "./engine";
 
 const ACCOUNT = "acct-1";
 
@@ -144,6 +147,33 @@ describe("runAutomationsForTrigger — tenant isolation", () => {
     const filters = h.state.updateCalls[0].filters;
     expect(filters).toContainEqual(["eq", "id", "c1"]);
     expect(filters).toContainEqual(["eq", "account_id", ACCOUNT]);
+  });
+});
+
+describe("resumePendingExecution — claim ownership", () => {
+  it("[INB-017] settles the pending row only under the claim token it was resumed with", async () => {
+    h.state.automations = null as unknown as Record<string, unknown>[];
+
+    await resumePendingExecution({
+      id: "p1",
+      automation_id: "a1",
+      account_id: ACCOUNT,
+      user_id: "u1",
+      contact_id: "c1",
+      log_id: null,
+      parent_step_id: null,
+      branch: null,
+      next_step_position: 1,
+      context: {},
+      claim_token: "token-1",
+    });
+
+    const pending = h.state.updateCalls.filter(
+      (c) => c.table === "automation_pending_executions",
+    );
+    expect(pending).toHaveLength(1);
+    expect(pending[0].filters).toContainEqual(["eq", "id", "p1"]);
+    expect(pending[0].filters).toContainEqual(["eq", "claim_token", "token-1"]);
   });
 });
 
