@@ -123,7 +123,7 @@ function applicableBudget(
     brief.listingTypes.includes(type)
   );
   const budgetIsRent = stated.length > 0 && stated.every(isRentPriced);
-  const budgetIsPrice = stated.every((type) => !isRentPriced(type));
+  const budgetIsPrice = !budgetIsRent;
   const fits = isRentPriced(nearMiss.listingType)
     ? budgetIsRent
     : budgetIsPrice;

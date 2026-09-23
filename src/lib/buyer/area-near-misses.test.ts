@@ -271,6 +271,31 @@ describe('areaNearMissLine', () => {
     );
   });
 
+  it('[INB-015] prices a Sale near-miss against the budget of a lead open to either', async () => {
+    const rows = [1, 2, 3, 4, 5, 6, 7].map((n) => ({
+      id: `s${n}`,
+      title: `Plot ${n} in Surya City`,
+      price: n * 10_000_000,
+      listing_type: 'Sale',
+      location: 'Surya City',
+    }));
+    const { db } = recordingDb(rows);
+    const line = await areaNearMissLine({
+      db,
+      accountId: 'acct',
+      contactId: 'c1',
+      brief: {
+        areas: ['Surya City'],
+        listingTypes: ['Sale', 'Rent'],
+        budgetMin: 55_000_000,
+        budgetMax: 60_000_000,
+      },
+    });
+    expect(line).toBe(
+      '📍 We do have 7 listings in Surya City, at ₹1 Cr–₹7 Cr. Here are the 5 closest to your budget: https://x.test/?ids=s6,s5,s7,s4,s3'
+    );
+  });
+
   it('[INB-015] owns up to a scan that hit its bound', async () => {
     const rows = Array.from({ length: NEAR_MISS_SCAN_LIMIT }, (_, n) => ({
       id: `s${n}`,
