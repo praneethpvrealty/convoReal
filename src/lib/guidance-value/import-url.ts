@@ -5,7 +5,7 @@ export const IGR_GUIDANCE_PAGE =
 
 const MAX_REDIRECTS = 3;
 const FETCH_TIMEOUT_MS = 45_000;
-const MAX_PAGE_BYTES = 3 * 1024 * 1024;
+export const MAX_PAGE_BYTES = 3 * 1024 * 1024;
 
 export function isAllowedSourceUrl(raw: string): boolean {
   let url: URL;
@@ -409,8 +409,15 @@ export async function discoverPdfs(
   const html = new TextDecoder().decode(
     await readCapped(response, MAX_PAGE_BYTES)
   );
-  const rows = extractGuidanceTable(html, url);
-  return rows.length ? rows : extractPdfLinks(html, url);
+  return discoverFromHtml(html, url);
+}
+
+export function discoverFromHtml(
+  html: string,
+  baseUrl: string
+): DiscoveredPdf[] {
+  const rows = extractGuidanceTable(html, baseUrl);
+  return rows.length ? rows : extractPdfLinks(html, baseUrl);
 }
 
 export async function downloadPdf(

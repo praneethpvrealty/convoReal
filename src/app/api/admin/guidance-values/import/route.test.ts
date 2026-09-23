@@ -35,8 +35,16 @@ vi.mock('@/lib/supabase/admin', () => ({
     from: () => {
       const builder: Record<string, unknown> = {};
       builder.select = () => builder;
-      builder.in = async () => ({
-        data: [{ source_url: 'https://igr.karnataka.gov.in/a.pdf' }],
+      builder.not = async () => ({
+        data: [
+          {
+            id: 'src-a',
+            source_url: 'https://igr.karnataka.gov.in/a.pdf',
+            status: 'parsing',
+            row_count: 12,
+          },
+        ],
+        error: null,
       });
       builder.insert = (row: Record<string, unknown>) => {
         inserted.push(row);
@@ -96,6 +104,38 @@ describe('POST /api/admin/guidance-values/import', () => {
       ['Mysuru North', true],
       ['Hunsur', false],
     ]);
+  });
+
+  it('[GVL-007] reads page HTML handed over by the extension without fetching', async () => {
+    const res = await call({
+      action: 'discover',
+      url: 'https://igr.karnataka.gov.in/72/revised-guidelines-value/en',
+      html: '<table><tr><td>1</td><td>Jayanagar</td><td>BTM Layout</td><td><a href="/storage/btm.pdf">View</a></td><td></td></tr><tr><td>2</td><td>Mysore</td><td>Hunsur</td><td><a href="/a.pdf">View</a></td><td></td></tr></table>',
+    });
+    expect(res.status).toBe(200);
+    expect(fetched).toHaveLength(0);
+    const { data } = await res.json();
+    expect(data[0]).toMatchObject({
+      sro: 'BTM Layout',
+      district: 'Bengaluru Urban',
+      imported: false,
+      source_id: null,
+    });
+    expect(data[1]).toMatchObject({
+      sro: 'Hunsur',
+      imported: true,
+      source_id: 'src-a',
+      status: 'parsing',
+    });
+  });
+
+  it('[GVL-007] refuses handed-over HTML for a base url off karnataka.gov.in', async () => {
+    const res = await call({
+      action: 'discover',
+      url: 'https://evil.example/page',
+      html: '<a href="/x.pdf">x</a>',
+    });
+    expect(res.status).toBe(400);
   });
 
   it('[GVL-005] downloads a PDF into storage and registers its source url', async () => {

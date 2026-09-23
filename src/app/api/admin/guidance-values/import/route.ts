@@ -3,9 +3,12 @@ import { NextResponse } from 'next/server';
 import { toErrorResponse } from '@/lib/auth/account';
 import {
   IGR_GUIDANCE_PAGE,
+  MAX_PAGE_BYTES,
   SourceFetchError,
+  discoverFromHtml,
   discoverPdfs,
   downloadPdf,
+  isAllowedSourceUrl,
 } from '@/lib/guidance-value/import-url';
 import {
   GUIDANCE_SOURCE_BUCKET,
@@ -21,7 +24,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const maxDuration = 120;
 
-const MAX_LINKS = 300;
+const MAX_LINKS = 1000;
 
 function text(value: unknown, max = 160): string | null {
   if (typeof value !== 'string') return null;
@@ -50,24 +53,46 @@ export async function POST(request: Request) {
 
     try {
       if (body?.action === 'discover') {
-        const links = (await discoverPdfs(url)).slice(0, MAX_LINKS);
-        const { data: existing } = links.length
-          ? await db
-              .from('guidance_value_sources')
-              .select('source_url')
-              .in(
-                'source_url',
-                links.map((link) => link.url)
-              )
-          : { data: [] };
-        const imported = new Set(
-          (existing ?? []).map((row) => row.source_url as string)
+        let found;
+        if (typeof body?.html === 'string') {
+          if (!isAllowedSourceUrl(url)) {
+            return NextResponse.json(
+              {
+                error: 'Only https links on karnataka.gov.in can be imported.',
+              },
+              { status: 400 }
+            );
+          }
+          if (body.html.length > MAX_PAGE_BYTES) {
+            return NextResponse.json(
+              { error: 'That page is too large to read.' },
+              { status: 413 }
+            );
+          }
+          found = discoverFromHtml(body.html, url);
+        } else {
+          found = await discoverPdfs(url);
+        }
+        const links = found.slice(0, MAX_LINKS);
+        const { data: existing, error: existingError } = await db
+          .from('guidance_value_sources')
+          .select('id, source_url, status, row_count')
+          .not('source_url', 'is', null);
+        if (existingError) throw new Error(existingError.message);
+        const byUrl = new Map(
+          (existing ?? []).map((row) => [row.source_url as string, row])
         );
         return NextResponse.json({
-          data: links.map((link) => ({
-            ...link,
-            imported: imported.has(link.url),
-          })),
+          data: links.map((link) => {
+            const source = byUrl.get(link.url);
+            return {
+              ...link,
+              imported: Boolean(source),
+              source_id: (source?.id as string | undefined) ?? null,
+              status: (source?.status as string | undefined) ?? null,
+              row_count: (source?.row_count as number | undefined) ?? null,
+            };
+          }),
         });
       }
 
@@ -146,7 +171,7 @@ export async function POST(request: Request) {
         console.error('[guidance-value] import fetch failed:', url, detail);
         return NextResponse.json(
           {
-            error: `Could not reach the site (${detail}). It may block cloud servers — download the PDFs in your browser and use Upload many PDFs instead.`,
+            error: `Could not reach the site (${detail}). It may block cloud servers — use the Guidance Value Import Chrome extension, or download the PDFs in your browser and use Upload many PDFs.`,
           },
           { status: 502 }
         );

@@ -150,7 +150,10 @@ export function IgrImportCard({ parse, stop, onImported }: IgrImportCardProps) {
           link) and imports the ones you pick. Only karnataka.gov.in links are
           fetched. Each PDF is downloaded, then read two pages at a time, so a
           long run can take a while and uses AI on every page. Keep this tab
-          open until it finishes.
+          open until it finishes. If the IGR site refuses the server, run the
+          Guidance Value Import Chrome extension
+          (extension/guidance-value-import) instead — it does the whole import
+          from your browser in one click.
         </p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">

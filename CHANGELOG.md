@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 23 September 2026
 
+- **Guidance value import Chrome extension.** One click on the new
+  `extension/guidance-value-import` extension imports every Karnataka
+  guidance value notification: it reads the IGR revised guidelines value
+  table in your browser, downloads each PDF, uploads it to ConvoReal and
+  waits while its rates are read. Already imported notifications are
+  skipped and unfinished ones resume, so re-running it is safe. Needs a
+  platform admin signed in to ConvoReal in the same Chrome profile.
+
 - **Upload many guidance value PDFs at once.** The IGR website appears
   to refuse connections from cloud servers, so Import from the IGR
   website could not reach it from production. Admin → Guidance values now takes a whole folder of PDFs

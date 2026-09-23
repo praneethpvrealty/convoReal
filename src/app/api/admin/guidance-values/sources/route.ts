@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 
 import { toErrorResponse } from '@/lib/auth/account';
-import { SOURCE_MAX_BYTES } from '@/lib/guidance-value/import-url';
+import {
+  SOURCE_MAX_BYTES,
+  isAllowedSourceUrl,
+} from '@/lib/guidance-value/import-url';
 import {
   GUIDANCE_SOURCE_BUCKET,
   SOURCE_COLUMNS,
@@ -55,7 +58,14 @@ export async function POST(request: Request) {
     const size = Number(body?.size);
     const pageCount = Number(body?.page_count);
     const effectiveFrom = text(body?.effective_from, 10);
+    const sourceUrl = text(body?.source_url, 2000);
 
+    if (sourceUrl && !isAllowedSourceUrl(sourceUrl)) {
+      return NextResponse.json(
+        { error: 'source_url must be an https link on karnataka.gov.in' },
+        { status: 400 }
+      );
+    }
     if (!district || !title) {
       return NextResponse.json(
         { error: 'District and title are required' },
@@ -112,6 +122,7 @@ export async function POST(request: Request) {
             ? pageCount
             : null,
         storage_path: storagePath,
+        source_url: sourceUrl,
         uploaded_by: userId,
       })
       .select(SOURCE_COLUMNS)
