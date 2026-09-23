@@ -51,10 +51,6 @@ describe('mediaSource', () => {
 });
 
 describe('every message-media renderer resolves through mediaSource', () => {
-  // The resolver was right and tested; the image bubble simply did not
-  // use it, and prefixed a storage URL with the API base. That rendered
-  // every agent-sent photo as "media no longer available" while video,
-  // audio and documents — which do use it — were fine.
   const renderers = [
     'components/media-image.tsx',
     'components/audio-bubble.tsx',
@@ -68,8 +64,6 @@ describe('every message-media renderer resolves through mediaSource', () => {
       const source = readFileSync(join(process.cwd(), file), 'utf8');
 
       expect(source).toContain('mediaSource');
-      // Building a media URI from the app's own base is the bug: a
-      // storage object lives on another host entirely.
       expect(source).not.toMatch(/\$\{apiBase\(\)\}/);
       expect(source).not.toContain('absoluteMediaUrl');
     });
