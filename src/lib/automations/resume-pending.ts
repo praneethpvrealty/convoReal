@@ -148,7 +148,7 @@ async function runClaimed(
   deadline: number
 ): Promise<Outcome> {
   const target = await resolveTarget(row, deadline);
-  if (target.kind === 'error') {
+  if (target.kind === 'error' || Date.now() >= deadline) {
     await releaseClaim(row);
     return 'deferred';
   }

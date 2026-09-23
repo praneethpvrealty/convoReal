@@ -34,6 +34,7 @@ const h = vi.hoisted(() => ({
   failing: new Set<string>(),
   lookupFails: new Set<string>(),
   lookupStalls: new Set<string>(),
+  onLookup: null as (() => void) | null,
   beforeExecute: null as ((id: string) => void) | null,
   resumeDelay: new Map<string, number>(),
   events: [] as string[],
@@ -161,6 +162,7 @@ vi.mock('@/lib/supabase/admin', () => ({
             return { data: { id }, error: null };
           }
           if (table !== 'conversations') return { data: null, error: null };
+          h.onLookup?.();
           if (h.lookupStalls.has(filters.contact_id as string)) {
             return new Promise(() => {});
           }
@@ -245,6 +247,8 @@ beforeEach(() => {
   h.failing.clear();
   h.lookupFails.clear();
   h.lookupStalls.clear();
+  h.onLookup = null;
+  vi.restoreAllMocks();
   h.beforeExecute = null;
   h.resumeDelay.clear();
   h.events = [];
@@ -493,6 +497,22 @@ describe('drainPendingExecutions', () => {
       status: 'pending',
       attempts: 0,
     });
+  });
+
+  it('[INB-017] a lookup that finishes after the time budget releases the row instead of running it', async () => {
+    addRow('p1', 'contact-a');
+    const realNow = Date.now.bind(Date);
+    let offset = 0;
+    vi.spyOn(Date, 'now').mockImplementation(() => realNow() + offset);
+    h.onLookup = () => {
+      offset = 10 * MINUTE;
+    };
+
+    const result = await drainPendingExecutions();
+
+    expect(result).toEqual({ processed: 0, deferred: 1, skipped: 0 });
+    expect(h.resumed).toHaveLength(0);
+    expect(h.rows.get('p1')).toMatchObject({ status: 'pending', attempts: 0 });
   });
 
   it('[INB-017] a row reclaimed by another run before it executes is skipped, not run twice', async () => {
