@@ -55,7 +55,10 @@ import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
 import { localityLabelsMatch } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
-import { withConversationLease } from '@/lib/ai/qualification-lease';
+import {
+  QualificationLeaseBusyError,
+  withConversationLease,
+} from '@/lib/ai/qualification-lease';
 import type { Contact, Property } from '@/types';
 
 export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
@@ -1276,19 +1279,22 @@ async function supersededByLaterMessage(
 
   const { data: current } = await db
     .from('messages')
-    .select('id, created_at')
+    .select('id, created_at, ingest_seq')
     .eq('conversation_id', conversationId)
     .eq('message_id', metaMessageId)
     .maybeSingle();
   if (!current?.created_at) return false;
 
-  const at = current.created_at as string;
   const { count } = await db
     .from('messages')
     .select('id', { count: 'exact', head: true })
     .eq('conversation_id', conversationId)
     .eq('sender_type', 'customer')
-    .or(`created_at.gt."${at}",and(created_at.eq."${at}",id.gt.${current.id})`);
+    .or(
+      laterSiblingFilter(
+        current as { id: string; created_at: string; ingest_seq?: number }
+      )
+    );
 
   return (count ?? 0) > 0;
 }
@@ -1333,18 +1339,53 @@ export async function processBuyerQualificationMessage(
 ): Promise<boolean> {
   const text = contentText?.trim();
   if (!text || standsDownFromQualification(text)) return false;
-  return withConversationLease(accountId, conversation.id, () =>
-    qualifyLeadMessage(
-      text,
+  const qualify = async (messageId: string | null) => {
+    let line: string | null | undefined = text;
+    if (messageId && messageId !== metaMessageId) {
+      const { data } = await supabaseAdmin()
+        .from('messages')
+        .select('content_text')
+        .eq('conversation_id', conversation.id)
+        .eq('message_id', messageId)
+        .maybeSingle();
+      line = data?.content_text as string | null | undefined;
+    }
+    return qualifyLeadMessage(
+      line ?? null,
       contactRecord,
       conversation,
       accountId,
       accessToken,
       phoneNumberId,
       configOwnerUserId,
-      metaMessageId
-    )
-  );
+      messageId
+    );
+  };
+  try {
+    return await withConversationLease(
+      accountId,
+      conversation.id,
+      metaMessageId ?? null,
+      qualify
+    );
+  } catch (err) {
+    if (!(err instanceof QualificationLeaseBusyError)) throw err;
+    console.error('[buyer-qualification] lease busy, not qualifying:', err);
+    return false;
+  }
+}
+
+export function laterSiblingFilter(current: {
+  id: string;
+  created_at: string;
+  ingest_seq?: number | string | null;
+}): string {
+  const at = `created_at.eq."${current.created_at}"`;
+  const tie =
+    current.ingest_seq != null
+      ? `and(${at},ingest_seq.gt.${current.ingest_seq})`
+      : `and(${at},or(ingest_seq.not.is.null,id.gt.${current.id}))`;
+  return `created_at.gt."${current.created_at}",${tie}`;
 }
 
 async function qualifyLeadMessage(
@@ -1414,6 +1455,7 @@ async function qualifyLeadMessage(
       .select('sender_type, content_text, message_id')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
+      .order('ingest_seq', { ascending: false, nullsFirst: false })
       .order('id', { ascending: false })
       .limit(ASKED_WINDOW);
     const currentIndex = Math.max(

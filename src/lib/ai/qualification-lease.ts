@@ -1,77 +1,185 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const LEASE_TABLE = 'conversation_qualification_leases';
-const CLAIM_FUNCTION = 'claim_conversation_qualification_lease';
+
+export class QualificationLeaseBusyError extends Error {
+  constructor(
+    readonly conversationId: string,
+    options?: { cause?: unknown }
+  ) {
+    super(
+      `Qualification lease for conversation ${conversationId} is held and the message could not be deferred`,
+      options
+    );
+    this.name = 'QualificationLeaseBusyError';
+  }
+}
 
 export interface ConversationLeaseOptions {
   ttlSeconds?: number;
+  renewEveryMs?: number;
   waitMs?: number;
   pollMs?: number;
+  maxHoldMs?: number;
+  maxDeferredRounds?: number;
   sleep?: (ms: number) => Promise<void>;
 }
+
+type Db = ReturnType<typeof supabaseAdmin>;
 
 const defaultSleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export async function withConversationLease<T>(
+async function callRpc<T>(
+  db: Db,
+  fn: string,
+  args: Record<string, unknown>
+): Promise<T> {
+  const { data, error } = await db.rpc(fn, args);
+  if (error) throw error;
+  return data as T;
+}
+
+export async function withConversationLease(
   accountId: string,
   conversationId: string,
-  run: () => Promise<T>,
+  messageId: string | null,
+  run: (messageId: string | null) => Promise<boolean>,
   {
-    ttlSeconds = 60,
-    waitMs = 20_000,
+    ttlSeconds = 30,
+    renewEveryMs = (ttlSeconds * 1000) / 3,
+    waitMs = 30_000,
     pollMs = 250,
+    maxHoldMs = 240_000,
+    maxDeferredRounds = 5,
     sleep = defaultSleep,
   }: ConversationLeaseOptions = {}
-): Promise<T> {
-  const holder = crypto.randomUUID();
-  let db: ReturnType<typeof supabaseAdmin> | null = null;
-  let held = false;
+): Promise<boolean> {
+  let db: Db;
   try {
     db = supabaseAdmin();
-    const deadline = Date.now() + waitMs;
-    for (;;) {
-      const { data, error } = await db.rpc(CLAIM_FUNCTION, {
-        p_account_id: accountId,
-        p_conversation_id: conversationId,
-        p_holder: holder,
-        p_ttl_seconds: ttlSeconds,
-      });
-      if (error) {
-        console.error('[qualification-lease] claim failed:', error);
-        break;
-      }
-      if (data === true) {
-        held = true;
-        break;
-      }
-      if (Date.now() >= deadline) {
-        console.warn(
-          `[qualification-lease] still held after ${waitMs}ms, proceeding: conversation=${conversationId}`
-        );
-        break;
-      }
-      await sleep(pollMs);
-    }
   } catch (err) {
-    console.error('[qualification-lease] claim failed:', err);
+    console.error('[qualification-lease] no client, running unlocked:', err);
+    return run(messageId);
   }
 
-  try {
-    return await run();
-  } finally {
-    if (held && db) {
+  const holder = crypto.randomUUID();
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    let claimed: boolean;
+    try {
+      claimed =
+        (await callRpc<boolean>(db, 'claim_conversation_qualification_lease', {
+          p_account_id: accountId,
+          p_conversation_id: conversationId,
+          p_holder: holder,
+          p_ttl_seconds: ttlSeconds,
+        })) === true;
+    } catch (err) {
+      console.error(
+        '[qualification-lease] claim failed, running unlocked:',
+        err
+      );
+      return run(messageId);
+    }
+    if (claimed) break;
+
+    if (Date.now() >= deadline) {
+      if (!messageId) throw new QualificationLeaseBusyError(conversationId);
+      let deferred: boolean;
       try {
-        const { error } = await db
-          .from(LEASE_TABLE)
-          .delete()
-          .eq('conversation_id', conversationId)
-          .eq('account_id', accountId)
-          .eq('holder', holder);
-        if (error) throw error;
+        deferred =
+          (await callRpc<boolean>(db, 'defer_conversation_qualification', {
+            p_conversation_id: conversationId,
+            p_message_id: messageId,
+          })) === true;
       } catch (err) {
-        console.error('[qualification-lease] release failed:', err);
+        throw new QualificationLeaseBusyError(conversationId, { cause: err });
       }
+      if (deferred) return true;
+    }
+    await sleep(pollMs);
+  }
+
+  const startedAt = Date.now();
+  const heartbeat = setInterval(() => {
+    if (Date.now() - startedAt > maxHoldMs) {
+      clearInterval(heartbeat);
+      console.error(
+        `[qualification-lease] held past ${maxHoldMs}ms, letting it expire: conversation=${conversationId}`
+      );
+      return;
+    }
+    callRpc<boolean>(db, 'renew_conversation_qualification_lease', {
+      p_conversation_id: conversationId,
+      p_holder: holder,
+      p_ttl_seconds: ttlSeconds,
+    })
+      .then((held) => {
+        if (!held) {
+          console.error(
+            `[qualification-lease] lease lost while running: conversation=${conversationId}`
+          );
+        }
+      })
+      .catch((err) => {
+        console.error('[qualification-lease] renew failed:', err);
+      });
+  }, renewEveryMs);
+
+  const finish = () =>
+    callRpc<string[] | null>(db, 'finish_conversation_qualification_lease', {
+      p_conversation_id: conversationId,
+      p_holder: holder,
+      p_ttl_seconds: ttlSeconds,
+    });
+
+  const release = async () => {
+    try {
+      const { error } = await db
+        .from(LEASE_TABLE)
+        .delete()
+        .eq('conversation_id', conversationId)
+        .eq('account_id', accountId)
+        .eq('holder', holder);
+      if (error) throw error;
+    } catch (err) {
+      console.error('[qualification-lease] release failed:', err);
+    }
+  };
+
+  const drainDeferred = async () => {
+    for (let round = 0; round < maxDeferredRounds; round++) {
+      let pending: string[];
+      try {
+        pending = (await finish()) ?? [];
+      } catch (err) {
+        console.error('[qualification-lease] finish failed:', err);
+        await release();
+        return;
+      }
+      if (pending.length === 0) return;
+      for (const deferredId of pending) {
+        try {
+          await run(deferredId);
+        } catch (err) {
+          console.error('[qualification-lease] deferred run failed:', err);
+        }
+      }
+    }
+    console.error(
+      `[qualification-lease] deferred rounds exhausted, releasing: conversation=${conversationId}`
+    );
+    await release();
+  };
+
+  try {
+    return await run(messageId);
+  } finally {
+    try {
+      await drainDeferred();
+    } finally {
+      clearInterval(heartbeat);
     }
   }
 }

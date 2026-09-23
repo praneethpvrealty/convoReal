@@ -18,12 +18,16 @@ const extractContactPreferences = vi.fn();
 let queues: Record<string, unknown[]> = {};
 let updates: { table: string; payload: Record<string, unknown> }[] = [];
 let rpcCalls: { fn: string; args: Record<string, unknown> }[] = [];
+let finishResults: string[][] = [];
 let filterCalls: { table: string; method: string; args: unknown[] }[] = [];
 
 vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
     rpc: async (fn: string, args: Record<string, unknown>) => {
       rpcCalls.push({ fn, args });
+      if (fn === 'finish_conversation_qualification_lease') {
+        return { data: finishResults.shift() ?? [], error: null };
+      }
       return { data: true, error: null };
     },
     from: (table: string) => {
@@ -141,6 +145,7 @@ beforeEach(() => {
   updates = [];
   rpcCalls = [];
   filterCalls = [];
+  finishResults = [];
   sendTextMessage.mockResolvedValue({ messageId: 'wamid.1' });
   generateMatchEventForContact.mockResolvedValue(undefined);
   rankPropertiesForContact.mockResolvedValue([]);
@@ -917,7 +922,7 @@ describe('processBuyerQualificationMessage — a buy-or-rent correction', () => 
     queues.contacts = [contactRow({ requirements: null })];
     queues.messages = [
       [buy, prompt],
-      { id: 'm-buy', created_at: '2026-09-23T10:00:00.000Z' },
+      { id: 'm-buy', created_at: '2026-09-23T10:00:00.000Z', ingest_seq: 41 },
       { count: 1 },
     ];
 
@@ -934,6 +939,11 @@ describe('processBuyerQualificationMessage — a buy-or-rent correction', () => 
       {
         table: 'messages',
         method: 'order',
+        args: ['ingest_seq', { ascending: false, nullsFirst: false }],
+      },
+      {
+        table: 'messages',
+        method: 'order',
         args: ['id', { ascending: false }],
       },
     ]);
@@ -941,7 +951,7 @@ describe('processBuyerQualificationMessage — a buy-or-rent correction', () => 
       filterCalls.find((c) => c.table === 'messages' && c.method === 'or')
         ?.args[0]
     ).toBe(
-      'created_at.gt."2026-09-23T10:00:00.000Z",and(created_at.eq."2026-09-23T10:00:00.000Z",id.gt.m-buy)'
+      'created_at.gt."2026-09-23T10:00:00.000Z",and(created_at.eq."2026-09-23T10:00:00.000Z",ingest_seq.gt.41)'
     );
     expect(sendTextMessage).not.toHaveBeenCalled();
   });
@@ -949,14 +959,47 @@ describe('processBuyerQualificationMessage — a buy-or-rent correction', () => 
   it('[INB-014] qualifies each conversation under its lease', async () => {
     queues.messages = [[{ sender_type: 'bot' }], { count: 0 }];
     await run('owner-1');
-    expect(rpcCalls).toEqual([
-      {
-        fn: 'claim_conversation_qualification_lease',
-        args: expect.objectContaining({
-          p_account_id: 'acct-1',
-          p_conversation_id: 'conv-1',
-        }),
-      },
+    expect(rpcCalls.map((c) => c.fn)).toEqual([
+      'claim_conversation_qualification_lease',
+      'finish_conversation_qualification_lease',
     ]);
+    expect(rpcCalls[0].args).toEqual(
+      expect.objectContaining({
+        p_account_id: 'acct-1',
+        p_conversation_id: 'conv-1',
+      })
+    );
+  });
+
+  it('[INB-014] qualifies a line another webhook left with the lease holder', async () => {
+    finishResults = [['wamid.deferred']];
+    queues.whatsapp_config = [
+      { auto_qualify_leads: true },
+      { auto_qualify_leads: true },
+    ];
+    queues.contacts = [
+      contactRow({ requirements: null }),
+      contactRow({ requirements: null }),
+    ];
+    queues.messages = [
+      [{ sender_type: 'customer', content_text: 'ok', message_id: 'wamid.ok' }],
+      { content_text: '1200 sqft' },
+      [
+        {
+          sender_type: 'customer',
+          content_text: '1200 sqft',
+          message_id: 'wamid.deferred',
+        },
+        { sender_type: 'customer', content_text: 'ok', message_id: 'wamid.ok' },
+      ],
+      { id: 'm-1200', created_at: '2026-09-23T10:00:01.000Z', ingest_seq: 7 },
+      { count: 0 },
+    ];
+
+    await send('ok', 'wamid.ok');
+
+    expect(
+      updates.find((u) => u.table === 'contacts')?.payload.requirements
+    ).toBe('1200 sqft');
   });
 });
