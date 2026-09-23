@@ -252,6 +252,51 @@ export function extractGuidanceTable(
   return out;
 }
 
+const FILENAME_NOISE = new Set([
+  'gv',
+  'guidance',
+  'guideline',
+  'guidelines',
+  'value',
+  'values',
+  'revised',
+  'notification',
+  'final',
+  'pdf',
+  'sro',
+  'copy',
+]);
+
+export interface FileSourceGuess {
+  title: string;
+  sro: string | null;
+  district: string | null;
+}
+
+export function sourceFromFilename(filename: string): FileSourceGuess {
+  const base = filename
+    .replace(/\.pdf$/i, '')
+    .replace(/\(\d+\)$/, '')
+    .replace(/[_\-.]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const words = base
+    .split(' ')
+    .filter(
+      (word) =>
+        word &&
+        !FILENAME_NOISE.has(word.toLowerCase()) &&
+        !/^\d+$/.test(word) &&
+        !/^\d{4}(\d{2})?$/.test(word)
+    );
+  const sro = words.join(' ').trim() || null;
+  return {
+    title: `Guidance value · ${base || 'Notification'}`,
+    sro,
+    district: districtFromLabel(base),
+  };
+}
+
 export class SourceFetchError extends Error {
   constructor(
     message: string,

@@ -96,7 +96,7 @@ export default function BugsTab() {
       }
       await load();
     },
-    [load],
+    [load]
   );
 
   const visible = useMemo(
@@ -104,14 +104,14 @@ export default function BugsTab() {
       filter === 'all'
         ? reports
         : reports.filter(
-            (r) => !['fixed', 'wont_fix', 'duplicate'].includes(r.status),
+            (r) => !['fixed', 'wont_fix', 'duplicate'].includes(r.status)
           ),
-    [reports, filter],
+    [reports, filter]
   );
 
   const counts = useMemo(() => {
     const open = reports.filter(
-      (r) => !['fixed', 'wont_fix', 'duplicate'].includes(r.status),
+      (r) => !['fixed', 'wont_fix', 'duplicate'].includes(r.status)
     );
     return {
       open: open.length,
@@ -132,7 +132,11 @@ export default function BugsTab() {
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Open" value={counts.open} />
-        <Stat label="Blockers" value={counts.blockers} warn={counts.blockers > 0} />
+        <Stat
+          label="Blockers"
+          value={counts.blockers}
+          warn={counts.blockers > 0}
+        />
         <Stat label="Accounts reporting" value={counts.accounts} />
       </div>
 
@@ -146,7 +150,7 @@ export default function BugsTab() {
               'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
               filter === f
                 ? 'border-primary bg-primary/10 text-primary'
-                : 'border-slate-700 text-slate-400 hover:text-white',
+                : 'border-slate-700 text-slate-400 hover:text-white'
             )}
           >
             {f === 'open' ? 'Open' : 'All'}
@@ -190,7 +194,7 @@ function Stat({
       <p
         className={cn(
           'font-mono text-2xl font-bold tabular-nums',
-          warn ? 'text-red-400' : 'text-white',
+          warn ? 'text-red-400' : 'text-white'
         )}
       >
         {value}
@@ -240,7 +244,7 @@ function ReportCard({
             <span
               className={cn(
                 'rounded-full border px-2 py-0.5 text-[11px] font-medium',
-                SEVERITY_STYLE[report.severity],
+                SEVERITY_STYLE[report.severity]
               )}
             >
               {SEVERITY_LABEL[report.severity]}
@@ -271,7 +275,7 @@ function ReportCard({
       </div>
 
       {report.body !== report.title && (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
+        <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-300">
           {report.body}
         </p>
       )}
@@ -318,7 +322,7 @@ function ReportCard({
             href={report.github_issue_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 self-center text-xs text-primary hover:underline"
+            className="text-primary flex items-center gap-1.5 self-center text-xs hover:underline"
           >
             <ExternalLink className="size-3.5" />
             Open

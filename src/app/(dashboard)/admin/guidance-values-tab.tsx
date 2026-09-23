@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+import { BulkUploadCard, uploadSourceFile } from './bulk-upload-card';
 import { IgrImportCard } from './igr-import-card';
 
 interface GuidanceSource {
@@ -98,33 +99,19 @@ export default function GuidanceValuesTab() {
     if (!file) return;
     setUploading(true);
     try {
-      const res = await fetch('/api/admin/guidance-values/sources', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          page_count: form.page_count ? Number(form.page_count) : undefined,
-          filename: file.name,
-          mime_type: file.type,
-          size: file.size,
-        }),
+      const id = await uploadSourceFile(file, {
+        district: form.district,
+        taluk: form.taluk || undefined,
+        sro: form.sro || undefined,
+        title: form.title,
+        effective_from: form.effective_from || undefined,
+        page_count: form.page_count ? Number(form.page_count) : undefined,
       });
-      if (!res.ok) throw new Error(await readError(res));
-      const { source, upload_url } = (await res.json()).data as {
-        source: GuidanceSource;
-        upload_url: string;
-      };
-      const put = await fetch(upload_url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/pdf' },
-        body: file,
-      });
-      if (!put.ok) throw new Error('Upload to storage failed');
       setForm(EMPTY_FORM);
       setFile(null);
       if (fileRef.current) fileRef.current.value = '';
       await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-      void parse(source.id);
+      void parse(id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -146,6 +133,14 @@ export default function GuidanceValuesTab() {
 
   return (
     <div className="space-y-6">
+      <BulkUploadCard
+        existingTitles={new Set(sources.map((source) => source.title))}
+        parse={parse}
+        stop={() => (stopRef.current = true)}
+        onUploaded={() =>
+          queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+        }
+      />
       <IgrImportCard
         parse={parse}
         stop={() => (stopRef.current = true)}

@@ -127,6 +127,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ data }, { status: 201 });
     } catch (err) {
       if (err instanceof SourceFetchError) {
+        console.error('[guidance-value] import refused:', url, err.message);
         return NextResponse.json(
           { error: err.message },
           { status: err.status }
@@ -139,8 +140,14 @@ export async function POST(request: Request) {
         );
       }
       if (err instanceof TypeError) {
+        const cause = (err as { cause?: { code?: string; message?: string } })
+          .cause;
+        const detail = cause?.code ?? cause?.message ?? err.message;
+        console.error('[guidance-value] import fetch failed:', url, detail);
         return NextResponse.json(
-          { error: `Could not reach the site: ${err.message}` },
+          {
+            error: `Could not reach the site (${detail}). It may block cloud servers — download the PDFs in your browser and use Upload many PDFs instead.`,
+          },
           { status: 502 }
         );
       }
