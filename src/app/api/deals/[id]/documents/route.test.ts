@@ -218,4 +218,27 @@ describe('POST /api/deals/[id]/documents', () => {
       size_bytes: 1024,
     });
   });
+
+  it('[INV-008] clears a multipart upload refused for its category', async () => {
+    const form = new FormData();
+    form.append(
+      'file',
+      new File([new Uint8Array(1024)], 'deed.pdf', {
+        type: 'application/pdf',
+      })
+    );
+    form.append('category', 'nonsense');
+
+    const res = await POST(
+      new Request('http://test/api/deals/deal-1/documents', {
+        method: 'POST',
+        body: form,
+      }),
+      { params: Promise.resolve({ id: 'deal-1' }) }
+    );
+
+    expect(res.status).toBe(400);
+    expect(inserted).toBeNull();
+    expect(removed[0]).toEqual(['acc-1/deal-1/1-deed.pdf']);
+  });
 });

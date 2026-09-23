@@ -118,6 +118,7 @@ export async function POST(
     let contactId: unknown;
     let title: string;
     let source: unknown;
+    let stored = isJson;
 
     if (isJson) {
       const body = await request.json().catch(() => null);
@@ -194,6 +195,7 @@ export async function POST(
             { status: 502 }
           );
         }
+        stored = true;
       }
     }
 
@@ -201,7 +203,7 @@ export async function POST(
     // so a client that declared one thing and stored another is refused
     // before the row records the lie.
     const refuse = async (payload: object, status: number) => {
-      if (isJson) {
+      if (stored) {
         await supabaseAdmin()
           .storage.from(DEAL_DOCUMENT_BUCKET)
           .remove([objectPath]);
