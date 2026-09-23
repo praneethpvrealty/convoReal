@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   SOURCE_MAX_BYTES,
+  isPdfBytes,
   sourceFromFilename,
 } from '@/lib/guidance-value/import-url';
 
@@ -28,7 +29,7 @@ export interface SourceFields {
   page_count?: number;
 }
 
-type RowState = 'uploading' | 'parsing' | 'done' | 'failed';
+type RowState = 'uploading' | 'parsing' | 'done' | 'stopped' | 'failed';
 
 interface PendingFile {
   key: string;
@@ -84,13 +85,18 @@ export function BulkUploadCard({
   const [states, setStates] = useState<Record<string, RowState>>({});
   const [running, setRunning] = useState(false);
   const cancelRef = useRef(false);
+  const sourceIdsRef = useRef<Record<string, string>>({});
 
-  const addFiles = (list: FileList | null) => {
+  const addFiles = async (list: FileList | null) => {
     const picked = Array.from(list ?? []);
+    if (fileRef.current) fileRef.current.value = '';
     const tooBig = picked.filter((f) => f.size > SOURCE_MAX_BYTES);
-    const notPdf = picked.filter(
-      (f) => f.type !== 'application/pdf' && !/\.pdf$/i.test(f.name)
+    const signatures = await Promise.all(
+      picked.map(async (f) =>
+        isPdfBytes(new Uint8Array(await f.slice(0, 5).arrayBuffer()))
+      )
     );
+    const notPdf = picked.filter((_, i) => !signatures[i]);
     if (tooBig.length) {
       toast.error(`${tooBig.length} file(s) over 14 MB were skipped.`);
     }
@@ -116,7 +122,6 @@ export function BulkUploadCard({
         .filter((f) => !keys.has(f.key));
       return [...current, ...added];
     });
-    if (fileRef.current) fileRef.current.value = '';
   };
 
   const update = (key: string, patch: Partial<PendingFile>) =>
@@ -136,18 +141,29 @@ export function BulkUploadCard({
     let loaded = 0;
     for (const item of queue) {
       if (cancelRef.current) break;
-      setStates((s) => ({ ...s, [item.key]: 'uploading' }));
       try {
-        const id = await uploadSourceFile(item.file, {
-          district: (item.district || defaultDistrict).trim(),
-          sro: item.sro.trim() || undefined,
-          title: item.title.trim() || item.file.name,
-          effective_from: effectiveFrom.trim() || undefined,
-        });
-        onUploaded();
+        let id = sourceIdsRef.current[item.key];
+        if (!id) {
+          setStates((s) => ({ ...s, [item.key]: 'uploading' }));
+          id = await uploadSourceFile(item.file, {
+            district: (item.district || defaultDistrict).trim(),
+            sro: item.sro.trim() || undefined,
+            title: item.title.trim() || item.file.name,
+            effective_from: effectiveFrom.trim() || undefined,
+          });
+          sourceIdsRef.current[item.key] = id;
+          onUploaded();
+        }
+        if (cancelRef.current) {
+          setStates((s) => ({ ...s, [item.key]: 'stopped' }));
+          break;
+        }
         setStates((s) => ({ ...s, [item.key]: 'parsing' }));
         const ok = await parse(id);
-        setStates((s) => ({ ...s, [item.key]: ok ? 'done' : 'failed' }));
+        setStates((s) => ({
+          ...s,
+          [item.key]: ok ? 'done' : cancelRef.current ? 'stopped' : 'failed',
+        }));
         if (ok) loaded += 1;
       } catch (err) {
         setStates((s) => ({ ...s, [item.key]: 'failed' }));
@@ -208,7 +224,7 @@ export function BulkUploadCard({
             accept="application/pdf"
             multiple
             className="hidden"
-            onChange={(e) => addFiles(e.target.files)}
+            onChange={(e) => void addFiles(e.target.files)}
           />
           <Button
             variant="outline"

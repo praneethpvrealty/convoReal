@@ -8,6 +8,7 @@ import {
   extractPdfLinks,
   fetchAllowed,
   isAllowedSourceUrl,
+  isPdfBytes,
   readCapped,
   sourceFromFilename,
 } from './import-url';
@@ -192,5 +193,14 @@ describe('sourceFromFilename', () => {
       district: null,
     });
     expect(sourceFromFilename('2023.pdf').sro).toBeNull();
+  });
+});
+
+describe('isPdfBytes', () => {
+  it('[GVL-006] accepts a file by its %PDF- signature, not its name', () => {
+    const enc = new TextEncoder();
+    expect(isPdfBytes(enc.encode('%PDF-'))).toBe(true);
+    expect(isPdfBytes(enc.encode('<html'))).toBe(false);
+    expect(isPdfBytes(enc.encode('%PD'))).toBe(false);
   });
 });
