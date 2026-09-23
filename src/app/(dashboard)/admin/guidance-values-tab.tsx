@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+import { IgrImportCard } from './igr-import-card';
+
 interface GuidanceSource {
   id: string;
   district: string;
@@ -63,7 +65,7 @@ export default function GuidanceValuesTab() {
       current.map((row) => (row.id === source.id ? source : row))
     );
 
-  const parse = async (id: string) => {
+  const parse = async (id: string): Promise<boolean> => {
     setParsingId(id);
     stopRef.current = false;
     try {
@@ -79,12 +81,14 @@ export default function GuidanceValuesTab() {
         setSource(source);
         if (source.status === 'ready') {
           toast.success(`${source.title}: ${source.row_count} rates loaded`);
-          break;
+          return true;
         }
       }
+      return false;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Parsing failed');
       await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      return false;
     } finally {
       setParsingId(null);
     }
@@ -142,6 +146,13 @@ export default function GuidanceValuesTab() {
 
   return (
     <div className="space-y-6">
+      <IgrImportCard
+        parse={parse}
+        stop={() => (stopRef.current = true)}
+        onImported={() =>
+          queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+        }
+      />
       <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/50 p-5">
         <div>
           <h2 className="text-lg font-bold text-white">

@@ -9,7 +9,6 @@ import {
 import { normaliseUnit } from './units';
 
 export const PAGES_PER_CHUNK = 2;
-export const SOURCE_MAX_BYTES = 14 * 1024 * 1024;
 export const MAX_ROWS_PER_CHUNK = 1500;
 
 export function countPdfPages(buffer: Uint8Array): number | null {

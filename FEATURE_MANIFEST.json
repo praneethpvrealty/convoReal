@@ -1736,6 +1736,23 @@
             "supabase/migrations/20260923051521_guidance_values.sql",
             "supabase/migrations/20260923055423_guidance_values_server_writes.sql"
           ]
+        },
+        {
+          "id": "GVL-005",
+          "rule": "A platform admin can import notifications straight from the IGR website: the server lists the PDFs in the guidance value table (district carried down each spanned row, Bengaluru registration districts mapped to Bengaluru Urban, BDA corrigenda listed separately) and downloads the chosen ones. Only https links on karnataka.gov.in are fetched, every redirect is re-checked against that allowlist, pages and PDFs are size-capped, and a download that is not a PDF is refused.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/import-url.test.ts",
+              "case": "[GVL-005]"
+            },
+            {
+              "file": "src/app/api/admin/guidance-values/import/route.test.ts",
+              "case": "[GVL-005]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260923060239_guidance_value_source_url.sql"
+          ]
         }
       ]
     }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { toErrorResponse } from '@/lib/auth/account';
-import { SOURCE_MAX_BYTES } from '@/lib/guidance-value/rate-parse';
+import { SOURCE_MAX_BYTES } from '@/lib/guidance-value/import-url';
 import {
   GUIDANCE_SOURCE_BUCKET,
   SOURCE_COLUMNS,

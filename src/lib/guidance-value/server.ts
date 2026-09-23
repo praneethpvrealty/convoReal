@@ -189,6 +189,7 @@ export interface GuidanceSourceRow {
   title: string;
   effective_from: string | null;
   storage_path: string;
+  source_url: string | null;
   page_count: number | null;
   pages_parsed: number;
   row_count: number;
@@ -199,7 +200,7 @@ export interface GuidanceSourceRow {
 }
 
 export const SOURCE_COLUMNS =
-  'id, state_code, district, taluk, sro, title, effective_from, storage_path, page_count, pages_parsed, row_count, status, error, created_at, updated_at';
+  'id, state_code, district, taluk, sro, title, effective_from, storage_path, source_url, page_count, pages_parsed, row_count, status, error, created_at, updated_at';
 
 export async function parseNextSourceChunk(
   db: SupabaseClient,

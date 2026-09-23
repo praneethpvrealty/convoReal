@@ -29,8 +29,12 @@ than a written entry. Newest first.
   transaction), in the mobile app, and in the Portfolio portals for
   buyers and owners, who use it free under a daily limit. Staff reads
   cost 5 credits, refunded when the read fails. Rates come from the IGR
-  PDFs a platform admin imports under Admin → Guidance values. **Migration
-  required:** `20260923051521_guidance_values.sql`.
+  PDFs a platform admin imports under Admin → Guidance values —
+  uploaded by hand, or listed and downloaded straight from the IGR
+  website with Import from the IGR website. **Migrations
+  required:** `20260923051521_guidance_values.sql`,
+  `20260923055423_guidance_values_server_writes.sql`,
+  `20260923060239_guidance_value_source_url.sql`.
 
 #### 22 September 2026
 
