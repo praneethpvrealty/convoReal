@@ -327,15 +327,34 @@ function resolvePropertyGroup(
 
 // ── Listing intent (Sale / Rent / JV/JD / Built to Suit) ───────────
 
-type ListingType = 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit';
-const LISTING_TYPES: ListingType[] = ['Sale', 'Rent', 'JV/JD', 'Built to Suit'];
-const NICHE_LISTING_TYPES: ListingType[] = ['JV/JD', 'Built to Suit'];
+export type ListingType = 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit';
+export const LISTING_TYPES: ListingType[] = [
+  'Sale',
+  'Rent',
+  'JV/JD',
+  'Built to Suit',
+];
+export const NICHE_LISTING_TYPES: ListingType[] = ['JV/JD', 'Built to Suit'];
+export const RENT_PRICED_LISTING_TYPES: ListingType[] = [
+  'Rent',
+  'Built to Suit',
+];
 
-function resolveListingType(property: Partial<Property>): ListingType {
+export function resolveListingType(property: Partial<Property>): ListingType {
   const lt = property.listing_type;
   return lt && (LISTING_TYPES as string[]).includes(lt)
     ? (lt as ListingType)
     : 'Sale';
+}
+
+// Budget comparison value switches with listing type: Sale prices against
+// `price`, Rent/Built to Suit against monthly rent, JV/JD against `price`
+// only if one was entered (JV deals are usually matched on land/share
+// terms, not a price band).
+export function listingBudgetValue(property: Partial<Property>): number {
+  return RENT_PRICED_LISTING_TYPES.includes(resolveListingType(property))
+    ? Number(property.rent_per_month || 0)
+    : Number(property.price || 0);
 }
 
 /** Infers stated listing intent(s) from free text. Fallback for contacts without AI extraction. */
@@ -682,14 +701,7 @@ function matchContactsSingleProfile(
     : price > 0 && rentalIncome !== null
       ? ((rentalIncome * 12) / price) * 100
       : null;
-  // Budget comparison value switches with listing type: Sale prices against
-  // `price`, Rent/Built to Suit against monthly rent, JV/JD against `price`
-  // only if one was entered (JV deals are usually matched on land/share
-  // terms, not a price band).
-  const totalBudgetComparisonValue =
-    propertyListingType === 'Rent' || propertyListingType === 'Built to Suit'
-      ? Number(property.rent_per_month || 0)
-      : price;
+  const totalBudgetComparisonValue = listingBudgetValue(property);
 
   const propSub = cleanArea(property.sublocality || '');
   const propCity = cleanArea(property.city || '');

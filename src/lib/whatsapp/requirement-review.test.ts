@@ -197,6 +197,10 @@ describe('sendRequirementReview', () => {
     const query = {
       select: () => query,
       eq: () => query,
+      or: () => query,
+      gt: () => query,
+      order: () => query,
+      limit: () => query,
       then: (resolve: (value: { data: unknown[] }) => unknown) =>
         Promise.resolve({ data: rows }).then(resolve),
     };

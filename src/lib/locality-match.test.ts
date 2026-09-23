@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   localityLabelsMatch,
+  localityRowPrefilter,
   localityStems,
   localityStemProbe,
   normalizeLocalityLabel,
@@ -301,5 +302,28 @@ describe('localityLabelsMatch', () => {
     );
     expect(localityLabelsMatch('Domlur', 'Domluru')).toBe(true);
     expect(localityLabelsMatch('BTM Layout', 'HSR Layout')).toBe(false);
+  });
+});
+
+describe('localityRowPrefilter', () => {
+  it('[INB-015] probes every row rowMatchesLocality accepts', () => {
+    const rows = [
+      { sublocality: 'Suryanagar phase 1' },
+      { location: 'Surya city phase 3, Bangalore' },
+      { title: 'Plot in KHB Suryanagar Phase 2' },
+      { project: 'Electronics City Phase 1' },
+    ];
+    for (const label of ['KHB Suryanagar Phase', 'Electronic City']) {
+      const filter = localityRowPrefilter(label)!;
+      for (const row of rows.filter((r) => rowMatchesLocality(r, label))) {
+        const [field, value] = Object.entries(row)[0];
+        const probe = filter
+          .split(',')
+          .find((part) => part.startsWith(`${field}.ilike.`))!
+          .match(/%(.*)%/)![1];
+        expect(value.toLowerCase()).toContain(probe);
+      }
+    }
+    expect(localityRowPrefilter('  ')).toBeNull();
   });
 });
