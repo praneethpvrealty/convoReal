@@ -21,6 +21,7 @@ interface Row {
 interface Lease {
   holder: string;
   expiresAt: number;
+  pending: string[];
 }
 
 const h = vi.hoisted(() => ({
@@ -30,6 +31,7 @@ const h = vi.hoisted(() => ({
   resumed: [] as { id: string; token: string | null | undefined }[],
   rpcCalls: [] as { fn: string; args: Record<string, unknown> }[],
   tokenSeq: 0,
+  failing: new Set<string>(),
 }));
 
 const ACCOUNT = 'acct-1';
@@ -40,6 +42,7 @@ vi.mock('@/lib/supabase/admin', () => ({
     rpc: async (fn: string, args: Record<string, unknown>) => {
       await Promise.resolve();
       h.rpcCalls.push({ fn, args });
+      if (h.failing.has(fn)) return { data: null, error: { message: fn } };
       const now = Date.now();
       switch (fn) {
         case 'claim_automation_pending_executions': {
@@ -93,6 +96,7 @@ vi.mock('@/lib/supabase/admin', () => ({
           h.leases.set(key, {
             holder: args.p_holder as string,
             expiresAt: now + (args.p_ttl_seconds as number) * 1000,
+            pending: lease?.pending ?? [],
           });
           return { data: true, error: null };
         }
@@ -108,7 +112,19 @@ vi.mock('@/lib/supabase/admin', () => ({
     },
     from: (table: string) => {
       const filters: Record<string, unknown> = {};
+      let patch: Record<string, unknown> | null = null;
       const chain = {
+        update: (values: Record<string, unknown>) => {
+          patch = values;
+          return chain;
+        },
+        then: (resolve: (v: unknown) => unknown) => {
+          const lease = h.leases.get(filters.conversation_id as string);
+          if (patch && lease && lease.holder === filters.holder) {
+            lease.expiresAt = Date.parse(patch.expires_at as string);
+          }
+          return Promise.resolve(resolve({ error: null }));
+        },
         select: () => chain,
         delete: () => chain,
         order: () => chain,
@@ -179,6 +195,7 @@ function holdLease(conversationId: string) {
   h.leases.set(conversationId, {
     holder: 'inbound-chain',
     expiresAt: Date.now() + 30_000,
+    pending: [],
   });
 }
 
@@ -189,6 +206,7 @@ beforeEach(() => {
   h.resumed = [];
   h.rpcCalls = [];
   h.tokenSeq = 0;
+  h.failing.clear();
   h.conversations.set('contact-a', 'conv-a');
   h.conversations.set('contact-b', 'conv-b');
 });
@@ -235,7 +253,46 @@ describe('drainPendingExecutions', () => {
     expect(retried).toEqual({ processed: 1, deferred: 0 });
     expect(h.resumed.map((r) => r.id)).toEqual(['p1']);
     expect(h.rows.get('p1')?.status).toBe('done');
-    expect(h.leases.has('conv-a')).toBe(false);
+    expect(h.leases.get('conv-a')!.expiresAt).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('[INB-017] a lease claim that keeps erroring leaves the row pending instead of resuming unlocked', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      addRow('p1', 'contact-a');
+      h.failing.add('claim_conversation_qualification_lease');
+
+      const pending = drainPendingExecutions();
+      await vi.runAllTimersAsync();
+      const result = await pending;
+
+      expect(result).toEqual({ processed: 0, deferred: 1 });
+      expect(h.resumed).toHaveLength(0);
+      expect(h.rows.get('p1')).toMatchObject({
+        status: 'pending',
+        attempts: 0,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('[INB-017] a resume never runs inbound messages deferred on the lease; it leaves them for the next inbound holder', async () => {
+    addRow('p1', 'contact-a');
+    h.leases.set('conv-a', {
+      holder: 'crashed-inbound',
+      expiresAt: Date.now() - 1,
+      pending: ['wamid.9'],
+    });
+
+    const result = await drainPendingExecutions();
+
+    expect(result.processed).toBe(1);
+    expect(
+      h.rpcCalls.some((c) => c.fn === 'finish_conversation_qualification_lease')
+    ).toBe(false);
+    expect(h.leases.get('conv-a')).toMatchObject({ pending: ['wamid.9'] });
+    expect(h.leases.get('conv-a')!.expiresAt).toBeLessThanOrEqual(Date.now());
   });
 
   it('[INB-017] the resume holds the lease for its conversation, so an inbound chain waits for it', async () => {

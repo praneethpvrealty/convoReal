@@ -85,18 +85,13 @@ async function runClaimed(row: ClaimedPendingRow): Promise<boolean> {
       row.account_id,
       conversationId,
       null,
-      async (deferredId) => {
-        if (deferredId !== null) {
-          console.error(
-            `[automations] inbound message ${deferredId} was deferred to a resume of ${row.id}; its handlers are skipped`
-          );
-          return true;
-        }
+      async () => {
         await resume(row);
         return true;
       },
       {
         waitMs: 0,
+        drainDeferred: false,
         ttlSeconds: RESUME_LEASE_TTL_SECONDS,
         maxHoldMs: RESUME_LEASE_MAX_HOLD_MS,
       }
