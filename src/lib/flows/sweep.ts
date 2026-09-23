@@ -71,6 +71,7 @@ export async function sweepStaleFlowRuns(
       r.account_id,
       r.contact_id,
       timeOut,
+      { requireConversation: true },
     )
     if (outcome.status !== 'ran') {
       result.deferred += 1

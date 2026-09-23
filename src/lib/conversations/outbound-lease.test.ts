@@ -161,6 +161,22 @@ describe('withContactConversationLease', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it('[INB-019] a contact with no conversation does not run when a conversation is required', async () => {
+    const run = vi.fn();
+
+    const result = await withContactConversationLease(
+      lookupDb({ data: null, error: null }),
+      'acct-1',
+      'contact-1',
+      run,
+      { requireConversation: true }
+    );
+
+    expect(result).toEqual({ status: 'no_conversation' });
+    expect(run).not.toHaveBeenCalled();
+    expect(h.claims).toEqual([]);
+  });
+
   it('[INB-018] a contact with no conversation runs without a lease', async () => {
     const result = await withContactConversationLease(
       lookupDb({ data: null, error: null }),

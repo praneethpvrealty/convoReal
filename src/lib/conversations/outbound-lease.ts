@@ -11,14 +11,18 @@ export const OUTBOUND_LEASE_MAX_HOLD_MS = 10_000;
 export type OutboundLeaseResult<T> =
   | { status: 'ran'; value: T }
   | { status: 'busy' }
-  | { status: 'lookup_failed' };
+  | { status: 'lookup_failed' }
+  | { status: 'no_conversation' };
 
 export async function withContactConversationLease<T>(
   db: SupabaseClient,
   accountId: string,
   contactId: string,
   run: () => Promise<T>,
-  { waitMs = 0 }: { waitMs?: number } = {}
+  {
+    waitMs = 0,
+    requireConversation = false,
+  }: { waitMs?: number; requireConversation?: boolean } = {}
 ): Promise<OutboundLeaseResult<T>> {
   const { conversation, error } = await lookupConversation<{ id: string }>(db, {
     accountId,
@@ -32,7 +36,10 @@ export async function withContactConversationLease<T>(
     );
     return { status: 'lookup_failed' };
   }
-  if (!conversation?.id) return { status: 'ran', value: await run() };
+  if (!conversation?.id) {
+    if (requireConversation) return { status: 'no_conversation' };
+    return { status: 'ran', value: await run() };
+  }
 
   let result: OutboundLeaseResult<T> = { status: 'busy' };
   try {

@@ -345,10 +345,14 @@
         },
         {
           "id": "INB-019",
-          "rule": "The flows cron times out a stale active flow run only under the same conversation lease as INB-016 for the run's contact, never waiting for it, and only if the run is still active and has not advanced since the sweep read it (last_advanced_at unchanged), so a customer reply that is advancing the run is never cut off mid-step. A busy conversation or a failed conversation lookup leaves the run active for the next sweep; a run with no contact is timed out without a lease.",
+          "rule": "The flows cron times out a stale active flow run only under the same conversation lease as INB-016 for the run's contact, never waiting for it, and only if the run is still active and has not advanced since the sweep read it (last_advanced_at unchanged), so a customer reply that is advancing the run is never cut off mid-step. A busy conversation, a failed conversation lookup, or a contact whose conversation no longer exists leaves the run active for a later sweep (the next inbound or outbound message recreates the thread, and the sweep after that can lease it); only a run with no contact is timed out without a lease.",
           "tests": [
             {
               "file": "src/lib/flows/sweep.test.ts",
+              "case": "[INB-019]"
+            },
+            {
+              "file": "src/lib/conversations/outbound-lease.test.ts",
               "case": "[INB-019]"
             }
           ]

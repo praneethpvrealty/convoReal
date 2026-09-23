@@ -5,7 +5,8 @@ type Row = Record<string, unknown>
 const h = vi.hoisted(() => ({
   runs: [] as Record<string, unknown>[],
   events: [] as Record<string, unknown>[],
-  lease: 'run' as 'run' | 'busy' | 'lookup_failed',
+  lease: 'run' as 'run' | 'busy' | 'lookup_failed' | 'no_conversation',
+  leaseOpts: [] as unknown[],
   leased: [] as string[],
   beforeRun: null as (() => void) | null,
 }))
@@ -16,8 +17,10 @@ vi.mock('@/lib/conversations/outbound-lease', () => ({
     _accountId: string,
     contactId: string,
     run: () => Promise<unknown>,
+    opts?: unknown,
   ) => {
     h.leased.push(contactId)
+    h.leaseOpts.push(opts)
     if (h.lease !== 'run') return { status: h.lease }
     h.beforeRun?.()
     return { status: 'ran', value: await run() }
@@ -96,6 +99,7 @@ beforeEach(() => {
   h.events = []
   h.lease = 'run'
   h.leased = []
+  h.leaseOpts = []
   h.beforeRun = null
 })
 
@@ -148,6 +152,17 @@ describe('sweepStaleFlowRuns', () => {
     expect(result).toEqual({ swept: 0, deferred: 0 })
     expect(h.runs[0].status).toBe('active')
     expect(h.events).toEqual([])
+  })
+
+  it('[INB-019] a contact run whose conversation is gone is left for a later sweep, never timed out unlocked', async () => {
+    h.lease = 'no_conversation'
+    addRun()
+
+    const result = await sweepStaleFlowRuns(fakeAdmin() as never)
+
+    expect(result).toEqual({ swept: 0, deferred: 1 })
+    expect(h.leaseOpts).toEqual([{ requireConversation: true }])
+    expect(h.runs[0].status).toBe('active')
   })
 
   it('[INB-019] a run with no contact is timed out without a lease', async () => {
