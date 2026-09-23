@@ -15,6 +15,8 @@ const REQUIREMENTS_SESSION_LIMIT = { limit: 5, windowMs: 60_000 };
 const REQUIREMENTS_ACCOUNT_LIMIT = { limit: 60, windowMs: 60_000 };
 const MAX_NAME_LEN = 120;
 const MAX_NOTES_LEN = 2000;
+const MAX_LOCATIONS = 20;
+const MAX_LOCATION_LEN = 120;
 
 function resolveBudgetVal(val: number | null | undefined): number | null {
   if (val === null || val === undefined) return null;
@@ -33,7 +35,6 @@ export async function POST(request: Request) {
       phone,
       email,
       categories, // string[]
-      locations, // string[]
       minBudget, // number | null
       maxBudget, // number | null
       minRoi, // number | null
@@ -48,6 +49,12 @@ export async function POST(request: Request) {
     } = body;
     const name = typeof body.name === "string" ? body.name.slice(0, MAX_NAME_LEN) : body.name;
     const notes = typeof body.notes === "string" ? body.notes.slice(0, MAX_NOTES_LEN) : body.notes;
+    const locations: string[] | undefined = Array.isArray(body.locations)
+      ? (body.locations as unknown[])
+          .filter((loc): loc is string => typeof loc === "string" && loc.trim() !== "")
+          .map((loc) => loc.trim().slice(0, MAX_LOCATION_LEN))
+          .slice(0, MAX_LOCATIONS)
+      : undefined;
 
     if (!accountId) {
       return NextResponse.json(

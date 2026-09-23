@@ -231,6 +231,17 @@ export function rowMatchesLocality(
   });
 }
 
+export function localityRowPrefilter(label: string): string | null {
+  const stems = localityStems(label);
+  const probes = stems.length ? [...new Set(stems)] : [label.trim()];
+  if (!probes[0]) return null;
+  const clean = probes.map((probe) => probe.replace(/["\\]/g, ''));
+  return LOCALITY_MATCH_FIELDS.map((field) => {
+    const clauses = clean.map((probe) => `${field}.ilike."%${probe}%"`);
+    return clauses.length === 1 ? clauses[0] : `and(${clauses.join(',')})`;
+  }).join(',');
+}
+
 export function rowMatchesBengaluruZone(
   row: Partial<
     Record<(typeof LOCALITY_MATCH_FIELDS)[number], string | null>

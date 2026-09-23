@@ -259,7 +259,7 @@
         },
         {
           "id": "INB-015",
-          "rule": "When nothing fits a lead's brief but their own locality has live listings of the same deal type at another price or type, the no-match reply (the requirement playback card and the on-demand matches reply) names how many, their price band and whether it is above or below the lead's budget, with a link scoped to those listings. Housing-board prefixes such as \"KHB\" never stop a locality from matching.",
+          "rule": "When nothing fits a lead's brief but their own locality has live listings of the same deal type at another price or type, the no-match reply (the requirement playback card and the on-demand matches reply) names how many, their price band (monthly rent for rentals, as the matching engine prices them; one deal type per band, with untyped listings read as Sale) and, only when the lead's budget is on the same basis, whether it is above or below it, with a link scoped to those listings; when there are more than the link carries, the reply says the link shows the ones closest to the budget (or the most affordable) and a scan that hits its bound is stated as \"N+\". Housing-board prefixes such as \"KHB\" never stop a locality from matching.",
           "tests": [
             {
               "file": "src/lib/buyer/area-near-misses.test.ts",

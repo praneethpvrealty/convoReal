@@ -190,6 +190,8 @@ function dbForPortalPlotLead() {
           filters[column] = value;
           return query;
         },
+        or: () => query,
+        gt: () => query,
         order: () => query,
         limit: () => query,
         maybeSingle: async () => ({

@@ -132,3 +132,23 @@ describe('POST /api/public/requirements — tapped listing intent', () => {
     expect(inserts.contacts?.[0].pref_listing_types).toBeUndefined();
   });
 });
+
+describe('POST /api/public/requirements — bounded locations', () => {
+  it('[INB-015] truncates an oversize locations array and each overlong entry', async () => {
+    const res = await post({
+      accountId: VICTIM,
+      phone: '9900277111',
+      locations: [...Array.from({ length: 1000 }, (_, i) => `Area ${i} ${'x'.repeat(500)}`), 42],
+    });
+    expect(res.status).toBe(200);
+    const areas = inserts.contacts?.[0].areas_of_interest as string[];
+    expect(areas).toHaveLength(20);
+    expect(areas.every((area) => area.length <= 120)).toBe(true);
+    expect(areas[0].startsWith('Area 0 ')).toBe(true);
+  });
+
+  it('keeps an ordinary locations list as posted', async () => {
+    await post({ accountId: VICTIM, phone: '9900277111', locations: ['HSR Layout', ' Whitefield '] });
+    expect(inserts.contacts?.[0].areas_of_interest).toEqual(['HSR Layout', 'Whitefield']);
+  });
+});

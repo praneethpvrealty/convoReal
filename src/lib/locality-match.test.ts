@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   localityLabelsMatch,
+  localityRowPrefilter,
   localityStems,
   localityStemProbe,
   normalizeLocalityLabel,
@@ -301,5 +302,55 @@ describe('localityLabelsMatch', () => {
     );
     expect(localityLabelsMatch('Domlur', 'Domluru')).toBe(true);
     expect(localityLabelsMatch('BTM Layout', 'HSR Layout')).toBe(false);
+  });
+});
+
+describe('localityRowPrefilter', () => {
+  const admits = (
+    filter: string,
+    row: Partial<Record<string, string>>
+  ): boolean =>
+    Object.entries(row).some(([field, value]) => {
+      const probes = [
+        ...filter.matchAll(new RegExp(`${field}\\.ilike\\."%([^%]*)%"`, 'g')),
+      ].map((m) => m[1]);
+      return (
+        probes.length > 0 &&
+        probes.every((probe) => !!value?.toLowerCase().includes(probe))
+      );
+    });
+
+  it('[INB-015] probes every row rowMatchesLocality accepts', () => {
+    const rows = [
+      { sublocality: 'Suryanagar phase 1' },
+      { location: 'Surya city phase 3, Bangalore' },
+      { title: 'Plot in KHB Suryanagar Phase 2' },
+      { project: 'Electronics City Phase 1' },
+      { location: 'Vijaya Bank Layout, Bannerghatta Road' },
+      { title: 'Villa in Vijayabank layout' },
+      { sublocality: 'Vijaya Nagar' },
+    ];
+    for (const label of [
+      'KHB Suryanagar Phase',
+      'Electronic City',
+      'Vijaya Bank Layout',
+    ]) {
+      const filter = localityRowPrefilter(label)!;
+      for (const row of rows.filter((r) => rowMatchesLocality(r, label))) {
+        expect(admits(filter, row)).toBe(true);
+      }
+    }
+    expect(localityRowPrefilter('  ')).toBeNull();
+  });
+
+  it('[INB-015] requires every stem of a multi-stem area in one field', () => {
+    const filter = localityRowPrefilter('Vijaya Bank Layout')!;
+    expect(filter).toContain(
+      'and(sublocality.ilike."%vijaya%",sublocality.ilike."%bank%")'
+    );
+    expect(admits(filter, { sublocality: 'Vijaya Nagar' })).toBe(false);
+    expect(
+      admits(filter, { location: 'Vijaya Bank Layout, Bannerghatta Road' })
+    ).toBe(true);
   });
 });
