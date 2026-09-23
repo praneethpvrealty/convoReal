@@ -23,6 +23,8 @@ import { accountPropertiesShowcaseUrl } from '@/lib/showcase/account-showcase-ur
 
 const MAX_LINKED_LISTINGS = 5;
 export const NEAR_MISS_SCAN_LIMIT = 200;
+export const MAX_NEAR_MISS_AREAS = 3;
+export const MAX_NEAR_MISS_SCANS = 6;
 
 type NearMissProperty = Pick<
   Property,
@@ -274,9 +276,12 @@ export async function areaNearMissLine(args: {
           .filter(Boolean)
           .map((area) => [area.toLowerCase(), area] as const)
       ).values(),
-    ];
+    ].slice(0, MAX_NEAR_MISS_AREAS);
+    let scans = 0;
     for (const area of areas) {
       for (const listingType of nearMissListingTypes(args.brief.listingTypes)) {
+        if (scans >= MAX_NEAR_MISS_SCANS) return null;
+        scans += 1;
         const rows = await fetchAreaCandidates(
           args.db,
           args.accountId,

@@ -9,6 +9,7 @@ vi.mock('@/lib/showcase/account-showcase-url', () => ({
 }));
 
 const {
+  MAX_NEAR_MISS_SCANS,
   NEAR_MISS_SCAN_LIMIT,
   areaNearMissLine,
   buildAreaNearMissLine,
@@ -355,5 +356,56 @@ describe('areaNearMissLine past the scan bound', () => {
     expect(line).toBe(
       `📍 We do have ${NEAR_MISS_SCAN_LIMIT}+ listings in Surya City, from ₹1 Cr. Here are the 5 closest to your budget: https://x.test/?ids=s240,s241,s242,s243,s244`
     );
+  });
+});
+
+describe('areaNearMissLine query budget', () => {
+  it('[INB-015] issues a bounded number of queries however many areas the brief names', async () => {
+    const { db, calls } = recordingDb([]);
+    const line = await areaNearMissLine({
+      db,
+      accountId: 'acct',
+      contactId: 'c1',
+      brief: {
+        areas: Array.from({ length: 1000 }, (_, i) => `Area ${i}`),
+        listingTypes: ['Sale', 'Rent', 'JV/JD', 'Built to Suit'],
+        budgetMin: null,
+        budgetMax: null,
+      },
+    });
+    expect(line).toBeNull();
+    const queries = calls.filter(([method]) => method === 'select').length;
+    expect(queries).toBeLessThanOrEqual(MAX_NEAR_MISS_SCANS);
+    expect(queries).toBeGreaterThan(0);
+  });
+
+  it('[INB-015] stays within the scan budget plus the two around-budget queries', async () => {
+    const rows = Array.from({ length: 250 }, (_, i) => ({
+      id: `s${i + 1}`,
+      title: `Plot ${i + 1} in Surya City`,
+      price: (i + 1) * 10_000_000,
+      listing_type: 'Sale',
+      location: 'Surya City',
+    }));
+    const db = inventoryDb(rows) as { from: () => unknown };
+    let queries = 0;
+    const counting = {
+      from: () => {
+        queries += 1;
+        return db.from();
+      },
+    };
+    await areaNearMissLine({
+      db: counting as never,
+      accountId: 'acct',
+      contactId: 'c1',
+      brief: {
+        areas: ['Whitefield', 'Koramangala', 'Surya City', 'HSR Layout'],
+        listingTypes: [],
+        budgetMin: 2_400_000_000,
+        budgetMax: 2_450_000_000,
+      },
+    });
+    expect(queries).toBeLessThanOrEqual(MAX_NEAR_MISS_SCANS + 2);
   });
 });
