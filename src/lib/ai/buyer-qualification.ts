@@ -1096,23 +1096,25 @@ export function appendRequirement(
 
 const MAX_BURST_LINES = 4;
 
-export function earlierBurstRequirements(
+export function burstRequirements(
   thread: { sender_type?: string | null; content_text?: string | null }[],
+  current: string,
   currentIndex = 0
 ): string[] {
   const burstLine = (message: (typeof thread)[number]): string | null => {
     const text = message.content_text?.trim();
     return text && carriesRequirementSignal(text) ? text : null;
   };
-  const lines: string[] = [];
+  const older: string[] = [];
   for (const message of thread.slice(
     currentIndex + 1,
     currentIndex + 1 + MAX_BURST_LINES
   )) {
     if (message.sender_type !== 'customer') break;
     const text = burstLine(message);
-    if (text) lines.unshift(text);
+    if (text) older.unshift(text);
   }
+  const newer: string[] = [];
   for (
     let i = currentIndex - 1;
     i >= Math.max(0, currentIndex - MAX_BURST_LINES);
@@ -1120,9 +1122,9 @@ export function earlierBurstRequirements(
   ) {
     if (thread[i].sender_type !== 'customer') break;
     const text = burstLine(thread[i]);
-    if (text) lines.push(text);
+    if (text) newer.push(text);
   }
-  return lines;
+  return [...older, current, ...newer];
 }
 
 /**
@@ -1426,10 +1428,11 @@ export async function processBuyerQualificationMessage(
     const requirementTurn = resolvedLocation
       ? `Preferred location: ${resolvedLocation}`
       : text;
-    const requirements = [
-      ...earlierBurstRequirements(thread || [], currentIndex),
+    const requirements = burstRequirements(
+      thread || [],
       requirementTurn,
-    ].reduce(appendRequirement, contact.requirements || '');
+      currentIndex
+    ).reduce(appendRequirement, contact.requirements || '');
     const sourceText = buildPreferenceSourceText(
       requirements,
       contact.contact_notes
