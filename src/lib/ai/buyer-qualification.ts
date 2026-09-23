@@ -38,6 +38,7 @@ import {
 } from '@/lib/ai/size-feedback';
 import { toSquareFeet } from '@/lib/ai/listing-derivations';
 import {
+  isBuyerRequirementMessage,
   routeLeadMessage,
   standsDownFromQualification,
 } from '@/lib/ai/lead-routing';
@@ -1103,7 +1104,7 @@ export function burstRequirements(
 ): string[] {
   const burstLine = (message: (typeof thread)[number]): string | null => {
     const text = message.content_text?.trim();
-    return text && carriesRequirementSignal(text) ? text : null;
+    return text && isBuyerRequirementMessage(text) ? text : null;
   };
   const older: string[] = [];
   for (const message of thread.slice(
@@ -1125,6 +1126,14 @@ export function burstRequirements(
     if (text) newer.push(text);
   }
   return [...older, current, ...newer];
+}
+
+export function latestIntentTurn(burst: string[], fallback: string): string {
+  return (
+    [...burst]
+      .reverse()
+      .find((line) => listingTypesFromCurrentTurn(line) !== null) ?? fallback
+  );
 }
 
 /**
@@ -1428,11 +1437,15 @@ export async function processBuyerQualificationMessage(
     const requirementTurn = resolvedLocation
       ? `Preferred location: ${resolvedLocation}`
       : text;
-    const requirements = burstRequirements(
+    const burst = burstRequirements(
       thread || [],
       requirementTurn,
       currentIndex
-    ).reduce(appendRequirement, contact.requirements || '');
+    );
+    const requirements = burst.reduce(
+      appendRequirement,
+      contact.requirements || ''
+    );
     const sourceText = buildPreferenceSourceText(
       requirements,
       contact.contact_notes
@@ -1465,7 +1478,7 @@ export async function processBuyerQualificationMessage(
           mergeCurrentTurnPreferences(
             await extractContactPreferences(sourceText),
             prefs,
-            text
+            latestIntentTurn(burst, text)
           ),
           sizeSignal,
           sizeAnchorSqft

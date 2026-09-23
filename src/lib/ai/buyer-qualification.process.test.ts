@@ -690,6 +690,81 @@ describe('processBuyerQualificationMessage — one burst, two webhooks', () => {
     expect(filed?.payload.requirements).toContain('3000000 to 3500000');
   });
 
+  it("[INB-014] files the newer line's buy-or-rent when an older line of the burst runs last", async () => {
+    queues.contacts = [contactRow({ requirements: null })];
+    queues.messages = [
+      [
+        {
+          sender_type: 'customer',
+          content_text: '2 BHK flat for rent',
+          message_id: 'wamid.newer',
+        },
+        {
+          sender_type: 'customer',
+          content_text: 'Buy 2 BHK flat',
+          message_id: 'wamid.older',
+        },
+        { sender_type: 'bot', content_text: 'Hi Aryan' },
+      ],
+      { created_at: '2026-09-23T10:00:00.000Z' },
+      { count: 1 },
+    ];
+
+    await processBuyerQualificationMessage(
+      'Buy 2 BHK flat',
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1',
+      'wamid.older'
+    );
+
+    expect(recordLearnedFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facts: expect.arrayContaining([
+          { field: 'pref_listing_types', value: ['Rent'] },
+        ]),
+      })
+    );
+  });
+
+  it('[INB-006] [INB-014] never files a newer "More site" as part of the burst', async () => {
+    queues.contacts = [contactRow({ requirements: null })];
+    queues.messages = [
+      [
+        {
+          sender_type: 'customer',
+          content_text: 'More site',
+          message_id: 'wamid.newer',
+        },
+        {
+          sender_type: 'customer',
+          content_text: '3000000 to 3500000',
+          message_id: 'wamid.older',
+        },
+        { sender_type: 'bot', content_text: 'Hi Aryan' },
+      ],
+      { created_at: '2026-09-23T10:00:00.000Z' },
+      { count: 1 },
+    ];
+
+    await processBuyerQualificationMessage(
+      '3000000 to 3500000',
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1',
+      'wamid.older'
+    );
+
+    const filed = updates.find((u) => u.table === 'contacts');
+    expect(filed?.payload.requirements).toBe('3000000 to 3500000');
+  });
+
   it('[INB-014] stores the purchase a budget implies when the brief itself is unchanged', async () => {
     const line = 'budget 50 lakh';
     queues.contacts = [

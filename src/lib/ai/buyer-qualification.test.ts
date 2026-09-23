@@ -38,6 +38,7 @@ import {
   resolveInventoryLocalityReply,
   impliedListingTypes,
   burstRequirements,
+  latestIntentTurn,
   buildWidenSearchQuestion,
   describeBrief,
 } from './buyer-qualification';
@@ -1371,6 +1372,34 @@ describe('portal plot lead replay (sandhiya)', () => {
         2
       )
     ).toEqual(['3000000 to 3500000']);
+  });
+
+  it('[INB-006] [INB-014] never folds a more-listings request from either side of the burst', () => {
+    expect(
+      burstRequirements(
+        [
+          { sender_type: 'customer', content_text: 'More site' },
+          { sender_type: 'customer', content_text: '3000000 to 3500000' },
+          { sender_type: 'customer', content_text: 'More site' },
+          { sender_type: 'customer', content_text: '1200 sqft' },
+        ],
+        '3000000 to 3500000',
+        1
+      )
+    ).toEqual(['1200 sqft', '3000000 to 3500000']);
+  });
+
+  it('[INB-014] takes buy-or-rent from the newest line of the burst that states it', () => {
+    expect(
+      latestIntentTurn(
+        ['Buy 2 BHK flat', '2 BHK flat for rent'],
+        'Buy 2 BHK flat'
+      )
+    ).toBe('2 BHK flat for rent');
+    expect(
+      latestIntentTurn(['2 BHK flat for rent', '1200 sqft'], '1200 sqft')
+    ).toBe('2 BHK flat for rent');
+    expect(latestIntentTurn(['1200 sqft'], '1200 sqft')).toBe('1200 sqft');
   });
 
   it('[INB-014] describes the searched brief and asks a rung its fingerprint recognises', () => {
