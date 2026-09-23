@@ -289,7 +289,7 @@
         },
         {
           "id": "INB-016",
-          "rule": "Every automated handler for an inbound WhatsApp message (control replies, the owner chatbot, update sessions, qualification, flows, lead Q&A and automations) runs for one conversation one message at a time under a single conversation lease taken after the message is stored, so overlapping webhooks never start two flow runs, advance a flow step twice, or double-send a condition-guarded automation, and only the earliest of racing first messages fires first_inbound_message. A run that waited reads the contact and conversation afresh. A webhook that cannot get the lease in time hands the holder its whole handler context (never the access token), and the holder reruns the full chain for it exactly once; a deferred id with no stored context is only qualified, and a live lease that cannot take the message logs and skips the handlers rather than running them unlocked. Different conversations run in parallel.",
+          "rule": "Every automated handler for an inbound WhatsApp message (control replies, the owner chatbot, update sessions, qualification, flows, lead Q&A and automations) runs for one conversation one message at a time under a single conversation lease taken after the message is stored, so overlapping webhooks never start two flow runs, advance a flow step twice, or double-send a condition-guarded automation, and only the earliest of racing first messages fires first_inbound_message. A run that waited reads the contact and conversation afresh. A webhook that cannot get the lease in time hands the holder its whole handler context (never the access token), and the holder reruns the full chain for it exactly once; a deferred id with no stored context is only qualified, and a live lease that cannot take the message logs and skips the handlers rather than running them unlocked. A claim that still errors after three short retries (about two seconds), or a missing service-role client, is treated as that same busy case: nothing runs unlocked. A holder never deletes a lease that may carry deferred ids: when it hits its deferred-rounds cap or its finish fails it lets the lease expire, and the next holder of the conversation runs what was left after its own message and clears each payload as it takes it. Different conversations run in parallel.",
           "tests": [
             {
               "file": "src/lib/whatsapp/serialized-inbound.test.ts",
@@ -306,6 +306,23 @@
           ],
           "guards": [
             "supabase/migrations/20260923130000_conversation_deferred_messages.sql"
+          ]
+        },
+        {
+          "id": "INB-017",
+          "rule": "A cron resume of a waiting automation runs exactly once and never inside an inbound chain: each due automation_pending_executions row is claimed atomically under a claim token before it runs (overlapping cron runs split the rows, never share one), and only that claim settles it as done or failed. The resume runs under the same conversation lease as INB-016 (the row's conversation, else the contact's thread), never waits for it: a live lease, or a lease claim that stays indeterminate, releases the claim and leaves the row pending for the next tick without spending an attempt. The resume holds the lease for at most about 20 seconds, shorter than an inbound waiter's 30, so an inbound message is not deferred to it, and it never runs deferred inbound ids: it lets the lease expire with them for the next inbound holder. A row stuck running past 15 minutes is reclaimed, and after 3 attempts it is marked failed. A resume with no contact or no conversation has nothing to serialise against and runs unlocked. Resumes for different conversations proceed in parallel.",
+          "tests": [
+            {
+              "file": "src/lib/automations/resume-pending.test.ts",
+              "case": "[INB-017]"
+            },
+            {
+              "file": "src/lib/automations/engine.test.ts",
+              "case": "[INB-017]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260923140000_automation_pending_execution_claims.sql"
           ]
         }
       ]

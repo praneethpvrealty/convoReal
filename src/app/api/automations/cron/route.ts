@@ -1,92 +1,57 @@
-import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { resumePendingExecution } from '@/lib/automations/engine'
-import type { AutomationContext } from '@/lib/automations/engine'
-import { checkAndSendAppointmentReminders } from '@/lib/appointments/reminder'
-import { sweepAndSendBroadcasts } from '@/lib/broadcasts/sender'
+import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { drainPendingExecutions } from '@/lib/automations/resume-pending';
+import { checkAndSendAppointmentReminders } from '@/lib/appointments/reminder';
+import { sweepAndSendBroadcasts } from '@/lib/broadcasts/sender';
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
  * on a schedule (Vercel Cron / external pinger) — requires a shared
  * secret via the `x-cron-secret` header to match
  * `AUTOMATION_CRON_SECRET`.
- *
- * The claim step (status = 'running') serves as a simple lock so
- * overlapping invocations don't double-process rows. Best-effort
- * only; expensive SELECT ... FOR UPDATE is avoided in favor of a
- * two-step UPDATE-by-id.
  */
 export async function GET(request: Request) {
-  const expected = process.env.AUTOMATION_CRON_SECRET
+  const expected = process.env.AUTOMATION_CRON_SECRET;
   if (!expected) {
-    return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
+    return NextResponse.json({ error: 'cron not configured' }, { status: 503 });
   }
-  const supplied = request.headers.get('x-cron-secret')
+  const supplied = request.headers.get('x-cron-secret');
   if (supplied !== expected) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   // Trigger appointment/property visit reminders 24h & 2h before events
   try {
-    await checkAndSendAppointmentReminders()
+    await checkAndSendAppointmentReminders();
   } catch (reminderErr) {
-    console.error('[Automation Cron] Appointment reminders check failed:', reminderErr)
+    console.error(
+      '[Automation Cron] Appointment reminders check failed:',
+      reminderErr
+    );
   }
 
   // Trigger background billing reconciliation
   try {
-    const admin = supabaseAdmin()
-    await admin.rpc('reconcile_subscriptions')
+    const admin = supabaseAdmin();
+    await admin.rpc('reconcile_subscriptions');
   } catch (reconcileErr) {
-    console.error('[Automation Cron] Billing reconciliation failed:', reconcileErr)
+    console.error(
+      '[Automation Cron] Billing reconciliation failed:',
+      reconcileErr
+    );
   }
 
   // Trigger background broadcast sending & retry sweep
   try {
-    await sweepAndSendBroadcasts()
+    await sweepAndSendBroadcasts();
   } catch (broadcastErr) {
-    console.error('[Automation Cron] Broadcast sweep failed:', broadcastErr)
+    console.error('[Automation Cron] Broadcast sweep failed:', broadcastErr);
   }
 
-  const admin = supabaseAdmin()
-  const { data: due, error } = await admin
-    .from('automation_pending_executions')
-    .select('*')
-    .eq('status', 'pending')
-    .lte('run_at', new Date().toISOString())
-    .order('run_at', { ascending: true })
-    .limit(50)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!due || due.length === 0) return NextResponse.json({ processed: 0 })
-
-  let processed = 0
-  for (const row of due) {
-    const { data: claim } = await admin
-      .from('automation_pending_executions')
-      .update({ status: 'running' })
-      .eq('id', row.id)
-      .eq('status', 'pending')
-      .select('id')
-      .maybeSingle()
-    if (!claim) continue
-
-    await resumePendingExecution({
-      id: row.id as string,
-      automation_id: row.automation_id as string,
-      // account_id is NOT NULL on automation_pending_executions
-      // post-017; the engine uses it for tenant-scoped lookups.
-      account_id: row.account_id as string,
-      user_id: row.user_id as string,
-      contact_id: (row.contact_id as string | null) ?? null,
-      log_id: (row.log_id as string | null) ?? null,
-      parent_step_id: (row.parent_step_id as string | null) ?? null,
-      branch: (row.branch as 'yes' | 'no' | null) ?? null,
-      next_step_position: row.next_step_position as number,
-      context: (row.context as AutomationContext) ?? {},
-    })
-    processed++
+  try {
+    return NextResponse.json(await drainPendingExecutions());
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  return NextResponse.json({ processed })
 }

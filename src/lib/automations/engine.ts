@@ -134,6 +134,7 @@ export async function resumePendingExecution(pending: {
   branch: 'yes' | 'no' | null
   next_step_position: number
   context: AutomationContext
+  claim_token?: string | null
 }): Promise<void> {
   const db = supabaseAdmin()
   const { data: automation, error } = await db
@@ -144,7 +145,7 @@ export async function resumePendingExecution(pending: {
 
   if (error || !automation) {
     console.error('[automations] resume: missing automation', pending.automation_id, error)
-    await markPending(pending.id, 'failed')
+    await markPending(pending.id, 'failed', pending.claim_token)
     return
   }
 
@@ -159,10 +160,10 @@ export async function resumePendingExecution(pending: {
       logId: pending.log_id,
       triggerEvent: 'resumed_wait',
     })
-    await markPending(pending.id, 'done')
+    await markPending(pending.id, 'done', pending.claim_token)
   } catch (err) {
     console.error('[automations] resume failed:', err)
-    await markPending(pending.id, 'failed')
+    await markPending(pending.id, 'failed', pending.claim_token)
   }
 }
 
@@ -675,9 +676,14 @@ async function finalizeLog(
     .eq('id', logId)
 }
 
-async function markPending(id: string, status: 'done' | 'failed') {
-  await supabaseAdmin()
+async function markPending(
+  id: string,
+  status: 'done' | 'failed',
+  claimToken?: string | null,
+) {
+  const update = supabaseAdmin()
     .from('automation_pending_executions')
     .update({ status })
     .eq('id', id)
+  await (claimToken ? update.eq('claim_token', claimToken) : update)
 }

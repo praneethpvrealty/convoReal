@@ -70,8 +70,13 @@ vi.mock('@/lib/supabase/admin', () => ({
       },
       from: (table: string) => {
         const filters: Record<string, unknown> = {};
+        let patch: Record<string, unknown> | null = null;
         const chain = {
           delete: () => chain,
+          update: (values: Record<string, unknown>) => {
+            patch = values;
+            return chain;
+          },
           eq: (column: string, value: unknown) => {
             filters[column] = value;
             return chain;
@@ -87,8 +92,16 @@ vi.mock('@/lib/supabase/admin', () => ({
           },
           then: (resolve: (v: unknown) => unknown) => {
             const key = filters.conversation_id as string;
-            if (leases.get(key)?.holder === filters.holder) leases.delete(key);
-            calls.push('delete');
+            const lease = leases.get(key);
+            if (patch) {
+              if (lease && lease.holder === filters.holder) {
+                lease.expiresAt = Date.parse(patch.expires_at as string);
+              }
+              calls.push('expire');
+            } else {
+              if (lease?.holder === filters.holder) leases.delete(key);
+              calls.push('delete');
+            }
             return Promise.resolve(resolve({ error: null }));
           },
         };
@@ -285,21 +298,47 @@ describe('withConversationLease', () => {
     expect(events.slice(0, 2)).toEqual(['start a', 'start b']);
   });
 
-  it('runs unlocked only when the claim itself errors', async () => {
+  it('[INB-016] treats a claim that keeps erroring as busy, never running unlocked', async () => {
     failing.add('claim_conversation_qualification_lease');
     const run = vi.fn(async () => true);
+    const sleep = vi.fn<(ms: number) => Promise<void>>(async () => {});
     await expect(
-      withConversationLease('acct-1', 'conv-1', 'wamid.1', run)
-    ).resolves.toBe(true);
-    expect(run).toHaveBeenCalledWith('wamid.1', { waited: false });
+      withConversationLease('acct-1', 'conv-1', 'wamid.1', run, { sleep })
+    ).rejects.toBeInstanceOf(QualificationLeaseBusyError);
+    expect(run).not.toHaveBeenCalled();
+    expect(
+      calls.filter((c) => c === 'claim_conversation_qualification_lease')
+    ).toHaveLength(4);
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([250, 500, 1000]);
+    expect(calls).not.toContain('defer_conversation_message');
     expect(calls).not.toContain('finish_conversation_qualification_lease');
   });
 
-  it('runs unlocked when the client cannot be built', async () => {
-    adminThrows = true;
+  it('[INB-016] retries a claim that errors once and then runs under the lease', async () => {
+    let failures = 1;
+    failing.add('claim_conversation_qualification_lease');
+    const sleep = vi.fn(async () => {
+      if (--failures === 0)
+        failing.delete('claim_conversation_qualification_lease');
+    });
+    const run = vi.fn(async () => {
+      expect(leases.has('conv-1')).toBe(true);
+      return true;
+    });
     await expect(
-      withConversationLease('acct-1', 'conv-1', 'wamid.1', async () => true)
+      withConversationLease('acct-1', 'conv-1', 'wamid.1', run, { sleep })
     ).resolves.toBe(true);
+    expect(run).toHaveBeenCalledWith('wamid.1', { waited: false });
+    expect(leases.size).toBe(0);
+  });
+
+  it('[INB-016] treats a missing client as busy rather than running unlocked', async () => {
+    adminThrows = true;
+    const run = vi.fn(async () => true);
+    await expect(
+      withConversationLease('acct-1', 'conv-1', 'wamid.1', run)
+    ).rejects.toBeInstanceOf(QualificationLeaseBusyError);
+    expect(run).not.toHaveBeenCalled();
   });
 
   it('releases the lease when the work throws', async () => {
@@ -311,16 +350,97 @@ describe('withConversationLease', () => {
     expect(leases.size).toBe(0);
   });
 
-  it('falls back to deleting its row when finishing fails', async () => {
+  it('[INB-016] lets the lease expire with its pending ids when finishing fails, never deleting it', async () => {
     failing.add('finish_conversation_qualification_lease');
-    await withConversationLease(
+    await withConversationLease('acct-1', 'conv-1', 'wamid.1', async () => {
+      leases.get('conv-1')!.pending.push('wamid.2');
+      return true;
+    });
+    expect(calls).toContain('expire');
+    expect(calls).not.toContain('delete');
+    expect(leases.get('conv-1')).toMatchObject({ pending: ['wamid.2'] });
+    expect(live(leases.get('conv-1'))).toBe(false);
+  });
+
+  it('[INB-016] a message deferred during the last drain round is left for the next holder, which runs it and clears its payload', async () => {
+    const ran: (string | null)[] = [];
+    const taken: unknown[] = [];
+    const first = withConversationLease(
       'acct-1',
       'conv-1',
       'wamid.1',
-      async () => true
+      async (id) => {
+        ran.push(id);
+        if (id === 'wamid.1') await tick(40);
+        if (id === 'wamid.2') {
+          taken.push(await takeDeferredMessage('acct-1', 'conv-1', id));
+          await withConversationLease(
+            'acct-1',
+            'conv-1',
+            'wamid.3',
+            async () => true,
+            { waitMs: 0, deferPayload: { text: 'third' } }
+          );
+        }
+        return true;
+      },
+      { pollMs: 5, maxDeferredRounds: 1 }
     );
-    expect(calls).toContain('delete');
+    await tick(5);
+    await withConversationLease(
+      'acct-1',
+      'conv-1',
+      'wamid.2',
+      async () => true,
+      {
+        pollMs: 5,
+        waitMs: 10,
+        deferPayload: { text: 'second' },
+      }
+    );
+    await first;
+
+    expect(ran).toEqual(['wamid.1', 'wamid.2']);
+    expect(calls).not.toContain('delete');
+    expect(leases.get('conv-1')).toMatchObject({ pending: ['wamid.3'] });
+    expect(live(leases.get('conv-1'))).toBe(false);
+    expect(payloads.has('conv-1:wamid.3')).toBe(true);
+
+    await withConversationLease('acct-1', 'conv-1', 'wamid.4', async (id) => {
+      ran.push(id);
+      if (id !== 'wamid.4') {
+        taken.push(await takeDeferredMessage('acct-1', 'conv-1', id!));
+      }
+      return true;
+    });
+
+    expect(ran).toEqual(['wamid.1', 'wamid.2', 'wamid.4', 'wamid.3']);
+    expect(taken).toEqual([{ text: 'second' }, { text: 'third' }]);
+    expect(payloads.size).toBe(0);
     expect(leases.size).toBe(0);
+  });
+
+  it('[INB-016] a non-draining holder leaves deferred ids on an expired lease instead of running them', async () => {
+    leases.set('conv-1', {
+      holder: 'crashed',
+      expiresAt: Date.now() - 1,
+      pending: ['wamid.0'],
+    });
+    const ran: (string | null)[] = [];
+    await withConversationLease(
+      'acct-1',
+      'conv-1',
+      null,
+      async (id) => {
+        ran.push(id);
+        return true;
+      },
+      { waitMs: 0, drainDeferred: false }
+    );
+    expect(ran).toEqual([null]);
+    expect(calls).not.toContain('finish_conversation_qualification_lease');
+    expect(leases.get('conv-1')).toMatchObject({ pending: ['wamid.0'] });
+    expect(live(leases.get('conv-1'))).toBe(false);
   });
 
   it('[INB-016] tells a run whether it waited for another holder', async () => {
