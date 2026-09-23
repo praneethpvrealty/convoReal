@@ -114,6 +114,19 @@ describe('POST /api/admin/guidance-values/import', () => {
     });
   });
 
+  it('names the network error when the site drops the connection', async () => {
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('fetch failed', {
+        cause: Object.assign(new Error('socket hang up'), {
+          code: 'ECONNRESET',
+        }),
+      });
+    });
+    const res = await call({ action: 'discover' });
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toMatch(/ECONNRESET.*Upload many PDFs/);
+  });
+
   it('requires a district and title to import', async () => {
     const res = await call({
       action: 'import',

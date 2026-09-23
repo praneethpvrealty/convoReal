@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 23 September 2026
 
+- **Upload many guidance value PDFs at once.** The IGR website appears
+  to refuse connections from cloud servers, so Import from the IGR
+  website could not reach it from production. Admin → Guidance values now takes a whole folder of PDFs
+  downloaded in the browser: the SRO and district are guessed from each
+  file name, can be corrected per file, and the files are read one after
+  another. A failed IGR import now names the network error and points to
+  this instead.
+
 - **Guidance value from a sale deed schedule.** Upload the schedule of a
   Karnataka sale deed (PDF or photo) and ConvoReal reads its location,
   type and extent, matches it against the government guidance value

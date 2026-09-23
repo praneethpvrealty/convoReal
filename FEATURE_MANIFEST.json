@@ -1799,6 +1799,16 @@
           "guards": [
             "supabase/migrations/20260923060239_guidance_value_source_url.sql"
           ]
+        },
+        {
+          "id": "GVL-006",
+          "rule": "A platform admin can upload many notification PDFs at once: the SRO and district are guessed from each file name (Bengaluru registration districts and old district names included), fall back to a default district, stay editable per file, and each file is uploaded and read in turn. Files that are not PDFs by their %PDF- signature, or are over 14 MB, are skipped before any upload. Stop halts before the next parse starts, and retrying a stopped or failed file resumes its existing source instead of uploading it again.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/import-url.test.ts",
+              "case": "[GVL-006]"
+            }
+          ]
         }
       ]
     }

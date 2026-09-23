@@ -24,7 +24,7 @@ interface FoundPdf {
   imported: boolean;
 }
 
-type RowState = 'queued' | 'downloading' | 'parsing' | 'done' | 'failed';
+type RowState = 'downloading' | 'parsing' | 'done' | 'stopped' | 'failed';
 
 async function readError(res: Response): Promise<string> {
   const body = await res.json().catch(() => null);
@@ -40,6 +40,7 @@ export function IgrImportCard({ parse, stop, onImported }: IgrImportCardProps) {
   const [states, setStates] = useState<Record<string, RowState>>({});
   const [running, setRunning] = useState(false);
   const cancelRef = useRef(false);
+  const sourceIdsRef = useRef<Record<string, string>>({});
 
   const find = async () => {
     setFinding(true);
@@ -57,6 +58,7 @@ export function IgrImportCard({ parse, stop, onImported }: IgrImportCardProps) {
         Object.fromEntries(rows.map((r) => [r.url, r.district ?? '']))
       );
       setStates({});
+      sourceIdsRef.current = {};
       if (!rows.length) toast.error('No PDF links found on that page.');
     } catch (err) {
       toast.error(
@@ -71,7 +73,9 @@ export function IgrImportCard({ parse, stop, onImported }: IgrImportCardProps) {
     setStates((current) => ({ ...current, [key]: state }));
 
   const importSelected = async () => {
-    const queue = found.filter((row) => selected.has(row.url));
+    const queue = found.filter(
+      (row) => selected.has(row.url) && states[row.url] !== 'done'
+    );
     const missing = queue.filter((row) => !districts[row.url]?.trim());
     if (missing.length) {
       toast.error(`Enter a district for ${missing[0].label}.`);
@@ -82,26 +86,37 @@ export function IgrImportCard({ parse, stop, onImported }: IgrImportCardProps) {
     let loaded = 0;
     for (const row of queue) {
       if (cancelRef.current) break;
-      setState(row.url, 'downloading');
       try {
-        const res = await fetch('/api/admin/guidance-values/import', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'import',
-            url: row.url,
-            district: districts[row.url].trim(),
-            taluk: row.registration_district,
-            sro: row.sro,
-            title: row.label,
-          }),
-        });
-        if (!res.ok) throw new Error(await readError(res));
-        const source = (await res.json()).data as { id: string };
-        onImported();
+        let id = sourceIdsRef.current[row.url];
+        if (!id) {
+          setState(row.url, 'downloading');
+          const res = await fetch('/api/admin/guidance-values/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'import',
+              url: row.url,
+              district: districts[row.url].trim(),
+              taluk: row.registration_district,
+              sro: row.sro,
+              title: row.label,
+            }),
+          });
+          if (!res.ok) throw new Error(await readError(res));
+          id = ((await res.json()).data as { id: string }).id;
+          sourceIdsRef.current[row.url] = id;
+          onImported();
+        }
+        if (cancelRef.current) {
+          setState(row.url, 'stopped');
+          break;
+        }
         setState(row.url, 'parsing');
-        const ok = await parse(source.id);
-        setState(row.url, ok ? 'done' : 'failed');
+        const ok = await parse(id);
+        setState(
+          row.url,
+          ok ? 'done' : cancelRef.current ? 'stopped' : 'failed'
+        );
         if (ok) loaded += 1;
       } catch (err) {
         setState(row.url, 'failed');

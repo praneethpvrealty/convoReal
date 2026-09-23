@@ -8,7 +8,9 @@ import {
   extractPdfLinks,
   fetchAllowed,
   isAllowedSourceUrl,
+  isPdfBytes,
   readCapped,
+  sourceFromFilename,
 } from './import-url';
 
 const PAGE = 'https://igr.karnataka.gov.in/72/revised-guidelines-value/en';
@@ -170,5 +172,35 @@ describe('readCapped / downloadPdf / discoverPdfs', () => {
         kind: 'notification',
       },
     ]);
+  });
+});
+
+describe('sourceFromFilename', () => {
+  it('[GVL-006] guesses the SRO and district from a downloaded file name', () => {
+    expect(sourceFromFilename('Jayanagara_GV_2023-24.pdf')).toEqual({
+      title: 'Guidance value · Jayanagara GV 2023 24',
+      sro: 'Jayanagara',
+      district: 'Bengaluru Urban',
+    });
+    expect(sourceFromFilename('Mysore-North (1).PDF')).toEqual({
+      title: 'Guidance value · Mysore North',
+      sro: 'Mysore North',
+      district: 'Mysuru',
+    });
+    expect(sourceFromFilename('Hebbala.pdf')).toEqual({
+      title: 'Guidance value · Hebbala',
+      sro: 'Hebbala',
+      district: null,
+    });
+    expect(sourceFromFilename('2023.pdf').sro).toBeNull();
+  });
+});
+
+describe('isPdfBytes', () => {
+  it('[GVL-006] accepts a file by its %PDF- signature, not its name', () => {
+    const enc = new TextEncoder();
+    expect(isPdfBytes(enc.encode('%PDF-'))).toBe(true);
+    expect(isPdfBytes(enc.encode('<html'))).toBe(false);
+    expect(isPdfBytes(enc.encode('%PD'))).toBe(false);
   });
 });
