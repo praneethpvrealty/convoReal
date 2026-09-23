@@ -32,6 +32,10 @@ const h = vi.hoisted(() => ({
   rpcCalls: [] as { fn: string; args: Record<string, unknown> }[],
   tokenSeq: 0,
   failing: new Set<string>(),
+  lookupFails: new Set<string>(),
+  beforeExecute: null as ((id: string) => void) | null,
+  resumeDelay: new Map<string, number>(),
+  events: [] as string[],
 }));
 
 const ACCOUNT = 'acct-1';
@@ -71,7 +75,12 @@ vi.mock('@/lib/supabase/admin', () => ({
             r.claim_token = `token-${++h.tokenSeq}`;
             r.attempts++;
           }
-          return { data: due.map((r) => ({ ...r })), error: null };
+          return {
+            data: due
+              .reverse()
+              .map((r) => ({ ...r, run_at: new Date(r.run_at).toISOString() })),
+            error: null,
+          };
         }
         case 'release_automation_pending_execution': {
           const r = h.rows.get(args.p_id as string);
@@ -134,7 +143,26 @@ vi.mock('@/lib/supabase/admin', () => ({
           return chain;
         },
         maybeSingle: async () => {
+          await Promise.resolve();
+          if (table === 'automation_pending_executions') {
+            const id = filters.id as string;
+            h.beforeExecute?.(id);
+            const row = h.rows.get(id);
+            if (
+              !patch ||
+              !row ||
+              row.status !== filters.status ||
+              row.claim_token !== filters.claim_token
+            ) {
+              return { data: null, error: null };
+            }
+            row.claimed_at = Date.parse(patch.claimed_at as string);
+            return { data: { id }, error: null };
+          }
           if (table !== 'conversations') return { data: null, error: null };
+          if (h.lookupFails.has(filters.contact_id as string)) {
+            return { data: null, error: { message: 'lookup timed out' } };
+          }
           const id =
             filters.account_id === ACCOUNT
               ? h.conversations.get(filters.contact_id as string)
@@ -151,7 +179,11 @@ vi.mock('./engine', () => ({
   resumePendingExecution: vi.fn(
     async (pending: { id: string; claim_token?: string | null }) => {
       h.resumed.push({ id: pending.id, token: pending.claim_token });
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      h.events.push(`start ${pending.id}`);
+      await new Promise((resolve) =>
+        setTimeout(resolve, h.resumeDelay.get(pending.id) ?? 5)
+      );
+      h.events.push(`end ${pending.id}`);
       const row = h.rows.get(pending.id);
       if (row && row.claim_token === pending.claim_token) row.status = 'done';
     }
@@ -207,6 +239,10 @@ beforeEach(() => {
   h.rpcCalls = [];
   h.tokenSeq = 0;
   h.failing.clear();
+  h.lookupFails.clear();
+  h.beforeExecute = null;
+  h.resumeDelay.clear();
+  h.events = [];
   h.conversations.set('contact-a', 'conv-a');
   h.conversations.set('contact-b', 'conv-b');
 });
@@ -238,7 +274,7 @@ describe('drainPendingExecutions', () => {
 
     const busy = await drainPendingExecutions();
 
-    expect(busy).toEqual({ processed: 0, deferred: 1 });
+    expect(busy).toEqual({ processed: 0, deferred: 1, skipped: 0 });
     expect(h.resumed).toHaveLength(0);
     expect(h.rows.get('p1')).toMatchObject({
       status: 'pending',
@@ -250,7 +286,7 @@ describe('drainPendingExecutions', () => {
     h.leases.delete('conv-a');
     const retried = await drainPendingExecutions();
 
-    expect(retried).toEqual({ processed: 1, deferred: 0 });
+    expect(retried).toEqual({ processed: 1, deferred: 0, skipped: 0 });
     expect(h.resumed.map((r) => r.id)).toEqual(['p1']);
     expect(h.rows.get('p1')?.status).toBe('done');
     expect(h.leases.get('conv-a')!.expiresAt).toBeLessThanOrEqual(Date.now());
@@ -266,7 +302,7 @@ describe('drainPendingExecutions', () => {
       await vi.runAllTimersAsync();
       const result = await pending;
 
-      expect(result).toEqual({ processed: 0, deferred: 1 });
+      expect(result).toEqual({ processed: 0, deferred: 1, skipped: 0 });
       expect(h.resumed).toHaveLength(0);
       expect(h.rows.get('p1')).toMatchObject({
         status: 'pending',
@@ -370,7 +406,7 @@ describe('drainPendingExecutions', () => {
 
     const result = await drainPendingExecutions();
 
-    expect(result).toEqual({ processed: 1, deferred: 1 });
+    expect(result).toEqual({ processed: 1, deferred: 1, skipped: 0 });
     expect(h.resumed.map((r) => r.id)).toEqual(['p2']);
     expect(h.rows.get('p1')?.status).toBe('pending');
     expect(h.rows.get('p2')?.status).toBe('done');
@@ -395,11 +431,108 @@ describe('drainPendingExecutions', () => {
   it('[INB-017] keeps each invocation bounded by its claim limit', async () => {
     for (let i = 0; i < 5; i++) addRow(`p${i}`, null);
 
-    const result = await drainPendingExecutions(3);
+    const result = await drainPendingExecutions({ limit: 3 });
 
     expect(result.processed).toBe(3);
     expect(
       [...h.rows.values()].filter((r) => r.status === 'pending')
     ).toHaveLength(2);
+  });
+  it('[INB-017] a failed conversation lookup releases the claim instead of resuming unlocked', async () => {
+    addRow('p1', 'contact-a');
+    h.lookupFails.add('contact-a');
+
+    const result = await drainPendingExecutions();
+
+    expect(result).toEqual({ processed: 0, deferred: 1, skipped: 0 });
+    expect(h.resumed).toHaveLength(0);
+    expect(
+      h.rpcCalls.some((c) => c.fn === 'claim_conversation_qualification_lease')
+    ).toBe(false);
+    expect(h.rows.get('p1')).toMatchObject({ status: 'pending', attempts: 0 });
+
+    h.lookupFails.clear();
+    await drainPendingExecutions();
+    expect(h.resumed.map((r) => r.id)).toEqual(['p1']);
+  });
+
+  it('[INB-017] a row reclaimed by another run before it executes is skipped, not run twice', async () => {
+    addRow('p1', 'contact-a');
+    h.beforeExecute = (id) => {
+      const row = h.rows.get(id)!;
+      row.claim_token = 'other-run';
+      row.attempts++;
+    };
+
+    const result = await drainPendingExecutions();
+
+    expect(result).toEqual({ processed: 0, deferred: 0, skipped: 1 });
+    expect(h.resumed).toHaveLength(0);
+    expect(h.rows.get('p1')).toMatchObject({
+      status: 'running',
+      claim_token: 'other-run',
+    });
+  });
+
+  it('[INB-017] re-asserts the claim right before executing, refreshing claimed_at', async () => {
+    const claimedLongAgo = Date.now() - 10 * MINUTE;
+    addRow('p1', null);
+    h.beforeExecute = (id) => {
+      h.rows.get(id)!.claimed_at = claimedLongAgo;
+    };
+
+    await drainPendingExecutions();
+
+    expect(h.resumed.map((r) => r.id)).toEqual(['p1']);
+    expect(h.rows.get('p1')!.claimed_at!).toBeGreaterThan(claimedLongAgo);
+  });
+
+  it('[INB-017] a slow resume for one conversation does not delay another', async () => {
+    addRow('slow', 'contact-a', { run_at: Date.now() - 2 * MINUTE });
+    addRow('fast', 'contact-b');
+    h.resumeDelay.set('slow', 80);
+
+    await drainPendingExecutions();
+
+    expect(h.events.indexOf('end fast')).toBeLessThan(
+      h.events.indexOf('end slow')
+    );
+    expect(h.events.indexOf('start fast')).toBeLessThan(
+      h.events.indexOf('end slow')
+    );
+  });
+
+  it('[INB-017] rows for the same conversation stay sequential in run_at order', async () => {
+    addRow('second', 'contact-a', { run_at: Date.now() - MINUTE });
+    addRow('first', 'contact-a', {
+      run_at: Date.now() - 3 * MINUTE,
+      context: { conversation_id: 'conv-a' },
+    });
+    addRow('third', 'contact-a', { run_at: Date.now() - 30_000 });
+    h.resumeDelay.set('first', 30);
+
+    const result = await drainPendingExecutions();
+
+    expect(result.processed).toBe(3);
+    expect(h.events).toEqual([
+      'start first',
+      'end first',
+      'start second',
+      'end second',
+      'start third',
+      'end third',
+    ]);
+  });
+
+  it('[INB-017] rows not started within the time budget are released back to pending', async () => {
+    addRow('p1', 'contact-a');
+    addRow('p2', 'contact-b');
+
+    const result = await drainPendingExecutions({ budgetMs: 0 });
+
+    expect(result).toEqual({ processed: 0, deferred: 2, skipped: 0 });
+    expect(h.resumed).toHaveLength(0);
+    expect(h.rows.get('p1')).toMatchObject({ status: 'pending', attempts: 0 });
+    expect(h.rows.get('p2')).toMatchObject({ status: 'pending', attempts: 0 });
   });
 });

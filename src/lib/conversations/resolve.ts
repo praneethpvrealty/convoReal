@@ -132,7 +132,23 @@ export async function findConversation<Row = Record<string, unknown>>(
     columns = '*',
   }: Omit<ResolveConversationArgs, 'userId' | 'onCreate'>
 ): Promise<Row | null> {
-  const { data } = await db
+  const { conversation } = await lookupConversation<Row>(db, {
+    accountId,
+    contactId,
+    columns,
+  });
+  return conversation;
+}
+
+export async function lookupConversation<Row = Record<string, unknown>>(
+  db: SupabaseClient,
+  {
+    accountId,
+    contactId,
+    columns = '*',
+  }: Omit<ResolveConversationArgs, 'userId' | 'onCreate'>
+): Promise<{ conversation: Row | null; error: PostgrestError | null }> {
+  const { data, error } = await db
     .from('conversations')
     .select(columns)
     .eq('account_id', accountId)
@@ -140,5 +156,5 @@ export async function findConversation<Row = Record<string, unknown>>(
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
-  return (data as Row | null) ?? null;
+  return { conversation: (data as Row | null) ?? null, error: error ?? null };
 }

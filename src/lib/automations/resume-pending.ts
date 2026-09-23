@@ -2,7 +2,7 @@ import {
   QualificationLeaseBusyError,
   withConversationLease,
 } from '@/lib/ai/qualification-lease';
-import { findConversation } from '@/lib/conversations/resolve';
+import { lookupConversation } from '@/lib/conversations/resolve';
 import { supabaseAdmin } from './admin-client';
 import { resumePendingExecution, type AutomationContext } from './engine';
 
@@ -11,6 +11,8 @@ export const RESUME_STALE_SECONDS = 900;
 export const RESUME_MAX_ATTEMPTS = 3;
 export const RESUME_LEASE_TTL_SECONDS = 10;
 export const RESUME_LEASE_MAX_HOLD_MS = 10_000;
+export const RESUME_CONCURRENCY = 5;
+export const RESUME_TIME_BUDGET_MS = 240_000;
 
 interface ClaimedPendingRow {
   id: string;
@@ -23,26 +25,47 @@ interface ClaimedPendingRow {
   branch: 'yes' | 'no' | null;
   next_step_position: number;
   context: AutomationContext | null;
+  run_at: string;
   claim_token: string;
 }
 
 export interface DrainResult {
   processed: number;
   deferred: number;
+  skipped: number;
 }
 
-async function leaseConversationId(
-  row: ClaimedPendingRow
-): Promise<string | null> {
+export interface DrainOptions {
+  limit?: number;
+  concurrency?: number;
+  budgetMs?: number;
+}
+
+type Outcome = keyof DrainResult;
+
+type Target =
+  | { kind: 'conversation'; conversationId: string }
+  | { kind: 'none' }
+  | { kind: 'error' };
+
+async function resolveTarget(row: ClaimedPendingRow): Promise<Target> {
   const fromContext = row.context?.conversation_id;
-  if (fromContext) return fromContext;
-  if (!row.contact_id) return null;
-  const conversation = await findConversation<{ id: string }>(supabaseAdmin(), {
-    accountId: row.account_id,
-    contactId: row.contact_id,
-    columns: 'id',
-  });
-  return conversation?.id ?? null;
+  if (fromContext) return { kind: 'conversation', conversationId: fromContext };
+  if (!row.contact_id) return { kind: 'none' };
+  const { conversation, error } = await lookupConversation<{ id: string }>(
+    supabaseAdmin(),
+    { accountId: row.account_id, contactId: row.contact_id, columns: 'id' }
+  );
+  if (error) {
+    console.error(
+      `[automations] conversation lookup for pending execution ${row.id} failed, it retries next tick:`,
+      error
+    );
+    return { kind: 'error' };
+  }
+  return conversation?.id
+    ? { kind: 'conversation', conversationId: conversation.id }
+    : { kind: 'none' };
 }
 
 async function resume(row: ClaimedPendingRow): Promise<void> {
@@ -74,19 +97,50 @@ async function releaseClaim(row: ClaimedPendingRow): Promise<void> {
   }
 }
 
-async function runClaimed(row: ClaimedPendingRow): Promise<boolean> {
-  const conversationId = await leaseConversationId(row);
-  if (!conversationId) {
-    await resume(row);
-    return true;
+async function execute(row: ClaimedPendingRow): Promise<Outcome> {
+  const { data, error } = await supabaseAdmin()
+    .from('automation_pending_executions')
+    .update({ claimed_at: new Date().toISOString() })
+    .eq('id', row.id)
+    .eq('claim_token', row.claim_token)
+    .eq('status', 'running')
+    .select('id')
+    .maybeSingle();
+  if (error) {
+    console.error(
+      `[automations] could not confirm the claim on pending execution ${row.id}, it retries next tick:`,
+      error
+    );
+    await releaseClaim(row);
+    return 'deferred';
   }
+  if (!data) {
+    console.warn(
+      `[automations] pending execution ${row.id} was reclaimed by another run, skipping`
+    );
+    return 'skipped';
+  }
+  await resume(row);
+  return 'processed';
+}
+
+async function runClaimed(
+  row: ClaimedPendingRow,
+  target: Target
+): Promise<Outcome> {
+  if (target.kind === 'error') {
+    await releaseClaim(row);
+    return 'deferred';
+  }
+  if (target.kind === 'none') return execute(row);
+  let outcome: Outcome = 'deferred';
   try {
     await withConversationLease(
       row.account_id,
-      conversationId,
+      target.conversationId,
       null,
       async () => {
-        await resume(row);
+        outcome = await execute(row);
         return true;
       },
       {
@@ -96,20 +150,45 @@ async function runClaimed(row: ClaimedPendingRow): Promise<boolean> {
         maxHoldMs: RESUME_LEASE_MAX_HOLD_MS,
       }
     );
-    return true;
+    return outcome;
   } catch (err) {
     if (!(err instanceof QualificationLeaseBusyError)) throw err;
     console.warn(
-      `[automations] conversation ${conversationId} is busy, pending execution ${row.id} retries next tick`
+      `[automations] conversation ${target.conversationId} is busy, pending execution ${row.id} retries next tick`
     );
     await releaseClaim(row);
-    return false;
+    return 'deferred';
   }
 }
 
-export async function drainPendingExecutions(
-  limit = RESUME_BATCH_LIMIT
-): Promise<DrainResult> {
+async function runPool<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  let next = 0;
+  const lanes = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => {
+      while (next < items.length) await worker(items[next++]);
+    }
+  );
+  await Promise.all(lanes);
+}
+
+function groupKey(row: ClaimedPendingRow, target: Target): string {
+  if (target.kind === 'conversation') {
+    return `conversation:${target.conversationId}`;
+  }
+  return row.contact_id ? `contact:${row.contact_id}` : `row:${row.id}`;
+}
+
+export async function drainPendingExecutions({
+  limit = RESUME_BATCH_LIMIT,
+  concurrency = RESUME_CONCURRENCY,
+  budgetMs = RESUME_TIME_BUDGET_MS,
+}: DrainOptions = {}): Promise<DrainResult> {
+  const deadline = Date.now() + budgetMs;
   const { data, error } = await supabaseAdmin().rpc(
     'claim_automation_pending_executions',
     {
@@ -120,14 +199,34 @@ export async function drainPendingExecutions(
   );
   if (error) throw error;
 
-  const result: DrainResult = { processed: 0, deferred: 0 };
-  for (const row of (data ?? []) as ClaimedPendingRow[]) {
-    try {
-      if (await runClaimed(row)) result.processed++;
-      else result.deferred++;
-    } catch (err) {
-      console.error(`[automations] resuming ${row.id} failed:`, err);
-    }
+  const rows = ((data ?? []) as ClaimedPendingRow[]).sort(
+    (a, b) => Date.parse(a.run_at) - Date.parse(b.run_at)
+  );
+  const targets = new Map<string, Target>();
+  await runPool(rows, concurrency, async (row) => {
+    targets.set(row.id, await resolveTarget(row));
+  });
+
+  const groups = new Map<string, ClaimedPendingRow[]>();
+  for (const row of rows) {
+    const key = groupKey(row, targets.get(row.id)!);
+    groups.set(key, [...(groups.get(key) ?? []), row]);
   }
+
+  const result: DrainResult = { processed: 0, deferred: 0, skipped: 0 };
+  await runPool([...groups.values()], concurrency, async (group) => {
+    for (const row of group) {
+      if (Date.now() >= deadline) {
+        await releaseClaim(row);
+        result.deferred++;
+        continue;
+      }
+      try {
+        result[await runClaimed(row, targets.get(row.id)!)]++;
+      } catch (err) {
+        console.error(`[automations] resuming ${row.id} failed:`, err);
+      }
+    }
+  });
   return result;
 }
