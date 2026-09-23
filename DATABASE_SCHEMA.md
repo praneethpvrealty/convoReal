@@ -226,6 +226,12 @@ One row per `(account_id, phone_number_id, sender_phone)` (UNIQUE) recording whe
 - `reply_count` (INTEGER), `last_replied_at` (TIMESTAMPTZ).
 - Written only by the service-role webhook path; RLS: members read, admins delete.
 
+#### 15a-iv. `conversation_qualification_leases` (migration 20260923060000)
+One row per conversation (UNIQUE `conversation_id`) while a webhook runs buyer qualification for it, so overlapping webhooks for one lead are qualified one at a time.
+- `holder` (UUID), `expires_at` (TIMESTAMPTZ).
+- `claim_conversation_qualification_lease(p_account_id, p_conversation_id, p_holder, p_ttl_seconds)`: SECURITY DEFINER, service role only; inserts the lease or takes over an expired one in one statement and returns whether it was claimed. The holder deletes its row when done.
+- Written only by the service-role webhook path; RLS: members read.
+
 #### 15b. `whatsapp_meta_flows` (migration 125)
 Registry of native Meta WhatsApp Flows (form-screen flows) created per account via the Graph API. Distinct from the in-app chatbot flow builder tables (`flows` / `flow_runs`).
 - `id` (UUID, PK), `account_id` (UUID, FK -> `accounts`).

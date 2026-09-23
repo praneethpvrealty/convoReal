@@ -245,7 +245,7 @@
         },
         {
           "id": "INB-014",
-          "rule": "The qualification ladder never drops or re-asks what a lead already said: a bare size (\"1200 sqft\", \"30x40\") is filed as a requirement, lines of one burst are filed together whatever order their webhooks land in, and a budget no rent could reach (₹10 L+, ₹1 Cr+ for commercial) answers buy-or-rent. A lead who asks for matches when nothing fits is told what was searched and asked the next missing rung, never told to change a brief they never gave.",
+          "rule": "The qualification ladder never drops or re-asks what a lead already said: a bare size (\"1200 sqft\", \"30x40\") is filed as a requirement, lines of one burst are filed together and in order whatever order their webhooks land in, one conversation is qualified by one webhook at a time, buy-or-rent follows the newest line of the burst that states it (a bare \"Rent\" correcting \"Buy\" included) so no older webhook undoes a newer one, and a budget no rent could reach (₹10 L+, ₹1 Cr+ for commercial) answers buy-or-rent. A lead who asks for matches when nothing fits is told what was searched and asked the next missing rung, never told to change a brief they never gave.",
           "tests": [
             {
               "file": "src/lib/ai/buyer-qualification.test.ts",
@@ -253,6 +253,10 @@
             },
             {
               "file": "src/lib/ai/buyer-qualification.process.test.ts",
+              "case": "[INB-014]"
+            },
+            {
+              "file": "src/lib/ai/qualification-lease.test.ts",
               "case": "[INB-014]"
             },
             {

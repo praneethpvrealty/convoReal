@@ -55,6 +55,7 @@ import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
 import { localityLabelsMatch } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
+import { withConversationLease } from '@/lib/ai/qualification-lease';
 import type { Contact, Property } from '@/types';
 
 export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
@@ -1097,14 +1098,44 @@ export function appendRequirement(
 
 const MAX_BURST_LINES = 4;
 
+type ThreadMessage = {
+  sender_type?: string | null;
+  content_text?: string | null;
+};
+
+export function burstOpenedByLadder(
+  thread: ThreadMessage[],
+  currentIndex = 0
+): boolean {
+  const opener = thread
+    .slice(currentIndex + 1)
+    .find((message) => message.sender_type !== 'customer');
+  return (
+    opener?.sender_type === 'bot' &&
+    isQualifierQuestion(opener.content_text ?? null)
+  );
+}
+
+export function statesIntentOnly(text: string): boolean {
+  return (
+    routeLeadMessage(text) === 'qualification' &&
+    listingTypesFromCurrentTurn(text) !== null
+  );
+}
+
 export function burstRequirements(
-  thread: { sender_type?: string | null; content_text?: string | null }[],
+  thread: ThreadMessage[],
   current: string,
   currentIndex = 0
 ): string[] {
-  const burstLine = (message: (typeof thread)[number]): string | null => {
+  const ladderPrompted = burstOpenedByLadder(thread, currentIndex);
+  const burstLine = (message: ThreadMessage): string | null => {
     const text = message.content_text?.trim();
-    return text && isBuyerRequirementMessage(text) ? text : null;
+    if (!text) return null;
+    return isBuyerRequirementMessage(text) ||
+      (ladderPrompted && statesIntentOnly(text))
+      ? text
+      : null;
   };
   const older: string[] = [];
   for (const message of thread.slice(
@@ -1126,6 +1157,18 @@ export function burstRequirements(
     if (text) newer.push(text);
   }
   return [...older, current, ...newer];
+}
+
+export function rebuildRequirements(
+  existing: string | null | undefined,
+  burst: string[]
+): string {
+  const burstKeys = new Set(burst.map((line) => line.trim().toLowerCase()));
+  const base = (existing || '')
+    .split('\n')
+    .filter((line) => !burstKeys.has(line.trim().toLowerCase()))
+    .join('\n');
+  return burst.reduce(appendRequirement, base);
 }
 
 export function latestIntentTurn(burst: string[], fallback: string): string {
@@ -1233,18 +1276,19 @@ async function supersededByLaterMessage(
 
   const { data: current } = await db
     .from('messages')
-    .select('created_at')
+    .select('id, created_at')
     .eq('conversation_id', conversationId)
     .eq('message_id', metaMessageId)
     .maybeSingle();
   if (!current?.created_at) return false;
 
+  const at = current.created_at as string;
   const { count } = await db
     .from('messages')
     .select('id', { count: 'exact', head: true })
     .eq('conversation_id', conversationId)
     .eq('sender_type', 'customer')
-    .gt('created_at', current.created_at as string);
+    .or(`created_at.gt."${at}",and(created_at.eq."${at}",id.gt.${current.id})`);
 
   return (count ?? 0) > 0;
 }
@@ -1278,6 +1322,32 @@ async function lastShownListingAreaSqft(
 }
 
 export async function processBuyerQualificationMessage(
+  contentText: string | null,
+  contactRecord: { id: string; phone: string; name?: string | null },
+  conversation: { id: string },
+  accountId: string,
+  accessToken: string,
+  phoneNumberId: string,
+  configOwnerUserId?: string,
+  metaMessageId?: string | null
+): Promise<boolean> {
+  const text = contentText?.trim();
+  if (!text || standsDownFromQualification(text)) return false;
+  return withConversationLease(accountId, conversation.id, () =>
+    qualifyLeadMessage(
+      text,
+      contactRecord,
+      conversation,
+      accountId,
+      accessToken,
+      phoneNumberId,
+      configOwnerUserId,
+      metaMessageId
+    )
+  );
+}
+
+async function qualifyLeadMessage(
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string | null },
   conversation: { id: string },
@@ -1344,6 +1414,7 @@ export async function processBuyerQualificationMessage(
       .select('sender_type, content_text, message_id')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .limit(ASKED_WINDOW);
     const currentIndex = Math.max(
       0,
@@ -1415,8 +1486,10 @@ export async function processBuyerQualificationMessage(
     // needs to look like a requirement on its own.
     const previous = (thread || [])[currentIndex + 1];
     const awaitingAnswer =
-      previous?.sender_type === 'bot' &&
-      isQualifierQuestion(previous.content_text as string | null);
+      (previous?.sender_type === 'bot' &&
+        isQualifierQuestion(previous.content_text as string | null)) ||
+      (statesIntentOnly(text) &&
+        burstOpenedByLadder(thread || [], currentIndex));
     const storedPreferences = withImpliedIntent(prefsFromContact(contact));
     const zoneRefinement = canonicalBengaluruZone(
       localityReplyCore(text) || ''
@@ -1442,10 +1515,7 @@ export async function processBuyerQualificationMessage(
       requirementTurn,
       currentIndex
     );
-    const requirements = burst.reduce(
-      appendRequirement,
-      contact.requirements || ''
-    );
+    const requirements = rebuildRequirements(contact.requirements, burst);
     const sourceText = buildPreferenceSourceText(
       requirements,
       contact.contact_notes

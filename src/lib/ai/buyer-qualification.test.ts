@@ -39,6 +39,7 @@ import {
   impliedListingTypes,
   burstRequirements,
   latestIntentTurn,
+  rebuildRequirements,
   buildWidenSearchQuestion,
   describeBrief,
 } from './buyer-qualification';
@@ -1387,6 +1388,44 @@ describe('portal plot lead replay (sandhiya)', () => {
         1
       )
     ).toEqual(['1200 sqft', '3000000 to 3500000']);
+  });
+
+  it('[INB-014] folds a bare buy-or-rent line only into a burst the ladder opened', () => {
+    const prompt = {
+      sender_type: 'bot',
+      content_text: 'Are you looking to buy or to rent?',
+    };
+    expect(
+      burstRequirements(
+        [
+          { sender_type: 'customer', content_text: 'Rent' },
+          { sender_type: 'customer', content_text: 'Buy' },
+          prompt,
+        ],
+        'Buy',
+        1
+      )
+    ).toEqual(['Buy', 'Rent']);
+    expect(
+      burstRequirements(
+        [
+          { sender_type: 'customer', content_text: 'Rent' },
+          { sender_type: 'customer', content_text: '1200 sqft' },
+          { sender_type: 'bot', content_text: 'Hi sandhiya' },
+        ],
+        '1200 sqft',
+        1
+      )
+    ).toEqual(['1200 sqft']);
+  });
+
+  it('[INB-014] rebuilds the brief in burst order whichever line was filed first', () => {
+    expect(rebuildRequirements('Plot\nRent', ['Buy', 'Rent'])).toBe(
+      'Plot\nBuy\nRent'
+    );
+    expect(rebuildRequirements('Plot\nBuy', ['Buy', 'Rent'])).toBe(
+      'Plot\nBuy\nRent'
+    );
   });
 
   it('[INB-014] takes buy-or-rent from the newest line of the burst that states it', () => {
