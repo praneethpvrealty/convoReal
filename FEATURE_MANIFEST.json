@@ -674,6 +674,10 @@
               "case": "[INV-008]"
             },
             {
+              "file": "src/lib/deals/upload-document.test.ts",
+              "case": "[INV-008]"
+            },
+            {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[INV-008]"
             }

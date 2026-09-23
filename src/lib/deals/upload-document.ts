@@ -49,7 +49,19 @@ export async function uploadDealDocument(
     body: file,
   });
   if (!putRes.ok) {
-    throw new Error('Could not upload that file — try again.');
+    const body = await putRes.text().catch(() => '');
+    let detail = '';
+    try {
+      const parsed = JSON.parse(body) as { message?: string; error?: string };
+      detail = parsed.message || parsed.error || '';
+    } catch {
+      detail = body.trim().slice(0, 120);
+    }
+    throw new Error(
+      detail
+        ? `Storage refused the file (${putRes.status}): ${detail}`
+        : `Storage refused the file (${putRes.status}).`
+    );
   }
 
   const fileRes = await fetch(`/api/deals/${dealId}/documents`, {
