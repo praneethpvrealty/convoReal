@@ -34,6 +34,7 @@ import {
   Home,
   Calendar,
   Landmark,
+  Scale,
   Briefcase,
 } from "lucide-react";
 import type { AccountRole } from "@/lib/auth/roles";
@@ -113,6 +114,7 @@ const navItems: NavItem[] = [
   { href: "/contacts", labelKey: "nav.contacts", icon: Users },
   { href: "/inventory", labelKey: "nav.inventory", icon: Home },
   { href: "/liaisons", labelKey: "nav.liaisons", icon: Landmark },
+  { href: "/guidance-value", labelKey: "nav.guidanceValue", icon: Scale },
   { href: "/calendar", labelKey: "nav.calendar", icon: Calendar },
   { href: "/deals", labelKey: "nav.transactions", icon: Briefcase },
   { href: "/automations", labelKey: "nav.automations", icon: Workflow },

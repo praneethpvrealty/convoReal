@@ -1666,6 +1666,14 @@ function ActionRail({ property }: { property: Property }) {
       onPress: confirmDuplicate,
     },
     {
+      icon: 'scale-outline' as const,
+      label: 'Guidance value',
+      onPress: () => {
+        haptic.tap();
+        router.push(`/(app)/guidance-value?propertyId=${property.id}`);
+      },
+    },
+    {
       icon: 'time-outline' as const,
       label: 'Portal dates',
       onPress: () => {

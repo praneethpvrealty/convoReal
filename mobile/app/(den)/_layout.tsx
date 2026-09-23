@@ -48,6 +48,7 @@ export default function DenLayout() {
     >
       <Stack.Screen name="den/index" options={{ headerShown: false }} />
       <Stack.Screen name="den/bids" options={{ title: 'Offers' }} />
+      <Stack.Screen name="den/guidance-value" options={{ title: 'Guidance value' }} />
       <Stack.Screen name="den/settings" options={{ title: 'Den Settings' }} />
     </Stack>
   );

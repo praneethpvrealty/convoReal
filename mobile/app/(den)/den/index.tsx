@@ -142,6 +142,25 @@ export default function DenHomeScreen() {
         </Pressable>
       </Link>
 
+      <Link href="/(den)/den/guidance-value" asChild>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Find a guidance value"
+          style={StyleSheet.flatten([
+            styles.bidsCard,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ])}
+        >
+          <Ionicons name="scale-outline" size={20} color={colors.primary} />
+          <Text
+            style={{ flex: 1, fontSize: 15, fontFamily: f.bold, color: colors.text }}
+          >
+            Find a guidance value
+          </Text>
+          <Ionicons name="chevron-forward" size={17} color={colors.textFaint} />
+        </Pressable>
+      </Link>
+
       {/* Window toggle + totals */}
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <FilterChip

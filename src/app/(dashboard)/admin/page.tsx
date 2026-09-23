@@ -72,6 +72,15 @@ const BillingTab = dynamic(() => import('./billing-tab'), {
   ),
 });
 
+const GuidanceValuesTab = dynamic(() => import('./guidance-values-tab'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-96 items-center justify-center">
+      <ConvoRealLoader size={26} label="Loading Guidance values" />
+    </div>
+  ),
+});
+
 const ExtensionsTab = dynamic(() => import('./extensions-tab'), {
   ssr: false,
   loading: () => (
@@ -107,7 +116,7 @@ interface Organization {
 
 export default function AdminDashboardPage() {
   const { user, profileLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace' | 'billing' | 'extensions' | 'bugs' | 'demand' | 'support'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace' | 'billing' | 'extensions' | 'bugs' | 'demand' | 'support' | 'guidance'>('overview');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -673,6 +682,16 @@ export default function AdminDashboardPage() {
           }`}
         >
           Support
+        </button>
+        <button
+          onClick={() => setActiveTab('guidance')}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+            activeTab === 'guidance'
+              ? 'border-primary text-white bg-primary/5'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          Guidance values
         </button>
       </div>
 
@@ -1532,6 +1551,8 @@ export default function AdminDashboardPage() {
       {activeTab === 'demand' && <DemandTab />}
 
       {activeTab === 'support' && <SupportTab />}
+
+      {activeTab === 'guidance' && <GuidanceValuesTab />}
     </div>
   );
 }

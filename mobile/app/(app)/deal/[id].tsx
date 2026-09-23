@@ -5,7 +5,7 @@ import { File, Paths } from 'expo-file-system';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import * as Sharing from 'expo-sharing';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -261,7 +261,23 @@ export default function DealWorkspaceScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: head?.title ?? 'Transaction' }} />
+      <Stack.Screen
+        options={{
+          title: head?.title ?? 'Transaction',
+          headerRight: () => (
+            <Pressable
+              onPress={() =>
+                router.push(`/(app)/guidance-value?dealId=${dealId}`)
+              }
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Guidance value"
+            >
+              <Ionicons name="scale-outline" size={22} color={colors.primary} />
+            </Pressable>
+          ),
+        }}
+      />
       <AppDialog {...headDialog.dialogProps} />
       <View style={[styles.screen, { backgroundColor: colors.background }]}>
         {head ? (

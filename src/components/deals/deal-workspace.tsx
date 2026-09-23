@@ -8,6 +8,7 @@ import {
   Building2,
   Layers,
   Loader2,
+  Scale,
   User,
   Waypoints,
 } from 'lucide-react';
@@ -290,6 +291,13 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
                 : deal.property.title}
             </Link>
           )}
+          <Link
+            href={`/guidance-value?deal=${deal.id}`}
+            className="inline-flex items-center gap-1 hover:text-white"
+          >
+            <Scale className="h-3.5 w-3.5" />
+            Guidance value
+          </Link>
           {deal.source_journey_item_id && (
             <Link
               href={dealsHref('journey', {
