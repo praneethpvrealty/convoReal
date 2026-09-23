@@ -4,6 +4,7 @@ import { lookupConversation } from '@/lib/conversations/resolve';
 import { withContactConversationLease } from '@/lib/conversations/outbound-lease';
 
 export const SHARE_FEEDBACK_CLAIM_STALE_MS = 15 * 60 * 1000;
+export const SHARE_FEEDBACK_CLAIM_GRACE_MS = 30 * 60 * 1000;
 
 /**
  * Finds property shares to buyers that are older than 30 minutes and have
@@ -15,6 +16,9 @@ export async function processShareFeedbackFollowups(
   const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   // Don't go back forever, just the last 2 hours to avoid spamming old shares
   const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const claimGraceStart = new Date(
+    Date.now() - 2 * 60 * 60 * 1000 - SHARE_FEEDBACK_CLAIM_GRACE_MS
+  ).toISOString();
 
   // Find pending shares for buyers (not agents)
   const { data: shares, error } = await db
@@ -31,7 +35,9 @@ export async function processShareFeedbackFollowups(
     .eq('feedback_status', 'pending')
     .eq('recipient_kind', 'buyer')
     .lte('created_at', thirtyMinsAgo)
-    .gte('created_at', twoHoursAgo)
+    .or(
+      `created_at.gte.${twoHoursAgo},and(feedback_sent_at.not.is.null,created_at.gte.${claimGraceStart})`
+    )
     .limit(50);
 
   if (error) {

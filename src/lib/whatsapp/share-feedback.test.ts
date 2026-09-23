@@ -37,14 +37,45 @@ const CONTACT_ID = 'contact-1';
 const SHARE_ID = 'share-1';
 const SHARE_CREATED_AT = new Date(Date.now() - 45 * 60 * 1000).toISOString();
 
+function splitTopLevel(expr: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of expr) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+
+function matchesClause(row: Row, clause: string): boolean {
+  if (clause.startsWith('and(')) {
+    return splitTopLevel(clause.slice(4, -1)).every((c) =>
+      matchesClause(row, c)
+    );
+  }
+  const [column, ...rest] = clause.split('.');
+  const filter = rest.join('.');
+  const cell = row[column];
+  if (filter === 'is.null') return cell == null;
+  if (filter === 'not.is.null') return cell != null;
+  const [op, ...valueParts] = filter.split('.');
+  const value = valueParts.join('.');
+  if (cell == null) return false;
+  if (op === 'lt') return String(cell) < value;
+  if (op === 'gte') return String(cell) >= value;
+  return false;
+}
+
 function matchesOr(row: Row, expr: string): boolean {
-  return expr.split(',').some((clause) => {
-    const [column, op, ...rest] = clause.split('.');
-    const value = rest.join('.');
-    if (op === 'is' && value === 'null') return row[column] == null;
-    if (op === 'lt') return row[column] != null && String(row[column]) < value;
-    return false;
-  });
+  return splitTopLevel(expr).some((clause) => matchesClause(row, clause));
 }
 
 function makeDb(
@@ -73,6 +104,7 @@ function makeDb(
   function builder(table: string) {
     const filters: Record<string, unknown> = {};
     const ors: string[] = [];
+    const lowerBounds: [string, string][] = [];
     let patch: Row | null = null;
     const applyPatch = () => {
       const rows = state.shares.filter(
@@ -95,7 +127,10 @@ function makeDb(
       },
       in: () => b,
       lte: () => b,
-      gte: () => b,
+      gte: (column: string, value: string) => {
+        lowerBounds.push([column, value]);
+        return b;
+      },
       order: () => b,
       limit: () => b,
       update: (payload: Row) => {
@@ -135,7 +170,12 @@ function makeDb(
           }
           return Promise.resolve({
             data: state.shares
-              .filter((r) => r.feedback_status === 'pending')
+              .filter(
+                (r) =>
+                  r.feedback_status === 'pending' &&
+                  lowerBounds.every(([c, v]) => String(r[c]) >= v) &&
+                  ors.every((expr) => matchesOr(r, expr))
+              )
               .map((r) => ({ ...r })),
             error: null,
           }).then(resolve);
@@ -259,6 +299,36 @@ describe('processShareFeedbackFollowups', () => {
     });
 
     expect(await processShareFeedbackFollowups(db as never)).toBe(1);
+  });
+
+  it('[INB-018] a claim left late in the send window is still taken over once stale', async () => {
+    const db = makeDb({
+      lastCustomerMessageAt: null,
+      share: {
+        created_at: new Date(
+          Date.now() - 2 * 60 * 60 * 1000 - 20 * 60 * 1000
+        ).toISOString(),
+        feedback_sent_at: new Date(
+          Date.now() - SHARE_FEEDBACK_CLAIM_STALE_MS - 60_000
+        ).toISOString(),
+      },
+    });
+
+    expect(await processShareFeedbackFollowups(db as never)).toBe(1);
+  });
+
+  it('[INB-018] an unclaimed share past the send window is left alone', async () => {
+    const db = makeDb({
+      lastCustomerMessageAt: null,
+      share: {
+        created_at: new Date(
+          Date.now() - 2 * 60 * 60 * 1000 - 20 * 60 * 1000
+        ).toISOString(),
+      },
+    });
+
+    expect(await processShareFeedbackFollowups(db as never)).toBe(0);
+    expect(h.send).not.toHaveBeenCalled();
   });
 
   it('[INB-018] a send Meta refuses releases the share rather than marking it sent', async () => {
