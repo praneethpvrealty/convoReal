@@ -233,14 +233,13 @@ export function rowMatchesLocality(
 
 export function localityRowPrefilter(label: string): string | null {
   const stems = localityStems(label);
-  const probe = stems.length
-    ? stems.reduce((a, b) => (b.length > a.length ? b : a))
-    : label.trim();
-  if (!probe) return null;
-  const clean = probe.replace(/["\\]/g, '');
-  return LOCALITY_MATCH_FIELDS.map(
-    (field) => `${field}.ilike."%${clean}%"`
-  ).join(',');
+  const probes = stems.length ? [...new Set(stems)] : [label.trim()];
+  if (!probes[0]) return null;
+  const clean = probes.map((probe) => probe.replace(/["\\]/g, ''));
+  return LOCALITY_MATCH_FIELDS.map((field) => {
+    const clauses = clean.map((probe) => `${field}.ilike."%${probe}%"`);
+    return clauses.length === 1 ? clauses[0] : `and(${clauses.join(',')})`;
+  }).join(',');
 }
 
 export function rowMatchesBengaluruZone(

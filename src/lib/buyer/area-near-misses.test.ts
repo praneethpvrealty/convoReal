@@ -295,3 +295,65 @@ describe('areaNearMissLine', () => {
     );
   });
 });
+
+function inventoryDb(rows: Record<string, number | string>[]) {
+  return {
+    from: () => {
+      let result = [...rows];
+      const query: Record<string, unknown> = {};
+      for (const method of ['select', 'eq', 'or']) query[method] = () => query;
+      query.gt = (column: string, value: number) => {
+        result = result.filter((row) => Number(row[column]) > value);
+        return query;
+      };
+      query.gte = (column: string, value: number) => {
+        result = result.filter((row) => Number(row[column]) >= value);
+        return query;
+      };
+      query.lt = (column: string, value: number) => {
+        result = result.filter((row) => Number(row[column]) < value);
+        return query;
+      };
+      query.order = (column: string, { ascending }: { ascending: boolean }) => {
+        result.sort(
+          (a, b) =>
+            (Number(a[column]) - Number(b[column])) * (ascending ? 1 : -1)
+        );
+        return query;
+      };
+      query.limit = (n: number) => {
+        result = result.slice(0, n);
+        return query;
+      };
+      query.then = (resolve: (value: { data: unknown[] }) => unknown) =>
+        Promise.resolve({ data: result }).then(resolve);
+      return query;
+    },
+  } as never;
+}
+
+describe('areaNearMissLine past the scan bound', () => {
+  it('[INB-015] links the listings closest to a budget above the cheapest scanned rows', async () => {
+    const rows = Array.from({ length: 250 }, (_, i) => ({
+      id: `s${i + 1}`,
+      title: `Plot ${i + 1} in Surya City`,
+      price: (i + 1) * 10_000_000,
+      listing_type: 'Sale',
+      location: 'Surya City',
+    }));
+    const line = await areaNearMissLine({
+      db: inventoryDb(rows),
+      accountId: 'acct',
+      contactId: 'c1',
+      brief: {
+        areas: ['Surya City'],
+        listingTypes: ['Sale'],
+        budgetMin: 2_400_000_000,
+        budgetMax: 2_450_000_000,
+      },
+    });
+    expect(line).toBe(
+      `📍 We do have ${NEAR_MISS_SCAN_LIMIT}+ listings in Surya City, from ₹1 Cr. Here are the 5 closest to your budget: https://x.test/?ids=s240,s241,s242,s243,s244`
+    );
+  });
+});

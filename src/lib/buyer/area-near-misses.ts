@@ -194,7 +194,8 @@ async function fetchAreaCandidates(
   db: SupabaseClient,
   accountId: string,
   area: string,
-  listingType: ListingType
+  listingType: ListingType,
+  from?: { value: number; ascending: boolean }
 ): Promise<NearMissProperty[]> {
   const prefilter = localityRowPrefilter(area);
   if (!prefilter) return [];
@@ -219,11 +220,40 @@ async function fetchAreaCandidates(
             .join(',')})`
         )
       : query.eq('listing_type', listingType);
+  if (from)
+    query = from.ascending
+      ? query.gte(valueColumn, from.value)
+      : query.lt(valueColumn, from.value);
   const { data, error } = await query
-    .order(valueColumn, { ascending: true })
+    .order(valueColumn, { ascending: from?.ascending ?? true })
     .limit(NEAR_MISS_SCAN_LIMIT);
   if (error) throw error;
   return (data || []) as NearMissProperty[];
+}
+
+async function linkedListings(
+  db: SupabaseClient,
+  accountId: string,
+  nearMiss: AreaNearMiss,
+  brief: BudgetBrief
+): Promise<NearMissProperty[]> {
+  const budget = applicableBudget(nearMiss, brief);
+  if (!nearMiss.truncated || !budget)
+    return nearMissLinkedListings(nearMiss, brief);
+  const pivot = budget.min ?? budget.max!;
+  const around = await Promise.all(
+    [true, false].map((ascending) =>
+      fetchAreaCandidates(db, accountId, nearMiss.area, nearMiss.listingType, {
+        value: pivot,
+        ascending,
+      })
+    )
+  );
+  const closest = findAreaNearMiss(around.flat(), {
+    areas: [nearMiss.area],
+    listingTypes: [nearMiss.listingType],
+  });
+  return nearMissLinkedListings(closest ?? nearMiss, brief);
 }
 
 /** The near-miss line for this lead, or null when their areas hold no
@@ -262,7 +292,7 @@ export async function areaNearMissLine(args: {
         const url = await accountPropertiesShowcaseUrl(
           args.db,
           args.accountId,
-          nearMissLinkedListings(nearMiss, args.brief),
+          await linkedListings(args.db, args.accountId, nearMiss, args.brief),
           args.contactId
         );
         return buildAreaNearMissLine(nearMiss, args.brief, url);
