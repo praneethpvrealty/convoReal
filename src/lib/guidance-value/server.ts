@@ -140,8 +140,7 @@ export async function findCandidateRates(
   const pattern = districtPattern(schedule);
   const byId = new Map<string, GuidanceRate>();
   for (const query of searchQueries(schedule)) {
-    let rows = await searchRates(db, query, pattern);
-    if (!rows.length && pattern) rows = await searchRates(db, query, null);
+    const rows = await searchRates(db, query, pattern);
     for (const row of rows) byId.set(row.id, toRate(row));
   }
   return [...byId.values()];

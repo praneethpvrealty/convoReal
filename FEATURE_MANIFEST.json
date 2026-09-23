@@ -1697,10 +1697,14 @@
         },
         {
           "id": "GVL-002",
-          "rule": "Matching ranks imported rates by area, road and survey number against the schedule and prefers the rate column for the schedule's type and usage: a road-specific rate of the right block beats an area-wide one, a different block or stage is demoted, and a rate whose area name shares nothing with the schedule is never offered.",
+          "rule": "Matching ranks imported rates by area, road and survey number against the schedule and prefers the rate column for the schedule's type and usage: a road-specific rate of the right block beats an area-wide one, a different block or stage is demoted, and a rate whose area name shares nothing with the schedule is never offered. A schedule that names a district is matched only against that district's rates, and a subdivided survey number such as 45/2 is never treated as covered by 45/1.",
           "tests": [
             {
               "file": "src/lib/guidance-value/match.test.ts",
+              "case": "[GVL-002]"
+            },
+            {
+              "file": "src/lib/guidance-value/server.test.ts",
               "case": "[GVL-002]"
             }
           ]
@@ -1721,14 +1725,17 @@
         },
         {
           "id": "GVL-004",
-          "rule": "A saved guidance value belongs to one account and a property or transaction of it; its total is recomputed on the server from the stored rate and a snapshot of that rate is kept, so a client-sent total is ignored and deleting a notification does not change saved values.",
+          "rule": "A saved guidance value belongs to one account and a property or transaction of it, and is written only by POST /api/guidance-value/saved: members have no direct insert policy. The total is recomputed on the server from the stored rate and a snapshot of that rate is kept, so a client-sent total is ignored and deleting a notification does not change saved values.",
           "tests": [
             {
               "file": "src/app/api/guidance-value/saved/route.test.ts",
               "case": "[GVL-004]"
             }
           ],
-          "guards": ["supabase/migrations/20260923051521_guidance_values.sql"]
+          "guards": [
+            "supabase/migrations/20260923051521_guidance_values.sql",
+            "supabase/migrations/20260923055423_guidance_values_server_writes.sql"
+          ]
         }
       ]
     }

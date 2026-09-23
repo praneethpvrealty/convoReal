@@ -76,6 +76,15 @@ describe('surveyNumbersCover', () => {
     expect(surveyNumbersCover('30-40', '17')).toBe(false);
     expect(surveyNumbersCover(null, '17')).toBe(false);
   });
+
+  it('[GVL-002] keeps subdivided survey numbers apart', () => {
+    expect(surveyNumbersCover('45/1', '45/2')).toBe(false);
+    expect(surveyNumbersCover('45 / 1, 46', '45/1')).toBe(true);
+    expect(surveyNumbersCover('45', '45/2')).toBe(true);
+    expect(surveyNumbersCover('45/2', '45/2/1')).toBe(true);
+    expect(surveyNumbersCover('45/2', '45')).toBe(false);
+    expect(surveyNumbersCover('45/1-3', '2')).toBe(false);
+  });
 });
 
 describe('desiredClass', () => {

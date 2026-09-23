@@ -134,7 +134,7 @@ export async function POST(request: Request) {
 
     const source = Array.isArray(rate.source) ? rate.source[0] : rate.source;
 
-    const { data, error } = await ctx.supabase
+    const { data, error } = await supabaseAdmin()
       .from('property_guidance_values')
       .insert({
         account_id: ctx.accountId,

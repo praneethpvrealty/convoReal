@@ -31,8 +31,15 @@ vi.mock('@/lib/auth/account', () => ({
     Response.json({ error: String(err) }, { status: 500 }),
 }));
 
+const adminTables: string[] = [];
+
 vi.mock('@/lib/supabase/admin', () => ({
-  supabaseAdmin: () => ({ from: () => chain(() => rate) }),
+  supabaseAdmin: () => ({
+    from: (table: string) => {
+      adminTables.push(table);
+      return chain(() => rate);
+    },
+  }),
 }));
 
 import { POST } from './route';
@@ -51,6 +58,7 @@ function save(body: Record<string, unknown>) {
 
 beforeEach(() => {
   inserted.length = 0;
+  adminTables.length = 0;
   rate = {
     id: RATE,
     locality: 'Koramangala 6th Block',
@@ -74,6 +82,7 @@ describe('POST /api/guidance-value/saved', () => {
       options: { land_area_sqft: 2400 },
     });
     expect(res.status).toBe(201);
+    expect(adminTables).toContain('property_guidance_values');
     expect(inserted[0]).toMatchObject({
       account_id: 'acc-1',
       property_id: PROPERTY,

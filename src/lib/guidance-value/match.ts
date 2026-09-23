@@ -92,19 +92,32 @@ function conflicts(a: Map<string, string>, b: Map<string, string>): boolean {
   return false;
 }
 
+const SURVEY_ID = /\d+(?:\s*\/\s*[0-9a-z]+)*/g;
+
+function surveyIds(text: string): string[] {
+  return (text.toLowerCase().match(SURVEY_ID) ?? []).map((id) =>
+    id.replace(/\s+/g, '')
+  );
+}
+
 export function surveyNumbersCover(
   printed: string | null | undefined,
   surveyNumber: string | null | undefined
 ): boolean {
-  const target = Number((surveyNumber ?? '').match(/\d+/)?.[0]);
-  if (!printed || !Number.isFinite(target)) return false;
+  const [target] = surveyIds(surveyNumber ?? '');
+  if (!printed || !target) return false;
+  const base = Number(target.split('/')[0]);
   const text = printed.toLowerCase();
-  for (const range of text.matchAll(/(\d+)\s*(?:-|to)\s*(\d+)/g)) {
+  for (const range of text.matchAll(
+    /(?<![\d/])(\d+)\s*(?:-|to)\s*(\d+)(?![\d/])/g
+  )) {
     const from = Number(range[1]);
     const to = Number(range[2]);
-    if (from <= to && target >= from && target <= to) return true;
+    if (from <= to && base >= from && base <= to) return true;
   }
-  return (text.match(/\d+/g) ?? []).some((n) => Number(n) === target);
+  return surveyIds(text).some(
+    (id) => id === target || target.startsWith(`${id}/`)
+  );
 }
 
 export function desiredClass(schedule: PropertySchedule): PropertyClass | null {
