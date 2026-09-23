@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { toErrorResponse } from '@/lib/auth/account';
 import {
+  SourceNotStoredError,
   parseNextSourceChunk,
   requireGuidanceAdmin,
 } from '@/lib/guidance-value/server';
@@ -25,6 +26,12 @@ export async function POST(
       const source = await parseNextSourceChunk(supabaseAdmin(), id);
       return NextResponse.json({ data: source });
     } catch (err) {
+      if (err instanceof SourceNotStoredError) {
+        return NextResponse.json(
+          { error: err.message, code: err.code },
+          { status: 409 }
+        );
+      }
       const message = err instanceof Error ? err.message : String(err);
       console.error('[guidance-value] parse failed:', message);
       return NextResponse.json({ error: message }, { status: 502 });

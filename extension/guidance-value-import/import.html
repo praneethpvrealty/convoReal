@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Guidance value import · ConvoReal</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f172a;
+        --panel: #111827;
+        --border: #1f2937;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --ok: #34d399;
+        --warn: #fbbf24;
+        --bad: #f87171;
+        --accent: #8b5cf6;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      p { margin: 0 0 12px; color: var(--muted); }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+      label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+      input[type='text'], input[type='number'] {
+        background: #0b1220;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 8px;
+        min-width: 320px;
+      }
+      input[type='number'] { min-width: 80px; width: 80px; }
+      button {
+        background: var(--accent);
+        color: white;
+        border: 0;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.secondary { background: #334155; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      .stats { display: flex; gap: 16px; flex-wrap: wrap; font-weight: 600; }
+      #status { margin-top: 8px; color: var(--text); }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+      th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+      .scroll { max-height: 60vh; overflow: auto; }
+      .done { color: var(--ok); }
+      .failed { color: var(--bad); }
+      .working { color: var(--warn); }
+      .muted { color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <h1>Guidance value import</h1>
+    <p>
+      Reads the IGR revised guidelines value table, downloads every PDF in
+      this browser, uploads it to ConvoReal and waits while ConvoReal reads its
+      rates. Already imported notifications are skipped and unfinished ones
+      resume. Keep this tab open until it says finished.
+    </p>
+
+    <div class="panel">
+      <div class="row">
+        <label>ConvoReal address
+          <input id="engineUrl" type="text" />
+        </label>
+        <label>IGR page
+          <input id="igrUrl" type="text" />
+        </label>
+        <label>In parallel
+          <input id="concurrency" type="number" min="1" max="4" />
+        </label>
+        <label>
+          <span><input id="includeCorrigenda" type="checkbox" /> BDA corrigenda</span>
+        </label>
+        <button id="start">Start</button>
+        <button id="stop" class="secondary" disabled>Stop</button>
+      </div>
+      <div id="status" class="muted">Starting…</div>
+    </div>
+
+    <div class="panel">
+      <div class="stats">
+        <span>Total <span id="total">0</span></span>
+        <span class="done">Done <span id="done">0</span></span>
+        <span class="working">Working <span id="working">0</span></span>
+        <span class="failed">Failed <span id="failed">0</span></span>
+        <span>Rates <span id="rates">0</span></span>
+      </div>
+    </div>
+
+    <div class="panel scroll">
+      <table>
+        <thead>
+          <tr><th>District</th><th>SRO</th><th>Type</th><th>State</th><th>Detail</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <script src="import.js"></script>
+  </body>
+</html>
