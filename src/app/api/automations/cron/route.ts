@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
-import { drainPendingExecutions } from '@/lib/automations/resume-pending';
+import {
+  drainPendingExecutions,
+  RESUME_TIME_BUDGET_MS,
+} from '@/lib/automations/resume-pending';
 import { checkAndSendAppointmentReminders } from '@/lib/appointments/reminder';
 import { sweepAndSendBroadcasts } from '@/lib/broadcasts/sender';
+
+export const maxDuration = 300;
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
@@ -11,6 +16,7 @@ import { sweepAndSendBroadcasts } from '@/lib/broadcasts/sender';
  * `AUTOMATION_CRON_SECRET`.
  */
 export async function GET(request: Request) {
+  const startedAt = Date.now();
   const expected = process.env.AUTOMATION_CRON_SECRET;
   if (!expected) {
     return NextResponse.json({ error: 'cron not configured' }, { status: 503 });
@@ -49,7 +55,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    return NextResponse.json(await drainPendingExecutions());
+    return NextResponse.json(
+      await drainPendingExecutions({
+        budgetMs: RESUME_TIME_BUDGET_MS - (Date.now() - startedAt),
+      })
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

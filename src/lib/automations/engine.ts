@@ -24,6 +24,8 @@ import {
 } from '@/lib/whatsapp/template-language'
 import type { MessageTemplate } from '@/types'
 
+const WEBHOOK_TIMEOUT_MS = 10_000
+
 // ------------------------------------------------------------
 // Public API
 // ------------------------------------------------------------
@@ -515,6 +517,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         method: 'POST',
         headers: { 'content-type': 'application/json', ...(cfg.headers ?? {}) },
         body,
+        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
       })
       if (!res.ok) throw new Error(`webhook returned ${res.status}`)
       return `webhook ${res.status}`
