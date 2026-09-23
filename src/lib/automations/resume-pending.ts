@@ -48,14 +48,33 @@ type Target =
   | { kind: 'none' }
   | { kind: 'error' };
 
-async function resolveTarget(row: ClaimedPendingRow): Promise<Target> {
+async function resolveTarget(
+  row: ClaimedPendingRow,
+  deadline: number
+): Promise<Target> {
   const fromContext = row.context?.conversation_id;
   if (fromContext) return { kind: 'conversation', conversationId: fromContext };
   if (!row.contact_id) return { kind: 'none' };
-  const { conversation, error } = await lookupConversation<{ id: string }>(
-    supabaseAdmin(),
-    { accountId: row.account_id, contactId: row.contact_id, columns: 'id' }
-  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), Math.max(deadline - Date.now(), 0));
+  });
+  const lookup = await Promise.race([
+    lookupConversation<{ id: string }>(supabaseAdmin(), {
+      accountId: row.account_id,
+      contactId: row.contact_id,
+      columns: 'id',
+    }),
+    timedOut,
+  ]);
+  clearTimeout(timer);
+  if (!lookup) {
+    console.error(
+      `[automations] conversation lookup for pending execution ${row.id} outlasted the time budget, it retries next tick`
+    );
+    return { kind: 'error' };
+  }
+  const { conversation, error } = lookup;
   if (error) {
     console.error(
       `[automations] conversation lookup for pending execution ${row.id} failed, it retries next tick:`,
@@ -126,8 +145,9 @@ async function execute(row: ClaimedPendingRow): Promise<Outcome> {
 
 async function runClaimed(
   row: ClaimedPendingRow,
-  target: Target
+  deadline: number
 ): Promise<Outcome> {
+  const target = await resolveTarget(row, deadline);
   if (target.kind === 'error') {
     await releaseClaim(row);
     return 'deferred';
@@ -176,11 +196,10 @@ async function runPool<T>(
   await Promise.all(lanes);
 }
 
-function groupKey(row: ClaimedPendingRow, target: Target): string {
-  if (target.kind === 'conversation') {
-    return `conversation:${target.conversationId}`;
-  }
-  return row.contact_id ? `contact:${row.contact_id}` : `row:${row.id}`;
+function groupKey(row: ClaimedPendingRow): string {
+  if (row.contact_id) return `contact:${row.contact_id}`;
+  const conversationId = row.context?.conversation_id;
+  return conversationId ? `conversation:${conversationId}` : `row:${row.id}`;
 }
 
 export async function drainPendingExecutions({
@@ -202,14 +221,9 @@ export async function drainPendingExecutions({
   const rows = ((data ?? []) as ClaimedPendingRow[]).sort(
     (a, b) => Date.parse(a.run_at) - Date.parse(b.run_at)
   );
-  const targets = new Map<string, Target>();
-  await runPool(rows, concurrency, async (row) => {
-    targets.set(row.id, await resolveTarget(row));
-  });
-
   const groups = new Map<string, ClaimedPendingRow[]>();
   for (const row of rows) {
-    const key = groupKey(row, targets.get(row.id)!);
+    const key = groupKey(row);
     groups.set(key, [...(groups.get(key) ?? []), row]);
   }
 
@@ -222,7 +236,7 @@ export async function drainPendingExecutions({
         continue;
       }
       try {
-        result[await runClaimed(row, targets.get(row.id)!)]++;
+        result[await runClaimed(row, deadline)]++;
       } catch (err) {
         console.error(`[automations] resuming ${row.id} failed:`, err);
       }

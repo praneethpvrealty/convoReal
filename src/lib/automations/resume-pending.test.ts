@@ -33,6 +33,7 @@ const h = vi.hoisted(() => ({
   tokenSeq: 0,
   failing: new Set<string>(),
   lookupFails: new Set<string>(),
+  lookupStalls: new Set<string>(),
   beforeExecute: null as ((id: string) => void) | null,
   resumeDelay: new Map<string, number>(),
   events: [] as string[],
@@ -160,6 +161,9 @@ vi.mock('@/lib/supabase/admin', () => ({
             return { data: { id }, error: null };
           }
           if (table !== 'conversations') return { data: null, error: null };
+          if (h.lookupStalls.has(filters.contact_id as string)) {
+            return new Promise(() => {});
+          }
           if (h.lookupFails.has(filters.contact_id as string)) {
             return { data: null, error: { message: 'lookup timed out' } };
           }
@@ -240,6 +244,7 @@ beforeEach(() => {
   h.tokenSeq = 0;
   h.failing.clear();
   h.lookupFails.clear();
+  h.lookupStalls.clear();
   h.beforeExecute = null;
   h.resumeDelay.clear();
   h.events = [];
@@ -454,6 +459,40 @@ describe('drainPendingExecutions', () => {
     h.lookupFails.clear();
     await drainPendingExecutions();
     expect(h.resumed.map((r) => r.id)).toEqual(['p1']);
+  });
+
+  it('[INB-017] a conversation created after the batch is claimed is leased, not run beside', async () => {
+    addRow('earlier', 'contact-a', { run_at: Date.now() - 2 * MINUTE });
+    addRow('late', 'contact-new');
+    h.beforeExecute = (id) => {
+      if (id !== 'earlier') return;
+      h.conversations.set('contact-new', 'conv-new');
+      holdLease('conv-new');
+    };
+
+    const result = await drainPendingExecutions({ concurrency: 1 });
+
+    expect(result).toEqual({ processed: 1, deferred: 1, skipped: 0 });
+    expect(h.resumed.map((r) => r.id)).toEqual(['earlier']);
+    expect(h.rows.get('late')).toMatchObject({
+      status: 'pending',
+      attempts: 0,
+    });
+  });
+
+  it('[INB-017] a stalled conversation lookup neither holds up other conversations nor outlives the budget', async () => {
+    addRow('stalled', 'contact-a', { run_at: Date.now() - 2 * MINUTE });
+    addRow('p2', 'contact-b');
+    h.lookupStalls.add('contact-a');
+
+    const result = await drainPendingExecutions({ budgetMs: 50 });
+
+    expect(result).toEqual({ processed: 1, deferred: 1, skipped: 0 });
+    expect(h.resumed.map((r) => r.id)).toEqual(['p2']);
+    expect(h.rows.get('stalled')).toMatchObject({
+      status: 'pending',
+      attempts: 0,
+    });
   });
 
   it('[INB-017] a row reclaimed by another run before it executes is skipped, not run twice', async () => {
