@@ -19,6 +19,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { lookupConversation } from '@/lib/conversations/resolve';
+import { withContactConversationLease } from '@/lib/conversations/outbound-lease';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { canSendToEveryLead } from '@/lib/reengagement/template-gate';
@@ -63,6 +65,9 @@ export const POST_CALL_OPEN_PREFIX = 'pcf_open:';
 
 const UNIQUE_VIOLATION = '23505';
 
+export const OUTREACH_CLAIM_STALE_MS = 15 * 60 * 1000;
+export const OUTREACH_IMMEDIATE_WAIT_MS = 20_000;
+
 export interface FollowUpSnapshot {
   budgetText?: string | null;
   areasText?: string | null;
@@ -78,12 +83,14 @@ export interface OutreachFollowupRow {
   disposition: string;
   status: string;
   context: FollowUpSnapshot | null;
+  scheduled_for?: string | null;
 }
 
+export type FollowUpOutcome =
+  'completed' | 'sent' | 'skipped' | 'failed' | 'deferred';
+
 export type SendPlan =
-  | { mode: 'freeform' }
-  | { mode: 'opener' }
-  | { mode: 'skip'; reason: string };
+  { mode: 'freeform' } | { mode: 'opener' } | { mode: 'skip'; reason: string };
 
 /**
  * The gate decision, pure so every branch is unit-tested. Order
@@ -256,13 +263,63 @@ function resolveBodyText(body: string, params: string[]): string {
  * Attempts the send a pending follow-up row stands for, and records
  * the outcome on the row: completed (free-form went out), sent (the
  * opener went out, awaiting the tap), skipped (a gate said no, with
- * the reason), or failed.
+ * the reason), or failed. Deferred means the lead's conversation was
+ * busy: the row stays pending and is due for the next sweep.
  */
 export async function sendPendingFollowUp(
   admin: SupabaseClient,
   followup: OutreachFollowupRow,
-  userId: string | null
-): Promise<'completed' | 'sent' | 'skipped' | 'failed'> {
+  userId: string | null,
+  { waitMs = 0 }: { waitMs?: number } = {}
+): Promise<FollowUpOutcome> {
+  const accountId = followup.account_id;
+  const originalScheduledFor = followup.scheduled_for ?? null;
+  const claimedUntil = new Date(
+    Date.now() + OUTREACH_CLAIM_STALE_MS
+  ).toISOString();
+  const { data: claimed, error: claimError } = await admin
+    .from('outreach_followups')
+    .update({ scheduled_for: claimedUntil })
+    .eq('id', followup.id)
+    .eq('account_id', accountId)
+    .eq('status', 'pending')
+    .or(`scheduled_for.is.null,scheduled_for.lte.${new Date().toISOString()}`)
+    .select('id')
+    .maybeSingle();
+  if (claimError) {
+    console.error('[outreach] follow-up claim failed:', claimError);
+    return 'deferred';
+  }
+  if (!claimed) return 'deferred';
+
+  const outcome = await withContactConversationLease(
+    admin,
+    accountId,
+    followup.contact_id,
+    () => sendClaimedFollowUp(admin, followup, userId, originalScheduledFor),
+    { waitMs }
+  );
+  if (outcome.status === 'ran' && outcome.value !== 'deferred') {
+    return outcome.value;
+  }
+
+  await admin
+    .from('outreach_followups')
+    .update({ scheduled_for: new Date().toISOString() })
+    .eq('id', followup.id)
+    .eq('account_id', accountId)
+    .eq('status', 'pending')
+    .eq('scheduled_for', claimedUntil)
+    .select('id');
+  return 'deferred';
+}
+
+async function sendClaimedFollowUp(
+  admin: SupabaseClient,
+  followup: OutreachFollowupRow,
+  userId: string | null,
+  originalScheduledFor: string | null
+): Promise<FollowUpOutcome> {
   const accountId = followup.account_id;
   const finish = async (
     status: 'completed' | 'sent' | 'skipped' | 'failed',
@@ -270,7 +327,7 @@ export async function sendPendingFollowUp(
   ) => {
     await admin
       .from('outreach_followups')
-      .update({ status, ...patch })
+      .update({ status, scheduled_for: originalScheduledFor, ...patch })
       .eq('id', followup.id)
       .eq('account_id', accountId)
       .select('id');
@@ -288,12 +345,22 @@ export async function sendPendingFollowUp(
       return finish('skipped', { skip_reason: 'contact_unreachable' });
     }
 
-    const { data: conversation } = await admin
-      .from('conversations')
-      .select('last_customer_message_at')
-      .eq('account_id', accountId)
-      .eq('contact_id', followup.contact_id)
-      .maybeSingle();
+    const { conversation, error: conversationError } =
+      await lookupConversation<{ last_customer_message_at: string | null }>(
+        admin,
+        {
+          accountId,
+          contactId: followup.contact_id,
+          columns: 'last_customer_message_at',
+        }
+      );
+    if (conversationError) {
+      console.error(
+        '[outreach] window lookup failed, the follow-up retries next sweep:',
+        conversationError
+      );
+      return 'deferred';
+    }
     const windowOpen = isWithinCustomerWindow(
       conversation?.last_customer_message_at
     );
@@ -500,7 +567,9 @@ export async function dispatchPostCallFollowUp(
         scheduled_for: scheduledFor,
         context,
       })
-      .select('id, account_id, contact_id, action, status, context')
+      .select(
+        'id, account_id, contact_id, action, status, context, scheduled_for'
+      )
       .single();
     // A redelivered webhook lands here: the row exists, the first
     // delivery owns the send.
@@ -514,7 +583,8 @@ export async function dispatchPostCallFollowUp(
       await sendPendingFollowUp(
         admin,
         { ...inserted, disposition: args.disposition } as OutreachFollowupRow,
-        args.userId
+        args.userId,
+        { waitMs: OUTREACH_IMMEDIATE_WAIT_MS }
       );
     }
   } catch (err) {
@@ -631,9 +701,17 @@ export async function sweepDueOutreachFollowups(
   sent: number;
   skipped: number;
   failed: number;
+  deferred: number;
 }> {
   const admin = supabaseAdmin();
-  const summary = { due: 0, completed: 0, sent: 0, skipped: 0, failed: 0 };
+  const summary = {
+    due: 0,
+    completed: 0,
+    sent: 0,
+    skipped: 0,
+    failed: 0,
+    deferred: 0,
+  };
 
   const { data: rows } = await admin
     .from('outreach_followups')
