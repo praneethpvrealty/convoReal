@@ -357,7 +357,7 @@ function ItemNode({ data, selected }: NodeProps) {
       style={{
         width: CARD_W,
         minHeight: CARD_H,
-        ...(highlighted && !dropped
+        ...(highlighted
           ? { borderColor: stageColor, boxShadow: `0 0 0 2px ${stageColor}66` }
           : {}),
       }}
@@ -471,6 +471,9 @@ export interface JourneyCanvasProps {
   /** Stage whose frontier cards get a stage-coloured ring — set by the
    *  overview when this journey sits inside that stage's group. */
   highlightStageId?: string | null;
+  /** The group is the lost stage: dropped frontier cards take the ring
+   *  instead of live ones. */
+  highlightDropped?: boolean;
   /** Hidden items waiting in the Captured tray — surfaced as a hint
    *  when the canvas itself is empty. */
   capturedCount?: number;
@@ -501,6 +504,7 @@ function JourneyCanvasInner({
   onAddItems,
   selectedItemId,
   highlightStageId = null,
+  highlightDropped = false,
   capturedCount = 0,
   onOpenCaptured,
   heightClass = "h-[calc(100vh-220px)] min-h-[480px]",
@@ -601,7 +605,11 @@ function JourneyCanvasInner({
             currency,
             nextStageName:
               isFrontier && canEdit ? nextStage?.name : undefined,
-            highlighted: isFrontier && stage.id === highlightStageId,
+            highlighted:
+              isFrontier &&
+              (highlightDropped
+                ? item.status === "dropped" || stage.id === highlightStageId
+                : stage.id === highlightStageId && item.status !== "dropped"),
             onAdvance: isFrontier && canEdit ? onAdvance : undefined,
           } satisfies ItemData,
         });
@@ -683,6 +691,7 @@ function JourneyCanvasInner({
     onAdvance,
     selectedItemId,
     highlightStageId,
+    highlightDropped,
     palette,
   ]);
 
