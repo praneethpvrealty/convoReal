@@ -20,10 +20,12 @@ than a written entry. Newest first.
 #### 24 September 2026
 
 - **Cheaper AI for low-risk jobs.** The daily conversation sweep, Copilot
-  answers, occasion greetings and contact corrections now run on Gemini's
+  answers, occasion greetings and listing and contact corrections now run on Gemini's
   lite model, which costs a fraction of full Flash and falls back to it when
   lite is unavailable. Reading listings and business cards from photos, voice
-  notes and answers to buyers stay on full Flash.
+  notes and answers to buyers stay on full Flash. A listing correction is
+  still normalised and re-derived as before, keeps any plot size or rate it
+  does not mention, and stays a draft until the agent confirms it.
 - **Gemini keys are managed from Admin → AI keys.** Platform admins add,
   label, test, disable and remove Gemini keys in the app; they are stored
   encrypted and both the web app and the WhatsApp worker pick them up

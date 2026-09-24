@@ -291,6 +291,7 @@ Aryavarta Ventures`;
       expect(updated.owner_contact_name).toBe('Amit');
       expect(updated.owner_contact_phone).toContain('9876543210');
       expect(updated.owner_contact_role).toBe('Agent');
+      expect(requestedModels.at(-1)).toContain('flash-lite');
     });
   });
 

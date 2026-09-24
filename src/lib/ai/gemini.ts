@@ -1243,7 +1243,7 @@ export async function updateListingDraft(
       contents,
       systemInstruction,
       true,
-      { feature: 'listing_update' }
+      { tier: 'lite', feature: 'listing_update' }
     );
     const parsed = parseGeminiResponse(
       rawResult
