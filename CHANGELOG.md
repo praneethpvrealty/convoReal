@@ -33,7 +33,8 @@ than a written entry. Newest first.
   after it was due is now skipped and logged instead of sent, and a contact
   who reaches the same wait again (for example by sending another message)
   replaces the follow-up already queued, so it is sent once, timed from the
-  latest message.
+  latest message — even when two messages arrive at the same moment.
+  **Migration required:** `20260924071500_park_automation_wait.sql`.
 - **A journey with every property dropped moves to Lost.** The Journey
   view grouped a buyer (or property) at the furthest stage any item had
   reached, so a buyer whose three shortlisted properties were all dropped

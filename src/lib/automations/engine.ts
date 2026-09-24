@@ -271,28 +271,15 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
     if (step.step_type === 'wait') {
       const cfg = step.step_config as WaitStepConfig
       const ms = waitMs(cfg)
-      if (args.contactId) {
-        await supersedePendingWaits({
-          automationId: args.automation.id,
-          contactId: args.contactId,
-          parentStepId: args.parentStepId,
-          branch: args.branch,
-          nextStepPosition: step.position + 1,
-        })
-      }
-      await db.from('automation_pending_executions').insert({
-        automation_id: args.automation.id,
-        // Tenancy: account_id required NOT NULL post-017.
-        account_id: args.automation.account_id,
-        user_id: args.automation.user_id,
-        contact_id: args.contactId,
-        log_id: args.logId,
-        parent_step_id: args.parentStepId,
+      await parkWait({
+        automation: args.automation,
+        contactId: args.contactId,
+        logId: args.logId,
+        parentStepId: args.parentStepId,
         branch: args.branch,
-        next_step_position: step.position + 1,
+        nextStepPosition: step.position + 1,
         context: args.context,
-        run_at: new Date(Date.now() + ms).toISOString(),
-        status: 'pending',
+        runAt: new Date(Date.now() + ms).toISOString(),
       })
       results.push({
         step_id: step.id,
@@ -688,54 +675,45 @@ async function finalizeLog(
     .eq('id', logId)
 }
 
-export const SUPERSEDE_BATCH_LIMIT = 50
-
 /**
- * A contact reaching the same wait again replaces the run already parked
- * there, so a follow-up is timed from their latest message and sent once,
- * not once per message. Only rows still pending are touched: a row a
- * resume has claimed runs to completion.
+ * Parks a run at a wait. A contact reaching the same wait again replaces the
+ * run already parked there, so a follow-up is timed from their latest message
+ * and sent once, not once per message. The replacement and the insert happen
+ * in one locked database call, so concurrent triggers cannot both park.
  */
-async function supersedePendingWaits(args: {
-  automationId: string
-  contactId: string
+async function parkWait(args: {
+  automation: Automation
+  contactId: string | null
+  logId: string | null
   parentStepId: string | null
   branch: 'yes' | 'no' | null
   nextStepPosition: number
+  context: AutomationContext
+  runAt: string
 }) {
-  const db = supabaseAdmin()
-  let query = db
-    .from('automation_pending_executions')
-    .select('id, log_id')
-    .eq('automation_id', args.automationId)
-    .eq('contact_id', args.contactId)
-    .eq('next_step_position', args.nextStepPosition)
-    .eq('status', 'pending')
-  query =
-    args.parentStepId === null
-      ? query.is('parent_step_id', null)
-      : query.eq('parent_step_id', args.parentStepId)
-  query = args.branch === null ? query.is('branch', null) : query.eq('branch', args.branch)
-  const { data, error } = await query.limit(SUPERSEDE_BATCH_LIMIT)
+  const { data, error } = await supabaseAdmin().rpc('park_automation_wait', {
+    p_account_id: args.automation.account_id,
+    p_automation_id: args.automation.id,
+    p_user_id: args.automation.user_id,
+    p_contact_id: args.contactId,
+    p_log_id: args.logId,
+    p_parent_step_id: args.parentStepId,
+    p_branch: args.branch,
+    p_next_step_position: args.nextStepPosition,
+    p_context: args.context,
+    p_run_at: args.runAt,
+  })
   if (error) {
-    console.error('[automations] could not look up earlier waits to supersede:', error)
+    console.error('[automations] could not park a wait:', error)
     return
   }
-  for (const row of (data ?? []) as { id: string; log_id: string | null }[]) {
-    const { data: superseded } = await db
-      .from('automation_pending_executions')
-      .update({ status: 'failed' })
-      .eq('id', row.id)
-      .eq('status', 'pending')
-      .select('id')
-      .maybeSingle()
-    if (superseded && row.log_id) {
-      await finalizeLog(
-        row.log_id,
-        'failed',
-        'Superseded: the contact reached this wait again, so the newer run replaces it',
-      )
-    }
+  for (const row of (data ?? []) as { superseded_log_id: string | null }[]) {
+    if (!row.superseded_log_id) continue
+    await finalizeLog(
+      row.superseded_log_id,
+      'failed',
+      'Superseded: the contact reached this wait again, so the newer run replaces it',
+    )
   }
 }
 

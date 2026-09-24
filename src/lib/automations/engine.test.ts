@@ -9,7 +9,8 @@ const h = vi.hoisted(() => ({
     steps: [] as Record<string, unknown>[],
     fromCalls: [] as string[],
     updateCalls: [] as { table: string; filters: [string, string, unknown][] }[],
-    parkedWaits: [] as { id: string; log_id: string | null }[],
+    supersededLogs: [] as (string | null)[],
+    rpcCalls: [] as { fn: string; args: Record<string, unknown> }[],
     inserts: [] as { table: string; payload: unknown }[],
     logUpdates: [] as { filters: [string, string, unknown][]; payload: unknown }[],
   },
@@ -26,9 +27,6 @@ vi.mock("./admin-client", () => {
   }) {
     const { table, type } = ops;
     if (type === "insert") state.inserts.push({ table, payload: ops.payload });
-    if (table === "automation_pending_executions" && type === "select") {
-      return { data: state.parkedWaits, error: null };
-    }
     if (table === "contacts") {
       if (type === "update") {
         state.updateCalls.push({ table, filters: ops.filters });
@@ -87,7 +85,14 @@ vi.mock("./admin-client", () => {
         state.fromCalls.push(t);
         return builder(t);
       },
-      rpc: () => Promise.resolve({ error: null }),
+      rpc: (fn: string, args: Record<string, unknown>) => {
+        state.rpcCalls.push({ fn, args });
+        const data =
+          fn === "park_automation_wait"
+            ? state.supersededLogs.map((id) => ({ superseded_log_id: id }))
+            : null;
+        return Promise.resolve({ data, error: null });
+      },
     }),
   };
 });
@@ -107,7 +112,8 @@ beforeEach(() => {
   h.state.steps = [];
   h.state.fromCalls = [];
   h.state.updateCalls = [];
-  h.state.parkedWaits = [];
+  h.state.supersededLogs = [];
+  h.state.rpcCalls = [];
   h.state.inserts = [];
   h.state.logUpdates = [];
 });
@@ -198,7 +204,7 @@ describe("wait steps — one parked run per contact", () => {
     h.state.owned = { id: "c1" };
     h.state.automations = [automationWithUpdateStep()];
     h.state.steps = [waitStep()];
-    h.state.parkedWaits = [{ id: "old-wait", log_id: "old-log" }];
+    h.state.supersededLogs = ["old-log", null];
 
     await runAutomationsForTrigger({
       accountId: ACCOUNT,
@@ -207,28 +213,26 @@ describe("wait steps — one parked run per contact", () => {
       context: {},
     });
 
-    const superseded = h.state.updateCalls.filter(
-      (c) => c.table === "automation_pending_executions",
-    );
-    expect(superseded).toHaveLength(1);
-    expect(superseded[0].filters).toContainEqual(["eq", "id", "old-wait"]);
-    expect(superseded[0].filters).toContainEqual(["eq", "status", "pending"]);
+    const parks = h.state.rpcCalls.filter((c) => c.fn === "park_automation_wait");
+    expect(parks).toHaveLength(1);
+    expect(parks[0].args).toMatchObject({
+      p_account_id: ACCOUNT,
+      p_automation_id: "a1",
+      p_contact_id: "c1",
+      p_parent_step_id: null,
+      p_branch: null,
+      p_next_step_position: 1,
+    });
     expect(
-      h.state.logUpdates.some(
+      h.state.logUpdates.filter(
         (u) =>
           u.filters.some(([, k, v]) => k === "id" && v === "old-log") &&
           (u.payload as { status?: string }).status === "failed",
       ),
-    ).toBe(true);
-    const parked = h.state.inserts.filter(
-      (i) => i.table === "automation_pending_executions",
-    );
-    expect(parked).toHaveLength(1);
-    expect(parked[0].payload).toMatchObject({
-      contact_id: "c1",
-      next_step_position: 1,
-      status: "pending",
-    });
+    ).toHaveLength(1);
+    expect(
+      h.state.inserts.filter((i) => i.table === "automation_pending_executions"),
+    ).toHaveLength(0);
   });
 
   it("parks the first run for a contact without superseding anything", async () => {
@@ -244,11 +248,15 @@ describe("wait steps — one parked run per contact", () => {
     });
 
     expect(
-      h.state.updateCalls.filter((c) => c.table === "automation_pending_executions"),
-    ).toHaveLength(0);
-    expect(
-      h.state.inserts.filter((i) => i.table === "automation_pending_executions"),
+      h.state.rpcCalls.filter((c) => c.fn === "park_automation_wait"),
     ).toHaveLength(1);
+    expect(
+      h.state.logUpdates.filter((u) =>
+        String((u.payload as { error_message?: string }).error_message ?? "").startsWith(
+          "Superseded",
+        ),
+      ),
+    ).toHaveLength(0);
   });
 });
 
