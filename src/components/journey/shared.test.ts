@@ -87,6 +87,28 @@ describe('journey overview loading', () => {
     );
     expect(contactScopeMigration).toContain('contacts.assigned_team_id = (');
   });
+
+  it('[JRN-001] classifies a journey with every item dropped at the lost stage', () => {
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260924063001_journey_overview_all_dropped_lost.sql'
+      ),
+      'utf8'
+    );
+    expect(migration).toContain(
+      "AND stages.stage_kind = 'lost'\n        AND stages.pipeline_stage_id IS NOT NULL"
+    );
+    expect(migration).toContain(
+      'WHEN grouped.active_count = 0 AND grouped.dropped_count > 0'
+    );
+    expect(migration).toContain('(SELECT lost_stage.id FROM lost_stage),');
+    expect(migration).toContain('grouped.furthest_stage_id\n              )');
+    expect(migration).toContain('is_account_member(p_account_id)');
+    expect(migration).toContain(
+      'contacts.assigned_agent_id = (SELECT auth.uid())'
+    );
+  });
 });
 
 describe('journey stage note visibility', () => {
