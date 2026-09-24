@@ -1986,6 +1986,47 @@
           ]
         }
       ]
+    },
+    {
+      "id": "public-tools",
+      "name": "Free public tools — guidance value finder and property process guides on the marketing site",
+      "surfaces": ["web"],
+      "invariants": [
+        {
+          "id": "PUB-001",
+          "rule": "The public guidance value finder answers a typed schedule from the imported notifications with no sign-in: POST /api/public/guidance-value/lookup requires an area, layout, village or city, is rate-limited per IP and globally before any search, never reads a file (a multipart body is refused with SIGN_IN_REQUIRED), never calls Gemini and never burns credits. Reading a sale deed schedule stays behind sign-in on /api/guidance-value/lookup under GVL-001.",
+          "tests": [
+            {
+              "file": "src/app/api/public/guidance-value/lookup/route.test.ts",
+              "case": "[PUB-001]"
+            }
+          ]
+        },
+        {
+          "id": "PUB-002",
+          "rule": "Every liaison workflow template is published as a process guide at /tools/property-process/<slug>, with its stages, total days, authorities and generated questions derived from the template rather than written twice, and the hub, each tool and each guide is in the sitemap. Tool pages carry FAQ and breadcrumb structured data, process guides add HowTo with one step per stage, and the guidance value finder adds a free WebApplication served for Karnataka.",
+          "tests": [
+            {
+              "file": "src/lib/marketing/public-tools.test.ts",
+              "case": "[PUB-002]"
+            },
+            {
+              "file": "src/lib/seo/jsonld.test.ts",
+              "case": "[PUB-002]"
+            }
+          ]
+        },
+        {
+          "id": "PUB-003",
+          "rule": "The landing page and its lead bot know the free tools: the marketing config lists Guidance Value Finder and Liaisons & Process Tracking as features with FAQs that point at the tool URLs, and the site Q&A context names every public tool by URL so the bot never denies they exist.",
+          "tests": [
+            {
+              "file": "src/lib/marketing/site-qa.test.ts",
+              "case": "[PUB-003]"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

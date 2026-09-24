@@ -12,7 +12,15 @@ export interface MarketingConfig {
   features: Array<{
     title: string;
     description: string;
-    icon: 'message' | 'bot' | 'zap' | 'globe' | 'send' | 'bell';
+    icon:
+      | 'message'
+      | 'bot'
+      | 'zap'
+      | 'globe'
+      | 'send'
+      | 'bell'
+      | 'landmark'
+      | 'handshake';
   }>;
   demo: {
     title: string;
@@ -82,6 +90,16 @@ export const REAL_ESTATE_CONFIG: MarketingConfig = {
       title: "Visit Reminder Engine",
       description: "Schedule site visits on a visual calendar. The Engine fires automated WhatsApp reminder alerts to buyers and host agents to prevent missed appointments.",
       icon: "bell",
+    },
+    {
+      title: "Guidance Value Finder",
+      description: "Upload the schedule page of a sale deed and the Engine reads the location, survey number and extent, matches it to the Karnataka notification and gives the guidance value used for stamp duty. Saved against the property or deal.",
+      icon: "landmark",
+    },
+    {
+      title: "Liaisons & Process Tracking",
+      description: "Keep a directory of khata, SRO and loan liaisons with rate cards, track every job and payment against the property and client, and send stage-by-stage process explanations to clients on WhatsApp.",
+      icon: "handshake",
     },
   ],
   demo: {
@@ -186,6 +204,14 @@ export const REAL_ESTATE_CONFIG: MarketingConfig = {
     {
       q: "Is there a setup fee or long-term contract?",
       a: "No. ConvoReal is a month-to-month subscription service. You can upgrade, downgrade, or cancel your plan at any time directly from your billing portal.",
+    },
+    {
+      q: "How do I find the guidance value of a property?",
+      a: "Use the free Karnataka guidance value finder at convoreal.com/tools/guidance-value: enter the area, road, village or survey number and it matches the published notification and computes the value stamp duty is charged on. Inside ConvoReal, agents, buyers and owners upload the sale deed schedule instead and the location and extent are read automatically.",
+    },
+    {
+      q: "What are Liaisons and process guides?",
+      a: "Liaisons is the directory of the people who run khata transfers, registrations, encumbrance certificates and loans for your clients, with their rate cards, jobs and payments tracked per property. The step-by-step process guides at convoreal.com/tools/property-process are free to read and can be sent to a client on WhatsApp from inside ConvoReal.",
     },
   ],
 };

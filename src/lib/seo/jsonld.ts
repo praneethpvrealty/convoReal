@@ -244,3 +244,61 @@ export function articleJsonLd({
     },
   };
 }
+
+export function howToJsonLd({
+  name,
+  description,
+  url,
+  totalDays,
+  steps,
+}: {
+  name: string;
+  description: string;
+  url: string;
+  totalDays: number;
+  steps: Array<{ name: string; text: string }>;
+}): JsonLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name,
+    description,
+    url,
+    ...(totalDays > 0 ? { totalTime: `P${totalDays}D` } : {}),
+    step: steps.map((step, index) => ({
+      '@type': 'HowToStep',
+      position: index + 1,
+      name: step.name,
+      text: step.text,
+      url: `${url}#step-${index + 1}`,
+    })),
+  };
+}
+
+export function webApplicationJsonLd({
+  name,
+  description,
+  url,
+  publisherName,
+  areaServed,
+}: {
+  name: string;
+  description: string;
+  url: string;
+  publisherName: string;
+  areaServed: string;
+}): JsonLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name,
+    description,
+    url,
+    applicationCategory: 'FinanceApplication',
+    operatingSystem: 'Web',
+    isAccessibleForFree: true,
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'INR' },
+    areaServed: { '@type': 'AdministrativeArea', name: areaServed },
+    publisher: { '@type': 'Organization', name: publisherName },
+  };
+}
