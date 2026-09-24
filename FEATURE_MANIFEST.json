@@ -1895,6 +1895,16 @@
               "case": "[GVL-008]"
             }
           ]
+        },
+        {
+          "id": "GVL-009",
+          "rule": "Rate parsing never resends the whole notification: each Gemini call receives an excerpt of only the pages being transcribed plus the page before them for heading context, with instructions mapping excerpt pages back to notification page numbers and the headings of the last saved row (by page, then insertion seq) carried forward; rows Gemini returns from the context page are dropped. A PDF that cannot be loaded, copied or saved by pdf-lib falls back to sending the whole file.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/slice.test.ts",
+              "case": "[GVL-009]"
+            }
+          ]
         }
       ]
     }

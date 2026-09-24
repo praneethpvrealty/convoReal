@@ -448,6 +448,8 @@ them by construction; their data access happens through `/api/den/*`
   range and property class (`residential_site`, `residential_apartment`,
   `commercial_site`, `commercial_apartment`, `industrial`, `agricultural`,
   `other`) with its unit (`sqm`, `sqft`, `acre`, `gunta`, `hectare`).
+  `seq` (20260924043939) records insertion order so the parser can carry
+  the last saved row's headings into the next page range.
   Public government data shared by every tenant, so these two tables
   deliberately have **no `account_id`**; RLS is on with no policies and
   only the service role reads or writes them.

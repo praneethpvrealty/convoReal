@@ -1,3 +1,5 @@
+import { PDFDocument } from 'pdf-lib';
+
 import { generateJsonFromParts, type GeminiPart } from '@/lib/ai/gemini';
 import { parseJsonResponse } from '@/lib/invoices/document-extract';
 
@@ -42,12 +44,88 @@ export function countPdfPages(buffer: Uint8Array): number | null {
   return matches && matches.length > 0 ? matches.length : null;
 }
 
-export function rateInstructions(fromPage: number, toPage: number): string {
+export interface RateHeadings {
+  district?: string | null;
+  taluk?: string | null;
+  hobli?: string | null;
+  village?: string | null;
+  locality?: string | null;
+}
+
+export interface PdfSlice {
+  bytes: Uint8Array;
+  pageCount: number;
+  firstPage: number;
+  lastPage: number;
+}
+
+export async function slicePdf(
+  buffer: Uint8Array,
+  fromPage: number,
+  toPage: number
+): Promise<PdfSlice | null> {
+  try {
+    const source = await PDFDocument.load(buffer, {
+      ignoreEncryption: true,
+      updateMetadata: false,
+    });
+    const pageCount = source.getPageCount();
+    const firstPage = Math.max(1, fromPage - 1);
+    const lastPage = Math.min(toPage, pageCount);
+    if (firstPage > lastPage) return null;
+    const slice = await PDFDocument.create();
+    const indices = Array.from(
+      { length: lastPage - firstPage + 1 },
+      (_, i) => firstPage - 1 + i
+    );
+    const pages = await slice.copyPages(source, indices);
+    for (const page of pages) slice.addPage(page);
+    return {
+      bytes: await slice.save(),
+      pageCount,
+      firstPage,
+      lastPage,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function scopeInstructions(
+  fromPage: number,
+  toPage: number,
+  slice: PdfSlice | null
+): string {
+  if (!slice) {
+    return `Read ONLY pages ${fromPage} to ${toPage} of the attached PDF (1-based page numbers).`;
+  }
+  const context =
+    slice.firstPage < fromPage
+      ? ` Page ${slice.firstPage} is included only so you can carry its headings forward; do not return rows from it.`
+      : '';
+  return `The attached PDF is an excerpt: its pages are pages ${slice.firstPage} to ${slice.lastPage} of the notification, in order, so its first page is page ${slice.firstPage}. Transcribe ONLY pages ${fromPage} to ${Math.min(toPage, slice.lastPage)} and report page numbers of the full notification.${context}`;
+}
+
+function headingsInstructions(headings?: RateHeadings | null): string {
+  if (!headings) return '';
+  const known = (['district', 'taluk', 'hobli', 'village', 'locality'] as const)
+    .filter((key) => headings[key])
+    .map((key) => `${key} "${headings[key]}"`);
+  return known.length
+    ? `\nThe last row before these pages had ${known.join(', ')}. Carry those headings into rows until a new heading replaces them.`
+    : '';
+}
+
+export function rateInstructions(
+  fromPage: number,
+  toPage: number,
+  slice: PdfSlice | null = null,
+  headings?: RateHeadings | null
+): string {
   return `
 You are transcribing a Karnataka guidance value notification (the
 government's market value guidelines, published by the Central Valuation
-Committee / Department of Stamps and Registration). Read ONLY pages
-${fromPage} to ${toPage} of the attached PDF (1-based page numbers).
+Committee / Department of Stamps and Registration). ${scopeInstructions(fromPage, toPage, slice)}${headingsInstructions(headings)}
 
 Return JSON: {"total_pages": number, "rows": [...]}. Each row is ONE rate:
   district        district name, carried down from headings
@@ -93,7 +171,8 @@ function parseClass(value: unknown): PropertyClass | null {
 export function sanitiseRateRows(
   raw: unknown,
   fromPage: number,
-  toPage: number
+  toPage: number,
+  contextPage: number | null = null
 ): { rows: ParsedRateRow[]; totalPages: number | null } {
   if (!raw || typeof raw !== 'object') return { rows: [], totalPages: null };
   const input = raw as { rows?: unknown; total_pages?: unknown };
@@ -116,6 +195,7 @@ export function sanitiseRateRows(
     if (!locality && !village && !road) continue;
 
     const page = Number(row.page);
+    if (contextPage !== null && page === contextPage) continue;
     const out: ParsedRateRow = {
       property_class: propertyClass,
       rate,
@@ -149,12 +229,14 @@ export async function parseRatePages(input: {
   buffer: Uint8Array;
   fromPage: number;
   toPage: number;
+  headings?: RateHeadings | null;
 }): Promise<{ rows: ParsedRateRow[]; totalPages: number | null }> {
+  const slice = await slicePdf(input.buffer, input.fromPage, input.toPage);
   const parts: GeminiPart[] = [
     {
       inlineData: {
         mimeType: 'application/pdf',
-        data: Buffer.from(input.buffer).toString('base64'),
+        data: Buffer.from(slice?.bytes ?? input.buffer).toString('base64'),
       },
     },
     {
@@ -163,15 +245,17 @@ export async function parseRatePages(input: {
   ];
   const response = await generateJsonFromParts(
     parts,
-    rateInstructions(input.fromPage, input.toPage),
+    rateInstructions(input.fromPage, input.toPage, slice, input.headings),
     {
       feature: 'guidance_value_source_parse',
       apiKey: process.env.GEMINI_IMPORT_API_KEY,
     }
   );
-  return sanitiseRateRows(
+  const parsed = sanitiseRateRows(
     parseJsonResponse(response),
     input.fromPage,
-    input.toPage
+    input.toPage,
+    slice && slice.firstPage < input.fromPage ? slice.firstPage : null
   );
+  return slice ? { ...parsed, totalPages: slice.pageCount } : parsed;
 }

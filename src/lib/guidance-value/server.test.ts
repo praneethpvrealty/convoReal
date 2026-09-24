@@ -51,19 +51,29 @@ describe('findCandidateRates', () => {
 
 function sourceDb(pagesParsed: number, stored = false) {
   const updates: Record<string, unknown>[] = [];
+  const orders: string[] = [];
   const db = {
-    from: () => {
+    from: (table: string) => {
       const builder: Record<string, unknown> = {};
       builder.select = () => builder;
       builder.eq = () => builder;
+      builder.lt = () => builder;
+      builder.order = (column: string) => {
+        orders.push(column);
+        return builder;
+      };
+      builder.limit = () => builder;
       builder.maybeSingle = async () => ({
-        data: {
-          id: 'src-1',
-          status: pagesParsed ? 'parsing' : 'uploaded',
-          pages_parsed: pagesParsed,
-          page_count: 10,
-          storage_path: 'KA/1-x.pdf',
-        },
+        data:
+          table === 'guidance_value_rates'
+            ? null
+            : {
+                id: 'src-1',
+                status: pagesParsed ? 'parsing' : 'uploaded',
+                pages_parsed: pagesParsed,
+                page_count: 10,
+                storage_path: 'KA/1-x.pdf',
+              },
         error: null,
       });
       builder.update = (row: Record<string, unknown>) => {
@@ -84,7 +94,7 @@ function sourceDb(pagesParsed: number, stored = false) {
       }),
     },
   } as unknown as SupabaseClient;
-  return { db, updates };
+  return { db, updates, orders };
 }
 
 describe('parseNextSourceChunk', () => {
@@ -159,5 +169,14 @@ describe('classifyAiOutage', () => {
       classifyAiOutage('API key not valid. Please pass a valid key.')
     ).toBe('unavailable');
     expect(classifyAiOutage('Failed to parse Gemini response')).toBeNull();
+  });
+});
+
+describe('carried headings', () => {
+  it('[GVL-009] reads the last saved row by page, then insertion order', async () => {
+    aiFailure.message = 'Failed to parse Gemini response';
+    const { db, orders } = sourceDb(4, true);
+    await parseNextSourceChunk(db, 'src-1').catch(() => null);
+    expect(orders).toEqual(['page', 'seq']);
   });
 });
