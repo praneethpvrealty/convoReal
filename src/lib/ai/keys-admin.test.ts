@@ -79,6 +79,18 @@ describe('validation', () => {
     expect(() =>
       validateKeyInput({ label: 'x', key: 'AIzaValidLooking_key-1234567' })
     ).toThrow(KeyInputError);
+    expect(() =>
+      validateKeyInput({
+        label: 'ok label',
+        key: 'has a space in it 0123456789',
+      })
+    ).toThrow(KeyInputError);
+    expect(
+      validateKeyInput({
+        label: 'ok label',
+        key: 'AQ.Ab8RN6Lq-example.Key_material-0123',
+      }).key
+    ).toBe('AQ.Ab8RN6Lq-example.Key_material-0123');
     expect(() => validateKeyInput({ label: 'ok label', key: 'short' })).toThrow(
       KeyInputError
     );
