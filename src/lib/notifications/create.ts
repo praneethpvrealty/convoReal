@@ -48,7 +48,8 @@ export type NotificationType =
   | 'listing_interest'
   | 'portal_listing_expiry'
   | 'requirement_shared'
-  | 'requirement_response';
+  | 'requirement_response'
+  | 'ai_key_alert';
 
 export interface NotificationChannels {
   inApp?: boolean;

@@ -461,6 +461,26 @@ them by construction; their data access happens through `/api/den/*`
   it, areas in sq.ft, and land / building / total value recomputed by
   the server. Account-scoped with `is_account_member()` RLS.
 
+### Group K: AI keys (migration 20260924060500)
+
+- `ai_provider_keys`: the Gemini key pool managed from `/admin` → AI keys.
+  `key_ciphertext` is AES-256-GCM under `ENCRYPTION_KEY` (same as WhatsApp
+  tokens); `key_hint` is the last four characters for display. `scope` is
+  `general` or `import` (guidance value import only), `priority` orders
+  the pool, and `resting_until` / `last_error` / `last_used_at` are written
+  by the Gemini client itself so every instance shares one view of a key
+  that ran out. `last_alert_at` (20260924063000) throttles the
+  exhausted-key alert to platform admins to one per six hours. Platform-level: **no `account_id`**, RLS on with no
+  policies, service role only. The environment variables `GEMINI_API_KEY`
+  and `GEMINI_FALLBACK_API_KEYS` are the fallback when the table is empty.
+- `ai_key_topups`: credit top-ups recorded against a key (amount, USD or
+  INR, date). The panel's estimated remaining balance is the last top-up
+  minus estimated spend since it; Google exposes no real balance.
+- `ai_call_log.key_label` (same migration) records which key served each
+  call. `ai_key_daily_usage(days)` aggregates calls, failures and tokens
+  per Asia/Kolkata day, key label, model and feature for up to 90 days
+  (service role only).
+
 ---
 
 ## 3. Database Indexes Strategy

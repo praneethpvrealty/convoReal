@@ -87,6 +87,15 @@ const GuidanceValuesTab = dynamic(() => import('./guidance-values-tab'), {
   ),
 });
 
+const AiKeysTab = dynamic(() => import('./ai-keys-tab'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-96 items-center justify-center">
+      <ConvoRealLoader size={26} label="Loading AI keys" />
+    </div>
+  ),
+});
+
 const ExtensionsTab = dynamic(() => import('./extensions-tab'), {
   ssr: false,
   loading: () => (
@@ -135,6 +144,7 @@ export default function AdminDashboardPage() {
     | 'demand'
     | 'support'
     | 'guidance'
+    | 'ai-keys'
   >('overview');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -772,6 +782,16 @@ export default function AdminDashboardPage() {
           }`}
         >
           Guidance values
+        </button>
+        <button
+          onClick={() => setActiveTab('ai-keys')}
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
+            activeTab === 'ai-keys'
+              ? 'border-primary bg-primary/5 text-white'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          AI keys
         </button>
       </div>
 
@@ -1863,6 +1883,8 @@ export default function AdminDashboardPage() {
       {activeTab === 'support' && <SupportTab />}
 
       {activeTab === 'guidance' && <GuidanceValuesTab />}
+
+      {activeTab === 'ai-keys' && <AiKeysTab />}
     </div>
   );
 }
