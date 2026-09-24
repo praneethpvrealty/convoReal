@@ -1620,7 +1620,10 @@
           "rule": "A milestone target date or expected close date on a live deal is a deadline: one SQL rule (deal_deadlines, guarded by is_account_member, and its service-role twin deal_deadlines_for_account) decides which are due, and Focus on web and mobile, the web Today page and the agent task digest all read it rather than querying milestones themselves. A completed or skipped milestone, a deal with an actual close date, and a won or lost deal never surface. Overdue, due today and due soon are labelled identically on both surfaces, and the digest reminds only the deal's assigned agent (or the opener of an unassigned deal), over a shorter window than the screens look ahead.",
           "tests": [
             { "file": "src/lib/deals/deadlines.test.ts", "case": "[TXW-020]" },
-            { "file": "src/lib/agents/task-digest.test.ts", "case": "[TXW-020]" },
+            {
+              "file": "src/lib/agents/task-digest.test.ts",
+              "case": "[TXW-020]"
+            },
             { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-020]" }
           ],
           "guards": ["supabase/migrations/20260924103000_deal_deadlines.sql"]
@@ -2042,7 +2045,7 @@
         },
         {
           "id": "AIK-007",
-          "rule": "A model Google has retired for a key (\"no longer available to new users\", not found, or not supported for generateContent) never ends a call: the call moves to the next model in its tier's chain, and that key skips the model for the rest of the process while other keys keep it. The lite chain ends on full Flash, so a key whose lite quota is exhausted and whose older fallback is retired still answers. When every model in a chain is retired for a key, the call moves on to the next ready key without resting this one, and later calls try the full chain again rather than none.",
+          "rule": "A model Google has retired for a key (\"no longer available to new users\", not found, or not supported for generateContent) never ends a call: the call moves to the next model in its tier's chain, and that key skips the model for the rest of the process while other keys keep it. The lite chain runs gemini-3.1-flash-lite, gemini-3.5-flash-lite, gemini-2.5-flash, gemini-3.5-flash, gemini-3.6-flash and the standard chain gemini-2.5-flash, gemini-3.5-flash, gemini-3.6-flash; each model carries its own quota, so a key over quota or retired on one model still answers on the next. When every model in a chain is retired for a key, the call moves on to the next ready key without resting this one, and later calls try the full chain again rather than none.",
           "tests": [
             {
               "file": "src/lib/ai/gemini-keys.test.ts",
