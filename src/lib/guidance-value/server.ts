@@ -264,6 +264,7 @@ export async function parseNextSourceChunk(
       .eq('source_id', source.id)
       .lt('page', fromPage)
       .order('page', { ascending: false })
+      .order('seq', { ascending: false })
       .limit(1)
       .maybeSingle<RateHeadings>();
 

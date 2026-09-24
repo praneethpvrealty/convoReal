@@ -1,7 +1,7 @@
 import { PDFDocument } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 
-import { rateInstructions, slicePdf } from './rate-parse';
+import { rateInstructions, sanitiseRateRows, slicePdf } from './rate-parse';
 
 async function pdfWithPages(count: number): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
@@ -46,5 +46,29 @@ describe('rateInstructions', () => {
     expect(text).toContain('Transcribe ONLY pages 7 to 8');
     expect(text).toContain('Page 6 is included only');
     expect(text).toContain('village "Malleshwaram"');
+  });
+});
+
+describe('sanitiseRateRows', () => {
+  it('[GVL-009] drops rows Gemini returns from the context page', () => {
+    const row = {
+      locality: 'Malleshwaram',
+      property_class: 'residential_site',
+      rate: 100,
+      unit: 'sqm',
+    };
+    const { rows } = sanitiseRateRows(
+      {
+        rows: [
+          { ...row, page: 6 },
+          { ...row, page: 7 },
+          { ...row, page: 8 },
+        ],
+      },
+      7,
+      8,
+      6
+    );
+    expect(rows.map((r) => r.page)).toEqual([7, 8]);
   });
 });

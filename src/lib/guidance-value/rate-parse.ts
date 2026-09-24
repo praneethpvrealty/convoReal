@@ -64,32 +64,31 @@ export async function slicePdf(
   fromPage: number,
   toPage: number
 ): Promise<PdfSlice | null> {
-  let source: PDFDocument;
   try {
-    source = await PDFDocument.load(buffer, {
+    const source = await PDFDocument.load(buffer, {
       ignoreEncryption: true,
       updateMetadata: false,
     });
+    const pageCount = source.getPageCount();
+    const firstPage = Math.max(1, fromPage - 1);
+    const lastPage = Math.min(toPage, pageCount);
+    if (firstPage > lastPage) return null;
+    const slice = await PDFDocument.create();
+    const indices = Array.from(
+      { length: lastPage - firstPage + 1 },
+      (_, i) => firstPage - 1 + i
+    );
+    const pages = await slice.copyPages(source, indices);
+    for (const page of pages) slice.addPage(page);
+    return {
+      bytes: await slice.save(),
+      pageCount,
+      firstPage,
+      lastPage,
+    };
   } catch {
     return null;
   }
-  const pageCount = source.getPageCount();
-  const firstPage = Math.max(1, fromPage - 1);
-  const lastPage = Math.min(toPage, pageCount);
-  if (firstPage > lastPage) return null;
-  const slice = await PDFDocument.create();
-  const indices = Array.from(
-    { length: lastPage - firstPage + 1 },
-    (_, i) => firstPage - 1 + i
-  );
-  const pages = await slice.copyPages(source, indices);
-  for (const page of pages) slice.addPage(page);
-  return {
-    bytes: await slice.save(),
-    pageCount,
-    firstPage,
-    lastPage,
-  };
 }
 
 function scopeInstructions(
@@ -172,7 +171,8 @@ function parseClass(value: unknown): PropertyClass | null {
 export function sanitiseRateRows(
   raw: unknown,
   fromPage: number,
-  toPage: number
+  toPage: number,
+  contextPage: number | null = null
 ): { rows: ParsedRateRow[]; totalPages: number | null } {
   if (!raw || typeof raw !== 'object') return { rows: [], totalPages: null };
   const input = raw as { rows?: unknown; total_pages?: unknown };
@@ -195,6 +195,7 @@ export function sanitiseRateRows(
     if (!locality && !village && !road) continue;
 
     const page = Number(row.page);
+    if (contextPage !== null && page === contextPage) continue;
     const out: ParsedRateRow = {
       property_class: propertyClass,
       rate,
@@ -253,7 +254,8 @@ export async function parseRatePages(input: {
   const parsed = sanitiseRateRows(
     parseJsonResponse(response),
     input.fromPage,
-    input.toPage
+    input.toPage,
+    slice && slice.firstPage < input.fromPage ? slice.firstPage : null
   );
   return slice ? { ...parsed, totalPages: slice.pageCount } : parsed;
 }
