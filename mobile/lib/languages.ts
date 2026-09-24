@@ -20,12 +20,32 @@ export const SUPPORTED_LANGUAGES = {
 
 export type LanguageCode = keyof typeof SUPPORTED_LANGUAGES;
 
+export const DEFAULT_LANGUAGE: LanguageCode = 'en';
+
+const META_LANGUAGE_CODES: Record<LanguageCode, string> = {
+  en: 'en_US',
+  hi: 'hi',
+  kn: 'kn',
+  ta: 'ta',
+  te: 'te',
+  ml: 'ml',
+  mr: 'mr',
+};
+
 export const LANGUAGE_CODES = Object.keys(
   SUPPORTED_LANGUAGES
 ) as LanguageCode[];
 
 export function isLanguageCode(v: unknown): v is LanguageCode {
   return typeof v === 'string' && v in SUPPORTED_LANGUAGES;
+}
+
+export function toLanguageCode(v: unknown): LanguageCode {
+  return isLanguageCode(v) ? v : DEFAULT_LANGUAGE;
+}
+
+export function metaLanguageCode(code: LanguageCode): string {
+  return META_LANGUAGE_CODES[code];
 }
 
 /** "हिन्दी (Hindi)" — native first, since that's what a native reader scans for. */
