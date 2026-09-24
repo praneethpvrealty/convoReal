@@ -88,6 +88,40 @@ describe('journey overview loading', () => {
     expect(contactScopeMigration).toContain('contacts.assigned_team_id = (');
   });
 
+  it('[JRN-001] lists a journey at its furthest live stage and, while anything is dropped, at the lost stage too', () => {
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260924071006_journey_overview_live_and_lost.sql'
+      ),
+      'utf8'
+    );
+    expect(migration).toContain(
+      "AND stages.stage_kind = 'lost'\n        AND stages.pipeline_stage_id IS NOT NULL"
+    );
+    expect(migration).toContain(
+      "FILTER (\n          WHERE NOT items.hidden AND items.status = 'active'\n        ))[1] AS live_stage_id"
+    );
+    expect(migration).toContain(
+      "'furthest_stage_id', COALESCE(\n            grouped.live_stage_id,"
+    );
+    expect(migration).toContain(
+      "'lost_stage_id', CASE\n            WHEN grouped.dropped_count > 0\n              THEN (SELECT lost_stage.id FROM lost_stage)"
+    );
+    expect(migration).toContain('is_account_member(p_account_id)');
+    expect(migration).toContain(
+      'contacts.assigned_agent_id = (SELECT auth.uid())'
+    );
+
+    const overview = readFileSync(
+      join(process.cwd(), 'src/components/journey/journey-overview.tsx'),
+      'utf8'
+    );
+    expect(overview).toContain(
+      'group.furthestStageIdx === index || group.lostStageId === stage.id'
+    );
+  });
+
   it('[JRN-001] classifies a journey with every item dropped at the lost stage', () => {
     const migration = readFileSync(
       join(
@@ -381,6 +415,23 @@ describe('splitItemsAtStage', () => {
     });
   });
 
+  it('[JRN-008] leads with the dropped items inside the lost stage group', () => {
+    expect(splitItemsAtStage(rows, 'lost', true)).toEqual({
+      atStage: [rows[2], rows[3]],
+      elsewhere: [rows[0], rows[1]],
+    });
+    const onLost = [...rows, { id: 'e', stage_id: 'lost', status: 'active' }];
+    expect(splitItemsAtStage(onLost, 'lost', true).atStage).toEqual([
+      rows[2],
+      rows[3],
+      onLost[4],
+    ]);
+    expect(splitItemsAtStage(rows.slice(0, 2), 'lost', true)).toEqual({
+      atStage: rows.slice(0, 2),
+      elsewhere: [],
+    });
+  });
+
   it('[JRN-008] wires the fold into the overview on web', () => {
     const section = readFileSync(
       join(process.cwd(), 'src/components/journey/journey-section.tsx'),
@@ -390,11 +441,14 @@ describe('splitItemsAtStage', () => {
       join(process.cwd(), 'src/components/journey/journey-overview.tsx'),
       'utf8'
     );
-    expect(section).toContain('splitItemsAtStage(visibleItems, focusStageId)');
+    expect(section).toContain(
+      'splitItemsAtStage(visibleItems, focusStageId, focusDropped)'
+    );
     expect(section).toContain('more at other stages');
     expect(section).toContain('highlightStageId={focusStageId}');
     expect(overview).toContain(
-      'focusStageId={showStage ? null : (stage?.id ?? null)}'
+      'focusStageId={showStage ? null : (bucketStage?.id ?? null)}'
     );
+    expect(overview).toContain('bucketStage?.id === group.lostStageId');
   });
 });

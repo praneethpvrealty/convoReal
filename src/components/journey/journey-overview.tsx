@@ -100,6 +100,7 @@ interface JourneyGroup {
   dropped: number;
   captured: number;
   furthestStageIdx: number;
+  lostStageId: string | null;
   lastUpdated: string;
   priority: JourneyPriority | null;
   lifecycleStatus: JourneyLifecycleStatus;
@@ -113,6 +114,7 @@ interface JourneyBucket {
   key: string;
   label: string;
   color: string;
+  stage?: JourneyStage;
   groups: JourneyGroup[];
 }
 
@@ -360,6 +362,7 @@ export function JourneyOverview({
           furthestStageIdx: stages.findIndex(
             (stage) => stage.id === row.furthest_stage_id
           ),
+          lostStageId: row.lost_stage_id ?? null,
           lastUpdated: row.last_updated,
           priority: priorities.get(row.subject_id) ?? null,
           lifecycleStatus: state?.lifecycle_status ?? 'active',
@@ -424,7 +427,11 @@ export function JourneyOverview({
         key: `stage:${stage.id}`,
         label: stage.name,
         color: stage.color,
-        groups: viewGroups.filter((group) => group.furthestStageIdx === index),
+        stage,
+        groups: viewGroups.filter(
+          (group) =>
+            group.furthestStageIdx === index || group.lostStageId === stage.id
+        ),
       }));
       const unclassified = viewGroups.filter(
         (group) => group.furthestStageIdx < 0
@@ -1122,6 +1129,7 @@ function JourneyBucketSection({
                 <SortableJourneyRow
                   key={group.subjectId}
                   group={group}
+                  bucketStage={bucket.stage ?? null}
                   mode={mode}
                   stages={stages}
                   currency={currency}
@@ -1148,6 +1156,7 @@ function JourneyBucketSection({
 
 function SortableJourneyRow({
   group,
+  bucketStage,
   mode,
   stages,
   currency,
@@ -1164,6 +1173,7 @@ function SortableJourneyRow({
   onItemsChanged,
 }: {
   group: JourneyGroup;
+  bucketStage: JourneyStage | null;
   mode: JourneyMode;
   stages: JourneyStage[];
   currency: string;
@@ -1403,7 +1413,12 @@ function SortableJourneyRow({
             preloadedContact={group.contact}
             preloadedProperty={group.property}
             onItemsChanged={onItemsChanged}
-            focusStageId={showStage ? null : (stage?.id ?? null)}
+            focusStageId={showStage ? null : (bucketStage?.id ?? null)}
+            focusDropped={
+              !showStage &&
+              Boolean(bucketStage) &&
+              bucketStage?.id === group.lostStageId
+            }
           />
         </div>
       )}

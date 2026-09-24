@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **A journey shows under Lost and under its live stage at once.** A buyer
+  with one property dropped and another at Legal now appears under both
+  groups: expanded under Legal it leads with the live property, and under
+  Closed Lost with the dropped one, the rest folded behind a count. The
+  live group is now the furthest stage a _live_ property has reached, so a
+  dropped property no longer holds the journey at a later stage than
+  anything still in play. A journey with nothing live sits under Lost
+  alone, as before. Web and mobile both. **Migration required:**
+  `20260924071006_journey_overview_live_and_lost.sql`.
 - **Cheaper AI for low-risk jobs.** The daily conversation sweep, Copilot
   answers, occasion greetings and listing and contact corrections now run on Gemini's
   lite model, which costs a fraction of full Flash and falls back to it when
