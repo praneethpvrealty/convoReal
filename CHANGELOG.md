@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **Buy Gemini credits from the AI keys panel.** Each key card in Admin →
+  AI keys has a Buy credits button that opens Google Cloud billing in a new
+  tab, signed in as the key's Google account when its label is an email.
+  Google offers no way to pay for credits from another app, so payment
+  stays on Google's page; record the top-up on the card afterwards to keep
+  the estimated balance.
 - **Rental yield calculator.** `/tools/rental-yield` gives the gross
   and net rental yield of a property from its price and monthly rent,
   after vacancy, yearly costs and one-time purchase costs, with the net

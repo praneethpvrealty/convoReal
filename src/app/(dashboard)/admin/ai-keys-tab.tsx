@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import {
   Activity,
+  CreditCard,
   KeyRound,
   Loader2,
   Plus,
@@ -14,12 +15,13 @@ import {
   Zap,
 } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BarChart } from '@/components/tremor/bar-chart';
 import {
   MAX_USAGE_DAYS,
+  billingUrl,
   type KeyDashboard,
   type KeyDashboardEntry,
   type Pricing,
@@ -218,13 +220,24 @@ function KeyCard({
             <p className="text-[11px] tracking-wide text-slate-500 uppercase">
               Credits
             </p>
-            <button
-              type="button"
-              onClick={() => setTopupOpen((open) => !open)}
-              className="text-primary text-xs hover:underline"
-            >
-              {topupOpen ? 'Cancel' : 'Record top-up'}
-            </button>
+            <div className="flex items-center gap-3">
+              <a
+                href={billingUrl(entry.label)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              >
+                <CreditCard className="mr-1 h-4 w-4" />
+                Buy credits
+              </a>
+              <button
+                type="button"
+                onClick={() => setTopupOpen((open) => !open)}
+                className="text-primary text-xs hover:underline"
+              >
+                {topupOpen ? 'Cancel' : 'Record top-up'}
+              </button>
+            </div>
           </div>
           {remaining && lastTopup && entry.sinceTopup ? (
             <>
@@ -254,8 +267,8 @@ function KeyCard({
             </>
           ) : (
             <p className="text-xs text-slate-400">
-              Record a top-up to see an estimated balance. Google does not
-              expose the real balance.
+              Buy credits in Google billing, then record the top-up here to see
+              an estimated balance. Google does not expose the real balance.
             </p>
           )}
           {topupOpen && (
