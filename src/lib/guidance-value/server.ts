@@ -20,6 +20,7 @@ import {
   countPdfPages,
   classifyAiOutage,
   parseRatePages,
+  type RateHeadings,
 } from './rate-parse';
 import type {
   GuidanceRate,
@@ -257,10 +258,20 @@ export async function parseNextSourceChunk(
       ? Math.min(fromPage + PAGES_PER_CHUNK - 1, knownPages)
       : fromPage + PAGES_PER_CHUNK - 1;
 
+    const { data: headings } = await db
+      .from('guidance_value_rates')
+      .select('district, taluk, hobli, village, locality')
+      .eq('source_id', source.id)
+      .lt('page', fromPage)
+      .order('page', { ascending: false })
+      .limit(1)
+      .maybeSingle<RateHeadings>();
+
     const { rows, totalPages } = await parseRatePages({
       buffer,
       fromPage,
       toPage,
+      headings,
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       const outage = classifyAiOutage(message);

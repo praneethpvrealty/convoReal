@@ -45,7 +45,7 @@ Settings at the top of the tab (saved for next time):
 
 ## Cost
 
-Every page of every PDF is read by Gemini. A full state run is hundreds of
+Every page of every PDF is read by Gemini, two pages per call, and each call sends only those pages plus the one before them — never the whole PDF. A full state run is hundreds of
 PDFs; start with the default settings and watch the first few finish before
 leaving it to run. Set `GEMINI_IMPORT_API_KEY` on the ConvoReal deployment to
 bill imports to their own key, so a long run cannot exhaust the key the

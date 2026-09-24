@@ -52,18 +52,24 @@ describe('findCandidateRates', () => {
 function sourceDb(pagesParsed: number, stored = false) {
   const updates: Record<string, unknown>[] = [];
   const db = {
-    from: () => {
+    from: (table: string) => {
       const builder: Record<string, unknown> = {};
       builder.select = () => builder;
       builder.eq = () => builder;
+      builder.lt = () => builder;
+      builder.order = () => builder;
+      builder.limit = () => builder;
       builder.maybeSingle = async () => ({
-        data: {
-          id: 'src-1',
-          status: pagesParsed ? 'parsing' : 'uploaded',
-          pages_parsed: pagesParsed,
-          page_count: 10,
-          storage_path: 'KA/1-x.pdf',
-        },
+        data:
+          table === 'guidance_value_rates'
+            ? null
+            : {
+                id: 'src-1',
+                status: pagesParsed ? 'parsing' : 'uploaded',
+                pages_parsed: pagesParsed,
+                page_count: 10,
+                storage_path: 'KA/1-x.pdf',
+              },
         error: null,
       });
       builder.update = (row: Record<string, unknown>) => {
