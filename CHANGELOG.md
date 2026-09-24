@@ -23,8 +23,8 @@ than a written entry. Newest first.
   sets a separate quota per model, so a key over quota on
   `gemini-3.5-flash` or `gemini-3.1-flash-lite` now carries on with
   `gemini-3.6-flash` or `gemini-3.5-flash-lite` instead of failing. In
-  Admin → AI keys the add-key form no longer looks like a sign-in form, so
-  the browser stops filling it with a saved email and password.
+  Admin → AI keys the add-key form asks for a new secret rather than a
+  sign-in, so the browser stops filling it with a saved email and password.
 - **Bundle linked deals from the record.** A transaction with no bundle
   shows a Bundle chip in its header, on web and mobile; it opens a picker
   that lists the same buyer's other open deals first and pre-ticked,

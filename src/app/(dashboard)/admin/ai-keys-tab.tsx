@@ -509,14 +509,15 @@ function AddKeyCard() {
           <Label className="text-xs text-slate-400">API key</Label>
           <Input
             name="gemini-api-key"
-            autoComplete="off"
+            type="password"
+            autoComplete="new-password"
             spellCheck={false}
             data-1p-ignore
             data-lpignore="true"
             placeholder="AIza…"
             value={form.key}
             onChange={(e) => setForm({ ...form, key: e.target.value })}
-            className="border-slate-700 bg-slate-950 [-webkit-text-security:disc]"
+            className="border-slate-700 bg-slate-950"
           />
         </div>
         <div>
