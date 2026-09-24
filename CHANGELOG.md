@@ -24,6 +24,9 @@ than a written entry. Newest first.
   no longer takes the plot's site area and dimensions (nor a plot the
   building's built-up area); and the ePID, khata form and year built are
   no longer lost when another message updates the draft at the same moment.
+  An e-Khata that opens a draft also clears what the listing read took
+  from it that doesn't fit the property type, and a plot never keeps a
+  construction year from a concurrent merge.
 - **Forward an e-Khata on WhatsApp.** Send the e-Khata PDF to the
   ConvoReal number (with "e-Khata" or "Khata" in the file name or caption)
   and the listing draft is filled from it: address, city, map pin, site

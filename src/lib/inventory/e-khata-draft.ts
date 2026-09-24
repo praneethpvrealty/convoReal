@@ -65,7 +65,8 @@ function isEmpty(value: unknown): boolean {
  * into a draft already under way, where nothing the agent has given is
  * overwritten. A title is only ever supplied, never replaced. A draft the
  * e-Khata opened carries no owner: the municipal record names one, and
- * the generic read of it must not turn that into a contact.
+ * the generic read of it must not turn that into a contact, nor put the
+ * plot's site on an apartment or a building's floors on a plot.
  */
 export function applyEKhataToDraft(
   draft: ParsedPropertyDraft,
@@ -78,6 +79,15 @@ export function applyEKhataToDraft(
     next.owner_contact_phone = null;
     next.owner_contact_role = null;
     next.owner_contact_name_tag = null;
+    if (draft.type && isApartmentType(draft.type)) {
+      next.land_area = null;
+      next.land_area_unit = null;
+      next.dimensions = null;
+    }
+    if (draft.type && isLandType(draft.type)) {
+      next.area_sqft = null;
+      next.year_built = null;
+    }
   }
   for (const [key, value] of Object.entries(
     eKhataDraftValues(fields, draft.type)
@@ -93,4 +103,12 @@ export function applyEKhataToDraft(
     next.longitude = draft.longitude;
   }
   return next as unknown as ParsedPropertyDraft;
+}
+
+export function khataYearBuiltFor(
+  type: string | null | undefined,
+  yearBuilt: number | null | undefined
+): number | null {
+  if (!yearBuilt || (type && isLandType(type))) return null;
+  return yearBuilt;
 }

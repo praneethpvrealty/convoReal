@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import type { ParsedPropertyDraft } from '@/lib/ai/gemini';
 import { formatDraftPreviewMessage } from '@/lib/ai/intake-core';
 
-import { applyEKhataToDraft, eKhataDraftValues } from './e-khata-draft';
+import {
+  applyEKhataToDraft,
+  eKhataDraftValues,
+  khataYearBuiltFor,
+} from './e-khata-draft';
 import { looksLikeEKhata, sanitiseEKhata } from './e-khata-fields';
 
 const NOW = new Date('2026-09-24T00:00:00Z');
@@ -178,6 +182,47 @@ describe('applyEKhataToDraft', () => {
     expect(plot.area_sqft).toBeNull();
     expect(plot.year_built).toBeUndefined();
     expect(plot.khata_epid).toBe('7425317720');
+  });
+
+  it('[EKH-005] clears the generic read of the same e-Khata where it does not fit the type', () => {
+    const flat = applyEKhataToDraft(
+      draft({
+        type: 'Flat/ Apartment',
+        land_area: 3401,
+        land_area_unit: 'Sq.Ft.',
+        dimensions: '68x50',
+      }),
+      khata,
+      'prefer_khata'
+    );
+    expect(flat).toMatchObject({
+      land_area: null,
+      land_area_unit: null,
+      dimensions: null,
+    });
+    const plot = applyEKhataToDraft(
+      draft({
+        type: 'Residential Land/ Plot',
+        area_sqft: 4825,
+        year_built: 1983,
+      }),
+      khata,
+      'prefer_khata'
+    );
+    expect(plot).toMatchObject({ area_sqft: null, year_built: null });
+    const underWay = applyEKhataToDraft(
+      draft({ type: 'Flat/ Apartment', land_area: 1200 }),
+      khata,
+      'fill_gaps'
+    );
+    expect(underWay.land_area).toBe(1200);
+  });
+
+  it('[EKH-005] keeps a construction year off a plot after a concurrent merge', () => {
+    expect(khataYearBuiltFor('Residential Land/ Plot', 1983)).toBeNull();
+    expect(khataYearBuiltFor('Villa', 1983)).toBe(1983);
+    expect(khataYearBuiltFor(null, 1983)).toBe(1983);
+    expect(khataYearBuiltFor('Villa', null)).toBeNull();
   });
 
   it('[EKH-005] shows the khata and construction year on the WhatsApp draft preview', () => {

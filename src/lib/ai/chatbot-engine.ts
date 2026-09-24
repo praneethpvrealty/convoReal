@@ -86,7 +86,7 @@ import {
 } from '@/lib/ai/record-edit';
 import { matchProjectByName } from '@/lib/inventory/projects';
 import { extractEKhata } from '@/lib/inventory/e-khata';
-import { applyEKhataToDraft } from '@/lib/inventory/e-khata-draft';
+import { applyEKhataToDraft, khataYearBuiltFor } from '@/lib/inventory/e-khata-draft';
 import {
   isReadableEKhata,
   khataColumns,
@@ -3158,7 +3158,10 @@ export async function processOwnerChatbotMessage(
                     goodwill_amount: latestDraft.goodwill_amount || parsedDraft.goodwill_amount,
                     khata_epid: latestDraft.khata_epid || parsedDraft.khata_epid,
                     khata_form: latestDraft.khata_form || parsedDraft.khata_form,
-                    year_built: latestDraft.year_built || parsedDraft.year_built,
+                    year_built: khataYearBuiltFor(
+                      latestDraft.type || parsedDraft.type,
+                      latestDraft.year_built || parsedDraft.year_built
+                    ),
                     video_url: latestDraft.video_url || parsedDraft.video_url,
                     youtube_video_id: latestDraft.youtube_video_id || parsedDraft.youtube_video_id,
                     features: Array.from(new Set([...(latestDraft.features || []), ...(parsedDraft.features || [])])),
