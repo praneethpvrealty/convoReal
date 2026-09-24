@@ -3,7 +3,7 @@ import { rankContactSearchResults } from './contact-search-rank';
 import { supabase } from './supabase';
 import {
   REQUIREMENT_CONTACT_COLUMNS,
-  REQUIREMENT_OWNER_CLASSIFICATIONS,
+  REQUIREMENT_EDITABLE_CLASSIFICATIONS,
   requirementContactSearchFilter,
   type RequirementRow,
 } from './requirements-feed';
@@ -24,7 +24,7 @@ export async function searchRequirementContacts(
     .select(REQUIREMENT_CONTACT_COLUMNS.join(', '))
     .eq('is_merged', false)
     .eq('chain_only', false)
-    .in('classification', REQUIREMENT_OWNER_CLASSIFICATIONS)
+    .in('classification', REQUIREMENT_EDITABLE_CLASSIFICATIONS)
     .limit(50);
 
   if (term) {

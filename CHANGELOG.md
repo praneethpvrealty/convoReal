@@ -75,7 +75,10 @@ than a written entry. Newest first.
   then write the brief, without hunting for the contact first. The
   client arrives carrying whatever brief is already on record, so an
   existing requirement is shown for editing instead of being replaced by
-  what you type. Read-only members do not see the button.
+  what you type. Read-only members do not see the button. The picker
+  lists the buyers whose briefs the app can write; an agent's
+  requirement stays visible, shareable and parkable on the screen but no
+  longer offers an Edit button the server would refuse.
 
 #### 22 September 2026
 

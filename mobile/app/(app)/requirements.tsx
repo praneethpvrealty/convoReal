@@ -47,6 +47,7 @@ import {
 } from '@/lib/requirements';
 import {
   attachedTagNames,
+  canEditRequirement,
   effectiveAreas,
   effectiveCategories,
   EMPTY_REQUIREMENT_FILTERS,
@@ -378,7 +379,7 @@ export default function RequirementsScreen() {
         visible={picking}
         onClose={() => setPicking(false)}
         title="Whose requirement?"
-        hint="Buyers and agents whose briefs live on this screen."
+        hint="Buyers whose briefs this app can write."
         searchContacts={searchRequirementContacts}
         searchKey="requirement-contacts"
         onSelect={(contact) => {
@@ -678,7 +679,7 @@ function RequirementCard({
 
       <View style={[styles.actions, { borderTopColor: colors.glassBorder }]}>
         <CardAction icon="chatbubbles-outline" label="Chat" onPress={onChat} />
-        {canEdit ? (
+        {canEdit && canEditRequirement(row.classification) ? (
           <CardAction icon="create-outline" label="Edit" onPress={onEdit} />
         ) : null}
         <CardAction

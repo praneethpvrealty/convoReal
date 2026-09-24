@@ -22,9 +22,15 @@ export interface RequirementRow extends Contact {
   conversations?: { id: string }[] | null;
 }
 
-/** The classifications a requirement can belong to — what the web
- *  Requirements list is built from, and so who the add flow may pick. */
-export const REQUIREMENT_OWNER_CLASSIFICATIONS = ['Buyer', 'Agent'];
+/** Whose brief /api/contacts/[id]/requirements will write. The screen
+ *  lists agents' requirements too, but that route refuses them, so
+ *  these are the contacts the add flow may pick and the only cards
+ *  that may offer Edit. */
+export const REQUIREMENT_EDITABLE_CLASSIFICATIONS = ['Buyer', 'Owner & Buyer'];
+
+export function canEditRequirement(classification?: string | null): boolean {
+  return REQUIREMENT_EDITABLE_CLASSIFICATIONS.includes(classification || '');
+}
 
 /** The columns a picked contact must carry before the brief sheet
  *  opens on it. The general contact picker selects four columns, which
@@ -54,16 +60,20 @@ export const REQUIREMENT_CONTACT_COLUMNS = [
 ];
 
 /** Name, internal label or phone, with a digits-only phone match so
- *  "+91 97006 06010" finds the stored "+919700606010". */
+ *  "+91 97006 06010" finds the stored "+919700606010". PostgREST splits
+ *  an or() on commas, so a name like "Smith, John" has to travel
+ *  quoted or it is read as two more filters and the request fails. */
 export function requirementContactSearchFilter(term: string): string {
-  const like = `%${term}%`;
+  const quoted = (value: string) =>
+    `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  const like = quoted(`%${term}%`);
   const filters = [
     `name.ilike.${like}`,
     `name_tag.ilike.${like}`,
     `phone.ilike.${like}`,
   ];
   const digits = term.replace(/\D/g, '');
-  if (digits.length >= 4) filters.push(`phone.ilike.%${digits}%`);
+  if (digits.length >= 4) filters.push(`phone.ilike.${quoted(`%${digits}%`)}`);
   return filters.join(',');
 }
 

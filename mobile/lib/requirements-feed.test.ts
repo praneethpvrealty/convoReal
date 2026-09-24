@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   activeRequirementFilterCount,
+  canEditRequirement,
   REQUIREMENT_CONTACT_COLUMNS,
-  REQUIREMENT_OWNER_CLASSIFICATIONS,
+  REQUIREMENT_EDITABLE_CLASSIFICATIONS,
   requirementContactSearchFilter,
   effectiveAreas,
   effectiveCategories,
@@ -246,8 +247,18 @@ describe('preference merge', () => {
 });
 
 describe('the add-a-requirement picker', () => {
-  it('[REQ-006] offers only the classifications the screen lists', () => {
-    expect(REQUIREMENT_OWNER_CLASSIFICATIONS).toEqual(['Buyer', 'Agent']);
+  it('[REQ-006] offers only the contacts the save route will write', () => {
+    // /api/contacts/[id]/requirements refuses anything else with a 400,
+    // so offering one is a dead end: the sheet opens and every save fails.
+    expect(REQUIREMENT_EDITABLE_CLASSIFICATIONS).toEqual([
+      'Buyer',
+      'Owner & Buyer',
+    ]);
+    expect(canEditRequirement('Buyer')).toBe(true);
+    expect(canEditRequirement('Owner & Buyer')).toBe(true);
+    expect(canEditRequirement('Agent')).toBe(false);
+    expect(canEditRequirement('Owner')).toBe(false);
+    expect(canEditRequirement(null)).toBe(false);
   });
 
   it('[REQ-006] hydrates the brief the sheet will open on', () => {
@@ -270,16 +281,35 @@ describe('the add-a-requirement picker', () => {
 
   it('[REQ-006] searches name, internal label and phone', () => {
     expect(requirementContactSearchFilter('Asha')).toBe(
-      'name.ilike.%Asha%,name_tag.ilike.%Asha%,phone.ilike.%Asha%'
+      'name.ilike."%Asha%",name_tag.ilike."%Asha%",phone.ilike."%Asha%"'
     );
   });
 
   it('[REQ-006] finds a formatted phone by its digits', () => {
     expect(requirementContactSearchFilter('+91 97006 06010')).toContain(
-      'phone.ilike.%919700606010%'
+      'phone.ilike."%919700606010%"'
     );
-    expect(requirementContactSearchFilter('123')).not.toContain(
-      'phone.ilike.%123%,'
+    // Under four digits there is no separate digits-only phone filter.
+    expect(requirementContactSearchFilter('123').split('",').length).toBe(3);
+    expect(
+      requirementContactSearchFilter('+91 97006 06010').split('",').length
+    ).toBe(4);
+  });
+
+  it('[REQ-006] keeps a comma inside the value, not as another filter', () => {
+    // PostgREST splits an or() on commas: unquoted, "Smith, John" is read
+    // as two more filters and the request fails instead of searching.
+    const filter = requirementContactSearchFilter('Smith, John');
+    expect(filter).toBe(
+      'name.ilike."%Smith, John%",name_tag.ilike."%Smith, John%",' +
+        'phone.ilike."%Smith, John%"'
+    );
+    expect(filter.split('","')).toHaveLength(1);
+  });
+
+  it('[REQ-006] escapes a quote so it cannot end the value early', () => {
+    expect(requirementContactSearchFilter('a"b')).toBe(
+      'name.ilike."%a\\"b%",name_tag.ilike."%a\\"b%",phone.ilike."%a\\"b%"'
     );
   });
 });
