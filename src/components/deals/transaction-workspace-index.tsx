@@ -7,10 +7,15 @@ import { Briefcase, Layers, Loader2, Search } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/use-auth';
+import { todayDateKey } from '@/lib/deals/deadlines';
 import {
+  expectedCloseLabel,
   isClosingRecord,
+  RECORDS_SORTS,
+  sortIndexRows,
   transactionSubtitle,
   transactionTitle,
+  type RecordsSort,
 } from '@/lib/deals/index-row';
 import { dealsHref } from '@/lib/deals/routes';
 import { formatIndianDigits } from '@/lib/invoices/pdf-text';
@@ -36,7 +41,16 @@ interface IndexRow {
   next_milestone_title: string | null;
   next_milestone_target_date: string | null;
   updated_at: string;
+  expected_close_date: string | null;
+  actual_close_date: string | null;
 }
+
+const CLOSE_TONE_CLASS = {
+  done: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  overdue: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
+  soon: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+  later: 'border-slate-700 bg-slate-800/60 text-slate-300',
+} as const;
 
 type StatusFilter = 'open' | 'won' | 'lost' | 'all';
 
@@ -55,7 +69,9 @@ export function TransactionWorkspaceIndex({
   const supabase = createClient();
   const { accountId } = useAuth();
   const [filter, setFilter] = useState<StatusFilter>('open');
+  const [sort, setSort] = useState<RecordsSort>('updated');
   const [query, setQuery] = useState('');
+  const today = todayDateKey();
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['transaction-workspace-index', accountId],
@@ -74,7 +90,7 @@ export function TransactionWorkspaceIndex({
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter((row) => {
+    return sortIndexRows(rows, sort).filter((row) => {
       if (filter !== 'all' && row.status !== filter) return false;
       if (!q) return true;
       return [
@@ -87,7 +103,7 @@ export function TransactionWorkspaceIndex({
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [rows, filter, query]);
+  }, [rows, filter, query, sort]);
 
   return (
     <div className="space-y-6">
@@ -113,6 +129,28 @@ export function TransactionWorkspaceIndex({
             onChange={(e) => setQuery(e.target.value)}
             className="border-slate-700 bg-slate-950 pl-9"
           />
+        </div>
+        <div className="flex gap-1 rounded-lg border border-slate-800 bg-slate-900/50 p-1">
+          {RECORDS_SORTS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setSort(option.id)}
+              title={
+                option.id === 'close'
+                  ? 'Soonest expected close first'
+                  : 'Most recently updated first'
+              }
+              className={cn(
+                'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
+                sort === option.id
+                  ? 'bg-primary/15 text-white'
+                  : 'text-slate-400 hover:text-white'
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
         <div className="flex gap-1 rounded-lg border border-slate-800 bg-slate-900/50 p-1">
           {FILTERS.map((f) => (
@@ -168,6 +206,7 @@ export function TransactionWorkspaceIndex({
                 : null;
             const headline = transactionTitle(row);
             const subtitle = transactionSubtitle(row);
+            const close = expectedCloseLabel(row, today);
             return (
               <li
                 key={row.id}
@@ -186,6 +225,16 @@ export function TransactionWorkspaceIndex({
                       )}
                     </div>
                     <div className="flex items-center gap-2">
+                      {close && (
+                        <span
+                          className={cn(
+                            'rounded-full border px-2 py-0.5 text-[11px]',
+                            CLOSE_TONE_CLASS[close.tone]
+                          )}
+                        >
+                          {close.text}
+                        </span>
+                      )}
                       {row.group_name && (
                         <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-slate-300">
                           <Layers className="h-3 w-3" />

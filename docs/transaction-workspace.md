@@ -193,6 +193,15 @@ Migrations: `20260924140000_deal_payment_tranches.sql` (additive, applied
 at push) and `20260924140100_deal_deadlines_payment_tranches.sql`
 (`CREATE OR REPLACE` on a live function, held to merge).
 
+## Records index: expected close
+
+`transaction_workspace_index` returns `expected_close_date` and
+`actual_close_date` (migration `20260924150000`, a drop-and-recreate
+because a `RETURNS TABLE` cannot gain a column in place; held to merge).
+`expectedCloseLabel` and `sortIndexRows` in `src/lib/deals/index-row.ts`
+(mirrored on mobile) put the date on every row and offer Recent or Close
+date ordering on both surfaces.
+
 ## Out of scope after Phase 3
 
 "Selected people" visibility (a link's side is still the unit), PDF

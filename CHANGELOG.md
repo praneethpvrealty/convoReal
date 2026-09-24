@@ -19,6 +19,13 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **Expected close on the Records index.** Each record shows its
+  expected close date, marked when it is within a week or has passed,
+  and Closed with the actual date once the deal is done, on web and
+  mobile. A Recent / Close date switch orders the list by soonest
+  expected close, undated after dated, closed deals last. **Migration
+  required:** `20260924150000_transaction_index_expected_close.sql`
+  (recreates `transaction_workspace_index`).
 - **Payment schedule per tranche.** The Overview tab of a transaction now
   carries a payment schedule under the financials, on web and mobile: one
   row per tranche with a label, amount and due date, a receipt recorded

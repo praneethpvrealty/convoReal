@@ -1637,6 +1637,15 @@
             "supabase/migrations/20260924140000_deal_payment_tranches.sql",
             "supabase/migrations/20260924140100_deal_deadlines_payment_tranches.sql"
           ]
+        },
+        {
+          "id": "TXW-022",
+          "rule": "The Records index carries each deal's expected and actual close dates from transaction_workspace_index and both surfaces show them by one label rule (closes, close date passed, closed) and sort by one rule (soonest expected close first, undated after dated, closed deals last) when the agent chooses Close date over Recent.",
+          "tests": [
+            { "file": "src/lib/deals/index-row.test.ts", "case": "[TXW-022]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-022]" }
+          ],
+          "guards": ["supabase/migrations/20260924150000_transaction_index_expected_close.sql"]
         }
       ]
     },

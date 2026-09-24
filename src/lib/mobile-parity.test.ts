@@ -131,6 +131,7 @@ import {
   TRANCHE_LABEL_SUGGESTIONS,
   TRANCHE_STATUS_LABELS,
 } from '@/lib/deals/tranches';
+import { RECORDS_SORTS } from '@/lib/deals/index-row';
 import {
   DIGEST_PAUSE_COMMAND,
   DIGEST_RESUME_COMMAND,
@@ -3123,5 +3124,37 @@ describe('[TXW-021] the payment schedule ships on both surfaces through one rout
     expect(mobileVocab).not.toMatch(/scheduled\s*[-+]\s*received/);
     expect(mobileScreen).toContain('data.summary.outstanding');
     expect(webPanel).toContain('data.summary.outstanding');
+  });
+});
+
+describe('[TXW-022] the Records index shows and sorts by the expected close on both surfaces', () => {
+  const mobileVocab = mobileSource('lib/deal-workspace.ts');
+  const mobileScreen = mobileSource('app/(app)/deals.tsx');
+  const webIndex = webSource(
+    'components/deals/transaction-workspace-index.tsx'
+  );
+
+  it('offers the same sort choices and reads the same columns', () => {
+    for (const option of RECORDS_SORTS) {
+      expect(mobileVocab).toContain(
+        `{ id: '${option.id}', label: '${option.label}' }`
+      );
+    }
+    expect(mobileVocab).toContain('expected_close_date: string | null;');
+    expect(mobileVocab).toContain('actual_close_date: string | null;');
+    expect(mobileScreen).toContain('sortIndexRows(rows, sort)');
+    expect(webIndex).toContain('sortIndexRows(rows, sort)');
+    expect(mobileScreen).toContain('expectedCloseLabel(item, today)');
+    expect(webIndex).toContain('expectedCloseLabel(row, today)');
+  });
+
+  it('labels and orders the close date by one rule', () => {
+    expect(mobileVocab).toContain(
+      "return { text: `Closed ${row.actual_close_date}`, tone: 'done' };"
+    );
+    expect(mobileVocab).toContain(
+      'if (aClosed !== bClosed) return aClosed ? 1 : -1;'
+    );
+    expect(mobileVocab).toContain("tone: soon ? 'soon' : 'later',");
   });
 });
