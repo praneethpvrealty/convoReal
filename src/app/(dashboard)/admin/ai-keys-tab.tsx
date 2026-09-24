@@ -495,6 +495,10 @@ function AddKeyCard() {
         <div>
           <Label className="text-xs text-slate-400">Label</Label>
           <Input
+            name="gemini-key-label"
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
             placeholder="praneeku@gmail.com"
             value={form.label}
             onChange={(e) => setForm({ ...form, label: e.target.value })}
@@ -504,8 +508,12 @@ function AddKeyCard() {
         <div>
           <Label className="text-xs text-slate-400">API key</Label>
           <Input
+            name="gemini-api-key"
             type="password"
-            autoComplete="off"
+            autoComplete="new-password"
+            spellCheck={false}
+            data-1p-ignore
+            data-lpignore="true"
             placeholder="AIza…"
             value={form.key}
             onChange={(e) => setForm({ ...form, key: e.target.value })}

@@ -31,14 +31,21 @@ export { PROPERTY_TYPE_VALUES, normalizePropertyType };
 // generation, extraction, and vision; 'lite' fronts Flash-Lite for cheap
 // high-volume tasks (classification, simple text parses) and falls back UP
 // to full Flash on transient errors, so quality is the floor, not the
-// ceiling. All four names live-verified against our API key on 2026-07-14 —
-// the old gemini-1.5-flash fallback had been retired by Google (and
+// ceiling. Every name live-verified on 2026-09-24; each has its own free-tier
+// quota, so a key over quota on one model still answers on the next. On
+// 2026-07-14 the old gemini-1.5-flash fallback had been retired by Google (and
 // gemini-2.5-flash-lite is gated off for newer keys); a dead fallback fails
 // exactly when the primary is down.
 export type GeminiTier = 'standard' | 'lite';
 const MODEL_CHAINS: Record<GeminiTier, string[]> = {
-  standard: ['gemini-2.5-flash', 'gemini-3.5-flash'],
-  lite: ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.5-flash'],
+  standard: ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.6-flash'],
+  lite: [
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-3.5-flash',
+    'gemini-3.6-flash',
+  ],
 };
 
 export interface GeminiCallOpts {
