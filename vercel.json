@@ -75,7 +75,7 @@
       "schedule": "*/15 * * * *"
     },
     {
-      "path": "/api/flows/cron",
+      "path": "/api/cron/flow-run-sweep",
       "schedule": "40 * * * *"
     }
   ]

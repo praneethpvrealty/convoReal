@@ -11,7 +11,7 @@ vi.mock('@/lib/flows/sweep', () => ({
 }));
 
 let GET: (req: Request) => Promise<Response>;
-const url = 'http://localhost/api/flows/cron';
+const url = 'http://localhost/api/cron/flow-run-sweep';
 
 beforeEach(async () => {
   delete process.env.AUTOMATION_CRON_SECRET;
@@ -27,7 +27,12 @@ afterEach(() => {
   delete process.env.CRON_SECRET;
 });
 
-describe('flows cron auth', () => {
+describe('flow run sweep cron auth', () => {
+  it('is also served at the legacy /api/flows/cron path', async () => {
+    const legacy = await import('@/app/api/flows/cron/route');
+    expect(legacy.GET).toBe(GET);
+  });
+
   it('fails closed (503) when no secret is configured', async () => {
     const res = await GET(new Request(url));
     expect(res.status).toBe(503);
