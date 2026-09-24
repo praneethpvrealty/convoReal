@@ -1,7 +1,12 @@
 import { PDFDocument } from 'pdf-lib';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { rateInstructions, sanitiseRateRows, slicePdf } from './rate-parse';
+import {
+  rateInstructions,
+  rateParseTier,
+  sanitiseRateRows,
+  slicePdf,
+} from './rate-parse';
 
 async function pdfWithPages(count: number): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
@@ -70,5 +75,16 @@ describe('sanitiseRateRows', () => {
       6
     );
     expect(rows.map((r) => r.page)).toEqual([7, 8]);
+  });
+});
+
+describe('rateParseTier', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('[GVL-010] reads rates on the lite model unless told otherwise', () => {
+    vi.stubEnv('GEMINI_IMPORT_TIER', '');
+    expect(rateParseTier()).toBe('lite');
+    vi.stubEnv('GEMINI_IMPORT_TIER', 'standard');
+    expect(rateParseTier()).toBe('standard');
   });
 });
