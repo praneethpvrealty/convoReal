@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **A journey with every property dropped moves to Lost.** The Journey
+  view grouped a buyer (or property) at the furthest stage any item had
+  reached, so a buyer whose three shortlisted properties were all dropped
+  at Negotiation/Token still sat under Negotiation/Token with "Nothing in
+  the race". Once no live item is left, the journey now sits under the
+  account's lost stage (Closed Lost) on web and mobile; the items and
+  their history are untouched. Accounts without a lost stage keep the old
+  grouping. **Migration required:**
+  `20260924063001_journey_overview_all_dropped_lost.sql`.
 - **Existing contacts stay out of Needs Review.** A WhatsApp message
   naming a listing — a showcase "I'm interested" tap, a property code or
   one of our Click-to-WhatsApp ads — used to move any contact to Needs
