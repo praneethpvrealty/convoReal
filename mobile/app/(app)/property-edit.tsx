@@ -37,7 +37,7 @@ import {
   type EKhataChange,
   type EKhataChangeKey,
   type EKhataFields,
-} from '@shared/lib/inventory/e-khata-fields';
+} from '@/lib/e-khata-fields';
 import { useAppConfig } from '@/lib/use-app-config';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';

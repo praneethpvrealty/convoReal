@@ -9,7 +9,7 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import type {
   EKhataChange,
   EKhataChangeKey,
-} from '@shared/lib/inventory/e-khata-fields';
+} from '@/lib/e-khata-fields';
 
 /**
  * Review what an e-Khata proposes before it touches the listing. Values

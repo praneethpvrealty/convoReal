@@ -5,7 +5,7 @@ import {
   E_KHATA_MAX_BYTES,
   isEKhataMimeType,
   type EKhataFields,
-} from '@shared/lib/inventory/e-khata-fields';
+} from '@/lib/e-khata-fields';
 
 const BUCKET = 'property-documents';
 

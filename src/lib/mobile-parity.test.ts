@@ -35,6 +35,7 @@ import {
   rejectMedia,
 } from '@/lib/whatsapp/media-kinds';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
+import * as EKhataWeb from '@/lib/inventory/e-khata-fields';
 import {
   AMENITIES_BY_CATEGORY,
   AREA_UNITS,
@@ -3156,5 +3157,56 @@ describe('[TXW-022] the Records index shows and sorts by the expected close on b
       'if (aClosed !== bClosed) return aClosed ? 1 : -1;'
     );
     expect(mobileVocab).toContain("tone: soon ? 'soon' : 'later',");
+  });
+});
+
+describe('[EKH-002] the e-Khata proposal is built by one rule on both surfaces', () => {
+  const mobile = mobileModule<typeof EKhataWeb>('lib/e-khata-fields.ts');
+  const raw = {
+    epid: '7425317720',
+    khata_form: 'Form-A',
+    corporation: 'Bangalore South City Corporation',
+    address: 'NO.436, 18TH MAIN ROAD, KORAMANGALA, BANGALORE, 560095',
+    latitude: 77.6238418,
+    longitude: 12.9408126,
+    site_dimensions_ft: { east_west: 68, north_south: 50 },
+    site_area_sqft: '3,401',
+    floors: [
+      { area_sqft: 4119, occupancy: 'Rented', year_built: 1983 },
+      { area_sqft: 706, occupancy: 'Rented', year_built: 1983 },
+    ],
+    owners: ['ANJALI KAPUR XXXXXXXX3304 ABCDE1234F'],
+    tax_year: '2026-27',
+    tax_paid: 81614,
+    liabilities: 'NA',
+    boundaries: { west: 'Road' },
+  };
+  const now = new Date('2026-09-24T00:00:00Z');
+
+  it('sanitises, proposes and summarises identically', () => {
+    const web = EKhataWeb.sanitiseEKhata(raw, now);
+    expect(mobile.sanitiseEKhata(raw, now)).toEqual(web);
+    for (const opts of [{}, { isLand: true }, { isApartment: true }]) {
+      expect(
+        mobile.eKhataChanges(
+          web,
+          { city: 'Bengaluru', built_up_area: 4000 },
+          opts
+        )
+      ).toEqual(
+        EKhataWeb.eKhataChanges(
+          web,
+          { city: 'Bengaluru', built_up_area: 4000 },
+          opts
+        )
+      );
+    }
+    expect(mobile.eKhataNotes(web)).toEqual(EKhataWeb.eKhataNotes(web));
+    for (const name of ['E KHATHA - A.pdf', 'brochure.pdf']) {
+      expect(mobile.looksLikeEKhata(name)).toBe(
+        EKhataWeb.looksLikeEKhata(name)
+      );
+    }
+    expect(mobile.E_KHATA_MAX_BYTES).toBe(EKhataWeb.E_KHATA_MAX_BYTES);
   });
 });

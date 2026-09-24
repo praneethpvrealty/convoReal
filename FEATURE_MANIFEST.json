@@ -2172,6 +2172,10 @@
             {
               "file": "src/lib/inventory/e-khata-fields.test.ts",
               "case": "[EKH-002]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[EKH-002]"
             }
           ]
         },
