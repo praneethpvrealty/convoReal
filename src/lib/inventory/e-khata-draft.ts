@@ -1,5 +1,6 @@
 import type { ParsedPropertyDraft } from '@/lib/ai/gemini';
 
+import { isApartmentType, isLandType } from './property-options';
 import {
   eKhataCity,
   eKhataDimensions,
@@ -7,8 +8,11 @@ import {
 } from './e-khata-fields';
 
 export function eKhataDraftValues(
-  fields: EKhataFields
+  fields: EKhataFields,
+  type?: string | null
 ): Partial<ParsedPropertyDraft> {
+  const isApartment = !!type && isApartmentType(type);
+  const isLand = !!type && isLandType(type);
   const values: Partial<ParsedPropertyDraft> = {};
   if (fields.address) values.location = fields.address;
   const city = eKhataCity(fields);
@@ -23,16 +27,20 @@ export function eKhataDraftValues(
     values.google_map_link = link;
     values.geo_resolved_from = link;
   }
-  if (fields.site_area_sqft) {
-    values.land_area = fields.site_area_sqft;
-    values.land_area_unit = 'Sq.Ft.';
+  if (!isApartment) {
+    if (fields.site_area_sqft) {
+      values.land_area = fields.site_area_sqft;
+      values.land_area_unit = 'Sq.Ft.';
+    }
+    const dimensions = eKhataDimensions(fields);
+    if (dimensions) values.dimensions = dimensions;
   }
-  const dimensions = eKhataDimensions(fields);
-  if (dimensions) values.dimensions = dimensions;
-  if (fields.built_up_sqft) values.area_sqft = fields.built_up_sqft;
+  if (!isLand) {
+    if (fields.built_up_sqft) values.area_sqft = fields.built_up_sqft;
+    if (fields.year_built) values.year_built = fields.year_built;
+  }
   if (fields.epid) values.khata_epid = fields.epid;
   if (fields.khata_form) values.khata_form = fields.khata_form;
-  if (fields.year_built) values.year_built = fields.year_built;
   if (fields.ward || fields.ownership_type) {
     values.title = [fields.ownership_type || 'Property', fields.ward]
       .filter(Boolean)
@@ -55,7 +63,9 @@ function isEmpty(value: unknown): boolean {
  * draft opened by the e-Khata itself, where the municipal record beats
  * the generic read of the same file; `fill_gaps` is for an e-Khata sent
  * into a draft already under way, where nothing the agent has given is
- * overwritten. A title is only ever supplied, never replaced.
+ * overwritten. A title is only ever supplied, never replaced. A draft the
+ * e-Khata opened carries no owner: the municipal record names one, and
+ * the generic read of it must not turn that into a contact.
  */
 export function applyEKhataToDraft(
   draft: ParsedPropertyDraft,
@@ -63,7 +73,15 @@ export function applyEKhataToDraft(
   mode: 'prefer_khata' | 'fill_gaps'
 ): ParsedPropertyDraft {
   const next = { ...draft } as Record<string, unknown>;
-  for (const [key, value] of Object.entries(eKhataDraftValues(fields))) {
+  if (mode === 'prefer_khata') {
+    next.owner_contact_name = null;
+    next.owner_contact_phone = null;
+    next.owner_contact_role = null;
+    next.owner_contact_name_tag = null;
+  }
+  for (const [key, value] of Object.entries(
+    eKhataDraftValues(fields, draft.type)
+  )) {
     const replace =
       key === 'title' || mode === 'fill_gaps' ? isEmpty(next[key]) : true;
     if (replace) next[key] = value;

@@ -2980,10 +2980,11 @@ export async function processOwnerChatbotMessage(
               }),
               storeBrochureDocument(accountId, mediaBuffer, mediaMimeType, filename),
             ]);
-            parsedDraft =
-              khata && isReadableEKhata(khata)
-                ? applyEKhataToDraft(parsed, khata, 'prefer_khata')
-                : parsed;
+            parsedDraft = applyEKhataToDraft(
+              parsed,
+              khata && isReadableEKhata(khata) ? khata : {},
+              'prefer_khata'
+            );
             parsedDraft.images = [];
             parsedDraft.documents = stored.url ? [stored.url] : [];
             droppedBrochureBytes = stored.droppedBytes;
@@ -3155,6 +3156,9 @@ export async function processOwnerChatbotMessage(
                     owner_share_percent: latestDraft.owner_share_percent || parsedDraft.owner_share_percent,
                     builder_share_percent: latestDraft.builder_share_percent || parsedDraft.builder_share_percent,
                     goodwill_amount: latestDraft.goodwill_amount || parsedDraft.goodwill_amount,
+                    khata_epid: latestDraft.khata_epid || parsedDraft.khata_epid,
+                    khata_form: latestDraft.khata_form || parsedDraft.khata_form,
+                    year_built: latestDraft.year_built || parsedDraft.year_built,
                     video_url: latestDraft.video_url || parsedDraft.video_url,
                     youtube_video_id: latestDraft.youtube_video_id || parsedDraft.youtube_video_id,
                     features: Array.from(new Set([...(latestDraft.features || []), ...(parsedDraft.features || [])])),
