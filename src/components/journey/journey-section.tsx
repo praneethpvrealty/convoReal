@@ -809,6 +809,7 @@ export function JourneySection({
         canEdit={canEdit}
         selectedItemId={selectedItem?.id}
         highlightStageId={focusStageId}
+        highlightDropped={focusDropped}
         onSelectItem={setSelectedItem}
         onAdvance={handleAdvance}
         onAddItems={() => setAddOpen(true)}

@@ -446,6 +446,17 @@ describe('splitItemsAtStage', () => {
     );
     expect(section).toContain('more at other stages');
     expect(section).toContain('highlightStageId={focusStageId}');
+    expect(section).toContain('highlightDropped={focusDropped}');
+    const canvas = readFileSync(
+      join(process.cwd(), 'src/components/journey/journey-canvas.tsx'),
+      'utf8'
+    );
+    expect(canvas).toContain(
+      'item.status === "dropped" || stage.id === highlightStageId'
+    );
+    expect(canvas).toContain(
+      'stage.id === highlightStageId && item.status !== "dropped"'
+    );
     expect(overview).toContain(
       'focusStageId={showStage ? null : (bucketStage?.id ?? null)}'
     );

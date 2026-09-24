@@ -1041,7 +1041,7 @@
       "invariants": [
         {
           "id": "JRN-001",
-          "rule": "Journey search finds the subject by identifying details, including normalized mobile numbers, and every active journey is classified by the most advanced stage reached by its live items, and while any of its items is dropped it is also listed under the account's first lost stage that still mirrors a pipeline stage; a journey with nothing live sits under that lost stage alone (falling back to the furthest stage reached when the account has none).",
+          "rule": "Journey search finds the subject by identifying details, including normalized mobile numbers, and every active journey is classified by the most advanced stage reached by its live items, and while any of its visible items is dropped it is also listed under the account's first lost stage that still mirrors a pipeline stage; a journey with nothing live sits under that lost stage alone (falling back to the furthest stage reached when the account has none).",
           "tests": [
             {
               "file": "src/lib/journey/overview-state.test.ts",
@@ -1179,7 +1179,7 @@
         },
         {
           "id": "JRN-008",
-          "rule": "Inside a stage group, an expanded journey leads with the live items resting on that stage, highlighted in the stage colour, and folds the items at other stages behind a count that opens on request; inside the lost stage group it leads with its dropped items instead; when nothing live rests on the stage, or outside a stage group, every item shows as before. Web and mobile share the split.",
+          "rule": "Inside a stage group, an expanded journey leads with the live items resting on that stage, highlighted in the stage colour, and folds the items at other stages behind a count that opens on request; inside the lost stage group it leads with its dropped items instead, highlighted the same way on web and mobile; when nothing live rests on the stage, or outside a stage group, every item shows as before. Web and mobile share the split.",
           "tests": [
             {
               "file": "src/components/journey/shared.test.ts",
