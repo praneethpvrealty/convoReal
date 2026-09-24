@@ -30,7 +30,7 @@ const koramangala = {
     { floor: null, area_sqft: 4119, occupancy: 'Rented', year_built: 1983 },
     { floor: null, area_sqft: 706, occupancy: 'Rented', year_built: 1983 },
   ],
-  owners: ['ANJALI KAPUR XXXXXXXX3304'],
+  owners: ['ANJALI KAPUR XXXXXXXX3304 ABCDE1234F', 'RAVI K 1234 5678 9012'],
   boundaries: {
     north: 'Property No. 436/A',
     east: 'Property No. 465 & 464',
@@ -56,7 +56,7 @@ describe('sanitiseEKhata', () => {
       site_area_sqft: 3401,
       built_up_sqft: 4825,
       year_built: 1983,
-      owners: ['ANJALI KAPUR'],
+      owners: ['ANJALI KAPUR', 'RAVI K'],
       tax_paid: 81614,
     });
     expect(isReadableEKhata(fields)).toBe(true);
@@ -124,13 +124,14 @@ describe('eKhataChanges', () => {
     expect(flat).not.toContain('dimensions');
     const plot = eKhataChanges(fields, {}, { isLand: true }).map((c) => c.key);
     expect(plot).not.toContain('built_up_area');
+    expect(plot).not.toContain('year_built');
   });
 });
 
 describe('eKhataNotes', () => {
   it('[EKH-002] summarises owner, tax, liabilities and boundaries for review', () => {
     const notes = eKhataNotes(sanitiseEKhata(koramangala, NOW));
-    expect(notes).toContain('Owner: ANJALI KAPUR');
+    expect(notes).toContain('Owner: ANJALI KAPUR, RAVI K');
     expect(notes.find((n) => n.startsWith('Property tax'))).toContain(
       '2026-27'
     );
@@ -166,12 +167,13 @@ describe('khataColumns', () => {
       })
     ).toEqual({ khata_epid: '7425317720', khata_form: 'A', year_built: 1983 });
     expect(
-      khataColumns({ khata_epid: '', khata_form: 'C', year_built: 'soon' })
+      khataColumns({ khata_epid: 'ABC', khata_form: 'C', year_built: 'soon' })
     ).toEqual({
       khata_epid: null,
       khata_form: null,
       year_built: null,
     });
+    expect(khataColumns({ khata_epid: '12345' }).khata_epid).toBeNull();
     expect(khataColumns({})).toEqual({});
   });
 });

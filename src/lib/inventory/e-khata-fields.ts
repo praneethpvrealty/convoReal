@@ -90,7 +90,11 @@ function year(value: unknown, now = new Date()): number | undefined {
 }
 
 function withoutIdNumbers(value: string): string {
-  return value.replace(/[X*\d][X*\d\s-]{5,}\d/gi, '').trim();
+  return value
+    .replace(/[X*\d][X*\d\s-]{5,}\d/gi, ' ')
+    .split(/\s+/)
+    .filter((token) => token && !/\d/.test(token))
+    .join(' ');
 }
 
 function round(value: number, places = 2): number {
@@ -319,7 +323,7 @@ export function eKhataChanges(
     [
       'year_built',
       'Year built',
-      fields.year_built?.toString(),
+      opts.isLand ? undefined : fields.year_built?.toString(),
       shown(current.year_built),
     ],
     ['khata_epid', 'ePID', fields.epid, shown(current.khata_epid)],
@@ -407,7 +411,7 @@ export function khataColumns(input: {
       typeof input.khata_epid === 'string'
         ? input.khata_epid.replace(/\s/g, '')
         : '';
-    out.khata_epid = epid && epid.length <= 40 ? epid : null;
+    out.khata_epid = /^\d{6,20}$/.test(epid) ? epid : null;
   }
   if (input.khata_form !== undefined) {
     const form =

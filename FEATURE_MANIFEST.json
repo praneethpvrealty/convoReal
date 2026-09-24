@@ -2133,7 +2133,7 @@
       "invariants": [
         {
           "id": "EKH-001",
-          "rule": "An e-Khata (PDF or photo, up to 10 MB) uploaded to the account's property-documents folder is read by POST /api/properties/e-khata for the listing_parse credit price, burned before the read and refunded when the read fails or the file is not an e-Khata. Only fields that validate survive: a 6-20 digit ePID, Form A or B, coordinates inside India (swapped when the form prints longitude first), feet dimensions, positive areas, construction years no later than next year, and owner names with any identification number stripped.",
+          "rule": "An e-Khata (PDF or photo, up to 10 MB) uploaded to the account's property-documents folder is read by POST /api/properties/e-khata for the listing_parse credit price, burned before the read and refunded when the read fails or the file is not an e-Khata. Only fields that validate survive: a 6-20 digit ePID, Form A or B, coordinates inside India (swapped when the form prints longitude first), feet dimensions, positive areas, construction years no later than next year, and owner names with every token carrying a digit (Aadhaar, PAN, masked IDs) stripped. A construction year is never proposed for a plot.",
           "tests": [
             {
               "file": "src/lib/inventory/e-khata-fields.test.ts",
@@ -2164,7 +2164,7 @@
         },
         {
           "id": "EKH-004",
-          "rule": "properties.khata_epid, khata_form ('A' or 'B') and year_built (1800-2100) are editable on web and mobile and normalised by both property routes, so an invalid value is cleared rather than stored. The read e-Khata is kept with the listing: the web form adds it to the document list, and the mobile editor has the server attach it to the listing's documents.",
+          "rule": "properties.khata_epid (6-20 digits), khata_form ('A' or 'B') and year_built (1800-2100) are editable on web and mobile and normalised by both property routes, so an invalid value is cleared rather than stored. The read e-Khata is kept with the listing: the web form adds it to the document list, and the mobile editor has the server attach it to the listing's documents, and a read whose file cannot be attached fails and is refunded rather than reporting success.",
           "tests": [
             {
               "file": "src/lib/inventory/e-khata-fields.test.ts",

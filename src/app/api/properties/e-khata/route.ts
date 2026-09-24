@@ -146,8 +146,8 @@ export async function POST(request: Request) {
 
     let attached = false;
     if (propertyId && documents) {
-      const already = documents.some((doc) => doc.includes(path));
-      if (!already) {
+      attached = documents.some((doc) => doc.includes(path));
+      if (!attached) {
         const { data: updated, error } = await ctx.supabase
           .from('properties')
           .update({
@@ -160,6 +160,18 @@ export async function POST(request: Request) {
           .eq('account_id', ctx.accountId)
           .select('id');
         attached = !error && (updated?.length ?? 0) > 0;
+      }
+      if (!attached) {
+        await refundCredits(ctx.accountId, FEATURE, COST, {
+          description: 'e-Khata could not be attached',
+        });
+        return NextResponse.json(
+          {
+            error:
+              'Read the e-Khata but could not save it to this listing. Your credits were refunded; please try again.',
+          },
+          { status: 500 }
+        );
       }
     }
 
