@@ -518,6 +518,8 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain("supabase.rpc('journey_overview_groups'");
     expect(screen).toContain('captured: Number(row.captured_count)');
     expect(screen).toContain('stageIndexById.get(row.furthest_stage_id)');
+    expect(screen).toContain('lostStageId: row.lost_stage_id ?? null');
+    expect(screen).toContain('group.lostStageId === stage.id');
     expect(screen).not.toContain('.limit(2000)');
     expect(screen).not.toContain('JOURNEY_PAGE_SIZE');
     expect(screen).toContain("query = query.gt('id', afterId)");
@@ -614,10 +616,14 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
         .slice(source.indexOf('export function splitItemsAtStage'))
         .split('export function focusBuckets')[0];
     expect(body(helpers)).toEqual(body(webShared));
-    expect(screen).toContain('stageInHeader ? (stage?.id ?? null) : null');
-    expect(screen).toContain('atStage.map((item) => renderItem(item))');
     expect(screen).toContain(
-      "item.stage_id === stage?.id &&\n      item.status !== 'dropped'"
+      'stageInHeader ? (stage?.id ?? null) : null,\n    droppedStage'
+    );
+    expect(screen).toContain('bucket.stage?.id === group.lostStageId');
+    expect(screen).toContain('atStage.map((item) => renderItem(item))');
+    expect(screen).toContain('? dropped || item.stage_id === stage?.id');
+    expect(screen).toContain(
+      ": item.stage_id === stage?.id && item.status !== 'dropped'"
     );
     expect(screen).toContain('more at other stages');
     const webSection = webSource('components/journey/journey-section.tsx');

@@ -1041,7 +1041,7 @@
       "invariants": [
         {
           "id": "JRN-001",
-          "rule": "Journey search finds the subject by identifying details, including normalized mobile numbers, and every active journey is classified by the most advanced stage reached by any of its items, except that a journey with no live items left and at least one dropped item is classified at the account's first lost stage that still mirrors a pipeline stage (falling back to the furthest stage when the account has none).",
+          "rule": "Journey search finds the subject by identifying details, including normalized mobile numbers, and every active journey is classified by the most advanced stage reached by its live items, and while any of its visible items is dropped it is also listed under the account's first lost stage that still mirrors a pipeline stage; a journey with nothing live sits under that lost stage alone (falling back to the furthest stage reached when the account has none).",
           "tests": [
             {
               "file": "src/lib/journey/overview-state.test.ts",
@@ -1059,7 +1059,8 @@
           "guards": [
             "supabase/migrations/20260915024746_journey_overview_groups.sql",
             "supabase/migrations/20260915030559_journey_overview_contact_scope.sql",
-            "supabase/migrations/20260924063001_journey_overview_all_dropped_lost.sql"
+            "supabase/migrations/20260924063001_journey_overview_all_dropped_lost.sql",
+            "supabase/migrations/20260924071006_journey_overview_live_and_lost.sql"
           ]
         },
         {
@@ -1178,7 +1179,7 @@
         },
         {
           "id": "JRN-008",
-          "rule": "Inside a stage group, an expanded journey leads with the live items resting on that stage, highlighted in the stage colour, and folds the items at other stages behind a count that opens on request; when nothing live rests on the stage, or outside a stage group, every item shows as before. Web and mobile share the split.",
+          "rule": "Inside a stage group, an expanded journey leads with the live items resting on that stage, highlighted in the stage colour, and folds the items at other stages behind a count that opens on request; inside the lost stage group it leads with its dropped items instead, highlighted the same way on web and mobile; when nothing live rests on the stage, or outside a stage group, every item shows as before. Web and mobile share the split.",
           "tests": [
             {
               "file": "src/components/journey/shared.test.ts",

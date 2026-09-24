@@ -53,4 +53,11 @@ describe('splitItemsAtStage', () => {
       elsewhere: [],
     });
   });
+
+  it('[JRN-008] leads with the dropped items inside the lost stage group', () => {
+    expect(splitItemsAtStage(rows, 'lost', true)).toEqual({
+      atStage: [rows[2]],
+      elsewhere: [rows[0], rows[1]],
+    });
+  });
 });
