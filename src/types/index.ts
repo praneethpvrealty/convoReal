@@ -1292,6 +1292,9 @@ export interface Property {
   road_width?: number;
   road_width_unit?: string;
   facing_direction?: string;
+  khata_epid?: string | null;
+  khata_form?: 'A' | 'B' | null;
+  year_built?: number | null;
   nearby_highlights?: string[];
   is_published: boolean;
   /** Account-wide star: shown as an interest-filter chip on Contacts (capped at 6). */

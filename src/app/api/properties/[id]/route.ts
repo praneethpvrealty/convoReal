@@ -18,6 +18,7 @@ import {
 } from "@/lib/inventory/location-guard";
 import { applyGatingCustody } from "@/lib/inventory/gated-photos";
 import { rentalYieldPercent } from "@/lib/inventory/rental-yield";
+import { khataColumns } from "@/lib/inventory/e-khata-fields";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Property } from "@/types";
 
@@ -419,6 +420,8 @@ export async function PUT(
     if (facing_direction !== undefined) {
       updateData.facing_direction = typeof facing_direction === "string" ? facing_direction.trim() : null;
     }
+
+    Object.assign(updateData, khataColumns(body));
 
     if (furnishing !== undefined) {
       updateData.furnishing = typeof furnishing === "string" ? furnishing.trim() || null : null;

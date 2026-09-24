@@ -121,6 +121,16 @@ import {
 } from '@/lib/inventory/property-options';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 import {
+  E_KHATA_MAX_BYTES,
+  eKhataChanges,
+  eKhataNotes,
+  isEKhataMimeType,
+  type EKhataChange,
+  type EKhataChangeKey,
+  type EKhataFields,
+} from '@/lib/inventory/e-khata-fields';
+import { EKhataReviewDialog } from '@/components/inventory/e-khata-review-dialog';
+import {
   looksLikeDocument,
   orderForCover,
   samplePixels,
@@ -229,6 +239,7 @@ export function PropertyForm({
   const isEdit = !!property;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+  const eKhataInputRef = useRef<HTMLInputElement>(null);
 
   const [viewMode, setViewMode] = useState(viewOnly);
   const [duplicateCandidates, setDuplicateCandidates] = useState<PropertyDuplicateCandidate[]>([]);
@@ -307,6 +318,14 @@ export function PropertyForm({
   const [roadWidth, setRoadWidth] = useState('');
   const [roadWidthUnit, setRoadWidthUnit] = useState('Feet');
   const [facingDirection, setFacingDirection] = useState('');
+  const [khataEpid, setKhataEpid] = useState('');
+  const [khataForm, setKhataForm] = useState('');
+  const [yearBuilt, setYearBuilt] = useState('');
+  const [readingEKhata, setReadingEKhata] = useState(false);
+  const [eKhataReview, setEKhataReview] = useState<{
+    fields: EKhataFields;
+    changes: EKhataChange[];
+  } | null>(null);
   const [furnishing, setFurnishing] = useState('');
   const [possessionDate, setPossessionDate] = useState('');
   const [floorNumber, setFloorNumber] = useState('');
@@ -1717,6 +1736,9 @@ export function PropertyForm({
         setRoadWidth(property.road_width !== null && property.road_width !== undefined ? String(property.road_width) : '');
         setRoadWidthUnit(property.road_width_unit ?? 'Feet');
         setFacingDirection(property.facing_direction ?? '');
+        setKhataEpid(property.khata_epid ?? '');
+        setKhataForm(property.khata_form ?? '');
+        setYearBuilt(property.year_built != null ? String(property.year_built) : '');
         setFurnishing(property.furnishing ?? '');
         setPossessionDate(property.possession_date ?? '');
         setFloorNumber(property.floor_number !== null && property.floor_number !== undefined ? String(property.floor_number) : '');
@@ -1881,6 +1903,9 @@ export function PropertyForm({
         setRoadWidth('');
         setRoadWidthUnit('Feet');
         setFacingDirection('');
+        setKhataEpid('');
+        setKhataForm('');
+        setYearBuilt('');
         setFurnishing('');
         setFloorNumber('');
         setTotalFloors('');
@@ -2250,6 +2275,124 @@ export function PropertyForm({
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  }
+
+  async function onReadEKhata(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (eKhataInputRef.current) eKhataInputRef.current.value = '';
+    if (!file) return;
+    if (!accountId) {
+      toast.error('Account not loaded, please try again.');
+      return;
+    }
+    const mimeType = file.type || 'application/pdf';
+    if (!isEKhataMimeType(mimeType)) {
+      toast.error('Choose the e-Khata PDF or a photo of it.');
+      return;
+    }
+    if (file.size > E_KHATA_MAX_BYTES) {
+      toast.error('That file is too large for an e-Khata.');
+      return;
+    }
+    setReadingEKhata(true);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const path = `${accountId}/doc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-e-khata.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('property-documents')
+        .upload(path, file, { cacheControl: '3600', upsert: true, contentType: mimeType });
+      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+      const stored = `property-documents/${path}`;
+
+      const response = await fetch('/api/properties/e-khata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: stored, mime_type: mimeType }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 402) {
+          toast.error(body.error || 'Not enough credits to read this e-Khata.', {
+            action: { label: 'Buy credits', onClick: openTopupModal },
+          });
+          return;
+        }
+        throw new Error(body.error || 'Could not read this e-Khata.');
+      }
+
+      setDocuments((prev) => {
+        const kept = prev
+          .map((doc) => (typeof doc === 'string' ? { url: doc, title: '' } : doc))
+          .filter((doc) => doc?.url?.trim());
+        return [...kept, { url: stored, title: 'e-Khata' }];
+      });
+
+      const fields = body.data.fields as EKhataFields;
+      const currentDimensions = isLand
+        ? frontage.trim() && depth.trim()
+          ? `${frontage.trim()}x${depth.trim()}`
+          : ''
+        : dimensions;
+      setEKhataReview({
+        fields,
+        changes: eKhataChanges(
+          fields,
+          {
+            address,
+            city,
+            latitude: geoPick?.latitude ?? null,
+            longitude: geoPick?.longitude ?? null,
+            land_area: landArea,
+            dimensions: currentDimensions,
+            built_up_area: areaSqft,
+            year_built: yearBuilt,
+            khata_epid: khataEpid,
+            khata_form: khataForm,
+          },
+          { isApartment, isLand }
+        ),
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not read this e-Khata.');
+    } finally {
+      setReadingEKhata(false);
+    }
+  }
+
+  function applyEKhata(keys: EKhataChangeKey[]) {
+    const review = eKhataReview;
+    if (!review) return;
+    const { fields } = review;
+    for (const key of keys) {
+      if (key === 'address' && fields.address) setAddress(fields.address);
+      if (key === 'city') setCity('Bengaluru');
+      if (key === 'pin' && fields.latitude !== undefined && fields.longitude !== undefined) {
+        setGeoPick({
+          latitude: fields.latitude,
+          longitude: fields.longitude,
+          place_id: '',
+          canonical: '',
+        });
+      }
+      if (key === 'land_area' && fields.site_area_sqft) {
+        setLandArea(String(fields.site_area_sqft));
+        setLandAreaUnit('Sq.Ft.');
+      }
+      if (key === 'dimensions' && fields.site_frontage_ft && fields.site_depth_ft) {
+        setFrontage(String(fields.site_frontage_ft));
+        setDepth(String(fields.site_depth_ft));
+        setDimensions(`${fields.site_frontage_ft}x${fields.site_depth_ft}`);
+      }
+      if (key === 'built_up_area' && fields.built_up_sqft) {
+        setAreaSqft(String(fields.built_up_sqft));
+        setAreaUnit('Sq.Ft.');
+      }
+      if (key === 'year_built' && fields.year_built) setYearBuilt(String(fields.year_built));
+      if (key === 'khata_epid' && fields.epid) setKhataEpid(fields.epid);
+      if (key === 'khata_form' && fields.khata_form) setKhataForm(fields.khata_form);
+    }
+    setEKhataReview(null);
+    toast.success(`Copied ${keys.length} field${keys.length === 1 ? '' : 's'} from the e-Khata. Save to keep them.`);
   }
 
   async function onUploadDocuments(e: React.ChangeEvent<HTMLInputElement>) {
@@ -2697,6 +2840,9 @@ export function PropertyForm({
         road_width: parsedRoadWidth,
         road_width_unit: roadWidthUnit,
         facing_direction: facingDirection || null,
+        khata_epid: khataEpid.trim() || null,
+        khata_form: khataForm || null,
+        year_built: isLand ? null : yearBuilt.trim() ? Number(yearBuilt) : null,
         nearby_highlights: parsedNearbyHighlights,
         is_published: isPublished,
         features: parsedFeatures,
@@ -5423,6 +5569,53 @@ export function PropertyForm({
                       </select>
                     </div>
 
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prop-khata-epid" className="text-slate-300">
+                        e-Khata ePID
+                      </Label>
+                      <Input
+                        id="prop-khata-epid"
+                        value={khataEpid}
+                        onChange={(e) => setKhataEpid(e.target.value)}
+                        placeholder="e.g. 7425317720"
+                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prop-khata-form" className="text-slate-300">
+                        Khata
+                      </Label>
+                      <select
+                        id="prop-khata-form"
+                        value={khataForm}
+                        onChange={(e) => setKhataForm(e.target.value)}
+                        className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
+                      >
+                        <option value="">Not recorded</option>
+                        <option value="A">Form-A (A-Khata)</option>
+                        <option value="B">Form-B (B-Khata)</option>
+                      </select>
+                    </div>
+
+                    {!isLand && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-year-built" className="text-slate-300">
+                          Year Built
+                        </Label>
+                        <Input
+                          id="prop-year-built"
+                          type="number"
+                          min={1800}
+                          max={2100}
+                          value={yearBuilt}
+                          onChange={(e) => setYearBuilt(e.target.value)}
+                          placeholder="e.g. 1998"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                        />
+                      </div>
+                    )}
+
                     {!isLand && (
                       <div className="space-y-1.5">
                         <Label htmlFor="prop-furnishing" className="text-slate-300">
@@ -5951,6 +6144,32 @@ export function PropertyForm({
                     <div className="space-y-3 p-4 rounded-lg border border-slate-800 bg-slate-950/20 col-span-2">
                       <div className="flex justify-between items-center">
                         <Label className="text-slate-300">Property Documents</Label>
+                        <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => eKhataInputRef.current?.click()}
+                          disabled={readingEKhata || !canEdit}
+                          className="h-7 text-xs text-primary hover:bg-primary/10 flex items-center gap-1 font-semibold"
+                        >
+                          {readingEKhata ? (
+                            <>
+                              <Loader2 className="size-3 animate-spin" /> Reading...
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="size-3" /> Read e-Khata · {AI_FEATURE_COSTS.listing_parse} cr
+                            </>
+                          )}
+                        </Button>
+                        <input
+                          type="file"
+                          ref={eKhataInputRef}
+                          onChange={onReadEKhata}
+                          accept=".pdf,.png,.jpg,.jpeg,.webp"
+                          className="hidden"
+                        />
                         <Button
                           type="button"
                           variant="ghost"
@@ -5977,6 +6196,7 @@ export function PropertyForm({
                           accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,text/plain"
                           className="hidden"
                         />
+                        </div>
                       </div>
 
                       <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
@@ -7190,6 +7410,14 @@ export function PropertyForm({
           </div>
         </DialogContent>
       </Dialog>
+
+      <EKhataReviewDialog
+        open={eKhataReview !== null}
+        changes={eKhataReview?.changes ?? []}
+        notes={eKhataReview ? eKhataNotes(eKhataReview.fields) : []}
+        onApply={applyEKhata}
+        onClose={() => setEKhataReview(null)}
+      />
 
       <ScheduleDialog
         open={followUpContactId !== null}

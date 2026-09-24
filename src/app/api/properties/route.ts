@@ -19,6 +19,7 @@ import { isoDateOrNull } from "@/lib/inventory/iso-date";
 import { maskPropertyForViewer } from "@/lib/inventory/location-guard";
 import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
 import { rentalYieldPercent } from "@/lib/inventory/rental-yield";
+import { khataColumns } from "@/lib/inventory/e-khata-fields";
 import type { Property } from "@/types";
 import { syncAgentSourceInventory } from "@/lib/agents/source-inventory-sync";
 
@@ -652,6 +653,7 @@ export async function POST(request: Request) {
       road_width: typeof road_width === "number" ? road_width : null,
       road_width_unit: typeof road_width_unit === "string" ? road_width_unit.trim() : "Feet",
       facing_direction: typeof facing_direction === "string" ? facing_direction.trim() : null,
+      ...khataColumns(body),
       nearby_highlights: Array.isArray(nearby_highlights) ? nearby_highlights.filter(h => typeof h === "string") : [],
       owner_contact_id: typeof owner_contact_id === "string" && owner_contact_id.trim().length > 0 ? owner_contact_id.trim() : null,
       is_published: typeof is_published === "boolean" ? is_published : false,

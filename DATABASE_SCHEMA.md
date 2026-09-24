@@ -143,6 +143,9 @@ Real estate inventory catalog.
 - `price_per_sqft` (NUMERIC, migration 167): Rate quoted per Sq.Ft. at intake — `price` is derived from it once an area is known (`src/lib/ai/listing-derivations.ts`).
 - `dimensions` (TEXT): e.g., `30x40`.
 - `facing_direction` (TEXT): e.g. `'North'`.
+- `khata_epid` (TEXT, migration 20260924142702): New ePID from the property's e-Khata.
+- `khata_form` (TEXT, `'A'` or `'B'`): e-Khata classification, Form-A or Form-B.
+- `year_built` (SMALLINT, 1800–2100): Year of construction, e.g. from the e-Khata floor details.
 - `furnishing` (TEXT, migration 179): `'Furnished'` / `'Semi-Furnished'` / `'Unfurnished'`.
 - `floor_number` / `total_floors` / `balconies` (INTEGER, migration 179): Unit details for portal posting.
 - `nearby_highlights` (TEXT[]): List of nearby landmarks.
