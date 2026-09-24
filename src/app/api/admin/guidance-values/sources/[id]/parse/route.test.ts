@@ -13,7 +13,15 @@ vi.mock('@/lib/guidance-value/server', async () => {
   class SourceNotStoredError extends Error {
     readonly code = 'SOURCE_NOT_STORED' as const;
   }
+  class AiUnavailableError extends Error {
+    readonly code: string;
+    constructor(message: string, rateLimited: boolean) {
+      super(message);
+      this.code = rateLimited ? 'AI_RATE_LIMITED' : 'AI_UNAVAILABLE';
+    }
+  }
   return {
+    AiUnavailableError,
     SourceNotStoredError,
     requireGuidanceAdmin: async () => ({ userId: 'admin-1' }),
     parseNextSourceChunk: async () => {
@@ -23,7 +31,10 @@ vi.mock('@/lib/guidance-value/server', async () => {
   };
 });
 
-import { SourceNotStoredError } from '@/lib/guidance-value/server';
+import {
+  AiUnavailableError,
+  SourceNotStoredError,
+} from '@/lib/guidance-value/server';
 
 import { POST } from './route';
 
@@ -39,6 +50,23 @@ describe('POST /api/admin/guidance-values/sources/[id]/parse', () => {
     const res = await parse();
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe('SOURCE_NOT_STORED');
+  });
+
+  it('[GVL-008] answers 503 AI_UNAVAILABLE when Gemini billing is exhausted', async () => {
+    failure = new AiUnavailableError(
+      'Your prepayment credits are depleted.',
+      false
+    );
+    const res = await parse();
+    expect(res.status).toBe(503);
+    expect((await res.json()).code).toBe('AI_UNAVAILABLE');
+  });
+
+  it('[GVL-008] answers 429 AI_RATE_LIMITED for a Gemini rate limit', async () => {
+    failure = new AiUnavailableError('Resource has been exhausted', true);
+    const res = await parse();
+    expect(res.status).toBe(429);
+    expect((await res.json()).code).toBe('AI_RATE_LIMITED');
   });
 
   it('answers 502 for other parse failures', async () => {

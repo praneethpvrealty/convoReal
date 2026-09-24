@@ -8,9 +8,18 @@ vi.mock('@/lib/auth/account', () => ({
 vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
 
+const aiFailure = vi.hoisted(() => ({ message: '' }));
+vi.mock('./rate-parse', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./rate-parse')>()),
+  parseRatePages: async () => {
+    throw new Error(aiFailure.message);
+  },
+}));
+
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
+  AiUnavailableError,
   SourceNotStoredError,
   findCandidateRates,
   parseNextSourceChunk,
@@ -39,7 +48,7 @@ describe('findCandidateRates', () => {
   });
 });
 
-function sourceDb(pagesParsed: number) {
+function sourceDb(pagesParsed: number, stored = false) {
   const updates: Record<string, unknown>[] = [];
   const db = {
     from: () => {
@@ -64,10 +73,13 @@ function sourceDb(pagesParsed: number) {
     },
     storage: {
       from: () => ({
-        download: async () => ({
-          data: null,
-          error: { message: 'Object not found' },
-        }),
+        download: async () =>
+          stored
+            ? {
+                data: new Blob([new Uint8Array([37, 80, 68, 70])]),
+                error: null,
+              }
+            : { data: null, error: { message: 'Object not found' } },
       }),
     },
   } as unknown as SupabaseClient;
@@ -87,6 +99,30 @@ describe('parseNextSourceChunk', () => {
     const err = await parseNextSourceChunk(db, 'src-1').catch((e) => e);
     expect(err).not.toBeInstanceOf(SourceNotStoredError);
     expect(err.message).toMatch(/Object not found/);
+    expect(updates.at(-1)).toMatchObject({ status: 'failed' });
+  });
+
+  it('[GVL-008] leaves the source resumable when Gemini is out of credits', async () => {
+    aiFailure.message = 'Your prepayment credits are depleted.';
+    const { db, updates } = sourceDb(4, true);
+    const err = await parseNextSourceChunk(db, 'src-1').catch((e) => e);
+    expect(err).toBeInstanceOf(AiUnavailableError);
+    expect(err.code).toBe('AI_UNAVAILABLE');
+    expect(updates.at(-1)).not.toHaveProperty('status');
+  });
+
+  it('[GVL-008] reports a Gemini rate limit separately so the run can wait', async () => {
+    aiFailure.message = 'Resource has been exhausted (e.g. check quota).';
+    const { db } = sourceDb(4, true);
+    const err = await parseNextSourceChunk(db, 'src-1').catch((e) => e);
+    expect(err.code).toBe('AI_RATE_LIMITED');
+  });
+
+  it('still marks an ordinary model error as failed', async () => {
+    aiFailure.message = 'Failed to parse Gemini response';
+    const { db, updates } = sourceDb(4, true);
+    const err = await parseNextSourceChunk(db, 'src-1').catch((e) => e);
+    expect(err).not.toBeInstanceOf(AiUnavailableError);
     expect(updates.at(-1)).toMatchObject({ status: 'failed' });
   });
 });

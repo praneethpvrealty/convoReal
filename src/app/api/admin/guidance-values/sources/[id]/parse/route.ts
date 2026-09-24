@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { toErrorResponse } from '@/lib/auth/account';
 import {
+  AiUnavailableError,
   SourceNotStoredError,
   parseNextSourceChunk,
   requireGuidanceAdmin,
@@ -30,6 +31,13 @@ export async function POST(
         return NextResponse.json(
           { error: err.message, code: err.code },
           { status: 409 }
+        );
+      }
+      if (err instanceof AiUnavailableError) {
+        console.error('[guidance-value] AI unavailable:', err.message);
+        return NextResponse.json(
+          { error: err.message, code: err.code },
+          { status: err.code === 'AI_RATE_LIMITED' ? 429 : 503 }
         );
       }
       const message = err instanceof Error ? err.message : String(err);

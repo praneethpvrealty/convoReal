@@ -38,6 +38,8 @@ export interface GeminiCallOpts {
   tier?: GeminiTier;
   /** Feature key for the ai_call_log (e.g. 'contact_parse'). Optional. */
   feature?: string;
+  /** Overrides GEMINI_API_KEY for a feature billed to its own key. */
+  apiKey?: string;
 }
 
 interface GeminiPart {
@@ -72,7 +74,7 @@ async function generateContentRaw(
   jsonMode: boolean = false,
   opts: GeminiCallOpts = {}
 ): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = opts.apiKey || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error(
       'GEMINI_API_KEY is not configured. Please add it to your .env.local file.'

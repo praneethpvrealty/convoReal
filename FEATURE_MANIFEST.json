@@ -1863,6 +1863,20 @@
               "case": "[GVL-007]"
             }
           ]
+        },
+        {
+          "id": "GVL-008",
+          "rule": "A Gemini outage never burns through an import run. When Gemini refuses a guidance value parse for billing, depleted credits or an invalid key, the parse endpoint answers 503 AI_UNAVAILABLE and leaves the source's status and progress untouched so it resumes; a Gemini rate limit answers 429 AI_RATE_LIMITED. The Chrome extension pauses the whole run on AI_UNAVAILABLE and waits a minute and retries on AI_RATE_LIMITED, pausing after ten waits. Rate parsing uses GEMINI_IMPORT_API_KEY when it is set, so imports cannot exhaust the key other AI features share.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/server.test.ts",
+              "case": "[GVL-008]"
+            },
+            {
+              "file": "src/app/api/admin/guidance-values/sources/[id]/parse/route.test.ts",
+              "case": "[GVL-008]"
+            }
+          ]
         }
       ]
     }
