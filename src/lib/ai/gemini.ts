@@ -127,7 +127,7 @@ async function generateContentWithKey(
   for (const model of models) {
     try {
       console.log(`[Gemini AI] Attempting generation using model: ${model}`);
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
       const payload: GeneratePayload = {
         contents,
@@ -350,7 +350,7 @@ export async function embedText(text: string): Promise<number[]> {
 
 export async function probeGeminiKey(apiKey: string): Promise<void> {
   const model = MODEL_CHAINS.lite[0];
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -372,7 +372,7 @@ async function embedTextWithKey(
   apiKey: string,
   text: string
 ): Promise<number[]> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${encodeURIComponent(apiKey)}`;
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1243,7 +1243,7 @@ export async function updateListingDraft(
       contents,
       systemInstruction,
       true,
-      { feature: 'listing_update' }
+      { tier: 'lite', feature: 'listing_update' }
     );
     const parsed = parseGeminiResponse(
       rawResult
@@ -1663,7 +1663,7 @@ export async function updateContactDraft(
       contents,
       systemInstruction,
       true,
-      { feature: 'contact_update' }
+      { tier: 'lite', feature: 'contact_update' }
     );
     const parsed = parseGeminiResponse(
       rawResult

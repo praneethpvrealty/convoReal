@@ -310,7 +310,7 @@
         },
         {
           "id": "INB-017",
-          "rule": "A cron resume of a waiting automation runs exactly once and never inside an inbound chain: each due automation_pending_executions row is claimed atomically under a claim token before it runs (overlapping cron runs split the rows, never share one), and only that claim settles it as done or failed. The resume runs under the same conversation lease as INB-016 (the row's conversation, else the contact's thread), never waits for it: a live lease, or a lease claim that stays indeterminate, releases the claim and leaves the row pending for the next tick without spending an attempt. The resume holds the lease for at most about 20 seconds, shorter than an inbound waiter's 30, so an inbound message is not deferred to it, and it never runs deferred inbound ids: it lets the lease expire with them for the next inbound holder. A row stuck running past 15 minutes is reclaimed, and after 3 attempts it is marked failed. Immediately before it executes, a resume re-asserts its claim token (refreshing claimed_at) and skips a row another run has reclaimed. Each row looks up its contact's conversation immediately before it runs, not when the batch is claimed, so a conversation created meanwhile is leased; a failed lookup, one still unanswered when the time budget ends, or one that answers only after it has ended, releases the claim rather than running, and never holds up another conversation's rows. Only a contact with no conversation at that moment, or no contact, runs unlocked, since there is nothing to serialise against. A batch runs up to five conversations at once, each conversation's rows one at a time in run_at order, so a slow resume never holds up another conversation; automation webhooks time out after 10 seconds, and rows not started within the route's time budget are released back to pending.",
+          "rule": "A cron resume of a waiting automation runs exactly once and never inside an inbound chain: each due automation_pending_executions row is claimed atomically under a claim token before it runs (overlapping cron runs split the rows, never share one), and only that claim settles it as done or failed. The resume runs under the same conversation lease as INB-016 (the row's conversation, else the contact's thread), never waits for it: a live lease, or a lease claim that stays indeterminate, releases the claim and leaves the row pending for the next tick without spending an attempt. The resume holds the lease for at most about 20 seconds, shorter than an inbound waiter's 30, so an inbound message is not deferred to it, and it never runs deferred inbound ids: it lets the lease expire with them for the next inbound holder. A row stuck running past 15 minutes is reclaimed, and after 3 attempts it is marked failed. Immediately before it executes, a resume re-asserts its claim token (refreshing claimed_at) and skips a row another run has reclaimed. Each row looks up its contact's conversation immediately before it runs, not when the batch is claimed, so a conversation created meanwhile is leased; a conversation stored on the row that no longer exists is replaced, for both the lease and the resumed steps' sends, by the contact's current thread (or dropped when there is none) rather than retried forever; a failed lookup, one still unanswered when the time budget ends, or one that answers only after it has ended, releases the claim rather than running, and never holds up another conversation's rows. Only a contact with no conversation at that moment, or no contact, runs unlocked, since there is nothing to serialise against. A batch runs up to five conversations at once, each conversation's rows one at a time in run_at order, so a slow resume never holds up another conversation; automation webhooks time out after 10 seconds, and rows not started within the route's time budget are released back to pending.",
           "tests": [
             {
               "file": "src/lib/automations/resume-pending.test.ts",
@@ -1960,7 +1960,7 @@
         },
         {
           "id": "AIK-003",
-          "rule": "Key material is stored AES-256-GCM encrypted and never leaves the server: the admin API returns a four-character hint only, refuses malformed labels and keys, and is open to super_admin profiles alone. Admin tooling — no mobile counterpart.",
+          "rule": "Key material is stored AES-256-GCM encrypted and never leaves the server: the admin API returns a four-character hint only, refuses malformed labels and keys (any printable key of 20–300 characters without spaces is well-formed, since Google issues more than one format), tests a new key with one tiny call and refuses it only when Google rejects it (a valid key that is out of credits or rate-limited is saved with a warning), sends keys URL-encoded, and is open to super_admin profiles alone. Admin tooling — no mobile counterpart.",
           "tests": [
             {
               "file": "src/lib/ai/keys-admin.test.ts",
@@ -2034,6 +2034,26 @@
             {
               "file": "src/lib/marketing/site-qa.test.ts",
               "case": "[PUB-003]"
+            }
+          ]
+        },
+        {
+          "id": "PUB-004",
+          "rule": "The public stamp duty calculator at /tools/stamp-duty charges Karnataka stamp duty on the higher of the sale price and the guidance value, applies the slab rate to the whole chargeable value, adds the surcharge for the chosen area type and the cess as percentages of the duty and the registration fee as a percentage of the chargeable value, and every rate it uses is read from one table in src/lib/tools/stamp-duty.ts that the page prints in full. An empty or negative value yields zero, never a negative charge.",
+          "tests": [
+            {
+              "file": "src/lib/tools/stamp-duty.test.ts",
+              "case": "[PUB-004]"
+            }
+          ]
+        },
+        {
+          "id": "PUB-005",
+          "rule": "The public EMI calculator at /tools/emi-calculator computes the standard reducing-balance instalment from the loan (property price less the down payment share), annual rate and tenure, amortises it year by year until the balance is zero with the principal paid summing to the loan, treats a zero rate as straight-line repayment, caps the tenure at thirty years, and reads amounts written as lakh or crore.",
+          "tests": [
+            {
+              "file": "src/lib/tools/emi.test.ts",
+              "case": "[PUB-005]"
             }
           ]
         }

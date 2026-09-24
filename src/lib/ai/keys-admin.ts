@@ -53,7 +53,7 @@ export const DEFAULT_PRICING: Pricing = {
 
 const PRICING_SETTING_KEY = 'ai_pricing';
 const LABEL_PATTERN = /^[\w.@+ -]{2,60}$/;
-const KEY_PATTERN = /^[A-Za-z0-9_-]{20,200}$/;
+const KEY_PATTERN = /^[\x21-\x7e]{20,300}$/;
 
 export function priceFor(model: string, pricing: Pricing): ModelPrice {
   const exact = pricing.models[model];
@@ -171,6 +171,19 @@ export function validateKeyInput(body: unknown): {
     ? Math.max(-1000, Math.min(1000, Number(input.priority)))
     : 0;
   return { label, key, scope, priority };
+}
+
+const REJECTED_KEY_PATTERNS = [
+  /api key not valid/i,
+  /api_key_invalid/i,
+  /api key expired/i,
+  /api key not found/i,
+  /permission_denied/i,
+  /unauthenticated/i,
+];
+
+export function isRejectedKeyMessage(message: string): boolean {
+  return REJECTED_KEY_PATTERNS.some((pattern) => pattern.test(message));
 }
 
 export function keyHint(key: string): string {

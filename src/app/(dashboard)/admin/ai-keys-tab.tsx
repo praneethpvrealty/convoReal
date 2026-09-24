@@ -448,13 +448,18 @@ function AddKeyCard() {
     priority: '0',
   });
   const create = useMutation({
-    mutationFn: () =>
-      api('/api/admin/ai-keys', {
+    mutationFn: async () => {
+      const res = await fetch('/api/admin/ai-keys', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, priority: Number(form.priority) }),
-      }),
-    onSuccess: () => {
-      toast.success(`Added ${form.label}`);
+      });
+      if (!res.ok) throw new Error(await readError(res));
+      return (await res.json()) as { warning: string | null };
+    },
+    onSuccess: (result) => {
+      if (result.warning) toast.warning(result.warning);
+      else toast.success(`Added ${form.label}`);
       setForm({ label: '', key: '', scope: 'general', priority: '0' });
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     },
