@@ -162,6 +162,12 @@ vi.mock('@/lib/supabase/admin', () => ({
             return { data: { id }, error: null };
           }
           if (table !== 'conversations') return { data: null, error: null };
+          if (filters.id !== undefined) {
+            const exists =
+              filters.account_id === ACCOUNT &&
+              [...h.conversations.values()].includes(filters.id as string);
+            return { data: exists ? { id: filters.id } : null, error: null };
+          }
           h.onLookup?.();
           if (h.lookupStalls.has(filters.contact_id as string)) {
             return new Promise(() => {});
@@ -364,6 +370,7 @@ describe('drainPendingExecutions', () => {
   });
 
   it('[INB-017] the context conversation is the one leased when the row carries it', async () => {
+    h.conversations.set('contact-ctx', 'conv-ctx');
     addRow('p1', 'contact-a', { context: { conversation_id: 'conv-ctx' } });
     holdLease('conv-ctx');
 
@@ -513,6 +520,30 @@ describe('drainPendingExecutions', () => {
     expect(result).toEqual({ processed: 0, deferred: 1, skipped: 0 });
     expect(h.resumed).toHaveLength(0);
     expect(h.rows.get('p1')).toMatchObject({ status: 'pending', attempts: 0 });
+  });
+
+  it('[INB-017] a stored conversation that no longer exists falls back to the contact thread instead of retrying forever', async () => {
+    addRow('p1', 'contact-a', { context: { conversation_id: 'conv-deleted' } });
+
+    const result = await drainPendingExecutions();
+
+    expect(result).toEqual({ processed: 1, deferred: 0, skipped: 0 });
+    const leased = h.rpcCalls
+      .filter((c) => c.fn === 'claim_conversation_qualification_lease')
+      .map((c) => c.args.p_conversation_id);
+    expect(leased).toEqual(['conv-a']);
+    expect(h.rows.get('p1')?.status).toBe('done');
+  });
+
+  it('[INB-017] a stored conversation that no longer exists, with no contact, runs without a lease', async () => {
+    addRow('p1', null, { context: { conversation_id: 'conv-deleted' } });
+
+    const result = await drainPendingExecutions();
+
+    expect(result.processed).toBe(1);
+    expect(
+      h.rpcCalls.some((c) => c.fn === 'claim_conversation_qualification_lease')
+    ).toBe(false);
   });
 
   it('[INB-017] a row reclaimed by another run before it executes is skipped, not run twice', async () => {

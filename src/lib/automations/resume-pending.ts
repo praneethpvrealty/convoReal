@@ -48,26 +48,62 @@ type Target =
   | { kind: 'none' }
   | { kind: 'error' };
 
+async function beforeDeadline<T>(
+  work: PromiseLike<T>,
+  deadline: number
+): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), Math.max(deadline - Date.now(), 0));
+  });
+  try {
+    return await Promise.race([work, timedOut]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function resolveTarget(
   row: ClaimedPendingRow,
   deadline: number
 ): Promise<Target> {
   const fromContext = row.context?.conversation_id;
-  if (fromContext) return { kind: 'conversation', conversationId: fromContext };
+  if (fromContext) {
+    const existing = await beforeDeadline(
+      supabaseAdmin()
+        .from('conversations')
+        .select('id')
+        .eq('id', fromContext)
+        .eq('account_id', row.account_id)
+        .maybeSingle(),
+      deadline
+    );
+    if (!existing) {
+      console.error(
+        `[automations] conversation check for pending execution ${row.id} outlasted the time budget, it retries next tick`
+      );
+      return { kind: 'error' };
+    }
+    if (existing.error) {
+      console.error(
+        `[automations] conversation check for pending execution ${row.id} failed, it retries next tick:`,
+        existing.error
+      );
+      return { kind: 'error' };
+    }
+    if (existing.data) {
+      return { kind: 'conversation', conversationId: fromContext };
+    }
+  }
   if (!row.contact_id) return { kind: 'none' };
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timedOut = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), Math.max(deadline - Date.now(), 0));
-  });
-  const lookup = await Promise.race([
+  const lookup = await beforeDeadline(
     lookupConversation<{ id: string }>(supabaseAdmin(), {
       accountId: row.account_id,
       contactId: row.contact_id,
       columns: 'id',
     }),
-    timedOut,
-  ]);
-  clearTimeout(timer);
+    deadline
+  );
   if (!lookup) {
     console.error(
       `[automations] conversation lookup for pending execution ${row.id} outlasted the time budget, it retries next tick`
