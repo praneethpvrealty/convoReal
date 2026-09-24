@@ -1717,7 +1717,7 @@
               "case": "[CLG-002]"
             },
             {
-              "file": "mobile/lib/languages.test.ts",
+              "file": "mobile/lib/contact-languages.test.ts",
               "case": "[CLG-002]"
             }
           ]
