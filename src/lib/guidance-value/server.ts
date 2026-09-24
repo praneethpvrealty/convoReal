@@ -15,7 +15,12 @@ import {
   rankMatches,
   searchQueries,
 } from './match';
-import { PAGES_PER_CHUNK, countPdfPages, parseRatePages } from './rate-parse';
+import {
+  PAGES_PER_CHUNK,
+  countPdfPages,
+  classifyAiOutage,
+  parseRatePages,
+} from './rate-parse';
 import type {
   GuidanceRate,
   LookupResult,
@@ -32,6 +37,15 @@ export class SourceNotStoredError extends Error {
   constructor() {
     super('The PDF for this notification never finished uploading.');
     this.name = 'SourceNotStoredError';
+  }
+}
+
+export class AiUnavailableError extends Error {
+  readonly code: 'AI_UNAVAILABLE' | 'AI_RATE_LIMITED';
+  constructor(message: string, rateLimited: boolean) {
+    super(message);
+    this.name = 'AiUnavailableError';
+    this.code = rateLimited ? 'AI_RATE_LIMITED' : 'AI_UNAVAILABLE';
   }
 }
 
@@ -247,6 +261,13 @@ export async function parseNextSourceChunk(
       buffer,
       fromPage,
       toPage,
+    }).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      const outage = classifyAiOutage(message);
+      if (outage) {
+        throw new AiUnavailableError(message, outage === 'rate_limited');
+      }
+      throw err;
     });
     const pageCount = knownPages ?? totalPages;
     if (!pageCount) {
@@ -298,6 +319,13 @@ export async function parseNextSourceChunk(
     return updated;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (err instanceof AiUnavailableError) {
+      await db
+        .from('guidance_value_sources')
+        .update({ error: message.slice(0, 500) })
+        .eq('id', source.id);
+      throw err;
+    }
     await db
       .from('guidance_value_sources')
       .update({ status: 'failed', error: message.slice(0, 500) })

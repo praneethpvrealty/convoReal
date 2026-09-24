@@ -8,13 +8,23 @@ vi.mock('@/lib/auth/account', () => ({
 vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
 
+const aiFailure = vi.hoisted(() => ({ message: '' }));
+vi.mock('./rate-parse', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./rate-parse')>()),
+  parseRatePages: async () => {
+    throw new Error(aiFailure.message);
+  },
+}));
+
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
+  AiUnavailableError,
   SourceNotStoredError,
   findCandidateRates,
   parseNextSourceChunk,
 } from './server';
+import { classifyAiOutage } from './rate-parse';
 
 describe('findCandidateRates', () => {
   it('[GVL-002] never widens a district-scoped search to the whole state', async () => {
@@ -39,7 +49,7 @@ describe('findCandidateRates', () => {
   });
 });
 
-function sourceDb(pagesParsed: number) {
+function sourceDb(pagesParsed: number, stored = false) {
   const updates: Record<string, unknown>[] = [];
   const db = {
     from: () => {
@@ -64,10 +74,13 @@ function sourceDb(pagesParsed: number) {
     },
     storage: {
       from: () => ({
-        download: async () => ({
-          data: null,
-          error: { message: 'Object not found' },
-        }),
+        download: async () =>
+          stored
+            ? {
+                data: new Blob([new Uint8Array([37, 80, 68, 70])]),
+                error: null,
+              }
+            : { data: null, error: { message: 'Object not found' } },
       }),
     },
   } as unknown as SupabaseClient;
@@ -88,5 +101,63 @@ describe('parseNextSourceChunk', () => {
     expect(err).not.toBeInstanceOf(SourceNotStoredError);
     expect(err.message).toMatch(/Object not found/);
     expect(updates.at(-1)).toMatchObject({ status: 'failed' });
+  });
+
+  it('[GVL-008] leaves the source resumable when Gemini is out of credits', async () => {
+    aiFailure.message = 'Your prepayment credits are depleted.';
+    const { db, updates } = sourceDb(4, true);
+    const err = await parseNextSourceChunk(db, 'src-1').catch((e) => e);
+    expect(err).toBeInstanceOf(AiUnavailableError);
+    expect(err.code).toBe('AI_UNAVAILABLE');
+    expect(updates.at(-1)).not.toHaveProperty('status');
+  });
+
+  it('[GVL-008] reports a Gemini rate limit separately so the run can wait', async () => {
+    aiFailure.message = 'Resource has been exhausted (e.g. check quota).';
+    const { db } = sourceDb(4, true);
+    const err = await parseNextSourceChunk(db, 'src-1').catch((e) => e);
+    expect(err.code).toBe('AI_RATE_LIMITED');
+  });
+
+  it('still marks an ordinary model error as failed', async () => {
+    aiFailure.message = 'Failed to parse Gemini response';
+    const { db, updates } = sourceDb(4, true);
+    const err = await parseNextSourceChunk(db, 'src-1').catch((e) => e);
+    expect(err).not.toBeInstanceOf(AiUnavailableError);
+    expect(updates.at(-1)).toMatchObject({ status: 'failed' });
+  });
+
+  it('never reports a storage quota error as a Gemini outage', async () => {
+    const { db, updates } = sourceDb(4);
+    (db.storage as unknown as { from: () => { download: unknown } }).from =
+      () => ({
+        download: async () => ({
+          data: null,
+          error: { message: 'Storage quota exceeded' },
+        }),
+      });
+    const err = await parseNextSourceChunk(db, 'src-1').catch((e) => e);
+    expect(err).not.toBeInstanceOf(AiUnavailableError);
+    expect(updates.at(-1)).toMatchObject({ status: 'failed' });
+  });
+});
+
+describe('classifyAiOutage', () => {
+  it('[GVL-008] treats a quota error that mentions billing as a rate limit', () => {
+    expect(
+      classifyAiOutage(
+        'You exceeded your current quota, please check your plan and billing details.'
+      )
+    ).toBe('rate_limited');
+  });
+
+  it('[GVL-008] treats depleted credits and a bad key as unavailable', () => {
+    expect(classifyAiOutage('Your prepayment credits are depleted.')).toBe(
+      'unavailable'
+    );
+    expect(
+      classifyAiOutage('API key not valid. Please pass a valid key.')
+    ).toBe('unavailable');
+    expect(classifyAiOutage('Failed to parse Gemini response')).toBeNull();
   });
 });

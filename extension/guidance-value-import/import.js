@@ -23,6 +23,8 @@ const DEFAULTS = {
 const MAX_PDF_BYTES = 14 * 1024 * 1024;
 const PAGE_WAIT_MS = 60_000;
 const PARSE_RETRIES = 3;
+const RATE_LIMIT_WAIT_MS = 60_000;
+const RATE_LIMIT_WAITS = 10;
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -250,6 +252,7 @@ async function uploadRow(settings, row) {
 
 async function parseRow(settings, row, sourceId) {
   let failures = 0;
+  let rateWaits = 0;
   for (;;) {
     if (stopped) return 'stopped';
     try {
@@ -268,6 +271,14 @@ async function parseRow(settings, row, sourceId) {
     } catch (err) {
       if (err.status === 401 || err.status === 403) throw err;
       if (err.code === 'SOURCE_NOT_STORED') throw err;
+      if (err.code === 'AI_UNAVAILABLE') throw err;
+      if (err.code === 'AI_RATE_LIMITED') {
+        rateWaits += 1;
+        if (rateWaits > RATE_LIMIT_WAITS) throw err;
+        setRow(row, 'waiting', 'Gemini rate limit — retrying in a minute');
+        await sleep(RATE_LIMIT_WAIT_MS);
+        continue;
+      }
       failures += 1;
       if (failures >= PARSE_RETRIES) throw err;
       setRow(row, 'retrying', err.message);
@@ -301,6 +312,15 @@ async function processRow(settings, row) {
     totals.rates += result.row_count || 0;
     setRow(row, 'done', `${result.row_count} rates from ${result.page_count} pages`);
   } catch (err) {
+    if (err.code === 'AI_UNAVAILABLE' || err.code === 'AI_RATE_LIMITED') {
+      stopped = true;
+      status(
+        `Paused: Gemini refused the request (${err.message}). Top up Gemini billing or change the import key, then click Start — every notification resumes where it stopped.`,
+        'failed'
+      );
+      setRow(row, 'paused', 'Resumes on the next run');
+      return;
+    }
     if (err.status === 401 || err.status === 403) {
       stopped = true;
       status(

@@ -11,6 +11,31 @@ import { normaliseUnit } from './units';
 export const PAGES_PER_CHUNK = 2;
 export const MAX_ROWS_PER_CHUNK = 1500;
 
+const AI_UNAVAILABLE_PATTERNS = [
+  /credits are depleted/i,
+  /prepayment/i,
+  /api key not valid/i,
+  /api key expired/i,
+  /GEMINI_API_KEY is not configured/,
+];
+
+const AI_RATE_LIMITED_PATTERNS = [
+  /quota/i,
+  /resource[_ ]?exhausted/i,
+  /rate limit/i,
+];
+
+export type AiOutage = 'unavailable' | 'rate_limited';
+
+export function classifyAiOutage(message: string): AiOutage | null {
+  if (AI_UNAVAILABLE_PATTERNS.some((pattern) => pattern.test(message)))
+    return 'unavailable';
+  if (AI_RATE_LIMITED_PATTERNS.some((pattern) => pattern.test(message)))
+    return 'rate_limited';
+  if (/billing/i.test(message)) return 'unavailable';
+  return null;
+}
+
 export function countPdfPages(buffer: Uint8Array): number | null {
   const text = Buffer.from(buffer).toString('latin1');
   const matches = text.match(/\/Type\s*\/Page(?![a-zA-Z])/g);
@@ -139,7 +164,10 @@ export async function parseRatePages(input: {
   const response = await generateJsonFromParts(
     parts,
     rateInstructions(input.fromPage, input.toPage),
-    { feature: 'guidance_value_source_parse' }
+    {
+      feature: 'guidance_value_source_parse',
+      apiKey: process.env.GEMINI_IMPORT_API_KEY,
+    }
   );
   return sanitiseRateRows(
     parseJsonResponse(response),

@@ -47,7 +47,13 @@ Settings at the top of the tab (saved for next time):
 
 Every page of every PDF is read by Gemini. A full state run is hundreds of
 PDFs; start with the default settings and watch the first few finish before
-leaving it to run.
+leaving it to run. Set `GEMINI_IMPORT_API_KEY` on the ConvoReal deployment to
+bill imports to their own key, so a long run cannot exhaust the key the
+chatbot and other AI features use.
+
+If Gemini runs out of credits or rejects the key, the run pauses by itself
+and says so; top up or change the key and click Start to resume. A Gemini
+rate limit makes the row wait a minute and retry.
 
 ## Troubleshooting
 
