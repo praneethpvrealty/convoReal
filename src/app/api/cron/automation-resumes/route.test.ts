@@ -44,10 +44,31 @@ afterEach(() => {
 });
 
 describe('automations cron', () => {
-  it('is also served at the legacy /api/automations/cron path', async () => {
+  it('keeps reminders and broadcasts on the legacy /api/automations/cron path', async () => {
+    process.env.CRON_SECRET = 'top-secret';
     const legacy = await import('@/app/api/automations/cron/route');
-    expect(legacy.GET).toBe(GET);
     expect(legacy.maxDuration).toBe(300);
+    const res = await legacy.GET(
+      new Request('http://localhost/api/automations/cron', {
+        headers: { 'x-cron-secret': 'top-secret' },
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(reminders).toHaveBeenCalledTimes(1);
+    expect(broadcasts).toHaveBeenCalledTimes(1);
+    expect(drain).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs nothing on the legacy path without the secret', async () => {
+    process.env.CRON_SECRET = 'top-secret';
+    const legacy = await import('@/app/api/automations/cron/route');
+    const res = await legacy.GET(
+      new Request('http://localhost/api/automations/cron')
+    );
+    expect(res.status).toBe(401);
+    expect(reminders).not.toHaveBeenCalled();
+    expect(broadcasts).not.toHaveBeenCalled();
+    expect(drain).not.toHaveBeenCalled();
   });
 
   it('fails closed (503) when no secret is configured', async () => {

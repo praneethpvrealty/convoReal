@@ -11,9 +11,10 @@ import { sweepAndSendBroadcasts } from '@/lib/broadcasts/sender';
  * 'pending' and the broadcast stays 'sending' — with nothing to pick it
  * back up, a batch simply stops partway through and looks delivered.
  *
- * sweepAndSendBroadcasts() was written for exactly this. It runs here
- * alone; the automation resume cron (/api/cron/automation-resumes) no
- * longer calls it, so the two schedules never sweep twice.
+ * sweepAndSendBroadcasts() was written for exactly this. The scheduled
+ * automation resume cron (/api/cron/automation-resumes) does not call
+ * it, so the two schedules never sweep twice; only the legacy
+ * /api/automations/cron path, kept for self-hosted pingers, still does.
  *
  * Idempotent and safe to run often: it only picks up broadcasts still
  * marked 'sending', sends to recipients still 'pending' or due for
