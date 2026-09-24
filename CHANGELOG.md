@@ -19,6 +19,20 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **Free tools on the marketing site.** convoreal.com now carries two
+  public, indexable tools that bring in traffic and hand it to sign-up:
+  a Karnataka guidance value finder at `/tools/guidance-value`, which
+  searches the imported notifications by area, road, village and survey
+  number with no sign-in, and stage-by-stage property process guides at
+  `/tools/property-process` built from the liaison workflow templates
+  (khata transfer and name change, sale deed registration, EC, TDS,
+  builder re-assignment, home loan). Both carry FAQ, breadcrumb and
+  HowTo / WebApplication structured data for search and answer engines,
+  sit in the sitemap, and are linked from the landing page's new Free
+  Tools section, nav and footer. The public lookup never reads a deed or
+  calls Gemini: uploading the schedule stays the in-app feature the pages
+  sell. The lead bot answers guidance value and liaison questions from
+  the same config.
 - **Existing contacts stay out of Needs Review.** A WhatsApp message
   naming a listing — a showcase "I'm interested" tap, a property code or
   one of our Click-to-WhatsApp ads — used to move any contact to Needs
