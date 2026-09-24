@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 
+import { probeGeminiKey } from '@/lib/ai/gemini';
 import {
   KeyInputError,
   createManagedKey,
+  isRejectedKeyMessage,
   loadKeyDashboard,
+  validateKeyInput,
 } from '@/lib/ai/keys-admin';
 import { toErrorResponse } from '@/lib/auth/account';
 import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
@@ -33,6 +36,10 @@ export async function GET(request: Request) {
 }
 
 // POST /api/admin/ai-keys
+//
+// One tiny call with the new key before saving it: a key Google rejects is
+// refused with Google's own message; one that is valid but out of credits
+// or rate-limited is saved with a warning.
 export async function POST(request: Request) {
   try {
     const { userId } = await requirePlatformAdmin();
@@ -43,8 +50,23 @@ export async function POST(request: Request) {
     if (!limit.success) return rateLimitResponse(limit);
     const body = await request.json().catch(() => null);
     try {
+      const { key } = validateKeyInput(body);
+      let warning: string | null = null;
+      try {
+        await probeGeminiKey(key);
+      } catch (probeErr) {
+        const message =
+          probeErr instanceof Error ? probeErr.message : String(probeErr);
+        if (isRejectedKeyMessage(message)) {
+          return NextResponse.json(
+            { error: `Google rejected this key: ${message}` },
+            { status: 400 }
+          );
+        }
+        warning = `Saved, but a test call failed: ${message}`;
+      }
       const data = await createManagedKey(supabaseAdmin(), body, userId);
-      return NextResponse.json({ data }, { status: 201 });
+      return NextResponse.json({ data, warning }, { status: 201 });
     } catch (err) {
       if (err instanceof KeyInputError) {
         return NextResponse.json({ error: err.message }, { status: 400 });

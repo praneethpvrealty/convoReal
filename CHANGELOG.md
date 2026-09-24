@@ -29,6 +29,13 @@ than a written entry. Newest first.
   summary, link to each other and to the guidance value finder, carry
   FAQ and WebApplication structured data, and sit in the sitemap and the
   landing page's Free Tools section.
+- **Cheaper AI for low-risk jobs.** The daily conversation sweep, Copilot
+  answers, occasion greetings and listing and contact corrections now run on Gemini's
+  lite model, which costs a fraction of full Flash and falls back to it when
+  lite is unavailable. Reading listings and business cards from photos, voice
+  notes and answers to buyers stay on full Flash. A listing correction is
+  still normalised and re-derived as before, keeps any plot size or rate it
+  does not mention, and stays a draft until the agent confirms it.
 - **A journey with every property dropped moves to Lost.** The Journey
   view grouped a buyer (or property) at the furthest stage any item had
   reached, so a buyer whose three shortlisted properties were all dropped
