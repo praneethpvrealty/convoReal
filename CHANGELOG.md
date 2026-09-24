@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **Rental yield calculator.** `/tools/rental-yield` gives the gross
+  and net rental yield of a property from its price and monthly rent,
+  after vacancy, yearly costs and one-time purchase costs, with the net
+  income, the payback period on rent alone and a table of the rent a
+  target yield needs. It takes amounts as lakh or crore, offers a
+  WhatsApp-ready summary, links to the stamp duty and EMI calculators,
+  carries FAQ and WebApplication structured data, and sits in the sitemap
+  and the landing page's Free Tools section.
 - **The mobile `@/` alias can no longer shadow a web module.** `@/*`
   resolves against the mobile root before `../src`, and that applies to
   the web modules the app pulls in for their types too — so a mobile
