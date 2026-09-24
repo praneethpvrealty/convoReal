@@ -23,9 +23,12 @@ import {
   normalizeListingFeatures,
 } from './gemini';
 
+const requestedModels: string[] = [];
+
 describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      requestedModels.push(String(url).split('/models/')[1] ?? '');
       const body = init?.body ? JSON.parse(init.body as string) : {};
       const userMessage =
         body.contents?.[0]?.parts?.find((p: { text?: string }) => p.text)
@@ -330,6 +333,7 @@ Referred by Suresh Babu.`;
       );
 
       expect(updated.contacts[0].referrer_name).toBe('Suresh Babu');
+      expect(requestedModels.at(-1)).toContain('flash-lite');
       expect(updated.contacts[0].referrer_phone).toContain('918888888888');
     });
 

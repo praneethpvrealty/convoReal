@@ -205,7 +205,7 @@ export async function analyzeThread(
 
   try {
     const raw = await generateJson(buildPrompt(thread, transcript), SYSTEM, {
-      tier: 'standard',
+      tier: 'lite',
       feature: AI_FEATURE,
     });
     const findings = sanitizeFindings(parseJson(raw), thread, occurredAt);

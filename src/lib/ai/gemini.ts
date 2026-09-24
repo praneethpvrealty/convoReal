@@ -1663,7 +1663,7 @@ export async function updateContactDraft(
       contents,
       systemInstruction,
       true,
-      { feature: 'contact_update' }
+      { tier: 'lite', feature: 'contact_update' }
     );
     const parsed = parseGeminiResponse(
       rawResult

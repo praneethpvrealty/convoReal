@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { sanitizeFindings } from './analyze';
+import { describe, expect, it, vi } from 'vitest';
+
+const gemini = vi.hoisted(() => ({
+  generateJson: vi.fn(async () => '{"facts":[],"gaps":[]}'),
+}));
+vi.mock('@/lib/ai/gemini', () => gemini);
+
+import { analyzeThread, sanitizeFindings } from './analyze';
 import type { SweepThread } from './types';
 
 const OCCURRED = '2026-08-19T12:00:00.000Z';
@@ -183,5 +189,39 @@ describe('sanitizeFindings', () => {
     );
     expect(out.gaps.length).toBeLessThanOrEqual(2);
     expect(out.facts.length).toBeLessThanOrEqual(8);
+  });
+});
+
+describe('analyzeThread', () => {
+  it('reads a thread on the lite model tier', async () => {
+    const result = await analyzeThread(
+      thread({
+        messages: [
+          {
+            id: 'm1',
+            speaker: 'customer',
+            text: 'Please send the floor plan',
+            contentType: 'text',
+            createdAt: OCCURRED,
+          },
+          {
+            id: 'm2',
+            speaker: 'agent',
+            text: "I'll send it tonight",
+            contentType: 'text',
+            createdAt: OCCURRED,
+          },
+        ],
+      })
+    );
+    expect(result.analyzed).toBe(true);
+    expect(gemini.generateJson).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        tier: 'lite',
+        feature: 'conversation_sweep_thread',
+      })
+    );
   });
 });
