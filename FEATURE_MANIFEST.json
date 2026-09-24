@@ -538,6 +538,24 @@
               "case": "[CTM-008]"
             }
           ]
+        },
+        {
+          "id": "CTM-009",
+          "rule": "A WhatsApp message that names a listing (a showcase enquiry, a property code or a Click-to-WhatsApp ad of ours) sends its contact to Needs Review only when that message created the contact; a contact the account already had keeps its status while the listing is still linked and the enquiry still recorded. A personal-WhatsApp share logged from web or mobile is an outgoing share, recorded on the property share ledger and the contact's timeline, and never rewrites the contact's \"Contacted about\" listing.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/enquiry-review.test.ts",
+              "case": "[CTM-009]"
+            },
+            {
+              "file": "src/lib/whatsapp/ctwa-attribution.test.ts",
+              "case": "[CTM-009]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-009]"
+            }
+          ]
         }
       ]
     },

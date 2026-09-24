@@ -14,6 +14,7 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { enquiryStatusUpdate } from '@/lib/contacts/enquiry-review';
 
 /** Shape of `message.referral` as delivered by the WhatsApp webhook. */
 export interface WhatsAppReferral {
@@ -110,6 +111,7 @@ interface ProcessArgs {
   messageId: string;
   referral: WhatsAppReferral | undefined | null;
   contact: ContactUpgradeInput;
+  contactWasCreated: boolean;
 }
 
 /**
@@ -122,7 +124,7 @@ interface ProcessArgs {
  * null — the referral is still captured and the contact still stamped.
  */
 export async function processCtwaReferral(args: ProcessArgs): Promise<{ linkedPropertyId: string | null }> {
-  const { admin, accountId, contactId, conversationId, messageId, contact } = args;
+  const { admin, accountId, contactId, conversationId, messageId, contact, contactWasCreated } = args;
 
   const ref = extractReferral(args.referral);
   if (!ref) return { linkedPropertyId: null };
@@ -183,7 +185,7 @@ export async function processCtwaReferral(args: ProcessArgs): Promise<{ linkedPr
           .from('contacts')
           .update({
             last_inquired_property_id: propertyId,
-            status: 'pending_review',
+            ...enquiryStatusUpdate(contactWasCreated),
             updated_at: new Date().toISOString(),
           })
           .eq('id', contactId);

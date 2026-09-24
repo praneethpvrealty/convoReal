@@ -4004,6 +4004,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 contactId={contactId}
                 contactName={contact.name || ''}
                 contactPhone={contact.phone}
+                contactClassification={contact.classification}
                 properties={allProperties}
                 onSaved={() => {
                   fetchContact();

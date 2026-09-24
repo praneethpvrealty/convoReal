@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { Property } from '@/types';
+import type { Contact, Property } from '@/types';
+import { recordPropertyShares } from '@/lib/inventory/share-log';
 import { storagePublicUrl } from '@/lib/storage/url';
 import {
   Dialog,
@@ -25,6 +26,7 @@ interface LogExternalShareDialogProps {
   contactId: string;
   contactName: string;
   contactPhone: string;
+  contactClassification?: Contact['classification'] | null;
   properties: Property[];
   onSaved?: () => void;
 }
@@ -35,6 +37,7 @@ export function LogExternalShareDialog({
   contactId,
   contactName,
   contactPhone,
+  contactClassification,
   properties,
   onSaved,
 }: LogExternalShareDialogProps) {
@@ -132,14 +135,6 @@ export function LogExternalShareDialog({
         .filter(Boolean)
         .join('\n');
 
-      // Build the contact update payload
-      const contactUpdate: Record<string, unknown> = {
-        last_contacted_at: now,
-      };
-      if (selectedPropertyId) {
-        contactUpdate.last_inquired_property_id = selectedPropertyId;
-      }
-
       // Fire all writes in parallel
       const [contactRes, noteRes] = await Promise.allSettled([
         supabase
@@ -148,7 +143,7 @@ export function LogExternalShareDialog({
           // than awaited for success — the note is the record that
           // matters and its outcome is reported.
           // eslint-disable-next-line convoreal/supabase-write-guard
-          .update(contactUpdate)
+          .update({ last_contacted_at: now })
           .eq('id', contactId),
         supabase
           .from('contact_notes')
@@ -172,6 +167,15 @@ export function LogExternalShareDialog({
       if (noteErr) {
         console.error('[log-share] note insert failed:', noteErr);
         throw new Error('Failed to save note');
+      }
+
+      if (selectedPropertyId) {
+        void recordPropertyShares({
+          accountId,
+          propertyId: selectedPropertyId,
+          userId: user.id,
+          recipients: [{ contactId, classification: contactClassification }],
+        });
       }
 
       toast.success(

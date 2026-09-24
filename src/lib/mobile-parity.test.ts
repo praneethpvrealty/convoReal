@@ -391,6 +391,26 @@ describe('property shortlist sharing remains available on both surfaces', () => 
   });
 });
 
+describe('a logged personal share is an outgoing share, not an enquiry', () => {
+  it('[CTM-009] records the share ledger and leaves "Contacted about" alone on web and mobile', () => {
+    const mobileShare = mobileSource('lib/property-share-actions.ts');
+    const webDialog = webSource(
+      'components/contacts/log-external-share-dialog.tsx'
+    );
+    const logShare = mobileShare.slice(
+      mobileShare.indexOf('export async function logExternalShare'),
+      mobileShare.indexOf('const SHARE_TIMEOUT_MS')
+    );
+
+    expect(logShare).toContain("from('property_shares').upsert(");
+    expect(webDialog).toContain('recordPropertyShares({');
+    for (const source of [logShare, webDialog]) {
+      expect(source).toContain('.update({ last_contacted_at: now })');
+      expect(source).not.toContain('last_inquired_property_id');
+    }
+  });
+});
+
 describe('contact merge remains available on both surfaces', () => {
   it('[CTM-001] exposes survivor selection and the shared merge route on mobile', () => {
     const mobileContact = mobileSource('app/(app)/contact/[id].tsx');

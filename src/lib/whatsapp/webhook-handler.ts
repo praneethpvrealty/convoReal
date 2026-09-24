@@ -157,6 +157,7 @@ import {
   sendPropertyEnquiryCard,
 } from '@/lib/whatsapp/enquiry-card';
 import { maybeAutoHeatContact } from '@/lib/contacts/auto-heat';
+import { enquiryStatusUpdate } from '@/lib/contacts/enquiry-review';
 import {
   handleFollowUpReply,
   parseFollowUpReply,
@@ -1430,6 +1431,7 @@ async function processMessage(
       messageId: message.id,
       referral: message.referral,
       contact: contactRecord,
+      contactWasCreated: contactOutcome.wasCreated,
     });
     ctwaLinkedPropertyId = ctwaResult.linkedPropertyId;
   }
@@ -1479,7 +1481,7 @@ async function processMessage(
             .from('contacts')
             .update({
               last_inquired_property_id: matchedProperty.id,
-              status: 'pending_review',
+              ...enquiryStatusUpdate(contactOutcome.wasCreated),
               classification:
                 contactRecord.classification === 'Others'
                   ? 'Buyer'
@@ -1488,7 +1490,7 @@ async function processMessage(
             })
             .eq('id', contactRecord.id);
           console.log(
-            `[webhook] Linked contact ${contactRecord.id} to property ${matchedProperty.id} and set to pending_review`
+            `[webhook] Linked contact ${contactRecord.id} to property ${matchedProperty.id}`
           );
         } else if (specificPropertyInterest) {
           propertyReferenceNeedsAgent = true;

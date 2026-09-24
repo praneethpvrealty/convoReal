@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   extractReferral,
+  processCtwaReferral,
   formatReferrerLabel,
   deriveContactUpgrade,
   CTWA_SOURCE,
@@ -95,5 +97,54 @@ describe('deriveContactUpgrade', () => {
     expect(deriveContactUpgrade({ classification: 'Others' }, ref).classification).toBe('Buyer');
     expect(deriveContactUpgrade({ classification: null }, ref).classification).toBe('Buyer');
     expect(deriveContactUpgrade({ classification: 'Buyer' }, ref).classification).toBeUndefined();
+  });
+});
+
+describe('processCtwaReferral', () => {
+  function fakeAdmin() {
+    const contactUpdates: Record<string, unknown>[] = [];
+    const chain = (table: string) => {
+      const builder = {
+        upsert: () => Promise.resolve({ error: null }),
+        update: (payload: Record<string, unknown>) => {
+          if (table === 'contacts') contactUpdates.push(payload);
+          return { eq: () => Promise.resolve({ error: null }) };
+        },
+        select: () => builder,
+        eq: () => builder,
+        maybeSingle: () =>
+          Promise.resolve({ data: { property_id: 'prop-1' }, error: null }),
+      };
+      return builder;
+    };
+    return {
+      admin: { from: chain } as unknown as SupabaseClient,
+      contactUpdates,
+    };
+  }
+
+  const args = {
+    accountId: 'acc-1',
+    contactId: 'contact-1',
+    conversationId: 'conv-1',
+    messageId: 'wamid-1',
+    referral: { source_id: 'ad-1', headline: 'Villa Plot' },
+    contact: { source: 'WhatsApp', referrer: 'Existing', classification: 'Buyer' },
+  };
+
+  it('[CTM-009] links the ad listing to an existing contact without moving them to Needs Review', async () => {
+    const { admin, contactUpdates } = fakeAdmin();
+    const result = await processCtwaReferral({ ...args, admin, contactWasCreated: false });
+    expect(result.linkedPropertyId).toBe('prop-1');
+    const link = contactUpdates.find((u) => u.last_inquired_property_id === 'prop-1');
+    expect(link).toBeDefined();
+    expect(link).not.toHaveProperty('status');
+  });
+
+  it('[CTM-009] sends a contact the ad click created to Needs Review', async () => {
+    const { admin, contactUpdates } = fakeAdmin();
+    await processCtwaReferral({ ...args, admin, contactWasCreated: true });
+    const link = contactUpdates.find((u) => u.last_inquired_property_id === 'prop-1');
+    expect(link?.status).toBe('pending_review');
   });
 });

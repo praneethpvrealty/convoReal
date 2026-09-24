@@ -13,11 +13,13 @@ import { supabase } from '@/lib/supabase';
 import type { Contact, Property } from '@/lib/types';
 
 /** Record an external share on the contact's timeline — a contact note
- *  plus last-contacted/last-inquired, mirroring the web's
- *  log-external-share dialog — and on the property share ledger, which
- *  is what marks the recipient as already contacted on the listing's
- *  Matching Contacts list. Best-effort: failures don't block the
- *  WhatsApp hand-off the caller is about to make. */
+ *  plus last-contacted, mirroring the web's log-external-share dialog —
+ *  and on the property share ledger, which is what marks the recipient
+ *  as already contacted on the listing's Matching Contacts list. A share
+ *  is something the agent sent, not something the contact asked about,
+ *  so it never touches last_inquired_property_id ("Contacted about").
+ *  Best-effort: failures don't block the WhatsApp hand-off the caller is
+ *  about to make. */
 export async function logExternalShare(
   contact: Contact,
   property: Property
@@ -34,10 +36,7 @@ export async function logExternalShare(
       // Touch settled alongside the note insert below; the note is the
       // record that matters and the caller reports on it.
       // eslint-disable-next-line convoreal/supabase-write-guard
-      .update({
-        last_contacted_at: now,
-        last_inquired_property_id: property.id,
-      })
+      .update({ last_contacted_at: now })
       .eq('id', contact.id),
     supabase.from('contact_notes').insert({
       contact_id: contact.id,

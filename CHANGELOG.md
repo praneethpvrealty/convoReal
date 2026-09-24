@@ -17,6 +17,22 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 24 September 2026
+
+- **Existing contacts stay out of Needs Review.** A WhatsApp message
+  naming a listing — a showcase "I'm interested" tap, a property code or
+  one of our Click-to-WhatsApp ads — used to move any contact to Needs
+  Review, including buyers the agent had worked with for weeks. Only a
+  contact that message created goes there now; an existing contact keeps
+  their status, and the listing is still linked and the enquiry recorded.
+- **A logged personal share no longer rewrites "Contacted about".**
+  Logging a personal-WhatsApp share on web or mobile set the contact's
+  enquired listing to whatever was sent, so the Contacts list showed a
+  buyer as asking about a listing they never asked about, and Approve
+  would have re-sent it. The share is still noted on the timeline and
+  now reaches the property share ledger from web too, as it already did
+  from mobile.
+
 #### 23 September 2026
 
 - **Guidance value import Chrome extension.** One click on the new
