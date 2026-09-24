@@ -425,6 +425,8 @@ Copy `.env.local.example` to `.env.local` and fill in the required values. The a
 | `WHATSAPP_VERIFY_TOKEN`                                                   | Static Meta webhook verification token (used by Go ingress; falls back to DB-backed verification)                   |
 | `GEMINI_API_KEY`                                                          | Google Gemini API key for AI features                                                                               |
 | `GEMINI_IMPORT_API_KEY`                                                   | Separate Gemini key for guidance value PDF imports                                                                  |
+| `GEMINI_FALLBACK_API_KEYS`                                                | Comma-separated Gemini keys tried when one is exhausted                                                             |
+| `GEMINI_IMPORT_TIER`                                                      | `standard` to read guidance PDFs on full Flash (default lite)                                                       |
 | `GOOGLE_MAPS_API_KEY`                                                     | Google Places / Maps API key (server-side)                                                                          |
 | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`                                     | Referrer-restricted Maps JavaScript API key for the Inventory map view; without it the map degrades to a hint panel |
 | `RESEND_API_KEY`                                                          | Resend API key for transactional emails                                                                             |

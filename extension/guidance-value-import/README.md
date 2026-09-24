@@ -49,7 +49,10 @@ Every page of every PDF is read by Gemini, two pages per call, and each call sen
 PDFs; start with the default settings and watch the first few finish before
 leaving it to run. Set `GEMINI_IMPORT_API_KEY` on the ConvoReal deployment to
 bill imports to their own key, so a long run cannot exhaust the key the
-chatbot and other AI features use.
+chatbot and other AI features use. Either variable can hold several keys,
+comma-separated, and `GEMINI_FALLBACK_API_KEYS` adds spares to the main key:
+when one runs out ConvoReal moves to the next. PDFs are read on Gemini's lite
+model; set `GEMINI_IMPORT_TIER=standard` to switch back to full Flash.
 
 If Gemini runs out of credits or rejects the key, the run pauses by itself
 and says so; top up or change the key and click Start to resume. A Gemini

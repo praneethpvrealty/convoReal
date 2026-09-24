@@ -1905,6 +1905,20 @@
               "case": "[GVL-009]"
             }
           ]
+        },
+        {
+          "id": "GVL-010",
+          "rule": "Gemini keys form a pool: GEMINI_API_KEY followed by the comma-separated GEMINI_FALLBACK_API_KEYS (GEMINI_IMPORT_API_KEY, also comma-separated, replaces the pool for rate parsing). A key refused for depleted credits, billing or an invalid key is set aside for ten minutes and a rate-limited key for one, and the call moves to the next key; an ordinary model error never switches keys, and the last failure is reported only when every key is out. Rate parsing runs on the lite model tier unless GEMINI_IMPORT_TIER is 'standard'.",
+          "tests": [
+            {
+              "file": "src/lib/ai/gemini-keys.test.ts",
+              "case": "[GVL-010]"
+            },
+            {
+              "file": "src/lib/guidance-value/slice.test.ts",
+              "case": "[GVL-010]"
+            }
+          ]
         }
       ]
     }

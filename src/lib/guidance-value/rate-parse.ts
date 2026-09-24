@@ -1,6 +1,11 @@
 import { PDFDocument } from 'pdf-lib';
 
-import { generateJsonFromParts, type GeminiPart } from '@/lib/ai/gemini';
+import {
+  classifyGeminiKeyFailure,
+  generateJsonFromParts,
+  type GeminiPart,
+  type GeminiTier,
+} from '@/lib/ai/gemini';
 import { parseJsonResponse } from '@/lib/invoices/document-extract';
 
 import {
@@ -13,29 +18,17 @@ import { normaliseUnit } from './units';
 export const PAGES_PER_CHUNK = 2;
 export const MAX_ROWS_PER_CHUNK = 1500;
 
-const AI_UNAVAILABLE_PATTERNS = [
-  /credits are depleted/i,
-  /prepayment/i,
-  /api key not valid/i,
-  /api key expired/i,
-  /GEMINI_API_KEY is not configured/,
-];
-
-const AI_RATE_LIMITED_PATTERNS = [
-  /quota/i,
-  /resource[_ ]?exhausted/i,
-  /rate limit/i,
-];
-
 export type AiOutage = 'unavailable' | 'rate_limited';
 
 export function classifyAiOutage(message: string): AiOutage | null {
-  if (AI_UNAVAILABLE_PATTERNS.some((pattern) => pattern.test(message)))
-    return 'unavailable';
-  if (AI_RATE_LIMITED_PATTERNS.some((pattern) => pattern.test(message)))
-    return 'rate_limited';
-  if (/billing/i.test(message)) return 'unavailable';
-  return null;
+  if (/GEMINI_API_KEY is not configured/.test(message)) return 'unavailable';
+  const failure = classifyGeminiKeyFailure(message);
+  if (failure === 'exhausted') return 'unavailable';
+  return failure;
+}
+
+export function rateParseTier(): GeminiTier {
+  return process.env.GEMINI_IMPORT_TIER === 'standard' ? 'standard' : 'lite';
 }
 
 export function countPdfPages(buffer: Uint8Array): number | null {
@@ -248,6 +241,7 @@ export async function parseRatePages(input: {
     rateInstructions(input.fromPage, input.toPage, slice, input.headings),
     {
       feature: 'guidance_value_source_parse',
+      tier: rateParseTier(),
       apiKey: process.env.GEMINI_IMPORT_API_KEY,
     }
   );

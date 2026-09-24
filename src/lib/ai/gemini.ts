@@ -38,8 +38,99 @@ export interface GeminiCallOpts {
   tier?: GeminiTier;
   /** Feature key for the ai_call_log (e.g. 'contact_parse'). Optional. */
   feature?: string;
-  /** Overrides GEMINI_API_KEY for a feature billed to its own key. */
+  /** Overrides the key pool for a feature billed to its own key(s), comma-separated. */
   apiKey?: string;
+}
+
+export type GeminiKeyFailure = 'exhausted' | 'rate_limited';
+
+const KEY_EXHAUSTED_PATTERNS = [
+  /credits are depleted/i,
+  /prepayment/i,
+  /api key not valid/i,
+  /api key expired/i,
+  /api_key_invalid/i,
+];
+
+const KEY_RATE_LIMITED_PATTERNS = [
+  /quota/i,
+  /resource[_ ]?exhausted/i,
+  /rate limit/i,
+  /\b429\b/,
+];
+
+export function classifyGeminiKeyFailure(
+  message: string
+): GeminiKeyFailure | null {
+  if (KEY_EXHAUSTED_PATTERNS.some((pattern) => pattern.test(message)))
+    return 'exhausted';
+  if (KEY_RATE_LIMITED_PATTERNS.some((pattern) => pattern.test(message)))
+    return 'rate_limited';
+  if (/billing/i.test(message)) return 'exhausted';
+  return null;
+}
+
+const KEY_COOLDOWN_MS: Record<GeminiKeyFailure, number> = {
+  exhausted: 10 * 60_000,
+  rate_limited: 60_000,
+};
+const keyCooldowns = new Map<string, number>();
+
+function splitKeys(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean);
+}
+
+export function geminiKeyPool(override?: string): string[] {
+  const keys = splitKeys(override).length
+    ? splitKeys(override)
+    : [
+        ...splitKeys(process.env.GEMINI_API_KEY),
+        ...splitKeys(process.env.GEMINI_FALLBACK_API_KEYS),
+      ];
+  const unique = [...new Set(keys)];
+  const now = Date.now();
+  const ready = unique.filter((key) => (keyCooldowns.get(key) ?? 0) <= now);
+  const cooling = unique.filter((key) => (keyCooldowns.get(key) ?? 0) > now);
+  return [...ready, ...cooling];
+}
+
+export function resetGeminiKeyCooldowns(): void {
+  keyCooldowns.clear();
+}
+
+async function withGeminiKeys<T>(
+  override: string | undefined,
+  call: (apiKey: string) => Promise<T>
+): Promise<T> {
+  const keys = geminiKeyPool(override);
+  if (!keys.length) {
+    throw new Error(
+      'GEMINI_API_KEY is not configured. Please add it to your .env.local file.'
+    );
+  }
+  let lastError: unknown;
+  for (const [index, apiKey] of keys.entries()) {
+    try {
+      const result = await call(apiKey);
+      keyCooldowns.delete(apiKey);
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const failure = classifyGeminiKeyFailure(message);
+      if (!failure) throw err;
+      keyCooldowns.set(apiKey, Date.now() + KEY_COOLDOWN_MS[failure]);
+      lastError = err;
+      if (index < keys.length - 1) {
+        console.warn(
+          `[Gemini AI] Key ${index + 1} of ${keys.length} unavailable (${failure}); trying the next key.`
+        );
+      }
+    }
+  }
+  throw lastError;
 }
 
 interface GeminiPart {
@@ -74,12 +165,24 @@ async function generateContentRaw(
   jsonMode: boolean = false,
   opts: GeminiCallOpts = {}
 ): Promise<string> {
-  const apiKey = opts.apiKey || process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      'GEMINI_API_KEY is not configured. Please add it to your .env.local file.'
-    );
-  }
+  return withGeminiKeys(opts.apiKey, (apiKey) =>
+    generateContentWithKey(
+      apiKey,
+      contents,
+      systemInstructionText,
+      jsonMode,
+      opts
+    )
+  );
+}
+
+async function generateContentWithKey(
+  apiKey: string,
+  contents: GeminiContent[],
+  systemInstructionText: string | undefined,
+  jsonMode: boolean,
+  opts: GeminiCallOpts
+): Promise<string> {
 
   const tier: GeminiTier = opts.tier ?? 'standard';
   const models = MODEL_CHAINS[tier];
@@ -284,12 +387,13 @@ const EMBEDDING_MODEL = 'gemini-embedding-001';
  * Same raw-REST style as generateContentRaw — no SDK.
  */
 export async function embedText(text: string): Promise<number[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      'GEMINI_API_KEY is not configured. Please add it to your .env.local file.'
-    );
-  }
+  return withGeminiKeys(undefined, (apiKey) => embedTextWithKey(apiKey, text));
+}
+
+async function embedTextWithKey(
+  apiKey: string,
+  text: string
+): Promise<number[]> {
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${apiKey}`;
   const response = await fetch(url, {
