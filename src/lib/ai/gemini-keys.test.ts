@@ -321,12 +321,17 @@ describe('retired models', () => {
       status: 429,
       message: 'You exceeded your current quota, please check your plan.',
     };
+    modelFailures['env-a:gemini-3.5-flash-lite'] = {
+      status: 429,
+      message: 'You exceeded your current quota, please check your plan.',
+    };
     modelFailures['env-a:gemini-2.5-flash'] = retired;
     expect(await generateText('hi', undefined, { tier: 'lite' })).toBe(
       'ok from env-a'
     );
     expect(seenModels).toEqual([
       'gemini-3.1-flash-lite',
+      'gemini-3.5-flash-lite',
       'gemini-2.5-flash',
       'gemini-3.5-flash',
     ]);
@@ -335,8 +340,23 @@ describe('retired models', () => {
   it('[AIK-007] moves to the next key when every model is retired for one key', async () => {
     modelFailures['env-a:gemini-2.5-flash'] = retired;
     modelFailures['env-a:gemini-3.5-flash'] = retired;
+    modelFailures['env-a:gemini-3.6-flash'] = retired;
     expect(await generateText('hi')).toBe('ok from env-b');
-    expect(seen).toEqual(['env-a', 'env-a', 'env-b']);
+    expect(seen).toEqual(['env-a', 'env-a', 'env-a', 'env-b']);
+  });
+
+  it('[AIK-007] reaches gemini-3.6-flash when the earlier full-Flash models are over quota', async () => {
+    modelFailures['env-a:gemini-2.5-flash'] = retired;
+    modelFailures['env-a:gemini-3.5-flash'] = {
+      status: 429,
+      message: 'You exceeded your current quota, please check your plan.',
+    };
+    expect(await generateText('hi')).toBe('ok from env-a');
+    expect(seenModels).toEqual([
+      'gemini-2.5-flash',
+      'gemini-3.5-flash',
+      'gemini-3.6-flash',
+    ]);
   });
 
   it('[AIK-007] retires a model for that key only', () => {
