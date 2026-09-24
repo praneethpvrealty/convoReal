@@ -13,6 +13,7 @@ export const RESUME_LEASE_TTL_SECONDS = 10;
 export const RESUME_LEASE_MAX_HOLD_MS = 10_000;
 export const RESUME_CONCURRENCY = 5;
 export const RESUME_TIME_BUDGET_MS = 240_000;
+export const RESUME_MAX_LATENESS_MS = 6 * 60 * 60_000;
 
 interface ClaimedPendingRow {
   id: string;
@@ -143,10 +144,46 @@ async function execute(row: ClaimedPendingRow): Promise<Outcome> {
   return 'processed';
 }
 
+async function expire(
+  row: ClaimedPendingRow,
+  lateMs: number
+): Promise<Outcome> {
+  const hours = Math.round(lateMs / 3_600_000);
+  console.warn(
+    `[automations] pending execution ${row.id} is ${hours}h past its run_at; skipping it instead of sending a stale step`
+  );
+  const db = supabaseAdmin();
+  const { error } = await db
+    .from('automation_pending_executions')
+    .update({ status: 'failed' })
+    .eq('id', row.id)
+    .eq('claim_token', row.claim_token)
+    .eq('status', 'running');
+  if (error) {
+    console.error(
+      `[automations] could not expire pending execution ${row.id}; it is retried once its claim goes stale:`,
+      error
+    );
+    return 'deferred';
+  }
+  if (row.log_id) {
+    await db
+      .from('automation_logs')
+      .update({
+        status: 'failed',
+        error_message: `Skipped: resumed ${hours}h after its wait ended`,
+      })
+      .eq('id', row.log_id);
+  }
+  return 'skipped';
+}
+
 async function runClaimed(
   row: ClaimedPendingRow,
   deadline: number
 ): Promise<Outcome> {
+  const lateMs = Date.now() - Date.parse(row.run_at);
+  if (lateMs > RESUME_MAX_LATENESS_MS) return expire(row, lateMs);
   const target = await resolveTarget(row, deadline);
   if (target.kind === 'error' || Date.now() >= deadline) {
     await releaseClaim(row);
