@@ -96,7 +96,9 @@ describe('journey overview loading', () => {
       ),
       'utf8'
     );
-    expect(migration).toContain("stages.stage_kind = 'lost'");
+    expect(migration).toContain(
+      "AND stages.stage_kind = 'lost'\n        AND stages.pipeline_stage_id IS NOT NULL"
+    );
     expect(migration).toContain(
       'WHEN grouped.active_count = 0 AND grouped.dropped_count > 0'
     );

@@ -20,6 +20,7 @@ BEGIN
       FROM journey_stages stages
       WHERE stages.account_id = p_account_id
         AND stages.stage_kind = 'lost'
+        AND stages.pipeline_stage_id IS NOT NULL
       ORDER BY stages.position, stages.id
       LIMIT 1
     ),
