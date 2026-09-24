@@ -86,6 +86,9 @@ export interface JourneySectionProps {
   /** Stage the overview group is named after: items resting there lead
    *  the map, the rest fold behind a count until asked for. */
   focusStageId?: string | null;
+  /** The group is the lost stage: dropped items lead instead of live
+   *  ones. */
+  focusDropped?: boolean;
 }
 
 export function JourneySection({
@@ -99,6 +102,7 @@ export function JourneySection({
   preloadedProperty,
   onItemsChanged,
   focusStageId = null,
+  focusDropped = false,
 }: JourneySectionProps) {
   const supabase = createClient();
   const { user, accountId } = useAuth();
@@ -624,8 +628,8 @@ export function JourneySection({
   const visibleItems = useMemo(() => items.filter((i) => !i.hidden), [items]);
   const capturedItems = useMemo(() => items.filter((i) => i.hidden), [items]);
   const { atStage, elsewhere } = useMemo(
-    () => splitItemsAtStage(visibleItems, focusStageId),
-    [focusStageId, visibleItems]
+    () => splitItemsAtStage(visibleItems, focusStageId, focusDropped),
+    [focusDropped, focusStageId, visibleItems]
   );
   const focusStage = stages.find((stage) => stage.id === focusStageId);
   const canvasItems = showElsewhere ? visibleItems : atStage;
@@ -805,6 +809,7 @@ export function JourneySection({
         canEdit={canEdit}
         selectedItemId={selectedItem?.id}
         highlightStageId={focusStageId}
+        highlightDropped={focusDropped}
         onSelectItem={setSelectedItem}
         onAdvance={handleAdvance}
         onAddItems={() => setAddOpen(true)}

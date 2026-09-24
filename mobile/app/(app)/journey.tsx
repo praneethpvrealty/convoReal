@@ -85,6 +85,7 @@ interface JourneyGroup {
   active: number;
   captured: number;
   furthestStageIdx: number;
+  lostStageId: string | null;
   lifecycleStatus: JourneyLifecycleStatus;
   closureReason: string | null;
   archivedAt: string | null;
@@ -95,6 +96,7 @@ interface JourneyBucket {
   key: string;
   label: string;
   color: string;
+  stage?: JourneyStage;
   groups: JourneyGroup[];
 }
 
@@ -357,6 +359,7 @@ export function JourneyBody() {
           active: Number(row.active_count),
           captured: Number(row.captured_count),
           furthestStageIdx: stageIndexById.get(row.furthest_stage_id) ?? -1,
+          lostStageId: row.lost_stage_id ?? null,
           lifecycleStatus: state?.lifecycle_status ?? 'active',
           closureReason: state?.closure_reason ?? null,
           archivedAt: state?.archived_at ?? null,
@@ -434,8 +437,10 @@ export function JourneyBody() {
           key: `stage:${stage.id}`,
           label: stage.name,
           color: stage.color ?? colors.primary,
+          stage,
           groups: viewGroups.filter(
-            (group) => group.furthestStageIdx === index
+            (group) =>
+              group.furthestStageIdx === index || group.lostStageId === stage.id
           ),
         }))
         .filter(
@@ -1086,7 +1091,11 @@ export function JourneyBody() {
                     <DraggableJourneyCard
                       key={group.subjectId}
                       group={group}
-                      stage={stages[group.furthestStageIdx]}
+                      stage={bucket.stage ?? stages[group.furthestStageIdx]}
+                      droppedStage={
+                        Boolean(bucket.stage) &&
+                        bucket.stage?.id === group.lostStageId
+                      }
                       stageById={stageById}
                       mode={mode}
                       canEdit={canEdit}
@@ -1618,6 +1627,7 @@ export function JourneyBody() {
 function DraggableJourneyCard({
   group,
   stage,
+  droppedStage,
   stageById,
   mode,
   canEdit,
@@ -1636,6 +1646,7 @@ function DraggableJourneyCard({
 }: {
   group: JourneyGroup;
   stage?: JourneyStage;
+  droppedStage: boolean;
   stageById: Map<string, JourneyStage>;
   mode: JourneyMode;
   canEdit: boolean;
@@ -1692,16 +1703,18 @@ function DraggableJourneyCard({
   const [showElsewhere, setShowElsewhere] = useState(false);
   const { atStage, elsewhere } = splitItemsAtStage(
     branchItemsQuery.data ?? [],
-    stageInHeader ? (stage?.id ?? null) : null
+    stageInHeader ? (stage?.id ?? null) : null,
+    droppedStage
   );
   const renderItem = (item: JourneyItem) => {
     const itemStage = stageById.get(item.stage_id);
+    const dropped = item.status === 'dropped';
     const highlighted =
       stageInHeader &&
       Boolean(stage) &&
-      item.stage_id === stage?.id &&
-      item.status !== 'dropped';
-    const dropped = item.status === 'dropped';
+      (droppedStage
+        ? dropped || item.stage_id === stage?.id
+        : item.stage_id === stage?.id && item.status !== 'dropped');
     return (
       <View
         key={item.id}

@@ -251,10 +251,16 @@ export function journeyRaceLabel(active: number): string {
 
 export function splitItemsAtStage<
   T extends { stage_id: string; status: string },
->(items: T[], stageId: string | null): { atStage: T[]; elsewhere: T[] } {
+>(
+  items: T[],
+  stageId: string | null,
+  droppedStage = false
+): { atStage: T[]; elsewhere: T[] } {
   if (!stageId) return { atStage: items, elsewhere: [] };
-  const atStage = items.filter(
-    (item) => item.stage_id === stageId && item.status !== 'dropped'
+  const atStage = items.filter((item) =>
+    droppedStage
+      ? item.status === 'dropped' || item.stage_id === stageId
+      : item.stage_id === stageId && item.status !== 'dropped'
   );
   if (atStage.length === 0) return { atStage: items, elsewhere: [] };
   return {
