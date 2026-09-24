@@ -6,7 +6,7 @@ import {
   isLanguageCode,
   languageDisplay,
   languageFromDisplay,
-} from './languages';
+} from './contact-languages';
 
 describe('mobile language registry', () => {
   it('[CLG-002] offers the seven product languages and nothing else', () => {

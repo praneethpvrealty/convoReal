@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **The mobile `@/` alias can no longer shadow a web module.** `@/*`
+  resolves against the mobile root before `../src`, and that applies to
+  the web modules the app pulls in for their types too — so a mobile
+  file sitting at a path a web module imports as `@/<path>` silently
+  stood in for it. `mobile/lib/languages.ts` did that to
+  `src/lib/languages.ts`, and the WhatsApp template modules failed on
+  exports the trimmed mobile mirror does not carry. It was the only such
+  collision in the repository; the mirror is now `contact-languages.ts`,
+  the two roots no longer overlap, and a test on each side fails if they
+  ever do again. Nothing changes for anyone using the app.
+
 - **Two more free tools: stamp duty and EMI.** `/tools/stamp-duty`
   works out Karnataka stamp duty, surcharge, cess and the registration
   fee on the higher of the sale price and the guidance value, with the
