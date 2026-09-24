@@ -332,6 +332,13 @@ describe('retired models', () => {
     ]);
   });
 
+  it('[AIK-007] moves to the next key when every model is retired for one key', async () => {
+    modelFailures['env-a:gemini-2.5-flash'] = retired;
+    modelFailures['env-a:gemini-3.5-flash'] = retired;
+    expect(await generateText('hi')).toBe('ok from env-b');
+    expect(seen).toEqual(['env-a', 'env-a', 'env-b']);
+  });
+
   it('[AIK-007] retires a model for that key only', () => {
     const [a, b] = parseEnvKeys('a=key-a, b=key-b', (i) => `k${i}`, 'general');
     const chain = ['gemini-2.5-flash', 'gemini-3.5-flash'];

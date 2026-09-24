@@ -332,6 +332,10 @@ export async function withGeminiKeys<T>(
       return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      if (isRetiredModelMessage(message)) {
+        lastError = err;
+        continue;
+      }
       const failure = classifyGeminiKeyFailure(message);
       if (!failure) throw err;
       markKeyFailure(entry, failure, message);
