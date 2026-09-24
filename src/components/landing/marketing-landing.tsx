@@ -164,7 +164,9 @@ export function MarketingLanding() {
           <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-300">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#demo" className="hover:text-white transition-colors">Interactive Demo</a>
-            <Link href={TOOLS_PATH} className="hover:text-white transition-colors">Free Tools</Link>
+            {isRealEstate && (
+              <Link href={TOOLS_PATH} className="hover:text-white transition-colors">Free Tools</Link>
+            )}
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
             <a href="#get-started" className="hover:text-white transition-colors">Talk to us</a>
@@ -886,7 +888,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
           </div>
         </section>
 
-        {/* Free public tools — organic entry points that convert */}
+        {isRealEstate && (
         <section id="tools" className="py-20 border-t border-slate-900">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
@@ -931,6 +933,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
             </div>
           </div>
         </section>
+        )}
 
         {/* Pricing Plan Cards */}
         <section id="pricing" className="py-20 bg-slate-900/30 border-t border-slate-900">
@@ -1100,7 +1103,9 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
             &copy; {new Date().getFullYear()} ConvoReal. All rights reserved.
           </p>
           <div className="flex items-center gap-6 font-semibold">
-            <Link href={TOOLS_PATH} className="hover:text-slate-300">Free Tools</Link>
+            {isRealEstate && (
+              <Link href={TOOLS_PATH} className="hover:text-slate-300">Free Tools</Link>
+            )}
             <Link href="/help" className="hover:text-slate-300">Help</Link>
             <a href="/privacy" className="hover:text-slate-300">Privacy Policy</a>
             <a href="/terms" className="hover:text-slate-300">Terms of Service</a>

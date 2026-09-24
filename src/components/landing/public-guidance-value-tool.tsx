@@ -28,6 +28,13 @@ const INPUT_CLASS =
   'w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-indigo-500 focus:outline-none';
 const LABEL_CLASS = 'mb-1.5 block text-xs font-semibold text-slate-300';
 
+const AREA_KEYS = new Set<keyof ScheduleForm>([
+  'land_value',
+  'land_unit',
+  'built_value',
+  'built_unit',
+]);
+
 const FIELDS = [
   ['locality', 'Area / layout / block', 'e.g. Koramangala 6th Block'],
   ['road', 'Road / street', 'e.g. 18th Main'],
@@ -66,8 +73,13 @@ export function PublicGuidanceValueTool() {
     ? computeValuation(schedule, selected.rate, options)
     : null;
 
-  const set = (key: keyof ScheduleForm) => (value: string) =>
+  const set = (key: keyof ScheduleForm) => (value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
+    if (!AREA_KEYS.has(key)) {
+      setResult(null);
+      setSelectedId(null);
+    }
+  };
 
   const search = async (event: React.FormEvent) => {
     event.preventDefault();

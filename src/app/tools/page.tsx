@@ -9,6 +9,7 @@ import {
   PROCESS_GUIDES_PATH,
   PUBLIC_TOOLS,
   TOOLS_PATH,
+  durationText,
 } from '@/lib/marketing/public-tools';
 import {
   breadcrumbJsonLd,
@@ -111,7 +112,7 @@ export default function ToolsPage() {
                 >
                   <span>{guide.title}</span>
                   <span className="shrink-0 text-xs font-bold text-slate-500">
-                    ~{guide.totalDays} days
+                    {durationText(guide)}
                   </span>
                 </Link>
               </li>

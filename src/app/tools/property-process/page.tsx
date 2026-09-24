@@ -8,6 +8,7 @@ import {
   PROCESS_GUIDES,
   PROCESS_GUIDES_PATH,
   TOOLS_PATH,
+  durationText,
 } from '@/lib/marketing/public-tools';
 import {
   breadcrumbJsonLd,
@@ -103,7 +104,7 @@ export default function ProcessGuidesPage() {
               </p>
               <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-800 pt-4 text-xs font-semibold text-slate-500">
                 <span className="inline-flex items-center gap-1.5">
-                  <Clock className="size-3.5" /> ~{guide.totalDays} days
+                  <Clock className="size-3.5" /> {durationText(guide)}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Landmark className="size-3.5" /> {guide.stages.length} stages

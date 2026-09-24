@@ -81,17 +81,44 @@ export interface ProcessGuide {
   title: string;
   description: string;
   stages: LiaisonWorkflowStage[];
-  totalDays: number;
+  totalDays: number | null;
+  datedDays: number;
+  undatedStages: string[];
   authorities: string[];
   faq: FaqEntry[];
+}
+
+export interface ProcessDuration {
+  totalDays: number | null;
+  datedDays: number;
+  undatedStages: string[];
 }
 
 export function processSlug(key: string): string {
   return key.replace(/_/g, '-');
 }
 
-function totalDays(stages: LiaisonWorkflowStage[]): number {
-  return stages.reduce((sum, stage) => sum + (stage.duration_days ?? 0), 0);
+export function processDuration(
+  stages: LiaisonWorkflowStage[]
+): ProcessDuration {
+  const datedDays = stages.reduce(
+    (sum, stage) => sum + (stage.duration_days ?? 0),
+    0
+  );
+  const undatedStages = stages
+    .filter((stage) => stage.duration_days === null)
+    .map((stage) => stage.name);
+  return {
+    totalDays: undatedStages.length ? null : datedDays,
+    datedDays,
+    undatedStages,
+  };
+}
+
+export function durationText(duration: ProcessDuration): string {
+  return duration.totalDays === null
+    ? `at least ${dayText(duration.datedDays)}`
+    : `about ${dayText(duration.totalDays)}`;
 }
 
 function authoritiesOf(stages: LiaisonWorkflowStage[]): string[] {
@@ -109,7 +136,7 @@ function dayText(days: number): string {
 }
 
 function processFaq(title: string, stages: LiaisonWorkflowStage[]): FaqEntry[] {
-  const days = totalDays(stages);
+  const duration = processDuration(stages);
   const authorities = authoritiesOf(stages);
   const longest = stages.reduce<LiaisonWorkflowStage | null>(
     (best, stage) =>
@@ -119,9 +146,13 @@ function processFaq(title: string, stages: LiaisonWorkflowStage[]): FaqEntry[] {
   const faq: FaqEntry[] = [
     {
       question: `How long does ${title.toLowerCase()} take?`,
-      answer: `About ${dayText(days)} across ${stages.length} stages when the documents are in order${
+      answer: `${durationText(duration)[0].toUpperCase()}${durationText(duration).slice(1)} across ${stages.length} stages when the documents are in order${
         longest
-          ? `; the longest stage is ${longest.name.toLowerCase()} at about ${dayText(longest.duration_days ?? 0)}`
+          ? `; the longest dated stage is ${longest.name.toLowerCase()} at about ${dayText(longest.duration_days ?? 0)}`
+          : ''
+      }${
+        duration.undatedStages.length
+          ? `. ${duration.undatedStages.join(' and ')} ${duration.undatedStages.length === 1 ? 'has' : 'have'} no fixed duration, so the total depends on when that stage can happen`
           : ''
       }. Durations are indicative and depend on the office and the file.`,
     },
@@ -148,7 +179,7 @@ export const PROCESS_GUIDES: ProcessGuide[] = WORKFLOW_TEMPLATES.map(
     title: template.service_name,
     description: template.description,
     stages: template.stages,
-    totalDays: totalDays(template.stages),
+    ...processDuration(template.stages),
     authorities: authoritiesOf(template.stages),
     faq: processFaq(template.service_name, template.stages),
   })

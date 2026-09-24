@@ -10,6 +10,7 @@ import {
   PROCESS_GUIDES,
   PROCESS_GUIDES_PATH,
   TOOLS_PATH,
+  durationText,
   findProcessGuide,
 } from '@/lib/marketing/public-tools';
 import {
@@ -36,7 +37,7 @@ export async function generateMetadata({
   const guide = findProcessGuide((await params).slug);
   if (!guide) return {};
   const url = `${fallbackSiteUrl()}${PROCESS_GUIDES_PATH}/${guide.slug}`;
-  const description = `${guide.description} ${guide.stages.length} stages, about ${guide.totalDays} days.`;
+  const description = `${guide.description} ${guide.stages.length} stages, ${durationText(guide)}.`;
   return {
     title: `${guide.title}: stages, authority and time`,
     description,
@@ -66,7 +67,7 @@ export default async function ProcessGuidePage({ params }: PageProps) {
           name: guide.title,
           description: guide.description,
           url,
-          totalDays: guide.totalDays,
+          totalDays: guide.totalDays ?? 0,
           steps: guide.stages.map((stage) => ({
             name: stage.name,
             text: [
@@ -120,9 +121,7 @@ export default async function ProcessGuidePage({ params }: PageProps) {
             <div className="flex items-center gap-2">
               <Clock className="size-4 text-indigo-300" />
               <dt className="text-slate-500">Typical time</dt>
-              <dd className="font-bold text-white">
-                about {guide.totalDays} days
-              </dd>
+              <dd className="font-bold text-white">{durationText(guide)}</dd>
             </div>
             <div className="flex items-center gap-2">
               <Landmark className="size-4 text-indigo-300" />

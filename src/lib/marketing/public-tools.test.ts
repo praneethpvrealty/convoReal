@@ -8,7 +8,9 @@ import {
   PROCESS_GUIDES_PATH,
   PUBLIC_TOOLS,
   TOOLS_PATH,
+  durationText,
   findProcessGuide,
+  processDuration,
   publicToolPaths,
 } from './public-tools';
 
@@ -44,10 +46,36 @@ describe('process guides', () => {
       'What are the stages of khata transfer after property purchase?',
       'Who handles khata transfer after property purchase?',
     ]);
-    expect(guide!.faq[0].answer).toContain(`${guide!.totalDays} days`);
+    expect(guide!.faq[0].answer).toContain(`About ${guide!.totalDays} days`);
     for (const stage of guide!.stages) {
       expect(guide!.faq[1].answer).toContain(stage.name);
     }
+  });
+});
+
+describe('process duration', () => {
+  it('[PUB-002] never sums an undated stage into a total', () => {
+    const guide = findProcessGuide('builder-reassignment');
+    expect(guide).not.toBeNull();
+    expect(guide!.undatedStages).toEqual([
+      'Sale deed registration at possession',
+    ]);
+    expect(guide!.totalDays).toBeNull();
+    expect(durationText(guide!)).toBe(`at least ${guide!.datedDays} days`);
+    expect(guide!.faq[0].answer).toContain(`At least ${guide!.datedDays} days`);
+    expect(guide!.faq[0].answer).toContain(
+      'Sale deed registration at possession has no fixed duration'
+    );
+
+    expect(
+      processDuration([
+        { name: 'A', authority: null, duration_days: 2, description: null },
+        { name: 'B', authority: null, duration_days: 5, description: null },
+      ])
+    ).toEqual({ totalDays: 7, datedDays: 7, undatedStages: [] });
+    expect(
+      durationText({ totalDays: 1, datedDays: 1, undatedStages: [] })
+    ).toBe('about 1 day');
   });
 });
 

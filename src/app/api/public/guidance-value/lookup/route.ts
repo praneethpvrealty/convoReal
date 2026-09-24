@@ -1,18 +1,12 @@
 import { NextResponse } from 'next/server';
 
-import { parseValuationOptions } from '@/lib/guidance-value/schedule-fields';
-import { sanitiseSchedule } from '@/lib/guidance-value/schedule-fields';
+import {
+  parseValuationOptions,
+  sanitiseSchedule,
+} from '@/lib/guidance-value/schedule-fields';
 import { lookupGuidanceValue } from '@/lib/guidance-value/server';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-
-// POST /api/public/guidance-value/lookup
-//
-// The marketing-site guidance value finder. Takes a typed schedule as
-// JSON and matches it against the imported notifications — a database
-// search with no sign-in, no Gemini call and no credit burn. Reading a
-// sale deed schedule stays behind sign-in on /api/guidance-value/lookup,
-// so a multipart body is refused here rather than read.
 
 const IP_LIMIT = { limit: 20, windowMs: 60_000 };
 const GLOBAL_LIMIT = { limit: 300, windowMs: 60_000 };
