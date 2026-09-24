@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **Fill a listing from its e-Khata.** On the web property form (Property
+  Documents → Read e-Khata) and in the mobile property editor, upload a
+  Karnataka e-Khata PDF or photo and ConvoReal proposes the address, city,
+  map pin, site area and dimensions, built-up area, year built, ePID and
+  khata form (A or B). Tick what to copy — values that would overwrite
+  something already entered start unticked — and the owner, property tax,
+  liabilities and boundaries are shown for reference. The e-Khata is kept
+  with the listing's documents. It costs the same credits as reading a
+  listing and is refunded when the file cannot be read. Listings gain
+  ePID, Khata and Year built fields on both surfaces. **Migration
+  required:** `20260924142702_property_khata_fields.sql`.
 - **Expected close on the Records index.** Each record shows its
   expected close date, marked when it is within a week or has passed,
   and Closed with the actual date once the deal is done, on web and

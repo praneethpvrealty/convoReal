@@ -2148,6 +2148,61 @@
           ]
         }
       ]
+    },
+    {
+      "id": "e-khata",
+      "name": "e-Khata reading — fill a listing from its Karnataka e-Khata",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "EKH-001",
+          "rule": "An e-Khata (PDF or photo, up to 10 MB) uploaded to the account's property-documents folder is read by POST /api/properties/e-khata for the listing_parse credit price, burned before the read and refunded when the read fails or the file is not an e-Khata. Only fields that validate survive: a 6-20 digit ePID, Form A or B, coordinates inside India (swapped when the form prints longitude first), feet dimensions, positive areas, construction years no later than next year, and owner names with every token carrying a digit (Aadhaar, PAN, masked IDs) stripped. A construction year is never proposed for a plot.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/e-khata-fields.test.ts",
+              "case": "[EKH-001]"
+            }
+          ],
+          "guards": ["src/app/api/properties/e-khata/route.ts"]
+        },
+        {
+          "id": "EKH-002",
+          "rule": "Reading proposes and never writes listing fields: the web form and the mobile editor show every proposed change (address, city, map pin, site area, dimensions, built-up area, year built, ePID, khata form) with values that would replace something already entered unticked, skip values that already match, never offer land fields on an apartment or built-up area on a plot, and list owner, tax, liabilities, boundaries and document number for reference only. Nothing is saved until the agent saves the listing.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/e-khata-fields.test.ts",
+              "case": "[EKH-002]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[EKH-002]"
+            }
+          ]
+        },
+        {
+          "id": "EKH-003",
+          "rule": "A file named or captioned as an e-Khata (e-Khata, e-Khatha, Khata, ePID) is recognised as one, and a brochure, sale deed or floor plan is not.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/e-khata-fields.test.ts",
+              "case": "[EKH-003]"
+            }
+          ]
+        },
+        {
+          "id": "EKH-004",
+          "rule": "properties.khata_epid (6-20 digits), khata_form ('A' or 'B') and year_built (1800-2100) are editable on web and mobile and normalised by both property routes, so an invalid value is cleared rather than stored. The read e-Khata is kept with the listing: the web form adds it to the document list, and the mobile editor has the server attach it to the listing's documents, and a read whose file cannot be attached fails and is refunded rather than reporting success.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/e-khata-fields.test.ts",
+              "case": "[EKH-004]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260924142702_property_khata_fields.sql"
+          ]
+        }
+      ]
     }
   ]
 }

@@ -29,6 +29,16 @@ import { formatInr } from '@/lib/format';
 import { propertyEditKeyboardBehavior } from '@/lib/property-edit-keyboard';
 import { TagsField } from '@/components/tags-field';
 import { apiFetch, ApiError } from '@/lib/api';
+import { EKhataReviewSheet } from '@/components/e-khata-review-sheet';
+import { EKhataPickError, pickAndReadEKhata } from '@/lib/e-khata-read';
+import {
+  eKhataChanges,
+  eKhataNotes,
+  type EKhataChange,
+  type EKhataChangeKey,
+  type EKhataFields,
+} from '@/lib/e-khata-fields';
+import { useAppConfig } from '@/lib/use-app-config';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import {
@@ -108,6 +118,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
         'video_url, video_status, video_generated_at, youtube_video_id, youtube_status, youtube_error, ' +
         'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
         'dimensions, road_width, road_width_unit, facing_direction, google_map_link, showcase_visibility, features, nearby_highlights, tags, ' +
+        'latitude, longitude, khata_epid, khata_form, year_built, ' +
         'floor_tenancies, floor_plans, owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
     )
     .eq('id', id)
@@ -164,7 +175,7 @@ function EditForm({ property }: { property: Property }) {
   const [bedrooms, setBedrooms] = useState(property.bedrooms ? String(property.bedrooms) : '');
   const [bathrooms, setBathrooms] = useState(property.bathrooms ? String(property.bathrooms) : '');
   const [area, setArea] = useState(property.area_sqft ? String(property.area_sqft) : '');
-  const areaUnit = property.area_unit || 'Sq.Ft.';
+  const [areaUnit, setAreaUnit] = useState(property.area_unit || 'Sq.Ft.');
   const [landArea, setLandArea] = useState(property.land_area ? String(property.land_area) : '');
   const [landAreaUnit, setLandAreaUnit] = useState(property.land_area_unit || 'Sq.Ft.');
   const [superBuilt, setSuperBuilt] = useState(
@@ -183,6 +194,18 @@ function EditForm({ property }: { property: Property }) {
   );
   const [roadWidthUnit, setRoadWidthUnit] = useState(property.road_width_unit || 'Feet');
   const [facing, setFacing] = useState(property.facing_direction ?? '');
+  const [khataEpid, setKhataEpid] = useState(property.khata_epid ?? '');
+  const [khataForm, setKhataForm] = useState<string>(property.khata_form ?? '');
+  const [yearBuilt, setYearBuilt] = useState(
+    property.year_built != null ? String(property.year_built) : ''
+  );
+  const [pin, setPin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [readingKhata, setReadingKhata] = useState(false);
+  const khataCost = useAppConfig()?.ai_costs?.listing_parse;
+  const [khataReview, setKhataReview] = useState<{
+    fields: EKhataFields;
+    changes: EKhataChange[];
+  } | null>(null);
   const [location, setLocation] = useState(property.location ?? '');
   const [sublocality, setSublocality] = useState(property.sublocality ?? '');
   const [city, setCity] = useState(property.city ?? '');
@@ -271,6 +294,74 @@ function EditForm({ property }: { property: Property }) {
     }
   }
 
+  async function readEKhata() {
+    if (readingKhata) return;
+    setReadingKhata(true);
+    haptic.tap();
+    try {
+      const fields = await pickAndReadEKhata(property.id);
+      if (!fields) return;
+      queryClient.invalidateQueries({ queryKey: ['property', property.id] });
+      setKhataReview({
+        fields,
+        changes: eKhataChanges(
+          fields,
+          {
+            address: location,
+            city,
+            latitude: pin?.latitude ?? property.latitude ?? null,
+            longitude: pin?.longitude ?? property.longitude ?? null,
+            land_area: landArea,
+            dimensions,
+            built_up_area: area,
+            year_built: yearBuilt,
+            khata_epid: khataEpid,
+            khata_form: khataForm,
+          },
+          { isApartment, isLand }
+        ),
+      });
+      setError(null);
+    } catch (e) {
+      haptic.warn();
+      setError(
+        e instanceof EKhataPickError
+          ? e.message
+          : friendlyError(e instanceof ApiError ? e.message : 'Could not read this e-Khata.')
+      );
+    } finally {
+      setReadingKhata(false);
+    }
+  }
+
+  function applyEKhata(keys: EKhataChangeKey[]) {
+    const fields = khataReview?.fields;
+    if (!fields) return;
+    for (const key of keys) {
+      if (key === 'address' && fields.address) setLocation(fields.address);
+      if (key === 'city') setCity('Bengaluru');
+      if (key === 'pin' && fields.latitude !== undefined && fields.longitude !== undefined) {
+        setPin({ latitude: fields.latitude, longitude: fields.longitude });
+      }
+      if (key === 'land_area' && fields.site_area_sqft) {
+        setLandArea(String(fields.site_area_sqft));
+        setLandAreaUnit('Sq.Ft.');
+      }
+      if (key === 'dimensions' && fields.site_frontage_ft && fields.site_depth_ft) {
+        setDimensions(`${fields.site_frontage_ft}x${fields.site_depth_ft}`);
+      }
+      if (key === 'built_up_area' && fields.built_up_sqft) {
+        setArea(String(fields.built_up_sqft));
+        setAreaUnit('Sq.Ft.');
+      }
+      if (key === 'year_built' && fields.year_built) setYearBuilt(String(fields.year_built));
+      if (key === 'khata_epid' && fields.epid) setKhataEpid(fields.epid);
+      if (key === 'khata_form' && fields.khata_form) setKhataForm(fields.khata_form);
+    }
+    haptic.success();
+    setKhataReview(null);
+  }
+
   const tenancyTotal = tenancies.reduce((sum, t) => sum + (num(t.monthly_rent) ?? 0), 0);
   const advanceTotal = tenancies.reduce((sum, t) => sum + (num(t.advance) ?? 0), 0);
 
@@ -307,6 +398,9 @@ function EditForm({ property }: { property: Property }) {
       road_width: isApartment ? null : num(roadWidth),
       road_width_unit: isApartment ? null : roadWidthUnit || 'Feet',
       facing_direction: facing || null,
+      khata_epid: khataEpid.trim() || null,
+      khata_form: khataForm || null,
+      year_built: isLand ? null : num(yearBuilt),
       location: location.trim() || null,
       sublocality: sublocality.trim() || null,
       city: city.trim() || null,
@@ -322,6 +416,10 @@ function EditForm({ property }: { property: Property }) {
       // value if the status moves away from Sold.
       sold_price: status === 'Sold' ? num(soldPrice) : null,
     };
+    if (pin) {
+      body.latitude = pin.latitude;
+      body.longitude = pin.longitude;
+    }
     if (isRent) {
       body.rent_per_month = num(rent);
       body.maintenance = num(maintenance);
@@ -616,6 +714,38 @@ function EditForm({ property }: { property: Property }) {
             />
           ))}
         </View>
+
+        <SectionLabel text="e-Khata" />
+        <PrimaryButton
+          label={khataCost ? `Read e-Khata · ${khataCost} cr` : 'Read e-Khata'}
+          icon="document-text-outline"
+          busy={readingKhata}
+          onPress={readEKhata}
+        />
+        <TextField
+          label="ePID"
+          value={khataEpid}
+          onChangeText={setKhataEpid}
+          keyboardType="number-pad"
+        />
+        <View style={styles.chips}>
+          {(['A', 'B'] as const).map((form) => (
+            <FilterChip
+              key={form}
+              label={`Form-${form}`}
+              active={khataForm === form}
+              onPress={() => setKhataForm(khataForm === form ? '' : form)}
+            />
+          ))}
+        </View>
+        {!isLand ? (
+          <TextField
+            label="Year built"
+            value={yearBuilt}
+            onChangeText={setYearBuilt}
+            keyboardType="number-pad"
+          />
+        ) : null}
 
         <SectionLabel text="Location" />
         <TextField label="Address / area" value={location} onChangeText={setLocation} />
@@ -928,6 +1058,14 @@ function EditForm({ property }: { property: Property }) {
           Documents and deal terms are still edited in the web app's full form.
         </Text>
       </ScrollView>
+
+      <EKhataReviewSheet
+        visible={khataReview !== null}
+        changes={khataReview?.changes ?? []}
+        notes={khataReview ? eKhataNotes(khataReview.fields) : []}
+        onApply={applyEKhata}
+        onClose={() => setKhataReview(null)}
+      />
 
       <OptionSheet
         visible={sheet === 'type'}
