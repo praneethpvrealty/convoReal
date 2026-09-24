@@ -50,6 +50,7 @@ import {
   LayoutGrid,
   Rows3,
   LocateFixed,
+  Users,
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyMapView } from '@/components/inventory/property-map-view';
@@ -81,6 +82,7 @@ import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialo
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { PortalPostDialog } from '@/components/inventory/portal-post-dialog';
 import { PortalSyncDialog } from '@/components/inventory/portal-sync-dialog';
+import { ImportOwnerLeadsDialog } from '@/components/inventory/import-owner-leads-dialog';
 import { PortalDriftPanel } from '@/components/inventory/portal-drift-panel';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import type { PortalBadge } from '@/components/inventory/property-list';
@@ -216,6 +218,7 @@ export default function InventoryPage() {
   const [showcaseShareOpen, setShowcaseShareOpen] = useState(false);
   const [portalOpen, setPortalOpen] = useState(false);
   const [portalSyncOpen, setPortalSyncOpen] = useState(false);
+  const [importOwnerLeadsOpen, setImportOwnerLeadsOpen] = useState(false);
   const [portalProperty, setPortalProperty] = useState<Property | null>(null);
 
   const { accountId } = useAuth();
@@ -1072,13 +1075,23 @@ export default function InventoryPage() {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {canEdit && (
-            <Button
-              onClick={() => setPortalSyncOpen(true)}
-              variant="outline"
-              className="flex items-center gap-2 border-slate-800 bg-slate-900 text-sm font-semibold text-slate-200 shadow hover:bg-slate-800"
-            >
-              <RefreshCw className="text-primary size-4" /> Portal Sync
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setImportOwnerLeadsOpen(true)}
+                className="h-9 w-full gap-2 border-slate-700 bg-slate-800 px-3 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-slate-100 sm:w-auto"
+              >
+                <Users className="size-4" /> Import Owner Leads
+              </Button>
+              <Button
+                onClick={() => setPortalSyncOpen(true)}
+                variant="outline"
+                className="flex items-center gap-2 border-slate-800 bg-slate-900 text-sm font-semibold text-slate-200 shadow hover:bg-slate-800"
+              >
+                <RefreshCw className="text-primary size-4" /> Portal Sync
+              </Button>
+            </div>
           )}
           <Button
             onClick={() => setShowcaseShareOpen(true)}
@@ -1835,9 +1848,13 @@ export default function InventoryPage() {
       <PortalSyncDialog
         open={portalSyncOpen}
         onOpenChange={setPortalSyncOpen}
-        onImported={() => {
-          refreshInventory();
-        }}
+        onImported={refreshInventory}
+      />
+
+      <ImportOwnerLeadsDialog
+        open={importOwnerLeadsOpen}
+        onOpenChange={setImportOwnerLeadsOpen}
+        onImported={refreshInventory}
       />
 
       {/* Share Showcase Portal Dialog */}

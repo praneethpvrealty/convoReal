@@ -24,6 +24,8 @@
     'CONVOREAL_HARVEST_PULL',
     'CONVOREAL_HARVEST_CLEAR',
     'CONVOREAL_PORTAL_PAYLOAD',
+    'CONVOREAL_OWNER_LEADS_PULL',
+    'CONVOREAL_OWNER_LEADS_CLEAR',
   ]);
 
   const reply = (message) => window.postMessage({ ...message, source: SOURCE }, window.location.origin);
@@ -79,6 +81,22 @@
         chrome.storage.local.set({ convorealHarvest: store }, () => {
           reply({ type: 'CONVOREAL_HARVEST_CLEARED', portal: data.portal });
         });
+      });
+      return;
+    }
+
+    if (data.type === 'CONVOREAL_OWNER_LEADS_PULL') {
+      chrome.storage.local.get('convorealOwnerLeads', ({ convorealOwnerLeads }) => {
+        const store = convorealOwnerLeads || {};
+        const leads = Object.values(store);
+        reply({ type: 'CONVOREAL_OWNER_LEADS_DATA', leads });
+      });
+      return;
+    }
+
+    if (data.type === 'CONVOREAL_OWNER_LEADS_CLEAR') {
+      chrome.storage.local.remove('convorealOwnerLeads', () => {
+        reply({ type: 'CONVOREAL_OWNER_LEADS_CLEARED' });
       });
       return;
     }
