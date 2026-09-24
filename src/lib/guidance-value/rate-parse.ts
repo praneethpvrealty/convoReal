@@ -242,7 +242,7 @@ export async function parseRatePages(input: {
     {
       feature: 'guidance_value_source_parse',
       tier: rateParseTier(),
-      apiKey: process.env.GEMINI_IMPORT_API_KEY,
+      keyScope: 'import',
     }
   );
   const parsed = sanitiseRateRows(

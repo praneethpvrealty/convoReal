@@ -423,9 +423,9 @@ Copy `.env.local.example` to `.env.local` and fill in the required values. The a
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `REDIS_URL`                                                               | Redis connection string for webhook queueing and DLQ. Format: `redis://...` or `rediss://...`                       |
 | `WHATSAPP_VERIFY_TOKEN`                                                   | Static Meta webhook verification token (used by Go ingress; falls back to DB-backed verification)                   |
-| `GEMINI_API_KEY`                                                          | Google Gemini API key for AI features                                                                               |
-| `GEMINI_IMPORT_API_KEY`                                                   | Separate Gemini key for guidance value PDF imports                                                                  |
-| `GEMINI_FALLBACK_API_KEYS`                                                | Comma-separated Gemini keys tried when one is exhausted                                                             |
+| `GEMINI_API_KEY`                                                          | Gemini key used when no key is managed in Admin → AI keys                                                           |
+| `GEMINI_IMPORT_API_KEY`                                                   | Env fallback for import-scoped keys (Admin → AI keys)                                                               |
+| `GEMINI_FALLBACK_API_KEYS`                                                | Env fallback spares, comma-separated, `label=key` allowed                                                           |
 | `GEMINI_IMPORT_TIER`                                                      | `standard` to read guidance PDFs on full Flash (default lite)                                                       |
 | `GOOGLE_MAPS_API_KEY`                                                     | Google Places / Maps API key (server-side)                                                                          |
 | `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`                                     | Referrer-restricted Maps JavaScript API key for the Inventory map view; without it the map degrades to a hint panel |
@@ -541,7 +541,7 @@ Plus:
 | Marketing    | `broadcasts`, `broadcast_recipients`, `contact_property_inquiries`, `showcase_events`, `showcase_share_links`, `public_listing_submissions`                                                                                             |
 | Lead sources | `email_sync_configs`, `email_sync_logs`, `portal_accounts`, `portal_import_items`, `ad_campaigns`, `meta_ads_config`, `ctwa_referrals`                                                                                                  |
 | Billing      | `subscriptions`, `subscription_events`, `credit_wallets`, `credit_transactions`, `credit_packages`, `credit_package_prices`, `razorpay_orders`, `referrals`, `marketplace_items`, `marketplace_item_nodes`, `account_marketplace_items` |
-| Platform     | `notifications`, `notification_devices`, `notification_preferences`, `copilot_qa_cache`, `ai_call_log`, `market_stats`, `image_cleanup_log`, `youtube_config`, `update_sessions`                                                        |
+| Platform     | `notifications`, `notification_devices`, `notification_preferences`, `copilot_qa_cache`, `ai_call_log`, `ai_provider_keys`, `ai_key_topups`, `market_stats`, `image_cleanup_log`, `youtube_config`, `update_sessions`                                                        |
 
 ### 7.4 RLS and multi-tenancy
 
