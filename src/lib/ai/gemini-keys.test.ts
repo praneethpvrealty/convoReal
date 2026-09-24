@@ -48,13 +48,13 @@ describe('Gemini key pool', () => {
     expect(seen).toEqual(['key-a', 'key-b']);
   });
 
-  it('[GVL-010] tries a key that ran out last on the following calls', async () => {
+  it('[GVL-010] sets a key that ran out aside on the following calls', async () => {
     failures['key-a'] = 'Your prepayment credits are depleted.';
     await generateText('hi');
     seen.length = 0;
     expect(await generateText('again')).toBe('ok from key-b');
     expect(seen).toEqual(['key-b']);
-    expect(geminiKeyPool()).toEqual(['key-b', 'key-c', 'key-a']);
+    expect(geminiKeyPool()).toEqual(['key-b', 'key-c']);
   });
 
   it('does not switch keys for an ordinary model error', async () => {
@@ -68,6 +68,16 @@ describe('Gemini key pool', () => {
     failures['key-b'] = 'API key not valid. Please pass a valid API key.';
     failures['key-c'] = 'Your prepayment credits are depleted.';
     await expect(generateText('hi')).rejects.toThrow(/credits are depleted/);
+  });
+
+  it('[GVL-010] never calls a resting key while every key is set aside', async () => {
+    failures['key-a'] = 'Your prepayment credits are depleted.';
+    failures['key-b'] = 'Resource has been exhausted (e.g. check quota).';
+    failures['key-c'] = 'Your prepayment credits are depleted.';
+    await expect(generateText('hi')).rejects.toThrow();
+    seen.length = 0;
+    await expect(generateText('again')).rejects.toThrow(/exhausted/);
+    expect(seen).toEqual([]);
   });
 
   it('uses only the override keys for a feature billed separately', () => {

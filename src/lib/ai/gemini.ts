@@ -74,7 +74,7 @@ const KEY_COOLDOWN_MS: Record<GeminiKeyFailure, number> = {
   exhausted: 10 * 60_000,
   rate_limited: 60_000,
 };
-const keyCooldowns = new Map<string, number>();
+const keyCooldowns = new Map<string, { until: number; message: string }>();
 
 function splitKeys(value: string | undefined): string[] {
   return (value ?? '')
@@ -90,11 +90,26 @@ export function geminiKeyPool(override?: string): string[] {
         ...splitKeys(process.env.GEMINI_API_KEY),
         ...splitKeys(process.env.GEMINI_FALLBACK_API_KEYS),
       ];
-  const unique = [...new Set(keys)];
   const now = Date.now();
-  const ready = unique.filter((key) => (keyCooldowns.get(key) ?? 0) <= now);
-  const cooling = unique.filter((key) => (keyCooldowns.get(key) ?? 0) > now);
-  return [...ready, ...cooling];
+  return [...new Set(keys)].filter(
+    (key) => (keyCooldowns.get(key)?.until ?? 0) <= now
+  );
+}
+
+function soonestCooldownMessage(override?: string): string | null {
+  const keys = splitKeys(override).length
+    ? splitKeys(override)
+    : [
+        ...splitKeys(process.env.GEMINI_API_KEY),
+        ...splitKeys(process.env.GEMINI_FALLBACK_API_KEYS),
+      ];
+  const cooling = keys
+    .map((key) => keyCooldowns.get(key))
+    .filter((entry): entry is { until: number; message: string } =>
+      Boolean(entry)
+    )
+    .sort((a, b) => a.until - b.until);
+  return cooling[0]?.message ?? null;
 }
 
 export function resetGeminiKeyCooldowns(): void {
@@ -108,7 +123,8 @@ async function withGeminiKeys<T>(
   const keys = geminiKeyPool(override);
   if (!keys.length) {
     throw new Error(
-      'GEMINI_API_KEY is not configured. Please add it to your .env.local file.'
+      soonestCooldownMessage(override) ??
+        'GEMINI_API_KEY is not configured. Please add it to your .env.local file.'
     );
   }
   let lastError: unknown;
@@ -121,7 +137,10 @@ async function withGeminiKeys<T>(
       const message = err instanceof Error ? err.message : String(err);
       const failure = classifyGeminiKeyFailure(message);
       if (!failure) throw err;
-      keyCooldowns.set(apiKey, Date.now() + KEY_COOLDOWN_MS[failure]);
+      keyCooldowns.set(apiKey, {
+        until: Date.now() + KEY_COOLDOWN_MS[failure],
+        message,
+      });
       lastError = err;
       if (index < keys.length - 1) {
         console.warn(
