@@ -167,7 +167,11 @@ import {
 } from '@/lib/whatsapp/message-state';
 import { JOURNEY_LIFECYCLE_STATUSES } from '@/lib/journey/overview-state';
 import { CONVERSATION_CLOSE_REASONS } from '@/lib/conversations/closure';
-import { LANGUAGE_CODES, SUPPORTED_LANGUAGES } from '@/lib/languages';
+import {
+  DEFAULT_LANGUAGE,
+  LANGUAGE_CODES,
+  SUPPORTED_LANGUAGES,
+} from '@/lib/languages';
 
 function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), 'mobile', relativePath), 'utf8');
@@ -2786,6 +2790,22 @@ describe('contact language is one tap from the record on both surfaces', () => {
     expect(mirrored).toEqual(LANGUAGE_CODES);
   });
 
+  it('[CLG-002] mobile mirrors the default language and every Meta locale code', () => {
+    const source = mobileSource('lib/languages.ts');
+    expect(source).toContain(
+      `export const DEFAULT_LANGUAGE: LanguageCode = '${DEFAULT_LANGUAGE}';`
+    );
+    for (const code of LANGUAGE_CODES) {
+      expect(source).toContain(
+        `  ${code}: '${SUPPORTED_LANGUAGES[code].meta}',`
+      );
+    }
+    const metaCodes = [
+      ...source.matchAll(/^  ([a-z]{2}): '[a-zA-Z_]+',$/gm),
+    ].map((m) => m[1]);
+    expect(metaCodes).toEqual(LANGUAGE_CODES);
+  });
+
   it('[CLG-002] both surfaces change the language through the shared route with a follow-the-account-default choice', () => {
     const web = webSource('components/contacts/contact-detail-view.tsx');
     const mobile = mobileSource('app/(app)/contact/[id].tsx');
@@ -2872,7 +2892,9 @@ describe('mobile deal document upload mirrors the web one', () => {
   it('[INV-008] names the file type on the upload, which storage requires', () => {
     // A PUT that reaches Supabase without a usable content-type is
     // answered 400 invalid_mime_type, whatever the bucket allows.
-    expect(mobileSource('lib/api.ts')).toContain("'content-type': opts.contentType");
+    expect(mobileSource('lib/api.ts')).toContain(
+      "'content-type': opts.contentType"
+    );
     expect(web).toContain("'content-type': mime_type");
   });
 });
