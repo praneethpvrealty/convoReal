@@ -893,7 +893,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                   Tools buyers and agents search for every day
                 </h2>
                 <p className="mt-4 text-slate-400 text-sm sm:text-base font-medium">
-                  Guidance value, stamp duty, EMI and process guides, the engines that run inside {BRANDING.name}, open to everyone. Try them, then bring them into your workspace.
+                  Guidance value, stamp duty, EMI, rental yield and process guides, the engines that run inside {BRANDING.name}, open to everyone. Try them, then bring them into your workspace.
                 </p>
               </div>
               <a

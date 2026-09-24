@@ -1,4 +1,4 @@
-import { Calculator, Landmark, Receipt, Route } from 'lucide-react';
+import { Calculator, Landmark, Percent, Receipt, Route } from 'lucide-react';
 
 import type { PublicToolIcon } from '@/lib/marketing/public-tools';
 
@@ -12,6 +12,7 @@ const ICONS = {
   route: Route,
   receipt: Receipt,
   calculator: Calculator,
+  percent: Percent,
 } as const;
 
 export function ToolIcon({ icon, className }: ToolIconProps) {
