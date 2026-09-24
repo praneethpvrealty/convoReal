@@ -118,10 +118,11 @@ export function RentalYieldCalculator() {
               <input
                 id="ry-vacancy"
                 className={INPUT_CLASS}
-                inputMode="numeric"
+                inputMode="decimal"
                 type="number"
                 min={0}
                 max={12}
+                step="0.5"
                 value={vacancy}
                 onChange={(e) => setVacancy(e.target.value)}
               />

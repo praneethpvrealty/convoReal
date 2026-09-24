@@ -21,8 +21,7 @@ export interface RentalYieldResult {
 export const TARGET_YIELDS = [0.02, 0.03, 0.04, 0.06, 0.08] as const;
 
 function clampMonths(value: number | null | undefined): number {
-  const months = Math.floor(value || 0);
-  return Math.min(12, Math.max(0, months));
+  return Math.min(12, Math.max(0, value || 0));
 }
 
 function nonNegative(value: number | null | undefined): number {

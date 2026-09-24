@@ -51,6 +51,14 @@ describe('calculateRentalYield', () => {
     expect(negative.netAnnualIncome).toBe(-80_000);
     expect(negative.netYield).toBeLessThan(0);
     expect(negative.paybackYears).toBeNull();
+
+    const partial = calculateRentalYield({
+      price: 5_000_000,
+      monthlyRent: 20_000,
+      vacancyMonths: 1.5,
+    });
+    expect(partial.vacancyLoss).toBe(30_000);
+    expect(partial.netAnnualIncome).toBe(210_000);
   });
 
   it('[PUB-006] yields zero rather than dividing by an empty price', () => {
