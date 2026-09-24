@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **Forward an e-Khata on WhatsApp.** Send the e-Khata PDF to the
+  ConvoReal number (with "e-Khata" or "Khata" in the file name or caption)
+  and the listing draft is filled from it: address, city, map pin, site
+  area and dimensions, built-up area, year built, ePID and khata form.
+  Sent while a draft is already open, it only fills what the draft is
+  missing. The draft preview shows the khata and year built, and the
+  confirmed listing keeps them. No photo is taken from an e-Khata, since it
+  carries the owner's photograph.
 - **Fill a listing from its e-Khata.** On the web property form (Property
   Documents → Read e-Khata) and in the mobile property editor, upload a
   Karnataka e-Khata PDF or photo and ConvoReal proposes the address, city,
