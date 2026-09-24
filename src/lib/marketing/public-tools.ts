@@ -56,7 +56,7 @@ export const GUIDANCE_VALUE_FAQ: FaqEntry[] = [
   {
     question: 'How much stamp duty is paid on a property in Karnataka?',
     answer:
-      'Stamp duty on most sale deeds in Karnataka is 5% of the higher of the sale price and the guidance value, plus the surcharge and cess that apply in the area, and a registration fee of 1%. Lower slabs apply to low-value properties. Confirm the current rates on Kaveri Online Services before paying.',
+      'Stamp duty on most sale deeds in Karnataka is 5% of the higher of the sale price and the guidance value, plus the surcharge and cess that apply in the area, and a registration fee of 2%. Lower slabs apply to low-value properties. Confirm the current rates on Kaveri Online Services before paying.',
   },
   {
     question: 'Where do I find the guidance value of my property?',
