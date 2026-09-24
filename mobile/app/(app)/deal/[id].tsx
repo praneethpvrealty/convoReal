@@ -556,42 +556,57 @@ function BundleSheet({
     queryKey: ['deal-bundle-candidates', deal.id],
     enabled: visible && !deal.group,
     queryFn: async (): Promise<BundleCandidate[]> => {
-      const { data, error } = await supabase
-        .from('deals')
-        .select(
-          'id, title, contact_id, deal_group_id, ' +
-            'contact:contacts(name, second_name), ' +
-            'property:properties(title, unit_no), ' +
-            'stage:pipeline_stages(name)'
-        )
-        .is('deal_group_id', null)
-        .not('status', 'in', '("won","lost")')
-        .order('updated_at', { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      const rows = ((data ?? []) as unknown as BundleCandidateRow[]).map(
-        (row) => {
-          const contact = one(row.contact);
-          const property = one(row.property);
-          return {
-            id: row.id,
-            title: row.title,
-            contact_id: row.contact_id,
-            deal_group_id: row.deal_group_id,
-            contact_name:
-              [contact?.name, contact?.second_name].filter(Boolean).join(' ') ||
-              null,
-            property_title: property?.title ?? null,
-            property_unit_no: property?.unit_no ?? null,
-            stage_name: one(row.stage)?.name ?? null,
-          };
-        }
-      );
+      const open = () =>
+        supabase
+          .from('deals')
+          .select(
+            'id, title, contact_id, deal_group_id, ' +
+              'contact:contacts(name, second_name), ' +
+              'property:properties(title, unit_no), ' +
+              'stage:pipeline_stages(name)'
+          )
+          .is('deal_group_id', null)
+          .not('status', 'in', '("won","lost")')
+          .order('updated_at', { ascending: false });
+      const [sameBuyer, recent] = await Promise.all([
+        deal.contact_id
+          ? open().eq('contact_id', deal.contact_id)
+          : Promise.resolve({ data: [], error: null }),
+        open().limit(100),
+      ]);
+      if (sameBuyer.error) throw sameBuyer.error;
+      if (recent.error) throw recent.error;
+      const seen = new Set<string>();
+      const data = [
+        ...((sameBuyer.data ?? []) as unknown as BundleCandidateRow[]),
+        ...((recent.data ?? []) as unknown as BundleCandidateRow[]),
+      ].filter((row) => !seen.has(row.id) && seen.add(row.id));
+      const rows = data.map((row) => {
+        const contact = one(row.contact);
+        const property = one(row.property);
+        return {
+          id: row.id,
+          title: row.title,
+          contact_id: row.contact_id,
+          deal_group_id: row.deal_group_id,
+          contact_name:
+            [contact?.name, contact?.second_name].filter(Boolean).join(' ') ||
+            null,
+          property_title: property?.title ?? null,
+          property_unit_no: property?.unit_no ?? null,
+          stage_name: one(row.stage)?.name ?? null,
+        };
+      });
       return bundleCandidates(rows, deal);
     },
   });
 
-  const { data: bundle, isLoading: bundleLoading } = useQuery({
+  const {
+    data: bundle,
+    isLoading: bundleLoading,
+    isError: bundleFailed,
+    refetch: refetchBundle,
+  } = useQuery({
     queryKey: ['deal-bundle', deal.group?.id],
     enabled: visible && Boolean(deal.group),
     queryFn: () => fetchDealGroup(deal.group!.id),
@@ -650,7 +665,17 @@ function BundleSheet({
             <Text style={[styles.sheetTitle, { color: colors.text }]}>
               {deal.group.name}
             </Text>
-            {bundleLoading || !bundle ? (
+            {bundleFailed || (!bundleLoading && !bundle) ? (
+              <View style={styles.brokerageForm}>
+                <Text style={{ fontSize: 13, color: colors.textMuted }}>
+                  The bundle could not be loaded.
+                </Text>
+                <PrimaryButton
+                  label="Try again"
+                  onPress={() => void refetchBundle()}
+                />
+              </View>
+            ) : bundleLoading || !bundle ? (
               <Loading />
             ) : (
               <ScrollView style={sheetScrollArea}>

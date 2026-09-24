@@ -108,21 +108,33 @@ function CreateBundle({
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['deal-bundle-candidates', accountId, deal.id],
     queryFn: async (): Promise<BundleCandidate[]> => {
-      const { data, error } = await supabase
-        .from('deals')
-        .select(
-          'id, title, contact_id, deal_group_id, ' +
-            'contact:contacts(name, second_name), ' +
-            'property:properties(title, unit_no), ' +
-            'stage:pipeline_stages(name)'
-        )
-        .eq('account_id', accountId!)
-        .is('deal_group_id', null)
-        .not('status', 'in', '("won","lost")')
-        .order('updated_at', { ascending: false })
-        .limit(100);
-      if (error) throw new Error(error.message);
-      return ((data ?? []) as unknown as CandidateRow[]).map((row) => {
+      const open = () =>
+        supabase
+          .from('deals')
+          .select(
+            'id, title, contact_id, deal_group_id, ' +
+              'contact:contacts(name, second_name), ' +
+              'property:properties(title, unit_no), ' +
+              'stage:pipeline_stages(name)'
+          )
+          .eq('account_id', accountId!)
+          .is('deal_group_id', null)
+          .not('status', 'in', '("won","lost")')
+          .order('updated_at', { ascending: false });
+      const [sameBuyer, recent] = await Promise.all([
+        deal.contact_id
+          ? open().eq('contact_id', deal.contact_id)
+          : Promise.resolve({ data: [], error: null }),
+        open().limit(100),
+      ]);
+      if (sameBuyer.error) throw new Error(sameBuyer.error.message);
+      if (recent.error) throw new Error(recent.error.message);
+      const seen = new Set<string>();
+      const data = [
+        ...((sameBuyer.data ?? []) as unknown as CandidateRow[]),
+        ...((recent.data ?? []) as unknown as CandidateRow[]),
+      ].filter((row) => !seen.has(row.id) && seen.add(row.id));
+      return data.map((row) => {
         const contact = one(row.contact);
         const property = one(row.property);
         return {

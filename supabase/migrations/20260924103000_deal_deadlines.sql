@@ -68,8 +68,8 @@ AS $$
     d.user_id
   FROM deal_milestones m
   JOIN deals d ON d.id = m.deal_id
-  LEFT JOIN contacts c ON c.id = d.contact_id
-  LEFT JOIN properties p ON p.id = d.property_id
+  LEFT JOIN contacts c ON c.id = d.contact_id AND c.account_id = p_account_id
+  LEFT JOIN properties p ON p.id = d.property_id AND p.account_id = p_account_id
   WHERE m.account_id = p_account_id
     AND d.account_id = p_account_id
     AND COALESCE(d.status, 'open') NOT IN ('won', 'lost')
@@ -90,8 +90,8 @@ AS $$
     d.assigned_to,
     d.user_id
   FROM deals d
-  LEFT JOIN contacts c ON c.id = d.contact_id
-  LEFT JOIN properties p ON p.id = d.property_id
+  LEFT JOIN contacts c ON c.id = d.contact_id AND c.account_id = p_account_id
+  LEFT JOIN properties p ON p.id = d.property_id AND p.account_id = p_account_id
   WHERE d.account_id = p_account_id
     AND COALESCE(d.status, 'open') NOT IN ('won', 'lost')
     AND d.actual_close_date IS NULL
