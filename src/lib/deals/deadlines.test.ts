@@ -87,9 +87,17 @@ describe('[TXW-020] deal deadlines', () => {
     expect(d.daysLeft).toBe(-2);
   });
 
-  it('orders soonest first and a milestone before the expected close on the same day', () => {
+  it('orders soonest first and, on one day, milestone before payment before expected close', () => {
     const today = '2026-10-01';
     const sorted = sortDeadlines([
+      toDealDeadline(
+        row({
+          kind: 'payment',
+          milestone_id: 't-1',
+          title: 'Payment: On registration',
+        }),
+        today
+      ),
       toDealDeadline(
         row({
           kind: 'expected_close',
@@ -108,6 +116,7 @@ describe('[TXW-020] deal deadlines', () => {
     expect(sorted.map((d) => `${d.dueDate} ${d.title}`)).toEqual([
       '2026-09-30 TDS',
       '2026-10-10 Registration scheduled',
+      '2026-10-10 Payment: On registration',
       '2026-10-10 Expected close',
       '2026-10-12 Possession',
     ]);

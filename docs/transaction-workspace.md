@@ -171,6 +171,38 @@ on Today (web); the Deal deadlines block in the agent task digest.
 Migration: `20260924103000_deal_deadlines.sql` (purely additive: two
 functions and two partial indexes; applied at push).
 
+## Phase 5 — the payment schedule
+
+The financials held one token entry and one free-text instrument field;
+a purchase paid in four tranches kept its schedule outside the app.
+
+| Decision                                                                                                                                                                                                                                   | Why                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **One row per tranche.** `deal_payment_tranches`: label, amount, due date, receipt date, part amount received, instrument reference, notes. Written only through `/api/deals/[id]/tranches`; `src/lib/deals/tranches.ts` parses and labels. | The token entry on `deals` stays as it is (Token Safe still owns it on a Den-linked deal). A tranche is a second thing, not a rename of the first.                                                     |
+| **Internal only, like the rest of the financials.** Never `/api/v1`, never a public route, never a stakeholder link; amounts never ride a timeline event (the event names the tranche, not the money).                                     | TXW-004 draws the line at money; the schedule is money.                                                                                                                                              |
+| **Totals are summed on the server.** `GET /api/deals/[id]/tranches` returns the rows and `{ scheduled, received, outstanding }`; web and mobile show the figures and decide only which label a row wears.                                    | The two surfaces cannot disagree about what is outstanding.                                                                                                                                          |
+| **A receipt date means the full amount unless a part amount is recorded.** `trancheReceived`.                                                                                                                                             | The common case is one instrument for one tranche; the part case exists for a split payment without a second row.                                                                                    |
+| **A tranche with money against it is corrected, never removed** (409 `TRANCHE_RECEIVED`), and a schedule holds at most 40. Both are also triggers on the table (migration `20260924150100`).                                             | The same posture as approved documents: what has happened is not deleted. The RLS policy lets an agent write the table directly, as with milestones, so the invariants cannot live in the route alone. |
+| **A tranche not yet fully received is a deadline by its due date.** `deal_deadlines_for_account` gains a `payment` branch (migration `20260924140100`, held to merge) using `trancheReceived`'s rule, so a part payment keeps it on the watch. | Phase 4's rule was "one SQL rule for what is due"; a third source of dates joins it there rather than growing a second reader.                                                                       |
+
+Surfaces: the Payment schedule block under the financials on the
+Overview tab, web and mobile (add a tranche, record a receipt, remove an
+unpaid one).
+
+Migrations: `20260924140000_deal_payment_tranches.sql` and
+`20260924150100_deal_payment_tranches_guards.sql` (additive, applied at
+push) and `20260924140100_deal_deadlines_payment_tranches.sql`
+(`CREATE OR REPLACE` on a live function, held to merge).
+
+## Records index: expected close
+
+`transaction_workspace_index` returns `expected_close_date` and
+`actual_close_date` (migration `20260924150000`, a drop-and-recreate
+because a `RETURNS TABLE` cannot gain a column in place; held to merge).
+`expectedCloseLabel` and `sortIndexRows` in `src/lib/deals/index-row.ts`
+(mirrored on mobile) put the date on every row and offer Recent or Close
+date ordering on both surfaces.
+
 ## Out of scope after Phase 3
 
 "Selected people" visibility (a link's side is still the unit), PDF

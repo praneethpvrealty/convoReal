@@ -73,7 +73,7 @@ export interface FocusRequest {
   href: string;
 }
 
-export type FocusDeadlineKind = 'milestone' | 'expected_close';
+export type FocusDeadlineKind = 'milestone' | 'payment' | 'expected_close';
 export type FocusDeadlineUrgency = 'overdue' | 'today' | 'soon';
 
 /** Mirrored from src/lib/deals/deadlines.ts (DEAL_DEADLINE_URGENCY_LABELS). */

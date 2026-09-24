@@ -383,6 +383,85 @@ export interface DealFinancialsRow {
   };
 }
 
+// --- Payment schedule — mirrored from src/lib/deals/tranches.ts ----------
+
+export type TrancheStatus =
+  'received' | 'partial' | 'overdue' | 'due' | 'scheduled';
+
+/** Mirrored from src/lib/deals/tranches.ts — see the header. */
+export const TRANCHE_STATUS_LABELS: Record<TrancheStatus, string> = {
+  received: 'Received',
+  partial: 'Part received',
+  overdue: 'Overdue',
+  due: 'Due today',
+  scheduled: 'Scheduled',
+};
+
+export const TRANCHE_LABEL_SUGGESTIONS: readonly string[] = [
+  'Token',
+  'On agreement',
+  'On registration',
+  'On possession',
+  'Bank loan disbursement',
+];
+
+export interface DealPaymentTrancheRow {
+  id: string;
+  account_id: string;
+  deal_id: string;
+  position: number;
+  label: string;
+  amount: number;
+  due_date: string | null;
+  received_at: string | null;
+  received_amount: number | null;
+  instrument_ref: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrancheSummary {
+  count: number;
+  scheduled: number;
+  received: number;
+  outstanding: number;
+}
+
+export interface TrancheSchedule {
+  tranches: DealPaymentTrancheRow[];
+  summary: TrancheSummary;
+}
+
+/** Mirrored from src/lib/deals/tranches.ts. The totals come from the
+ *  server; this only decides which label a row wears. */
+export function trancheReceived(
+  t: Pick<DealPaymentTrancheRow, 'amount' | 'received_at' | 'received_amount'>
+): number {
+  if (t.received_amount !== null && t.received_amount !== undefined) {
+    return Math.min(t.received_amount, t.amount);
+  }
+  return t.received_at ? t.amount : 0;
+}
+
+export function trancheStatus(
+  t: Pick<
+    DealPaymentTrancheRow,
+    'amount' | 'due_date' | 'received_at' | 'received_amount'
+  >,
+  today: string
+): TrancheStatus {
+  const received = trancheReceived(t);
+  if (received >= t.amount && (t.received_at || received > 0))
+    return 'received';
+  if (received > 0) return 'partial';
+  if (!t.due_date) return 'scheduled';
+  if (t.due_date < today) return 'overdue';
+  if (t.due_date === today) return 'due';
+  return 'scheduled';
+}
+
 // --- Bundles — mirrored from src/lib/deals/bundles.ts -------------------
 
 export const BUNDLE_MIN_DEALS = 2;
@@ -787,6 +866,9 @@ export interface TransactionIndexRow
   milestones_done: number;
   next_milestone_title: string | null;
   next_milestone_target_date: string | null;
+  expected_close_date: string | null;
+  actual_close_date: string | null;
+  updated_at: string;
 }
 
 function clean(value: string | null | undefined): string | null {
@@ -821,4 +903,81 @@ export function transactionSubtitle(
 
 export function isClosingRecord(row: TransactionIndexOrigin): boolean {
   return row.source_journey_item_id !== null || row.milestones_total > 0;
+}
+
+export type RecordsSort = 'updated' | 'close';
+
+/** Mirrored from src/lib/deals/index-row.ts. */
+export const RECORDS_SORTS: ReadonlyArray<{ id: RecordsSort; label: string }> =
+  [
+    { id: 'updated', label: 'Recent' },
+    { id: 'close', label: 'Close date' },
+  ];
+
+export interface TransactionIndexDates {
+  expected_close_date: string | null;
+  actual_close_date: string | null;
+  updated_at: string;
+}
+
+/** "Closes 2026-10-10", "Close date passed", "Closed 2026-10-08", or
+ *  null when no date was forecast. `today` is YYYY-MM-DD in the
+ *  reader's calendar. */
+export function expectedCloseLabel(
+  row: Pick<TransactionIndexDates, 'expected_close_date' | 'actual_close_date'>,
+  today: string
+): { text: string; tone: 'done' | 'overdue' | 'soon' | 'later' } | null {
+  if (row.actual_close_date) {
+    return { text: `Closed ${row.actual_close_date}`, tone: 'done' };
+  }
+  if (!row.expected_close_date) return null;
+  if (row.expected_close_date < today) {
+    return {
+      text: `Close date passed (${row.expected_close_date})`,
+      tone: 'overdue',
+    };
+  }
+  const soon = daysBetweenKeys(today, row.expected_close_date) <= 7;
+  return {
+    text: `Closes ${row.expected_close_date}`,
+    tone: soon ? 'soon' : 'later',
+  };
+}
+
+function daysBetweenKeys(from: string, to: string): number {
+  const a = Date.UTC(
+    Number(from.slice(0, 4)),
+    Number(from.slice(5, 7)) - 1,
+    Number(from.slice(8, 10))
+  );
+  const b = Date.UTC(
+    Number(to.slice(0, 4)),
+    Number(to.slice(5, 7)) - 1,
+    Number(to.slice(8, 10))
+  );
+  return Math.round((b - a) / 86_400_000);
+}
+
+/** Close date: soonest expected close first, dated before undated,
+ *  already-closed last. Recent: the index's own order. */
+export function sortIndexRows<T extends TransactionIndexDates>(
+  rows: readonly T[],
+  sort: RecordsSort
+): T[] {
+  if (sort === 'updated') return [...rows];
+  return [...rows].sort((a, b) => {
+    const aClosed = Boolean(a.actual_close_date);
+    const bClosed = Boolean(b.actual_close_date);
+    if (aClosed !== bClosed) return aClosed ? 1 : -1;
+    if (a.expected_close_date && b.expected_close_date) {
+      return (
+        a.expected_close_date.localeCompare(b.expected_close_date) ||
+        b.updated_at.localeCompare(a.updated_at)
+      );
+    }
+    if (Boolean(a.expected_close_date) !== Boolean(b.expected_close_date)) {
+      return a.expected_close_date ? -1 : 1;
+    }
+    return b.updated_at.localeCompare(a.updated_at);
+  });
 }

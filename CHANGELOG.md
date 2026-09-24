@@ -19,6 +19,24 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **Expected close on the Records index.** Each record shows its
+  expected close date, marked when it is within a week or has passed,
+  and Closed with the actual date once the deal is done, on web and
+  mobile. A Recent / Close date switch orders the list by soonest
+  expected close, undated after dated, closed deals last. **Migration
+  required:** `20260924150000_transaction_index_expected_close.sql`
+  (recreates `transaction_workspace_index`).
+- **Payment schedule per tranche.** The Overview tab of a transaction now
+  carries a payment schedule under the financials, on web and mobile: one
+  row per tranche with a label, amount and due date, a receipt recorded
+  as a date with an optional part amount and instrument reference, and
+  scheduled, received and outstanding totals summed on the server. A
+  tranche with money against it is corrected rather than removed. An
+  unpaid tranche's due date joins the deal deadline watch on Focus, Today
+  and the agent digest. **Migration required:**
+  `20260924140000_deal_payment_tranches.sql` (new table, additive) and
+  `20260924140100_deal_deadlines_payment_tranches.sql` (replaces
+  `deal_deadlines_for_account`).
 - **More Gemini fallbacks, and no browser autofill on the key form.** Google
   sets a separate quota per model, so a key over quota on
   `gemini-3.5-flash` or `gemini-3.1-flash-lite` now carries on with

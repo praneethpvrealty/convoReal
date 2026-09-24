@@ -6,6 +6,8 @@ import {
   transactionPropertyLabel,
   transactionSubtitle,
   transactionTitle,
+  expectedCloseLabel,
+  sortIndexRows,
 } from './index-row';
 
 const base = {
@@ -89,5 +91,83 @@ describe('[TXW-016] a pipeline deal becomes a transaction through provenance or 
     expect(
       isClosingRecord({ source_journey_item_id: null, milestones_total: 0 })
     ).toBe(false);
+  });
+});
+
+describe('[TXW-022] the Records index carries the expected close date', () => {
+  const today = '2026-10-01';
+
+  it('labels the forecast, its passing, and the actual close', () => {
+    expect(
+      expectedCloseLabel(
+        { expected_close_date: null, actual_close_date: null },
+        today
+      )
+    ).toBeNull();
+    expect(
+      expectedCloseLabel(
+        { expected_close_date: '2026-10-05', actual_close_date: null },
+        today
+      )
+    ).toEqual({ text: 'Closes 2026-10-05', tone: 'soon' });
+    expect(
+      expectedCloseLabel(
+        { expected_close_date: '2026-10-25', actual_close_date: null },
+        today
+      )
+    ).toEqual({ text: 'Closes 2026-10-25', tone: 'later' });
+    expect(
+      expectedCloseLabel(
+        { expected_close_date: '2026-09-28', actual_close_date: null },
+        today
+      )
+    ).toEqual({ text: 'Close date passed (2026-09-28)', tone: 'overdue' });
+    expect(
+      expectedCloseLabel(
+        { expected_close_date: '2026-09-28', actual_close_date: '2026-09-30' },
+        today
+      )
+    ).toEqual({ text: 'Closed 2026-09-30', tone: 'done' });
+  });
+
+  it('sorts by close date with undated after dated and closed deals last', () => {
+    const rows = [
+      {
+        id: 'closed',
+        expected_close_date: '2026-09-01',
+        actual_close_date: '2026-09-02',
+        updated_at: '2026-09-24T00:00:00Z',
+      },
+      {
+        id: 'undated',
+        expected_close_date: null,
+        actual_close_date: null,
+        updated_at: '2026-09-25T00:00:00Z',
+      },
+      {
+        id: 'later',
+        expected_close_date: '2026-11-01',
+        actual_close_date: null,
+        updated_at: '2026-09-20T00:00:00Z',
+      },
+      {
+        id: 'soon',
+        expected_close_date: '2026-10-10',
+        actual_close_date: null,
+        updated_at: '2026-09-10T00:00:00Z',
+      },
+    ];
+    expect(sortIndexRows(rows, 'close').map((r) => r.id)).toEqual([
+      'soon',
+      'later',
+      'undated',
+      'closed',
+    ]);
+    expect(sortIndexRows(rows, 'updated').map((r) => r.id)).toEqual([
+      'closed',
+      'undated',
+      'later',
+      'soon',
+    ]);
   });
 });
