@@ -137,6 +137,49 @@ describe('applyEKhataToDraft', () => {
     });
   });
 
+  it('[EKH-005] drops an owner the generic read found on an e-Khata but keeps one given in a draft under way', () => {
+    const owner = {
+      owner_contact_name: 'ANJALI KAPUR',
+      owner_contact_phone: '919800000000',
+      owner_contact_role: 'Owner',
+      owner_contact_name_tag: 'Koramangala owner',
+    };
+    const opened = applyEKhataToDraft(draft(owner), khata, 'prefer_khata');
+    expect(opened).toMatchObject({
+      owner_contact_name: null,
+      owner_contact_phone: null,
+      owner_contact_role: null,
+      owner_contact_name_tag: null,
+    });
+    expect(applyEKhataToDraft(draft(owner), {}, 'prefer_khata')).toMatchObject({
+      owner_contact_name: null,
+      owner_contact_phone: null,
+    });
+    expect(applyEKhataToDraft(draft(owner), khata, 'fill_gaps')).toMatchObject(
+      owner
+    );
+  });
+
+  it('[EKH-005] leaves site fields off an apartment and built-up area off a plot', () => {
+    const flat = applyEKhataToDraft(
+      draft({ type: 'Flat/ Apartment' }),
+      khata,
+      'prefer_khata'
+    );
+    expect(flat.land_area).toBeNull();
+    expect(flat.dimensions).toBeNull();
+    expect(flat.area_sqft).toBe(4825);
+    const plot = applyEKhataToDraft(
+      draft({ type: 'Residential Land/ Plot' }),
+      khata,
+      'fill_gaps'
+    );
+    expect(plot.land_area).toBe(3401);
+    expect(plot.area_sqft).toBeNull();
+    expect(plot.year_built).toBeUndefined();
+    expect(plot.khata_epid).toBe('7425317720');
+  });
+
   it('[EKH-005] shows the khata and construction year on the WhatsApp draft preview', () => {
     const preview = formatDraftPreviewMessage(
       '📝 Draft',

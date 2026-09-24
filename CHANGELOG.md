@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **Forwarded e-Khata fixes.** An owner the listing read picked up from an
+  e-Khata no longer lands on the draft or becomes a contact; an apartment
+  no longer takes the plot's site area and dimensions (nor a plot the
+  building's built-up area); and the ePID, khata form and year built are
+  no longer lost when another message updates the draft at the same moment.
 - **Forward an e-Khata on WhatsApp.** Send the e-Khata PDF to the
   ConvoReal number (with "e-Khata" or "Khata" in the file name or caption)
   and the listing draft is filled from it: address, city, map pin, site
