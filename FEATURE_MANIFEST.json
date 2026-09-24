@@ -1202,6 +1202,16 @@
           ]
         },
         {
+          "id": "REQ-006",
+          "rule": "A requirement can be started from the Requirements screen itself on web and mobile, without first opening the contact: the agent picks the client from the buyers and agents the screen lists, then writes the brief. The picked client arrives carrying the brief already on record, so an existing requirement is shown rather than silently replaced by the one being typed. Read-only members are not offered the flow.",
+          "tests": [
+            {
+              "file": "mobile/lib/requirements-feed.test.ts",
+              "case": "[REQ-006]"
+            }
+          ]
+        },
+        {
           "id": "REQ-004",
           "rule": "The account's buyer and agent requirement briefs are browsable on web and mobile from one screen: the same four counters (total, high priority, buyers, agents) each doubling as a filter, the same classification and priority filters, and one search over client, phone, brief text, notes and areas where a typed locality matches every stored spelling. Each card shows the brief the contact is actively asking about, resolving an active requirement profile when there is no primary statement, with explicit preferences winning over AI-extracted ones and the extracted ones marked as such.",
           "tests": [

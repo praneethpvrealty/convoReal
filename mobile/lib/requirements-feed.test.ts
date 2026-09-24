@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   activeRequirementFilterCount,
+  REQUIREMENT_CONTACT_COLUMNS,
+  REQUIREMENT_OWNER_CLASSIFICATIONS,
+  requirementContactSearchFilter,
   effectiveAreas,
   effectiveCategories,
   effectiveMaxBudget,
@@ -239,5 +242,44 @@ describe('preference merge', () => {
       visibleTagSuggestions(['Investor', 'NRI', 'investor'], ['nri'])
     ).toEqual(['Investor']);
     expect(visibleTagSuggestions(null, [])).toEqual([]);
+  });
+});
+
+describe('the add-a-requirement picker', () => {
+  it('[REQ-006] offers only the classifications the screen lists', () => {
+    expect(REQUIREMENT_OWNER_CLASSIFICATIONS).toEqual(['Buyer', 'Agent']);
+  });
+
+  it('[REQ-006] hydrates the brief the sheet will open on', () => {
+    // Without these the sheet shows an empty brief for a client who
+    // already has one, and saving replaces it.
+    for (const column of [
+      'id',
+      'name',
+      'phone',
+      'classification',
+      'requirements',
+      'requirement_profiles',
+    ]) {
+      expect(REQUIREMENT_CONTACT_COLUMNS, column).toContain(column);
+    }
+    expect(new Set(REQUIREMENT_CONTACT_COLUMNS).size).toBe(
+      REQUIREMENT_CONTACT_COLUMNS.length
+    );
+  });
+
+  it('[REQ-006] searches name, internal label and phone', () => {
+    expect(requirementContactSearchFilter('Asha')).toBe(
+      'name.ilike.%Asha%,name_tag.ilike.%Asha%,phone.ilike.%Asha%'
+    );
+  });
+
+  it('[REQ-006] finds a formatted phone by its digits', () => {
+    expect(requirementContactSearchFilter('+91 97006 06010')).toContain(
+      'phone.ilike.%919700606010%'
+    );
+    expect(requirementContactSearchFilter('123')).not.toContain(
+      'phone.ilike.%123%,'
+    );
   });
 });

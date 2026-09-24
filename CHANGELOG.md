@@ -68,6 +68,15 @@ than a written entry. Newest first.
   `20260923055423_guidance_values_server_writes.sql`,
   `20260923060239_guidance_value_source_url.sql`.
 
+#### 24 September 2026
+
+- **Start a requirement from the Requirements screen on mobile.** The
+  screen now has an "Add a requirement" button: pick the buyer or agent,
+  then write the brief, without hunting for the contact first. The
+  client arrives carrying whatever brief is already on record, so an
+  existing requirement is shown for editing instead of being replaced by
+  what you type. Read-only members do not see the button.
+
 #### 22 September 2026
 
 - **An attachment the agent sent now shows in the thread.** Sending

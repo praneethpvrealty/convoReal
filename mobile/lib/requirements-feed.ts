@@ -22,6 +22,51 @@ export interface RequirementRow extends Contact {
   conversations?: { id: string }[] | null;
 }
 
+/** The classifications a requirement can belong to — what the web
+ *  Requirements list is built from, and so who the add flow may pick. */
+export const REQUIREMENT_OWNER_CLASSIFICATIONS = ['Buyer', 'Agent'];
+
+/** The columns a picked contact must carry before the brief sheet
+ *  opens on it. The general contact picker selects four columns, which
+ *  would show an empty brief for a client who already has one — and
+ *  saving over that is how a brief gets lost. */
+export const REQUIREMENT_CONTACT_COLUMNS = [
+  'id',
+  'name',
+  'name_tag',
+  'phone',
+  'classification',
+  'requirements',
+  'requirement_profiles',
+  'requirement_active',
+  'min_budget',
+  'max_budget',
+  'no_budget',
+  'areas_of_interest',
+  'property_interests',
+  'projects_of_interest',
+  'pref_budget_min',
+  'pref_budget_max',
+  'pref_areas',
+  'pref_property_types',
+  'pref_property_categories',
+  'pref_projects',
+];
+
+/** Name, internal label or phone, with a digits-only phone match so
+ *  "+91 97006 06010" finds the stored "+919700606010". */
+export function requirementContactSearchFilter(term: string): string {
+  const like = `%${term}%`;
+  const filters = [
+    `name.ilike.${like}`,
+    `name_tag.ilike.${like}`,
+    `phone.ilike.${like}`,
+  ];
+  const digits = term.replace(/\D/g, '');
+  if (digits.length >= 4) filters.push(`phone.ilike.%${digits}%`);
+  return filters.join(',');
+}
+
 export interface EffectiveValue<T> {
   value: T;
   source: 'explicit' | 'ai';

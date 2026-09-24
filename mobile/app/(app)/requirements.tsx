@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { ContactRequirementsSheet } from '@/components/contact-requirements-sheet';
 import { EnterRow, PressScale } from '@/components/motion';
 import { RequirementAgentShareSheet } from '@/components/requirement-agent-share-sheet';
@@ -41,6 +42,7 @@ import {
 import {
   attachSuggestedTag,
   fetchRequirements,
+  searchRequirementContacts,
   setRequirementActive,
 } from '@/lib/requirements';
 import {
@@ -88,6 +90,7 @@ export default function RequirementsScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editing, setEditing] = useState<RequirementRow | null>(null);
+  const [picking, setPicking] = useState(false);
   const [sharing, setSharing] = useState<RequirementRow | null>(null);
   const [agentShare, setAgentShare] = useState<RequirementRow | null>(null);
 
@@ -310,6 +313,17 @@ export default function RequirementsScreen() {
         ))}
       </ScrollView>
 
+      {canEdit ? (
+        <PrimaryButton
+          label="Add a requirement"
+          icon="add-circle-outline"
+          onPress={() => {
+            haptic.tap();
+            setPicking(true);
+          }}
+        />
+      ) : null}
+
       {notice ? <Banner kind="success" text={notice} /> : null}
       {list.isError ? (
         <Banner kind="error" text="Could not load requirements." />
@@ -358,6 +372,19 @@ export default function RequirementsScreen() {
             />
           </EnterRow>
         )}
+      />
+
+      <ContactPickerSheet
+        visible={picking}
+        onClose={() => setPicking(false)}
+        title="Whose requirement?"
+        hint="Buyers and agents whose briefs live on this screen."
+        searchContacts={searchRequirementContacts}
+        searchKey="requirement-contacts"
+        onSelect={(contact) => {
+          setPicking(false);
+          setEditing(contact as RequirementRow);
+        }}
       />
 
       <BottomSheet
