@@ -848,6 +848,10 @@ export interface ParsedPropertyDraft {
    *  resolved from, so re-parsing a draft doesn't re-hit the geocoder
    *  on every follow-up message. */
   geo_resolved_from?: string | null;
+  /** From a forwarded e-Khata (src/lib/inventory/e-khata-draft.ts). */
+  khata_epid?: string | null;
+  khata_form?: 'A' | 'B' | null;
+  year_built?: number | null;
   images: string[];
   documents?: string[];
   /** Walkthrough video forwarded during WhatsApp intake — uploaded to

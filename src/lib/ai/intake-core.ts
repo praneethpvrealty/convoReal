@@ -219,6 +219,10 @@ export function formatDraftPreviewMessage(
     `*Area:* ${draft.area_sqft ? draft.area_sqft + ' Sq.Ft.' : '_Not specified_'}\n` +
     (draft.land_area ? `*Land Area:* ${draft.land_area} ${draft.land_area_unit || 'Sq.Ft.'}\n` : '') +
     (draft.dimensions ? `*Dimensions:* ${draft.dimensions}\n` : '') +
+    (draft.khata_epid || draft.khata_form
+      ? `*e-Khata:* ${[draft.khata_form ? `Form-${draft.khata_form}` : null, draft.khata_epid ? `ePID ${draft.khata_epid}` : null].filter(Boolean).join(' · ')}\n`
+      : '') +
+    (draft.year_built ? `*Year Built:* ${draft.year_built}\n` : '') +
     (isCommOrLand ? '' : `*Beds/Baths:* ${draft.bedrooms ? draft.bedrooms + ' BHK' : '_Not specified_'} / ${draft.bathrooms ? draft.bathrooms + ' Bath' : '_Not specified_'}\n`);
 
   if (!isRent && draft.rental_income) {

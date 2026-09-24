@@ -2152,7 +2152,7 @@
     {
       "id": "e-khata",
       "name": "e-Khata reading — fill a listing from its Karnataka e-Khata",
-      "surfaces": ["web", "mobile"],
+      "surfaces": ["web", "mobile", "whatsapp"],
       "invariants": [
         {
           "id": "EKH-001",
@@ -2200,6 +2200,16 @@
           ],
           "guards": [
             "supabase/migrations/20260924142702_property_khata_fields.sql"
+          ]
+        },
+        {
+          "id": "EKH-005",
+          "rule": "A PDF forwarded to the ConvoReal WhatsApp number whose file name or caption names an e-Khata is read as one, for the same listing_parse credit as any listing: opening a draft, its address, city, map pin, site area, dimensions, built-up area, year built, ePID and khata form win over the generic read of the same file (a title is only supplied, never replaced); sent into a draft already under way, it only fills fields the draft is missing and a failed read is refunded while the file is still attached. No photo is ever extracted from an e-Khata (it carries the owner's photograph), the owner's name never becomes a contact, and the draft preview shows the khata form, ePID and year built. The confirmed listing stores khata_epid, khata_form and year_built.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/e-khata-draft.test.ts",
+              "case": "[EKH-005]"
+            }
           ]
         }
       ]

@@ -53,7 +53,7 @@ import { uploadBrochureImages, storeBrochureDocument } from '@/lib/pdf/brochure-
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 import { pinBrochurePlans, sanitizeFloorPlans, plansWithImages } from '@/lib/inventory/floor-plans';
 import { checkAccountPropertyLimit } from '@/lib/billing/gates';
-import { burnCredits } from '@/lib/credits/burn';
+import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
 import { tryHandleOwnerScheduling, applySchedulingEdit, isDictatedTaskList } from '@/lib/calendar/whatsapp-scheduler';
@@ -85,6 +85,14 @@ import {
   formatRecordUpdateFailureReply,
 } from '@/lib/ai/record-edit';
 import { matchProjectByName } from '@/lib/inventory/projects';
+import { extractEKhata } from '@/lib/inventory/e-khata';
+import { applyEKhataToDraft } from '@/lib/inventory/e-khata-draft';
+import {
+  isReadableEKhata,
+  khataColumns,
+  looksLikeEKhata,
+  type EKhataFields,
+} from '@/lib/inventory/e-khata-fields';
 import {
   isOwnerHelpCommand,
   buildOwnerHelpMessage,
@@ -178,6 +186,29 @@ async function gatedBurn(accountId: string, feature: AiFeatureKey): Promise<bool
     console.error(`[chatbot-engine] gatedBurn failed (fail-open) for '${feature}':`, err);
     return true;
   }
+}
+
+/**
+ * Read an e-Khata sent into a draft already under way. Charged like a
+ * listing read and refunded when the file is not a readable e-Khata; a
+ * drained balance just skips the read, and the file is still attached.
+ */
+async function readForwardedEKhata(
+  accountId: string,
+  buffer: Buffer,
+  mimeType: string
+): Promise<EKhataFields | null> {
+  if (!(await gatedBurn(accountId, 'listing_parse'))) return null;
+  try {
+    const fields = await extractEKhata({ buffer, mimeType });
+    if (isReadableEKhata(fields)) return fields;
+  } catch (err) {
+    console.warn('[chatbot-engine] e-Khata read failed:', err);
+  }
+  await refundCredits(accountId, 'listing_parse', AI_FEATURE_COSTS.listing_parse, {
+    description: 'e-Khata read failed',
+  }).catch(() => undefined);
+  return null;
 }
 
 const CREDITS_LOCKED_REPLY =
@@ -1634,6 +1665,7 @@ export async function processOwnerChatbotMessage(
           state: draft.state || 'Karnataka',
           dimensions: draft.dimensions,
           facing_direction: draft.facing_direction,
+          ...khataColumns(draft),
           is_published: true,
           features: draft.features || [],
           nearby_highlights: draft.nearby_highlights || [],
@@ -2009,10 +2041,13 @@ export async function processOwnerChatbotMessage(
         // A brochure sent into an open draft used to be filed and
         // nothing more, so its photos and floor plans stayed locked in
         // the PDF. Same treatment as one that opens a draft.
+        const isKhata =
+          looksLikeEKhata(filename) || looksLikeEKhata(contentText);
         const brochure =
-          mimeType === 'application/pdf'
+          mimeType === 'application/pdf' && !isKhata
             ? await uploadBrochureImages(accountId, buffer!)
             : { photos: [], planCandidates: [] };
+        const khata = isKhata ? await readForwardedEKhata(accountId, buffer!, mimeType!) : null;
 
         let updatedDraft = draft;
         let nextStatus = propSession.status;
@@ -2057,6 +2092,7 @@ export async function processOwnerChatbotMessage(
             images: mergedImages,
             floor_plans: plans.length > 0 ? plans : currentDraft.floor_plans ?? null,
           };
+          if (khata) updatedDraft = applyEKhataToDraft(updatedDraft, khata, 'fill_gaps');
 
           const validation = validateDraft(updatedDraft);
           nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
@@ -2095,7 +2131,9 @@ export async function processOwnerChatbotMessage(
           phoneNumberId,
           accessToken,
           contactRecord.phone,
-          `📄 *Documents added successfully!* Total documents attached: *${(updatedDraft.documents || []).length}*.` +
+          (khata
+            ? '📄 *e-Khata read.* Filled in what the draft was missing from it.'
+            : `📄 *Documents added successfully!* Total documents attached: *${(updatedDraft.documents || []).length}*.`) +
             brochureDroppedNote(stored.droppedBytes),
           conversation.id
         );
@@ -2929,6 +2967,26 @@ export async function processOwnerChatbotMessage(
             parsedDraft = parsed;
             parsedDraft.images = [];
             if (videoUrl) parsedDraft.video_url = videoUrl;
+          } else if (
+            mediaMimeType === 'application/pdf' &&
+            (looksLikeEKhata(message.document?.filename) || looksLikeEKhata(contentText))
+          ) {
+            const filename = message.document?.filename || `e-khata-${Date.now()}.pdf`;
+            const [parsed, khata, stored] = await Promise.all([
+              parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
+              extractEKhata({ buffer: mediaBuffer, mimeType: mediaMimeType }).catch((err) => {
+                console.warn('[chatbot-engine] e-Khata read failed; using the listing read:', err);
+                return null;
+              }),
+              storeBrochureDocument(accountId, mediaBuffer, mediaMimeType, filename),
+            ]);
+            parsedDraft =
+              khata && isReadableEKhata(khata)
+                ? applyEKhataToDraft(parsed, khata, 'prefer_khata')
+                : parsed;
+            parsedDraft.images = [];
+            parsedDraft.documents = stored.url ? [stored.url] : [];
+            droppedBrochureBytes = stored.droppedBytes;
           } else if (mediaMimeType === 'application/pdf') {
             const filename = message.document?.filename || `doc-${Date.now()}.pdf`;
             // Parallel parse text details, extract images, and upload the PDF document itself
