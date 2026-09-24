@@ -47,6 +47,15 @@ than a written entry. Newest first.
   notes and answers to buyers stay on full Flash. A listing correction is
   still normalised and re-derived as before, keeps any plot size or rate it
   does not mention, and stays a draft until the agent confirms it.
+- **Automations no longer send a burst of stale follow-ups.** When the job
+  that resumes waiting automations had been down, it caught up by sending
+  every overdue step at once — one contact received the same "circling
+  back" message many times in a minute. A step resumed more than six hours
+  after it was due is now skipped and logged instead of sent, and a contact
+  who reaches the same wait again (for example by sending another message)
+  replaces the follow-up already queued, so it is sent once, timed from the
+  latest message — even when two messages arrive at the same moment.
+  **Migration required:** `20260924071500_park_automation_wait.sql`.
 - **A journey with every property dropped moves to Lost.** The Journey
   view grouped a buyer (or property) at the furthest stage any item had
   reached, so a buyer whose three shortlisted properties were all dropped

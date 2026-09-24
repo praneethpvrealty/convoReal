@@ -356,6 +356,20 @@
               "case": "[INB-019]"
             }
           ]
+        },
+        {
+          "id": "INB-020",
+          "rule": "A waiting automation never floods a contact. A contact reaching the same wait step of the same automation again supersedes the run already parked there (still pending, never one a resume has claimed), marking it failed with its log explaining why; superseding and parking happen in one account-scoped call serialized per automation and contact (park_automation_wait), so concurrent triggers still leave one parked run, so a follow-up is timed from the latest message and sent once rather than once per message. A resume claimed more than six hours after its run_at is skipped rather than executed, marked failed with the lateness in its log, so a cron outage is never followed by a burst of stale steps.",
+          "tests": [
+            {
+              "file": "src/lib/automations/engine.test.ts",
+              "case": "[INB-020]"
+            },
+            {
+              "file": "src/lib/automations/resume-pending.test.ts",
+              "case": "[INB-020]"
+            }
+          ]
         }
       ]
     },

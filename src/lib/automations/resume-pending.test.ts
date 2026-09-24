@@ -134,6 +134,19 @@ vi.mock('@/lib/supabase/admin', () => ({
           return chain;
         },
         then: (resolve: (v: unknown) => unknown) => {
+          if (table === 'automation_pending_executions' && patch) {
+            const row = h.rows.get(filters.id as string);
+            if (
+              row &&
+              row.status === filters.status &&
+              row.claim_token === filters.claim_token
+            ) {
+              row.status = patch.status as Row['status'];
+            }
+          }
+          if (table === 'automation_logs' && patch) {
+            h.events.push(`log ${filters.id} ${patch.status}`);
+          }
           const lease = h.leases.get(filters.conversation_id as string);
           if (patch && lease && lease.holder === filters.holder) {
             lease.expiresAt = Date.parse(patch.expires_at as string);
@@ -217,6 +230,7 @@ vi.mock('./engine', () => ({
 import {
   drainPendingExecutions,
   RESUME_MAX_ATTEMPTS,
+  RESUME_MAX_LATENESS_MS,
   RESUME_STALE_SECONDS,
 } from './resume-pending';
 
@@ -275,6 +289,21 @@ beforeEach(() => {
 });
 
 describe('drainPendingExecutions', () => {
+  it('[INB-020] skips a step resumed long after its wait ended instead of sending it', async () => {
+    addRow('stale', 'contact-a', {
+      run_at: Date.now() - RESUME_MAX_LATENESS_MS - MINUTE,
+      log_id: 'log-stale',
+    });
+    addRow('fresh', 'contact-b', { run_at: Date.now() - 5 * 60 * MINUTE });
+
+    const result = await drainPendingExecutions();
+
+    expect(h.resumed.map((r) => r.id)).toEqual(['fresh']);
+    expect(h.rows.get('stale')?.status).toBe('failed');
+    expect(h.events).toContain('log log-stale failed');
+    expect(result).toMatchObject({ processed: 1, skipped: 1 });
+  });
+
   it('[INB-017] two overlapping cron runs execute each pending row once', async () => {
     addRow('p1', 'contact-a');
     addRow('p2', 'contact-b');
