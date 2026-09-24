@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **Gemini keys are managed from Admin → AI keys.** Platform admins add,
+  label, test, disable and remove Gemini keys in the app; they are stored
+  encrypted and both the web app and the WhatsApp worker pick them up
+  within a minute, with `GEMINI_API_KEY` kept as the fallback. A key that
+  runs out of credits rests for ten minutes while the next takes over, and
+  its state is shared across instances. The panel shows each key's calls,
+  tokens and estimated spend for today, this month and since its last
+  recorded top-up, an estimated remaining balance, and daily spend charts by
+  key and by feature. **Migration required:** `20260924060500_ai_provider_keys.sql`.
 - **Existing contacts stay out of Needs Review.** A WhatsApp message
   naming a listing — a showcase "I'm interested" tap, a property code or
   one of our Click-to-WhatsApp ads — used to move any contact to Needs
