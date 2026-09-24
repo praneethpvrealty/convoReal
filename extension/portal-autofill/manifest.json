@@ -20,7 +20,7 @@
         "https://*.magicbricks.com/*",
         "https://*.housing.com/*"
       ],
-      "js": ["portal-fill.js", "portal-harvest.js"],
+      "js": ["portal-fill.js", "portal-harvest.js", "owner-harvest.js"],
       "run_at": "document_idle"
     }
   ]
