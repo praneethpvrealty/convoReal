@@ -18,6 +18,8 @@ import {
 } from '@/lib/deals/financials';
 import { formatIndianDigits } from '@/lib/invoices/pdf-text';
 
+import { DealTranchesPanel } from './deal-tranches-panel';
+
 interface FinancialsResponse extends DealFinancials {
   token_source: TokenSource;
   token: {
@@ -84,12 +86,15 @@ export function DealFinancialsPanel({
   }
 
   return (
-    <FinancialsForm
-      key={JSON.stringify(data)}
-      dealId={dealId}
-      canEdit={canEdit}
-      data={data}
-    />
+    <div className="space-y-4">
+      <FinancialsForm
+        key={JSON.stringify(data)}
+        dealId={dealId}
+        canEdit={canEdit}
+        data={data}
+      />
+      <DealTranchesPanel dealId={dealId} canEdit={canEdit} />
+    </div>
   );
 }
 

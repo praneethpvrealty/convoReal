@@ -1627,6 +1627,29 @@
             { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-020]" }
           ],
           "guards": ["supabase/migrations/20260924103000_deal_deadlines.sql"]
+        },
+        {
+          "id": "TXW-021",
+          "rule": "A deal's payment schedule is one row per tranche in deal_payment_tranches, written only through /api/deals/[id]/tranches: a label and an amount are required, a receipt is a date and optionally a part amount, and a tranche with money against it is corrected, never removed. The table is internal only like the other financials (never /api/v1, a public route or a stakeholder link) and amounts never ride a timeline event. Scheduled, received and outstanding are summed on the server and shown, not recomputed, on web and mobile; both label a tranche received, part received, overdue, due today or scheduled by the same rule; and an unpaid tranche's due date is a deal deadline through the same SQL rule as milestones.",
+          "tests": [
+            { "file": "src/lib/deals/tranches.test.ts", "case": "[TXW-021]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-021]" },
+            { "file": "mobile/lib/deal-tranches.test.ts", "case": "[TXW-021]" }
+          ],
+          "guards": [
+            "supabase/migrations/20260924140000_deal_payment_tranches.sql",
+            "supabase/migrations/20260924140100_deal_deadlines_payment_tranches.sql",
+            "supabase/migrations/20260924150100_deal_payment_tranches_guards.sql"
+          ]
+        },
+        {
+          "id": "TXW-022",
+          "rule": "The Records index carries each deal's expected and actual close dates from transaction_workspace_index and both surfaces show them by one label rule (closes, close date passed, closed) and sort by one rule (soonest expected close first, undated after dated, closed deals last) when the agent chooses Close date over Recent.",
+          "tests": [
+            { "file": "src/lib/deals/index-row.test.ts", "case": "[TXW-022]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-022]" }
+          ],
+          "guards": ["supabase/migrations/20260924150000_transaction_index_expected_close.sql"]
         }
       ]
     },

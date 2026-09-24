@@ -17,6 +17,8 @@ import { attachmentUploadTimeoutMs } from './attachments';
 import { dealDocumentRejection } from './deal-workspace';
 import type {
   BundleDetail,
+  DealPaymentTrancheRow,
+  TrancheSchedule,
   DealDocumentCategory,
   DealDocumentRow,
   DealDocumentStatus,
@@ -395,6 +397,44 @@ export function moveJourneyItem(
 // ------------------------------------------------------------------
 // Phase 2 — stakeholders and share links.
 // ------------------------------------------------------------------
+
+export function fetchDealTranches(dealId: string) {
+  return apiFetch<{ data: TrancheSchedule }>(
+    `/api/deals/${dealId}/tranches`
+  ).then((r) => r.data);
+}
+
+export function addDealTranche(
+  dealId: string,
+  input: { label: string; amount: string; due_date: string | null }
+) {
+  return apiFetch<{ data: DealPaymentTrancheRow }>(
+    `/api/deals/${dealId}/tranches`,
+    { method: 'POST', ...json(input) }
+  ).then((r) => r.data);
+}
+
+export function updateDealTranche(
+  dealId: string,
+  trancheId: string,
+  patch: {
+    received_at?: string | null;
+    received_amount?: string | null;
+    instrument_ref?: string | null;
+  }
+) {
+  return apiFetch<{ data: DealPaymentTrancheRow }>(
+    `/api/deals/${dealId}/tranches/${trancheId}`,
+    { method: 'PATCH', ...json(patch) }
+  ).then((r) => r.data);
+}
+
+export function deleteDealTranche(dealId: string, trancheId: string) {
+  return apiFetch<{ data: { id: string } }>(
+    `/api/deals/${dealId}/tranches/${trancheId}`,
+    { method: 'DELETE', ...json({}) }
+  );
+}
 
 export function createDealGroup(input: { name: string; deal_ids: string[] }) {
   return apiFetch<{ data: { id: string; name: string } }>('/api/deal-groups', {

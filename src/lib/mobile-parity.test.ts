@@ -128,6 +128,11 @@ import {
   deadlineLabel,
 } from '@/lib/deals/deadlines';
 import {
+  TRANCHE_LABEL_SUGGESTIONS,
+  TRANCHE_STATUS_LABELS,
+} from '@/lib/deals/tranches';
+import { RECORDS_SORTS } from '@/lib/deals/index-row';
+import {
   DIGEST_PAUSE_COMMAND,
   DIGEST_RESUME_COMMAND,
   OWNER_DETAILS_SECTIONS,
@@ -3076,5 +3081,80 @@ describe('[TXW-020] deal deadlines reach both surfaces from the Focus snapshot',
     expect(digest).not.toContain("from('deal_milestones')");
     expect(focusQueries).not.toContain("from('deal_milestones')");
     expect(webToday).not.toContain("from('deal_milestones')");
+  });
+});
+
+describe('[TXW-021] the payment schedule ships on both surfaces through one route', () => {
+  const mobileVocab = mobileSource('lib/deal-workspace.ts');
+  const mobileApi = mobileSource('lib/deal-workspace-api.ts');
+  const mobileScreen = mobileSource('app/(app)/deal/[id].tsx');
+  const webPanel = webSource('components/deals/deal-tranches-panel.tsx');
+  const webFinancials = webSource('components/deals/deal-financials-panel.tsx');
+
+  it('reads and writes tranches through /api/deals/[id]/tranches on both surfaces', () => {
+    expect(webPanel).toContain('`/api/deals/${dealId}/tranches`');
+    expect(webPanel).toContain('`/api/deals/${dealId}/tranches/${t.id}`');
+    expect(mobileApi).toContain('`/api/deals/${dealId}/tranches`');
+    expect(mobileApi).toContain('`/api/deals/${dealId}/tranches/${trancheId}`');
+    expect(webFinancials).toContain('DealTranchesPanel');
+    expect(mobileScreen).toContain(
+      '<TranchesSection dealId={dealId} canEdit={canEdit} />'
+    );
+  });
+
+  it('labels every tranche status identically and offers the same label suggestions', () => {
+    for (const [status, label] of Object.entries(TRANCHE_STATUS_LABELS)) {
+      expect(
+        mobileVocab,
+        `mobile is missing the "${status}" tranche label`
+      ).toContain(`${status}: '${label}'`);
+    }
+    for (const suggestion of TRANCHE_LABEL_SUGGESTIONS) {
+      expect(mobileVocab).toContain(`'${suggestion}'`);
+    }
+  });
+
+  it('decides received, part, overdue and due by the same rule and sums nothing itself', () => {
+    expect(mobileVocab).toContain(
+      "if (received >= t.amount && (t.received_at || received > 0))\n    return 'received';"
+    );
+    expect(mobileVocab).toContain("if (received > 0) return 'partial';");
+    expect(mobileVocab).toContain("if (t.due_date < today) return 'overdue';");
+    expect(mobileVocab).toContain("if (t.due_date === today) return 'due';");
+    expect(mobileVocab).not.toMatch(/scheduled\s*[-+]\s*received/);
+    expect(mobileScreen).toContain('data.summary.outstanding');
+    expect(webPanel).toContain('data.summary.outstanding');
+  });
+});
+
+describe('[TXW-022] the Records index shows and sorts by the expected close on both surfaces', () => {
+  const mobileVocab = mobileSource('lib/deal-workspace.ts');
+  const mobileScreen = mobileSource('app/(app)/deals.tsx');
+  const webIndex = webSource(
+    'components/deals/transaction-workspace-index.tsx'
+  );
+
+  it('offers the same sort choices and reads the same columns', () => {
+    for (const option of RECORDS_SORTS) {
+      expect(mobileVocab).toContain(
+        `{ id: '${option.id}', label: '${option.label}' }`
+      );
+    }
+    expect(mobileVocab).toContain('expected_close_date: string | null;');
+    expect(mobileVocab).toContain('actual_close_date: string | null;');
+    expect(mobileScreen).toContain('sortIndexRows(rows, sort)');
+    expect(webIndex).toContain('sortIndexRows(rows, sort)');
+    expect(mobileScreen).toContain('expectedCloseLabel(item, today)');
+    expect(webIndex).toContain('expectedCloseLabel(row, today)');
+  });
+
+  it('labels and orders the close date by one rule', () => {
+    expect(mobileVocab).toContain(
+      "return { text: `Closed ${row.actual_close_date}`, tone: 'done' };"
+    );
+    expect(mobileVocab).toContain(
+      'if (aClosed !== bClosed) return aClosed ? 1 : -1;'
+    );
+    expect(mobileVocab).toContain("tone: soon ? 'soon' : 'later',");
   });
 });

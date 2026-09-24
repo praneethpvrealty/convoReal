@@ -26,9 +26,13 @@ import {
 import { useAuthStore } from '@/lib/auth-store';
 import { contactFullName } from '@/lib/contact-name';
 import {
+  expectedCloseLabel,
   isClosingRecord,
+  RECORDS_SORTS,
+  sortIndexRows,
   transactionSubtitle,
   transactionTitle,
+  type RecordsSort,
   type TransactionIndexRow,
 } from '@/lib/deal-workspace';
 import { moveDealStage } from '@/lib/deal-workspace-api';
@@ -613,6 +617,13 @@ export default function DealsScreen() {
   );
 }
 
+function localDayKey(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function RecordsList({
   rows,
   loading,
@@ -625,6 +636,9 @@ function RecordsList({
   onRefresh: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
+  const [sort, setSort] = useState<RecordsSort>('updated');
+  const today = localDayKey();
+  const sorted = useMemo(() => sortIndexRows(rows, sort), [rows, sort]);
   if (loading) {
     return (
       <View>
@@ -637,8 +651,27 @@ function RecordsList({
   return (
     <FlatList
       style={{ flex: 1 }}
-      data={rows}
+      data={sorted}
       keyExtractor={(r) => r.id}
+      ListHeaderComponent={
+        <View
+          style={{
+            flexDirection: 'row',
+            gap: spacing.sm,
+            paddingHorizontal: spacing.lg,
+            paddingBottom: spacing.sm,
+          }}
+        >
+          {RECORDS_SORTS.map((option) => (
+            <FilterChip
+              key={option.id}
+              label={option.label}
+              active={sort === option.id}
+              onPress={() => setSort(option.id)}
+            />
+          ))}
+        </View>
+      }
       contentContainerStyle={{ paddingBottom: spacing.xxl }}
       refreshControl={
         <RefreshControl
@@ -656,6 +689,7 @@ function RecordsList({
       }
       renderItem={({ item, index }) => {
         const subtitle = transactionSubtitle(item);
+        const close = expectedCloseLabel(item, today);
         return (
           <EnterRow index={index}>
             <Pressable
@@ -706,6 +740,23 @@ function RecordsList({
               <Text style={{ fontSize: 12, color: colors.textMuted }}>
                 {`${item.milestones_done}/${item.milestones_total} milestones${item.next_milestone_title ? ` · Next: ${item.next_milestone_title}` : ''}`}
               </Text>
+              {close ? (
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color:
+                      close.tone === 'overdue'
+                        ? colors.danger
+                        : close.tone === 'soon'
+                          ? colors.warning
+                          : close.tone === 'done'
+                            ? colors.success
+                            : colors.textMuted,
+                  }}
+                >
+                  {close.text}
+                </Text>
+              ) : null}
             </Pressable>
           </EnterRow>
         );

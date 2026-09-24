@@ -14,7 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { transactionTitle } from './index-row';
 
-export type DealDeadlineKind = 'milestone' | 'expected_close';
+export type DealDeadlineKind = 'milestone' | 'payment' | 'expected_close';
 export type DealDeadlineUrgency = 'overdue' | 'today' | 'soon';
 
 /** How far ahead Focus and Today look. */
@@ -146,15 +146,22 @@ export function toDealDeadline(
   };
 }
 
-/** Soonest first; on the same day a milestone outranks the deal's
- *  expected close, since the milestone is the thing to do. */
+const KIND_ORDER: Record<DealDeadlineKind, number> = {
+  milestone: 0,
+  payment: 1,
+  expected_close: 2,
+};
+
+/** Soonest first; on the same day a milestone outranks a payment,
+ *  which outranks the deal's expected close: the things to do come
+ *  before the date they add up to. */
 export function sortDeadlines<
   T extends Pick<DealDeadline, 'dueDate' | 'kind' | 'title'>,
 >(items: readonly T[]): T[] {
   return [...items].sort(
     (a, b) =>
       a.dueDate.localeCompare(b.dueDate) ||
-      (a.kind === b.kind ? 0 : a.kind === 'milestone' ? -1 : 1) ||
+      KIND_ORDER[a.kind] - KIND_ORDER[b.kind] ||
       a.title.localeCompare(b.title)
   );
 }
