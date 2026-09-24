@@ -73,6 +73,14 @@
     {
       "path": "/api/cron/share-feedback-followups",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/flow-run-sweep",
+      "schedule": "40 * * * *"
+    },
+    {
+      "path": "/api/cron/automation-resumes",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

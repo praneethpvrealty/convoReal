@@ -1918,7 +1918,7 @@
         },
         {
           "id": "GVL-010",
-          "rule": "Gemini keys form a pool: GEMINI_API_KEY followed by the comma-separated GEMINI_FALLBACK_API_KEYS (GEMINI_IMPORT_API_KEY, also comma-separated, replaces the pool for rate parsing). A key refused for depleted credits, billing or an invalid key is set aside for ten minutes and a rate-limited key for one, and the call moves to the next key; a key that is set aside is never called before its time is up, and when every key is set aside the call fails at once with the failure of the key that returns soonest; an ordinary model error never switches keys, and the last failure is reported only when every key is out. Rate parsing runs on the lite model tier unless GEMINI_IMPORT_TIER is 'standard'.",
+          "rule": "Rate parsing draws from the import-scoped keys of the AI key pool (AIK-001) and falls back to the general keys, or to GEMINI_IMPORT_API_KEY, when none is managed; it runs on the lite model tier unless GEMINI_IMPORT_TIER is 'standard'.",
           "tests": [
             {
               "file": "src/lib/ai/gemini-keys.test.ts",
@@ -1927,6 +1927,71 @@
             {
               "file": "src/lib/guidance-value/slice.test.ts",
               "case": "[GVL-010]"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ai-keys",
+      "name": "AI keys — managed Gemini key pool with usage and estimated spend",
+      "surfaces": ["web"],
+      "invariants": [
+        {
+          "id": "AIK-001",
+          "rule": "Every Gemini text and embedding call draws its key from the managed pool: enabled ai_provider_keys rows ordered by priority, decrypted with ENCRYPTION_KEY and cached in-process for a minute, so both Vercel and the Railway worker pick up a new key without a redeploy. Import-scoped keys serve only the guidance value import, which shares the general keys when it has none; a pool holding only import keys leaves ordinary calls on the environment keys. When no general key is managed or the table is unreachable, the pool is GEMINI_API_KEY plus the comma-separated GEMINI_FALLBACK_API_KEYS, each entry either a bare key or label=key.",
+          "tests": [
+            {
+              "file": "src/lib/ai/gemini-keys.test.ts",
+              "case": "[AIK-001]"
+            }
+          ]
+        },
+        {
+          "id": "AIK-002",
+          "rule": "A key refused for depleted credits, billing or an invalid key rests for ten minutes and a rate-limited key for one; the call moves to the next ready key, an ordinary model error never switches keys, a resting key is never called before its time, and when every key rests the call fails at once with the soonest key's failure. A managed key's rest and last error are written to its row and re-read on every call (only the ciphertext is cached), so every instance and the admin panel see the same state and a rest recorded elsewhere keeps its original failure message.",
+          "tests": [
+            {
+              "file": "src/lib/ai/gemini-keys.test.ts",
+              "case": "[AIK-002]"
+            }
+          ]
+        },
+        {
+          "id": "AIK-003",
+          "rule": "Key material is stored AES-256-GCM encrypted and never leaves the server: the admin API returns a four-character hint only, refuses malformed labels and keys, and is open to super_admin profiles alone. Admin tooling — no mobile counterpart.",
+          "tests": [
+            {
+              "file": "src/lib/ai/keys-admin.test.ts",
+              "case": "[AIK-003]"
+            },
+            {
+              "file": "src/app/api/admin/ai-keys/route.test.ts",
+              "case": "[AIK-003]"
+            }
+          ]
+        },
+        {
+          "id": "AIK-004",
+          "rule": "Usage comes from ai_call_log, which records the serving key's label for generation and embedding calls alike and is switched on by migration (the panel warns and offers to turn it on when it is off); the panel shows per key calls, tokens and estimated spend for today (Asia/Kolkata), this month and since the last recorded top-up, an estimated remaining balance of top-ups minus that spend (Google exposes no balance) computed over a window that reaches back to the month start and the last top-up, marked partial beyond the 90-day log, and labels seen in the log that are not managed. Spend is tokens × per-model USD prices with family fallbacks, overridable in system_settings.",
+          "tests": [
+            {
+              "file": "src/lib/ai/keys-admin.test.ts",
+              "case": "[AIK-004]"
+            }
+          ]
+        },
+        {
+          "id": "AIK-005",
+          "rule": "When a key is refused for depleted credits, billing or an invalid key, and when every key in the pool is resting, every super_admin profile gets an in-app, push and WhatsApp notification (type ai_key_alert) naming the key and pointing at Admin → AI keys. A rate limit never alerts. Each key alerts at most once per six hours, recorded on the key row (last_alert_at) or, for environment keys and the all-resting case, in system_settings.ai_key_alerts, so several instances do not repeat it; alerting never blocks or fails the AI call.",
+          "tests": [
+            {
+              "file": "src/lib/ai/key-alerts.test.ts",
+              "case": "[AIK-005]"
+            },
+            {
+              "file": "src/lib/ai/gemini-keys.test.ts",
+              "case": "[AIK-005]"
             }
           ]
         }
