@@ -24,6 +24,7 @@ import {
   findCandidateRates,
   parseNextSourceChunk,
 } from './server';
+import { classifyAiOutage } from './rate-parse';
 
 describe('findCandidateRates', () => {
   it('[GVL-002] never widens a district-scoped search to the whole state', async () => {
@@ -124,5 +125,39 @@ describe('parseNextSourceChunk', () => {
     const err = await parseNextSourceChunk(db, 'src-1').catch((e) => e);
     expect(err).not.toBeInstanceOf(AiUnavailableError);
     expect(updates.at(-1)).toMatchObject({ status: 'failed' });
+  });
+
+  it('never reports a storage quota error as a Gemini outage', async () => {
+    const { db, updates } = sourceDb(4);
+    (db.storage as unknown as { from: () => { download: unknown } }).from =
+      () => ({
+        download: async () => ({
+          data: null,
+          error: { message: 'Storage quota exceeded' },
+        }),
+      });
+    const err = await parseNextSourceChunk(db, 'src-1').catch((e) => e);
+    expect(err).not.toBeInstanceOf(AiUnavailableError);
+    expect(updates.at(-1)).toMatchObject({ status: 'failed' });
+  });
+});
+
+describe('classifyAiOutage', () => {
+  it('[GVL-008] treats a quota error that mentions billing as a rate limit', () => {
+    expect(
+      classifyAiOutage(
+        'You exceeded your current quota, please check your plan and billing details.'
+      )
+    ).toBe('rate_limited');
+  });
+
+  it('[GVL-008] treats depleted credits and a bad key as unavailable', () => {
+    expect(classifyAiOutage('Your prepayment credits are depleted.')).toBe(
+      'unavailable'
+    );
+    expect(
+      classifyAiOutage('API key not valid. Please pass a valid key.')
+    ).toBe('unavailable');
+    expect(classifyAiOutage('Failed to parse Gemini response')).toBeNull();
   });
 });

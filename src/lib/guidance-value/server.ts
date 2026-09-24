@@ -261,6 +261,13 @@ export async function parseNextSourceChunk(
       buffer,
       fromPage,
       toPage,
+    }).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      const outage = classifyAiOutage(message);
+      if (outage) {
+        throw new AiUnavailableError(message, outage === 'rate_limited');
+      }
+      throw err;
     });
     const pageCount = knownPages ?? totalPages;
     if (!pageCount) {
@@ -312,13 +319,12 @@ export async function parseNextSourceChunk(
     return updated;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const outage = classifyAiOutage(message);
-    if (outage) {
+    if (err instanceof AiUnavailableError) {
       await db
         .from('guidance_value_sources')
         .update({ error: message.slice(0, 500) })
         .eq('id', source.id);
-      throw new AiUnavailableError(message, outage === 'rate_limited');
+      throw err;
     }
     await db
       .from('guidance_value_sources')

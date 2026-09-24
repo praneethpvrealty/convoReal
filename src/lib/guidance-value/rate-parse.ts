@@ -14,7 +14,6 @@ export const MAX_ROWS_PER_CHUNK = 1500;
 const AI_UNAVAILABLE_PATTERNS = [
   /credits are depleted/i,
   /prepayment/i,
-  /billing/i,
   /api key not valid/i,
   /api key expired/i,
   /GEMINI_API_KEY is not configured/,
@@ -33,6 +32,7 @@ export function classifyAiOutage(message: string): AiOutage | null {
     return 'unavailable';
   if (AI_RATE_LIMITED_PATTERNS.some((pattern) => pattern.test(message)))
     return 'rate_limited';
+  if (/billing/i.test(message)) return 'unavailable';
   return null;
 }
 
