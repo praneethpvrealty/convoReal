@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight, Landmark, Route } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 import { PublicPageShell } from '@/components/landing/public-page-shell';
+import { ToolIcon } from '@/components/landing/tool-icon';
 import { BRANDING } from '@/config/branding';
 import {
   PROCESS_GUIDES,
@@ -20,7 +21,7 @@ import { fallbackSiteUrl } from '@/lib/showcase/site-url';
 
 const TITLE = 'Free real estate tools for Karnataka';
 const DESCRIPTION =
-  'Free tools from ConvoReal: find the Karnataka guidance value of a property by area and road, and follow step-by-step guides to khata transfer, sale deed registration, encumbrance certificate, TDS and home loans.';
+  'Free tools from ConvoReal: find the Karnataka guidance value of a property, calculate stamp duty and registration charges, work out a home loan EMI, and follow step-by-step guides to khata transfer, sale deed registration, encumbrance certificate, TDS and home loans.';
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -34,11 +35,6 @@ export const metadata: Metadata = {
     url: `${fallbackSiteUrl()}${TOOLS_PATH}`,
   },
 };
-
-const TOOL_ICONS = {
-  'guidance-value': Landmark,
-  'property-process': Route,
-} as const;
 
 export default function ToolsPage() {
   const origin = fallbackSiteUrl();
@@ -77,7 +73,6 @@ export default function ToolsPage() {
 
         <div className="mt-12 grid gap-6 md:grid-cols-2">
           {PUBLIC_TOOLS.map((tool) => {
-            const Icon = TOOL_ICONS[tool.slug as keyof typeof TOOL_ICONS];
             return (
               <Link
                 key={tool.slug}
@@ -85,7 +80,7 @@ export default function ToolsPage() {
                 className="group flex flex-col rounded-2xl border border-slate-800 bg-slate-900/50 p-7 shadow-xl shadow-slate-950/20 transition hover:-translate-y-1 hover:border-indigo-500/50"
               >
                 <div className="flex size-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
-                  <Icon className="size-5" />
+                  <ToolIcon icon={tool.icon} className="size-5" />
                 </div>
                 <h2 className="mt-5 text-xl font-black text-white">
                   {tool.name}

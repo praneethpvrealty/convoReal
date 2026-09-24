@@ -2036,6 +2036,26 @@
               "case": "[PUB-003]"
             }
           ]
+        },
+        {
+          "id": "PUB-004",
+          "rule": "The public stamp duty calculator at /tools/stamp-duty charges Karnataka stamp duty on the higher of the sale price and the guidance value, applies the slab rate to the whole chargeable value, adds the surcharge for the chosen area type and the cess as percentages of the duty and the registration fee as a percentage of the chargeable value, and every rate it uses is read from one table in src/lib/tools/stamp-duty.ts that the page prints in full. An empty or negative value yields zero, never a negative charge.",
+          "tests": [
+            {
+              "file": "src/lib/tools/stamp-duty.test.ts",
+              "case": "[PUB-004]"
+            }
+          ]
+        },
+        {
+          "id": "PUB-005",
+          "rule": "The public EMI calculator at /tools/emi-calculator computes the standard reducing-balance instalment from the loan (property price less the down payment share), annual rate and tenure, amortises it year by year until the balance is zero with the principal paid summing to the loan, treats a zero rate as straight-line repayment, caps the tenure at thirty years, and reads amounts written as lakh or crore.",
+          "tests": [
+            {
+              "file": "src/lib/tools/emi.test.ts",
+              "case": "[PUB-005]"
+            }
+          ]
         }
       ]
     }
