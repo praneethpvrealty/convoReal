@@ -77,6 +77,10 @@
     {
       "path": "/api/cron/flow-run-sweep",
       "schedule": "40 * * * *"
+    },
+    {
+      "path": "/api/cron/automation-resumes",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

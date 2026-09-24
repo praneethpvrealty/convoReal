@@ -1,10 +1,42 @@
 import { apiFetch } from './api';
+import { rankContactSearchResults } from './contact-search-rank';
 import { supabase } from './supabase';
-import type { RequirementRow } from './requirements-feed';
+import {
+  REQUIREMENT_CONTACT_COLUMNS,
+  REQUIREMENT_EDITABLE_CLASSIFICATIONS,
+  requirementContactSearchFilter,
+  type RequirementRow,
+} from './requirements-feed';
 
 export async function fetchRequirements(): Promise<RequirementRow[]> {
   const rows = await apiFetch<RequirementRow[]>('/api/requirements');
   return Array.isArray(rows) ? rows : [];
+}
+
+/** Whose requirement this could be, hydrated so the brief the sheet
+ *  opens on is the one already on record. */
+export async function searchRequirementContacts(
+  query: string
+): Promise<RequirementRow[]> {
+  const term = query.trim();
+  let request = supabase
+    .from('contacts')
+    .select(REQUIREMENT_CONTACT_COLUMNS.join(', '))
+    .eq('is_merged', false)
+    .eq('chain_only', false)
+    .in('classification', REQUIREMENT_EDITABLE_CLASSIFICATIONS)
+    .limit(50);
+
+  if (term) {
+    request = request.or(requirementContactSearchFilter(term));
+  }
+
+  const { data, error } = await request;
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as RequirementRow[];
+  return term
+    ? (rankContactSearchResults(rows, term) as RequirementRow[])
+    : rows;
 }
 
 export async function setRequirementActive(

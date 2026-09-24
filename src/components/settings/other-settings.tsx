@@ -591,7 +591,7 @@ export function OtherSettingsPanel() {
             RERA Project Registry Sourcing
           </CardTitle>
           <CardDescription className="text-slate-400">
-            Sourced pipeline for Apartment, Villa, and Layout Projects. This populates your database with real registered projects in Bangalore and its outskirts to power autocomplete in property details.
+            Sourced pipeline for Apartment, Villa, and Layout Projects. This populates project autocomplete in property details for Bangalore and its outskirts. It does not import RERA registration numbers; AI-suggested projects are marked unverified.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -632,7 +632,7 @@ export function OtherSettingsPanel() {
               <strong>Surrounding Taluks Covered:</strong> Ingests projects matching Bangalore Urban, Bangalore Rural, Devanahalli, Hoskote, Sarjapur, Kanakapura, Jigani, Bagalur, Nelamangala, Doddaballapur, Anekal, Attibele, Bidadi, and surrounding layouts.
             </p>
             <p>
-              <strong>AI Cloud Expansion:</strong> When the sync is triggered, the cloud pipeline automatically leverages Gemini AI Studio to identify newer registered real estate projects in Bangalore, resolving sublocality and promoter details directly in your database.
+              <strong>AI Cloud Expansion:</strong> When the sync is triggered, Gemini suggests newer projects in Bangalore with their area and builder. These are saved as unverified suggestions and never carry a RERA registration number.
             </p>
           </div>
         </CardContent>

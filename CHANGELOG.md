@@ -26,6 +26,29 @@ than a written entry. Newest first.
   notes and answers to buyers stay on full Flash. A listing correction is
   still normalised and re-derived as before, keeps any plot size or rate it
   does not mention, and stays a draft until the agent confirms it.
+- **A journey with every property dropped moves to Lost.** The Journey
+  view grouped a buyer (or property) at the furthest stage any item had
+  reached, so a buyer whose three shortlisted properties were all dropped
+  at Negotiation/Token still sat under Negotiation/Token with "Nothing in
+  the race". Once no live item is left, the journey now sits under the
+  account's lost stage (Closed Lost) on web and mobile; the items and
+  their history are untouched. Accounts without a lost stage keep the old
+  grouping. **Migration required:**
+  `20260924063001_journey_overview_all_dropped_lost.sql`.
+- **Free tools on the marketing site.** convoreal.com now carries two
+  public, indexable tools that bring in traffic and hand it to sign-up:
+  a Karnataka guidance value finder at `/tools/guidance-value`, which
+  searches the imported notifications by area, road, village and survey
+  number with no sign-in, and stage-by-stage property process guides at
+  `/tools/property-process` built from the liaison workflow templates
+  (khata transfer and name change, sale deed registration, EC, TDS,
+  builder re-assignment, home loan). Both carry FAQ, breadcrumb and
+  HowTo / WebApplication structured data for search and answer engines,
+  sit in the sitemap, and are linked from the landing page's new Free
+  Tools section, nav and footer. The public lookup never reads a deed or
+  calls Gemini: uploading the schedule stays the in-app feature the pages
+  sell. The lead bot answers guidance value and liaison questions from
+  the same config.
 - **Gemini keys are managed from Admin → AI keys.** Platform admins add,
   label, test, disable and remove Gemini keys in the app; they are stored
   encrypted and both the web app and the WhatsApp worker pick them up
@@ -89,6 +112,18 @@ than a written entry. Newest first.
   required:** `20260923051521_guidance_values.sql`,
   `20260923055423_guidance_values_server_writes.sql`,
   `20260923060239_guidance_value_source_url.sql`.
+
+#### 24 September 2026
+
+- **Start a requirement from the Requirements screen on mobile.** The
+  screen now has an "Add a requirement" button: pick the buyer or agent,
+  then write the brief, without hunting for the contact first. The
+  client arrives carrying whatever brief is already on record, so an
+  existing requirement is shown for editing instead of being replaced by
+  what you type. Read-only members do not see the button. The picker
+  lists the buyers whose briefs the app can write; an agent's
+  requirement stays visible, shareable and parkable on the screen but no
+  longer offers an Edit button the server would refuse.
 
 #### 22 September 2026
 

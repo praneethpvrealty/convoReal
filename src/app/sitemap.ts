@@ -10,6 +10,7 @@ import { propertySlug } from '@/lib/showcase/property-slug';
 import { fallbackSiteUrl } from '@/lib/showcase/site-url';
 import type { Property } from '@/types';
 import { AUTHORITY_SERVICES, publishedLocalities } from '@/lib/seo/authority';
+import { publicToolPaths } from '@/lib/marketing/public-tools';
 
 // Listings churn daily — rendering per-request (with the hour-long
 // unstable_cache on the underlying queries) keeps the sitemap current
@@ -21,6 +22,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const entries: MetadataRoute.Sitemap = [
     { url: siteUrl, changeFrequency: 'daily', priority: 1 },
+    ...publicToolPaths().map((path) => ({
+      url: `${siteUrl}${path}`,
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    })),
     ...FARMLAND_DESTINATIONS.map((destination) => ({
       url: `${siteUrl}/farmland/${destination.slug}`,
       changeFrequency: 'weekly' as const,

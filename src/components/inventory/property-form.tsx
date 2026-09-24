@@ -534,6 +534,7 @@ export function PropertyForm({
     city: string;
     state: string;
     address: string;
+    source?: 'rera' | 'curated' | 'ai' | null;
   }
 
   const [fetchedProjects, setFetchedProjects] = useState<AutoCompleteProject[]>([]);
@@ -4615,6 +4616,11 @@ export function PropertyForm({
                                   >
                                     <span className="font-bold">{p.name}</span>
                                     <span className="text-slate-400"> - {p.sublocality}, {p.city}</span>
+                                    {'source' in p && p.source === 'ai' && (
+                                      <span className="ml-2 rounded border border-amber-500/30 bg-amber-500/10 px-1 py-px text-[10px] text-amber-300">
+                                        AI suggestion · unverified
+                                      </span>
+                                    )}
                                   </button>
                                 ))}
                               </div>

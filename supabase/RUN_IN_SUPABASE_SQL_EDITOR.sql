@@ -1994,6 +1994,7 @@ CREATE TABLE IF NOT EXISTS rera_projects (
   total_units INTEGER,
   total_land_area NUMERIC,
   location_coordinates TEXT,           -- Latitude, Longitude string representation
+  source TEXT CHECK (source IS NULL OR source IN ('rera', 'curated', 'ai')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

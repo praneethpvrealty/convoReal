@@ -1027,7 +1027,7 @@
       "invariants": [
         {
           "id": "JRN-001",
-          "rule": "Journey search finds the subject by identifying details, including normalized mobile numbers, and every active journey is classified by the most advanced stage reached by any of its items.",
+          "rule": "Journey search finds the subject by identifying details, including normalized mobile numbers, and every active journey is classified by the most advanced stage reached by any of its items, except that a journey with no live items left and at least one dropped item is classified at the account's first lost stage that still mirrors a pipeline stage (falling back to the furthest stage when the account has none).",
           "tests": [
             {
               "file": "src/lib/journey/overview-state.test.ts",
@@ -1044,7 +1044,8 @@
           ],
           "guards": [
             "supabase/migrations/20260915024746_journey_overview_groups.sql",
-            "supabase/migrations/20260915030559_journey_overview_contact_scope.sql"
+            "supabase/migrations/20260915030559_journey_overview_contact_scope.sql",
+            "supabase/migrations/20260924063001_journey_overview_all_dropped_lost.sql"
           ]
         },
         {
@@ -1199,6 +1200,16 @@
             "supabase/migrations/20260917131000_requirement_account_shares.sql",
             "supabase/migrations/20260917133000_requirement_account_share_indexes.sql",
             ".github/workflows/eas-update.yml"
+          ]
+        },
+        {
+          "id": "REQ-006",
+          "rule": "A requirement can be started from the Requirements screen itself on web and mobile, without first opening the contact: the agent picks the client, then writes the brief. The picker offers only contacts whose brief the save route will write, and mobile offers Edit on no other card, so no path opens a brief the server will refuse. The picked client arrives carrying the brief already on record, so an existing requirement is shown rather than silently replaced by the one being typed. Read-only members are not offered the flow.",
+          "tests": [
+            {
+              "file": "mobile/lib/requirements-feed.test.ts",
+              "case": "[REQ-006]"
+            }
           ]
         },
         {
@@ -1982,6 +1993,47 @@
             {
               "file": "src/lib/ai/gemini-keys.test.ts",
               "case": "[AIK-005]"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "public-tools",
+      "name": "Free public tools — guidance value finder and property process guides on the marketing site",
+      "surfaces": ["web"],
+      "invariants": [
+        {
+          "id": "PUB-001",
+          "rule": "The public guidance value finder answers a typed schedule from the imported notifications with no sign-in: POST /api/public/guidance-value/lookup requires an area, layout, village or city, is rate-limited per IP and globally before any search, never reads a file (a multipart body is refused with SIGN_IN_REQUIRED), never calls Gemini and never burns credits. Reading a sale deed schedule stays behind sign-in on /api/guidance-value/lookup under GVL-001.",
+          "tests": [
+            {
+              "file": "src/app/api/public/guidance-value/lookup/route.test.ts",
+              "case": "[PUB-001]"
+            }
+          ]
+        },
+        {
+          "id": "PUB-002",
+          "rule": "Every liaison workflow template is published as a process guide at /tools/property-process/<slug>, with its stages, total days, authorities and generated questions derived from the template rather than written twice, and the hub, each tool and each guide is in the sitemap. Tool pages carry FAQ and breadcrumb structured data, process guides add HowTo with one step per stage, and the guidance value finder adds a free WebApplication served for Karnataka.",
+          "tests": [
+            {
+              "file": "src/lib/marketing/public-tools.test.ts",
+              "case": "[PUB-002]"
+            },
+            {
+              "file": "src/lib/seo/jsonld.test.ts",
+              "case": "[PUB-002]"
+            }
+          ]
+        },
+        {
+          "id": "PUB-003",
+          "rule": "The landing page and its lead bot know the free tools: the marketing config lists Guidance Value Finder and Liaisons & Process Tracking as features with FAQs that point at the tool URLs, and the site Q&A context names every public tool by URL so the bot never denies they exist.",
+          "tests": [
+            {
+              "file": "src/lib/marketing/site-qa.test.ts",
+              "case": "[PUB-003]"
             }
           ]
         }

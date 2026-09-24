@@ -2775,9 +2775,12 @@ describe('contact language is one tap from the record on both surfaces', () => {
   it('[CLG-002] mobile mirrors the product language registry', () => {
     const source = mobileSource('lib/languages.ts');
     for (const code of LANGUAGE_CODES) {
-      const { label, native } = SUPPORTED_LANGUAGES[code];
+      const { label, native, meta } = SUPPORTED_LANGUAGES[code];
+      // `meta` is mirrored too: web modules that mobile's tsconfig pulls
+      // in resolve `@/lib/languages` to THIS copy, so a missing field
+      // there fails the mobile typecheck rather than the web one.
       expect(source).toContain(
-        `${code}: { label: '${label}', native: '${native}' }`
+        `${code}: { label: '${label}', native: '${native}', meta: '${meta}' }`
       );
     }
     const mirrored = [...source.matchAll(/^  ([a-z]{2}): \{ label:/gm)].map(
@@ -2872,7 +2875,9 @@ describe('mobile deal document upload mirrors the web one', () => {
   it('[INV-008] names the file type on the upload, which storage requires', () => {
     // A PUT that reaches Supabase without a usable content-type is
     // answered 400 invalid_mime_type, whatever the bucket allows.
-    expect(mobileSource('lib/api.ts')).toContain("'content-type': opts.contentType");
+    expect(mobileSource('lib/api.ts')).toContain(
+      "'content-type': opts.contentType"
+    );
     expect(web).toContain("'content-type': mime_type");
   });
 });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   MessageSquare, 
   Bot, 
@@ -18,7 +19,10 @@ import {
   Building,
   Send,
   Bell,
-  ShoppingCart
+  ShoppingCart,
+  Landmark,
+  Handshake,
+  Route
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConvoRealMark } from '@/components/brand/mark';
@@ -26,6 +30,12 @@ import { MARKETING_CONFIG } from '@/config/marketing';
 import { EngineLeadForm } from '@/components/landing/engine-lead-form';
 import { EngineLeadBot } from '@/components/landing/engine-lead-bot';
 import { BRANDING } from '@/config/branding';
+import { PUBLIC_TOOLS, TOOLS_PATH } from '@/lib/marketing/public-tools';
+
+const TOOL_ICONS = {
+  'guidance-value': Landmark,
+  'property-process': Route,
+} as const;
 
 export function MarketingLanding() {
   // Catch recovery/reset password, session tokens, or auth errors in URL hash and redirect client-side
@@ -121,6 +131,10 @@ export function MarketingLanding() {
         return <Send className="size-5" />;
       case 'bell':
         return <Bell className="size-5" />;
+      case 'landmark':
+        return <Landmark className="size-5" />;
+      case 'handshake':
+        return <Handshake className="size-5" />;
       default:
         return <Sparkles className="size-5" />;
     }
@@ -150,6 +164,9 @@ export function MarketingLanding() {
           <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-300">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#demo" className="hover:text-white transition-colors">Interactive Demo</a>
+            {isRealEstate && (
+              <Link href={TOOLS_PATH} className="hover:text-white transition-colors">Free Tools</Link>
+            )}
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
             <a href="#get-started" className="hover:text-white transition-colors">Talk to us</a>
@@ -871,6 +888,53 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
           </div>
         </section>
 
+        {isRealEstate && (
+        <section id="tools" className="py-20 border-t border-slate-900">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+              <div className="max-w-3xl">
+                <span className="text-xs font-black uppercase text-emerald-400 tracking-wider">Free, no sign-in</span>
+                <h2 className="text-3xl sm:text-4xl font-black text-white mt-2 tracking-tight">
+                  Tools buyers and agents search for every day
+                </h2>
+                <p className="mt-4 text-slate-400 text-sm sm:text-base font-medium">
+                  The guidance value and process engines that run inside {BRANDING.name}, open to everyone. Try them, then bring them into your workspace.
+                </p>
+              </div>
+              <a
+                href={TOOLS_PATH}
+                className="inline-flex w-fit items-center gap-2 text-sm font-bold text-indigo-300 hover:text-indigo-200"
+              >
+                All free tools <ArrowRight className="size-4" />
+              </a>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {PUBLIC_TOOLS.map((tool) => {
+                const Icon = TOOL_ICONS[tool.slug as keyof typeof TOOL_ICONS];
+                return (
+                  <a
+                    key={tool.slug}
+                    href={tool.path}
+                    className="group bg-slate-950 border border-slate-900 rounded-2xl p-7 hover:border-emerald-500/40 hover:scale-[1.01] transition-all flex flex-col gap-4"
+                  >
+                    <div className="size-11 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400 shrink-0">
+                      <Icon className="size-5" />
+                    </div>
+                    <h3 className="text-xl font-bold text-white">{tool.name}</h3>
+                    <p className="text-sm text-slate-400 leading-relaxed font-medium flex-1">
+                      {tool.summary}
+                    </p>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-300 group-hover:text-emerald-200">
+                      {tool.cta} <ArrowRight className="size-3.5" />
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+        )}
+
         {/* Pricing Plan Cards */}
         <section id="pricing" className="py-20 bg-slate-900/30 border-t border-slate-900">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1039,6 +1103,10 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
             &copy; {new Date().getFullYear()} ConvoReal. All rights reserved.
           </p>
           <div className="flex items-center gap-6 font-semibold">
+            {isRealEstate && (
+              <Link href={TOOLS_PATH} className="hover:text-slate-300">Free Tools</Link>
+            )}
+            <Link href="/help" className="hover:text-slate-300">Help</Link>
             <a href="/privacy" className="hover:text-slate-300">Privacy Policy</a>
             <a href="/terms" className="hover:text-slate-300">Terms of Service</a>
             <a href="/refund-policy" className="hover:text-slate-300">Refund Policy</a>

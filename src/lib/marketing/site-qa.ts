@@ -10,6 +10,7 @@
 import { MARKETING_CONFIG } from '@/config/marketing';
 import { BRANDING } from '@/config/branding';
 import { REPLY_LANGUAGE_RULE } from '@/lib/languages';
+import { PUBLIC_TOOLS } from '@/lib/marketing/public-tools';
 
 export interface SiteQaResult {
   answer: string | null;
@@ -153,6 +154,12 @@ export function buildSiteContext(): string {
     '',
     'Features:',
     ...config.features.map((f) => `- ${f.title}: ${f.description}`),
+    '',
+    'Free public tools (no sign-in):',
+    ...PUBLIC_TOOLS.map(
+      (tool) =>
+        `- ${tool.name} (${BRANDING.websiteUrl}${tool.path}): ${tool.summary}`
+    ),
     '',
     'Plans:',
     ...config.pricing.map(

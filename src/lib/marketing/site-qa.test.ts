@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MARKETING_CONFIG } from '@/config/marketing';
+import { PUBLIC_TOOLS } from '@/lib/marketing/public-tools';
 import { answerFromSiteData, buildSiteContext } from './site-qa';
 
 describe('answerFromSiteData', () => {
@@ -52,5 +53,33 @@ describe('buildSiteContext', () => {
     for (const feature of MARKETING_CONFIG.features)
       expect(context).toContain(feature.title);
     for (const faq of MARKETING_CONFIG.faqs) expect(context).toContain(faq.q);
+  });
+
+  it('[PUB-003] tells the model about every free public tool by URL', () => {
+    const context = buildSiteContext();
+    for (const tool of PUBLIC_TOOLS) {
+      expect(context).toContain(tool.name);
+      expect(context).toContain(tool.path);
+    }
+  });
+});
+
+describe('free tools on the landing page', () => {
+  it('[PUB-003] lists guidance value and liaisons as features with FAQs the bot answers', () => {
+    const titles = MARKETING_CONFIG.features.map((f) => f.title);
+    expect(titles).toContain('Guidance Value Finder');
+    expect(titles).toContain('Liaisons & Process Tracking');
+
+    const guidance = answerFromSiteData(
+      'how do I find the guidance value of a property?'
+    );
+    expect(guidance.intent).toBe('faq');
+    expect(guidance.answer).toContain('/tools/guidance-value');
+
+    const liaisons = answerFromSiteData(
+      'what are liaisons and process guides?'
+    );
+    expect(liaisons.intent).toBe('faq');
+    expect(liaisons.answer).toContain('/tools/property-process');
   });
 });
