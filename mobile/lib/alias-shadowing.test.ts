@@ -18,31 +18,46 @@ import { describe, expect, it } from 'vitest';
 
 const MOBILE_ROOT = join(__dirname, '..');
 const SRC_ROOT = join(MOBILE_ROOT, '..', 'src');
-/** The directories a mobile `@/<path>` can name. */
-const ALIASED = ['lib', 'components', 'app', 'hooks', 'types'];
-const SKIP = new Set(['node_modules', '.expo', 'dist', 'ios', 'android']);
+/** Not source, or not ours. `@/*` matches the whole mobile root, so
+ *  everything else is scanned rather than a hand-picked list. */
+const SKIP = new Set([
+  'node_modules',
+  '.expo',
+  '.git',
+  'dist',
+  'build',
+  'ios',
+  'android',
+]);
 
-function modulePaths(root: string, dir: string, out: string[] = []): string[] {
-  const full = join(root, dir);
+/** Module specifiers a mobile file can be imported by as `@/<spec>`,
+ *  with `x/index` normalized to `x` the way TypeScript resolves it. */
+function modulePaths(root: string, dir = '', out: string[] = []): string[] {
+  const full = dir ? join(root, dir) : root;
   if (!existsSync(full)) return out;
   for (const entry of readdirSync(full)) {
     if (SKIP.has(entry)) continue;
-    const rel = `${dir}/${entry}`;
+    const rel = dir ? `${dir}/${entry}` : entry;
     if (statSync(join(root, rel)).isDirectory()) {
       modulePaths(root, rel, out);
     } else if (/\.tsx?$/.test(entry) && !/\.d\.ts$/.test(entry)) {
-      out.push(rel.replace(/\.tsx?$/, ''));
+      out.push(rel.replace(/\.tsx?$/, '').replace(/\/index$/, ''));
     }
   }
   return out;
 }
 
+/** Every file TypeScript would try for `@/<spec>`, index included. */
+function resolves(root: string, spec: string): boolean {
+  return ['.ts', '.tsx', '/index.ts', '/index.tsx'].some((ext) =>
+    existsSync(join(root, spec + ext))
+  );
+}
+
 describe('the mobile @/ alias', () => {
   it('[ALS-001] has no module path that also exists under src/', () => {
-    const shadowed = ALIASED.flatMap((dir) =>
-      modulePaths(MOBILE_ROOT, dir).filter((spec) =>
-        ['.ts', '.tsx'].some((ext) => existsSync(join(SRC_ROOT, spec + ext)))
-      )
+    const shadowed = modulePaths(MOBILE_ROOT).filter((spec) =>
+      resolves(SRC_ROOT, spec)
     );
     expect(
       shadowed,
@@ -52,8 +67,13 @@ describe('the mobile @/ alias', () => {
     ).toEqual([]);
   });
 
-  it('[ALS-001] scans a directory that actually holds modules', () => {
-    expect(modulePaths(MOBILE_ROOT, 'lib').length).toBeGreaterThan(50);
-    expect(modulePaths(MOBILE_ROOT, 'lib')).toContain('lib/contact-languages');
+  it('[ALS-001] scans the whole root and resolves index modules', () => {
+    const specs = modulePaths(MOBILE_ROOT);
+    expect(specs.length).toBeGreaterThan(200);
+    expect(specs).toContain('lib/contact-languages');
+    // A directory index is named by its parent, so a mobile `types.ts`
+    // would shadow src/types/index.ts and has to compare equal to it.
+    expect(specs.some((s) => s.endsWith('/index'))).toBe(false);
+    expect(resolves(SRC_ROOT, 'types')).toBe(true);
   });
 });

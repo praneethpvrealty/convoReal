@@ -2783,29 +2783,40 @@ describe('contact language is one tap from the record on both surfaces', () => {
     // mobile/lib/alias-shadowing.test.ts asserts the same thing from the
     // other side: each CI job only sees its own half of a diff, so this
     // copy is what catches a WEB file added under an existing mobile path.
-    const aliased = ['lib', 'components', 'app', 'hooks', 'types'];
-    const skip = new Set(['node_modules', '.expo', 'dist', 'ios', 'android']);
-    const modulePaths = (root: string, dir: string, out: string[] = []) => {
-      const full = join(root, dir);
+    const skip = new Set([
+      'node_modules',
+      '.expo',
+      '.git',
+      'dist',
+      'build',
+      'ios',
+      'android',
+    ]);
+    const modulePaths = (root: string, dir = '', out: string[] = []) => {
+      const full = dir ? join(root, dir) : root;
       if (!existsSync(full)) return out;
       for (const entry of readdirSync(full)) {
         if (skip.has(entry)) continue;
-        const rel = `${dir}/${entry}`;
+        const rel = dir ? `${dir}/${entry}` : entry;
         if (statSync(join(root, rel)).isDirectory()) {
           modulePaths(root, rel, out);
         } else if (/\.tsx?$/.test(entry) && !/\.d\.ts$/.test(entry)) {
-          out.push(rel.replace(/\.tsx?$/, ''));
+          out.push(rel.replace(/\.tsx?$/, '').replace(/\/index$/, ''));
         }
       }
       return out;
     };
     const mobileRoot = join(process.cwd(), 'mobile');
     const srcRoot = join(process.cwd(), 'src');
-    const shadowed = aliased.flatMap((dir) =>
-      modulePaths(mobileRoot, dir).filter((spec) =>
-        ['.ts', '.tsx'].some((ext) => existsSync(join(srcRoot, spec + ext)))
-      )
-    );
+    // Every file TypeScript would try for `@/<spec>`, index included: a
+    // mobile `types.ts` resolves the same specifier as src/types/index.ts.
+    const resolves = (root: string, spec: string) =>
+      ['.ts', '.tsx', '/index.ts', '/index.tsx'].some((ext) =>
+        existsSync(join(root, spec + ext))
+      );
+    const specs = modulePaths(mobileRoot);
+    expect(specs.length).toBeGreaterThan(200);
+    const shadowed = specs.filter((spec) => resolves(srcRoot, spec));
     expect(
       shadowed,
       `these paths exist under both mobile/ and src/, so the mobile one ` +
