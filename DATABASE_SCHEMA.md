@@ -161,8 +161,9 @@ Public listing portal branding config.
 - `id`, `account_id`, `logo_url`, `brand_name`, `theme_color`, `currency` (Default: `'INR'`).
 
 #### 10. `rera_projects`
- Bengaluru authorized construction tracking database.
-- `id`, `rera_number` (TEXT, UNIQUE), `project_name`, `developer`, `location`.
+ Global (no `account_id`) project registry behind the project autocomplete.
+- `id`, `rera_registration_number` (TEXT, UNIQUE, nullable), `name`, `promoter_name`, `project_type`, `sublocality`, `city`, `state`, `address`.
+- `source` (TEXT): `'rera'` (imported from the RERA portal — the only rows whose registration number is trusted), `'curated'` (seed list in `/api/projects/sync`) or `'ai'` (Gemini suggestion, unverified). Only `'rera'` rows may carry a `rera_registration_number`; AI output never writes one.
 
 ---
 

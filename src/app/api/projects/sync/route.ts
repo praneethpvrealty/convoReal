@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
-import { generateText } from "@/lib/ai/gemini";
-import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { generateJson } from "@/lib/ai/gemini";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import {
+  toAiDiscoveredProject,
+  type AiDiscoveredProject,
+  type ProjectSource,
+} from "@/lib/projects/ai-discovery";
 
 // Pre-compiled list of 155 popular residential projects in Bangalore Urban, Rural, and surrounding taluks
 const CORE_PROJECTS = [
@@ -171,138 +177,79 @@ const CORE_PROJECTS = [
   { name: "Birla Ojasvi", promoter_name: "Birla Estates", project_type: "Flat/ Apartment", sublocality: "Rajarajeshwari Nagar", address: "RR Nagar, Bangalore South", total_units: 630, total_land_area: 10 }
 ];
 
-// Generate RERA registration numbers consistently for seeds
-const reraPrefixes = [
-  'PRM/KA/RERA/1251/446/PR/', 
-  'PRM/KA/RERA/1251/309/PR/', 
-  'PRM/KA/RERA/1250/303/PR/',
-  'PRM/KA/RERA/1251/310/PR/',
-  'PRM/KA/RERA/1250/301/PR/'
-];
+const SEEDED_PROJECTS = CORE_PROJECTS.map((proj) => ({
+  ...proj,
+  city: "Bangalore",
+  state: "Karnataka",
+  source: "curated" as ProjectSource,
+}));
 
-const SEEDED_PROJECTS = CORE_PROJECTS.map((proj, idx) => {
-  const prefix = reraPrefixes[idx % reraPrefixes.length];
-  const num = 200000 + idx * 7;
-  return {
-    ...proj,
-    rera_registration_number: `${prefix}${num}`,
-    city: "Bangalore",
-    state: "Karnataka"
-  };
-});
+const EXPANSION_SYSTEM =
+  "You list real estate projects in and around Bangalore. Reply with a JSON array. Include only projects you are confident exist; leave a field empty rather than guessing it.";
+
+const EXPANSION_PROMPT = `List 15 additional popular or recently launched residential projects (apartments, villas, or layouts/plots) in Bangalore outskirts and surrounding areas (including Devanahalli, Hoskote, Sarjapur, Kanakapura, Jigani, Bagalur, Nelamangala, Doddaballapur, Harohalli, Anekal, Attibele, Bidadi).
+
+For each project, output a JSON object with:
+- name: project name
+- promoter_name: builder name, or "" if unsure
+- project_type: one of "Flat/ Apartment", "Villa", "Residential Land/ Plot"
+- sublocality: area name
+- city: "Bangalore"
+- state: "Karnataka"
+- address: road or layout details, or "" if unsure
+- total_units: integer estimate, or null
+- total_land_area: size in acres, or null`;
+
+async function insertMissing<T extends { name: string }>(
+  admin: SupabaseClient,
+  rows: T[],
+): Promise<number> {
+  const { data: existing, error: readError } = await admin
+    .from("rera_projects")
+    .select("name");
+  if (readError) throw readError;
+  const known = new Set((existing ?? []).map((r: { name: string }) => r.name.trim().toLowerCase()));
+  const fresh: T[] = [];
+  for (const row of rows) {
+    const key = row.name.trim().toLowerCase();
+    if (known.has(key)) continue;
+    known.add(key);
+    fresh.push(row);
+  }
+  if (fresh.length === 0) return 0;
+  const { error } = await admin.from("rera_projects").insert(fresh);
+  if (error) throw error;
+  return fresh.length;
+}
 
 export async function POST() {
   try {
-    // 1. Authorize user (requires 'viewer' role or higher to trigger synchronization)
     await requireRole("viewer");
 
-    console.log(`[Sync Projects] Triggering ingestion of ${SEEDED_PROJECTS.length} offline seeds...`);
-
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const dbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-    if (!serviceKey || !dbUrl) {
-      throw new Error("Missing service role key or database URL environment variables.");
-    }
-    const adminSupabase = createClient(dbUrl, serviceKey);
-
-    // 2. Perform bulk upsert in Supabase using the admin client to bypass RLS policies
-    const { error: upsertError } = await adminSupabase
-      .from("rera_projects")
-      .upsert(SEEDED_PROJECTS, { onConflict: "rera_registration_number" });
-
-    if (upsertError) {
-      console.error("[Sync Projects] Seed bulk upsert error:", upsertError);
-      throw upsertError;
-    }
+    const admin = supabaseAdmin();
+    const seededCount = await insertMissing(admin, SEEDED_PROJECTS);
 
     let scrapedCount = 0;
-    let geminiError = null;
-
-    // 3. If Gemini key is set, run dynamic online expansion of outskirts projects
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (apiKey) {
-      try {
-        console.log("[Sync Projects] Initiating Gemini cloud sourcing for new/outskirts projects...");
-        const prompt = `You are a real estate indexing agent for Karnataka RERA.
-Generate a list of 15 additional popular or recently approved residential projects (apartments, villas, or layouts/plots) registered under RERA in Bangalore outskirts and surrounding areas (including Devanahalli, Hoskote, Sarjapur, Kanakapura, Jigani, Bagalur, Nelamangala, Doddaballapur, Harohalli, Anekal, Attibele, Bidadi).
-
-For each project, output a JSON object with:
-- name: (Project name e.g. "Abhee Silicon Shine Phase 2")
-- promoter_name: (Builder name e.g. "Abhee Developers")
-- project_type: (Must be one of "Flat/ Apartment", "Villa", "Residential Land/ Plot")
-- sublocality: (Area name, e.g. "Devanahalli")
-- city: "Bangalore"
-- state: "Karnataka"
-- address: (Road or layout details)
-- rera_registration_number: (A mock RERA number, format: PRM/KA/RERA/1251/310/PR/YYMMDD/XXXXXX where XXXXXX are unique random digits)
-- total_units: (Estimate integer number, or null)
-- total_land_area: (Estimate numeric size in acres, or null)
-
-Return ONLY a valid JSON array of these 15 projects. Do not include markdown ticks, wrapping language keywords, or explanations.`;
-
-        const responseText = await generateText(prompt, "Return ONLY raw JSON array. Do not include markdown code block syntax (like ```json).");
-        
-        // Strip markdown code block wrapping if generated
-        let cleanJson = responseText.trim();
-        if (cleanJson.startsWith("```")) {
-          cleanJson = cleanJson.replace(/^```json\s*/i, "").replace(/```\s*$/, "");
-        }
-
-        const generatedProjects = JSON.parse(cleanJson);
-        if (Array.isArray(generatedProjects) && generatedProjects.length > 0) {
-          console.log(`[Sync Projects] Gemini generated ${generatedProjects.length} additional projects. Upserting...`);
-          
-          interface ScrapedProject {
-            name: string;
-            promoter_name?: string;
-            project_type?: string;
-            sublocality?: string;
-            city?: string;
-            state?: string;
-            address?: string;
-            rera_registration_number?: string;
-            total_units?: number | null;
-            total_land_area?: number | null;
-          }
-
-          const formattedGen = generatedProjects.map((proj: ScrapedProject, idx: number) => ({
-            name: proj.name,
-            promoter_name: proj.promoter_name || "Unknown Promoter",
-            project_type: proj.project_type || "Flat/ Apartment",
-            sublocality: proj.sublocality || "Bangalore Outskirts",
-            city: proj.city || "Bangalore",
-            state: proj.state || "Karnataka",
-            address: proj.address || "",
-            rera_registration_number: proj.rera_registration_number || `PRM/KA/RERA/1251/310/PR/260616/GEN${1000 + idx}`,
-            total_units: typeof proj.total_units === 'number' ? proj.total_units : null,
-            total_land_area: typeof proj.total_land_area === 'number' ? proj.total_land_area : null
-          }));
-
-          const { error: genError } = await adminSupabase
-            .from("rera_projects")
-            .upsert(formattedGen, { onConflict: "rera_registration_number" });
-
-          if (genError) {
-            console.error("[Sync Projects] Error saving Gemini projects:", genError);
-          } else {
-            scrapedCount = formattedGen.length;
-          }
-        }
-      } catch (err) {
-        console.error("[Sync Projects] Gemini expansion failed:", err);
-        geminiError = err instanceof Error ? err.message : String(err);
-      }
-    } else {
-      console.log("[Sync Projects] Skipping Gemini cloud sourcing since GEMINI_API_KEY is not configured.");
+    let geminiError: string | null = null;
+    try {
+      const parsed: unknown = JSON.parse(
+        await generateJson(EXPANSION_PROMPT, EXPANSION_SYSTEM, { feature: "project_sync" }),
+      );
+      const generated = (Array.isArray(parsed) ? parsed : [])
+        .map(toAiDiscoveredProject)
+        .filter((p): p is AiDiscoveredProject => p !== null);
+      scrapedCount = await insertMissing(admin, generated);
+    } catch (err) {
+      console.error("[Sync Projects] Gemini expansion failed:", err);
+      geminiError = err instanceof Error ? err.message : String(err);
     }
 
     return NextResponse.json({
       success: true,
-      seeded_count: SEEDED_PROJECTS.length,
+      seeded_count: seededCount,
       scraped_count: scrapedCount,
-      total_upserted: SEEDED_PROJECTS.length + scrapedCount,
-      gemini_expansion: apiKey ? (geminiError ? `Failed: ${geminiError}` : "Success") : "Disabled (No API Key)"
+      total_upserted: seededCount + scrapedCount,
+      gemini_expansion: geminiError ? `Failed: ${geminiError}` : "Success",
     });
   } catch (err) {
     return toErrorResponse(err);
