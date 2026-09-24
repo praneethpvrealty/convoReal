@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **New Gemini keys no longer fail on a retired model.** Google no longer
+  offers `gemini-2.5-flash` to new accounts, so a newly added key failed
+  every call that reached it — every full-Flash call, and every lite call
+  once lite was busy or over quota. A model Google reports as retired for a
+  key is now skipped for that key and the call moves on to the next model;
+  the lite tier now ends on `gemini-3.5-flash`.
 - **Buy Gemini credits from the AI keys panel.** Each key card in Admin →
   AI keys has a Buy credits button that opens Google Cloud billing in a new
   tab, signed in as the key's Google account when its label is an email.

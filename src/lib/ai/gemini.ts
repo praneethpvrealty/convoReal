@@ -11,6 +11,9 @@ import {
 } from '@/lib/inventory/floor-tenancies';
 import { logAiCall } from '@/lib/ai/call-log';
 import {
+  isRetiredModelMessage,
+  markModelRetired,
+  usableModels,
   withGeminiKeys,
   type GeminiKey,
   type GeminiKeyScope,
@@ -35,7 +38,7 @@ export { PROPERTY_TYPE_VALUES, normalizePropertyType };
 export type GeminiTier = 'standard' | 'lite';
 const MODEL_CHAINS: Record<GeminiTier, string[]> = {
   standard: ['gemini-2.5-flash', 'gemini-3.5-flash'],
-  lite: ['gemini-3.1-flash-lite', 'gemini-2.5-flash'],
+  lite: ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.5-flash'],
 };
 
 export interface GeminiCallOpts {
@@ -111,7 +114,7 @@ async function generateContentWithKey(
   const apiKey = entry.key;
 
   const tier: GeminiTier = opts.tier ?? 'standard';
-  const models = MODEL_CHAINS[tier];
+  const models = usableModels(entry, MODEL_CHAINS[tier]);
 
   // Telemetry inputs (see ai_call_log, migration 123). Media parts are
   // counted as a flag only — never previewed or sized.
@@ -222,7 +225,14 @@ async function generateContentWithKey(
         errLower.includes('deadline') ||
         errLower.includes('internal');
 
-      if (isTransientError && model !== models[models.length - 1]) {
+      if (isRetiredModelMessage(errorMessage)) {
+        markModelRetired(entry, model);
+      }
+
+      if (
+        (isTransientError || isRetiredModelMessage(errorMessage)) &&
+        model !== models[models.length - 1]
+      ) {
         console.log(
           '[Gemini AI] Falling back to the next model due to transient error...'
         );
