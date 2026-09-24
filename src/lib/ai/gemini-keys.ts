@@ -48,6 +48,7 @@ const POOL_TTL_MS = 60_000;
 const LAST_USED_WRITE_INTERVAL_MS = 60_000;
 
 const cooldowns = new Map<string, { until: number; message: string }>();
+const retiredModels = new Set<string>();
 const lastUsedWrites = new Map<string, number>();
 let managedCache: { fetchedAt: number; keys: GeminiKey[] } | null = null;
 
@@ -275,8 +276,31 @@ export function markKeySuccess(entry: GeminiKey): void {
   });
 }
 
+const RETIRED_MODEL_PATTERN =
+  /no longer available|is not found for api version|not supported for generatecontent/i;
+
+export function isRetiredModelMessage(message: string): boolean {
+  return RETIRED_MODEL_PATTERN.test(message);
+}
+
+function retiredModelKey(entry: GeminiKey, model: string): string {
+  return `${entry.id ?? entry.key}:${model}`;
+}
+
+export function usableModels(entry: GeminiKey, chain: string[]): string[] {
+  const usable = chain.filter(
+    (model) => !retiredModels.has(retiredModelKey(entry, model))
+  );
+  return usable.length ? usable : chain;
+}
+
+export function markModelRetired(entry: GeminiKey, model: string): void {
+  retiredModels.add(retiredModelKey(entry, model));
+}
+
 export function resetGeminiKeyState(): void {
   cooldowns.clear();
+  retiredModels.clear();
   lastUsedWrites.clear();
   managedCache = null;
 }

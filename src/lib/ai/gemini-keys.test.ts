@@ -53,10 +53,17 @@ import {
   generateText,
   resetGeminiKeyState,
 } from './gemini';
-import { parseEnvKeys, resolveGeminiKeys } from './gemini-keys';
+import {
+  markModelRetired,
+  parseEnvKeys,
+  resolveGeminiKeys,
+  usableModels,
+} from './gemini-keys';
 
 const failures: Record<string, string> = {};
+const modelFailures: Record<string, { status: number; message: string }> = {};
 const seen: string[] = [];
+const seenModels: string[] = [];
 
 function managedRow(
   label: string,
@@ -79,6 +86,8 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 beforeEach(() => {
   resetGeminiKeyState();
   seen.length = 0;
+  seenModels.length = 0;
+  for (const key of Object.keys(modelFailures)) delete modelFailures[key];
   store.rows = [];
   store.updates = [];
   store.fail = false;
@@ -90,7 +99,16 @@ beforeEach(() => {
   vi.stubEnv('GEMINI_IMPORT_API_KEY', '');
   vi.stubGlobal('fetch', async (url: string) => {
     const key = new URL(url).searchParams.get('key') ?? '';
+    const model = url.split('/models/')[1]?.split(':')[0] ?? '';
     seen.push(key);
+    seenModels.push(model);
+    const modelFailure = modelFailures[`${key}:${model}`];
+    if (modelFailure) {
+      return new Response(
+        JSON.stringify({ error: { message: modelFailure.message } }),
+        { status: modelFailure.status }
+      );
+    }
     if (failures[key]) {
       return new Response(
         JSON.stringify({ error: { message: failures[key] } }),
@@ -279,6 +297,49 @@ describe('failover', () => {
     failures['env-a'] = 'Request contains an invalid argument.';
     await expect(generateText('hi')).rejects.toThrow(/invalid argument/);
     expect(seen).toEqual(['env-a']);
+  });
+});
+
+describe('retired models', () => {
+  const retired = {
+    status: 404,
+    message:
+      'This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.6-flash.',
+  };
+
+  it('[AIK-007] moves past a model Google retired for the key and skips it afterwards', async () => {
+    modelFailures['env-a:gemini-2.5-flash'] = retired;
+    expect(await generateText('hi')).toBe('ok from env-a');
+    expect(seenModels).toEqual(['gemini-2.5-flash', 'gemini-3.5-flash']);
+    seenModels.length = 0;
+    expect(await generateText('again')).toBe('ok from env-a');
+    expect(seenModels).toEqual(['gemini-3.5-flash']);
+  });
+
+  it('[AIK-007] lets the lite tier reach full Flash when lite is over quota and the fallback is retired', async () => {
+    modelFailures['env-a:gemini-3.1-flash-lite'] = {
+      status: 429,
+      message: 'You exceeded your current quota, please check your plan.',
+    };
+    modelFailures['env-a:gemini-2.5-flash'] = retired;
+    expect(await generateText('hi', undefined, { tier: 'lite' })).toBe(
+      'ok from env-a'
+    );
+    expect(seenModels).toEqual([
+      'gemini-3.1-flash-lite',
+      'gemini-2.5-flash',
+      'gemini-3.5-flash',
+    ]);
+  });
+
+  it('[AIK-007] retires a model for that key only', () => {
+    const [a, b] = parseEnvKeys('a=key-a, b=key-b', (i) => `k${i}`, 'general');
+    const chain = ['gemini-2.5-flash', 'gemini-3.5-flash'];
+    markModelRetired(a, 'gemini-2.5-flash');
+    expect(usableModels(a, chain)).toEqual(['gemini-3.5-flash']);
+    expect(usableModels(b, chain)).toEqual(chain);
+    markModelRetired(a, 'gemini-3.5-flash');
+    expect(usableModels(a, chain)).toEqual(chain);
   });
 });
 
