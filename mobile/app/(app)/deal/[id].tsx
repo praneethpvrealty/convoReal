@@ -65,7 +65,12 @@ import {
   recipientStage,
   shareLinkMessage,
   snapshotItemAllowed,
+  trancheReceived,
+  trancheStatus,
+  TRANCHE_LABEL_SUGGESTIONS,
+  TRANCHE_STATUS_LABELS,
   type BundleCandidate,
+  type DealPaymentTrancheRow,
   type DealDocumentCategory,
   type DealDocumentRow,
   type DealDocumentStatus,
@@ -93,11 +98,13 @@ import {
   addDealNoteWithVisibility,
   addDealStakeholder,
   addDealTask,
+  addDealTranche,
   addStandardMilestones,
   createDealGroup,
   createDealShareLink,
   createInvoice,
   deleteDealDocument,
+  deleteDealTranche,
   extractDocument,
   fetchDealDocumentUrl,
   fetchDealDocuments,
@@ -108,6 +115,7 @@ import {
   fetchDealShareAccess,
   fetchDealStakeholders,
   fetchDealTasks,
+  fetchDealTranches,
   fetchDealUpdates,
   fetchInvoices,
   moveDealStage,
@@ -124,6 +132,7 @@ import {
   updateDealDocument,
   updateDealFinancials,
   updateDealMilestone,
+  updateDealTranche,
   uploadDealDocument,
 } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
@@ -1028,8 +1037,299 @@ function FinancialsForm({
           busy={saving}
         />
       ) : null}
+      <TranchesSection dealId={dealId} canEdit={canEdit} />
       <AppDialog {...dialog.dialogProps} />
     </ScrollView>
+  );
+}
+
+function localDateKey(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function TranchesSection({
+  dealId,
+  canEdit,
+}: {
+  dealId: string;
+  canEdit: boolean;
+}) {
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const dialog = useAppDialog();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [label, setLabel] = useState('');
+  const [amount, setAmount] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [receiptFor, setReceiptFor] = useState<DealPaymentTrancheRow | null>(
+    null
+  );
+  const [receivedAt, setReceivedAt] = useState('');
+  const [receivedAmount, setReceivedAmount] = useState('');
+  const [instrument, setInstrument] = useState('');
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['deal-tranches', dealId],
+    queryFn: () => fetchDealTranches(dealId),
+    enabled: Boolean(dealId),
+  });
+
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['deal-tranches', dealId] }),
+      queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+      queryClient.invalidateQueries({ queryKey: ['focus'] }),
+    ]);
+
+  async function run(key: string, action: () => Promise<unknown>) {
+    setBusy(key);
+    try {
+      await action();
+      await refresh();
+      void haptic.success();
+    } catch (err) {
+      dialog.show({
+        title: 'That did not work',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function openReceipt(t: DealPaymentTrancheRow) {
+    setReceiptFor(t);
+    setReceivedAt(t.received_at ?? localDateKey());
+    setReceivedAmount(
+      t.received_amount != null ? String(t.received_amount) : ''
+    );
+    setInstrument(t.instrument_ref ?? '');
+  }
+
+  function confirmRemove(t: DealPaymentTrancheRow) {
+    dialog.show({
+      title: `Remove "${t.label}"?`,
+      message: 'Only a tranche with nothing received can be removed.',
+      actions: [
+        {
+          label: 'Remove',
+          onPress: () => {
+            dialog.close();
+            void run(t.id, () => deleteDealTranche(dealId, t.id));
+          },
+        },
+        { label: 'Cancel', variant: 'muted' as const, onPress: dialog.close },
+      ],
+    });
+  }
+
+  const today = localDateKey();
+
+  return (
+    <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+      <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+        Payment schedule
+      </Text>
+      {isLoading ? (
+        <Loading />
+      ) : isError || !data ? (
+        <View style={{ gap: spacing.sm }}>
+          <Text style={{ fontSize: 13, color: colors.textMuted }}>
+            The payment schedule could not be loaded.
+          </Text>
+          <PrimaryButton label="Try again" onPress={() => void refetch()} />
+        </View>
+      ) : (
+        <>
+          {data.summary.count > 0 ? (
+            <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+              Scheduled {formatInr(data.summary.scheduled)} · Received{' '}
+              {formatInr(data.summary.received)} · Outstanding{' '}
+              <Text style={{ fontFamily: fonts.bold, color: colors.text }}>
+                {formatInr(data.summary.outstanding)}
+              </Text>
+            </Text>
+          ) : (
+            <Text style={{ fontSize: 13, color: colors.textMuted }}>
+              No tranches yet. Add the token, the agreement and registration
+              payments, and record each one as it comes in.
+            </Text>
+          )}
+          {data.tranches.map((t) => {
+            const status = trancheStatus(t, today);
+            const received = trancheReceived(t);
+            const tint =
+              status === 'received'
+                ? colors.success
+                : status === 'overdue'
+                  ? colors.danger
+                  : status === 'due' || status === 'partial'
+                    ? colors.warning
+                    : colors.textMuted;
+            return (
+              <Pressable
+                key={t.id}
+                disabled={!canEdit || busy === t.id}
+                onPress={() => openReceipt(t)}
+                onLongPress={() =>
+                  canEdit &&
+                  !t.received_at &&
+                  !(t.received_amount ?? 0) &&
+                  confirmRemove(t)
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`${t.label}, ${TRANCHE_STATUS_LABELS[status]}`}
+                style={[
+                  styles.card,
+                  styles.row,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={
+                    status === 'received' ? 'checkmark-circle' : 'cash-outline'
+                  }
+                  size={22}
+                  color={tint}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>
+                    {t.label} · {formatInr(t.amount)}
+                  </Text>
+                  <Text style={[styles.cardMeta, { color: tint }]}>
+                    {TRANCHE_STATUS_LABELS[status]}
+                    {t.due_date ? ` · due ${t.due_date}` : ''}
+                    {t.received_at
+                      ? ` · received ${t.received_at}${
+                          received < t.amount ? ` (${formatInr(received)})` : ''
+                        }`
+                      : ''}
+                    {t.instrument_ref ? ` · ${t.instrument_ref}` : ''}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+          {canEdit && receiptFor ? (
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  gap: spacing.sm,
+                },
+              ]}
+            >
+              <Text style={[styles.cardTitle, { color: colors.text }]}>
+                Receipt for {receiptFor.label} · {formatInr(receiptFor.amount)}
+              </Text>
+              <TextField
+                label="Received on (YYYY-MM-DD)"
+                value={receivedAt}
+                onChangeText={setReceivedAt}
+              />
+              <TextField
+                label="Amount received (blank = full)"
+                value={receivedAmount}
+                onChangeText={setReceivedAmount}
+                keyboardType="decimal-pad"
+              />
+              <TextField
+                label="Instrument / UTR"
+                value={instrument}
+                onChangeText={setInstrument}
+              />
+              <PrimaryButton
+                label="Save receipt"
+                busy={busy === receiptFor.id}
+                onPress={() =>
+                  void run(receiptFor.id, async () => {
+                    await updateDealTranche(dealId, receiptFor.id, {
+                      received_at: receivedAt || null,
+                      received_amount:
+                        receivedAmount === '' ? null : receivedAmount,
+                      instrument_ref: instrument || null,
+                    });
+                    setReceiptFor(null);
+                  })
+                }
+              />
+              <Pressable
+                onPress={() => setReceiptFor(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel receipt"
+              >
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: colors.textMuted,
+                    textAlign: 'center',
+                  }}
+                >
+                  Cancel
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {canEdit ? (
+            <>
+              <View style={styles.chipRow}>
+                {TRANCHE_LABEL_SUGGESTIONS.map((s) => (
+                  <FilterChip
+                    key={s}
+                    label={s}
+                    active={label === s}
+                    onPress={() => setLabel(s)}
+                  />
+                ))}
+              </View>
+              <TextField
+                label="Tranche"
+                placeholder="Token, On agreement, On registration…"
+                value={label}
+                onChangeText={setLabel}
+              />
+              <TextField
+                label="Amount"
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="decimal-pad"
+              />
+              <TextField
+                label="Due on (YYYY-MM-DD)"
+                value={dueDate}
+                onChangeText={setDueDate}
+              />
+              <PrimaryButton
+                label="Add tranche"
+                busy={busy === 'add'}
+                disabled={!label.trim() || !amount}
+                onPress={() =>
+                  void run('add', async () => {
+                    await addDealTranche(dealId, {
+                      label: label.trim(),
+                      amount,
+                      due_date: dueDate || null,
+                    });
+                    setLabel('');
+                    setAmount('');
+                    setDueDate('');
+                  })
+                }
+              />
+            </>
+          ) : null}
+        </>
+      )}
+      <AppDialog {...dialog.dialogProps} />
+    </View>
   );
 }
 

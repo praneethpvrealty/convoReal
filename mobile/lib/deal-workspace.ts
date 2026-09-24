@@ -383,6 +383,85 @@ export interface DealFinancialsRow {
   };
 }
 
+// --- Payment schedule — mirrored from src/lib/deals/tranches.ts ----------
+
+export type TrancheStatus =
+  'received' | 'partial' | 'overdue' | 'due' | 'scheduled';
+
+/** Mirrored from src/lib/deals/tranches.ts — see the header. */
+export const TRANCHE_STATUS_LABELS: Record<TrancheStatus, string> = {
+  received: 'Received',
+  partial: 'Part received',
+  overdue: 'Overdue',
+  due: 'Due today',
+  scheduled: 'Scheduled',
+};
+
+export const TRANCHE_LABEL_SUGGESTIONS: readonly string[] = [
+  'Token',
+  'On agreement',
+  'On registration',
+  'On possession',
+  'Bank loan disbursement',
+];
+
+export interface DealPaymentTrancheRow {
+  id: string;
+  account_id: string;
+  deal_id: string;
+  position: number;
+  label: string;
+  amount: number;
+  due_date: string | null;
+  received_at: string | null;
+  received_amount: number | null;
+  instrument_ref: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrancheSummary {
+  count: number;
+  scheduled: number;
+  received: number;
+  outstanding: number;
+}
+
+export interface TrancheSchedule {
+  tranches: DealPaymentTrancheRow[];
+  summary: TrancheSummary;
+}
+
+/** Mirrored from src/lib/deals/tranches.ts. The totals come from the
+ *  server; this only decides which label a row wears. */
+export function trancheReceived(
+  t: Pick<DealPaymentTrancheRow, 'amount' | 'received_at' | 'received_amount'>
+): number {
+  if (t.received_amount !== null && t.received_amount !== undefined) {
+    return Math.min(t.received_amount, t.amount);
+  }
+  return t.received_at ? t.amount : 0;
+}
+
+export function trancheStatus(
+  t: Pick<
+    DealPaymentTrancheRow,
+    'amount' | 'due_date' | 'received_at' | 'received_amount'
+  >,
+  today: string
+): TrancheStatus {
+  const received = trancheReceived(t);
+  if (received >= t.amount && (t.received_at || received > 0))
+    return 'received';
+  if (received > 0) return 'partial';
+  if (!t.due_date) return 'scheduled';
+  if (t.due_date < today) return 'overdue';
+  if (t.due_date === today) return 'due';
+  return 'scheduled';
+}
+
 // --- Bundles — mirrored from src/lib/deals/bundles.ts -------------------
 
 export const BUNDLE_MIN_DEALS = 2;
