@@ -58,6 +58,7 @@ The Queue Worker is deployed as a background daemon container (no public web end
    - `SUPABASE_SERVICE_ROLE_KEY`: *(Your Supabase service role API key)*
    - `ENCRYPTION_KEY`: *(Your 64 hex characters encryption key)*
    - `GEMINI_API_KEY`: *(Your Google Gemini API key)*
+   - `GEMINI_FALLBACK_API_KEYS`: *(Optional. Spare Gemini keys, comma-separated, tried in order when one runs out of credits or hits a quota. Set the same value here and on Vercel — the worker reads it for chatbot replies and message parsing, Vercel for the other text and embedding calls. Image generation (`src/lib/ai/image-gen.ts`) still uses `GEMINI_API_KEY` alone. `GEMINI_IMPORT_API_KEY` and `GEMINI_IMPORT_TIER` are Vercel-only; the worker never runs the guidance value import.)*
    - `NEXT_PUBLIC_SITE_URL`: `https://your-nextjs-app.com`
    - `NEXT_PUBLIC_DEFAULT_WEBSITE_NAME`: `ConvoReal`
    - `NEXT_PUBLIC_DEFAULT_WEBSITE_URL`: `https://www.convoreal.com`
