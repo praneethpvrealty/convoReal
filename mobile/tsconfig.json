@@ -1,24 +1,28 @@
 {
+  "//": [
+    "`@/*` resolves against the mobile root FIRST and ../src second, and a",
+    "path list applies to every file in the program — including the web",
+    "modules pulled in through @shared/. So a mobile module sitting at a",
+    "path some web module imports as `@/<path>` silently shadows the web",
+    "one for that import. mobile/lib/languages.ts did this to",
+    "src/lib/languages.ts: the WhatsApp templates resolved to the trimmed",
+    "mobile mirror and failed on exports it does not carry, and because",
+    "the mobile job only runs on mobile/** changes, main stayed green",
+    "until an unrelated mobile PR surfaced it.",
+    "The rule this alias needs is therefore: the two roots must not",
+    "overlap. No file under mobile/ may sit at a path that also exists",
+    "under src/. Both sides assert it — mobile/lib/alias-shadowing.test.ts",
+    "and the same case in src/lib/mobile-parity.test.ts — because each CI",
+    "job only sees its own half of the diff."
+  ],
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": [
-        "./*",
-        "../src/*"
-      ],
-      "@shared/*": [
-        "../src/*"
-      ],
-      "@supabase/supabase-js": [
-        "./node_modules/@supabase/supabase-js"
-      ]
+      "@/*": ["./*", "../src/*"],
+      "@shared/*": ["../src/*"],
+      "@supabase/supabase-js": ["./node_modules/@supabase/supabase-js"]
     }
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-  ]
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }

@@ -13,7 +13,7 @@
  * the pre-commit hook already executes.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
@@ -2772,15 +2772,54 @@ describe('mobile/lib/import-counts.ts mirrors import-activity', () => {
 });
 
 describe('contact language is one tap from the record on both surfaces', () => {
+  it('[ALS-001] no mobile module shadows a web module of the same path', () => {
+    // mobile/tsconfig.json resolves `@/*` against the mobile root first
+    // and ../src second, for every file in that program — including the
+    // web modules @shared/ pulls in. A mobile module sitting at a path a
+    // web module imports as `@/<path>` therefore shadows the web one for
+    // that import, silently. mobile/lib/languages.ts did this to
+    // src/lib/languages.ts and broke the mobile typecheck on main.
+    //
+    // mobile/lib/alias-shadowing.test.ts asserts the same thing from the
+    // other side: each CI job only sees its own half of a diff, so this
+    // copy is what catches a WEB file added under an existing mobile path.
+    const aliased = ['lib', 'components', 'app', 'hooks', 'types'];
+    const skip = new Set(['node_modules', '.expo', 'dist', 'ios', 'android']);
+    const modulePaths = (root: string, dir: string, out: string[] = []) => {
+      const full = join(root, dir);
+      if (!existsSync(full)) return out;
+      for (const entry of readdirSync(full)) {
+        if (skip.has(entry)) continue;
+        const rel = `${dir}/${entry}`;
+        if (statSync(join(root, rel)).isDirectory()) {
+          modulePaths(root, rel, out);
+        } else if (/\.tsx?$/.test(entry) && !/\.d\.ts$/.test(entry)) {
+          out.push(rel.replace(/\.tsx?$/, ''));
+        }
+      }
+      return out;
+    };
+    const mobileRoot = join(process.cwd(), 'mobile');
+    const srcRoot = join(process.cwd(), 'src');
+    const shadowed = aliased.flatMap((dir) =>
+      modulePaths(mobileRoot, dir).filter((spec) =>
+        ['.ts', '.tsx'].some((ext) => existsSync(join(srcRoot, spec + ext)))
+      )
+    );
+    expect(
+      shadowed,
+      `these paths exist under both mobile/ and src/, so the mobile one ` +
+        `shadows the web one for every web file in the mobile program that ` +
+        `imports it as "@/<path>": ${shadowed.join(', ')}`
+    ).toEqual([]);
+  });
+
   it('[CLG-002] mobile mirrors the product language registry', () => {
-    const source = mobileSource('lib/languages.ts');
+    const source = mobileSource('lib/contact-languages.ts');
     for (const code of LANGUAGE_CODES) {
-      const { label, native, meta } = SUPPORTED_LANGUAGES[code];
-      // `meta` is mirrored too: web modules that mobile's tsconfig pulls
-      // in resolve `@/lib/languages` to THIS copy, so a missing field
-      // there fails the mobile typecheck rather than the web one.
+      const { label, native } = SUPPORTED_LANGUAGES[code];
       expect(source).toContain(
-        `${code}: { label: '${label}', native: '${native}', meta: '${meta}' }`
+        `${code}: { label: '${label}', native: '${native}' }`
       );
     }
     const mirrored = [...source.matchAll(/^  ([a-z]{2}): \{ label:/gm)].map(
