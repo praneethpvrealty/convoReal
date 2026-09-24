@@ -81,5 +81,11 @@ describe('free tools on the landing page', () => {
     );
     expect(liaisons.intent).toBe('faq');
     expect(liaisons.answer).toContain('/tools/property-process');
+    const calculators = answerFromSiteData(
+      'is there a stamp duty or home loan EMI calculator?'
+    );
+    expect(calculators.intent).toBe('faq');
+    expect(calculators.answer).toContain('/tools/stamp-duty');
+    expect(calculators.answer).toContain('/tools/emi-calculator');
   });
 });

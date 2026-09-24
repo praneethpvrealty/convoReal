@@ -13,6 +13,7 @@ export const RESUME_LEASE_TTL_SECONDS = 10;
 export const RESUME_LEASE_MAX_HOLD_MS = 10_000;
 export const RESUME_CONCURRENCY = 5;
 export const RESUME_TIME_BUDGET_MS = 240_000;
+export const RESUME_MAX_LATENESS_MS = 6 * 60 * 60_000;
 
 interface ClaimedPendingRow {
   id: string;
@@ -48,26 +49,62 @@ type Target =
   | { kind: 'none' }
   | { kind: 'error' };
 
+async function beforeDeadline<T>(
+  work: PromiseLike<T>,
+  deadline: number
+): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), Math.max(deadline - Date.now(), 0));
+  });
+  try {
+    return await Promise.race([work, timedOut]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function resolveTarget(
   row: ClaimedPendingRow,
   deadline: number
 ): Promise<Target> {
   const fromContext = row.context?.conversation_id;
-  if (fromContext) return { kind: 'conversation', conversationId: fromContext };
+  if (fromContext) {
+    const existing = await beforeDeadline(
+      supabaseAdmin()
+        .from('conversations')
+        .select('id')
+        .eq('id', fromContext)
+        .eq('account_id', row.account_id)
+        .maybeSingle(),
+      deadline
+    );
+    if (!existing) {
+      console.error(
+        `[automations] conversation check for pending execution ${row.id} outlasted the time budget, it retries next tick`
+      );
+      return { kind: 'error' };
+    }
+    if (existing.error) {
+      console.error(
+        `[automations] conversation check for pending execution ${row.id} failed, it retries next tick:`,
+        existing.error
+      );
+      return { kind: 'error' };
+    }
+    if (existing.data) {
+      return { kind: 'conversation', conversationId: fromContext };
+    }
+  }
   if (!row.contact_id) return { kind: 'none' };
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timedOut = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), Math.max(deadline - Date.now(), 0));
-  });
-  const lookup = await Promise.race([
+  const lookup = await beforeDeadline(
     lookupConversation<{ id: string }>(supabaseAdmin(), {
       accountId: row.account_id,
       contactId: row.contact_id,
       columns: 'id',
     }),
-    timedOut,
-  ]);
-  clearTimeout(timer);
+    deadline
+  );
   if (!lookup) {
     console.error(
       `[automations] conversation lookup for pending execution ${row.id} outlasted the time budget, it retries next tick`
@@ -143,16 +180,74 @@ async function execute(row: ClaimedPendingRow): Promise<Outcome> {
   return 'processed';
 }
 
+async function expire(
+  row: ClaimedPendingRow,
+  lateMs: number
+): Promise<Outcome> {
+  const hours = Math.round(lateMs / 3_600_000);
+  console.warn(
+    `[automations] pending execution ${row.id} is ${hours}h past its run_at; skipping it instead of sending a stale step`
+  );
+  const db = supabaseAdmin();
+  const { error } = await db
+    .from('automation_pending_executions')
+    .update({ status: 'failed' })
+    .eq('id', row.id)
+    .eq('claim_token', row.claim_token)
+    .eq('status', 'running');
+  if (error) {
+    console.error(
+      `[automations] could not expire pending execution ${row.id}; it is retried once its claim goes stale:`,
+      error
+    );
+    return 'deferred';
+  }
+  if (row.log_id) {
+    await db
+      .from('automation_logs')
+      .update({
+        status: 'failed',
+        error_message: `Skipped: resumed ${hours}h after its wait ended`,
+      })
+      .eq('id', row.log_id);
+  }
+  return 'skipped';
+}
+
+function withResolvedConversation(
+  row: ClaimedPendingRow,
+  target: Target
+): ClaimedPendingRow {
+  const stored = row.context?.conversation_id;
+  if (target.kind === 'conversation') {
+    if (stored === target.conversationId) return row;
+    return {
+      ...row,
+      context: {
+        ...(row.context ?? {}),
+        conversation_id: target.conversationId,
+      },
+    };
+  }
+  if (!stored) return row;
+  const context = { ...(row.context ?? {}) };
+  delete context.conversation_id;
+  return { ...row, context };
+}
+
 async function runClaimed(
   row: ClaimedPendingRow,
   deadline: number
 ): Promise<Outcome> {
+  const lateMs = Date.now() - Date.parse(row.run_at);
+  if (lateMs > RESUME_MAX_LATENESS_MS) return expire(row, lateMs);
   const target = await resolveTarget(row, deadline);
   if (target.kind === 'error' || Date.now() >= deadline) {
     await releaseClaim(row);
     return 'deferred';
   }
-  if (target.kind === 'none') return execute(row);
+  const resumed = withResolvedConversation(row, target);
+  if (target.kind === 'none') return execute(resumed);
   let outcome: Outcome = 'deferred';
   try {
     await withConversationLease(
@@ -160,7 +255,7 @@ async function runClaimed(
       target.conversationId,
       null,
       async () => {
-        outcome = await execute(row);
+        outcome = await execute(resumed);
         return true;
       },
       {

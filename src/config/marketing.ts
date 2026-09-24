@@ -210,6 +210,10 @@ export const REAL_ESTATE_CONFIG: MarketingConfig = {
       a: "Use the free Karnataka guidance value finder at convoreal.com/tools/guidance-value: enter the area, road, village or survey number and it matches the published notification and computes the value stamp duty is charged on. Inside ConvoReal, agents, buyers and owners upload the sale deed schedule instead and the location and extent are read automatically.",
     },
     {
+      q: "Is there a stamp duty or home loan EMI calculator?",
+      a: "Yes, both are free at convoreal.com/tools/stamp-duty and convoreal.com/tools/emi-calculator. The stamp duty calculator applies the Karnataka slab, surcharge, cess and registration fee to the higher of the sale price and guidance value; the EMI calculator gives the monthly instalment, total interest and year-by-year balance, with a WhatsApp-ready summary.",
+    },
+    {
       q: "What are Liaisons and process guides?",
       a: "Liaisons is the directory of the people who run khata transfers, registrations, encumbrance certificates and loans for your clients, with their rate cards, jobs and payments tracked per property. The step-by-step process guides at convoreal.com/tools/property-process are free to read and can be sent to a client on WhatsApp from inside ConvoReal.",
     },

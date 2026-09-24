@@ -28,6 +28,27 @@ than a written entry. Newest first.
   anything still in play. A journey with nothing live sits under Lost
   alone, as before. Web and mobile both. **Migration required:**
   `20260924071006_journey_overview_live_and_lost.sql`.
+- **The mobile `@/` alias can no longer shadow a web module.** `@/*`
+  resolves against the mobile root before `../src`, and that applies to
+  the web modules the app pulls in for their types too — so a mobile
+  file sitting at a path a web module imports as `@/<path>` silently
+  stood in for it. `mobile/lib/languages.ts` did that to
+  `src/lib/languages.ts`, and the WhatsApp template modules failed on
+  exports the trimmed mobile mirror does not carry. It was the only such
+  collision in the repository; the mirror is now `contact-languages.ts`,
+  the two roots no longer overlap, and a test on each side fails if they
+  ever do again. Nothing changes for anyone using the app.
+
+- **Two more free tools: stamp duty and EMI.** `/tools/stamp-duty`
+  works out Karnataka stamp duty, surcharge, cess and the registration
+  fee on the higher of the sale price and the guidance value, with the
+  area picked for the surcharge and every rate printed on the page;
+  `/tools/emi-calculator` gives the monthly EMI, total interest and a
+  year-by-year balance from the property price, down payment, rate and
+  tenure. Both take amounts as lakh or crore, produce a WhatsApp-ready
+  summary, link to each other and to the guidance value finder, carry
+  FAQ and WebApplication structured data, and sit in the sitemap and the
+  landing page's Free Tools section.
 - **Cheaper AI for low-risk jobs.** The daily conversation sweep, Copilot
   answers, occasion greetings and listing and contact corrections now run on Gemini's
   lite model, which costs a fraction of full Flash and falls back to it when
@@ -35,6 +56,15 @@ than a written entry. Newest first.
   notes and answers to buyers stay on full Flash. A listing correction is
   still normalised and re-derived as before, keeps any plot size or rate it
   does not mention, and stays a draft until the agent confirms it.
+- **Automations no longer send a burst of stale follow-ups.** When the job
+  that resumes waiting automations had been down, it caught up by sending
+  every overdue step at once — one contact received the same "circling
+  back" message many times in a minute. A step resumed more than six hours
+  after it was due is now skipped and logged instead of sent, and a contact
+  who reaches the same wait again (for example by sending another message)
+  replaces the follow-up already queued, so it is sent once, timed from the
+  latest message — even when two messages arrive at the same moment.
+  **Migration required:** `20260924071500_park_automation_wait.sql`.
 - **A journey with every property dropped moves to Lost.** The Journey
   view grouped a buyer (or property) at the furthest stage any item had
   reached, so a buyer whose three shortlisted properties were all dropped

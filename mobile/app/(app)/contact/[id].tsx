@@ -96,7 +96,7 @@ import {
   languageDisplay,
   languageFromDisplay,
   type LanguageCode,
-} from '@/lib/languages';
+} from '@/lib/contact-languages';
 import {
   CONSENT_HINTS,
   CONSENT_LABELS,

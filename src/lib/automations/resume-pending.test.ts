@@ -28,7 +28,11 @@ const h = vi.hoisted(() => ({
   rows: new Map<string, Row>(),
   leases: new Map<string, Lease>(),
   conversations: new Map<string, string>(),
-  resumed: [] as { id: string; token: string | null | undefined }[],
+  resumed: [] as {
+    id: string;
+    token: string | null | undefined;
+    context?: Record<string, unknown>;
+  }[],
   rpcCalls: [] as { fn: string; args: Record<string, unknown> }[],
   tokenSeq: 0,
   failing: new Set<string>(),
@@ -130,6 +134,19 @@ vi.mock('@/lib/supabase/admin', () => ({
           return chain;
         },
         then: (resolve: (v: unknown) => unknown) => {
+          if (table === 'automation_pending_executions' && patch) {
+            const row = h.rows.get(filters.id as string);
+            if (
+              row &&
+              row.status === filters.status &&
+              row.claim_token === filters.claim_token
+            ) {
+              row.status = patch.status as Row['status'];
+            }
+          }
+          if (table === 'automation_logs' && patch) {
+            h.events.push(`log ${filters.id} ${patch.status}`);
+          }
           const lease = h.leases.get(filters.conversation_id as string);
           if (patch && lease && lease.holder === filters.holder) {
             lease.expiresAt = Date.parse(patch.expires_at as string);
@@ -162,6 +179,12 @@ vi.mock('@/lib/supabase/admin', () => ({
             return { data: { id }, error: null };
           }
           if (table !== 'conversations') return { data: null, error: null };
+          if (filters.id !== undefined) {
+            const exists =
+              filters.account_id === ACCOUNT &&
+              [...h.conversations.values()].includes(filters.id as string);
+            return { data: exists ? { id: filters.id } : null, error: null };
+          }
           h.onLookup?.();
           if (h.lookupStalls.has(filters.contact_id as string)) {
             return new Promise(() => {});
@@ -183,8 +206,16 @@ vi.mock('@/lib/supabase/admin', () => ({
 
 vi.mock('./engine', () => ({
   resumePendingExecution: vi.fn(
-    async (pending: { id: string; claim_token?: string | null }) => {
-      h.resumed.push({ id: pending.id, token: pending.claim_token });
+    async (pending: {
+      id: string;
+      claim_token?: string | null;
+      context?: Record<string, unknown>;
+    }) => {
+      h.resumed.push({
+        id: pending.id,
+        token: pending.claim_token,
+        context: pending.context,
+      });
       h.events.push(`start ${pending.id}`);
       await new Promise((resolve) =>
         setTimeout(resolve, h.resumeDelay.get(pending.id) ?? 5)
@@ -199,6 +230,7 @@ vi.mock('./engine', () => ({
 import {
   drainPendingExecutions,
   RESUME_MAX_ATTEMPTS,
+  RESUME_MAX_LATENESS_MS,
   RESUME_STALE_SECONDS,
 } from './resume-pending';
 
@@ -257,6 +289,21 @@ beforeEach(() => {
 });
 
 describe('drainPendingExecutions', () => {
+  it('[INB-020] skips a step resumed long after its wait ended instead of sending it', async () => {
+    addRow('stale', 'contact-a', {
+      run_at: Date.now() - RESUME_MAX_LATENESS_MS - MINUTE,
+      log_id: 'log-stale',
+    });
+    addRow('fresh', 'contact-b', { run_at: Date.now() - 5 * 60 * MINUTE });
+
+    const result = await drainPendingExecutions();
+
+    expect(h.resumed.map((r) => r.id)).toEqual(['fresh']);
+    expect(h.rows.get('stale')?.status).toBe('failed');
+    expect(h.events).toContain('log log-stale failed');
+    expect(result).toMatchObject({ processed: 1, skipped: 1 });
+  });
+
   it('[INB-017] two overlapping cron runs execute each pending row once', async () => {
     addRow('p1', 'contact-a');
     addRow('p2', 'contact-b');
@@ -364,6 +411,7 @@ describe('drainPendingExecutions', () => {
   });
 
   it('[INB-017] the context conversation is the one leased when the row carries it', async () => {
+    h.conversations.set('contact-ctx', 'conv-ctx');
     addRow('p1', 'contact-a', { context: { conversation_id: 'conv-ctx' } });
     holdLease('conv-ctx');
 
@@ -513,6 +561,32 @@ describe('drainPendingExecutions', () => {
     expect(result).toEqual({ processed: 0, deferred: 1, skipped: 0 });
     expect(h.resumed).toHaveLength(0);
     expect(h.rows.get('p1')).toMatchObject({ status: 'pending', attempts: 0 });
+  });
+
+  it('[INB-017] a stored conversation that no longer exists falls back to the contact thread instead of retrying forever', async () => {
+    addRow('p1', 'contact-a', { context: { conversation_id: 'conv-deleted' } });
+
+    const result = await drainPendingExecutions();
+
+    expect(result).toEqual({ processed: 1, deferred: 0, skipped: 0 });
+    const leased = h.rpcCalls
+      .filter((c) => c.fn === 'claim_conversation_qualification_lease')
+      .map((c) => c.args.p_conversation_id);
+    expect(leased).toEqual(['conv-a']);
+    expect(h.resumed[0].context?.conversation_id).toBe('conv-a');
+    expect(h.rows.get('p1')?.status).toBe('done');
+  });
+
+  it('[INB-017] a stored conversation that no longer exists, with no contact, runs without a lease', async () => {
+    addRow('p1', null, { context: { conversation_id: 'conv-deleted' } });
+
+    const result = await drainPendingExecutions();
+
+    expect(result.processed).toBe(1);
+    expect(
+      h.rpcCalls.some((c) => c.fn === 'claim_conversation_qualification_lease')
+    ).toBe(false);
+    expect(h.resumed[0].context).not.toHaveProperty('conversation_id');
   });
 
   it('[INB-017] a row reclaimed by another run before it executes is skipped, not run twice', async () => {
