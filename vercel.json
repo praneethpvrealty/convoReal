@@ -73,6 +73,10 @@
     {
       "path": "/api/cron/share-feedback-followups",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/flows/cron",
+      "schedule": "40 * * * *"
     }
   ]
 }
