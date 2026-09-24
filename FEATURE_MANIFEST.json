@@ -2039,6 +2039,16 @@
               "case": "[AIK-006]"
             }
           ]
+        },
+        {
+          "id": "AIK-007",
+          "rule": "A model Google has retired for a key (\"no longer available to new users\", not found, or not supported for generateContent) never ends a call: the call moves to the next model in its tier's chain, and that key skips the model for the rest of the process while other keys keep it. The lite chain ends on full Flash, so a key whose lite quota is exhausted and whose older fallback is retired still answers. When every model in a chain is retired for a key, the call moves on to the next ready key without resting this one, and later calls try the full chain again rather than none.",
+          "tests": [
+            {
+              "file": "src/lib/ai/gemini-keys.test.ts",
+              "case": "[AIK-007]"
+            }
+          ]
         }
       ]
     },
