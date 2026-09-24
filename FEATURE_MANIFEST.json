@@ -2009,6 +2009,16 @@
               "case": "[AIK-005]"
             }
           ]
+        },
+        {
+          "id": "AIK-006",
+          "rule": "Credits are bought in Google, never in ConvoReal: Google exposes no API to pay for Gemini credits. Each managed key card offers Buy credits, which opens Google Cloud billing in a new tab signed in as the key's label when that label is an email (authuser), and plain billing otherwise; the admin then records the top-up on the card for the estimated balance. Admin tooling — no mobile counterpart.",
+          "tests": [
+            {
+              "file": "src/lib/ai/keys-admin.test.ts",
+              "case": "[AIK-006]"
+            }
+          ]
         }
       ]
     },

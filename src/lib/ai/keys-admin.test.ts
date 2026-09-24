@@ -4,6 +4,7 @@ import {
   DEFAULT_PRICING,
   KEY_COLUMNS,
   KeyInputError,
+  billingUrl,
   buildKeyDashboard,
   estimateCostUsd,
   kolkataDate,
@@ -71,6 +72,20 @@ describe('pricing', () => {
     expect(
       estimateCostUsd('gemini-2.5-flash', 1_000_000, 1_000_000, pricing)
     ).toBe(3);
+  });
+});
+
+describe('billingUrl', () => {
+  it('[AIK-006] opens Google billing signed in as the key owner', () => {
+    expect(billingUrl('praneeku@gmail.com')).toBe(
+      'https://console.cloud.google.com/billing?authuser=praneeku%40gmail.com'
+    );
+    expect(billingUrl(' pransss@gmail.com ')).toBe(
+      'https://console.cloud.google.com/billing?authuser=pransss%40gmail.com'
+    );
+    expect(billingUrl('primary')).toBe(
+      'https://console.cloud.google.com/billing'
+    );
   });
 });
 

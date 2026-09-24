@@ -190,6 +190,16 @@ export function keyHint(key: string): string {
   return `…${key.slice(-4)}`;
 }
 
+const BILLING_URL = 'https://console.cloud.google.com/billing';
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function billingUrl(label: string): string {
+  const account = label.trim();
+  return EMAIL_PATTERN.test(account)
+    ? `${BILLING_URL}?authuser=${encodeURIComponent(account)}`
+    : BILLING_URL;
+}
+
 export async function createManagedKey(
   db: SupabaseClient,
   body: unknown,
