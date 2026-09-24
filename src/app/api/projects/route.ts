@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { POPULAR_PROJECTS } from "@/lib/data/real-estate-data";
-import { generateText } from "@/lib/ai/gemini";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { lookupProject, type ProjectSource } from "@/lib/projects/ai-discovery";
 
 interface DbProject {
   name: string;
@@ -11,6 +11,7 @@ interface DbProject {
   state: string | null;
   address: string | null;
   project_type: string | null;
+  source: ProjectSource | null;
 }
 
 // GET /api/projects
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
       const pattern = `"%${cleanSearch}%"`;
       const { data, error } = await ctx.supabase
         .from("rera_projects")
-        .select("name, sublocality, city, state, address, project_type")
+        .select("name, sublocality, city, state, address, project_type, source")
         .or(`name.ilike.${pattern},sublocality.ilike.${pattern}`)
         .limit(limit);
 
@@ -42,70 +43,30 @@ export async function GET(request: Request) {
       }
     }
 
-    // Dynamic Discovery / Self-Learning: If no projects match and the query is reasonably specific
     const term = search.trim();
     if (dbProjects.length === 0 && term.length >= 4) {
-      const apiKey = process.env.GEMINI_API_KEY;
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      const dbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-      if (apiKey && serviceKey && dbUrl) {
-        try {
-          console.log(`[GET /api/projects] Project not found in DB. Resolving dynamically via Gemini: "${term}"`);
-          const prompt = `Identify the real estate project (apartment, villa, or layout/plot) matching the query: "${term}" in Bangalore or its outskirts.
-Provide its details in a JSON object with the following fields:
-- name: (Project name, e.g. "SJR Blue Waters" or "Swiss Town")
-- promoter_name: (Builder name, e.g. "SJR Primecorp" or "Swiss Infrastructure")
-- project_type: (Must be one of "Flat/ Apartment", "Villa", "Residential Land/ Plot")
-- sublocality: (Area or road name, e.g. "Harlur Road" or "Devanahalli")
-- city: "Bangalore"
-- state: "Karnataka"
-- address: (Street location details)
-- rera_registration_number: (Actual or mock RERA number, format PRM/KA/RERA/1251/...)
-
-Return ONLY the raw JSON object. If the project cannot be identified as a real project in Bangalore, return null. Do not include markdown code blocks.`;
-
-          const responseText = await generateText(prompt, "Return ONLY raw JSON object. Do not wrap in markdown.");
-          
-          let cleanJson = responseText.trim();
-          if (cleanJson.startsWith("```")) {
-            cleanJson = cleanJson.replace(/^```json\s*/i, "").replace(/```\s*$/, "");
-          }
-
-          if (cleanJson && cleanJson !== "null") {
-            const parsed = JSON.parse(cleanJson);
-            if (parsed && parsed.name) {
-              const newProject = {
-                name: parsed.name,
-                promoter_name: parsed.promoter_name || "Unknown Promoter",
-                project_type: parsed.project_type || "Flat/ Apartment",
-                sublocality: parsed.sublocality || "",
-                city: parsed.city || "Bangalore",
-                state: parsed.state || "Karnataka",
-                address: parsed.address || "",
-                rera_registration_number: parsed.rera_registration_number || `PRM/KA/RERA/1251/310/PR/TEMP-${Date.now()}`
-              };
-
-              console.log(`[GET /api/projects] Dynamic discovery success: "${newProject.name}". Persisting to DB...`);
-              
-              // Initialize admin client to bypass Row Level Security inserts
-              const adminSupabase = createClient(dbUrl, serviceKey);
-              await adminSupabase.from("rera_projects").upsert(newProject, { onConflict: "rera_registration_number" });
-
-              // Append to local search results
-              dbProjects.push({
-                name: newProject.name,
-                sublocality: newProject.sublocality,
-                city: newProject.city,
-                state: newProject.state,
-                address: newProject.address,
-                project_type: newProject.project_type
-              });
+      try {
+        const found = await lookupProject(term);
+        if (found) {
+          const admin = supabaseAdmin();
+          const { data: existing } = await admin
+            .from("rera_projects")
+            .select("name, sublocality, city, state, address, project_type, source")
+            .ilike("name", found.name.replace(/[\\%_]/g, (c) => `\\${c}`))
+            .limit(1)
+            .maybeSingle();
+          if (existing) {
+            dbProjects.push(existing as DbProject);
+          } else {
+            const { error: insertError } = await admin.from("rera_projects").insert(found);
+            if (insertError) {
+              console.error("[GET /api/projects] Failed to save AI-discovered project:", insertError);
             }
+            dbProjects.push(found);
           }
-        } catch (err) {
-          console.warn("[GET /api/projects] Dynamic discovery fallback: Gemini service is currently unavailable or returned an error:", err);
         }
+      } catch (err) {
+        console.warn("[GET /api/projects] AI project lookup failed:", err);
       }
     }
 
@@ -117,7 +78,8 @@ Return ONLY the raw JSON object. If the project cannot be identified as a real p
       city: p.city || "Bangalore",
       state: p.state || "Karnataka",
       address: p.address || "",
-      type: p.project_type || "Flat/ Apartment"
+      type: p.project_type || "Flat/ Apartment",
+      source: p.source,
     }));
 
     if (results.length === 0) {
@@ -136,7 +98,8 @@ Return ONLY the raw JSON object. If the project cannot be identified as a real p
         city: p.city,
         state: p.state,
         address: p.address,
-        type: "Flat/ Apartment"
+        type: "Flat/ Apartment",
+        source: "curated" as ProjectSource,
       }));
     }
 
