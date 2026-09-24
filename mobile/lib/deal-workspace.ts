@@ -383,6 +383,121 @@ export interface DealFinancialsRow {
   };
 }
 
+// --- Bundles — mirrored from src/lib/deals/bundles.ts -------------------
+
+export const BUNDLE_MIN_DEALS = 2;
+export const BUNDLE_MAX_DEALS = 20;
+export const BUNDLE_NAME_MAX = 120;
+
+export interface BundleCandidate {
+  id: string;
+  title: string;
+  contact_id: string | null;
+  contact_name: string | null;
+  property_title: string | null;
+  property_unit_no: string | null;
+  stage_name: string | null;
+  deal_group_id: string | null;
+}
+
+export interface BundleAnchor {
+  id: string;
+  contact_id: string | null;
+}
+
+function cleanText(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+export function bundleCandidateLabel(
+  row: Pick<BundleCandidate, 'title' | 'property_title' | 'property_unit_no'>
+): string {
+  const unit = cleanText(row.property_unit_no);
+  if (unit) return `Property No. ${unit}`;
+  return cleanText(row.property_title) ?? row.title;
+}
+
+export function bundleCandidates<T extends BundleCandidate>(
+  rows: readonly T[],
+  anchor: BundleAnchor
+): T[] {
+  return rows
+    .filter((r) => r.id !== anchor.id && !r.deal_group_id)
+    .sort((a, b) => {
+      const aSame =
+        Boolean(anchor.contact_id) && a.contact_id === anchor.contact_id;
+      const bSame =
+        Boolean(anchor.contact_id) && b.contact_id === anchor.contact_id;
+      if (aSame !== bSame) return aSame ? -1 : 1;
+      return bundleCandidateLabel(a).localeCompare(bundleCandidateLabel(b));
+    });
+}
+
+export function sameBuyerIds(
+  candidates: readonly BundleCandidate[],
+  anchor: BundleAnchor
+): string[] {
+  if (!anchor.contact_id) return [];
+  return candidates
+    .filter((c) => c.contact_id === anchor.contact_id)
+    .map((c) => c.id);
+}
+
+export function defaultBundleName(
+  contactName: string | null | undefined
+): string {
+  const who = cleanText(contactName);
+  return (who ? `${who} — linked purchases` : 'Linked purchases').slice(
+    0,
+    BUNDLE_NAME_MAX
+  );
+}
+
+export function bundleBlocker(
+  name: string,
+  selectedCount: number
+): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return 'Give the bundle a name.';
+  if (trimmed.length > BUNDLE_NAME_MAX) {
+    return `Keep the name under ${BUNDLE_NAME_MAX} characters.`;
+  }
+  if (selectedCount < BUNDLE_MIN_DEALS) {
+    return 'Pick at least one more deal to bundle with this one.';
+  }
+  if (selectedCount > BUNDLE_MAX_DEALS) {
+    return `A bundle holds at most ${BUNDLE_MAX_DEALS} deals.`;
+  }
+  return null;
+}
+
+export interface BundleMemberRow {
+  id: string;
+  title: string;
+  value: number | null;
+  stage:
+    | { name: string; color: string | null }
+    | { name: string; color: string | null }[]
+    | null;
+  contact:
+    | { name: string | null; second_name: string | null }
+    | { name: string | null; second_name: string | null }[]
+    | null;
+  property:
+    | { title: string | null; unit_no: string | null }
+    | { title: string | null; unit_no: string | null }[]
+    | null;
+  progress: { total: number; done: number };
+}
+
+export interface BundleDetail {
+  id: string;
+  name: string;
+  deals: BundleMemberRow[];
+  progress: { total: number; done: number };
+}
+
 export interface DealTaskRow {
   id: string;
   title: string;

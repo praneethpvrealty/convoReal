@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Building2,
+  CalendarClock,
   CalendarDays,
   Check,
   ChevronDown,
@@ -40,15 +41,17 @@ import { Button } from "@/components/ui/button"
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader"
 import { JourneyEmbed } from "@/components/journey/journey-embed"
 import type {
+  FocusDeadline,
   FocusJourney,
   FocusRequest,
   FocusRequestKind,
   FocusSnapshot,
   FocusTask,
 } from "@/lib/focus/types"
+import { deadlineLabel } from "@/lib/deals/deadlines"
 import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from "@/lib/copilot/actions"
 
-type SectionId = "tasks" | "journeys" | "requests"
+type SectionId = "tasks" | "deadlines" | "journeys" | "requests"
 
 const REQUEST_META: Record<
   FocusRequestKind,
@@ -177,6 +180,7 @@ export default function FocusContent() {
     )
   }
 
+  const deadlines = snapshot?.deadlines
   const journeys = snapshot?.journeys
   const requests = snapshot?.requests
 
@@ -203,7 +207,7 @@ export default function FocusContent() {
         </Button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <GistCard
           id="tasks"
           title="Tasks & visits"
@@ -225,6 +229,29 @@ export default function FocusContent() {
         >
           {openTasks.slice(0, 3).map((task) => (
             <TaskLine key={task.id} task={task} />
+          ))}
+        </GistCard>
+
+        <GistCard
+          id="deadlines"
+          title="Deal deadlines"
+          icon={<CalendarClock className="size-4 text-amber-400" />}
+          count={deadlines?.total ?? 0}
+          summary={
+            deadlines?.total
+              ? [
+                  ...(deadlines.overdue > 0 ? [`${deadlines.overdue} overdue`] : []),
+                  ...(deadlines.dueToday > 0 ? [`${deadlines.dueToday} today`] : []),
+                  ...(deadlines.soon > 0 ? [`${deadlines.soon} in the next two weeks`] : []),
+                ].join(" · ")
+              : ""
+          }
+          expanded={expanded.has("deadlines")}
+          onToggle={() => toggle("deadlines")}
+          emptyText="No deal date is due in the next two weeks."
+        >
+          {(deadlines?.items ?? []).slice(0, 3).map((d) => (
+            <DeadlineLine key={`${d.dealId}:${d.milestoneId ?? d.kind}`} deadline={d} />
           ))}
         </GistCard>
 
@@ -320,6 +347,52 @@ export default function FocusContent() {
                     </Button>
                   )}
                 </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+      )}
+
+      {expanded.has("deadlines") && (
+        <Panel
+          title="Deal deadlines"
+          subtitle="Milestone target dates and expected close dates on live deals. Open a record to move the date or tick the milestone."
+          onOpenFull={() => pushUrl(router, "/deals?view=records")}
+          openLabel="Open records"
+        >
+          {(deadlines?.items ?? []).length === 0 ? (
+            <EmptyPanel text="Nothing is due in the next two weeks." />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {(deadlines?.items ?? []).map((d) => (
+                <button
+                  key={`${d.dealId}:${d.milestoneId ?? d.kind}`}
+                  type="button"
+                  onClick={() => pushUrl(router, `/deals/${d.dealId}`)}
+                  className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3.5 text-left transition-colors hover:border-slate-600"
+                >
+                  <div className="mt-0.5 shrink-0">
+                    <CalendarClock className="size-4 text-amber-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-white">{d.title}</p>
+                    <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
+                      {d.subject} · {d.dueDate}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold",
+                      d.urgency === "overdue"
+                        ? URGENCY_CLASS.now
+                        : d.urgency === "today"
+                          ? URGENCY_CLASS.soon
+                          : URGENCY_CLASS.later,
+                    )}
+                  >
+                    {deadlineLabel(d.daysLeft)}
+                  </span>
+                </button>
               ))}
             </div>
           )}
@@ -495,6 +568,29 @@ function TaskLine({ task }: { task: FocusTask }) {
         )}
       >
         {task.overdue ? "Overdue" : timeChip(task.at)}
+      </span>
+    </div>
+  )
+}
+
+function DeadlineLine({ deadline }: { deadline: FocusDeadline }) {
+  return (
+    <div className="flex items-center gap-2">
+      <CalendarClock className="size-3.5 shrink-0 text-amber-400" />
+      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-200">
+        {deadline.title} · {deadline.subject}
+      </span>
+      <span
+        className={cn(
+          "shrink-0 text-[10px] font-bold",
+          deadline.urgency === "overdue"
+            ? "text-rose-300"
+            : deadline.urgency === "today"
+              ? "text-amber-300"
+              : "text-slate-500",
+        )}
+      >
+        {deadlineLabel(deadline.daysLeft)}
       </span>
     </div>
   )

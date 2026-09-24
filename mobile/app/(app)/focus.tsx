@@ -17,6 +17,7 @@ import { ConvoRealLoader } from '@/components/loader';
 import { Avatar, SectionLabel, Tag, nameTagCap } from '@/components/ui';
 import { retryAnalyticsRequest } from '@/lib/analytics-request';
 import {
+  deadlineLabel,
   fetchFocus,
   type FocusJourney,
   type FocusRequest,
@@ -115,6 +116,7 @@ export default function FocusScreen() {
   const statWidth = width < 500 ? '47%' : '30%';
 
   const tasks = focus.data?.tasks;
+  const deadlines = focus.data?.deadlines;
   const journeys = focus.data?.journeys.top ?? [];
   const requests = focus.data?.requests.top ?? [];
 
@@ -190,6 +192,35 @@ export default function FocusScreen() {
             ) : (
               (tasks?.items ?? []).map((task) => (
                 <TaskRow key={task.id} task={task} />
+              ))
+            )}
+
+            <SectionLabel
+              text={
+                deadlines?.total
+                  ? `Deal deadlines · ${deadlines.total}${deadlines.overdue > 0 ? ` · ${deadlines.overdue} overdue` : ''}`
+                  : 'Deal deadlines'
+              }
+              style={{ marginTop: spacing.sm }}
+            />
+            {(deadlines?.items ?? []).length === 0 ? (
+              <QuietLine text="No deal date is due in the next two weeks." />
+            ) : (
+              (deadlines?.items ?? []).map((d) => (
+                <Row
+                  key={`${d.dealId}:${d.milestoneId ?? d.kind}`}
+                  icon="calendar-outline"
+                  title={d.title}
+                  subtitle={`${deadlineLabel(d.daysLeft)} · ${d.subject}`}
+                  subtitleColor={
+                    d.urgency === 'overdue'
+                      ? colors.danger
+                      : d.urgency === 'today'
+                        ? colors.warning
+                        : colors.textMuted
+                  }
+                  onPress={() => router.push(`/(app)/deal/${d.dealId}`)}
+                />
               ))
             )}
 

@@ -73,8 +73,50 @@ export interface FocusRequest {
   href: string;
 }
 
+export type FocusDeadlineKind = 'milestone' | 'expected_close';
+export type FocusDeadlineUrgency = 'overdue' | 'today' | 'soon';
+
+/** Mirrored from src/lib/deals/deadlines.ts (DEAL_DEADLINE_URGENCY_LABELS). */
+export const DEADLINE_URGENCY_LABELS: Record<FocusDeadlineUrgency, string> = {
+  overdue: 'Overdue',
+  today: 'Due today',
+  soon: 'Due soon',
+};
+
+/** Mirrored from src/lib/deals/deadlines.ts (DealDeadline). */
+export interface FocusDeadline {
+  dealId: string;
+  kind: FocusDeadlineKind;
+  milestoneId: string | null;
+  title: string;
+  subject: string;
+  dueDate: string;
+  daysLeft: number;
+  urgency: FocusDeadlineUrgency;
+}
+
+export interface FocusDeadlines {
+  items: FocusDeadline[];
+  total: number;
+  overdue: number;
+  dueToday: number;
+  soon: number;
+}
+
+/** Mirrored from src/lib/deals/deadlines.ts (deadlineLabel). */
+export function deadlineLabel(daysLeft: number): string {
+  if (daysLeft < 0) {
+    const n = -daysLeft;
+    return `Overdue by ${n} day${n === 1 ? '' : 's'}`;
+  }
+  if (daysLeft === 0) return 'Due today';
+  if (daysLeft === 1) return 'Due tomorrow';
+  return `Due in ${daysLeft} days`;
+}
+
 export interface FocusSnapshot {
   tasks: FocusTasks;
+  deadlines: FocusDeadlines;
   journeys: { top: FocusJourney[]; all: FocusJourney[] };
   requests: { top: FocusRequest[]; all: FocusRequest[] };
   generatedAt: string;

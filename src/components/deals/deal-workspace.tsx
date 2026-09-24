@@ -35,6 +35,7 @@ import {
 } from '@/lib/pipelines/stage-semantics';
 import { cn } from '@/lib/utils';
 
+import { DealBundleDialog } from './deal-bundle-dialog';
 import { DealDocumentsPanel } from './deal-documents-panel';
 import { DealFinancialsPanel } from './deal-financials-panel';
 import { DealInvoicesPanel } from './deal-invoices-panel';
@@ -108,6 +109,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
   const [brokerageType, setBrokerageType] =
     useState<BrokerageType>('percentage');
   const [brokerageValue, setBrokerageValue] = useState('');
+  const [bundleOpen, setBundleOpen] = useState(false);
 
   const canEdit = !isViewer && !isReadOnly;
 
@@ -310,17 +312,42 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
               From journey
             </Link>
           )}
-          {deal.group && (
-            <span
-              className="inline-flex items-center gap-1"
-              title="Part of a bundle of linked transactions."
+          {deal.group ? (
+            <button
+              type="button"
+              onClick={() => setBundleOpen(true)}
+              className="inline-flex cursor-pointer items-center gap-1 hover:text-white"
+              title="Part of a bundle of linked transactions. Open to see the others."
             >
               <Layers className="h-3.5 w-3.5" />
               {deal.group.name}
-            </span>
+            </button>
+          ) : (
+            canEdit && (
+              <button
+                type="button"
+                onClick={() => setBundleOpen(true)}
+                className="inline-flex cursor-pointer items-center gap-1 hover:text-white"
+                title="Bundle this deal with the same buyer's other purchases."
+              >
+                <Layers className="h-3.5 w-3.5" />
+                Bundle
+              </button>
+            )
           )}
         </div>
       </div>
+
+      <DealBundleDialog
+        deal={{
+          id: deal.id,
+          contact_id: deal.contact?.id ?? null,
+          contact_name: contactName || null,
+          group: deal.group,
+        }}
+        open={bundleOpen}
+        onOpenChange={setBundleOpen}
+      />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryTile label="Deal value" value={deal.value ?? 0} />

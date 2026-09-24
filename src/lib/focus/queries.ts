@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { stageIndexOf, type JourneyMode, type JourneyPriority } from '@/components/journey/shared'
+import {
+  loadDealDeadlines,
+  summarizeDeadlines,
+  todayDateKey,
+} from '@/lib/deals/deadlines'
 import { loadTodaysAgenda } from '@/lib/today/queries'
 import type { JourneyItem, JourneyStage } from '@/types'
 import {
@@ -330,8 +335,9 @@ export async function loadRequestCandidates(
 /** Everything the Focus screen renders, ranked and ready. */
 export async function loadFocusSnapshot(db: DB, accountId: string): Promise<FocusSnapshot> {
   const nowMs = Date.now()
-  const [agenda, journeyCandidates, requestCandidates] = await Promise.all([
+  const [agenda, deadlines, journeyCandidates, requestCandidates] = await Promise.all([
     loadTodaysAgenda(db),
+    loadDealDeadlines(db, accountId, todayDateKey(new Date(nowMs), 'Asia/Kolkata')),
     loadJourneyCandidates(db, accountId),
     loadRequestCandidates(db, accountId),
   ])
@@ -340,6 +346,7 @@ export async function loadFocusSnapshot(db: DB, accountId: string): Promise<Focu
 
   return {
     tasks: summarizeTasks(agenda.appointments, agenda.todos, nowMs),
+    deadlines: { items: deadlines, ...summarizeDeadlines(deadlines) },
     journeys: {
       top: selectTopJourneys(journeyCandidates, FOCUS_TOP_N, nowMs),
       all: rankJourneys(journeyCandidates, nowMs),

@@ -16,6 +16,7 @@ import {
 import { attachmentUploadTimeoutMs } from './attachments';
 import { dealDocumentRejection } from './deal-workspace';
 import type {
+  BundleDetail,
   DealDocumentCategory,
   DealDocumentRow,
   DealDocumentStatus,
@@ -394,6 +395,19 @@ export function moveJourneyItem(
 // ------------------------------------------------------------------
 // Phase 2 — stakeholders and share links.
 // ------------------------------------------------------------------
+
+export function createDealGroup(input: { name: string; deal_ids: string[] }) {
+  return apiFetch<{ data: { id: string; name: string } }>('/api/deal-groups', {
+    method: 'POST',
+    ...json(input),
+  }).then((r) => r.data);
+}
+
+export function fetchDealGroup(groupId: string) {
+  return apiFetch<{ data: BundleDetail }>(`/api/deal-groups/${groupId}`).then(
+    (r) => r.data
+  );
+}
 
 export function fetchDealStakeholders(dealId: string) {
   return apiFetch<{ data: DealStakeholderRow[] }>(

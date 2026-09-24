@@ -17,6 +17,15 @@
 // clock, a database or a network.
 // ============================================================
 
+import {
+  DEAL_DEADLINE_REMINDER_DAYS,
+  deadlineLabel,
+  deadlinesForAgent,
+  loadDealDeadlineRowsForAccount,
+  sortDeadlines,
+  toDealDeadline,
+  type DealDeadlineRow,
+} from '@/lib/deals/deadlines';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notifications/create';
 
@@ -38,6 +47,12 @@ export interface DigestTask {
 export interface DigestAppointment {
   title: string;
   start_time: string;
+}
+
+export interface DigestDeadline {
+  title: string;
+  subject: string;
+  daysLeft: number;
 }
 
 /**
@@ -137,9 +152,18 @@ export function formatTaskDigest(input: {
   overdue: DigestTask[];
   dueToday: DigestTask[];
   appointments: DigestAppointment[];
+  deadlines?: DigestDeadline[];
 }): { title: string; body: string } | null {
   const { overdue, dueToday, appointments } = input;
-  if (!overdue.length && !dueToday.length && !appointments.length) return null;
+  const deadlines = input.deadlines ?? [];
+  if (
+    !overdue.length &&
+    !dueToday.length &&
+    !appointments.length &&
+    !deadlines.length
+  ) {
+    return null;
+  }
 
   const first = input.name?.trim().split(/\s+/)[0];
   const heading =
@@ -169,6 +193,16 @@ export function formatTaskDigest(input: {
         .slice(0, MAX_LISTED)
         .map((a) => `• ${timeLabel(a.start_time)} — ${a.title}`)
     );
+    lines.push('');
+  }
+  if (deadlines.length) {
+    lines.push(`🧾 *Deal deadlines (${deadlines.length})*`);
+    lines.push(
+      ...deadlines
+        .slice(0, MAX_LISTED)
+        .map((d) => `• ${d.title} — ${d.subject} · ${deadlineLabel(d.daysLeft)}`)
+    );
+    if (deadlines.length > MAX_LISTED) lines.push(`_+${deadlines.length - MAX_LISTED} more_`);
     lines.push('');
   }
   lines.push('_Reply *today* anytime to see your day\'s schedule._');
@@ -239,7 +273,7 @@ export async function sendAgentTaskDigests(
   const [{ data: staff, error }, { data: settingsRows }] = await Promise.all([
     db
       .from('profiles')
-      .select('user_id, account_id, full_name')
+      .select('id, user_id, account_id, full_name')
       .in('account_role', DIGEST_ROLES),
     db
       .from('agent_task_digest_settings')
@@ -251,6 +285,7 @@ export async function sendAgentTaskDigests(
     (settingsRows || []).map((r) => [`${r.account_id}:${r.user_id}`, r])
   );
   const settings = (staff || []).map((s) => ({
+    id: s.id,
     account_id: s.account_id,
     user_id: s.user_id,
     full_name: s.full_name,
@@ -260,6 +295,24 @@ export async function sendAgentTaskDigests(
   const { date: istDate, hhmm } = istNow(now);
   const dayStart = new Date(`${istDate}T00:00:00+05:30`);
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+  const deadlineRowsByAccount = new Map<string, Promise<DealDeadlineRow[]>>();
+  const accountDeadlines = (accountId: string) => {
+    let rows = deadlineRowsByAccount.get(accountId);
+    if (!rows) {
+      rows = loadDealDeadlineRowsForAccount(
+        db,
+        accountId,
+        istDate,
+        DEAL_DEADLINE_REMINDER_DAYS
+      ).catch((err: unknown) => {
+        console.error('[agent-task-digest] deal deadlines failed:', err);
+        return [] as DealDeadlineRow[];
+      });
+      deadlineRowsByAccount.set(accountId, rows);
+    }
+    return rows;
+  };
 
   for (const row of settings) {
     result.agentsConsidered += 1;
@@ -301,7 +354,7 @@ export async function sendAgentTaskDigests(
       continue;
     }
 
-    const [{ data: todos }, { data: appts }] = await Promise.all([
+    const [{ data: todos }, { data: appts }, deadlineRows] = await Promise.all([
       db
         .from('todos')
         .select('title, due_date, priority')
@@ -319,7 +372,15 @@ export async function sendAgentTaskDigests(
         .gte('start_time', dayStart.toISOString())
         .lt('start_time', dayEnd.toISOString())
         .order('start_time', { ascending: true }),
+      accountDeadlines(accountId),
     ]);
+
+    const deadlines: DigestDeadline[] = sortDeadlines(
+      deadlinesForAgent(deadlineRows, {
+        profileId: row.id as string,
+        userId,
+      }).map((r) => toDealDeadline(r, istDate))
+    ).map((d) => ({ title: d.title, subject: d.subject, daysLeft: d.daysLeft }));
 
     const open = (todos || []) as DigestTask[];
     const overdue = open.filter(
@@ -335,6 +396,7 @@ export async function sendAgentTaskDigests(
       overdue,
       dueToday,
       appointments: (appts || []) as DigestAppointment[],
+      deadlines,
     });
     if (!message) {
       result.skippedEmpty += 1;
@@ -354,7 +416,7 @@ export async function sendAgentTaskDigests(
 
     await db
       .from('agent_task_digest_log')
-      .update({ task_count: overdue.length + dueToday.length })
+      .update({ task_count: overdue.length + dueToday.length + deadlines.length })
       .eq('account_id', accountId)
       .eq('user_id', userId)
       .eq('digest_date', istDate)

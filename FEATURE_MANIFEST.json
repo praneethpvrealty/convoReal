@@ -1605,6 +1605,25 @@
             "supabase/migrations/20260919120100_journey_stages_backfill.sql",
             "supabase/migrations/20260919120200_pipeline_stage_delete_guard.sql"
           ]
+        },
+        {
+          "id": "TXW-019",
+          "rule": "A bundle is created only through POST /api/deal-groups, from two to twenty deals none of which is already bundled; every member stays its own deal with its own seller, milestones, documents and terms, and the bundle only reports combined progress. Web and mobile both offer the picker from the record header, list the same buyer's deals first, pre-tick them, propose the same default name and enforce the same limits, and open the bundle's members from the same chip.",
+          "tests": [
+            { "file": "src/lib/deals/bundles.test.ts", "case": "[TXW-019]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-019]" },
+            { "file": "mobile/lib/deal-bundles.test.ts", "case": "[TXW-019]" }
+          ]
+        },
+        {
+          "id": "TXW-020",
+          "rule": "A milestone target date or expected close date on a live deal is a deadline: one SQL rule (deal_deadlines, guarded by is_account_member, and its service-role twin deal_deadlines_for_account) decides which are due, and Focus on web and mobile, the web Today page and the agent task digest all read it rather than querying milestones themselves. A completed or skipped milestone, a deal with an actual close date, and a won or lost deal never surface. Overdue, due today and due soon are labelled identically on both surfaces, and the digest reminds only the deal's assigned agent (or the opener of an unassigned deal), over a shorter window than the screens look ahead.",
+          "tests": [
+            { "file": "src/lib/deals/deadlines.test.ts", "case": "[TXW-020]" },
+            { "file": "src/lib/agents/task-digest.test.ts", "case": "[TXW-020]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-020]" }
+          ],
+          "guards": ["supabase/migrations/20260924103000_deal_deadlines.sql"]
         }
       ]
     },
