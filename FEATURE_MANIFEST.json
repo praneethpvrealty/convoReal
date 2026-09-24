@@ -1960,7 +1960,7 @@
         },
         {
           "id": "AIK-003",
-          "rule": "Key material is stored AES-256-GCM encrypted and never leaves the server: the admin API returns a four-character hint only, refuses malformed labels and keys, and is open to super_admin profiles alone. Admin tooling — no mobile counterpart.",
+          "rule": "Key material is stored AES-256-GCM encrypted and never leaves the server: the admin API returns a four-character hint only, refuses malformed labels and keys (any printable key of 20–300 characters without spaces is well-formed, since Google issues more than one format), tests a new key with one tiny call and refuses it only when Google rejects it (a valid key that is out of credits or rate-limited is saved with a warning), sends keys URL-encoded, and is open to super_admin profiles alone. Admin tooling — no mobile counterpart.",
           "tests": [
             {
               "file": "src/lib/ai/keys-admin.test.ts",

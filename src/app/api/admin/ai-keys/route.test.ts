@@ -28,6 +28,13 @@ vi.mock('@/lib/rate-limit', () => ({
   RATE_LIMITS: { adminAction: {} },
 }));
 
+const probe = vi.hoisted(() => ({ error: null as string | null }));
+vi.mock('@/lib/ai/gemini', () => ({
+  probeGeminiKey: async () => {
+    if (probe.error) throw new Error(probe.error);
+  },
+}));
+
 vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
     from: () => ({
@@ -69,6 +76,7 @@ function post(body: unknown) {
 beforeEach(() => {
   state.admin = true;
   state.inserted = null;
+  probe.error = null;
 });
 
 describe('POST /api/admin/ai-keys', () => {
@@ -87,6 +95,30 @@ describe('POST /api/admin/ai-keys', () => {
     expect(JSON.parse(text).data.key_hint).toBe('…7890');
     expect(state.inserted?.key_ciphertext).not.toContain(KEY);
     expect(String(state.inserted?.key_ciphertext).split(':')).toHaveLength(3);
+  });
+
+  it('[AIK-003] accepts a key in a newer format that Google accepts', async () => {
+    const res = await post({
+      label: 'praneeku@gmail.com',
+      key: 'AQ.Ab8RN6Lq-example.Key_material-0123456789',
+    });
+    expect(res.status).toBe(201);
+    expect((await res.json()).warning).toBeNull();
+  });
+
+  it("[AIK-003] refuses a key Google rejects, with Google's reason", async () => {
+    probe.error = 'API key not valid. Please pass a valid API key.';
+    const res = await post({ label: 'bad key', key: KEY });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Google rejected this key/);
+    expect(state.inserted).toBeNull();
+  });
+
+  it('[AIK-003] saves a valid key that is out of credits, with a warning', async () => {
+    probe.error = 'Your prepayment credits are depleted.';
+    const res = await post({ label: 'empty key', key: KEY });
+    expect(res.status).toBe(201);
+    expect((await res.json()).warning).toMatch(/credits are depleted/);
   });
 
   it('answers 400 for a malformed key', async () => {

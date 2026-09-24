@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
           notes,
         }),
         GREETING_SYSTEM_PROMPT,
-        { feature: AI_FEATURE }
+        { tier: 'lite', feature: AI_FEATURE }
       );
       const text = normalizeGreetingText(raw);
 

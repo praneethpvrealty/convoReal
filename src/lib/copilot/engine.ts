@@ -336,7 +336,7 @@ export async function answerQuestion(
   const raw = await generateJson(
     prompt,
     buildCopilotSystemPrompt(pathname, chunks, audience, platform, language),
-    { feature: 'copilot' }
+    { tier: 'lite', feature: 'copilot' }
   );
   const parsed = parseModelJson(raw);
 
