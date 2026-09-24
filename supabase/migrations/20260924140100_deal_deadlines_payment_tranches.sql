@@ -3,14 +3,22 @@
 -- tranche's due date is a deadline.
 --
 -- Adds a third branch to deal_deadlines_for_account (migration
--- 20260924103000): a payment tranche with a due date and no receipt,
--- on a live deal, within the horizon. The member wrapper
+-- 20260924103000): a payment tranche with a due date that is not yet
+-- fully received, on a live deal, within the horizon. "Received" is
+-- the schedule's own rule (trancheReceived in src/lib/deals/tranches.ts):
+-- the recorded part amount, else the full amount once a receipt date
+-- is set — so a part payment keeps the tranche on the watch. The member wrapper
 -- deal_deadlines is unchanged and picks the branch up through it.
 --
 -- CREATE OR REPLACE against a function production already runs:
 -- HELD until the pull request is merged, then applied.
 -- Idempotent — safe to run multiple times.
 -- ============================================================
+
+DROP INDEX IF EXISTS idx_deal_payment_tranches_due;
+CREATE INDEX IF NOT EXISTS idx_deal_payment_tranches_due
+  ON deal_payment_tranches (account_id, due_date)
+  WHERE due_date IS NOT NULL;
 
 CREATE OR REPLACE FUNCTION deal_deadlines_for_account(
   p_account_id UUID,
@@ -77,7 +85,10 @@ AS $$
   WHERE t.account_id = p_account_id
     AND d.account_id = p_account_id
     AND COALESCE(d.status, 'open') NOT IN ('won', 'lost')
-    AND t.received_at IS NULL
+    AND COALESCE(
+          t.received_amount,
+          CASE WHEN t.received_at IS NOT NULL THEN t.amount ELSE 0 END
+        ) < t.amount
     AND t.due_date IS NOT NULL
     AND t.due_date <= p_today + p_horizon_days
   UNION ALL

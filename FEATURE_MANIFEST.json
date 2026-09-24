@@ -1635,7 +1635,8 @@
           ],
           "guards": [
             "supabase/migrations/20260924140000_deal_payment_tranches.sql",
-            "supabase/migrations/20260924140100_deal_deadlines_payment_tranches.sql"
+            "supabase/migrations/20260924140100_deal_deadlines_payment_tranches.sql",
+            "supabase/migrations/20260924150100_deal_payment_tranches_guards.sql"
           ]
         },
         {

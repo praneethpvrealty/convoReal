@@ -182,15 +182,16 @@ a purchase paid in four tranches kept its schedule outside the app.
 | **Internal only, like the rest of the financials.** Never `/api/v1`, never a public route, never a stakeholder link; amounts never ride a timeline event (the event names the tranche, not the money).                                     | TXW-004 draws the line at money; the schedule is money.                                                                                                                                              |
 | **Totals are summed on the server.** `GET /api/deals/[id]/tranches` returns the rows and `{ scheduled, received, outstanding }`; web and mobile show the figures and decide only which label a row wears.                                    | The two surfaces cannot disagree about what is outstanding.                                                                                                                                          |
 | **A receipt date means the full amount unless a part amount is recorded.** `trancheReceived`.                                                                                                                                             | The common case is one instrument for one tranche; the part case exists for a split payment without a second row.                                                                                    |
-| **A tranche with money against it is corrected, never removed** (409 `TRANCHE_RECEIVED`).                                                                                                                                                 | The same posture as approved documents: what has happened is not deleted.                                                                                                                            |
-| **An unpaid tranche's due date is a deadline.** `deal_deadlines_for_account` gains a `payment` branch (migration `20260924140100`, held to merge); Focus, Today and the digest pick it up unchanged.                                       | Phase 4's rule was "one SQL rule for what is due"; a third source of dates joins it there rather than growing a second reader.                                                                       |
+| **A tranche with money against it is corrected, never removed** (409 `TRANCHE_RECEIVED`), and a schedule holds at most 40. Both are also triggers on the table (migration `20260924150100`).                                             | The same posture as approved documents: what has happened is not deleted. The RLS policy lets an agent write the table directly, as with milestones, so the invariants cannot live in the route alone. |
+| **A tranche not yet fully received is a deadline by its due date.** `deal_deadlines_for_account` gains a `payment` branch (migration `20260924140100`, held to merge) using `trancheReceived`'s rule, so a part payment keeps it on the watch. | Phase 4's rule was "one SQL rule for what is due"; a third source of dates joins it there rather than growing a second reader.                                                                       |
 
 Surfaces: the Payment schedule block under the financials on the
 Overview tab, web and mobile (add a tranche, record a receipt, remove an
 unpaid one).
 
-Migrations: `20260924140000_deal_payment_tranches.sql` (additive, applied
-at push) and `20260924140100_deal_deadlines_payment_tranches.sql`
+Migrations: `20260924140000_deal_payment_tranches.sql` and
+`20260924150100_deal_payment_tranches_guards.sql` (additive, applied at
+push) and `20260924140100_deal_deadlines_payment_tranches.sql`
 (`CREATE OR REPLACE` on a live function, held to merge).
 
 ## Records index: expected close
