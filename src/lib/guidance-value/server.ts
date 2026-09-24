@@ -6,6 +6,7 @@ import {
   getCurrentAccount,
   type AccountContext,
 } from '@/lib/auth/account';
+import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -86,20 +87,7 @@ export async function resolveGuidanceCaller(): Promise<GuidanceCaller> {
 }
 
 export async function requireGuidanceAdmin(): Promise<{ userId: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new UnauthorizedError();
-  const { data: profile } = await supabaseAdmin()
-    .from('profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if ((profile as { role?: string } | null)?.role !== 'super_admin') {
-    throw new ForbiddenError();
-  }
-  return { userId: user.id };
+  return requirePlatformAdmin();
 }
 
 interface RateRow {

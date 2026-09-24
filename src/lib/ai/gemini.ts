@@ -10,6 +10,11 @@ import {
   type FloorTenancy,
 } from '@/lib/inventory/floor-tenancies';
 import { logAiCall } from '@/lib/ai/call-log';
+import {
+  withGeminiKeys,
+  type GeminiKey,
+  type GeminiKeyScope,
+} from '@/lib/ai/gemini-keys';
 import { applyListingDerivations } from '@/lib/ai/listing-derivations';
 
 export { PROPERTY_TYPE_VALUES, normalizePropertyType };
@@ -40,117 +45,16 @@ export interface GeminiCallOpts {
   feature?: string;
   /** Overrides the key pool for a feature billed to its own key(s), comma-separated. */
   apiKey?: string;
+  /** Which managed keys to draw from. Default 'general'. */
+  keyScope?: GeminiKeyScope;
 }
 
-export type GeminiKeyFailure = 'exhausted' | 'rate_limited';
-
-const KEY_EXHAUSTED_PATTERNS = [
-  /credits are depleted/i,
-  /prepayment/i,
-  /api key not valid/i,
-  /api key expired/i,
-  /api_key_invalid/i,
-];
-
-const KEY_RATE_LIMITED_PATTERNS = [
-  /quota/i,
-  /resource[_ ]?exhausted/i,
-  /rate limit/i,
-  /\b429\b/,
-];
-
-export function classifyGeminiKeyFailure(
-  message: string
-): GeminiKeyFailure | null {
-  if (KEY_EXHAUSTED_PATTERNS.some((pattern) => pattern.test(message)))
-    return 'exhausted';
-  if (KEY_RATE_LIMITED_PATTERNS.some((pattern) => pattern.test(message)))
-    return 'rate_limited';
-  if (/billing/i.test(message)) return 'exhausted';
-  return null;
-}
-
-const KEY_COOLDOWN_MS: Record<GeminiKeyFailure, number> = {
-  exhausted: 10 * 60_000,
-  rate_limited: 60_000,
-};
-const keyCooldowns = new Map<string, { until: number; message: string }>();
-
-function splitKeys(value: string | undefined): string[] {
-  return (value ?? '')
-    .split(',')
-    .map((key) => key.trim())
-    .filter(Boolean);
-}
-
-export function geminiKeyPool(override?: string): string[] {
-  const keys = splitKeys(override).length
-    ? splitKeys(override)
-    : [
-        ...splitKeys(process.env.GEMINI_API_KEY),
-        ...splitKeys(process.env.GEMINI_FALLBACK_API_KEYS),
-      ];
-  const now = Date.now();
-  return [...new Set(keys)].filter(
-    (key) => (keyCooldowns.get(key)?.until ?? 0) <= now
-  );
-}
-
-function soonestCooldownMessage(override?: string): string | null {
-  const keys = splitKeys(override).length
-    ? splitKeys(override)
-    : [
-        ...splitKeys(process.env.GEMINI_API_KEY),
-        ...splitKeys(process.env.GEMINI_FALLBACK_API_KEYS),
-      ];
-  const cooling = keys
-    .map((key) => keyCooldowns.get(key))
-    .filter((entry): entry is { until: number; message: string } =>
-      Boolean(entry)
-    )
-    .sort((a, b) => a.until - b.until);
-  return cooling[0]?.message ?? null;
-}
-
-export function resetGeminiKeyCooldowns(): void {
-  keyCooldowns.clear();
-}
-
-async function withGeminiKeys<T>(
-  override: string | undefined,
-  call: (apiKey: string) => Promise<T>
-): Promise<T> {
-  const keys = geminiKeyPool(override);
-  if (!keys.length) {
-    throw new Error(
-      soonestCooldownMessage(override) ??
-        'GEMINI_API_KEY is not configured. Please add it to your .env.local file.'
-    );
-  }
-  let lastError: unknown;
-  for (const [index, apiKey] of keys.entries()) {
-    try {
-      const result = await call(apiKey);
-      keyCooldowns.delete(apiKey);
-      return result;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const failure = classifyGeminiKeyFailure(message);
-      if (!failure) throw err;
-      keyCooldowns.set(apiKey, {
-        until: Date.now() + KEY_COOLDOWN_MS[failure],
-        message,
-      });
-      lastError = err;
-      if (index < keys.length - 1) {
-        console.warn(
-          `[Gemini AI] Key ${index + 1} of ${keys.length} unavailable (${failure}); trying the next key.`
-        );
-      }
-    }
-  }
-  throw lastError;
-}
+export {
+  classifyGeminiKeyFailure,
+  resetGeminiKeyState,
+  type GeminiKeyFailure,
+  type GeminiKeyScope,
+} from './gemini-keys';
 
 interface GeminiPart {
   text?: string;
@@ -184,24 +88,27 @@ async function generateContentRaw(
   jsonMode: boolean = false,
   opts: GeminiCallOpts = {}
 ): Promise<string> {
-  return withGeminiKeys(opts.apiKey, (apiKey) =>
-    generateContentWithKey(
-      apiKey,
-      contents,
-      systemInstructionText,
-      jsonMode,
-      opts
-    )
+  return withGeminiKeys(
+    { scope: opts.keyScope, override: opts.apiKey },
+    (entry) =>
+      generateContentWithKey(
+        entry,
+        contents,
+        systemInstructionText,
+        jsonMode,
+        opts
+      )
   );
 }
 
 async function generateContentWithKey(
-  apiKey: string,
+  entry: GeminiKey,
   contents: GeminiContent[],
   systemInstructionText: string | undefined,
   jsonMode: boolean,
   opts: GeminiCallOpts
 ): Promise<string> {
+  const apiKey = entry.key;
 
   const tier: GeminiTier = opts.tier ?? 'standard';
   const models = MODEL_CHAINS[tier];
@@ -276,6 +183,7 @@ async function generateContentWithKey(
 
       console.log(`[Gemini AI] Generation succeeded with model: ${model}`);
       logAiCall({
+        keyLabel: entry.label,
         feature: opts.feature,
         model,
         tier,
@@ -322,6 +230,7 @@ async function generateContentWithKey(
       }
 
       logAiCall({
+        keyLabel: entry.label,
         feature: opts.feature,
         model,
         tier,
@@ -343,6 +252,7 @@ async function generateContentWithKey(
     lastError ||
     new Error('Failed to generate content with all available models.');
   logAiCall({
+    keyLabel: entry.label,
     feature: opts.feature,
     model: models[models.length - 1],
     tier,
@@ -406,14 +316,62 @@ const EMBEDDING_MODEL = 'gemini-embedding-001';
  * Same raw-REST style as generateContentRaw — no SDK.
  */
 export async function embedText(text: string): Promise<number[]> {
-  return withGeminiKeys(undefined, (apiKey) => embedTextWithKey(apiKey, text));
+  return withGeminiKeys({}, async (entry) => {
+    const startedAt = Date.now();
+    try {
+      const values = await embedTextWithKey(entry.key, text);
+      logAiCall({
+        keyLabel: entry.label,
+        feature: 'embedding',
+        model: EMBEDDING_MODEL,
+        success: true,
+        latencyMs: Date.now() - startedAt,
+        jsonMode: false,
+        hasMedia: false,
+        promptChars: text.length,
+      });
+      return values;
+    } catch (err) {
+      logAiCall({
+        keyLabel: entry.label,
+        feature: 'embedding',
+        model: EMBEDDING_MODEL,
+        success: false,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        latencyMs: Date.now() - startedAt,
+        jsonMode: false,
+        hasMedia: false,
+        promptChars: text.length,
+      });
+      throw err;
+    }
+  });
+}
+
+export async function probeGeminiKey(apiKey: string): Promise<void> {
+  const model = MODEL_CHAINS.lite[0];
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: 'Reply with the single word OK.' }] }],
+      generationConfig: { maxOutputTokens: 5 },
+    }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      errorData.error?.message ||
+        `Gemini API returned error: ${response.statusText}`
+    );
+  }
 }
 
 async function embedTextWithKey(
   apiKey: string,
   text: string
 ): Promise<number[]> {
-
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${apiKey}`;
   const response = await fetch(url, {
     method: 'POST',
@@ -1197,9 +1155,12 @@ export async function parseListingFromImageOrText(
       type:
         detectCommercialPlot(text) || detectCommercialPlot(parsed.title)
           ? 'Commercial Plot'
-          : detectCommercialBuilding(text) || detectCommercialBuilding(parsed.title)
-          ? 'Commercial Building'
-          : (normalizePropertyType(parsed.type) as ParsedPropertyDraft['type']),
+          : detectCommercialBuilding(text) ||
+              detectCommercialBuilding(parsed.title)
+            ? 'Commercial Building'
+            : (normalizePropertyType(
+                parsed.type
+              ) as ParsedPropertyDraft['type']),
       sublocality: parsed.sublocality || null,
       city: parsed.city || null,
       state: parsed.state || null,
@@ -1303,11 +1264,13 @@ export async function updateListingDraft(
       // Same idea for 'type' — normalize whatever the model returned (or
       // fall back to the prior value) rather than letting it revert to
       // null when the user clearly specified a category.
-      type: detectCommercialPlot(updateRequest) || detectCommercialPlot(parsed.title)
-        ? 'Commercial Plot'
-        : normalizePropertyType(
-            parsed.type ?? currentDraft.type
-          ) as ParsedPropertyDraft['type'],
+      type:
+        detectCommercialPlot(updateRequest) ||
+        detectCommercialPlot(parsed.title)
+          ? 'Commercial Plot'
+          : (normalizePropertyType(
+              parsed.type ?? currentDraft.type
+            ) as ParsedPropertyDraft['type']),
       // Same idea for 'bedrooms' — fall back to extracting "X BHK" from
       // the raw correction text if the model didn't set it.
       bedrooms:

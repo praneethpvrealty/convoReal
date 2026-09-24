@@ -35,6 +35,7 @@ async function isLoggingEnabled(): Promise<boolean> {
 }
 
 export interface AiCallLogEntry {
+  keyLabel?: string;
   feature?: string;
   model: string;
   tier?: string;
@@ -58,6 +59,7 @@ export function logAiCall(entry: AiCallLogEntry): void {
     try {
       if (!(await isLoggingEnabled())) return;
       await supabaseAdmin().from('ai_call_log').insert({
+        key_label: entry.keyLabel ?? null,
         feature: entry.feature ?? null,
         model: entry.model,
         tier: entry.tier ?? null,
