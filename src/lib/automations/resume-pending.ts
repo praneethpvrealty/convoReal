@@ -179,6 +179,27 @@ async function execute(row: ClaimedPendingRow): Promise<Outcome> {
   return 'processed';
 }
 
+function withResolvedConversation(
+  row: ClaimedPendingRow,
+  target: Target
+): ClaimedPendingRow {
+  const stored = row.context?.conversation_id;
+  if (target.kind === 'conversation') {
+    if (stored === target.conversationId) return row;
+    return {
+      ...row,
+      context: {
+        ...(row.context ?? {}),
+        conversation_id: target.conversationId,
+      },
+    };
+  }
+  if (!stored) return row;
+  const context = { ...(row.context ?? {}) };
+  delete context.conversation_id;
+  return { ...row, context };
+}
+
 async function runClaimed(
   row: ClaimedPendingRow,
   deadline: number
@@ -188,7 +209,8 @@ async function runClaimed(
     await releaseClaim(row);
     return 'deferred';
   }
-  if (target.kind === 'none') return execute(row);
+  const resumed = withResolvedConversation(row, target);
+  if (target.kind === 'none') return execute(resumed);
   let outcome: Outcome = 'deferred';
   try {
     await withConversationLease(
@@ -196,7 +218,7 @@ async function runClaimed(
       target.conversationId,
       null,
       async () => {
-        outcome = await execute(row);
+        outcome = await execute(resumed);
         return true;
       },
       {

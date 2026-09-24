@@ -28,7 +28,11 @@ const h = vi.hoisted(() => ({
   rows: new Map<string, Row>(),
   leases: new Map<string, Lease>(),
   conversations: new Map<string, string>(),
-  resumed: [] as { id: string; token: string | null | undefined }[],
+  resumed: [] as {
+    id: string;
+    token: string | null | undefined;
+    context?: Record<string, unknown>;
+  }[],
   rpcCalls: [] as { fn: string; args: Record<string, unknown> }[],
   tokenSeq: 0,
   failing: new Set<string>(),
@@ -189,8 +193,16 @@ vi.mock('@/lib/supabase/admin', () => ({
 
 vi.mock('./engine', () => ({
   resumePendingExecution: vi.fn(
-    async (pending: { id: string; claim_token?: string | null }) => {
-      h.resumed.push({ id: pending.id, token: pending.claim_token });
+    async (pending: {
+      id: string;
+      claim_token?: string | null;
+      context?: Record<string, unknown>;
+    }) => {
+      h.resumed.push({
+        id: pending.id,
+        token: pending.claim_token,
+        context: pending.context,
+      });
       h.events.push(`start ${pending.id}`);
       await new Promise((resolve) =>
         setTimeout(resolve, h.resumeDelay.get(pending.id) ?? 5)
@@ -532,6 +544,7 @@ describe('drainPendingExecutions', () => {
       .filter((c) => c.fn === 'claim_conversation_qualification_lease')
       .map((c) => c.args.p_conversation_id);
     expect(leased).toEqual(['conv-a']);
+    expect(h.resumed[0].context?.conversation_id).toBe('conv-a');
     expect(h.rows.get('p1')?.status).toBe('done');
   });
 
@@ -544,6 +557,7 @@ describe('drainPendingExecutions', () => {
     expect(
       h.rpcCalls.some((c) => c.fn === 'claim_conversation_qualification_lease')
     ).toBe(false);
+    expect(h.resumed[0].context).not.toHaveProperty('conversation_id');
   });
 
   it('[INB-017] a row reclaimed by another run before it executes is skipped, not run twice', async () => {
