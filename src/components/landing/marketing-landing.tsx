@@ -21,8 +21,7 @@ import {
   Bell,
   ShoppingCart,
   Landmark,
-  Handshake,
-  Route
+  Handshake
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConvoRealMark } from '@/components/brand/mark';
@@ -31,11 +30,7 @@ import { EngineLeadForm } from '@/components/landing/engine-lead-form';
 import { EngineLeadBot } from '@/components/landing/engine-lead-bot';
 import { BRANDING } from '@/config/branding';
 import { PUBLIC_TOOLS, TOOLS_PATH } from '@/lib/marketing/public-tools';
-
-const TOOL_ICONS = {
-  'guidance-value': Landmark,
-  'property-process': Route,
-} as const;
+import { ToolIcon } from '@/components/landing/tool-icon';
 
 export function MarketingLanding() {
   // Catch recovery/reset password, session tokens, or auth errors in URL hash and redirect client-side
@@ -898,7 +893,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                   Tools buyers and agents search for every day
                 </h2>
                 <p className="mt-4 text-slate-400 text-sm sm:text-base font-medium">
-                  The guidance value and process engines that run inside {BRANDING.name}, open to everyone. Try them, then bring them into your workspace.
+                  Guidance value, stamp duty, EMI and process guides, the engines that run inside {BRANDING.name}, open to everyone. Try them, then bring them into your workspace.
                 </p>
               </div>
               <a
@@ -910,7 +905,6 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {PUBLIC_TOOLS.map((tool) => {
-                const Icon = TOOL_ICONS[tool.slug as keyof typeof TOOL_ICONS];
                 return (
                   <a
                     key={tool.slug}
@@ -918,7 +912,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                     className="group bg-slate-950 border border-slate-900 rounded-2xl p-7 hover:border-emerald-500/40 hover:scale-[1.01] transition-all flex flex-col gap-4"
                   >
                     <div className="size-11 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400 shrink-0">
-                      <Icon className="size-5" />
+                      <ToolIcon icon={tool.icon} className="size-5" />
                     </div>
                     <h3 className="text-xl font-bold text-white">{tool.name}</h3>
                     <p className="text-sm text-slate-400 leading-relaxed font-medium flex-1">

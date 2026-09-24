@@ -19,6 +19,16 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **Two more free tools: stamp duty and EMI.** `/tools/stamp-duty`
+  works out Karnataka stamp duty, surcharge, cess and the registration
+  fee on the higher of the sale price and the guidance value, with the
+  area picked for the surcharge and every rate printed on the page;
+  `/tools/emi-calculator` gives the monthly EMI, total interest and a
+  year-by-year balance from the property price, down payment, rate and
+  tenure. Both take amounts as lakh or crore, produce a WhatsApp-ready
+  summary, link to each other and to the guidance value finder, carry
+  FAQ and WebApplication structured data, and sit in the sitemap and the
+  landing page's Free Tools section.
 - **Cheaper AI for low-risk jobs.** The daily conversation sweep, Copilot
   answers, occasion greetings and listing and contact corrections now run on Gemini's
   lite model, which costs a fraction of full Flash and falls back to it when

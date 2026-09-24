@@ -6,17 +6,22 @@ export interface FaqEntry {
   answer: string;
 }
 
+export type PublicToolIcon = 'landmark' | 'route' | 'receipt' | 'calculator';
+
 export interface PublicTool {
   slug: string;
   path: string;
   name: string;
   summary: string;
   cta: string;
+  icon: PublicToolIcon;
 }
 
 export const TOOLS_PATH = '/tools';
 export const GUIDANCE_TOOL_PATH = '/tools/guidance-value';
 export const PROCESS_GUIDES_PATH = '/tools/property-process';
+export const STAMP_DUTY_TOOL_PATH = '/tools/stamp-duty';
+export const EMI_TOOL_PATH = '/tools/emi-calculator';
 
 export const PUBLIC_TOOLS: PublicTool[] = [
   {
@@ -26,6 +31,25 @@ export const PUBLIC_TOOLS: PublicTool[] = [
     summary:
       'Look up the government guidance value of a site, flat, house or land in Karnataka by area and road, and estimate the value used for stamp duty.',
     cta: 'Find guidance value',
+    icon: 'landmark',
+  },
+  {
+    slug: 'stamp-duty',
+    path: STAMP_DUTY_TOOL_PATH,
+    name: 'Karnataka stamp duty calculator',
+    summary:
+      'Work out the stamp duty, surcharge, cess and registration fee on a sale deed in Karnataka from the sale price and guidance value, with the slab and area rates shown.',
+    cta: 'Calculate stamp duty',
+    icon: 'receipt',
+  },
+  {
+    slug: 'emi-calculator',
+    path: EMI_TOOL_PATH,
+    name: 'Home loan EMI calculator',
+    summary:
+      'See the monthly EMI, total interest and year-by-year balance for a home loan from the property price, down payment, interest rate and tenure.',
+    cta: 'Calculate EMI',
+    icon: 'calculator',
   },
   {
     slug: 'property-process',
@@ -34,6 +58,69 @@ export const PUBLIC_TOOLS: PublicTool[] = [
     summary:
       'Step-by-step explanations of khata transfer, sale deed registration, encumbrance certificate, TDS and home loan processes, with the authority and indicative time for every stage.',
     cta: 'Browse process guides',
+    icon: 'route',
+  },
+];
+
+export const STAMP_DUTY_FAQ: FaqEntry[] = [
+  {
+    question: 'How much is stamp duty on a property in Karnataka?',
+    answer:
+      'Stamp duty on a sale deed in Karnataka is 5% of the property value above ₹45 lakh, 3% between ₹21 lakh and ₹45 lakh, and 2% up to ₹20 lakh. The slab rate applies to the whole value, not in steps. A surcharge of 2% of the duty in city and town areas or 3% in gram panchayat areas and a cess of 10% of the duty are added, along with the registration fee.',
+  },
+  {
+    question:
+      'Is stamp duty calculated on the sale price or the guidance value?',
+    answer:
+      'On whichever is higher. The sub-registrar compares the consideration written in the sale deed with the guidance value of the property and charges stamp duty and the registration fee on the greater amount. Enter both in the calculator and it picks the chargeable value for you.',
+  },
+  {
+    question: 'What is the registration fee in Karnataka?',
+    answer:
+      'The registration fee is charged on the same chargeable value as stamp duty, on top of the duty, surcharge and cess. The calculator shows the rate it uses in the breakdown so the figure can be checked against the receipt on Kaveri Online Services.',
+  },
+  {
+    question: 'Who pays stamp duty on a property purchase?',
+    answer:
+      'The buyer pays stamp duty, surcharge, cess and the registration fee at the time the sale deed is registered. In Karnataka the amount is paid online through Kaveri Online Services or at the sub-registrar office before the deed is presented for registration.',
+  },
+  {
+    question: 'Does stamp duty differ between Bengaluru and a village?',
+    answer:
+      'The stamp duty slab is the same across Karnataka. The surcharge on the duty differs: 2% within a city corporation, municipality or town panchayat, and 3% within a gram panchayat. The calculator lets you pick the area so the surcharge matches.',
+  },
+  {
+    question: 'Is there a stamp duty concession for women buyers in Karnataka?',
+    answer:
+      'No. Unlike some other states, Karnataka charges the same stamp duty whoever the buyer is. Concessions exist only for specific instruments, such as certain affordable housing schemes notified by the government, and they are not applied by this calculator.',
+  },
+];
+
+export const EMI_FAQ: FaqEntry[] = [
+  {
+    question: 'How is a home loan EMI calculated?',
+    answer:
+      'EMI is the fixed monthly amount that repays the loan with interest over the tenure. It is computed as P × r × (1 + r)^n ÷ ((1 + r)^n − 1), where P is the loan amount, r is the monthly interest rate (annual rate divided by 12) and n is the number of monthly instalments. Early instalments are mostly interest; later ones are mostly principal.',
+  },
+  {
+    question: 'How much home loan can I get on a property?',
+    answer:
+      'Lenders typically finance up to 90% of the property value for loans up to ₹30 lakh, 80% between ₹30 lakh and ₹75 lakh, and 75% above ₹75 lakh, subject to your income and repayment capacity. Stamp duty and registration are usually not financed, so keep them in the down payment.',
+  },
+  {
+    question: 'Does a longer tenure reduce the EMI?',
+    answer:
+      'Yes. Spreading the same loan over more years lowers each instalment but raises the total interest paid. The year-by-year table in the calculator shows how much interest a longer tenure adds so the trade-off is visible.',
+  },
+  {
+    question: 'What happens to the EMI when interest rates change?',
+    answer:
+      'On a floating-rate loan the lender usually keeps the EMI the same and changes the tenure when rates move, or revises the EMI if the tenure cannot stretch further. Re-run the calculator with the new rate to see the instalment that would clear the loan in the original tenure.',
+  },
+  {
+    question: 'Can I prepay a home loan?',
+    answer:
+      'Floating-rate home loans to individuals carry no prepayment penalty in India. A part-prepayment goes straight to principal, which shortens the tenure or lowers the EMI. Fixed-rate loans may carry a charge, so check the sanction letter.',
   },
 ];
 
@@ -187,6 +274,10 @@ export const PROCESS_GUIDES: ProcessGuide[] = WORKFLOW_TEMPLATES.map(
 
 export function findProcessGuide(slug: string): ProcessGuide | null {
   return PROCESS_GUIDES.find((guide) => guide.slug === slug) ?? null;
+}
+
+export function findPublicTool(slug: string): PublicTool | null {
+  return PUBLIC_TOOLS.find((tool) => tool.slug === slug) ?? null;
 }
 
 export function publicToolPaths(): string[] {
