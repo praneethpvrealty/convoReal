@@ -9,6 +9,8 @@ import {
   PROCESS_GUIDES,
   PROCESS_GUIDES_PATH,
   PUBLIC_TOOLS,
+  RENTAL_YIELD_FAQ,
+  RENTAL_YIELD_TOOL_PATH,
   STAMP_DUTY_FAQ,
   STAMP_DUTY_TOOL_PATH,
   TOOLS_PATH,
@@ -98,7 +100,12 @@ describe('public tool paths', () => {
   });
 
   it('[PUB-002] answers every tool FAQ in full sentences', () => {
-    for (const faq of [GUIDANCE_VALUE_FAQ, STAMP_DUTY_FAQ, EMI_FAQ]) {
+    for (const faq of [
+      GUIDANCE_VALUE_FAQ,
+      STAMP_DUTY_FAQ,
+      EMI_FAQ,
+      RENTAL_YIELD_FAQ,
+    ]) {
       expect(faq.length).toBeGreaterThanOrEqual(5);
       for (const entry of faq) {
         expect(entry.question.endsWith('?')).toBe(true);
@@ -110,6 +117,7 @@ describe('public tool paths', () => {
   it('[PUB-002] registers the calculators as tools with their own icons', () => {
     expect(findPublicTool('stamp-duty')?.path).toBe(STAMP_DUTY_TOOL_PATH);
     expect(findPublicTool('emi-calculator')?.path).toBe(EMI_TOOL_PATH);
+    expect(findPublicTool('rental-yield')?.path).toBe(RENTAL_YIELD_TOOL_PATH);
     expect(new Set(PUBLIC_TOOLS.map((tool) => tool.icon)).size).toBe(
       PUBLIC_TOOLS.length
     );

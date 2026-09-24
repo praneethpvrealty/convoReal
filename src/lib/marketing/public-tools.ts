@@ -6,7 +6,8 @@ export interface FaqEntry {
   answer: string;
 }
 
-export type PublicToolIcon = 'landmark' | 'route' | 'receipt' | 'calculator';
+export type PublicToolIcon =
+  'landmark' | 'route' | 'receipt' | 'calculator' | 'percent';
 
 export interface PublicTool {
   slug: string;
@@ -22,6 +23,7 @@ export const GUIDANCE_TOOL_PATH = '/tools/guidance-value';
 export const PROCESS_GUIDES_PATH = '/tools/property-process';
 export const STAMP_DUTY_TOOL_PATH = '/tools/stamp-duty';
 export const EMI_TOOL_PATH = '/tools/emi-calculator';
+export const RENTAL_YIELD_TOOL_PATH = '/tools/rental-yield';
 
 export const PUBLIC_TOOLS: PublicTool[] = [
   {
@@ -50,6 +52,15 @@ export const PUBLIC_TOOLS: PublicTool[] = [
       'See the monthly EMI, total interest and year-by-year balance for a home loan from the property price, down payment, interest rate and tenure.',
     cta: 'Calculate EMI',
     icon: 'calculator',
+  },
+  {
+    slug: 'rental-yield',
+    path: RENTAL_YIELD_TOOL_PATH,
+    name: 'Rental yield calculator',
+    summary:
+      'Find the gross and net rental yield of a property from its price and monthly rent, after vacancy, maintenance and purchase costs, with the payback period and the rent a target yield needs.',
+    cta: 'Calculate rental yield',
+    icon: 'percent',
   },
   {
     slug: 'property-process',
@@ -93,6 +104,39 @@ export const STAMP_DUTY_FAQ: FaqEntry[] = [
     question: 'Is there a stamp duty concession for women buyers in Karnataka?',
     answer:
       'No. Unlike some other states, Karnataka charges the same stamp duty whoever the buyer is. Concessions exist only for specific instruments, such as certain affordable housing schemes notified by the government, and they are not applied by this calculator.',
+  },
+];
+
+export const RENTAL_YIELD_FAQ: FaqEntry[] = [
+  {
+    question: 'What is rental yield?',
+    answer:
+      'Rental yield is the rent a property earns in a year expressed as a percentage of its price. Gross yield divides the full annual rent by the purchase price. Net yield subtracts the months the property sits empty and the yearly costs of owning it, and divides by the price plus the one-time purchase costs, so it is the figure that tells you what the money actually returns.',
+  },
+  {
+    question: 'How is rental yield calculated?',
+    answer:
+      'Gross yield = monthly rent × 12 ÷ property price. Net yield = (monthly rent × 12 − vacancy loss − yearly costs) ÷ (property price + purchase costs). A ₹1 crore flat renting at ₹30,000 a month has a gross yield of 3.6%; with one vacant month, ₹40,000 of yearly costs and ₹6 lakh of purchase costs, the net yield is about 2.7%.',
+  },
+  {
+    question: 'What is a good rental yield in Bengaluru?',
+    answer:
+      'Residential property in Bengaluru and most Indian metros typically yields 2% to 4% gross, with newer and outlying localities at the higher end. Commercial property, such as offices, shops and warehouses, typically yields 6% to 9% because tenants take on more of the running costs and sign longer leases. Compare a yield with the alternatives for the same money and with the appreciation you expect, not with a single benchmark.',
+  },
+  {
+    question: 'Which costs should I include in net rental yield?',
+    answer:
+      'Yearly costs include property tax, society or association maintenance the owner pays, insurance, repairs and any brokerage paid to re-let the property. One-time purchase costs include stamp duty and registration, brokerage on the purchase, and furnishing or interiors needed to let it. Loan interest and income tax on the rent are usually kept out so yields are comparable across buyers.',
+  },
+  {
+    question: 'Is rental yield or capital appreciation more important?',
+    answer:
+      'They answer different questions. Yield is the cash the property pays while you hold it; appreciation is the gain when you sell. Low-yield, high-appreciation markets suit buyers who can carry the property, and high-yield markets suit buyers who need the income. Total return is the sum of both, so a low yield is acceptable only when the appreciation case is strong.',
+  },
+  {
+    question: 'How much rent should I charge for a target yield?',
+    answer:
+      'Multiply the property price by the target yield and divide by 12. For a 3% gross yield on a ₹1.2 crore property, the rent needs to be ₹30,000 a month. The table on this page lists the rent needed for common target yields on the price you enter.',
   },
 ];
 

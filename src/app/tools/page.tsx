@@ -21,7 +21,7 @@ import { fallbackSiteUrl } from '@/lib/showcase/site-url';
 
 const TITLE = 'Free real estate tools for Karnataka';
 const DESCRIPTION =
-  'Free tools from ConvoReal: find the Karnataka guidance value of a property, calculate stamp duty and registration charges, work out a home loan EMI, and follow step-by-step guides to khata transfer, sale deed registration, encumbrance certificate, TDS and home loans.';
+  'Free tools from ConvoReal: find the Karnataka guidance value of a property, calculate stamp duty and registration charges, work out a home loan EMI or a rental yield, and follow step-by-step guides to khata transfer, sale deed registration, encumbrance certificate, TDS and home loans.';
 
 export const metadata: Metadata = {
   title: TITLE,

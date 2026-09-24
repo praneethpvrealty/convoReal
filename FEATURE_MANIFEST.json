@@ -2071,6 +2071,16 @@
               "case": "[PUB-005]"
             }
           ]
+        },
+        {
+          "id": "PUB-006",
+          "rule": "The public rental yield calculator at /tools/rental-yield computes gross yield as a year of rent over the price and net yield as rent less vacancy and yearly costs over the price plus one-time purchase costs, treats missing costs as zero, clamps vacancy to twelve months, reports no payback when the net income is not positive, never divides by an empty price, and inverts the price and a target yield to the monthly rent it needs.",
+          "tests": [
+            {
+              "file": "src/lib/tools/rental-yield.test.ts",
+              "case": "[PUB-006]"
+            }
+          ]
         }
       ]
     }
