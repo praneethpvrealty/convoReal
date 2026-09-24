@@ -1,4 +1,5 @@
 import type { JourneyMode, JourneyPriority } from '@/components/journey/shared'
+import type { DealDeadline, DealDeadlineSummary } from '@/lib/deals/deadlines'
 
 /**
  * Focus — the consultant's landing view. Three questions, answered in
@@ -87,8 +88,18 @@ export interface FocusRequest {
   href: string
 }
 
+/** A milestone target date or expected close date on a live deal,
+ *  within DEAL_DEADLINE_HORIZON_DAYS. Mirrored in mobile/lib/focus.ts. */
+export type FocusDeadline = DealDeadline
+
+export interface FocusDeadlines extends DealDeadlineSummary {
+  /** Soonest first; the gist card shows the head of this list. */
+  items: FocusDeadline[]
+}
+
 export interface FocusSnapshot {
   tasks: FocusTasks
+  deadlines: FocusDeadlines
   journeys: {
     /** The three that most need attention. */
     top: FocusJourney[]

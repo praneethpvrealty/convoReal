@@ -31,12 +31,18 @@ import {
 import { apiBase, authHeaders } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import {
+  BUNDLE_MAX_DEALS,
+  bundleBlocker,
+  bundleCandidateLabel,
+  bundleCandidates,
   canDeleteDocument,
   categoryLabel,
+  defaultBundleName,
   extractionEntries,
   financialsPatch,
   isReadable,
   nextDocumentStatuses,
+  sameBuyerIds,
   DEAL_DOCUMENT_CATEGORIES,
   DEAL_DOCUMENT_STATUS_LABELS,
   DEAL_EVENT_LABELS,
@@ -59,6 +65,7 @@ import {
   recipientStage,
   shareLinkMessage,
   snapshotItemAllowed,
+  type BundleCandidate,
   type DealDocumentCategory,
   type DealDocumentRow,
   type DealDocumentStatus,
@@ -87,6 +94,7 @@ import {
   addDealStakeholder,
   addDealTask,
   addStandardMilestones,
+  createDealGroup,
   createDealShareLink,
   createInvoice,
   deleteDealDocument,
@@ -95,6 +103,7 @@ import {
   fetchDealDocuments,
   fetchDealEvents,
   fetchDealFinancials,
+  fetchDealGroup,
   fetchDealMilestones,
   fetchDealShareAccess,
   fetchDealStakeholders,
@@ -143,7 +152,13 @@ interface DealHead {
   stage_id: string;
   value: number | null;
   brokerage_amount: number | null;
+  deal_group_id: string | null;
   stage: { name: string } | { name: string }[] | null;
+  contact:
+    | { name: string | null; second_name: string | null }
+    | { name: string | null; second_name: string | null }[]
+    | null;
+  group: { id: string; name: string } | { id: string; name: string }[] | null;
 }
 
 function brokeragePreview(
@@ -177,6 +192,7 @@ export default function DealWorkspaceScreen() {
     'percentage'
   );
   const [brokerageValue, setBrokerageValue] = useState('');
+  const [bundleOpen, setBundleOpen] = useState(false);
   const queryClient = useQueryClient();
   const headDialog = useAppDialog();
 
@@ -187,7 +203,8 @@ export default function DealWorkspaceScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          'id, title, contact_id, property_id, pipeline_id, stage_id, value, brokerage_amount, stage:pipeline_stages(name)'
+          'id, title, contact_id, property_id, pipeline_id, stage_id, value, brokerage_amount, deal_group_id, ' +
+            'stage:pipeline_stages(name), contact:contacts(name, second_name), group:deal_groups(id, name)'
         )
         .eq('id', dealId)
         .maybeSingle();
@@ -258,6 +275,11 @@ export default function DealWorkspaceScreen() {
   }
 
   const stageName = head ? (one(head.stage)?.name ?? '—') : null;
+  const headGroup = head ? one(head.group) : null;
+  const headContact = head ? one(head.contact) : null;
+  const headContactName =
+    [headContact?.name, headContact?.second_name].filter(Boolean).join(' ') ||
+    null;
 
   return (
     <>
@@ -308,6 +330,24 @@ export default function DealWorkspaceScreen() {
             </Text>
           )
         ) : null}
+        {head && (headGroup || canEdit) ? (
+          <Pressable
+            onPress={() => setBundleOpen(true)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={
+              headGroup
+                ? `Open the bundle ${headGroup.name}`
+                : 'Bundle this deal with linked purchases'
+            }
+            style={styles.bundleRow}
+          >
+            <Ionicons name="layers-outline" size={14} color={colors.primary} />
+            <Text style={[styles.bundleLine, { color: colors.primary }]}>
+              {headGroup ? headGroup.name : 'Bundle'}
+            </Text>
+          </Pressable>
+        ) : null}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -352,6 +392,18 @@ export default function DealWorkspaceScreen() {
         {tab === 'updates' && <UpdatesTab dealId={dealId} canEdit={canEdit} />}
         {tab === 'invoices' && <InvoicesTab dealId={dealId} />}
       </View>
+      {head ? (
+        <BundleSheet
+          visible={bundleOpen}
+          onClose={() => setBundleOpen(false)}
+          deal={{
+            id: head.id,
+            contact_id: head.contact_id,
+            contact_name: headContactName,
+            group: headGroup,
+          }}
+        />
+      ) : null}
       <BottomSheet
         visible={pickingStage}
         onClose={() => setPickingStage(false)}
@@ -457,6 +509,318 @@ export default function DealWorkspaceScreen() {
             }
           />
         </View>
+      </BottomSheet>
+    </>
+  );
+}
+
+interface BundleCandidateRow {
+  id: string;
+  title: string;
+  contact_id: string | null;
+  deal_group_id: string | null;
+  contact:
+    | { name: string | null; second_name: string | null }
+    | { name: string | null; second_name: string | null }[]
+    | null;
+  property:
+    | { title: string | null; unit_no: string | null }
+    | { title: string | null; unit_no: string | null }[]
+    | null;
+  stage: { name: string } | { name: string }[] | null;
+}
+
+function BundleSheet({
+  visible,
+  onClose,
+  deal,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  deal: {
+    id: string;
+    contact_id: string | null;
+    contact_name: string | null;
+    group: { id: string; name: string } | null;
+  };
+}) {
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const dialog = useAppDialog();
+  const [name, setName] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [seededFor, setSeededFor] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const { data: candidateRows, isLoading } = useQuery({
+    queryKey: ['deal-bundle-candidates', deal.id],
+    enabled: visible && !deal.group,
+    queryFn: async (): Promise<BundleCandidate[]> => {
+      const { data, error } = await supabase
+        .from('deals')
+        .select(
+          'id, title, contact_id, deal_group_id, ' +
+            'contact:contacts(name, second_name), ' +
+            'property:properties(title, unit_no), ' +
+            'stage:pipeline_stages(name)'
+        )
+        .is('deal_group_id', null)
+        .not('status', 'in', '("won","lost")')
+        .order('updated_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      const rows = ((data ?? []) as unknown as BundleCandidateRow[]).map(
+        (row) => {
+          const contact = one(row.contact);
+          const property = one(row.property);
+          return {
+            id: row.id,
+            title: row.title,
+            contact_id: row.contact_id,
+            deal_group_id: row.deal_group_id,
+            contact_name:
+              [contact?.name, contact?.second_name].filter(Boolean).join(' ') ||
+              null,
+            property_title: property?.title ?? null,
+            property_unit_no: property?.unit_no ?? null,
+            stage_name: one(row.stage)?.name ?? null,
+          };
+        }
+      );
+      return bundleCandidates(rows, deal);
+    },
+  });
+
+  const { data: bundle, isLoading: bundleLoading } = useQuery({
+    queryKey: ['deal-bundle', deal.group?.id],
+    enabled: visible && Boolean(deal.group),
+    queryFn: () => fetchDealGroup(deal.group!.id),
+  });
+
+  const candidates = candidateRows ?? [];
+  if (visible && !deal.group && candidateRows && seededFor !== deal.id) {
+    setSeededFor(deal.id);
+    setName(defaultBundleName(deal.contact_name));
+    setSelected(sameBuyerIds(candidateRows, deal));
+  }
+
+  const blocker = bundleBlocker(name, selected.length + 1);
+
+  function toggle(id: string) {
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  async function create() {
+    if (blocker) return;
+    setSaving(true);
+    try {
+      await createDealGroup({
+        name: name.trim(),
+        deal_ids: [deal.id, ...selected],
+      });
+      haptic.success();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deal-head', deal.id] }),
+        queryClient.invalidateQueries({ queryKey: ['deal-events', deal.id] }),
+        queryClient.invalidateQueries({ queryKey: ['transaction-index'] }),
+        queryClient.invalidateQueries({
+          queryKey: ['deal-bundle-candidates'],
+        }),
+      ]);
+      onClose();
+    } catch (err) {
+      haptic.warn();
+      dialog.show({
+        title: 'Could not create the bundle',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <AppDialog {...dialog.dialogProps} />
+      <BottomSheet visible={visible} onClose={onClose}>
+        {deal.group ? (
+          <>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>
+              {deal.group.name}
+            </Text>
+            {bundleLoading || !bundle ? (
+              <Loading />
+            ) : (
+              <ScrollView style={sheetScrollArea}>
+                <Text
+                  style={{
+                    fontSize: 12.5,
+                    color: colors.textMuted,
+                    paddingHorizontal: spacing.lg,
+                    paddingBottom: spacing.sm,
+                  }}
+                >
+                  {bundle.progress.done}/{bundle.progress.total} milestones
+                  across {bundle.deals.length} deals
+                </Text>
+                {bundle.deals.map((member) => {
+                  const contact = one(member.contact);
+                  const property = one(member.property);
+                  const who = [contact?.name, contact?.second_name]
+                    .filter(Boolean)
+                    .join(' ');
+                  const label = bundleCandidateLabel({
+                    title: member.title,
+                    property_title: property?.title ?? null,
+                    property_unit_no: property?.unit_no ?? null,
+                  });
+                  const current = member.id === deal.id;
+                  return (
+                    <Pressable
+                      key={member.id}
+                      disabled={current}
+                      onPress={() => {
+                        onClose();
+                        router.push(`/(app)/deal/${member.id}`);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${label}`}
+                      style={[
+                        styles.stageOption,
+                        { borderTopColor: colors.border },
+                      ]}
+                    >
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text
+                          style={[
+                            styles.stageOptionLabel,
+                            { color: colors.text },
+                          ]}
+                        >
+                          {who ? `${who} — ${label}` : label}
+                          {current ? ' · this deal' : ''}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                          {[
+                            one(member.stage)?.name,
+                            `${member.progress.done}/${member.progress.total} milestones`,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </Text>
+                      </View>
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontFamily: fonts.semibold,
+                          color: colors.text,
+                        }}
+                      >
+                        {formatInr(member.value)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </>
+        ) : (
+          <>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>
+              Bundle linked deals
+            </Text>
+            <View style={styles.brokerageForm}>
+              <Text style={{ fontSize: 13, color: colors.textMuted }}>
+                One buyer closing several properties together. Each deal keeps
+                its own seller, milestones, papers and terms; the bundle shows
+                their combined progress.
+              </Text>
+              <TextField
+                label="Bundle name"
+                value={name}
+                onChangeText={setName}
+              />
+            </View>
+            <ScrollView style={sheetScrollArea}>
+              {isLoading ? (
+                <Loading />
+              ) : candidates.length === 0 ? (
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: colors.textMuted,
+                    paddingHorizontal: spacing.lg,
+                  }}
+                >
+                  No other open deal is free to bundle.
+                </Text>
+              ) : (
+                candidates.map((c) => {
+                  const checked = selected.includes(c.id);
+                  const full =
+                    !checked && selected.length + 1 >= BUNDLE_MAX_DEALS;
+                  return (
+                    <Pressable
+                      key={c.id}
+                      disabled={full}
+                      onPress={() => toggle(c.id)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked }}
+                      accessibilityLabel={bundleCandidateLabel(c)}
+                      style={[
+                        styles.stageOption,
+                        {
+                          borderTopColor: colors.border,
+                          opacity: full ? 0.5 : 1,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={checked ? 'checkbox' : 'square-outline'}
+                        size={20}
+                        color={checked ? colors.primary : colors.textMuted}
+                      />
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text
+                          style={[
+                            styles.stageOptionLabel,
+                            { color: colors.text },
+                          ]}
+                        >
+                          {bundleCandidateLabel(c)}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                          {[c.contact_name, c.stage_name]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </Text>
+                      </View>
+                      {deal.contact_id && c.contact_id === deal.contact_id ? (
+                        <Text style={{ fontSize: 11, color: colors.textMuted }}>
+                          Same buyer
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })
+              )}
+            </ScrollView>
+            <View style={styles.brokerageForm}>
+              {blocker ? (
+                <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                  {blocker}
+                </Text>
+              ) : null}
+              <PrimaryButton
+                label={saving ? 'Creating…' : 'Create bundle'}
+                disabled={Boolean(blocker) || saving}
+                onPress={() => void create()}
+              />
+            </View>
+          </>
+        )}
       </BottomSheet>
     </>
   );
@@ -2746,6 +3110,14 @@ const styles = StyleSheet.create({
     paddingRight: spacing.lg,
   },
   stageMove: { fontFamily: fonts.bold, fontSize: 12, paddingTop: spacing.md },
+  bundleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  bundleLine: { fontFamily: fonts.bold, fontSize: 12 },
   sheetTitle: {
     fontSize: 15.5,
     fontFamily: fonts.bold,

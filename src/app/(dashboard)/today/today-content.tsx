@@ -40,6 +40,12 @@ import {
   type RangeInsights,
   type TodaysAgenda,
 } from '@/lib/today/queries'
+import {
+  deadlineLabel,
+  loadDealDeadlines,
+  todayDateKey,
+  type DealDeadline,
+} from '@/lib/deals/deadlines'
 import { daysAgoStart, startOfLocalDay } from '@/lib/dashboard/date-utils'
 import { hasPhone } from '@/lib/contacts/reachability'
 import type { Contact } from '@/types'
@@ -84,7 +90,7 @@ function resolveRange(
   }
 }
 
-type SectionFilter = 'all' | 'windows' | 'hot' | 'replies' | 'agenda'
+type SectionFilter = 'all' | 'windows' | 'hot' | 'replies' | 'agenda' | 'deadlines'
 
 const FILTER_CHIPS: { key: SectionFilter; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -92,6 +98,7 @@ const FILTER_CHIPS: { key: SectionFilter; label: string }[] = [
   { key: 'hot', label: 'Hot leads' },
   { key: 'replies', label: 'Replies' },
   { key: 'agenda', label: 'Agenda' },
+  { key: 'deadlines', label: 'Deadlines' },
 ]
 
 interface TodayPageProps {
@@ -178,6 +185,9 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
   const [agenda, setAgenda] = useState<TodaysAgenda | null>(null)
   const [agendaLoading, setAgendaLoading] = useState(true)
 
+  const [deadlines, setDeadlines] = useState<DealDeadline[] | null>(null)
+  const [deadlinesLoading, setDeadlinesLoading] = useState(true)
+
   const [insights, setInsights] = useState<RangeInsights | null>(null)
   const [insightsLoading, setInsightsLoading] = useState(true)
   const [rangePreset, setRangePreset] = useState<RangePreset>('today')
@@ -202,6 +212,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
     setExpiringLoading(true)
     setHotLoading(true)
     setAgendaLoading(true)
+    setDeadlinesLoading(true)
 
     // Fire everything in parallel; each section owns its skeleton so a
     // slow loader never blocks the others (same as the dashboard page).
@@ -220,9 +231,18 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
       .catch((err) => console.error('[today] agenda failed:', err))
       .finally(() => setAgendaLoading(false))
 
+    if (accountId) {
+      void loadDealDeadlines(db, accountId, todayDateKey())
+        .then((rows) => setDeadlines(rows))
+        .catch((err) => console.error('[today] deal deadlines failed:', err))
+        .finally(() => setDeadlinesLoading(false))
+    } else {
+      setDeadlinesLoading(false)
+    }
+
     setRefreshedAt(Date.now())
     setNow(Date.now())
-  }, [])
+  }, [accountId])
 
   useEffect(() => {
     // Microtask defer keeps the synchronous loading-flag setters out of
@@ -305,6 +325,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
   }, [expiring, now])
 
   const agendaCount = (agenda?.appointments.length ?? 0) + (agenda?.todos.length ?? 0)
+  const deadlineCount = deadlines?.length ?? 0
 
   // --- Row actions ------------------------------------------------------
 
@@ -443,7 +464,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
     })
   }
 
-  const anyLoading = expiringLoading || hotLoading || agendaLoading
+  const anyLoading = expiringLoading || hotLoading || agendaLoading || deadlinesLoading
   const show = (key: Exclude<SectionFilter, 'all'>) =>
     (!embedded || key !== 'agenda') && (filter === 'all' || filter === key)
 
@@ -880,6 +901,50 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
                   </div>
                 )
               })}
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* e) Deal deadlines */}
+      {show('deadlines') && (
+        <Section
+          title="🧾 Deal deadlines"
+          count={deadlineCount}
+          hint="Milestone target dates and expected close dates on live deals, due in the next two weeks or already past. Open the record to update the date or tick the milestone."
+        >
+          {deadlinesLoading ? (
+            <SkeletonRows />
+          ) : deadlineCount === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="flex flex-col gap-3">
+              {deadlines?.map((d) => (
+                <Link
+                  key={`${d.dealId}:${d.milestoneId ?? d.kind}`}
+                  href={`/deals/${d.dealId}`}
+                  className="rounded-xl border border-slate-800 bg-slate-900 p-4 flex items-center gap-3 transition-colors hover:border-slate-600"
+                >
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold shrink-0 ${
+                      d.urgency === 'overdue'
+                        ? 'border-rose-500/25 bg-rose-500/10 text-rose-400'
+                        : d.urgency === 'today'
+                          ? 'border-amber-500/25 bg-amber-500/10 text-amber-300'
+                          : 'border-slate-700 bg-slate-800/60 text-slate-300'
+                    }`}
+                  >
+                    <Clock className="size-3" />
+                    {deadlineLabel(d.daysLeft)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-white truncate">{d.title}</p>
+                    <p className="text-xs text-slate-400 font-medium truncate">
+                      {d.subject} · {d.dueDate}
+                    </p>
+                  </div>
+                </Link>
+              ))}
             </div>
           )}
         </Section>

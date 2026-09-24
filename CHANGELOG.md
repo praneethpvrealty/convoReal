@@ -19,6 +19,22 @@ than a written entry. Newest first.
 
 #### 24 September 2026
 
+- **Bundle linked deals from the record.** A transaction with no bundle
+  shows a Bundle chip in its header, on web and mobile; it opens a picker
+  that lists the same buyer's other open deals first and pre-ticked,
+  proposes a name after the buyer, and creates the bundle through the
+  existing route. A bundled deal shows its bundle's name instead, which
+  opens the members with their combined milestone progress and a link to
+  each. Each deal keeps its own seller, milestones, papers and terms.
+- **Deal deadlines are watched.** A milestone's target date and a deal's
+  expected close date now surface as a Deal deadlines card on Focus (web
+  and mobile) and a section on the Today page, two weeks ahead, with
+  overdue and due-today marked, and the agent task digest carries a Deal
+  deadlines block for the agent's own deals due within three days or
+  already past. Completed or skipped milestones, closed deals and won or
+  lost deals never appear. **Migration required:**
+  `20260924103000_deal_deadlines.sql` (two SQL functions and two partial
+  indexes, additive).
 - **Buy Gemini credits from the AI keys panel.** Each key card in Admin →
   AI keys has a Buy credits button that opens Google Cloud billing in a new
   tab, signed in as the key's Google account when its label is an email.

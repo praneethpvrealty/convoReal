@@ -193,6 +193,26 @@ describe('formatTaskDigest', () => {
     expect(out!.body).not.toContain('Task 12');
   });
 
+  it('[TXW-020] reminds about deal deadlines even when no task is open', () => {
+    const out = formatTaskDigest({
+      name: 'Praneeth Kumar',
+      slot: '07:00',
+      overdue: [],
+      dueToday: [],
+      appointments: [],
+      deadlines: [
+        { title: 'Registration scheduled', subject: 'Sidharth — Property No. 19', daysLeft: 0 },
+        { title: 'Expected close', subject: 'Yusuf Sameer — Lotus', daysLeft: -2 },
+      ],
+    });
+    expect(out).not.toBeNull();
+    expect(out!.body).toContain('Deal deadlines (2)');
+    expect(out!.body).toContain(
+      '• Registration scheduled — Sidharth — Property No. 19 · Due today'
+    );
+    expect(out!.body).toContain('• Expected close — Yusuf Sameer — Lotus · Overdue by 2 days');
+  });
+
   it('shows appointment times in IST', () => {
     const out = formatTaskDigest({
       name: null,

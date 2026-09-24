@@ -116,6 +116,18 @@ import {
 } from '@/lib/deals/stakeholders';
 import { DEAL_VISIBILITY_LABELS } from '@/lib/deals/visibility';
 import {
+  BUNDLE_MAX_DEALS,
+  BUNDLE_MIN_DEALS,
+  BUNDLE_NAME_MAX,
+  bundleBlocker,
+  bundleCandidates,
+  defaultBundleName,
+} from '@/lib/deals/bundles';
+import {
+  DEAL_DEADLINE_URGENCY_LABELS,
+  deadlineLabel,
+} from '@/lib/deals/deadlines';
+import {
   DIGEST_PAUSE_COMMAND,
   DIGEST_RESUME_COMMAND,
   OWNER_DETAILS_SECTIONS,
@@ -2935,5 +2947,134 @@ describe('mobile deal document upload mirrors the web one', () => {
       "'content-type': opts.contentType"
     );
     expect(web).toContain("'content-type': mime_type");
+  });
+});
+
+describe('[TXW-019] bundles are created from both surfaces through one route', () => {
+  const mobileVocab = mobileSource('lib/deal-workspace.ts');
+  const mobileApi = mobileSource('lib/deal-workspace-api.ts');
+  const mobileScreen = mobileSource('app/(app)/deal/[id].tsx');
+  const webDialog = webSource('components/deals/deal-bundle-dialog.tsx');
+  const webWorkspace = webSource('components/deals/deal-workspace.tsx');
+
+  it('posts to /api/deal-groups and reads a bundle back from it', () => {
+    expect(webDialog).toContain("fetch('/api/deal-groups'");
+    expect(webDialog).toContain('`/api/deal-groups/${group.id}`');
+    expect(mobileApi).toContain("'/api/deal-groups'");
+    expect(mobileApi).toContain('`/api/deal-groups/${groupId}`');
+    expect(mobileScreen).toContain('createDealGroup');
+    expect(mobileScreen).toContain('fetchDealGroup');
+    expect(webWorkspace).toContain('DealBundleDialog');
+  });
+
+  it('holds the route limits and the default name on both surfaces', () => {
+    expect(mobileVocab).toContain(`BUNDLE_MIN_DEALS = ${BUNDLE_MIN_DEALS}`);
+    expect(mobileVocab).toContain(`BUNDLE_MAX_DEALS = ${BUNDLE_MAX_DEALS}`);
+    expect(mobileVocab).toContain(`BUNDLE_NAME_MAX = ${BUNDLE_NAME_MAX}`);
+    expect(mobileVocab).toContain(
+      "return (who ? `${who} — linked purchases` : 'Linked purchases')"
+    );
+    expect(mobileVocab).toContain(
+      '.filter((r) => r.id !== anchor.id && !r.deal_group_id)'
+    );
+    expect(mobileVocab).toContain(
+      'const aSame =\n        Boolean(anchor.contact_id) && a.contact_id === anchor.contact_id;'
+    );
+    for (const message of [
+      bundleBlocker('', 2),
+      bundleBlocker('x', 1),
+      bundleBlocker('x', BUNDLE_MAX_DEALS + 1),
+    ]) {
+      expect(message).not.toBeNull();
+      expect(mobileVocab).toContain(
+        message!.replace('20', '${BUNDLE_MAX_DEALS}')
+      );
+    }
+    expect(defaultBundleName('Adithi')).toBe('Adithi — linked purchases');
+    expect(
+      bundleCandidates(
+        [
+          {
+            id: 'b',
+            title: 'B',
+            contact_id: 'c1',
+            contact_name: null,
+            property_title: null,
+            property_unit_no: '20',
+            stage_name: null,
+            deal_group_id: null,
+          },
+          {
+            id: 'a',
+            title: 'A',
+            contact_id: 'c1',
+            contact_name: null,
+            property_title: null,
+            property_unit_no: '19',
+            stage_name: null,
+            deal_group_id: null,
+          },
+        ],
+        { id: 'a', contact_id: 'c1' }
+      ).map((r) => r.id)
+    ).toEqual(['b']);
+  });
+});
+
+describe('[TXW-020] deal deadlines reach both surfaces from the Focus snapshot', () => {
+  const mobileFocus = mobileSource('lib/focus.ts');
+  const mobileScreen = mobileSource('app/(app)/focus.tsx');
+  const webFocus = webSource('app/(dashboard)/dashboard/focus-content.tsx');
+  const webToday = webSource('app/(dashboard)/today/today-content.tsx');
+  const digest = webSource('lib/agents/task-digest.ts');
+  const focusQueries = webSource('lib/focus/queries.ts');
+
+  it('labels every urgency identically and words the distance the same way', () => {
+    for (const [urgency, label] of Object.entries(
+      DEAL_DEADLINE_URGENCY_LABELS
+    )) {
+      expect(mobileFocus, `mobile is missing the "${urgency}" label`).toContain(
+        `${urgency}: '${label}'`
+      );
+    }
+    expect(mobileFocus).toContain(
+      "return `Overdue by ${n} day${n === 1 ? '' : 's'}`;"
+    );
+    expect(mobileFocus).toContain("if (daysLeft === 0) return 'Due today';");
+    expect(mobileFocus).toContain("if (daysLeft === 1) return 'Due tomorrow';");
+    expect(mobileFocus).toContain('return `Due in ${daysLeft} days`;');
+    expect(deadlineLabel(-1)).toBe('Overdue by 1 day');
+  });
+
+  it('carries the same deadline shape on the snapshot and renders it on both screens', () => {
+    for (const field of [
+      'dealId',
+      'kind',
+      'milestoneId',
+      'title',
+      'subject',
+      'dueDate',
+      'daysLeft',
+      'urgency',
+    ]) {
+      expect(mobileFocus, `mobile FocusDeadline lacks ${field}`).toMatch(
+        new RegExp(`^  ${field}: `, 'm')
+      );
+    }
+    expect(mobileFocus).toContain('deadlines: FocusDeadlines;');
+    expect(focusQueries).toContain('loadDealDeadlines(');
+    expect(mobileScreen).toContain('Deal deadlines');
+    expect(mobileScreen).toContain('deadlineLabel(d.daysLeft)');
+    expect(webFocus).toContain('Deal deadlines');
+    expect(webFocus).toContain('deadlineLabel(d.daysLeft)');
+    expect(webToday).toContain('loadDealDeadlines(');
+  });
+
+  it('reads the same SQL rule from the digest and never a hand-rolled query', () => {
+    expect(digest).toContain('loadDealDeadlineRowsForAccount(');
+    expect(digest).toContain('deadlinesForAgent(');
+    expect(digest).not.toContain("from('deal_milestones')");
+    expect(focusQueries).not.toContain("from('deal_milestones')");
+    expect(webToday).not.toContain("from('deal_milestones')");
   });
 });
