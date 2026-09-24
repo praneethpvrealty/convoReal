@@ -10,6 +10,7 @@ export interface GeminiKey {
   key: string;
   scope: GeminiKeyScope;
   restingUntil: number;
+  lastError: string | null;
 }
 
 const KEY_EXHAUSTED_PATTERNS = [
@@ -72,20 +73,21 @@ export function parseEnvKeys(
         key,
         scope,
         restingUntil: 0,
+        lastError: null,
       };
     })
     .filter((entry) => entry.key);
 }
 
-function envKeys(scope: GeminiKeyScope): GeminiKey[] {
-  if (scope === 'import') {
-    const importKeys = parseEnvKeys(
-      process.env.GEMINI_IMPORT_API_KEY,
-      (i) => `import-${i + 1}`,
-      'import'
-    );
-    if (importKeys.length) return importKeys;
-  }
+function envImportKeys(): GeminiKey[] {
+  return parseEnvKeys(
+    process.env.GEMINI_IMPORT_API_KEY,
+    (i) => `import-${i + 1}`,
+    'import'
+  );
+}
+
+function envGeneralKeys(): GeminiKey[] {
   return [
     ...parseEnvKeys(process.env.GEMINI_API_KEY, () => 'primary', 'general'),
     ...parseEnvKeys(
@@ -102,48 +104,74 @@ interface ManagedKeyRow {
   key_ciphertext: string;
   scope: GeminiKeyScope;
   resting_until: string | null;
+  last_error: string | null;
+}
+
+function restingMs(value: string | null): number {
+  return value ? new Date(value).getTime() : 0;
+}
+
+async function fetchManagedRows(): Promise<ManagedKeyRow[]> {
+  const { data, error } = await supabaseAdmin()
+    .from('ai_provider_keys')
+    .select('id, label, key_ciphertext, scope, resting_until, last_error')
+    .eq('provider', 'gemini')
+    .eq('enabled', true)
+    .order('priority', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ManagedKeyRow[];
 }
 
 async function loadManagedKeys(): Promise<GeminiKey[]> {
-  if (managedCache && Date.now() - managedCache.fetchedAt < POOL_TTL_MS) {
-    return managedCache.keys;
-  }
-  let keys: GeminiKey[] = [];
+  const cached =
+    managedCache && Date.now() - managedCache.fetchedAt < POOL_TTL_MS
+      ? managedCache.keys
+      : null;
+  let rows: ManagedKeyRow[];
   try {
-    const { data, error } = await supabaseAdmin()
-      .from('ai_provider_keys')
-      .select('id, label, key_ciphertext, scope, resting_until')
-      .eq('provider', 'gemini')
-      .eq('enabled', true)
-      .order('priority', { ascending: true })
-      .order('created_at', { ascending: true });
-    if (error) throw new Error(error.message);
-    for (const row of (data ?? []) as ManagedKeyRow[]) {
-      try {
-        keys.push({
-          id: row.id,
-          label: row.label,
-          key: decrypt(row.key_ciphertext),
-          scope: row.scope === 'import' ? 'import' : 'general',
-          restingUntil: row.resting_until
-            ? new Date(row.resting_until).getTime()
-            : 0,
-        });
-      } catch (err) {
-        console.error(
-          `[Gemini AI] Could not decrypt key "${row.label}":`,
-          err instanceof Error ? err.message : err
-        );
-      }
-    }
+    rows = await fetchManagedRows();
   } catch (err) {
+    if (cached) return cached;
     console.warn(
       '[Gemini AI] Managed keys unavailable; using environment keys:',
       err instanceof Error ? err.message : err
     );
-    keys = [];
+    managedCache = { fetchedAt: Date.now(), keys: [] };
+    return [];
   }
-  managedCache = { fetchedAt: Date.now(), keys };
+  const byId = new Map((cached ?? []).map((entry) => [entry.id, entry]));
+  const keys: GeminiKey[] = [];
+  for (const row of rows) {
+    const existing = byId.get(row.id);
+    if (existing) {
+      existing.label = row.label;
+      existing.scope = row.scope === 'import' ? 'import' : 'general';
+      existing.restingUntil = restingMs(row.resting_until);
+      existing.lastError = row.last_error;
+      keys.push(existing);
+      continue;
+    }
+    try {
+      keys.push({
+        id: row.id,
+        label: row.label,
+        key: decrypt(row.key_ciphertext),
+        scope: row.scope === 'import' ? 'import' : 'general',
+        restingUntil: restingMs(row.resting_until),
+        lastError: row.last_error,
+      });
+    } catch (err) {
+      console.error(
+        `[Gemini AI] Could not decrypt key "${row.label}":`,
+        err instanceof Error ? err.message : err
+      );
+    }
+  }
+  managedCache = {
+    fetchedAt: cached ? managedCache!.fetchedAt : Date.now(),
+    keys,
+  };
   return keys;
 }
 
@@ -167,20 +195,15 @@ export async function resolveGeminiKeys(opts: {
     );
   }
   const managed = await loadManagedKeys();
-  if (managed.length) {
-    const scoped = managed.filter((entry) => entry.scope === scope);
-    if (scoped.length) return dedupe(scoped);
-    if (scope === 'import') {
-      const importEnv = parseEnvKeys(
-        process.env.GEMINI_IMPORT_API_KEY,
-        (i) => `import-${i + 1}`,
-        'import'
-      );
-      if (importEnv.length) return dedupe(importEnv);
-    }
-    return dedupe(managed.filter((entry) => entry.scope === 'general'));
+  if (scope === 'import') {
+    const managedImport = managed.filter((entry) => entry.scope === 'import');
+    if (managedImport.length) return dedupe(managedImport);
+    const envImport = envImportKeys();
+    if (envImport.length) return dedupe(envImport);
   }
-  return dedupe(envKeys(scope));
+  const managedGeneral = managed.filter((entry) => entry.scope === 'general');
+  if (managedGeneral.length) return dedupe(managedGeneral);
+  return dedupe(envGeneralKeys());
 }
 
 function restingUntil(entry: GeminiKey): number {
@@ -195,7 +218,7 @@ function soonestRestingMessage(keys: GeminiKey[]): string | null {
   const entries = keys
     .map((entry) => ({
       until: restingUntil(entry),
-      message: cooldowns.get(entry.key)?.message ?? null,
+      message: cooldowns.get(entry.key)?.message ?? entry.lastError,
     }))
     .filter((entry) => entry.until > 0)
     .sort((a, b) => a.until - b.until);
@@ -226,11 +249,17 @@ export function markKeyFailure(
   const until = Date.now() + KEY_COOLDOWN_MS[failure];
   cooldowns.set(entry.key, { until, message });
   entry.restingUntil = until;
+  entry.lastError = message;
   persist(entry.id, {
     resting_until: new Date(until).toISOString(),
     last_error: message.slice(0, 500),
     last_error_at: new Date().toISOString(),
   });
+  if (failure === 'exhausted') {
+    void import('./key-alerts')
+      .then((alerts) => alerts.alertKeyExhausted(entry, message))
+      .catch(() => undefined);
+  }
 }
 
 export function markKeySuccess(entry: GeminiKey): void {
@@ -260,7 +289,16 @@ export async function withGeminiKeys<T>(
   if (!pool.length) throw new Error(NO_KEY_MESSAGE);
   const keys = readyKeys(pool);
   if (!keys.length) {
-    throw new Error(soonestRestingMessage(pool) ?? NO_KEY_MESSAGE);
+    const reason = soonestRestingMessage(pool);
+    void import('./key-alerts')
+      .then((alerts) =>
+        alerts.alertAllKeysResting(
+          pool.map((entry) => entry.label),
+          reason
+        )
+      )
+      .catch(() => undefined);
+    throw new Error(reason ?? NO_KEY_MESSAGE);
   }
   let lastError: unknown;
   for (const [index, entry] of keys.entries()) {

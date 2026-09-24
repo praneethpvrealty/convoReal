@@ -18,11 +18,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BarChart } from '@/components/tremor/bar-chart';
-import type {
-  KeyDashboard,
-  KeyDashboardEntry,
-  Pricing,
-  UsageBucket,
+import {
+  MAX_USAGE_DAYS,
+  type KeyDashboard,
+  type KeyDashboardEntry,
+  type Pricing,
+  type UsageBucket,
 } from '@/lib/ai/keys-admin';
 
 const QUERY_KEY = ['admin-ai-keys'];
@@ -246,6 +247,9 @@ function KeyCard({
                   ? ` (≈ ₹${Math.round(entry.sinceTopup.costUsd * inrPerUsd).toLocaleString('en-IN')})`
                   : ''}{' '}
                 · estimate from tokens × price
+                {remaining.partial
+                  ? ` · counted from ${remaining.since}; the log keeps ${MAX_USAGE_DAYS} days`
+                  : ''}
               </p>
             </>
           ) : (
@@ -398,6 +402,39 @@ function KeyCard({
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+function LoggingBanner() {
+  const queryClient = useQueryClient();
+  const enable = useMutation({
+    mutationFn: () =>
+      api('/api/admin/ai-keys/logging', {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: true }),
+      }),
+    onSuccess: () => {
+      toast.success('AI call logging is on');
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+      <p className="text-sm text-amber-200">
+        AI call logging is off, so usage and spend below stay at zero. Turn it
+        on to record every Gemini call (model, tokens, key — previews are capped
+        at 500 characters).
+      </p>
+      <Button
+        size="sm"
+        disabled={enable.isPending}
+        onClick={() => enable.mutate()}
+      >
+        {enable.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+        Turn on logging
+      </Button>
     </div>
   );
 }
@@ -612,7 +649,9 @@ export default function AiKeysTab() {
         </h2>
         <p className="text-sm text-slate-400">
           Gemini keys used by the web app and the WhatsApp worker, with live
-          usage from every call. Refreshes every 30 seconds.
+          usage from every call. Refreshes every 30 seconds. Platform admins get
+          an in-app, push and WhatsApp alert when a key runs out and when every
+          key is resting, at most once per key every six hours.
           {managed.length === 0 && (
             <>
               {' '}
@@ -627,6 +666,8 @@ export default function AiKeysTab() {
           )}
         </p>
       </div>
+
+      {!data.loggingEnabled && <LoggingBanner />}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">

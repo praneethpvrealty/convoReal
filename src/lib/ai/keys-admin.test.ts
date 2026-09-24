@@ -8,6 +8,7 @@ import {
   estimateCostUsd,
   kolkataDate,
   mergePricing,
+  usageWindowDays,
   validateKeyInput,
   validateTopup,
   type DailyUsageRow,
@@ -157,7 +158,7 @@ describe('buildKeyDashboard', () => {
     );
     expect(main.lastTopup?.id).toBe('t1');
     expect(main.sinceTopup?.costUsd).toBeCloseTo(main.month.costUsd);
-    expect(main.estimatedRemaining).toEqual({
+    expect(main.estimatedRemaining).toMatchObject({
       amount: Math.round((1000 - main.month.costUsd * 100) * 100) / 100,
       currency: 'INR',
     });
@@ -193,5 +194,70 @@ describe('buildKeyDashboard', () => {
     expect(dashboard.daily.byKey).toHaveLength(30);
     expect(dashboard.daily.byKey.at(-1)).toMatchObject({ day: TODAY });
     expect(dashboard.daily.keyLabels).toEqual(['primary']);
+  });
+});
+
+describe('usage window', () => {
+  it('[AIK-004] reaches back to the month start and the last top-up, capped at 90 days', () => {
+    const now = new Date('2026-09-24T06:30:00Z');
+    expect(usageWindowDays(30, [], now)).toBe(30);
+    expect(
+      usageWindowDays(
+        7,
+        [
+          {
+            id: 't',
+            key_id: 'k',
+            amount: 1,
+            currency: 'USD',
+            topped_up_at: '2026-08-01T00:00:00Z',
+            note: null,
+          },
+        ],
+        now
+      )
+    ).toBe(56);
+    expect(
+      usageWindowDays(
+        7,
+        [
+          {
+            id: 't',
+            key_id: 'k',
+            amount: 1,
+            currency: 'USD',
+            topped_up_at: '2026-01-01T00:00:00Z',
+            note: null,
+          },
+        ],
+        now
+      )
+    ).toBe(90);
+  });
+
+  it('[AIK-004] marks the remaining estimate partial when the top-up predates the log window', () => {
+    const dashboard = buildKeyDashboard({
+      keys: [key('main')],
+      topups: [
+        {
+          id: 't',
+          key_id: 'id-main',
+          amount: 100,
+          currency: 'USD',
+          topped_up_at: '2026-01-01T00:00:00Z',
+          note: null,
+        },
+      ],
+      usage: [usage('main', TODAY)],
+      pricing: DEFAULT_PRICING,
+      days: 30,
+      usageDays: 90,
+      now: NOW,
+    });
+    expect(dashboard.keys[0].estimatedRemaining).toMatchObject({
+      partial: true,
+      currency: 'USD',
+    });
+    expect(dashboard.usageDays).toBe(90);
   });
 });

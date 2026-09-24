@@ -307,7 +307,12 @@ export interface KeyDashboardEntry {
   sinceTopup: UsageBucket | null;
   topups: TopupRow[];
   lastTopup: TopupRow | null;
-  estimatedRemaining: { amount: number; currency: 'USD' | 'INR' } | null;
+  estimatedRemaining: {
+    amount: number;
+    currency: 'USD' | 'INR';
+    since: string;
+    partial: boolean;
+  } | null;
 }
 
 export interface KeyDashboard {
@@ -321,6 +326,32 @@ export interface KeyDashboard {
   pricing: Pricing;
   envFallback: { primary: boolean; fallbacks: number; import: number };
   days: number;
+  usageDays: number;
+  loggingEnabled: boolean;
+}
+
+export const MAX_USAGE_DAYS = 90;
+
+export function usageWindowDays(
+  chartDays: number,
+  topups: TopupRow[],
+  now: Date = new Date()
+): number {
+  const today = kolkataDate(now);
+  const monthStart = new Date(`${today.slice(0, 8)}01T00:00:00+05:30`);
+  let earliest = monthStart.getTime();
+  const latestByKey = new Map<string, string>();
+  for (const topup of topups) {
+    const current = latestByKey.get(topup.key_id);
+    if (!current || topup.topped_up_at > current) {
+      latestByKey.set(topup.key_id, topup.topped_up_at);
+    }
+  }
+  for (const at of latestByKey.values()) {
+    earliest = Math.min(earliest, new Date(at).getTime());
+  }
+  const needed = Math.ceil((now.getTime() - earliest) / 86_400_000) + 1;
+  return Math.min(MAX_USAGE_DAYS, Math.max(chartDays, needed));
 }
 
 function emptyBucket(): UsageBucket {
@@ -365,12 +396,18 @@ export function buildKeyDashboard(input: {
   usage: DailyUsageRow[];
   pricing: Pricing;
   days: number;
+  usageDays?: number;
+  loggingEnabled?: boolean;
   now?: Date;
 }): KeyDashboard {
   const now = input.now ?? new Date();
   const today = kolkataDate(now);
   const monthStart = today.slice(0, 8) + '01';
   const nowMs = now.getTime();
+  const usageDays = input.usageDays ?? input.days;
+  const windowStart = kolkataDate(
+    new Date(nowMs - (usageDays - 1) * 86_400_000)
+  );
 
   const topupsByKey = new Map<string, TopupRow[]>();
   for (const topup of input.topups) {
@@ -407,9 +444,11 @@ export function buildKeyDashboard(input: {
     let estimatedRemaining: KeyDashboardEntry['estimatedRemaining'] = null;
     if (lastTopup) {
       const topupDay = kolkataDate(new Date(lastTopup.topped_up_at));
+      const partial = topupDay < windowStart;
+      const since = partial ? windowStart : topupDay;
       sinceTopup = emptyBucket();
       for (const row of rows) {
-        if (row.day >= topupDay) add(sinceTopup, row, input.pricing);
+        if (row.day >= since) add(sinceTopup, row, input.pricing);
       }
       const spent =
         lastTopup.currency === 'INR'
@@ -418,6 +457,8 @@ export function buildKeyDashboard(input: {
       estimatedRemaining = {
         amount: Math.round((lastTopup.amount - spent) * 100) / 100,
         currency: lastTopup.currency,
+        since,
+        partial,
       };
     }
     const resting =
@@ -519,6 +560,8 @@ export function buildKeyDashboard(input: {
       import: envCount(process.env.GEMINI_IMPORT_API_KEY),
     },
     days: input.days,
+    usageDays,
+    loggingEnabled: input.loggingEnabled ?? true,
   };
 }
 
@@ -526,7 +569,7 @@ export async function loadKeyDashboard(
   db: SupabaseClient,
   days: number
 ): Promise<KeyDashboard> {
-  const [keysRes, topupsRes, usageRes, pricing] = await Promise.all([
+  const [keysRes, topupsRes, pricing, loggingRes] = await Promise.all([
     db
       .from('ai_provider_keys')
       .select(KEY_COLUMNS)
@@ -538,18 +581,26 @@ export async function loadKeyDashboard(
       .select('id, key_id, amount, currency, topped_up_at, note')
       .order('topped_up_at', { ascending: false })
       .limit(500),
-    db.rpc('ai_key_daily_usage', { p_days: days }),
     loadPricing(db),
+    db
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'ai_call_log')
+      .maybeSingle(),
   ]);
   if (keysRes.error) throw new Error(keysRes.error.message);
   if (topupsRes.error) throw new Error(topupsRes.error.message);
+  const topups = ((topupsRes.data ?? []) as TopupRow[]).map((t) => ({
+    ...t,
+    amount: Number(t.amount),
+  }));
+  const usageDays = usageWindowDays(days, topups);
+  const usageRes = await db.rpc('ai_key_daily_usage', { p_days: usageDays });
   if (usageRes.error) throw new Error(usageRes.error.message);
+  const loggingValue = (loggingRes.data as { value?: unknown } | null)?.value;
   return buildKeyDashboard({
     keys: (keysRes.data ?? []) as ManagedKeyRow[],
-    topups: ((topupsRes.data ?? []) as TopupRow[]).map((t) => ({
-      ...t,
-      amount: Number(t.amount),
-    })),
+    topups,
     usage: ((usageRes.data ?? []) as DailyUsageRow[]).map((r) => ({
       ...r,
       calls: Number(r.calls),
@@ -559,5 +610,18 @@ export async function loadKeyDashboard(
     })),
     pricing,
     days,
+    usageDays,
+    loggingEnabled:
+      (loggingValue as { enabled?: boolean } | null)?.enabled === true,
   });
+}
+
+export async function setCallLogging(
+  db: SupabaseClient,
+  enabled: boolean
+): Promise<void> {
+  const { error } = await db
+    .from('system_settings')
+    .upsert({ key: 'ai_call_log', value: { enabled } }, { onConflict: 'key' });
+  if (error) throw new Error(error.message);
 }

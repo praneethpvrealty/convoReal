@@ -4,6 +4,12 @@ import { encrypt } from '@/lib/whatsapp/encryption';
 
 vi.mock('./call-log', () => ({ logAiCall: vi.fn() }));
 
+const alerts = vi.hoisted(() => ({
+  alertKeyExhausted: vi.fn(async () => true),
+  alertAllKeysResting: vi.fn(async () => true),
+}));
+vi.mock('./key-alerts', () => alerts);
+
 const store = vi.hoisted(() => ({
   rows: [] as Array<Record<string, unknown>>,
   updates: [] as Array<{ id: string; patch: Record<string, unknown> }>,
@@ -63,6 +69,7 @@ function managedRow(
     key_ciphertext: encrypt(key),
     scope: 'general',
     resting_until: null,
+    last_error: null,
     ...extra,
   };
 }
@@ -75,6 +82,8 @@ beforeEach(() => {
   store.rows = [];
   store.updates = [];
   store.fail = false;
+  alerts.alertKeyExhausted.mockClear();
+  alerts.alertAllKeysResting.mockClear();
   for (const key of Object.keys(failures)) delete failures[key];
   vi.stubEnv('GEMINI_API_KEY', 'env-a');
   vi.stubEnv('GEMINI_FALLBACK_API_KEYS', 'spare=env-b, env-c');
@@ -149,6 +158,14 @@ describe('key pool', () => {
     expect((await resolveGeminiKeys({})).map((k) => k.key)).toEqual(['db-a']);
   });
 
+  it('[AIK-001] keeps ordinary calls on the environment when only import keys are managed', async () => {
+    store.rows = [managedRow('imports', 'db-imp', { scope: 'import' })];
+    expect(await generateText('hi')).toBe('ok from env-a');
+    expect(
+      (await resolveGeminiKeys({ scope: 'import' })).map((k) => k.key)
+    ).toEqual(['db-imp']);
+  });
+
   it('[AIK-001] lets the import share general keys when no import key exists', async () => {
     store.rows = [managedRow('main', 'db-a')];
     expect(
@@ -203,6 +220,59 @@ describe('failover', () => {
     ];
     expect(await generateText('hi')).toBe('ok from db-b');
     expect(seen).toEqual(['db-b']);
+  });
+
+  it('[AIK-005] alerts platform admins when a key runs out, not on a rate limit', async () => {
+    failures['env-a'] = 'Your prepayment credits are depleted.';
+    failures['env-b'] = 'Resource has been exhausted (e.g. check quota).';
+    expect(await generateText('hi')).toBe('ok from env-c');
+    await tick();
+    expect(alerts.alertKeyExhausted).toHaveBeenCalledTimes(1);
+    expect(alerts.alertKeyExhausted).toHaveBeenCalledWith(
+      expect.objectContaining({ label: 'primary' }),
+      'Your prepayment credits are depleted.'
+    );
+  });
+
+  it('[AIK-005] alerts once every key is resting', async () => {
+    failures['env-a'] = 'Your prepayment credits are depleted.';
+    failures['env-b'] = 'Your prepayment credits are depleted.';
+    failures['env-c'] = 'Your prepayment credits are depleted.';
+    await expect(generateText('hi')).rejects.toThrow();
+    await expect(generateText('again')).rejects.toThrow();
+    await tick();
+    expect(alerts.alertAllKeysResting).toHaveBeenCalledWith(
+      ['primary', 'spare', 'fallback-2'],
+      expect.stringContaining('depleted')
+    );
+  });
+
+  it('[AIK-002] sees a rest recorded by another instance within the cache window', async () => {
+    store.rows = [managedRow('first', 'db-a'), managedRow('second', 'db-b')];
+    expect(await generateText('hi')).toBe('ok from db-a');
+    store.rows = [
+      managedRow('first', 'db-a', {
+        resting_until: new Date(Date.now() + 60_000).toISOString(),
+        last_error: 'Your prepayment credits are depleted.',
+      }),
+      managedRow('second', 'db-b'),
+    ];
+    seen.length = 0;
+    expect(await generateText('again')).toBe('ok from db-b');
+    expect(seen).toEqual(['db-b']);
+  });
+
+  it('[AIK-002] keeps the persisted failure when every key was rested elsewhere', async () => {
+    store.rows = [
+      managedRow('only', 'db-a', {
+        resting_until: new Date(Date.now() + 60_000).toISOString(),
+        last_error: 'You exceeded your current quota.',
+      }),
+    ];
+    await expect(generateText('hi')).rejects.toThrow(
+      /exceeded your current quota/
+    );
+    expect(seen).toEqual([]);
   });
 
   it('does not switch keys for an ordinary model error', async () => {

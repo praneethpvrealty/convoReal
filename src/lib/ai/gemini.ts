@@ -316,7 +316,36 @@ const EMBEDDING_MODEL = 'gemini-embedding-001';
  * Same raw-REST style as generateContentRaw — no SDK.
  */
 export async function embedText(text: string): Promise<number[]> {
-  return withGeminiKeys({}, (entry) => embedTextWithKey(entry.key, text));
+  return withGeminiKeys({}, async (entry) => {
+    const startedAt = Date.now();
+    try {
+      const values = await embedTextWithKey(entry.key, text);
+      logAiCall({
+        keyLabel: entry.label,
+        feature: 'embedding',
+        model: EMBEDDING_MODEL,
+        success: true,
+        latencyMs: Date.now() - startedAt,
+        jsonMode: false,
+        hasMedia: false,
+        promptChars: text.length,
+      });
+      return values;
+    } catch (err) {
+      logAiCall({
+        keyLabel: entry.label,
+        feature: 'embedding',
+        model: EMBEDDING_MODEL,
+        success: false,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        latencyMs: Date.now() - startedAt,
+        jsonMode: false,
+        hasMedia: false,
+        promptChars: text.length,
+      });
+      throw err;
+    }
+  });
 }
 
 export async function probeGeminiKey(apiKey: string): Promise<void> {
@@ -343,7 +372,6 @@ async function embedTextWithKey(
   apiKey: string,
   text: string
 ): Promise<number[]> {
-
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${apiKey}`;
   const response = await fetch(url, {
     method: 'POST',
@@ -1127,9 +1155,12 @@ export async function parseListingFromImageOrText(
       type:
         detectCommercialPlot(text) || detectCommercialPlot(parsed.title)
           ? 'Commercial Plot'
-          : detectCommercialBuilding(text) || detectCommercialBuilding(parsed.title)
-          ? 'Commercial Building'
-          : (normalizePropertyType(parsed.type) as ParsedPropertyDraft['type']),
+          : detectCommercialBuilding(text) ||
+              detectCommercialBuilding(parsed.title)
+            ? 'Commercial Building'
+            : (normalizePropertyType(
+                parsed.type
+              ) as ParsedPropertyDraft['type']),
       sublocality: parsed.sublocality || null,
       city: parsed.city || null,
       state: parsed.state || null,
@@ -1233,11 +1264,13 @@ export async function updateListingDraft(
       // Same idea for 'type' — normalize whatever the model returned (or
       // fall back to the prior value) rather than letting it revert to
       // null when the user clearly specified a category.
-      type: detectCommercialPlot(updateRequest) || detectCommercialPlot(parsed.title)
-        ? 'Commercial Plot'
-        : normalizePropertyType(
-            parsed.type ?? currentDraft.type
-          ) as ParsedPropertyDraft['type'],
+      type:
+        detectCommercialPlot(updateRequest) ||
+        detectCommercialPlot(parsed.title)
+          ? 'Commercial Plot'
+          : (normalizePropertyType(
+              parsed.type ?? currentDraft.type
+            ) as ParsedPropertyDraft['type']),
       // Same idea for 'bedrooms' — fall back to extracting "X BHK" from
       // the raw correction text if the model didn't set it.
       bedrooms:

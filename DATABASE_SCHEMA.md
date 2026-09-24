@@ -469,7 +469,8 @@ them by construction; their data access happens through `/api/den/*`
   `general` or `import` (guidance value import only), `priority` orders
   the pool, and `resting_until` / `last_error` / `last_used_at` are written
   by the Gemini client itself so every instance shares one view of a key
-  that ran out. Platform-level: **no `account_id`**, RLS on with no
+  that ran out. `last_alert_at` (20260924063000) throttles the
+  exhausted-key alert to platform admins to one per six hours. Platform-level: **no `account_id`**, RLS on with no
   policies, service role only. The environment variables `GEMINI_API_KEY`
   and `GEMINI_FALLBACK_API_KEYS` are the fallback when the table is empty.
 - `ai_key_topups`: credit top-ups recorded against a key (amount, USD or
