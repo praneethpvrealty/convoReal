@@ -10,6 +10,7 @@ import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
 import { assignTagsToContact } from "@/app/api/leads/email-webhook/db-utils";
+import { sanitizeAreaList } from "@/lib/contacts/area-fragments";
 
 const REQUIREMENTS_SESSION_LIMIT = { limit: 5, windowMs: 60_000 };
 const REQUIREMENTS_ACCOUNT_LIMIT = { limit: 60, windowMs: 60_000 };
@@ -169,7 +170,7 @@ export async function POST(request: Request) {
       status: "pending_review" as const,
       min_budget: resolvedMinBudget,
       max_budget: resolvedMaxBudget,
-      areas_of_interest: locations || [],
+      areas_of_interest: sanitizeAreaList(locations || []),
       property_interests: categories || [],
       min_roi: minRoi || null,
       requirements: notes || null,

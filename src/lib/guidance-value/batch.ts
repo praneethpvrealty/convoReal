@@ -32,6 +32,7 @@ const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 export const BATCH_FEATURE = 'guidance_value_source_batch';
 export const BATCH_MAX_BYTES = 15 * 1024 * 1024;
 export const BATCH_BUILD_BUDGET_MS = 200_000;
+export const CRON_BUILD_BUDGET_MS = 120_000;
 const APPLYING_STALE_MS = 15 * 60_000;
 const UNSUBMITTED_PREFIX = 'unsubmitted:';
 const UNSUBMITTED_STALE_MS = 30 * 60_000;
@@ -368,14 +369,28 @@ export interface QueueResult {
 
 export async function queueGuidanceBatches(
   db: SupabaseClient,
-  now: () => number = Date.now
+  now: () => number = Date.now,
+  opts: { requestedOnly?: boolean; budgetMs?: number } = {}
 ): Promise<QueueResult> {
   const startedAt = now();
-  const { data, error } = await db
+  const budgetMs = opts.budgetMs ?? BATCH_BUILD_BUDGET_MS;
+  if (!opts.requestedOnly) {
+    const { error: requestError } = await db
+      .from('guidance_value_sources')
+      .update({ batch_requested_at: new Date(startedAt).toISOString() })
+      .in('status', ['uploaded', 'parsing', 'failed'])
+      .is('batch_id', null)
+      .is('batch_requested_at', null)
+      .select('id');
+    if (requestError) throw new Error(requestError.message);
+  }
+  let select = db
     .from('guidance_value_sources')
     .select('id, storage_path, page_count, pages_parsed')
     .in('status', ['uploaded', 'parsing', 'failed'])
-    .is('batch_id', null)
+    .is('batch_id', null);
+  if (opts.requestedOnly) select = select.not('batch_requested_at', 'is', null);
+  const { data, error } = await select
     .order('created_at', { ascending: true })
     .limit(500);
   if (error) throw new Error(error.message);
@@ -463,7 +478,7 @@ export async function queueGuidanceBatches(
   };
 
   while (queue.length) {
-    if (now() - startedAt > BATCH_BUILD_BUDGET_MS) break;
+    if (now() - startedAt > budgetMs) break;
     const source = queue.shift()!;
     const prepared = await prepareSource(
       db,
@@ -474,7 +489,11 @@ export async function queueGuidanceBatches(
       if (prepared.code !== 'DOWNLOAD_FAILED') {
         await db
           .from('guidance_value_sources')
-          .update({ status: 'failed', error: prepared.error })
+          .update({
+            status: 'failed',
+            error: prepared.error,
+            batch_requested_at: null,
+          })
           .eq('id', source.id)
           .is('batch_id', null)
           .select('id');
@@ -652,6 +671,9 @@ async function applyResults(
         pages_parsed: assembled.parsedTo,
         row_count: count ?? 0,
         status: done ? 'ready' : 'parsing',
+        ...(done || assembled.parsedTo <= source.pages_parsed
+          ? { batch_requested_at: null }
+          : {}),
         error: assembled.failed
           ? `${assembled.failed} page range(s) could not be read in the batch; the next run retries them.`
           : null,

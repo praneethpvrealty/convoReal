@@ -736,6 +736,21 @@ Content-Transfer-Encoding: quoted-printable
       ).toBe('1st Block Koramangala');
     });
 
+    it('[CTM-010] skips a door number or street at the head of the address', () => {
+      expect(
+        areaLabelFromListing({
+          location: '#365, 24th Main, JP Nagar 6th Phase, Bengaluru',
+          sublocality: null,
+        }),
+      ).toBe('JP Nagar 6th Phase');
+      expect(
+        areaLabelFromListing({
+          location: 'Sector, HSR Layout, Bengaluru',
+          sublocality: 'Block',
+        }),
+      ).toBe('HSR Layout');
+    });
+
     it('keeps a plain address line working', () => {
       expect(
         areaLabelFromListing({

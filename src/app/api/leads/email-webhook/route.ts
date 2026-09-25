@@ -583,7 +583,7 @@ export async function POST(request: Request) {
     }
 
     if (parsed.propertyLocation) {
-      const mainArea = parsed.propertyLocation.split(',')[0]?.trim();
+      const mainArea = areaLabelFromListing({ location: parsed.propertyLocation });
       if (mainArea) {
         const areaLower = mainArea.toLowerCase();
         let formattedArea = mainArea;

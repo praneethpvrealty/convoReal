@@ -574,6 +574,24 @@
               "case": "[CTM-009]"
             }
           ]
+        },
+        {
+          "id": "CTM-010",
+          "rule": "An area saved on a contact from AI requirement extraction, a portal lead email, the contacts API, the public requirements form or the buyer portal is a locality: door, survey and plot numbers, bare numbers, and a lone block, sector, phase, stage or numbered main/cross road are dropped, entries joined by line breaks or semicolons are saved separately, and the same area is kept once whatever its case. A portal lead email files the buyer under the first address segment that is a locality, never the door number the listing address opens with.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/area-fragments.test.ts",
+              "case": "[CTM-010]"
+            },
+            {
+              "file": "src/lib/ai/preference-extraction.areas.test.ts",
+              "case": "[CTM-010]"
+            },
+            {
+              "file": "src/app/api/leads/email-webhook/route.test.ts",
+              "case": "[CTM-010]"
+            }
+          ]
         }
       ]
     },
@@ -1060,7 +1078,7 @@
         },
         {
           "id": "PRP-014",
-          "rule": "A public showcase listing whose status is not Available (Under Contract, Sold, Off Market, Archived, Rejected, Pending Review) tells the enquirer so in the detail view and on its card, prefills the WhatsApp inquiry with a request for the latest status, and never offers the listing Q&A; a WhatsApp enquiry that names such a published listing by its property code, or as a direct property enquiry, is acknowledged with the same status and a promise to check with the owner, is never promised a site visit or owner call, and alerts the agent with the listing's status. Available listings show none of this.",
+          "rule": "A public showcase listing whose status is not Available (Under Contract, Sold, Off Market, Archived, Rejected, Pending Review) tells the enquirer so in the detail view and on its card, prefills the WhatsApp inquiry with a request for the latest status, and never offers the listing Q&A; a WhatsApp enquiry that names such a published listing by its property code, as a direct property enquiry, or by its exact title when the buyer was not already discussing it, is acknowledged with the same status and a promise to check with the owner, is never promised a site visit or owner call, and alerts the agent with the listing's status. Available listings show none of this.",
           "tests": [
             {
               "file": "src/lib/inventory/listing-status.test.ts",
@@ -1072,6 +1090,10 @@
             },
             {
               "file": "src/lib/whatsapp/enquiry-card.test.ts",
+              "case": "[PRP-014]"
+            },
+            {
+              "file": "src/lib/whatsapp/property-interest.test.ts",
               "case": "[PRP-014]"
             }
           ]
@@ -2098,6 +2120,16 @@
             {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[GVL-013]"
+            }
+          ]
+        },
+        {
+          "id": "GVL-014",
+          "rule": "A queue request is remembered on every waiting notification (batch_requested_at) before any batch is built, so the guidance-batches cron keeps queuing requested notifications that one time-limited request did not reach, with its own shorter budget, even after the admin leaves the page. The cron never queues a notification nobody asked to batch; the request is cleared when the notification is ready, when its PDF cannot be read, or when a batch returns without advancing its progress, so an unreadable range is not resubmitted every 15 minutes.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/batch.test.ts",
+              "case": "[GVL-014]"
             }
           ]
         },

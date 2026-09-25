@@ -23,6 +23,23 @@ than a written entry. Newest first.
   mobile and its taluk, hobli, village, survey/hissa and extent are read; the
   Kannada village and the extent are shown as printed, and village names match
   the notification's spelling (Adduru finds Addur, never Adyar).
+
+- **Address fragments are no longer saved as a buyer's area.** Contacts
+  were filed under "#365", "#650", "Block", "Sector", "24th Main" and
+  survey numbers, and the bot read them back ("listings near #365"). A
+  portal lead email took the first comma segment of the listing address
+  — the door number — as the area; it now takes the first segment that
+  is a locality. Areas from AI requirement extraction, the contacts API,
+  the public requirements form and the buyer portal pass the same check:
+  door, survey and plot numbers, bare numbers and a lone block, sector,
+  phase or numbered main/cross road are dropped, a list pasted as one
+  entry is split, and repeats are kept once.
+
+- **Guidance batch queuing continues in the background.** Clicking Queue now
+  marks every waiting notification, and the 15-minute cron keeps queuing any
+  that one request could not reach, so leaving the page no longer stops the
+  import. **Migration required:**
+  `20260925100121_guidance_value_batch_requested.sql`.
 - **A map link that names a place now pins the listing there.** Links
   such as `maps.app.goo.gl/…` that open a named place, or
   `google.com/maps?q=<address>`, carry no coordinates, so the listing fell

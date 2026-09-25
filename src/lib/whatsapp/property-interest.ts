@@ -1,6 +1,7 @@
 import { toSquareFeet } from '@/lib/area-units';
 import { consonantSkeleton } from '@/lib/project-match';
 import { localityStems } from '@/lib/locality-match';
+import { listingAvailabilityNotice } from '@/lib/inventory/listing-status';
 import type { Property } from '@/types';
 
 export type PropertyInterestCandidate = Pick<
@@ -134,6 +135,20 @@ function exactTitleMatch<T extends PropertyInterestCandidate>(
       })
       .sort((a, b) => b.title.length - a.title.length)[0] ?? null
   );
+}
+
+export async function isDeliberateEnquiry(
+  matchedBy: Extract<
+    PropertyReferenceResolution<PropertyInterestCandidate>,
+    { kind: 'match' }
+  >['matchedBy'],
+  property: Pick<PropertyInterestCandidate, 'status'>,
+  alreadyDiscussed: () => Promise<boolean>
+): Promise<boolean> {
+  if (matchedBy === 'code') return true;
+  if (matchedBy !== 'title') return false;
+  if (listingAvailabilityNotice(property.status) === null) return false;
+  return !(await alreadyDiscussed());
 }
 
 export function resolvePropertyReference<T extends PropertyInterestCandidate>(

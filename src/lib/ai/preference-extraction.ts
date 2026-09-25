@@ -11,6 +11,7 @@ import {
   normalizePropertyType,
   PROPERTY_TYPE_VALUES,
 } from '@/lib/property-types';
+import { sanitizeAreaList } from '@/lib/contacts/area-fragments';
 
 /**
  * AI extraction of structured buyer preferences from a contact's
@@ -322,8 +323,8 @@ export async function extractContactPreferences(
       : toNumberOrNull(parsed.budget_max),
     land_area_min_sqft: areaMin,
     land_area_max_sqft: areaMax,
-    areas: toStringArray(parsed.areas),
-    excluded_areas: toStringArray(parsed.excluded_areas),
+    areas: sanitizeAreaList(toStringArray(parsed.areas)),
+    excluded_areas: sanitizeAreaList(toStringArray(parsed.excluded_areas)),
     projects: [...new Set(toStringArray(parsed.projects))],
     min_roi: toNumberOrNull(parsed.min_roi),
     requires_tenanted: parsed.requires_tenanted === true,

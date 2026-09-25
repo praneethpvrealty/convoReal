@@ -674,7 +674,12 @@ describe('pollGuidanceBatches', () => {
           w.table === 'guidance_value_sources' &&
           (w.value as { status?: string })?.status === 'ready'
       )?.value
-    ).toMatchObject({ pages_parsed: 3, batch_id: null, error: null });
+    ).toMatchObject({
+      pages_parsed: 3,
+      batch_id: null,
+      error: null,
+      batch_requested_at: null,
+    });
     expect(
       writes.findLast((w) => w.table === 'guidance_value_batches')?.value
     ).toMatchObject({ state: 'applied', failed_count: 0 });
@@ -731,15 +736,24 @@ async function queueDb(
     value: unknown;
     id?: string;
   }> = [];
+  const filters: string[] = [];
   const db = {
     from: (table: string) => {
       let op = 'select';
       let id: string | undefined;
       let value: unknown;
       const builder: Record<string, unknown> = {};
-      for (const method of ['in', 'is', 'order', 'limit', 'select']) {
+      for (const method of ['in', 'order', 'limit', 'select']) {
         builder[method] = () => builder;
       }
+      builder.is = (column: string, v: unknown) => {
+        filters.push(`is:${column}:${String(v)}`);
+        return builder;
+      };
+      builder.not = (column: string, operator: string, v: unknown) => {
+        filters.push(`not:${column}:${operator}:${String(v)}`);
+        return builder;
+      };
       builder.eq = (column: string, v: string) => {
         if (column === 'id') id = v;
         return builder;
@@ -798,7 +812,7 @@ async function queueDb(
       }),
     },
   } as unknown as SupabaseClient;
-  return { db, writes };
+  return { db, writes, filters };
 }
 
 describe('queueGuidanceBatches', () => {
@@ -827,6 +841,45 @@ describe('queueGuidanceBatches', () => {
         (w) => w.table === 'guidance_value_batches' && w.op === 'update'
       )?.value
     ).toMatchObject({ gemini_name: 'batches/xyz', request_count: 2 });
+  });
+
+  it('[GVL-014] remembers the queue request on every waiting notification before building', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ name: 'batches/xyz' }), { status: 200 })
+      )
+    );
+    const { db, writes, filters } = await queueDb([]);
+    await queueGuidanceBatches(db);
+    expect(writes[0]).toMatchObject({
+      table: 'guidance_value_sources',
+      op: 'update',
+    });
+    expect(writes[0].value).toHaveProperty('batch_requested_at');
+    expect(filters).not.toContain('not:batch_requested_at:is:null');
+  });
+
+  it('[GVL-014] the cron only continues notifications someone asked to batch', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ name: 'batches/xyz' }), { status: 200 })
+      )
+    );
+    const { db, writes, filters } = await queueDb([]);
+    await queueGuidanceBatches(db, Date.now, {
+      requestedOnly: true,
+      budgetMs: 1000,
+    });
+    expect(filters).toContain('not:batch_requested_at:is:null');
+    expect(
+      writes.some(
+        (w) => (w.value as Record<string, unknown> | null)?.batch_requested_at
+      )
+    ).toBe(false);
   });
 
   it('[GVL-012] discards the claim when Gemini refuses the batch', async () => {
@@ -882,7 +935,11 @@ describe('queueGuidanceBatches downloads', () => {
         'DOWNLOAD_FAILED',
       ]);
       expect(
-        writes.filter((w) => w.table === 'guidance_value_sources')
+        writes.filter(
+          (w) =>
+            w.table === 'guidance_value_sources' &&
+            !('batch_requested_at' in (w.value as Record<string, unknown>))
+        )
       ).toEqual([]);
     }
   });

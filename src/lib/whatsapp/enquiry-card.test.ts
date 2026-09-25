@@ -92,6 +92,24 @@ describe('parseEnquiryReply', () => {
 });
 
 describe('buildEnquiryCardBody', () => {
+  it('[PRP-014] warns the agent on the card when the listing is not available', () => {
+    const body = buildEnquiryCardBody(
+      { title: 'Corner Residential Plot', status: 'Under Contract' },
+      'Ravi',
+      '+919800000000',
+      'Is Corner Residential Plot still available?'
+    );
+    expect(body).toContain('Listing is marked "Under Contract"');
+    expect(
+      buildEnquiryCardBody(
+        { title: 'Open Plot', status: 'Available' },
+        'Ravi',
+        '+91',
+        'hi'
+      )
+    ).not.toContain('Listing is marked');
+  });
+
   const property = {
     title: '50x70 Commercial Land in 6th Block, Koramangala',
     property_code: 'PROP-1030',
@@ -364,7 +382,7 @@ describe('the webhook wires the card up', () => {
     // claiming a buyer who had just named the exact listing — because
     // the enquiry branch was gated on the contact's first-ever message
     // and this buyer had messaged before.
-    const enquiryBranch = source.indexOf('enquiryByCode &&');
+    const enquiryBranch = source.indexOf('enquiryIsDeliberate &&');
     const ladder = source.indexOf('processBuyerQualificationMessage(');
     expect(enquiryBranch).toBeGreaterThan(-1);
     expect(ladder).toBeGreaterThan(-1);
@@ -383,6 +401,13 @@ describe('the webhook wires the card up', () => {
       /appendListingStatusNote\(\s*buildPropertyInterestAck\([\s\S]*?\),\s*enquiryPropertyStatus\s*\)/
     );
     expect(source).toContain('enquiryPropertyStatus = matchedProperty.status');
+  });
+
+  it('[PRP-014] routes a title-only enquiry about an unavailable listing through the card', () => {
+    expect(source).toMatch(
+      /enquiryIsDeliberate = await isDeliberateEnquiry\(\s*resolution\.matchedBy,\s*matchedProperty,\s*\(\) =>\s*listingAlreadyDiscussed\(/
+    );
+    expect(source).toContain(".neq('sender_type', 'customer')");
   });
 
   it('[PRP-014] never promises a visit or owner call for an unavailable listing', () => {
