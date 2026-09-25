@@ -1145,6 +1145,20 @@
               "case": "[PRP-018]"
             }
           ]
+        },
+        {
+          "id": "PRP-019",
+          "rule": "An approved listing-access request is delivered outside the 24-hour window on the listing_access_approved template, which describes a full-listing link valid for 7 days, as soon as that template is APPROVED for the account. Until then it falls back to location_reveal, so approving a request never stops delivery. An exact-location approval always uses location_reveal and never the listing template. Both carry the same /reveal/<token> URL button.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/location-requests.flow.test.ts",
+              "case": "[PRP-019]"
+            },
+            {
+              "file": "src/lib/whatsapp/location-reveal-template.test.ts",
+              "case": "[PRP-019]"
+            }
+          ]
         }
       ]
     },

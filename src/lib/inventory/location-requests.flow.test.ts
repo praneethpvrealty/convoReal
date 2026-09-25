@@ -685,7 +685,7 @@ describe('reveal delivery outside the 24-hour window', () => {
     });
   }
 
-  it('sends a listing approval on listing_access_approved once Meta approves it', async () => {
+  it('[PRP-019] sends a listing approval on listing_access_approved once Meta approves it', async () => {
     const tables = freshTables();
     seedApprovedRevealTemplate(tables);
     seedListingAccessTemplate(tables, 'APPROVED');
@@ -708,7 +708,7 @@ describe('reveal delivery outside the 24-hour window', () => {
     expect(tpl?.messageParams?.buttonParams?.[0]).toBe(grant.token);
   });
 
-  it('keeps listing approvals on location_reveal while listing_access_approved is pending', async () => {
+  it('[PRP-019] keeps listing approvals on location_reveal while listing_access_approved is pending', async () => {
     const tables = freshTables();
     seedApprovedRevealTemplate(tables);
     seedListingAccessTemplate(tables, 'PENDING');
@@ -729,7 +729,7 @@ describe('reveal delivery outside the 24-hour window', () => {
     );
   });
 
-  it('never sends a location approval on the listing template', async () => {
+  it('[PRP-019] never sends a location approval on the listing template', async () => {
     const tables = freshTables();
     seedApprovedRevealTemplate(tables);
     seedListingAccessTemplate(tables, 'APPROVED');

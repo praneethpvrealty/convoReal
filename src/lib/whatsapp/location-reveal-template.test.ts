@@ -49,7 +49,7 @@ describe('buildListingAccessTemplatePayload', () => {
     }
   });
 
-  it('describes a 7-day listing link, not a 48-hour location card', () => {
+  it('[PRP-019] describes a 7-day listing link, not a 48-hour location card', () => {
     const payload = buildListingAccessTemplatePayload(
       'https://www.convoreal.com'
     );
