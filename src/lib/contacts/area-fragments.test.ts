@@ -17,6 +17,14 @@ describe('isAreaFragment', () => {
       '12a Main',
       '7th cross Road',
       '6th Block',
+      'Plot 42',
+      'Door 17',
+      'Survey 153/3',
+      'Sy 153/3',
+      'Sector 6',
+      'Block 4',
+      'Phase 2',
+      'Plot No. 12A',
     ]) {
       expect(isAreaFragment(fragment), fragment).toBe(true);
     }
@@ -37,6 +45,8 @@ describe('isAreaFragment', () => {
       'HSR',
       'BTM',
       'KR Puram',
+      'Block 4 Koramangala',
+      'Sector 7 HSR Layout',
     ]) {
       expect(isAreaFragment(locality), locality).toBe(false);
     }

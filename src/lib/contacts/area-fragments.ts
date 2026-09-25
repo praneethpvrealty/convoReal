@@ -14,6 +14,8 @@ const NUMBERED_PART =
   /^(?:no\.?\s*)?\d+[a-z]{0,2}\s+(?:block|sector|phase|stage|floor|wing|tower|(?:main|cross)(?:\s+(?:road|rd|street|st))?)\.?$/i;
 const SURVEY_NUMBER =
   /^(?:sy|survey|site|plot|door|flat|house)\.?\s*(?:no|number)\b/i;
+const LABELLED_NUMBER =
+  /^(?:sy|survey|site|plot|door|flat|house|no|block|sector|phase|stage|floor|wing|tower|main|cross)\.?\s*(?:no\.?\s*)?#?\s*\d[\w/-]*$/i;
 
 export function isAreaFragment(area: string): boolean {
   const text = area.trim().replace(/[.,;:]+$/, '');
@@ -22,7 +24,8 @@ export function isAreaFragment(area: string): boolean {
   return (
     GENERIC_PART.test(text) ||
     NUMBERED_PART.test(text) ||
-    SURVEY_NUMBER.test(text)
+    SURVEY_NUMBER.test(text) ||
+    LABELLED_NUMBER.test(text)
   );
 }
 
