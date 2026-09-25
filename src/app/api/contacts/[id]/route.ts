@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { sanitizeAreasGeo } from '@/lib/contacts/area-geo';
+import { sanitizeAreaList } from '@/lib/contacts/area-fragments';
 import { sanitizeListingTypes } from '@/lib/ai/preference-extraction';
 import { isUpdateChannel } from '@/lib/voice/announcements';
 
@@ -72,7 +73,7 @@ export async function PUT(
       max_budget: typeof max_budget === 'number' ? max_budget : null,
       no_budget: typeof no_budget === 'boolean' ? no_budget : false,
       pref_listing_types: sanitizeListingTypes(pref_listing_types),
-      areas_of_interest: Array.isArray(areas_of_interest) ? areas_of_interest : [],
+      areas_of_interest: Array.isArray(areas_of_interest) ? sanitizeAreaList(areas_of_interest) : [],
       areas_of_interest_geo: sanitizeAreasGeo(areas_of_interest_geo),
       property_interests: Array.isArray(property_interests) ? property_interests : [],
       min_roi: typeof min_roi === 'number' ? min_roi : null,

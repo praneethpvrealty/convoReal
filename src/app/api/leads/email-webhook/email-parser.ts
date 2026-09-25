@@ -1,4 +1,5 @@
 import { extractHousingUrls } from './phone-resolver';
+import { isAreaFragment } from '@/lib/contacts/area-fragments';
 import {
   parseListingIdFromLead,
   portalKeyFromSource,
@@ -357,6 +358,7 @@ export function classifyPortalLead(
 export function isUsableLocation(candidate: string): boolean {
   const trimmed = (candidate ?? '').trim();
   if (trimmed.length < 3) return false;
+  if (isAreaFragment(trimmed)) return false;
   if (/^(?:your|my|our|his|her|their|its|the|this|that|these|those|an?)\b/i.test(trimmed)) return false;
   if (/^(?:propert(?:y|ies)|listing|search|home|house|flat|apartment|plot|land|villa|site|project|advertisement|response|requirement|detail|budget|area|price)s?\b/i.test(trimmed)) return false;
   return true;
@@ -387,7 +389,7 @@ export function areaLabelFromListing(p: {
   sublocality?: string | null;
 }): string | null {
   const sub = p.sublocality?.trim();
-  if (sub) return sub;
+  if (sub && !isAreaFragment(sub)) return sub;
 
   for (const segment of (p.location ?? '').split(',')) {
     const candidate = segment.trim();

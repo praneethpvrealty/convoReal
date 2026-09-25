@@ -574,6 +574,24 @@
               "case": "[CTM-009]"
             }
           ]
+        },
+        {
+          "id": "CTM-010",
+          "rule": "An area saved on a contact from AI requirement extraction, a portal lead email, the contacts API, the public requirements form or the buyer portal is a locality: door, survey and plot numbers, bare numbers, and a lone block, sector, phase, stage or numbered main/cross road are dropped, entries joined by line breaks or semicolons are saved separately, and the same area is kept once whatever its case. A portal lead email files the buyer under the first address segment that is a locality, never the door number the listing address opens with.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/area-fragments.test.ts",
+              "case": "[CTM-010]"
+            },
+            {
+              "file": "src/lib/ai/preference-extraction.areas.test.ts",
+              "case": "[CTM-010]"
+            },
+            {
+              "file": "src/app/api/leads/email-webhook/route.test.ts",
+              "case": "[CTM-010]"
+            }
+          ]
         }
       ]
     },
