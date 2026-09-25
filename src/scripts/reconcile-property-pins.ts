@@ -13,10 +13,13 @@
  *
  * Requires in .env.local:
  *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ * Optional:
+ *   GOOGLE_MAPS_API_KEY — geocodes links that name a place instead of
+ *   carrying coordinates; without it those rows are skipped.
  *
  * Idempotent — a row already sitting on its pin is left alone. Short
- * `maps.app.goo.gl` links cost one redirect each, so the run is paced
- * at ~5 links/second.
+ * `maps.app.goo.gl` links cost one redirect each, and a place-name link
+ * one Geocoding call, so the run is paced at ~5 links/second.
  */
 
 import { createClient } from '@supabase/supabase-js';
