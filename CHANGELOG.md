@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **A buyer's locality is saved as they spelt it, not as a listing
+  misspells it.** A lead who typed "Vijaya Bank Layout" was told the
+  engine was matching "near Vijayanbank layout" and had "4 listings in
+  Vijayanbank layout", because the reply was mapped to the first listing
+  whose sublocality fuzzily matched — and three listings carry the typo.
+  The resolver now keeps an inventory spelling identical to what the buyer
+  typed, then prefers the curated locality, and only then falls back to
+  the nearest variant.
+
 - **Showcase "Search near" sends the typed text as the visitor wrote it.**
   With the area-only filter on, "basavan, Bengaluru" matched no area at
   all, so "basavan" found nothing. The lookup now tries the bare text

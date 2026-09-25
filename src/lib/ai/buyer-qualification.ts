@@ -170,15 +170,22 @@ export function resolveInventoryLocalityReply(
   const zone = canonicalBengaluruZone(requested);
   if (zone) return zone;
 
-  for (const row of rows) {
-    for (const field of BARE_LOCALITY_FIELDS) {
-      const candidate = row[field]?.trim();
-      if (candidate && localityLabelsMatch(candidate, requested)) {
-        return candidate;
-      }
-    }
-  }
-  return null;
+  const spelling = (label: string) => label.toLowerCase().replace(/\s+/g, ' ');
+  const candidates = BARE_LOCALITY_FIELDS.flatMap((field) =>
+    rows
+      .map((row) => row[field]?.trim())
+      .filter(
+        (candidate): candidate is string =>
+          !!candidate && localityLabelsMatch(candidate, requested)
+      )
+  );
+  return (
+    candidates.find(
+      (candidate) => spelling(candidate) === spelling(requested)
+    ) ??
+    candidates[0] ??
+    null
+  );
 }
 
 async function inventoryLocalityReply(
