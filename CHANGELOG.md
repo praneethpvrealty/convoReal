@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **A failed guidance value batch is no longer resubmitted every 15
+  minutes.** When Gemini reports a batch failed, cancelled or expired, its
+  notifications drop their background queue request, so they wait for an
+  admin to queue them again. The cron now gives its queue step only the
+  time polling left over, and skips queuing when too little is left.
+
 - **Guidance value from an RTC.** Upload a Karnataka RTC (Pahani) on web or
   mobile and its taluk, hobli, village, survey/hissa and extent are read; the
   Kannada village and the extent are shown as printed, and village names match

@@ -2125,7 +2125,7 @@
         },
         {
           "id": "GVL-014",
-          "rule": "A queue request is remembered on every waiting notification (batch_requested_at) before any batch is built, so the guidance-batches cron keeps queuing requested notifications that one time-limited request did not reach, with its own shorter budget, even after the admin leaves the page. The cron never queues a notification nobody asked to batch; the request is cleared when the notification is ready, when its PDF cannot be read, or when a batch returns without advancing its progress, so an unreadable range is not resubmitted every 15 minutes.",
+          "rule": "A queue request is remembered on every waiting notification (batch_requested_at) before any batch is built, so the guidance-batches cron keeps queuing requested notifications that one time-limited request did not reach, with its own shorter budget, even after the admin leaves the page. The cron never queues a notification nobody asked to batch; the request is cleared when the notification is ready, when its PDF cannot be read, or when a batch returns without advancing its progress, and when its batch fails, is cancelled or expires, so an unreadable range or a failed batch is not resubmitted every 15 minutes. The cron's queue budget is what remains of one route deadline after polling, and it skips queuing when too little time is left.",
           "tests": [
             {
               "file": "src/lib/guidance-value/batch.test.ts",
