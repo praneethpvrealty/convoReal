@@ -48,6 +48,10 @@ const MODEL_CHAINS: Record<GeminiTier, string[]> = {
   ],
 };
 
+export function modelChain(tier: GeminiTier): string[] {
+  return MODEL_CHAINS[tier];
+}
+
 export interface GeminiCallOpts {
   /** Model tier — use 'lite' for cheap high-volume calls. Default 'standard'. */
   tier?: GeminiTier;

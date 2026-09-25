@@ -17,6 +17,17 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 25 September 2026
+
+- **Cheaper guidance value imports.** Gemini now writes each notification's
+  district, taluk, hobli and village once per table instead of on every
+  rate, and one line carries all of its rate columns, so a page costs a
+  fraction of the output tokens it did. Admin → Guidance values and the
+  import extension can also queue every unfinished notification as a
+  Gemini batch at half price; results are saved in the background by a
+  new 15-minute cron, usually within a few hours. **Migration required:**
+  `20260925024645_guidance_value_batches.sql`.
+
 #### 24 September 2026
 
 - **Forwarded e-Khata fixes.** An owner the listing read picked up from an

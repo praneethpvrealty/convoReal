@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { toErrorResponse } from '@/lib/auth/account';
 import {
   AiUnavailableError,
+  SourceInBatchError,
   SourceNotStoredError,
   parseNextSourceChunk,
   requireGuidanceAdmin,
@@ -27,6 +28,12 @@ export async function POST(
       const source = await parseNextSourceChunk(supabaseAdmin(), id);
       return NextResponse.json({ data: source });
     } catch (err) {
+      if (err instanceof SourceInBatchError) {
+        return NextResponse.json(
+          { error: err.message, code: err.code },
+          { status: 409 }
+        );
+      }
       if (err instanceof SourceNotStoredError) {
         return NextResponse.json(
           { error: err.message, code: err.code },

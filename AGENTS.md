@@ -752,6 +752,7 @@ Defined in `vercel.json`:
 - `/api/cron/outreach-followups` — hourly at :25
 - `/api/appointments/cron` — every 15 minutes
 - `/api/cron/voice-campaigns` — every 10 minutes
+- `/api/cron/guidance-batches` — every 15 minutes
 
 All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 

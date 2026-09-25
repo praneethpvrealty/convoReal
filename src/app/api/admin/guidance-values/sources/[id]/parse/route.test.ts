@@ -13,6 +13,9 @@ vi.mock('@/lib/guidance-value/server', async () => {
   class SourceNotStoredError extends Error {
     readonly code = 'SOURCE_NOT_STORED' as const;
   }
+  class SourceInBatchError extends Error {
+    readonly code = 'SOURCE_IN_BATCH' as const;
+  }
   class AiUnavailableError extends Error {
     readonly code: string;
     constructor(message: string, rateLimited: boolean) {
@@ -22,6 +25,7 @@ vi.mock('@/lib/guidance-value/server', async () => {
   }
   return {
     AiUnavailableError,
+    SourceInBatchError,
     SourceNotStoredError,
     requireGuidanceAdmin: async () => ({ userId: 'admin-1' }),
     parseNextSourceChunk: async () => {
@@ -33,6 +37,7 @@ vi.mock('@/lib/guidance-value/server', async () => {
 
 import {
   AiUnavailableError,
+  SourceInBatchError,
   SourceNotStoredError,
 } from '@/lib/guidance-value/server';
 
@@ -50,6 +55,13 @@ describe('POST /api/admin/guidance-values/sources/[id]/parse', () => {
     const res = await parse();
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe('SOURCE_NOT_STORED');
+  });
+
+  it('[GVL-012] answers 409 SOURCE_IN_BATCH for a notification queued in a batch', async () => {
+    failure = new SourceInBatchError();
+    const res = await parse();
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe('SOURCE_IN_BATCH');
   });
 
   it('[GVL-008] answers 503 AI_UNAVAILABLE when Gemini billing is exhausted', async () => {

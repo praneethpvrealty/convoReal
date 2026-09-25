@@ -76,7 +76,7 @@ export async function POST(request: Request) {
         const links = found.slice(0, MAX_LINKS);
         const { data: existing, error: existingError } = await db
           .from('guidance_value_sources')
-          .select('id, source_url, status, row_count')
+          .select('id, source_url, status, row_count, batch_id')
           .not('source_url', 'is', null);
         if (existingError) throw new Error(existingError.message);
         const byUrl = new Map(
@@ -91,6 +91,7 @@ export async function POST(request: Request) {
               source_id: (source?.id as string | undefined) ?? null,
               status: (source?.status as string | undefined) ?? null,
               row_count: (source?.row_count as number | undefined) ?? null,
+              in_batch: Boolean(source?.batch_id),
             };
           }),
         });

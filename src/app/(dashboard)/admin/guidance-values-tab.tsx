@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+import { BatchImportCard } from './batch-import-card';
 import { BulkUploadCard, uploadSourceFile } from './bulk-upload-card';
 import { IgrImportCard } from './igr-import-card';
 
@@ -147,6 +148,9 @@ export default function GuidanceValuesTab() {
         onImported={() =>
           queryClient.invalidateQueries({ queryKey: QUERY_KEY })
         }
+      />
+      <BatchImportCard
+        onChanged={() => queryClient.invalidateQueries({ queryKey: QUERY_KEY })}
       />
       <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/50 p-5">
         <div>

@@ -68,17 +68,25 @@ export function priceFor(model: string, pricing: Pricing): ModelPrice {
   return pricing.models['gemini-2.5-flash'] ?? { input: 0, output: 0 };
 }
 
+export const BATCH_FEATURES: ReadonlySet<string> = new Set([
+  'guidance_value_source_batch',
+]);
+const BATCH_PRICE_FACTOR = 0.5;
+
 export function estimateCostUsd(
   model: string,
   promptTokens: number,
   responseTokens: number,
-  pricing: Pricing
+  pricing: Pricing,
+  feature?: string | null
 ): number {
   const price = priceFor(model, pricing);
-  return (
+  const cost =
     (promptTokens / 1_000_000) * price.input +
-    (responseTokens / 1_000_000) * price.output
-  );
+    (responseTokens / 1_000_000) * price.output;
+  return feature && BATCH_FEATURES.has(feature)
+    ? cost * BATCH_PRICE_FACTOR
+    : cost;
 }
 
 function sanitisePricing(raw: unknown): Partial<Pricing> {
@@ -396,7 +404,8 @@ function add(bucket: UsageBucket, row: DailyUsageRow, pricing: Pricing): void {
     row.model,
     row.prompt_tokens,
     row.response_tokens,
-    pricing
+    pricing,
+    row.feature
   );
 }
 
@@ -563,7 +572,8 @@ export function buildKeyDashboard(input: {
       row.model,
       row.prompt_tokens,
       row.response_tokens,
-      input.pricing
+      input.pricing,
+      row.feature
     );
     byKey[index][row.key_label] =
       Math.round(((byKey[index][row.key_label] as number) + cost) * 10000) /
