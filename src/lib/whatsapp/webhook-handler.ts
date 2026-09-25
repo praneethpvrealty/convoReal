@@ -184,6 +184,7 @@ import {
   applyBuyerAlertsCommand,
 } from '@/lib/buyer/alerts';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
+import { appendListingStatusNote } from '@/lib/inventory/listing-status';
 import {
   CONSENT_APPROVE_PREFIX,
   CONSENT_DECLINE_PREFIX,
@@ -1247,6 +1248,7 @@ interface InboundChainPayload {
   enquiryPropertyId: string | null;
   enquiryByCode: boolean;
   enquiryPropertyTitle: string | null;
+  enquiryPropertyStatus?: string | null;
   specificPropertyInterest: boolean;
   propertyReferenceNeedsAgent: boolean;
   isFirstInboundMessage: boolean;
@@ -1447,6 +1449,7 @@ async function processMessage(
   // weaker: any chat about a listing contains its title.
   let enquiryByCode = false;
   let enquiryPropertyTitle: string | null = null;
+  let enquiryPropertyStatus: string | null = null;
   const specificPropertyInterest =
     message.type === 'order' || isDirectPropertyInterest(contentText);
   let propertyReferenceNeedsAgent = false;
@@ -1477,6 +1480,7 @@ async function processMessage(
           enquiryByCode = resolution.matchedBy === 'code';
           enquiryPropertyId = matchedProperty.id;
           enquiryPropertyTitle = matchedProperty.title;
+          enquiryPropertyStatus = matchedProperty.status ?? null;
           await supabaseAdmin()
             .from('contacts')
             .update({
@@ -1637,6 +1641,7 @@ async function processMessage(
       enquiryPropertyId,
       enquiryByCode,
       enquiryPropertyTitle,
+      enquiryPropertyStatus,
       specificPropertyInterest,
       propertyReferenceNeedsAgent,
       isFirstInboundMessage,
@@ -1676,6 +1681,7 @@ async function handleInboundChain(
     enquiryPropertyId,
     enquiryByCode,
     enquiryPropertyTitle,
+    enquiryPropertyStatus = null,
     specificPropertyInterest,
     propertyReferenceNeedsAgent,
     ownerCheck,
@@ -2026,10 +2032,13 @@ async function handleInboundChain(
         toPhone: senderPhone,
         kind: 'text',
         senderType: 'bot',
-        text: buildPropertyInterestAck(
-          contactRecord.name,
-          enquiryPropertyTitle,
-          { visitRequested, ownerContactRequested }
+        text: appendListingStatusNote(
+          buildPropertyInterestAck(
+            contactRecord.name,
+            enquiryPropertyTitle,
+            { visitRequested, ownerContactRequested }
+          ),
+          enquiryPropertyStatus
         ),
       });
 
@@ -2219,7 +2228,10 @@ async function handleInboundChain(
       conversationId: conversation.id,
       kind: 'text',
       senderType: 'bot',
-      text: buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle),
+      text: appendListingStatusNote(
+        buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle),
+        enquiryPropertyStatus
+      ),
     });
     return;
   }

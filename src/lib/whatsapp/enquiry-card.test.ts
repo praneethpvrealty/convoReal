@@ -222,7 +222,9 @@ describe('resolveEnquiryTeamPhone', () => {
 
   it('reports null rather than inventing a number', async () => {
     resolveOwnerWhatsAppContact.mockResolvedValue(null);
-    expect(await resolveEnquiryTeamPhone(settingsDb(null), 'a', 'u')).toBeNull();
+    expect(
+      await resolveEnquiryTeamPhone(settingsDb(null), 'a', 'u')
+    ).toBeNull();
   });
 });
 
@@ -371,6 +373,16 @@ describe('the webhook wires the card up', () => {
     expect(source).toContain(
       'buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle)'
     );
+  });
+
+  it('[PRP-014] warns the buyer when the listing they named is not available', () => {
+    expect(source).toMatch(
+      /appendListingStatusNote\(\s*buildEnquiryAckText\(contactRecord\.name, enquiryPropertyTitle\),\s*enquiryPropertyStatus\s*\)/
+    );
+    expect(source).toMatch(
+      /appendListingStatusNote\(\s*buildPropertyInterestAck\([\s\S]*?\),\s*enquiryPropertyStatus\s*\)/
+    );
+    expect(source).toContain('enquiryPropertyStatus = matchedProperty.status');
   });
 
   it('confirms each tap back to the agent, like the location card does', () => {
