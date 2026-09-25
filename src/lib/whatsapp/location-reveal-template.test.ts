@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildListingAccessTemplatePayload,
   buildLocationRevealTemplatePayload,
   buildLocationRevealParams,
+  LISTING_ACCESS_TEMPLATE_NAME,
   LOCATION_REVEAL_TEMPLATE_NAME,
 } from './location-reveal-template';
 import { validateTemplatePayload } from './template-validators';
+import { LANGUAGE_CODES } from '@/lib/languages';
 
 describe('buildLocationRevealTemplatePayload', () => {
   it('passes the same validator the submit API runs', () => {
@@ -24,6 +27,49 @@ describe('buildLocationRevealTemplatePayload', () => {
 
   it('carries the reveal token as a URL button suffix', () => {
     const payload = buildLocationRevealTemplatePayload(
+      'https://www.convoreal.com/'
+    );
+    const urlBtn = payload.buttons?.find((b) => b.type === 'URL');
+    expect(urlBtn && 'url' in urlBtn ? urlBtn.url : '').toBe(
+      'https://www.convoreal.com/reveal/{{1}}'
+    );
+  });
+});
+
+describe('buildListingAccessTemplatePayload', () => {
+  it('passes the submit validator in every language', () => {
+    for (const language of LANGUAGE_CODES) {
+      const payload = buildListingAccessTemplatePayload(
+        'https://www.convoreal.com',
+        language
+      );
+      expect(() => validateTemplatePayload(payload)).not.toThrow();
+      expect(payload.name).toBe(LISTING_ACCESS_TEMPLATE_NAME);
+      expect(payload.category).toBe('Utility');
+    }
+  });
+
+  it('describes a 7-day listing link, not a 48-hour location card', () => {
+    const payload = buildListingAccessTemplatePayload(
+      'https://www.convoreal.com'
+    );
+    expect(payload.body_text).toContain('full listing');
+    expect(payload.body_text).toContain('7 days');
+    expect(payload.body_text).not.toContain('48 hours');
+    expect(payload.body_text).not.toContain('exact location');
+  });
+
+  it('declares the three params the reveal sender fills', () => {
+    const payload = buildListingAccessTemplatePayload(
+      'https://www.convoreal.com'
+    );
+    expect(payload.body_text).toContain('{{3}}');
+    expect(payload.body_text).not.toContain('{{4}}');
+    expect(payload.sample_values?.body).toHaveLength(3);
+  });
+
+  it('points its URL button at the same reveal route', () => {
+    const payload = buildListingAccessTemplatePayload(
       'https://www.convoreal.com/'
     );
     const urlBtn = payload.buttons?.find((b) => b.type === 'URL');

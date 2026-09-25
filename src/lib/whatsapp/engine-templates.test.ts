@@ -14,6 +14,7 @@ describe('missingEngineTemplates', () => {
       'property_requirement_review',
       'listing_details_notice',
       'listing_photos_map_notice',
+      'listing_access_approved',
       'location_consent_request',
       'location_owner_decision',
       'property_selection_update',
