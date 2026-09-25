@@ -332,6 +332,35 @@ export function MessageBubble({
 
   const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value * 0.28 }));
 
+  if (message.private) {
+    return (
+      <View style={{ alignItems: 'center' }}>
+        <View
+          accessibilityLabel={`Internal note, not sent to the contact. ${displayText ?? ''}`}
+          style={[
+            styles.privateNote,
+            { borderColor: colors.border, backgroundColor: colors.surfaceSunken },
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Ionicons name="lock-closed-outline" size={11} color={colors.textMuted} />
+            <Text style={{ fontSize: 10.5, fontFamily: f.bold, color: colors.textMuted }}>
+              Internal note · not sent
+            </Text>
+          </View>
+          {displayText ? (
+            <Text style={{ fontSize: 12.5, lineHeight: 18, color: colors.textMuted }}>
+              {displayText}
+            </Text>
+          ) : null}
+          <Text style={{ fontSize: 10, color: colors.textMuted, alignSelf: 'flex-end' }}>
+            {bubbleTime(message.created_at)}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={{ alignItems: outgoing ? 'flex-end' : 'flex-start' }}>
       <View style={styles.row}>
@@ -509,6 +538,15 @@ const styles = StyleSheet.create({
   // Shrinks to the bubble so the reply arrow can be anchored just outside
   // its leading edge on either side of the thread.
   row: { maxWidth: '82%' },
+  privateNote: {
+    maxWidth: '88%',
+    gap: 4,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
   replyHint: {
     position: 'absolute',
     left: -36,

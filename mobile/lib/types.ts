@@ -137,6 +137,9 @@ export interface Message {
   /** Meta's own wamid, once WhatsApp has accepted the message. Absent
    *  while a send is queued and on anything that failed. */
   message_id?: string | null;
+  /** Internal note for the team. Never sent to WhatsApp, so it must
+   *  not render as something the contact received. */
+  private?: boolean | null;
   /** Engine-local pin. Nothing changes on the contact's phone: the
    *  Cloud API's pin endpoint takes group recipients only. */
   pinned_at?: string | null;
