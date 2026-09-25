@@ -1097,7 +1097,10 @@ export function ShowcaseView({
       result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }
 
-    return result;
+    return [
+      ...result.filter((p) => !listingAvailabilityNotice(p.status)),
+      ...result.filter((p) => listingAvailabilityNotice(p.status)),
+    ];
   }, [properties, pinnedIds, selectedType, selectedListingType, minBeds, searchQuery, selectedLocations, nearbySearch, sortBy]);
 
   const nearbyById = useMemo(
@@ -2151,7 +2154,13 @@ export function ShowcaseView({
                       {property.type}
                     </div>
 
-                    {agencyDesign && !isAgentMode && <Button type="button" variant="outline" aria-label={`Shortlist ${property.title}`} aria-pressed={shortlist.ids.includes(property.id)} title={shortlist.ids.includes(property.id) ? 'Remove from shortlist' : 'Shortlist'} className="showcase-photo-shortlist absolute right-3 top-3 size-11 rounded-xl" onClick={(event) => { event.stopPropagation(); shortlist.toggle(property.id); }}>{shortlist.ids.includes(property.id) ? <BookmarkCheck className="size-5" /> : <Bookmark className="size-5" />}</Button>}
+                    {listingAvailabilityNotice(property.status) && (
+                      <div className="absolute bottom-3 left-3 bg-amber-500 text-slate-950 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider uppercase shadow-md">
+                        {listingAvailabilityNotice(property.status)?.label}
+                      </div>
+                    )}
+
+                    {agencyDesign && !isAgentMode && !listingAvailabilityNotice(property.status) && <Button type="button" variant="outline" aria-label={`Shortlist ${property.title}`} aria-pressed={shortlist.ids.includes(property.id)} title={shortlist.ids.includes(property.id) ? 'Remove from shortlist' : 'Shortlist'} className="showcase-photo-shortlist absolute right-3 top-3 size-11 rounded-xl" onClick={(event) => { event.stopPropagation(); shortlist.toggle(property.id); }}>{shortlist.ids.includes(property.id) ? <BookmarkCheck className="size-5" /> : <Bookmark className="size-5" />}</Button>}
 
                     <div className="showcase-card-position" aria-hidden="true">
                       <span>{String(propertyIndex + 1).padStart(2, '0')}</span>
@@ -2189,11 +2198,6 @@ export function ShowcaseView({
                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest truncate">
                           {property.project ? `🏢 ${property.project}` : ''}
                         </span>
-                        {listingAvailabilityNotice(property.status) && (
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0 border border-amber-500/30">
-                            {listingAvailabilityNotice(property.status)?.label}
-                          </span>
-                        )}
                         {property.property_code && (
                           <span className="text-[9px] font-mono font-bold text-slate-400 bg-slate-950/40 px-1.5 py-0.5 rounded shrink-0 border border-slate-900/30">
                             {property.property_code}
@@ -2259,7 +2263,7 @@ export function ShowcaseView({
                     </div>
 
                     <div>
-                      {!isAgentMode && !agencyDesign && (
+                      {!isAgentMode && !agencyDesign && !listingAvailabilityNotice(property.status) && (
                         <Button
                           type="button"
                           variant="outline"
@@ -3353,7 +3357,7 @@ export function ShowcaseView({
                 />
 
                 {/* Interest rating bar inside Modal — hidden in agent mode */}
-                {!isAgentMode && (
+                {!isAgentMode && !selectedAvailabilityNotice && (
                   <Button
                     type="button"
                     variant="outline"

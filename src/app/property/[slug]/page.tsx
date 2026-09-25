@@ -142,12 +142,13 @@ export default async function PropertyPage({
 
   const isAgentMode =
     resolvedParams.mode === 'view' || resolvedParams.mode === 'agent';
-  const { settings, accountName, properties, agents, profiles } =
+  const { settings, accountName, properties, underContract, agents, profiles } =
     await cachedFetchShowcaseData(property.account_id, isAgentMode);
 
-  const propertiesList = properties.some((p) => p.id === property.id)
-    ? properties
-    : [property, ...properties];
+  const listed = [...properties, ...underContract];
+  const propertiesList = listed.some((p) => p.id === property.id)
+    ? listed
+    : [property, ...listed];
   // Share grant (?g=), resolved against this listing so a token lifted
   // from another share cannot widen it. Uncached: revocation has to bite
   // on the next open.

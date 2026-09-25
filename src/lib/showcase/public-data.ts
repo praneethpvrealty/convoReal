@@ -26,6 +26,7 @@ export interface ShowcaseData {
    *  across client-facing surfaces. */
   accountName: string | null;
   properties: Property[];
+  underContract: Property[];
   agents: Array<{
     id: string;
     name: string;
@@ -42,6 +43,18 @@ export interface ShowcaseData {
   }>;
   services: AgencyService[];
   articles: AgencyArticle[];
+}
+
+const SHOWCASE_LISTED_STATUSES = ['Available', 'Under Contract'];
+
+export function splitShowcaseListings(rows: Property[]): {
+  properties: Property[];
+  underContract: Property[];
+} {
+  return {
+    properties: rows.filter((row) => row.status === 'Available'),
+    underContract: rows.filter((row) => row.status === 'Under Contract'),
+  };
 }
 
 function requireShowcaseProperties(
@@ -248,7 +261,7 @@ const showcaseContentVersion = cache(async (accountId: string) => {
       .select('updated_at', { count: 'exact' })
       .eq('account_id', accountId)
       .eq('is_published', true)
-      .eq('status', 'Available')
+      .in('status', SHOWCASE_LISTED_STATUSES)
       .order('updated_at', { ascending: false })
       .limit(1),
     admin
@@ -317,7 +330,7 @@ const fetchShowcaseData = async (
         .select('*')
         .eq('account_id', accountId)
         .eq('is_published', true)
-        .eq('status', 'Available')
+        .in('status', SHOWCASE_LISTED_STATUSES)
         .order('created_at', { ascending: false }),
       admin
         .from('agency_services')
@@ -332,12 +345,15 @@ const fetchShowcaseData = async (
         .eq('is_active', true)
         .order('published_at', { ascending: false }),
     ]);
-    const properties = requireShowcaseProperties(propertiesResult, accountId);
+    const { properties, underContract } = splitShowcaseListings(
+      requireShowcaseProperties(propertiesResult, accountId)
+    );
     return {
       settings: settingsResult.data || null,
       engineWhatsAppPhone: await engineWhatsAppPhone(admin, accountId),
       accountName: accountResult.data?.name || null,
       properties,
+      underContract,
       agents: [],
       profiles: [],
       services: servicesResult.data || [],
@@ -365,7 +381,7 @@ const fetchShowcaseData = async (
       .select('*')
       .eq('account_id', accountId)
       .eq('is_published', true)
-      .eq('status', 'Available')
+      .in('status', SHOWCASE_LISTED_STATUSES)
       .order('created_at', { ascending: false }),
     admin
       .from('contacts')
@@ -391,13 +407,16 @@ const fetchShowcaseData = async (
       .eq('is_active', true)
       .order('published_at', { ascending: false }),
   ]);
-  const properties = requireShowcaseProperties(propertiesResult, accountId);
+  const { properties, underContract } = splitShowcaseListings(
+    requireShowcaseProperties(propertiesResult, accountId)
+  );
 
   return {
     settings: settingsResult.data || null,
     engineWhatsAppPhone: await engineWhatsAppPhone(admin, accountId),
     accountName: accountResult.data?.name || null,
     properties,
+    underContract,
     agents: agentsResult.data || [],
     profiles: profilesResult.data || [],
     services: servicesResult.data || [],
@@ -436,7 +455,7 @@ export async function cachedFetchShowcaseData(
   isAgentMode: boolean
 ): Promise<ShowcaseData> {
   const version = await showcaseContentVersion(accountId);
-  return unstable_cache(fetchShowcaseData, ['showcase-data-v2', version], {
+  return unstable_cache(fetchShowcaseData, ['showcase-data-v3', version], {
     revalidate: 3600,
   })(accountId, isAgentMode);
 }

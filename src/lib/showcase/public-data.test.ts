@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { cachedFetchShowcaseData } from './public-data';
+import { cachedFetchShowcaseData, splitShowcaseListings } from './public-data';
 
 const state = {
   propertyCount: 1,
@@ -22,6 +22,7 @@ vi.mock('@/lib/automations/admin-client', () => {
         return self;
       },
       eq: () => self,
+      in: () => self,
       order: () => self,
       limit: () =>
         Promise.resolve({
@@ -44,7 +45,10 @@ vi.mock('@/lib/automations/admin-client', () => {
             table === 'properties'
               ? state.catalogueError
                 ? null
-                : [{ id: 'prop-1', images: state.images }]
+                : [
+                    { id: 'prop-1', status: 'Available', images: state.images },
+                    { id: 'prop-2', status: 'Under Contract', images: [] },
+                  ]
               : [],
           error: table === 'properties' ? state.catalogueError : null,
         }).then(resolve);
@@ -149,5 +153,23 @@ describe('cachedFetchShowcaseData', () => {
       expect.objectContaining({ accountId: 'acc-transient-failure' })
     );
     consoleError.mockRestore();
+  });
+});
+
+describe('splitShowcaseListings', () => {
+  it('[PRP-016] keeps under-contract listings apart from the available catalogue', () => {
+    const { properties, underContract } = splitShowcaseListings([
+      { id: 'a', status: 'Available' },
+      { id: 'u', status: 'Under Contract' },
+      { id: 's', status: 'Sold' },
+    ] as never);
+    expect(properties.map((p) => p.id)).toEqual(['a']);
+    expect(underContract.map((p) => p.id)).toEqual(['u']);
+  });
+
+  it('[PRP-016] serves under-contract listings beside the catalogue without widening it', async () => {
+    const data = await cachedFetchShowcaseData('acct-split', false);
+    expect(data.properties.map((p) => p.id)).toEqual(['prop-1']);
+    expect(data.underContract.map((p) => p.id)).toEqual(['prop-2']);
   });
 });
