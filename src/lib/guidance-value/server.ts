@@ -10,6 +10,7 @@ import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
+import { rateDistrict } from './districts';
 import {
   districtPattern,
   desiredClass,
@@ -323,7 +324,7 @@ export async function parseNextSourceChunk(
           rows.map((row) => ({
             ...row,
             source_id: source.id,
-            district: row.district ?? source.district,
+            district: rateDistrict(row.district, source.district),
             taluk: row.taluk ?? source.taluk,
           }))
         );

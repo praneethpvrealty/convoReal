@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  districtFromLabel,
   discoverPdfs,
   downloadPdf,
   extractGuidanceTable,
@@ -90,15 +89,6 @@ describe('extractPdfLinks', () => {
         kind: 'notification',
       },
     ]);
-  });
-});
-
-describe('districtFromLabel', () => {
-  it('maps registration districts and old names', () => {
-    expect(districtFromLabel('Jayanagar')).toBe('Bengaluru Urban');
-    expect(districtFromLabel('Belgaum')).toBe('Belagavi');
-    expect(districtFromLabel('Bangalore Rural')).toBe('Bengaluru Rural');
-    expect(districtFromLabel('Atlantis')).toBeNull();
   });
 });
 

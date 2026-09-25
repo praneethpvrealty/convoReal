@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **One district name per guidance value rate.** Rates had been saved under
+  Bellary and Ballari, Bagalkot and Bagalkote, taluk names such as Anekal
+  and Devanahalli, and placeholders such as "Not specified". A rate now
+  keeps its printed district only when it is a real district (old spellings
+  included) and otherwise takes the notification's district, and uploaded
+  notifications are filed under their district too. Existing rows were
+  rewritten the same way.
+
 - **A failed guidance value batch is no longer resubmitted every 15
   minutes.** When Gemini reports a batch failed, cancelled or expired, its
   notifications drop their background queue request, so they wait for an

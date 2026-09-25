@@ -15,6 +15,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import { sourceDistrict } from '@/lib/guidance-value/districts';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 function text(value: unknown, max = 160): string | null {
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
     const { data, error } = await db
       .from('guidance_value_sources')
       .insert({
-        district,
+        district: sourceDistrict(district),
         taluk: text(body?.taluk),
         sro: text(body?.sro),
         title,
