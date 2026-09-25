@@ -1,14 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import { File, Paths } from 'expo-file-system';
+import { File } from 'expo-file-system';
 
 import { ApiError, apiResponse } from '@/lib/api';
+import { mediaCacheDir } from '@/lib/media-cache';
 import { mediaCacheFileName } from '@/lib/media-source';
 
 const CACHED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 function cachedFile(path: string): File | null {
   for (const type of [...CACHED_TYPES, null]) {
-    const file = new File(Paths.cache, mediaCacheFileName(path, type));
+    const file = new File(mediaCacheDir(), mediaCacheFileName(path, type));
     if (file.exists && (file.size ?? 0) > 0) return file;
   }
   return null;
@@ -23,11 +24,15 @@ async function downloadMedia(path: string): Promise<string> {
   if (!bytes.length) throw new ApiError(404, 'Media no longer available');
 
   const file = new File(
-    Paths.cache,
+    mediaCacheDir(),
     mediaCacheFileName(path, res.headers.get('content-type'))
   );
   file.write(bytes);
   return file.uri;
+}
+
+export function discardCachedMedia(path: string): void {
+  cachedFile(path)?.delete();
 }
 
 export function useMediaFile(path: string | null) {

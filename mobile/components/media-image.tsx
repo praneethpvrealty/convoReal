@@ -4,7 +4,7 @@ import { Image, Text, View } from 'react-native';
 
 import { mediaSource } from '@/lib/media-source';
 import { radius, useTheme } from '@/lib/theme';
-import { useMediaFile } from '@/lib/use-media-file';
+import { discardCachedMedia, useMediaFile } from '@/lib/use-media-file';
 
 export function MediaImage({ mediaUrl }: { mediaUrl: string }) {
   const { colors } = useTheme();
@@ -13,6 +13,17 @@ export function MediaImage({ mediaUrl }: { mediaUrl: string }) {
     resolved?.kind === 'proxy' ? resolved.path : null
   );
   const [failed, setFailed] = useState(false);
+  const [redownloaded, setRedownloaded] = useState(false);
+
+  const onImageError = () => {
+    if (resolved?.kind !== 'proxy' || redownloaded) {
+      setFailed(true);
+      return;
+    }
+    setRedownloaded(true);
+    discardCachedMedia(resolved.path);
+    void proxied.refetch();
+  };
 
   const uri =
     resolved?.kind === 'public'
@@ -57,10 +68,11 @@ export function MediaImage({ mediaUrl }: { mediaUrl: string }) {
 
   return (
     <Image
+      key={proxied.dataUpdatedAt}
       source={{ uri }}
       style={{ width: 210, height: 210, borderRadius: radius.md }}
       resizeMode="cover"
-      onError={() => setFailed(true)}
+      onError={onImageError}
     />
   );
 }

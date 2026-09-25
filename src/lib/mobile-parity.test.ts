@@ -1305,7 +1305,12 @@ describe('mobile inbox images load through the API client', () => {
 
   it('downloads proxied media with apiResponse into the cache', () => {
     expect(loader).toContain('await apiResponse(path)');
-    expect(loader).toContain('Paths.cache');
+    expect(loader).toContain('mediaCacheDir()');
+  });
+
+  it('wipes downloaded media on sign-out', () => {
+    expect(mobileSource('lib/media-cache.ts')).toContain("'whatsapp-media'");
+    expect(mobileSource('lib/auth-store.ts')).toContain('clearMediaCache()');
   });
 });
 
