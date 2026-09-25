@@ -1092,11 +1092,35 @@
         },
         {
           "id": "PRP-016",
+          "rule": "The public showcase grid lists published Under Contract listings after the Available ones, each badged with its status on the photo; they can never be shortlisted, and a saved shortlist drops one once it goes under contract. They are carried beside the Available catalogue rather than inside it, so the sitemap, business-profile structured data, project and farmland pages and every other reader of the catalogue still see Available listings only.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/public-data.test.ts",
+              "case": "[PRP-016]"
+            },
+            {
+              "file": "src/components/showcase/showcase-view.availability.test.tsx",
+              "case": "[PRP-016]"
+            }
+          ]
+        },
+        {
+          "id": "PRP-017",
+          "rule": "An unpublished (draft) listing never opens from a public link: the showcase ?property_id= link falls back to the showcase, /property/<slug> returns 404 before any redirect can reveal its canonical slug, and its link preview and preview image are withheld. The one exception is a link carrying a live share grant minted for that listing.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/showcase-visibility.test.ts",
+              "case": "[PRP-017]"
+            }
+          ]
+        },
+        {
+          "id": "PRP-018",
           "rule": "A listing's map pin comes from its map link first: coordinates carried by the link, or by the URL a short link redirects to, are used as they are. A link that names a place instead of a point (/maps/place/<name>, ?q=<address>) is geocoded by that name when a Google Maps key is configured, on create, on a map-link edit and in the pin-repair script, without a redirect hop when the name is already in the link. A link that resolves to neither (a dead link landing on the Maps home page) gives no pin and costs no Geocoding call, and resolving a link never throws.",
           "tests": [
             {
               "file": "src/lib/maps/resolve-location.test.ts",
-              "case": "[PRP-016]"
+              "case": "[PRP-018]"
             }
           ]
         }

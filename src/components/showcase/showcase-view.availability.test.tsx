@@ -113,3 +113,77 @@ describe('showcase detail — listing availability', () => {
     expect(askChat).toHaveBeenCalled();
   });
 });
+
+describe('showcase grid — under-contract listings', () => {
+  it('[PRP-016] lists an under-contract listing after the available ones, badged and not shortlistable', () => {
+    const underContract = {
+      ...listing('Under Contract'),
+      id: 'prop-uc',
+      title: 'Contracted Plot',
+      property_code: 'PROP-2',
+      created_at: '2026-03-01T00:00:00Z',
+    } as Property;
+    const available = {
+      ...listing('Available'),
+      id: 'prop-av',
+      title: 'Open Plot',
+      property_code: 'PROP-1',
+      created_at: '2026-01-01T00:00:00Z',
+    } as Property;
+    render(
+      <ShowcaseView
+        properties={[underContract, available]}
+        settings={settings}
+        accountId="acct-1"
+        disableSavedState
+      />
+    );
+    const titles = screen
+      .getAllByRole('heading', { level: 3 })
+      .map((h) => h.textContent);
+    expect(titles.indexOf('Open Plot')).toBeLessThan(
+      titles.indexOf('Contracted Plot')
+    );
+    expect(screen.getByText('Under contract')).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: 'Shortlist Contracted Plot' })
+    ).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Shortlist Open Plot' })
+    ).toBeTruthy();
+  });
+});
+
+describe('showcase shortlist — under-contract listings', () => {
+  it('[PRP-016] drops a saved shortlist entry once the listing goes under contract', () => {
+    localStorage.setItem(
+      'showcase_shortlist:acct-1',
+      JSON.stringify(['prop-uc', 'prop-av'])
+    );
+    render(
+      <ShowcaseView
+        properties={[
+          {
+            ...listing('Under Contract'),
+            id: 'prop-uc',
+            title: 'Contracted Plot',
+          } as Property,
+          {
+            ...listing('Available'),
+            id: 'prop-av',
+            title: 'Open Plot',
+          } as Property,
+        ]}
+        settings={settings}
+        accountId="acct-1"
+        disableSavedState
+      />
+    );
+    expect(screen.getByText('1 shortlisted')).toBeTruthy();
+    expect(
+      screen
+        .getByRole('button', { name: 'Shortlist Open Plot' })
+        .getAttribute('aria-pressed')
+    ).toBe('true');
+  });
+});

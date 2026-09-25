@@ -357,7 +357,7 @@ describe('resolveCoordinatesFromMapLink', () => {
     });
   });
 
-  it('[PRP-016] returns null for a link that names a place when no Maps key is configured', async () => {
+  it('[PRP-018] returns null for a link that names a place when no Maps key is configured', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
 
     expect(
@@ -368,7 +368,7 @@ describe('resolveCoordinatesFromMapLink', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('[PRP-016] geocodes the place a short link names when it carries no coordinates', async () => {
+  it('[PRP-018] geocodes the place a short link names when it carries no coordinates', async () => {
     process.env.GOOGLE_MAPS_API_KEY = 'test-key';
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -402,7 +402,7 @@ describe('resolveCoordinatesFromMapLink', () => {
     );
   });
 
-  it('[PRP-016] geocodes a ?q= address link without a redirect hop', async () => {
+  it('[PRP-018] geocodes a ?q= address link without a redirect hop', async () => {
     process.env.GOOGLE_MAPS_API_KEY = 'test-key';
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -423,7 +423,7 @@ describe('resolveCoordinatesFromMapLink', () => {
     );
   });
 
-  it('[PRP-016] does not geocode a dead link that lands on the Maps home page', async () => {
+  it('[PRP-018] does not geocode a dead link that lands on the Maps home page', async () => {
     process.env.GOOGLE_MAPS_API_KEY = 'test-key';
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,

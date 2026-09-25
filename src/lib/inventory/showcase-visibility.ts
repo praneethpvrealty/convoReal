@@ -49,6 +49,13 @@ export function isTeaserGated(p: VisibilityFields): boolean {
   return effectiveShowcaseVisibility(p) === 'teaser';
 }
 
+export function opensByDirectLink(
+  p: { is_published?: boolean | null },
+  hasGrant: boolean
+): boolean {
+  return p.is_published === true || hasGrant;
+}
+
 /**
  * Everything a stranger holding a teaser-gated URL may receive. Enough
  * to know whether the listing is worth asking about, not enough to

@@ -22,6 +22,7 @@ import {
 } from '@/lib/inventory/share-grants';
 import {
   isTeaserGated,
+  opensByDirectLink,
   priceBand,
   teaserTitle,
 } from '@/lib/inventory/showcase-visibility';
@@ -156,7 +157,7 @@ export async function generateMetadata({
 
   const accountId = process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID || null;
   const property = await cachedResolvePropertyById(propertyId, accountId);
-  if (!property) return DEFAULT_METADATA;
+  if (!property || !opensByDirectLink(property, false)) return DEFAULT_METADATA;
 
   // Gated without consulting ?g=: this is the unfurl a forwarded link
   // produces, and an unfurl carries no grant.
@@ -335,7 +336,7 @@ export default async function RootPage({ searchParams }: PageProps) {
 
   // ── Phase 1: Resolve accountId in parallel ─────────────────────
   // Property lookup + subdomain lookup + ref resolution all fire at once.
-  const [subdomainAccount, targetProperty] = await Promise.all([
+  const [subdomainAccount, resolvedTarget] = await Promise.all([
     subdomain
       ? cachedResolveAccountFromSubdomain(subdomain)
       : Promise.resolve(null),
@@ -343,6 +344,20 @@ export default async function RootPage({ searchParams }: PageProps) {
       ? cachedResolvePropertyById(initialPropertyId, accountId)
       : Promise.resolve(null),
   ]);
+
+  const draftGrant =
+    resolvedTarget && !resolvedTarget.is_published && resolvedParams.g
+      ? await resolveShareGrant(
+          supabaseAdmin(),
+          resolvedParams.g,
+          resolvedTarget.id,
+          resolvedTarget.account_id
+        )
+      : null;
+  const targetProperty =
+    resolvedTarget && opensByDirectLink(resolvedTarget, draftGrant !== null)
+      ? resolvedTarget
+      : null;
 
   if (subdomainAccount) accountId = subdomainAccount;
   if (targetProperty) accountId = targetProperty.account_id;
@@ -398,13 +413,14 @@ export default async function RootPage({ searchParams }: PageProps) {
     accountName,
     engineWhatsAppPhone,
     properties: publishedProperties,
+    underContract,
     agents: agentContacts,
     profiles,
     services,
     articles,
   } = await cachedFetchShowcaseData(accountId, isAgentMode);
 
-  let filteredProperties = [...publishedProperties];
+  let filteredProperties = [...publishedProperties, ...underContract];
 
   // Apply referrer filter client-side
   if (filterContactId) {
@@ -448,14 +464,15 @@ export default async function RootPage({ searchParams }: PageProps) {
   // purpose: revoking a grant has to take effect on the next open, not
   // an hour later.
   const shareGrant =
-    resolvedParams.g && targetProperty
+    draftGrant ??
+    (resolvedParams.g && targetProperty
       ? await resolveShareGrant(
           supabaseAdmin(),
           resolvedParams.g,
           targetProperty.id,
           accountId
         )
-      : null;
+      : null);
 
   if (shareGrant) {
     await trackGrantView(supabaseAdmin(), shareGrant);

@@ -199,12 +199,22 @@ function parseClass(value: unknown): PropertyClass | null {
 const HEADING_KEYS = ['district', 'taluk', 'hobli', 'village'] as const;
 
 export const NON_RATE_TABLE =
-  /\b(ready reckoner|construction rates?|building rates|building construction|parking (charges|rates)|additional (floor|rate for apartment floors)|floor[- ]?(wise|rise|rates?|weightage|additional)|calculation example|general guidelines?|special instructions|conversion guidelines|statewide|madras terrace|kadapa terrace|mangalore tiles)\b/i;
+  /\b(ready reckoner|construction (rates?|costs?)|building (rates?|types?|construction|costs?)|parking (charges|rates)|additional (floor|rate for apartment floors)|floor[- ]?(wise|rise|rates?|weightage|additional)|(calculation|worked) examples?|general guidelines?|special instructions|conversion guidelines|statewide|madras terrace|kadapa terrace|mangalore tiles)\b/i;
+
+function isNonRateLabel(value: unknown): boolean {
+  return typeof value === 'string' && NON_RATE_TABLE.test(value);
+}
+
+function isNonRateGroup(group: Record<string, unknown>): boolean {
+  if (HEADING_KEYS.some((key) => isNonRateLabel(group[key]))) return true;
+  const lines = (Array.isArray(group.rows) ? group.rows : []).filter(
+    Array.isArray
+  );
+  return lines.length > 0 && lines.every((line) => isNonRateLabel(line[0]));
+}
 
 function isNonRateTable(row: RawRate): boolean {
-  return [row.headings.village, row.locality].some(
-    (value) => typeof value === 'string' && NON_RATE_TABLE.test(value)
-  );
+  return [row.headings.village, row.locality].some(isNonRateLabel);
 }
 
 interface RawRate {
@@ -228,9 +238,7 @@ function compactRates(groups: unknown[]): RawRate[] {
     for (const key of HEADING_KEYS) {
       if (typeof g[key] === 'string') headings[key] = g[key];
     }
-    if (typeof g.village === 'string' && NON_RATE_TABLE.test(g.village)) {
-      continue;
-    }
+    if (isNonRateGroup(g)) continue;
     carried = headings;
     for (const line of Array.isArray(g.rows) ? g.rows : []) {
       if (!Array.isArray(line)) continue;
