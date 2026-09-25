@@ -103,6 +103,60 @@ function sourceDb(
   return { db, updates, orders };
 }
 
+describe('findCandidateRates spelling fallback', () => {
+  function rpcDb(byKey: Record<string, unknown>[] = []) {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const db = {
+      rpc: async (fn: string, args: Record<string, unknown>) => {
+        calls.push({ fn, args });
+        return {
+          data: fn === 'search_guidance_value_rates_by_key' ? byKey : [],
+          error: null,
+        };
+      },
+    } as unknown as SupabaseClient;
+    return { db, calls };
+  }
+
+  it('[GVL-013] also looks the village up by its spelling key within the district', async () => {
+    const { db, calls } = rpcDb([
+      {
+        id: 'bima',
+        source_id: 's',
+        district: 'Mangalore',
+        village: 'Bima',
+        property_class: 'agricultural',
+        rate: 100,
+        unit: 'acre',
+      },
+    ]);
+    const rates = await findCandidateRates(db, {
+      district: 'Dakshina Kannada',
+      village: 'Bheema',
+    });
+    expect(calls.at(-1)).toEqual({
+      fn: 'search_guidance_value_rates_by_key',
+      args: {
+        p_key: 'bim',
+        p_district_pattern: '(dakshina kannada|mangalore)'.replace(
+          / /g,
+          '\\s*'
+        ),
+        p_limit: 80,
+      },
+    });
+    expect(rates.map((r) => r.id)).toEqual(['bima']);
+  });
+
+  it('[GVL-013] never runs the spelling lookup without a district', async () => {
+    const { db, calls } = rpcDb();
+    await findCandidateRates(db, { village: 'Bheema' });
+    expect(calls.map((c) => c.fn)).not.toContain(
+      'search_guidance_value_rates_by_key'
+    );
+  });
+});
+
 describe('parseNextSourceChunk', () => {
   it('[GVL-012] never reads a source that is queued in a batch', async () => {
     const { db, updates } = sourceDb(4, true, 'batch-1');

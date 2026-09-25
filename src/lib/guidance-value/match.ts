@@ -90,6 +90,14 @@ export function spellingKey(token: string): string {
   return key.length > 3 ? key.replace(/[aeiu]$/, '') : key;
 }
 
+export function placeKey(value: string | null | undefined): string {
+  return normaliseText(value)
+    .split(' ')
+    .filter(Boolean)
+    .map(spellingKey)
+    .join(' ');
+}
+
 function overlap(needle: string[], haystack: string[]): number {
   if (needle.length === 0) return 0;
   const set = new Set(haystack.map(spellingKey));

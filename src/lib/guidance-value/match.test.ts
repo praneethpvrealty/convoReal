@@ -6,6 +6,7 @@ import {
   districtPattern,
   qualifiers,
   rankMatches,
+  placeKey,
   searchQueries,
   spellingKey,
   surveyNumbersCover,
@@ -247,5 +248,25 @@ describe('RTC village spellings', () => {
     const matches = rankMatches(adduru, rates);
     expect(matches.map((m) => m.rate.id)).toEqual(['addur']);
     expect(matches[0].reasons).toContain('Survey no. 6/32 is listed');
+  });
+});
+
+describe('placeKey', () => {
+  it('[GVL-013] matches the database guidance_spelling_key output', () => {
+    const fromDatabase: Record<string, string> = {
+      Adduru: 'adur',
+      Addur: 'adur',
+      Adyar: 'adyar',
+      'Bheema Nagar': 'bim nagar',
+      'Bima Nagar': 'bim nagar',
+      'Shivamogga 1st Stage': 'sivamog 1 stag',
+      'Koramangala 6th Block': 'koramangal 6 block',
+      Gurupura: 'gurupur',
+      'K.I.A.D.B. Area': 'k i a d b are',
+      'Thurukarahosahalli (T.Hosahalli)': 'turukarahosahal t hosahal',
+    };
+    for (const [name, key] of Object.entries(fromDatabase)) {
+      expect(placeKey(name)).toBe(key);
+    }
   });
 });
