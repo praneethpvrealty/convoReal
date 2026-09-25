@@ -398,13 +398,14 @@ export default async function RootPage({ searchParams }: PageProps) {
     accountName,
     engineWhatsAppPhone,
     properties: publishedProperties,
+    underContract,
     agents: agentContacts,
     profiles,
     services,
     articles,
   } = await cachedFetchShowcaseData(accountId, isAgentMode);
 
-  let filteredProperties = [...publishedProperties];
+  let filteredProperties = [...publishedProperties, ...underContract];
 
   // Apply referrer filter client-side
   if (filterContactId) {

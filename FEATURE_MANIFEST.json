@@ -1089,6 +1089,20 @@
               "case": "[PRP-015]"
             }
           ]
+        },
+        {
+          "id": "PRP-016",
+          "rule": "The public showcase grid lists published Under Contract listings after the Available ones, each badged with its status on the photo; they can never be shortlisted, and a saved shortlist drops one once it goes under contract. They are carried beside the Available catalogue rather than inside it, so the sitemap, business-profile structured data, project and farmland pages and every other reader of the catalogue still see Available listings only.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/public-data.test.ts",
+              "case": "[PRP-016]"
+            },
+            {
+              "file": "src/components/showcase/showcase-view.availability.test.tsx",
+              "case": "[PRP-016]"
+            }
+          ]
         }
       ]
     },
