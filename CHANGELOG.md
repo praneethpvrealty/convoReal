@@ -19,6 +19,16 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **The mobile typecheck no longer compiles the server-only web code.**
+  One type-only import, from the requirement-profile helper to the AI
+  preference extractor, pulled Gemini, the notification dispatcher and
+  every WhatsApp template module into the Expo app's type program — for
+  a type that names none of them. The shape now lives in a leaf module
+  the extractor re-exports, so no caller changed, and the web files
+  mobile compiles drop from 81 to 22 with the WhatsApp and notification
+  subtrees gone entirely. A test walks the import graph and fails if any
+  of it comes back. Nothing changes for anyone using the app.
+
 - **Cheaper guidance value imports.** Gemini now writes each notification's
   district, taluk, hobli and village once per table instead of on every
   rate, and one line carries all of its rate columns, so a page costs a

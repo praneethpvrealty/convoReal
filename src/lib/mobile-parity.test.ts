@@ -14,7 +14,7 @@
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
@@ -186,6 +186,22 @@ import {
 import { JOURNEY_LIFECYCLE_STATUSES } from '@/lib/journey/overview-state';
 import { CONVERSATION_CLOSE_REASONS } from '@/lib/conversations/closure';
 import { LANGUAGE_CODES, SUPPORTED_LANGUAGES } from '@/lib/languages';
+
+/** Every .ts/.tsx file under `<root>/<dir>`, recursively. */
+function modulePathsUnder(root: string, dir: string, out: string[] = []) {
+  const full = join(root, dir);
+  if (!existsSync(full)) return out;
+  for (const entry of readdirSync(full)) {
+    if (entry === 'node_modules' || entry === '.expo') continue;
+    const rel = `${dir}/${entry}`;
+    if (statSync(join(root, rel)).isDirectory()) {
+      modulePathsUnder(root, rel, out);
+    } else if (/\.tsx?$/.test(entry)) {
+      out.push(join(root, rel));
+    }
+  }
+  return out;
+}
 
 function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), 'mobile', relativePath), 'utf8');
@@ -2796,6 +2812,87 @@ describe('mobile/lib/import-counts.ts mirrors import-activity', () => {
 });
 
 describe('contact language is one tap from the record on both surfaces', () => {
+  it('[ALS-002] the mobile program reaches no server-only web subtree', () => {
+    // Mobile type-checks every web module reachable from its @shared/
+    // imports, and each of those modules' own imports, however deep. A
+    // single type-only edge from requirements/profiles.ts to the AI
+    // extractor once pulled Gemini, the notification dispatcher and 18
+    // WhatsApp modules into that program for a type naming none of them.
+    //
+    // Walking it here keeps the cost from creeping back silently: the
+    // edge would be added on the web side, which is what this suite runs
+    // on.
+    const forbidden = [
+      'lib/whatsapp/',
+      'lib/notifications/',
+      'lib/ai/gemini',
+      'lib/supabase/',
+      'lib/credits/',
+      'lib/billing/',
+    ];
+    const srcRoot = join(process.cwd(), 'src');
+    const resolveSpec = (spec: string, fromDir: string): string | null => {
+      const base = spec.startsWith('@/')
+        ? join(srcRoot, spec.slice(2))
+        : spec.startsWith('.')
+          ? join(fromDir, spec)
+          : null;
+      if (!base) return null;
+      for (const ext of ['.ts', '.tsx', '/index.ts', '/index.tsx']) {
+        if (existsSync(base + ext)) return base + ext;
+      }
+      return null;
+    };
+
+    const mobileFiles = [
+      ...modulePathsUnder(join(process.cwd(), 'mobile'), 'lib'),
+      ...modulePathsUnder(join(process.cwd(), 'mobile'), 'components'),
+      ...modulePathsUnder(join(process.cwd(), 'mobile'), 'app'),
+    ];
+    const entries = new Set<string>();
+    for (const file of mobileFiles) {
+      for (const m of readFileSync(file, 'utf8').matchAll(
+        /from '@shared\/([^']+)'/g
+      )) {
+        const resolved = resolveSpec(`@/${m[1]}`, srcRoot);
+        if (resolved) entries.add(resolved);
+      }
+    }
+    expect(entries.size).toBeGreaterThan(0);
+
+    const seen = new Set<string>();
+    const queue = [...entries];
+    const reachedBy = new Map<string, string>();
+    while (queue.length > 0) {
+      const file = queue.pop() as string;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      const dir = dirname(file);
+      for (const m of readFileSync(file, 'utf8').matchAll(/from '([^']+)'/g)) {
+        const next = resolveSpec(m[1], dir);
+        if (next && !seen.has(next)) {
+          if (!reachedBy.has(next)) reachedBy.set(next, file);
+          queue.push(next);
+        }
+      }
+    }
+
+    const leaked = [...seen]
+      .map((f) => f.slice(srcRoot.length + 1))
+      .filter((rel) => forbidden.some((prefix) => rel.startsWith(prefix)))
+      .sort();
+    expect(
+      leaked,
+      `the mobile typecheck now reaches server-only web code: ` +
+        `${leaked
+          .map((rel) => {
+            const via = reachedBy.get(join(srcRoot, rel));
+            return via ? `${rel} (via ${via.slice(srcRoot.length + 1)})` : rel;
+          })
+          .join(', ')}. Move the type it needs to a leaf module instead.`
+    ).toEqual([]);
+  });
+
   it('[ALS-001] no mobile module shadows a web module of the same path', () => {
     // mobile/tsconfig.json resolves `@/*` against the mobile root first
     // and ../src second, for every file in that program — including the

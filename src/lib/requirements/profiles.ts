@@ -1,5 +1,5 @@
 import type { Contact, ContactRequirementProfile } from '@/types';
-import type { ExtractedPreferences } from '@/lib/ai/preference-extraction';
+import type { ExtractedPreferences } from '@/lib/ai/preference-types';
 
 function areaLabel(sqft: number | null): string | null {
   if (!sqft || sqft <= 0) return null;
