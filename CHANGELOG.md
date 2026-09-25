@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Showcase "Search near" now understands a partly typed area.** The
+  first version sent the text to Google's address geocoder, which could
+  not place a fragment like "basavan" and fell back to the middle of
+  Bengaluru, so the "nearby" list was centred on the wrong spot. The
+  lookup now uses the same Places autocomplete the dashboard uses, which
+  resolves "basavan" to Basavanagudi, then reads that place's position.
+  It is still one billed lookup per new search, cached, and capped as
+  before.
+
 - **The showcase location box now finds listings near a place none of
   them name.** Typing an area the catalog has no listing in (say
   "basavan") used to empty the suggestions and leave every listing on

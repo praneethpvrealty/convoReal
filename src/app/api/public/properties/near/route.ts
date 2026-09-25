@@ -5,22 +5,25 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import { randomUUID } from 'node:crypto';
 import {
-  geocodeAddress,
   hasGoogleMapsKey,
-  type GeocodedLocation,
+  placeDetails,
+  placesAutocomplete,
 } from '@/lib/maps/google-places';
 import {
   dominantCity,
   geocodeQuery,
-  placeLabel,
   rankNearbyListings,
   type NearbyCandidate,
+  type NearbyCentre,
 } from '@/lib/showcase/nearby-search';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const GEOCODE_CACHE_CAP = 500;
-const geocodeCache = new Map<string, GeocodedLocation | null>();
+const PLACE_CACHE_CAP = 500;
+type ResolvedCentre = NearbyCentre & { label: string };
+
+const placeCache = new Map<string, ResolvedCentre | null>();
 
 function clientIp(request: Request): string {
   const xff = request.headers.get('x-forwarded-for');
@@ -28,17 +31,27 @@ function clientIp(request: Request): string {
   return request.headers.get('x-real-ip')?.trim() || 'unknown';
 }
 
-async function cachedGeocode(
-  address: string
-): Promise<GeocodedLocation | null> {
-  const key = address.toLocaleLowerCase();
-  if (geocodeCache.has(key)) return geocodeCache.get(key) ?? null;
-  const result = await geocodeAddress(address).catch(() => null);
-  if (geocodeCache.size >= GEOCODE_CACHE_CAP) {
-    const oldest = geocodeCache.keys().next().value;
-    if (oldest !== undefined) geocodeCache.delete(oldest);
+async function resolvePlace(text: string): Promise<ResolvedCentre | null> {
+  const session = randomUUID();
+  const [first] = await placesAutocomplete(text, session);
+  if (!first) return null;
+  const place = await placeDetails(first.place_id, session);
+  return {
+    latitude: place.latitude,
+    longitude: place.longitude,
+    label: place.name || first.main_text,
+  };
+}
+
+async function cachedPlace(text: string): Promise<ResolvedCentre | null> {
+  const key = text.toLocaleLowerCase();
+  if (placeCache.has(key)) return placeCache.get(key) ?? null;
+  const result = await resolvePlace(text).catch(() => null);
+  if (placeCache.size >= PLACE_CACHE_CAP) {
+    const oldest = placeCache.keys().next().value;
+    if (oldest !== undefined) placeCache.delete(oldest);
   }
-  geocodeCache.set(key, result);
+  placeCache.set(key, result);
   return result;
 }
 
@@ -92,9 +105,9 @@ export async function GET(request: Request) {
   const rows = (data || []) as NearbyCandidate[];
   const place =
     rows.length > 0 && hasGoogleMapsKey()
-      ? await cachedGeocode(geocodeQuery(query, dominantCity(rows)))
+      ? await cachedPlace(geocodeQuery(query, dominantCity(rows)))
       : null;
-  const label = placeLabel(place?.formatted_address ?? null, query);
+  const label = place?.label || query;
 
   return NextResponse.json({
     data: {
