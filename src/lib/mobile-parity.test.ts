@@ -1278,6 +1278,21 @@ describe('mobile/lib/map-links.ts mirrors the pin resolver', () => {
   });
 });
 
+describe('mobile/lib/use-photo-source.ts resolves guarded photos', () => {
+  const source = mobileSource('lib/use-photo-source.ts');
+
+  it('exchanges each guarded path for a signed link through apiFetch', () => {
+    expect(source).toContain(
+      'apiFetch<{ data: { url: string } }>(`${path}?format=json`)'
+    );
+  });
+
+  it('never hands <Image> a header it cannot carry', () => {
+    expect(source).not.toContain('headers:');
+    expect(source).not.toContain('authHeaders');
+  });
+});
+
 describe('mobile/lib/photo-sources.ts mirrors photo-sources', () => {
   // Both galleries have to find a gated listing's photos in the guarded
   // bucket, in the same order, at the same proxy index — the index IS
