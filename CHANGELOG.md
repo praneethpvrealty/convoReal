@@ -19,6 +19,22 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **The showcase location box now finds listings near a place none of
+  them name.** Typing an area the catalog has no listing in (say
+  "basavan") used to empty the suggestions and leave every listing on
+  screen. The box now offers *Search near "basavan"*, and Enter runs
+  it. The place is geocoded in the city most of the inventory is in,
+  and the result lists the listings that name it first, then the other
+  published, available listings within 10 km, closest first, each
+  marked "X km away". That matches the 10 km locality radius the
+  dashboard uses. Distances are rounded to half a kilometre and no
+  coordinates reach the page. Google is only called when the visitor
+  asks, results are cached, and the lookups are capped per visitor and
+  per showcase per day. Enter on a typed area that the catalog does
+  name now applies the first suggestion, and a short entry with no
+  match says so instead of showing nothing. The suggestion list also
+  no longer slides under the listing cards.
+
 - **The mobile typecheck no longer compiles the server-only web code.**
   One type-only import, from the requirement-profile helper to the AI
   preference extractor, pulled Gemini, the notification dispatcher and

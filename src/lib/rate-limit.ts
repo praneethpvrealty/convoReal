@@ -337,6 +337,13 @@ export const RATE_LIMITS = {
    *  single account, and setting it near the per-IP budget would let
    *  one abuser lock out that tenant's legitimate integrations. */
   publicCatalogAccount: { limit: 120, windowMs: 60_000 },
+  /** Showcase "search near" lookups, per IP. Each one that misses the
+   *  geocode cache is a billed Google Geocoding call, and a visitor only
+   *  reaches it by pressing Enter on a place none of the listings name. */
+  publicNearSearch: { limit: 10, windowMs: 60_000 },
+  /** The same lookups, per account per day: the ceiling on what one
+   *  showcase can spend on geocoding however many visitors it has. */
+  publicNearSearchAccountDaily: { limit: 500, windowMs: 86_400_000 },
   /** A stakeholder opening their transaction link, per IP. A human
    *  refreshing a page and fetching a few documents; well under this. */
   publicDealShare: { limit: 60, windowMs: 60_000 },

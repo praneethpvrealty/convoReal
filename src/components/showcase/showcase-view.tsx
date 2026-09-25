@@ -17,6 +17,8 @@ import { filterPropertiesBySearch, selectPinnedProperties } from '@/lib/inventor
 import {
   Search,
   MapPin,
+  Loader2,
+  LocateFixed,
   BedDouble,
   Bath,
   Maximize2,
@@ -64,6 +66,10 @@ import {
   locationCandidates,
   matchesSelectedLocation,
 } from '@/lib/showcase/location-search';
+import {
+  SHOWCASE_NEARBY_RADIUS_KM,
+  type NearbyMatch,
+} from '@/lib/showcase/nearby-search';
 import { showcaseCardMotion } from '@/lib/showcase/card-motion';
 import {
   DEFAULT_SHOWCASE_STYLE,
@@ -192,6 +198,12 @@ export function ShowcaseView({
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [locationQuery, setLocationQuery] = useState('');
+  const [nearbySearch, setNearbySearch] = useState<{
+    label: string;
+    results: NearbyMatch[];
+  } | null>(null);
+  const [nearbyPending, setNearbyPending] = useState(false);
+  const [nearbyError, setNearbyError] = useState<string | null>(null);
 
   // ── Showcase Pulse tracking (fire-and-forget beacons) ──────────
   // One tracker per page load; 'open' fires once on mount, property
@@ -1053,10 +1065,19 @@ export function ShowcaseView({
       );
     }
 
+    const nearbyRank = nearbySearch
+      ? new Map(nearbySearch.results.map((match, index) => [match.id, index]))
+      : null;
+    if (nearbyRank) {
+      result = result.filter((property) => nearbyRank.has(property.id));
+    }
+
     result = filterPropertiesBySearch(result, searchQuery);
 
     // Sort
-    if (sortBy === 'price-low') {
+    if (nearbyRank) {
+      result.sort((a, b) => (nearbyRank.get(a.id) ?? 0) - (nearbyRank.get(b.id) ?? 0));
+    } else if (sortBy === 'price-low') {
       result.sort((a, b) => a.price - b.price);
     } else if (sortBy === 'price-high') {
       result.sort((a, b) => b.price - a.price);
@@ -1068,7 +1089,12 @@ export function ShowcaseView({
     }
 
     return result;
-  }, [properties, pinnedIds, selectedType, selectedListingType, minBeds, searchQuery, selectedLocations, sortBy]);
+  }, [properties, pinnedIds, selectedType, selectedListingType, minBeds, searchQuery, selectedLocations, nearbySearch, sortBy]);
+
+  const nearbyById = useMemo(
+    () => new Map((nearbySearch?.results ?? []).map((match) => [match.id, match])),
+    [nearbySearch]
+  );
 
   const availableLocations = useMemo(
     () => locationCandidates(properties),
@@ -1184,8 +1210,59 @@ export function ShowcaseView({
         ? current
         : [...current, location]
     );
+    setNearbySearch(null);
+    setNearbyError(null);
     setLocationQuery('');
   };
+
+  const searchNearby = async (rawQuery: string) => {
+    const query = rawQuery.trim().replace(/\s+/g, ' ');
+    if (query.length < 3 || nearbyPending) return;
+    setNearbyPending(true);
+    setNearbyError(null);
+    try {
+      const params = new URLSearchParams({ account_id: accountId, q: query });
+      const res = await fetch(`/api/public/properties/near?${params.toString()}`);
+      if (!res.ok) {
+        setNearbyError(
+          res.status === 429
+            ? 'Too many location searches. Try again in a minute.'
+            : `Couldn't search near "${query}". Try again.`
+        );
+        return;
+      }
+      const body = (await res.json()) as {
+        data?: { label?: string; results?: NearbyMatch[] };
+      };
+      setNearbySearch({
+        label: body.data?.label || query,
+        results: body.data?.results ?? [],
+      });
+      setSelectedLocations([]);
+      setLocationQuery('');
+    } catch {
+      setNearbyError(`Couldn't search near "${query}". Try again.`);
+    } finally {
+      setNearbyPending(false);
+    }
+  };
+
+  const handleLocationKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      setLocationQuery('');
+      return;
+    }
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    if (matchingLocations.length > 0) {
+      addLocation(matchingLocations[0]);
+    } else {
+      void searchNearby(locationQuery);
+    }
+  };
+
+  const trimmedLocationQuery = locationQuery.trim();
+  const showLocationMenu = trimmedLocationQuery.length > 0;
 
   // Document request submission handler
   const handleDocRequestSubmit = async (e: React.FormEvent) => {
@@ -1735,7 +1812,7 @@ export function ShowcaseView({
         </div>
 
         {/* Filter Controls Bar */}
-        <div className="bg-slate-900/35 border border-slate-900/60 rounded-3xl p-5 mb-8 backdrop-blur-md shadow-xl flex flex-col gap-4 hover:border-slate-800/80 transition-all duration-300">
+        <div className="relative z-20 bg-slate-900/35 border border-slate-900/60 rounded-3xl p-5 mb-8 backdrop-blur-md shadow-xl flex flex-col gap-4 hover:border-slate-800/80 transition-all duration-300">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             
             {/* Search Input */}
@@ -1753,19 +1830,57 @@ export function ShowcaseView({
               <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
               <Input
                 value={locationQuery}
-                onChange={(e) => setLocationQuery(e.target.value)}
+                onChange={(e) => {
+                  setLocationQuery(e.target.value);
+                  setNearbyError(null);
+                }}
+                onKeyDown={handleLocationKeyDown}
                 placeholder="Add a location"
                 aria-label="Search locations"
                 aria-controls="location-suggestions"
-                aria-expanded={matchingLocations.length > 0}
+                aria-expanded={showLocationMenu}
                 className="pl-11 bg-slate-950/60 border-slate-900 text-white placeholder:text-slate-650 focus:border-primary focus:ring-1 focus:ring-primary w-full rounded-xl transition-all"
               />
-              {matchingLocations.length > 0 && (
+              {showLocationMenu && (
                 <div
                   id="location-suggestions"
                   role="listbox"
-                  className="absolute z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-800 bg-slate-950 p-1 shadow-2xl"
+                  aria-label="Location suggestions"
+                  className="absolute z-40 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-800 bg-slate-950 p-1 shadow-2xl"
                 >
+                  {matchingLocations.length === 0 && (
+                    trimmedLocationQuery.length < 3 ? (
+                      <p className="px-3 py-2.5 text-sm text-slate-400">
+                        No listed areas match &ldquo;{trimmedLocationQuery}&rdquo;.
+                      </p>
+                    ) : (
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={false}
+                        disabled={nearbyPending}
+                        onClick={() => void searchNearby(locationQuery)}
+                        className="flex w-full items-start gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-300 transition-colors hover:bg-slate-900 hover:text-white disabled:cursor-wait"
+                      >
+                        {nearbyPending ? (
+                          <Loader2 className="mt-0.5 size-3.5 shrink-0 animate-spin text-primary" />
+                        ) : (
+                          <LocateFixed className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                        )}
+                        <span>
+                          {nearbyPending ? 'Searching near' : 'Search near'} &ldquo;{trimmedLocationQuery}&rdquo;
+                          <span className="block text-xs text-slate-500">
+                            No listing names this area — show listings within {SHOWCASE_NEARBY_RADIUS_KM} km
+                          </span>
+                        </span>
+                      </button>
+                    )
+                  )}
+                  {nearbyError && (
+                    <p role="alert" className="px-3 py-2 text-xs text-rose-400">
+                      {nearbyError}
+                    </p>
+                  )}
                   {matchingLocations.map((location) => (
                     <button
                       key={location}
@@ -1780,6 +1895,11 @@ export function ShowcaseView({
                     </button>
                   ))}
                 </div>
+              )}
+              {nearbyError && !showLocationMenu && (
+                <p role="alert" className="mt-2 text-xs text-rose-400">
+                  {nearbyError}
+                </p>
               )}
             </div>
 
@@ -1819,10 +1939,14 @@ export function ShowcaseView({
             <div className="relative lg:col-span-2 flex items-center gap-2">
               <ArrowUpDown className="size-4 text-slate-500 shrink-0" />
               <select
-                value={sortBy}
+                value={nearbySearch ? 'nearest' : sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="bg-slate-950/60 border border-slate-900 rounded-xl text-slate-350 text-sm p-2.5 w-full focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer"
+                disabled={!!nearbySearch}
+                aria-label="Sort listings"
+                title={nearbySearch ? 'Clear the Near filter to sort another way' : undefined}
+                className="bg-slate-950/60 border border-slate-900 rounded-xl text-slate-350 text-sm p-2.5 w-full focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-70"
               >
+                {nearbySearch && <option value="nearest">Nearest first</option>}
                 <option value="newest">Newest Listed</option>
                 <option value="price-low">Price: Low to High</option>
                 <option value="price-high">Price: High to Low</option>
@@ -1859,6 +1983,30 @@ export function ShowcaseView({
               >
                 Clear all
               </button>
+            </div>
+          )}
+
+          {nearbySearch && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-900/60 pt-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-550">
+                Near:
+              </span>
+              <button
+                type="button"
+                onClick={() => setNearbySearch(null)}
+                aria-label={`Remove near ${nearbySearch.label}`}
+                className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/20"
+              >
+                {nearbySearch.label} · {SHOWCASE_NEARBY_RADIUS_KM} km
+                <X className="size-3" />
+              </button>
+              <span className="text-xs text-slate-400">
+                {nearbySearch.results.length === 0
+                  ? `No listings within ${SHOWCASE_NEARBY_RADIUS_KM} km of ${nearbySearch.label}.`
+                  : nearbySearch.results.some((match) => match.tier === 'exact')
+                    ? `Listings in ${nearbySearch.label} first, then nearby by distance.`
+                    : `No listings in ${nearbySearch.label} — showing the nearest ones.`}
+              </span>
             </div>
           )}
 
@@ -2052,6 +2200,12 @@ export function ShowcaseView({
                             ? `${property.sublocality}, ${property.city}`
                             : property.city || property.sublocality || "Location shared on inquiry"}
                         </span>
+                        {nearbyById.get(property.id)?.tier === 'nearby' &&
+                          nearbyById.get(property.id)?.distance_km != null && (
+                            <span className="ml-auto shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                              {nearbyById.get(property.id)?.distance_km} km away
+                            </span>
+                          )}
                       </div>
 
                       {/* Specs Grid */}
