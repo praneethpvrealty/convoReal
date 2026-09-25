@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Guidance value reading skips the pages that hold no rates.** Every
+  notification opens with a gazette header, instructions, an amenities list
+  and an apartment ready reckoner, and Gemini was paid to read them and
+  return nothing (or, worse, construction-cost rows saved as rates). The
+  reader now reads each page's text locally first and skips pages it can
+  positively identify as non-rate content, about 2% of pages across ten
+  sampled notifications with no real rate page lost; anything blank,
+  garbled or carrying rate words is still read.
+
 - **Guidance value reads stop paying for runaway output.** Twelve batch
   requests today ran to Gemini's 65,000-token ceiling on two pages each,
   produced nothing readable, and were resubmitted every 15 minutes. Output
