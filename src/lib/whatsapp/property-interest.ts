@@ -1,6 +1,7 @@
 import { toSquareFeet } from '@/lib/area-units';
 import { consonantSkeleton } from '@/lib/project-match';
 import { localityStems } from '@/lib/locality-match';
+import { listingAvailabilityNotice } from '@/lib/inventory/listing-status';
 import type { Property } from '@/types';
 
 export type PropertyInterestCandidate = Pick<
@@ -133,6 +134,22 @@ function exactTitleMatch<T extends PropertyInterestCandidate>(
         return title.length >= 8 && haystack.includes(title);
       })
       .sort((a, b) => b.title.length - a.title.length)[0] ?? null
+  );
+}
+
+export function isDeliberateEnquiry(
+  matchedBy: Extract<
+    PropertyReferenceResolution<PropertyInterestCandidate>,
+    { kind: 'match' }
+  >['matchedBy'],
+  property: Pick<PropertyInterestCandidate, 'id' | 'status'>,
+  lastInquiredPropertyId: string | null | undefined
+): boolean {
+  if (matchedBy === 'code') return true;
+  return (
+    matchedBy === 'title' &&
+    listingAvailabilityNotice(property.status) !== null &&
+    lastInquiredPropertyId !== property.id
   );
 }
 

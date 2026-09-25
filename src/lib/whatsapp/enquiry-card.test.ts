@@ -364,7 +364,7 @@ describe('the webhook wires the card up', () => {
     // claiming a buyer who had just named the exact listing — because
     // the enquiry branch was gated on the contact's first-ever message
     // and this buyer had messaged before.
-    const enquiryBranch = source.indexOf('enquiryByCode &&');
+    const enquiryBranch = source.indexOf('enquiryIsDeliberate &&');
     const ladder = source.indexOf('processBuyerQualificationMessage(');
     expect(enquiryBranch).toBeGreaterThan(-1);
     expect(ladder).toBeGreaterThan(-1);
@@ -383,6 +383,17 @@ describe('the webhook wires the card up', () => {
       /appendListingStatusNote\(\s*buildPropertyInterestAck\([\s\S]*?\),\s*enquiryPropertyStatus\s*\)/
     );
     expect(source).toContain('enquiryPropertyStatus = matchedProperty.status');
+  });
+
+  it('[PRP-014] routes a title-only enquiry about an unavailable listing through the card', () => {
+    expect(source).toMatch(
+      /enquiryIsDeliberate = isDeliberateEnquiry\(\s*resolution\.matchedBy,\s*matchedProperty,\s*contactRecord\.last_inquired_property_id\s*\)/
+    );
+    expect(
+      source.indexOf('enquiryIsDeliberate = isDeliberateEnquiry(')
+    ).toBeLessThan(
+      source.indexOf('last_inquired_property_id: matchedProperty.id')
+    );
   });
 
   it('[PRP-014] never promises a visit or owner call for an unavailable listing', () => {

@@ -4,6 +4,7 @@ import {
   buildCatalogOrderMessage,
   buildPropertyInterestAck,
   buildPropertyInterestQuestion,
+  isDeliberateEnquiry,
   isDirectPropertyInterest,
   mentionedAreaSqft,
   resolvePropertyReference,
@@ -189,5 +190,36 @@ describe('property interest replies', () => {
     expect(reply).toContain('site visit');
     expect(reply).toContain('conversation with the owner');
     expect(reply).toContain('preferred date and time');
+  });
+});
+
+describe('isDeliberateEnquiry', () => {
+  it('[PRP-014] treats a bare title question about an unavailable listing as an enquiry', () => {
+    const plot = property({
+      title: 'Corner Residential Plot',
+      status: 'Under Contract',
+    });
+    const resolution = resolvePropertyReference(
+      'Is Corner Residential Plot still available?',
+      [plot]
+    );
+    expect(resolution).toMatchObject({ kind: 'match', matchedBy: 'title' });
+    expect(isDeliberateEnquiry('title', plot, null)).toBe(true);
+  });
+
+  it('[PRP-014] does not repeat itself once the buyer is already discussing that listing', () => {
+    const plot = property({ status: 'Sold' });
+    expect(isDeliberateEnquiry('title', plot, plot.id)).toBe(false);
+  });
+
+  it('[PRP-014] leaves a title match on an available listing to the existing flow', () => {
+    expect(isDeliberateEnquiry('title', property(), null)).toBe(false);
+  });
+
+  it('keeps a property code deliberate whatever the status or history', () => {
+    const plot = property();
+    expect(isDeliberateEnquiry('code', plot, plot.id)).toBe(true);
+    expect(isDeliberateEnquiry('natural', plot, null)).toBe(false);
+    expect(isDeliberateEnquiry('context', plot, null)).toBe(false);
   });
 });
