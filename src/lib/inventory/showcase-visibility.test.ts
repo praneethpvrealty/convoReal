@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   effectiveShowcaseVisibility,
   isTeaserGated,
+  opensByDirectLink,
   priceBand,
   teaserTitle,
   toTeaserPropertyView,
@@ -226,5 +229,38 @@ describe('toPublicListingView', () => {
     expect(view.location).toBe('Kanakapura Road, Bengaluru');
     expect(view.google_map_link).toBeNull();
     expect(view.location_guarded).toBe(true);
+  });
+});
+
+describe('opensByDirectLink', () => {
+  it('[PRP-017] opens a published listing to anyone', () => {
+    expect(opensByDirectLink({ is_published: true }, false)).toBe(true);
+  });
+
+  it('[PRP-017] opens a draft only for a link carrying its share grant', () => {
+    expect(opensByDirectLink({ is_published: false }, false)).toBe(false);
+    expect(opensByDirectLink({ is_published: null }, false)).toBe(false);
+    expect(opensByDirectLink({ is_published: false }, true)).toBe(true);
+  });
+
+  it('[PRP-017] gates every public entry point on it, previews without a grant', () => {
+    const read = (path: string) =>
+      readFileSync(join(process.cwd(), path), 'utf8');
+    const root = read('src/app/page.tsx');
+    expect(root).toContain('!property || !opensByDirectLink(property, false)');
+    expect(root).toContain(
+      'opensByDirectLink(resolvedTarget, draftGrant !== null)'
+    );
+    const slug = read('src/app/property/[slug]/page.tsx');
+    expect(slug).toContain('if (!opensByDirectLink(property, false)) {');
+    expect(slug).toContain(
+      'if (!opensByDirectLink(property, shareGrant !== null)) notFound();'
+    );
+    expect(
+      slug.indexOf('opensByDirectLink(property, shareGrant !== null)')
+    ).toBeLessThan(slug.indexOf('permanentRedirect('));
+    expect(read('src/app/api/properties/[id]/og-image/route.ts')).toContain(
+      '!opensByDirectLink(raw, false)'
+    );
   });
 });
