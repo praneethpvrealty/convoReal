@@ -19,6 +19,13 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Showcase "Search near" sends the typed text as the visitor wrote it.**
+  With the area-only filter on, "basavan, Bengaluru" matched no area at
+  all, so "basavan" found nothing. The lookup now tries the bare text
+  first, which is what the dashboard sends, and adds the city only if
+  that finds no area. A failed lookup is logged and no longer cached,
+  so one bad call can't keep a place unsearchable.
+
 - **Showcase "Search near" now asks Google for areas only, near the
   brokerage's own listings.** With autocomplete open to every kind of
   place, "basavan" matched a temple in central Bengaluru before the

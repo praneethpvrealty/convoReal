@@ -10,6 +10,7 @@ import {
   hasGoogleMapsKey,
   placeDetails,
   placesAutocomplete,
+  type PlaceSuggestion,
 } from '@/lib/maps/google-places';
 import {
   dominantCity,
@@ -34,15 +35,25 @@ function clientIp(request: Request): string {
 }
 
 async function resolvePlace(
-  text: string,
+  texts: string[],
   bias: NearbyCentre | null
 ): Promise<ResolvedCentre | null> {
   const session = randomUUID();
-  const [first] = await placesAutocomplete(text, session, {
+  const options = {
     regionsOnly: true,
     bias: bias ? { ...bias, radiusKm: PLACE_BIAS_RADIUS_KM } : undefined,
-  });
-  if (!first) return null;
+  };
+  let first: PlaceSuggestion | undefined;
+  for (const text of texts) {
+    [first] = await placesAutocomplete(text, session, options);
+    if (first) break;
+  }
+  if (!first) {
+    console.warn('[GET /api/public/properties/near] no area matched', {
+      texts,
+    });
+    return null;
+  }
   const place = await placeDetails(first.place_id, session);
   return {
     latitude: place.latitude,
@@ -52,15 +63,24 @@ async function resolvePlace(
 }
 
 async function cachedPlace(
-  text: string,
+  texts: string[],
   bias: NearbyCentre | null
 ): Promise<ResolvedCentre | null> {
   const key = [
-    text.toLocaleLowerCase(),
+    texts.join('~').toLocaleLowerCase(),
     bias ? `${bias.latitude.toFixed(1)},${bias.longitude.toFixed(1)}` : '',
   ].join('|');
   if (placeCache.has(key)) return placeCache.get(key) ?? null;
-  const result = await resolvePlace(text, bias).catch(() => null);
+  let result: ResolvedCentre | null;
+  try {
+    result = await resolvePlace(texts, bias);
+  } catch (err) {
+    console.warn('[GET /api/public/properties/near] place lookup failed', {
+      texts,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
   if (placeCache.size >= PLACE_CACHE_CAP) {
     const oldest = placeCache.keys().next().value;
     if (oldest !== undefined) placeCache.delete(oldest);
@@ -120,7 +140,7 @@ export async function GET(request: Request) {
   const place =
     rows.length > 0 && hasGoogleMapsKey()
       ? await cachedPlace(
-          geocodeQuery(query, dominantCity(rows)),
+          [...new Set([query, geocodeQuery(query, dominantCity(rows))])],
           inventoryCentre(rows)
         )
       : null;

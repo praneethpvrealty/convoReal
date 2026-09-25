@@ -103,8 +103,9 @@ describe('GET /api/public/properties/near', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
 
+    expect(placesAutocomplete).toHaveBeenCalledTimes(1);
     expect(placesAutocomplete).toHaveBeenCalledWith(
-      'basavan, Bengaluru',
+      'basavan',
       expect.any(String),
       {
         regionsOnly: true,
@@ -135,7 +136,7 @@ describe('GET /api/public/properties/near', () => {
     placesAutocomplete.mockResolvedValue([]);
     await GET(req('cached place'));
     await GET(req('Cached Place'));
-    expect(placesAutocomplete).toHaveBeenCalledTimes(1);
+    expect(placesAutocomplete).toHaveBeenCalledTimes(2);
     expect(placeDetails).not.toHaveBeenCalled();
   });
 
@@ -152,7 +153,59 @@ describe('GET /api/public/properties/near', () => {
       },
     ];
     await GET(req('shared place', { account: `${ACCOUNT.slice(0, -1)}b` }));
-    expect(placesAutocomplete).toHaveBeenCalledTimes(2);
+    expect(placesAutocomplete).toHaveBeenCalledTimes(4);
+  });
+
+  it('does not share a lookup between showcases in different cities at the same centre', async () => {
+    placesAutocomplete.mockResolvedValue([]);
+    await GET(req('twin place'));
+    rows.data = (rows.data as Array<Record<string, unknown>>).map((row) => ({
+      ...row,
+      city: 'Bangalore',
+    }));
+    await GET(req('twin place', { account: `${ACCOUNT.slice(0, -1)}c` }));
+    expect(placesAutocomplete.mock.calls.map((call) => call[0])).toEqual([
+      'twin place',
+      'twin place, Bengaluru',
+      'twin place',
+      'twin place, Bangalore',
+    ]);
+  });
+
+  it('retries with the inventory city when the bare text names no area', async () => {
+    placesAutocomplete
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { place_id: 'jp', main_text: 'Jayanagar', secondary_text: '' },
+      ]);
+    placeDetails.mockResolvedValue({
+      place_id: 'jp',
+      name: 'Jayanagar',
+      formatted_address: 'Jayanagar, Bengaluru',
+      latitude: 12.9299,
+      longitude: 77.5826,
+      sublocality: 'Jayanagar',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+    });
+
+    const body = await (await GET(req('jaya retry'))).json();
+
+    expect(placesAutocomplete.mock.calls.map((call) => call[0])).toEqual([
+      'jaya retry',
+      'jaya retry, Bengaluru',
+    ]);
+    const [[, firstSession], [, secondSession]] = placesAutocomplete.mock.calls;
+    expect(secondSession).toBe(firstSession);
+    expect(body.data.label).toBe('Jayanagar');
+  });
+
+  it('does not cache a failed lookup, so the next search tries again', async () => {
+    placesAutocomplete.mockRejectedValueOnce(new Error('timeout'));
+    await GET(req('flaky place'));
+    placesAutocomplete.mockResolvedValue([]);
+    await GET(req('flaky place'));
+    expect(placesAutocomplete).toHaveBeenCalledTimes(3);
   });
 
   it('falls back to named-area matches when Places cannot resolve the text', async () => {
