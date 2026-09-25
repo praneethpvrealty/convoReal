@@ -1308,6 +1308,14 @@ describe('mobile inbox images load through the API client', () => {
     expect(loader).toContain('mediaCacheDir()');
   });
 
+  it('plays voice notes from the downloaded file, never with a header', () => {
+    const audio = mobileSource('components/audio-bubble.tsx');
+    expect(audio).toContain('useMediaFile(');
+    expect(audio).toContain('if (!ensurePlayable()) return;');
+    expect(audio).not.toContain('headers');
+    expect(audio).not.toContain('authHeaders');
+  });
+
   it('wipes downloaded media on sign-out', () => {
     expect(mobileSource('lib/media-cache.ts')).toContain("'whatsapp-media'");
     expect(mobileSource('lib/auth-store.ts')).toContain('clearMediaCache()');
