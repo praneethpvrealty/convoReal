@@ -153,3 +153,37 @@ describe('showcase grid — under-contract listings', () => {
     ).toBeTruthy();
   });
 });
+
+describe('showcase shortlist — under-contract listings', () => {
+  it('[PRP-016] drops a saved shortlist entry once the listing goes under contract', () => {
+    localStorage.setItem(
+      'showcase_shortlist:acct-1',
+      JSON.stringify(['prop-uc', 'prop-av'])
+    );
+    render(
+      <ShowcaseView
+        properties={[
+          {
+            ...listing('Under Contract'),
+            id: 'prop-uc',
+            title: 'Contracted Plot',
+          } as Property,
+          {
+            ...listing('Available'),
+            id: 'prop-av',
+            title: 'Open Plot',
+          } as Property,
+        ]}
+        settings={settings}
+        accountId="acct-1"
+        disableSavedState
+      />
+    );
+    expect(screen.getByText('1 shortlisted')).toBeTruthy();
+    expect(
+      screen
+        .getByRole('button', { name: 'Shortlist Open Plot' })
+        .getAttribute('aria-pressed')
+    ).toBe('true');
+  });
+});

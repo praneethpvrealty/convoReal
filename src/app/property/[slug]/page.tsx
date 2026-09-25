@@ -145,10 +145,13 @@ export default async function PropertyPage({
   const { settings, accountName, properties, underContract, agents, profiles } =
     await cachedFetchShowcaseData(property.account_id, isAgentMode);
 
-  const listed = [...properties, ...underContract];
-  const propertiesList = listed.some((p) => p.id === property.id)
-    ? listed
-    : [property, ...listed];
+  const catalogue = properties.some((p) => p.id === property.id)
+    ? properties
+    : [property, ...properties];
+  const propertiesList = [
+    ...catalogue,
+    ...underContract.filter((p) => p.id !== property.id),
+  ];
   // Share grant (?g=), resolved against this listing so a token lifted
   // from another share cannot widen it. Uncached: revocation has to bite
   // on the next open.
@@ -181,7 +184,7 @@ export default async function PropertyPage({
   const canonicalUrl = `${origin}/property/${canonicalSlug}`;
   const siteName = accountName || BRANDING.name;
   const businessId = `${origin}#business`;
-  const businessProfile = buildPublicBusinessProfile(siteName, propertiesList, {
+  const businessProfile = buildPublicBusinessProfile(siteName, catalogue, {
     description: settings?.public_business_description,
     areasServed: settings?.public_areas_served,
     propertyTypes: settings?.public_property_expertise,

@@ -192,7 +192,11 @@ export function ShowcaseView({
   showcaseStyle = DEFAULT_SHOWCASE_STYLE,
   showcase3dEnabled = false,
 }: ShowcaseViewProps) {
-  const shortlist = useShowcaseShortlist(accountId, properties);
+  const shortlistable = useMemo(
+    () => properties.filter((p) => !listingAvailabilityNotice(p.status)),
+    [properties]
+  );
+  const shortlist = useShowcaseShortlist(accountId, shortlistable);
   const agencyDesign = isAgencyShowcaseDesign(showcaseStyle);
   const motionEnabled = showcase3dEnabled && !agencyDesign;
   const [mapView, setMapView] = useState(false);
