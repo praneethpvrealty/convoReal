@@ -2500,6 +2500,19 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     );
   });
 
+  it('[PRP-015] leaves the listing status a stage move sets to the shared deal route', () => {
+    const mobileSemantics = mobileSource('lib/stage-semantics.ts');
+    expect(mobileSemantics).not.toContain('propertyStatusForPipelineStage');
+    for (const source of [mobileScreen, mobileList]) {
+      expect(source).toContain('await moveDealStage(');
+      expect(source).toContain('current_stage_name: stage.name');
+    }
+    expect(mobileApi).toContain('`/api/deals/${dealId}`');
+    expect(webSource('app/api/deals/[id]/route.ts')).toContain(
+      "propertyStatusForPipelineStage(stage_name) ?? 'Available'"
+    );
+  });
+
   it('labels the buyer as the index SQL does: full name, never the phone', () => {
     expect(mobileList).toContain(
       'contact:contacts(id, name, second_name, phone)'
