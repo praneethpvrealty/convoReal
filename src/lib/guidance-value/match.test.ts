@@ -7,6 +7,7 @@ import {
   qualifiers,
   rankMatches,
   searchQueries,
+  spellingKey,
   surveyNumbersCover,
   tokens,
 } from './match';
@@ -199,5 +200,52 @@ describe('searchQueries / districtPattern', () => {
     expect(new RegExp(pattern, 'i').test('Bangalore Urban')).toBe(true);
     expect(new RegExp(pattern, 'i').test('Bengaluru Urban')).toBe(true);
     expect(districtPattern({})).toBeNull();
+  });
+});
+
+describe('RTC village spellings', () => {
+  const adduru: PropertySchedule = {
+    document_type: 'rtc',
+    district: 'Dakshina Kannada',
+    taluk: 'Mangaluru',
+    hobli: 'Gurupura',
+    village: 'Adduru',
+    village_local: 'ಅಡ್ಡೂರು',
+    survey_number: '6/32',
+    kind: 'agricultural',
+    usage: 'agricultural',
+    land_area: { value: 16, unit: 'gunta' },
+  };
+
+  it('[GVL-013] treats common transliterations of one village as the same name', () => {
+    expect(spellingKey('adduru')).toBe(spellingKey('aduru'));
+    expect(spellingKey('adduru')).toBe(spellingKey('addur'));
+    expect(spellingKey('gurupura')).toBe(spellingKey('gurupur'));
+    expect(spellingKey('shivamogga')).toBe(spellingKey('shivamoga'));
+    expect(spellingKey('adduru')).not.toBe(spellingKey('adyar'));
+    expect(spellingKey('12')).toBe('12');
+  });
+
+  it('[GVL-013] matches an RTC village to the notification spelling but not to a similar-sounding village', () => {
+    const rates = [
+      rate({
+        id: 'addur',
+        district: 'Mangalore',
+        village: 'Addur',
+        property_class: 'agricultural',
+        unit: 'acre',
+        survey_numbers: '1 to 40',
+      }),
+      rate({
+        id: 'adyar',
+        district: 'Mangalore',
+        village: 'Adyar',
+        property_class: 'agricultural',
+        unit: 'acre',
+      }),
+    ];
+    const matches = rankMatches(adduru, rates);
+    expect(matches.map((m) => m.rate.id)).toEqual(['addur']);
+    expect(matches[0].reasons).toContain('Survey no. 6/32 is listed');
   });
 });

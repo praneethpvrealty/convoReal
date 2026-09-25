@@ -57,12 +57,17 @@ export interface Boundaries {
   south?: string;
 }
 
+export const SCHEDULE_DOCUMENTS = ['sale_deed', 'rtc'] as const;
+export type ScheduleDocument = (typeof SCHEDULE_DOCUMENTS)[number];
+
 export interface PropertySchedule {
+  document_type?: ScheduleDocument;
   state?: string;
   district?: string;
   taluk?: string;
   hobli?: string;
   village?: string;
+  village_local?: string;
   city?: string;
   locality?: string;
   road?: string;
@@ -71,6 +76,7 @@ export interface PropertySchedule {
   pid?: string;
   survey_number?: string;
   khata_number?: string;
+  extent_printed?: string;
   kind?: ScheduleKind;
   usage?: ScheduleUsage;
   land_area?: Area;

@@ -19,6 +19,10 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Guidance value from an RTC.** Upload a Karnataka RTC (Pahani) on web or
+  mobile and its taluk, hobli, village, survey/hissa and extent are read; the
+  Kannada village and the extent are shown as printed, and village names match
+  the notification's spelling (Adduru finds Addur, never Adyar).
 - **Showcase "Search near" now looks 5 km around the place, down from
   10 km.** In central Bengaluru 10 km covered most of a brokerage's
   catalog, so "near Basavanagudi" listed around a hundred homes. The

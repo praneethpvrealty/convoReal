@@ -93,6 +93,16 @@ export function rateHeadline(
   return `${formatRupees(rate.rate)} / ${unit} · ${CLASS_LABELS[rate.property_class]}`;
 }
 
+export function schedulePrinted(schedule: PropertySchedule): string | null {
+  const parts = [
+    schedule.village_local ? `Village ${schedule.village_local}` : null,
+    schedule.extent_printed ? `extent ${schedule.extent_printed}` : null,
+  ].filter(Boolean);
+  if (!parts.length) return null;
+  const source = schedule.document_type === 'rtc' ? 'the RTC' : 'the document';
+  return `As printed on ${source}: ${parts.join(' · ')}`;
+}
+
 export interface ScheduleDraft {
   locality: string;
   road: string;

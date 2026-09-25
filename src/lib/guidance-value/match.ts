@@ -78,10 +78,24 @@ function isNameToken(token: string): boolean {
   return !/^\d+[a-z]?$/.test(token) && !QUALIFIERS.includes(token);
 }
 
+export function spellingKey(token: string): string {
+  if (/\d/.test(token)) return token;
+  const key = token
+    .replace(/([bcdgjkpt])h/g, '$1')
+    .replace(/sh/g, 's')
+    .replace(/w/g, 'v')
+    .replace(/ee/g, 'i')
+    .replace(/oo|ou/g, 'u')
+    .replace(/(.)\1+/g, '$1');
+  return key.length > 3 ? key.replace(/[aeiu]$/, '') : key;
+}
+
 function overlap(needle: string[], haystack: string[]): number {
   if (needle.length === 0) return 0;
-  const set = new Set(haystack);
-  return needle.filter((token) => set.has(token)).length / needle.length;
+  const set = new Set(haystack.map(spellingKey));
+  return (
+    needle.filter((token) => set.has(spellingKey(token))).length / needle.length
+  );
 }
 
 function conflicts(a: Map<string, string>, b: Map<string, string>): boolean {

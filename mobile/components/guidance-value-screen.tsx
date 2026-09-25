@@ -21,6 +21,7 @@ import {
   readSchedule,
   saveGuidanceValue,
   scheduleFromDraft,
+  schedulePrinted,
   type LookupResult,
   type PropertySchedule,
   type ScheduleDraft,
@@ -147,7 +148,7 @@ export function GuidanceValueScreen({
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
       <Text style={muted}>
-        Upload the schedule of a Karnataka sale deed (PDF or photo, under 4 MB). We read the
+        Upload the schedule of a Karnataka sale deed or an RTC (PDF or photo, under 4 MB). We read the
         location and extent and match it to the published guidance value notification.
         {creditCost ? ` Reading it costs ${creditCost} credits.` : ''}
       </Text>
@@ -193,6 +194,7 @@ export function GuidanceValueScreen({
         <View style={{ gap: spacing.md }}>
           <SectionLabel text="Property schedule" />
           {base?.summary ? <Text style={muted}>{base.summary}</Text> : null}
+          {base && schedulePrinted(base) ? <Text style={muted}>{schedulePrinted(base)}</Text> : null}
           <TextField label="Area / layout / block" value={draft.locality} onChangeText={(v) => set('locality', v)} />
           <TextField label="Road / street" value={draft.road} onChangeText={(v) => set('road', v)} />
           <TextField label="Village" value={draft.village} onChangeText={(v) => set('village', v)} />

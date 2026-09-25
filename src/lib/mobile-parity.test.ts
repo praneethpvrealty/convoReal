@@ -186,6 +186,7 @@ import {
 import { JOURNEY_LIFECYCLE_STATUSES } from '@/lib/journey/overview-state';
 import { CONVERSATION_CLOSE_REASONS } from '@/lib/conversations/closure';
 import { LANGUAGE_CODES, SUPPORTED_LANGUAGES } from '@/lib/languages';
+import { schedulePrinted } from '@/lib/guidance-value/present';
 
 /** Every .ts/.tsx file under `<root>/<dir>`, recursively. */
 function modulePathsUnder(root: string, dir: string, out: string[] = []) {
@@ -3369,5 +3370,30 @@ describe('[EKH-002] the e-Khata proposal is built by one rule on both surfaces',
       );
     }
     expect(mobile.E_KHATA_MAX_BYTES).toBe(EKhataWeb.E_KHATA_MAX_BYTES);
+  });
+});
+
+describe('mobile/lib/guidance-value.ts mirrors the web RTC print line', () => {
+  const mobile = mobileModule<{ schedulePrinted: typeof schedulePrinted }>(
+    'lib/guidance-value.ts',
+    {
+      './api':
+        'export class ApiError extends Error {}\nexport async function apiFetch() {}',
+    }
+  );
+
+  it('[GVL-013] shows the Kannada village and printed extent the same way', () => {
+    for (const schedule of [
+      {
+        document_type: 'rtc' as const,
+        village: 'Adduru',
+        village_local: 'ಅಡ್ಡೂರು',
+        extent_printed: '0.16.25.00',
+      },
+      { document_type: 'sale_deed' as const, extent_printed: '2.10.00' },
+      { village: 'Koramangala' },
+    ]) {
+      expect(mobile.schedulePrinted(schedule)).toBe(schedulePrinted(schedule));
+    }
   });
 });

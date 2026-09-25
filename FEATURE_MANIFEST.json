@@ -2074,6 +2074,24 @@
           ]
         },
         {
+          "id": "GVL-013",
+          "rule": "The schedule reader also reads a Karnataka RTC (Pahani): it records document_type 'rtc', drops the village code, transliterates Kannada names letter by letter without substituting a similar-sounding place, keeps the village as printed in village_local and the extent as printed in extent_printed, joins survey and hissa as the survey number, and fills land_area only when the extent's column units are certain, otherwise leaving it for the user to enter. Web and mobile show the as-printed village and extent under the summary with the same wording. Rate ranking compares place names by a spelling key that ignores doubled letters, aspirated consonants, long-vowel spellings and a trailing vowel, so Adduru matches a notification's Addur but not Adyar.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/match.test.ts",
+              "case": "[GVL-013]"
+            },
+            {
+              "file": "src/lib/guidance-value/parse.test.ts",
+              "case": "[GVL-013]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[GVL-013]"
+            }
+          ]
+        },
+        {
           "id": "GVL-011",
           "rule": "Rate parsing asks Gemini for compact output: rates are grouped under their district, taluk, hobli and village headings written once per group, and each table line is one array carrying locality, road, survey numbers, unit, page and a map of short class codes to rates. Headings are copied only as printed, never inferred from a recognised place name, and construction-cost, floor-rise, parking, ready-reckoner, example and general-guideline tables are skipped. The parser expands each code into its own stored rate, carries group headings into the next group that omits them, drops rows (and heading carry) from a non-rate table the model returns anyway, drops context-page rows, and still reads the older one-object-per-rate format.",
           "tests": [
