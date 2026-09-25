@@ -21,6 +21,7 @@ import {
   rateInstructions,
   rateParseTier,
   sanitiseRateRows,
+  openPdf,
   slicePdf,
 } from './rate-parse';
 import { GUIDANCE_SOURCE_BUCKET } from './server';
@@ -174,6 +175,15 @@ export function readBatchOperation(op: unknown): BatchStatus {
 
 const HEADING_KEYS = ['district', 'taluk', 'hobli', 'village'] as const;
 
+function sameHeading(a?: string, b?: string): boolean {
+  const norm = (value?: string) =>
+    (value ?? '')
+      .toLowerCase()
+      .replace(/\b(taluk|taluka|district|dist)\b\.?/g, '')
+      .replace(/[^a-z0-9]/g, '');
+  return norm(a) === norm(b);
+}
+
 export function assembleSourceRows(
   pagesParsed: number,
   chunks: Array<{ chunk: BatchChunk; rows: ParsedRateRow[] | null }>
@@ -203,6 +213,11 @@ export function assembleSourceRows(
       if (!ownHeadings) {
         for (const key of HEADING_KEYS) {
           if (!out[key] && last[key]) out[key] = last[key];
+        }
+      } else if (!out.district || sameHeading(out.district, last.district)) {
+        if (!out.taluk && last.taluk) out.taluk = last.taluk;
+        if (!out.hobli && last.hobli && sameHeading(out.taluk, last.taluk)) {
+          out.hobli = last.hobli;
         }
       }
       for (const key of HEADING_KEYS) last[key] = out[key];
@@ -270,10 +285,9 @@ async function prepareSource(
     };
   }
   const buffer = new Uint8Array(await file.arrayBuffer());
+  const pdf = await openPdf(buffer);
   const pageCount =
-    source.page_count ??
-    (await slicePdf(buffer, 1, 1))?.pageCount ??
-    countPdfPages(buffer);
+    source.page_count ?? pdf?.getPageCount() ?? countPdfPages(buffer);
   if (!pageCount) {
     return {
       code: 'PAGE_COUNT_UNKNOWN',
@@ -289,7 +303,7 @@ async function prepareSource(
     bytes: 0,
   };
   for (const { from, to } of planChunks(pageCount, source.pages_parsed)) {
-    const slice = await slicePdf(buffer, from, to);
+    const slice = pdf ? await slicePdf(pdf, from, to) : null;
     const bytes = slice?.bytes ?? buffer;
     const size = Math.ceil((bytes.byteLength * 4) / 3) + 8_000;
     if (prepared.bytes + size > room && prepared.requests.length) break;
