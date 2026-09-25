@@ -49,6 +49,16 @@ export function isTeaserGated(p: VisibilityFields): boolean {
   return effectiveShowcaseVisibility(p) === 'teaser';
 }
 
+/** An unpublished listing is a draft: a direct link opens it only when
+ *  it carries a live share grant minted for that listing. A link
+ *  preview never carries one, so previews treat it as absent. */
+export function opensByDirectLink(
+  p: { is_published?: boolean | null },
+  hasGrant: boolean
+): boolean {
+  return p.is_published === true || hasGrant;
+}
+
 /**
  * Everything a stranger holding a teaser-gated URL may receive. Enough
  * to know whether the listing is worth asking about, not enough to

@@ -1103,6 +1103,16 @@
               "case": "[PRP-016]"
             }
           ]
+        },
+        {
+          "id": "PRP-017",
+          "rule": "An unpublished (draft) listing never opens from a public link: the showcase ?property_id= link falls back to the showcase, /property/<slug> returns 404 before any redirect can reveal its canonical slug, and its link preview and preview image are withheld. The one exception is a link carrying a live share grant minted for that listing.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/showcase-visibility.test.ts",
+              "case": "[PRP-017]"
+            }
+          ]
         }
       ]
     },

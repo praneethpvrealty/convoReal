@@ -24,6 +24,7 @@ import {
 } from '@/lib/inventory/location-guard';
 import {
   isTeaserGated,
+  opensByDirectLink,
   priceBand,
   teaserTitle,
 } from '@/lib/inventory/showcase-visibility';
@@ -55,6 +56,12 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const property = await resolveProperty(params);
   if (!property) return { title: `Properties | ${BRANDING.name}` };
+  if (!opensByDirectLink(property, false)) {
+    return {
+      title: `Properties | ${BRANDING.name}`,
+      robots: { index: false, follow: false },
+    };
+  }
 
   // Metadata is gated without consulting ?g=: this is what a messaging
   // app unfurls when the link is FORWARDED, and an unfurl carries no
@@ -127,6 +134,19 @@ export default async function PropertyPage({
   ]);
   if (!property) notFound();
 
+  // Share grant (?g=), resolved against this listing so a token lifted
+  // from another share cannot widen it. Uncached: revocation has to bite
+  // on the next open.
+  const shareGrant = resolvedParams.g
+    ? await resolveShareGrant(
+        supabaseAdmin(),
+        resolvedParams.g,
+        property.id,
+        property.account_id
+      )
+    : null;
+  if (!opensByDirectLink(property, shareGrant !== null)) notFound();
+
   // Stale slugs (title edits, bare uuid/code links) 308 to the canonical
   // form so crawlers converge on one URL per listing.
   const canonicalSlug = propertySlug(property);
@@ -152,17 +172,6 @@ export default async function PropertyPage({
     ...catalogue,
     ...underContract.filter((p) => p.id !== property.id),
   ];
-  // Share grant (?g=), resolved against this listing so a token lifted
-  // from another share cannot widen it. Uncached: revocation has to bite
-  // on the next open.
-  const shareGrant = resolvedParams.g
-    ? await resolveShareGrant(
-        supabaseAdmin(),
-        resolvedParams.g,
-        property.id,
-        property.account_id
-      )
-    : null;
   if (shareGrant) {
     await trackGrantView(supabaseAdmin(), shareGrant);
   }
