@@ -30,14 +30,6 @@ export function publicDistanceKm(km: number): number {
   return Math.max(0.5, Math.round(km * 2) / 2);
 }
 
-export function placeLabel(
-  formattedAddress: string | null,
-  fallback: string
-): string {
-  const first = formattedAddress?.split(',')[0]?.trim();
-  return first || fallback.trim();
-}
-
 export function dominantCity(
   rows: Array<{ city?: string | null }>
 ): string | null {

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   dominantCity,
   geocodeQuery,
-  placeLabel,
   publicDistanceKm,
   rankNearbyListings,
   type NearbyCandidate,
@@ -97,12 +96,5 @@ describe('showcase nearby search', () => {
       'Basavanagudi, Bengaluru'
     );
     expect(geocodeQuery('basavan', null)).toBe('basavan');
-  });
-
-  it('labels the searched place by its first address part', () => {
-    expect(
-      placeLabel('Basavanagudi, Bengaluru, Karnataka, India', 'basavan')
-    ).toBe('Basavanagudi');
-    expect(placeLabel(null, ' basavan ')).toBe('basavan');
   });
 });

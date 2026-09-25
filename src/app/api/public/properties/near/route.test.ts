@@ -1,13 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { selectCalls, rows, geocodeAddress, hasGoogleMapsKey } = vi.hoisted(
-  () => ({
-    selectCalls: [] as Array<[string, unknown]>,
-    rows: { data: [] as unknown[] },
-    geocodeAddress: vi.fn(),
-    hasGoogleMapsKey: vi.fn(() => true),
-  })
-);
+const {
+  selectCalls,
+  rows,
+  placesAutocomplete,
+  placeDetails,
+  hasGoogleMapsKey,
+} = vi.hoisted(() => ({
+  selectCalls: [] as Array<[string, unknown]>,
+  rows: { data: [] as unknown[] },
+  placesAutocomplete: vi.fn(),
+  placeDetails: vi.fn(),
+  hasGoogleMapsKey: vi.fn(() => true),
+}));
 
 vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
@@ -28,7 +33,8 @@ vi.mock('@/lib/supabase/admin', () => ({
 }));
 
 vi.mock('@/lib/maps/google-places', () => ({
-  geocodeAddress,
+  placesAutocomplete,
+  placeDetails,
   hasGoogleMapsKey,
 }));
 
@@ -52,7 +58,8 @@ function req(q: string, opts: { account?: string; ip?: string } = {}) {
 beforeEach(() => {
   __resetRateLimitForTests();
   selectCalls.length = 0;
-  geocodeAddress.mockReset();
+  placesAutocomplete.mockReset();
+  placeDetails.mockReset();
   hasGoogleMapsKey.mockReturnValue(true);
   rows.data = [
     {
@@ -73,19 +80,35 @@ beforeEach(() => {
 });
 
 describe('GET /api/public/properties/near', () => {
-  it('[PRP-013] geocodes an unlisted area in the inventory city and returns nearby listings without coordinates', async () => {
-    geocodeAddress.mockResolvedValue({
+  it('[PRP-013] resolves a partial area name in the inventory city and returns nearby listings without coordinates', async () => {
+    placesAutocomplete.mockResolvedValue([
+      {
+        place_id: 'basavanagudi',
+        main_text: 'Basavanagudi',
+        secondary_text: 'Bengaluru, Karnataka, India',
+      },
+    ]);
+    placeDetails.mockResolvedValue({
+      place_id: 'basavanagudi',
+      name: 'Basavanagudi',
+      formatted_address: 'Basavanagudi, Bengaluru, Karnataka, India',
       latitude: 12.9416,
       longitude: 77.5738,
-      place_id: 'basavanagudi',
-      formatted_address: 'Basavanagudi, Bengaluru, Karnataka, India',
+      sublocality: 'Basavanagudi',
+      city: 'Bengaluru',
+      state: 'Karnataka',
     });
 
     const res = await GET(req('basavan'));
     expect(res.status).toBe(200);
     const body = await res.json();
 
-    expect(geocodeAddress).toHaveBeenCalledWith('basavan, Bengaluru');
+    expect(placesAutocomplete).toHaveBeenCalledWith(
+      'basavan, Bengaluru',
+      expect.any(String)
+    );
+    const session = placesAutocomplete.mock.calls[0][1];
+    expect(placeDetails).toHaveBeenCalledWith('basavanagudi', session);
     expect(body).toEqual({
       data: {
         label: 'Basavanagudi',
@@ -100,17 +123,27 @@ describe('GET /api/public/properties/near', () => {
     ]);
   });
 
-  it('reuses a cached geocode for a repeated search', async () => {
-    geocodeAddress.mockResolvedValue(null);
+  it('reuses a cached place for a repeated search', async () => {
+    placesAutocomplete.mockResolvedValue([]);
     await GET(req('cached place'));
     await GET(req('Cached Place'));
-    expect(geocodeAddress).toHaveBeenCalledTimes(1);
+    expect(placesAutocomplete).toHaveBeenCalledTimes(1);
+    expect(placeDetails).not.toHaveBeenCalled();
+  });
+
+  it('falls back to named-area matches when Places cannot resolve the text', async () => {
+    placesAutocomplete.mockRejectedValue(new Error('quota'));
+    const res = await GET(req('Jayanagar 9th'));
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      data: { label: 'Jayanagar 9th', results: [] },
+    });
   });
 
   it('falls back to named-area matches when Maps is not configured', async () => {
     hasGoogleMapsKey.mockReturnValue(false);
     const res = await GET(req('Jayanagar'));
-    expect(geocodeAddress).not.toHaveBeenCalled();
+    expect(placesAutocomplete).not.toHaveBeenCalled();
     await expect(res.json()).resolves.toEqual({
       data: {
         label: 'Jayanagar',
@@ -122,11 +155,11 @@ describe('GET /api/public/properties/near', () => {
   it('rejects a malformed account or a too-short query before spending anything', async () => {
     expect((await GET(req('basavan', { account: 'nope' }))).status).toBe(400);
     expect((await GET(req('ba'))).status).toBe(400);
-    expect(geocodeAddress).not.toHaveBeenCalled();
+    expect(placesAutocomplete).not.toHaveBeenCalled();
   });
 
   it('429s one visitor past the per-IP budget', async () => {
-    geocodeAddress.mockResolvedValue(null);
+    placesAutocomplete.mockResolvedValue([]);
     for (let i = 0; i < RATE_LIMITS.publicNearSearch.limit; i++) {
       expect(
         (await GET(req('rate limited', { ip: '203.0.113.9' }))).status
