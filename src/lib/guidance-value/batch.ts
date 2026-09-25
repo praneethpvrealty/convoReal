@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { logAiCall } from '@/lib/ai/call-log';
@@ -30,6 +32,8 @@ export const BATCH_FEATURE = 'guidance_value_source_batch';
 export const BATCH_MAX_BYTES = 15 * 1024 * 1024;
 export const BATCH_BUILD_BUDGET_MS = 200_000;
 const APPLYING_STALE_MS = 15 * 60_000;
+const UNSUBMITTED_PREFIX = 'unsubmitted:';
+const UNSUBMITTED_STALE_MS = 30 * 60_000;
 
 export interface BatchChunk {
   source_id: string;
@@ -194,7 +198,7 @@ export function assembleSourceRows(
     else contiguous = false;
     let ownHeadings = false;
     for (const row of chunkRows) {
-      if (row.village || row.hobli) ownHeadings = true;
+      if (HEADING_KEYS.some((key) => row[key])) ownHeadings = true;
       const out = { ...row };
       if (!ownHeadings) {
         for (const key of HEADING_KEYS) {
@@ -215,6 +219,11 @@ interface SourceForBatch {
   pages_parsed: number;
 }
 
+interface SkippedSource {
+  code: 'SOURCE_NOT_STORED' | 'PAGE_COUNT_UNKNOWN';
+  error: string;
+}
+
 interface PreparedSource {
   source: SourceForBatch;
   pageCount: number;
@@ -227,12 +236,15 @@ async function prepareSource(
   db: SupabaseClient,
   source: SourceForBatch,
   room: number
-): Promise<PreparedSource | { error: string }> {
+): Promise<PreparedSource | SkippedSource> {
   const { data: file, error } = await db.storage
     .from(GUIDANCE_SOURCE_BUCKET)
     .download(source.storage_path);
   if (error || !file) {
-    return { error: 'The stored PDF could not be read. Upload it again.' };
+    return {
+      code: 'SOURCE_NOT_STORED',
+      error: 'The stored PDF could not be read. Upload it again.',
+    };
   }
   const buffer = new Uint8Array(await file.arrayBuffer());
   const pageCount =
@@ -241,6 +253,7 @@ async function prepareSource(
     countPdfPages(buffer);
   if (!pageCount) {
     return {
+      code: 'PAGE_COUNT_UNKNOWN',
       error:
         'Could not tell how many pages this PDF has. Enter the page count.',
     };
@@ -313,7 +326,7 @@ export interface QueueResult {
   sources: number;
   requests: number;
   remaining: number;
-  skipped: Array<{ source_id: string; error: string }>;
+  skipped: Array<{ source_id: string } & SkippedSource>;
 }
 
 export async function queueGuidanceBatches(
@@ -343,26 +356,28 @@ export async function queueGuidanceBatches(
 
   const flush = async () => {
     if (!pending.length) return;
-    const requests = pending.flatMap((p) => p.requests);
-    const chunks = pending.flatMap((p) => p.chunks);
-    const remote = await createRemoteBatch(requests);
+    const batching = pending;
+    pending = [];
+    pendingBytes = 0;
     const { data: batch, error: insertError } = await db
       .from('guidance_value_batches')
       .insert({
-        gemini_name: remote.name,
-        key_id: remote.key.id,
-        key_label: remote.key.label,
-        model: remote.model,
-        chunks,
-        request_count: requests.length,
+        gemini_name: `${UNSUBMITTED_PREFIX}${randomUUID()}`,
+        key_label: '',
+        model: '',
+        chunks: [],
+        request_count: 0,
       })
       .select('id')
       .single<{ id: string }>();
     if (insertError || !batch) {
       throw new Error(insertError?.message ?? 'Could not record the batch.');
     }
-    for (const prepared of pending) {
-      const { error: updateError } = await db
+    const discard = () =>
+      db.from('guidance_value_batches').delete().eq('id', batch.id);
+    const claimed: PreparedSource[] = [];
+    for (const prepared of batching) {
+      const { data: won, error: claimError } = await db
         .from('guidance_value_sources')
         .update({
           batch_id: batch.id,
@@ -371,14 +386,43 @@ export async function queueGuidanceBatches(
           page_count: prepared.pageCount,
         })
         .eq('id', prepared.source.id)
+        .is('batch_id', null)
         .select('id');
-      if (updateError) throw new Error(updateError.message);
+      if (claimError) {
+        await discard();
+        throw new Error(claimError.message);
+      }
+      if (won?.length) claimed.push(prepared);
     }
+    if (!claimed.length) {
+      await discard();
+      return;
+    }
+    const requests = claimed.flatMap((p) => p.requests);
+    const chunks = claimed.flatMap((p) => p.chunks);
+    let remote: Awaited<ReturnType<typeof createRemoteBatch>>;
+    try {
+      remote = await createRemoteBatch(requests);
+    } catch (err) {
+      await discard();
+      throw err;
+    }
+    const { error: recordError } = await db
+      .from('guidance_value_batches')
+      .update({
+        gemini_name: remote.name,
+        key_id: remote.key.id,
+        key_label: remote.key.label,
+        model: remote.model,
+        chunks,
+        request_count: requests.length,
+      })
+      .eq('id', batch.id)
+      .select('id');
+    if (recordError) throw new Error(recordError.message);
     result.batches += 1;
-    result.sources += pending.length;
+    result.sources += claimed.length;
     result.requests += requests.length;
-    pending = [];
-    pendingBytes = 0;
   };
 
   while (queue.length) {
@@ -395,7 +439,11 @@ export async function queueGuidanceBatches(
         .update({ status: 'failed', error: prepared.error })
         .eq('id', source.id)
         .select('id');
-      result.skipped.push({ source_id: source.id, error: prepared.error });
+      result.skipped.push({
+        source_id: source.id,
+        code: prepared.code,
+        error: prepared.error,
+      });
       continue;
     }
     if (!prepared.requests.length) continue;
@@ -597,6 +645,16 @@ export async function pollGuidanceBatches(
   const result: PollResult = { checked: 0, applied: 0, failed: 0, running: 0 };
 
   for (const row of (data ?? []) as BatchRow[]) {
+    if (row.gemini_name.startsWith(UNSUBMITTED_PREFIX)) {
+      if (now() - new Date(row.updated_at).getTime() > UNSUBMITTED_STALE_MS) {
+        await db
+          .from('guidance_value_batches')
+          .delete()
+          .eq('id', row.id)
+          .eq('gemini_name', row.gemini_name);
+      }
+      continue;
+    }
     if (
       row.state === 'applying' &&
       now() - new Date(row.updated_at).getTime() < APPLYING_STALE_MS

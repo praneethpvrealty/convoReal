@@ -299,6 +299,7 @@ async function processRow(settings, row) {
   try {
     let sourceId = row.source_id || (await uploadRow(settings, row));
     if (settings.batchMode) {
+      row.source_id = sourceId;
       setRow(row, 'uploaded', 'Queued for the half-price batch');
       return;
     }
@@ -350,8 +351,8 @@ async function processRow(settings, row) {
   }
 }
 
-async function queueBatches(settings, total) {
-  const sent = { batches: 0, sources: 0, requests: 0 };
+async function queueAll(settings, sent) {
+  const skipped = [];
   for (;;) {
     status(
       `Queuing half-price Gemini batches… ${sent.sources} notifications so far`
@@ -363,7 +364,47 @@ async function queueBatches(settings, total) {
     sent.batches += data.batches;
     sent.sources += data.sources;
     sent.requests += data.requests;
+    skipped.push(...(data.skipped || []));
     if (!data.remaining || !data.sources) break;
+  }
+  return skipped;
+}
+
+async function reuploadSkipped(settings, rows, skipped) {
+  let reuploaded = 0;
+  for (const entry of skipped) {
+    const row = rows.find((r) => r.source_id === entry.source_id);
+    if (!row) continue;
+    if (entry.code !== 'SOURCE_NOT_STORED') {
+      setRow(row, 'failed', entry.error);
+      continue;
+    }
+    try {
+      setRow(row, 'uploading again', 'The last upload was interrupted');
+      await api(settings, `/api/admin/guidance-values/sources/${row.source_id}`, {
+        method: 'DELETE',
+      });
+      row.source_id = await uploadRow(settings, row);
+      setRow(row, 'uploaded', 'Queued for the half-price batch');
+      reuploaded += 1;
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) throw err;
+      setRow(row, 'failed', err.message || String(err));
+    }
+  }
+  return reuploaded;
+}
+
+async function queueBatches(settings, rows) {
+  const total = rows.length;
+  const sent = { batches: 0, sources: 0, requests: 0 };
+  const skipped = await queueAll(settings, sent);
+  if (await reuploadSkipped(settings, rows, skipped)) {
+    const again = await queueAll(settings, sent);
+    for (const entry of again) {
+      const row = rows.find((r) => r.source_id === entry.source_id);
+      if (row) setRow(row, 'failed', entry.error);
+    }
   }
   status(
     sent.sources
@@ -435,7 +476,7 @@ async function run() {
     await Promise.all(workers);
 
     if (settings.batchMode && !stopped) {
-      await queueBatches(settings, rows.length);
+      await queueBatches(settings, rows);
       return;
     }
 
