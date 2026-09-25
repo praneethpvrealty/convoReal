@@ -12,6 +12,7 @@
 // ============================================================
 
 import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
+import { sanitizeAreaList } from '@/lib/contacts/area-fragments';
 
 /**
  * The portal is a web form, not a Meta CheckboxGroup, so it is not
@@ -80,7 +81,7 @@ export function parseBuyerPreferenceBody(
   if (minRoi !== undefined) update.min_roi = minRoi;
 
   const areas = parseStringArray(raw.areas_of_interest);
-  if (areas !== undefined) update.areas_of_interest = areas;
+  if (areas !== undefined) update.areas_of_interest = sanitizeAreaList(areas);
 
   const interests = parseStringArray(
     raw.property_interests,

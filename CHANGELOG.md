@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Address fragments are no longer saved as a buyer's area.** Contacts
+  were filed under "#365", "#650", "Block", "Sector", "24th Main" and
+  survey numbers, and the bot read them back ("listings near #365"). A
+  portal lead email took the first comma segment of the listing address
+  — the door number — as the area; it now takes the first segment that
+  is a locality. Areas from AI requirement extraction, the contacts API,
+  the public requirements form and the buyer portal pass the same check:
+  door, survey and plot numbers, bare numbers and a lone block, sector,
+  phase or numbered main/cross road are dropped, a list pasted as one
+  entry is split, and repeats are kept once.
+
 - **Showcase "Search near" now looks 5 km around the place, down from
   10 km.** In central Bengaluru 10 km covered most of a brokerage's
   catalog, so "near Basavanagudi" listed around a hundred homes. The
