@@ -15,7 +15,6 @@ import {
   pageTexts,
   planSkippedPages,
   printedAreaUnit,
-  settleUnits,
   skippedRunEnd,
 } from './page-filter';
 import {
@@ -332,6 +331,7 @@ export async function parseNextSourceChunk(
       fromPage,
       toPage,
       headings,
+      unit: printedAreaUnit(texts),
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       const outage = classifyAiOutage(message);
@@ -358,7 +358,7 @@ export async function parseNextSourceChunk(
       const { error: insertError } = await db
         .from('guidance_value_rates')
         .insert(
-          settleUnits(rows, printedAreaUnit(texts)).map((row) => ({
+          rows.map((row) => ({
             ...row,
             source_id: source.id,
             district: rateDistrict(row.district, source.district),

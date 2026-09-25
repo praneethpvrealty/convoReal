@@ -20,7 +20,6 @@ import {
   pageTexts,
   planSkippedPages,
   printedAreaUnit,
-  settleUnits,
   skippedRunEnd,
 } from './page-filter';
 import {
@@ -34,7 +33,7 @@ import {
   RATE_MAX_OUTPUT_TOKENS,
 } from './rate-parse';
 import { GUIDANCE_SOURCE_BUCKET } from './server';
-import type { AreaUnit, ParsedRateRow } from './types';
+import type { ParsedRateRow } from './types';
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -54,7 +53,6 @@ export interface BatchChunk {
   to_page: number;
   context_page: number | null;
   skipped?: boolean;
-  unit?: AreaUnit | null;
 }
 
 export interface BatchChunkResult {
@@ -380,11 +378,10 @@ async function prepareSource(
       from_page: from,
       to_page: to,
       context_page: slice && slice.firstPage < from ? slice.firstPage : null,
-      unit,
     };
     prepared.chunks.push(chunk);
     prepared.requests.push(
-      batchRequest(bytes, rateInstructions(from, to, slice), chunk)
+      batchRequest(bytes, rateInstructions(from, to, slice, null, unit), chunk)
     );
     prepared.bytes += size;
   }
@@ -692,15 +689,12 @@ async function applyResults(
     let rows: ParsedRateRow[] | null = null;
     if (result?.text) {
       try {
-        rows = settleUnits(
-          sanitiseRateRows(
-            parseJsonResponse(result.text),
-            chunk.from_page,
-            chunk.to_page,
-            chunk.context_page
-          ).rows,
-          chunk.unit
-        );
+        rows = sanitiseRateRows(
+          parseJsonResponse(result.text),
+          chunk.from_page,
+          chunk.to_page,
+          chunk.context_page
+        ).rows;
       } catch {
         rows = null;
       }

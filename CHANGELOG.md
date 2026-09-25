@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Guidance value units come from the notification's header, as a hint.**
+  The unit correction added below relabelled stored rates whenever a
+  notification's text mentioned only one of sq m / sq ft, but such a
+  mention is often a project's measured area, a site-size category or the
+  carpet-area note, and some rates stored as sq ft are really per acre. It
+  no longer changes rates: a unit stated in a rate header ("per Sq.Mtr") is
+  now passed to Gemini as the default for tables that print none.
+
 - **Guidance values say which land class an agricultural rate is for, and
   site rates keep the notification's own unit.** An agricultural village
   row carries four figures (dry, wet, garden, plantation) that were all

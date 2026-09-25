@@ -63,6 +63,15 @@ describe('rateInstructions', () => {
     expect(text).toContain('Page 6 is included only');
     expect(text).toContain('village "Malleshwaram"');
   });
+
+  it('[GVL-020] tells Gemini the unit the notification header states', () => {
+    expect(rateInstructions(7, 8, null, null, 'sqm')).toContain(
+      'rate header states rates per square metre ("sqm")'
+    );
+    expect(rateInstructions(7, 8, null, null, null)).not.toContain(
+      'rate header states'
+    );
+  });
 });
 
 describe('sanitiseRateRows', () => {
