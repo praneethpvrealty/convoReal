@@ -86,3 +86,11 @@ export function appendListingStatusNote(
   if (!entry) return text;
   return `${text}\n\nPlease note: this property is ${entry.phrase}. Our team will check the latest status with the owner and update you here.`;
 }
+
+export function listingStatusAgentLine(
+  status: string | null | undefined
+): string | null {
+  const notice = listingAvailabilityNotice(status);
+  if (!notice) return null;
+  return `⚠️ Listing is marked "${notice.status}" — confirm the latest status with the owner before promising a visit.`;
+}

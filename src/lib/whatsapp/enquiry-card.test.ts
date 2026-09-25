@@ -385,6 +385,13 @@ describe('the webhook wires the card up', () => {
     expect(source).toContain('enquiryPropertyStatus = matchedProperty.status');
   });
 
+  it('[PRP-014] never promises a visit or owner call for an unavailable listing', () => {
+    expect(source).toContain(
+      'statusAgentLine ? {} : { visitRequested, ownerContactRequested }'
+    );
+    expect(source).toContain('...(statusAgentLine ? [statusAgentLine] : [])');
+  });
+
   it('confirms each tap back to the agent, like the location card does', () => {
     expect(source).toContain('✅ Approved — complete details for');
     expect(source).toContain('was asked to reach your team directly');

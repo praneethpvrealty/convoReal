@@ -6,6 +6,7 @@ import {
   listingAvailabilityNotice,
   listingStatusInquiryLine,
   appendListingStatusNote,
+  listingStatusAgentLine,
 } from './listing-status';
 import { PROPERTY_STATUSES } from './property-options';
 
@@ -86,5 +87,12 @@ describe('appendListingStatusNote', () => {
     expect(text.startsWith('Thanks!\n\nPlease note:')).toBe(true);
     expect(text).toMatch(/under contract/);
     expect(text).toMatch(/latest status with the owner/);
+  });
+});
+
+describe('listingStatusAgentLine', () => {
+  it('[PRP-014] warns the agent before a visit is promised on an unavailable listing', () => {
+    expect(listingStatusAgentLine('Available')).toBeNull();
+    expect(listingStatusAgentLine('Sold')).toContain('marked "Sold"');
   });
 });
