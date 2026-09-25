@@ -50,6 +50,13 @@ export const USAGE_OPTIONS: { value: ScheduleUsage; label: string }[] = [
   { value: 'agricultural', label: 'Agricultural' },
 ];
 
+const LAND_LABELS: Record<NonNullable<GuidanceRate['land_class']>, string> = {
+  dry: 'Dry land',
+  wet: 'Wet land',
+  garden: 'Garden land',
+  plantation: 'Plantation',
+};
+
 const CLASS_LABELS: Record<GuidanceRate['property_class'], string> = {
   residential_site: 'Residential site',
   residential_apartment: 'Residential apartment',
@@ -87,10 +94,12 @@ export function rateLocation(
 }
 
 export function rateHeadline(
-  rate: Pick<GuidanceRate, 'rate' | 'unit' | 'property_class'>
+  rate: Pick<GuidanceRate, 'rate' | 'unit' | 'property_class' | 'land_class'>
 ): string {
-  const unit = AREA_UNIT_OPTIONS.find((u) => u.value === rate.unit)?.label ?? rate.unit;
-  return `${formatRupees(rate.rate)} / ${unit} · ${CLASS_LABELS[rate.property_class]}`;
+  const unit =
+    AREA_UNIT_OPTIONS.find((u) => u.value === rate.unit)?.label ?? rate.unit;
+  const land = rate.land_class ? ` · ${LAND_LABELS[rate.land_class]}` : '';
+  return `${formatRupees(rate.rate)} / ${unit} · ${CLASS_LABELS[rate.property_class]}${land}`;
 }
 
 export function schedulePrinted(schedule: PropertySchedule): string | null {
@@ -128,7 +137,9 @@ export function draftFromSchedule(schedule: PropertySchedule): ScheduleDraft {
     usage: schedule.usage ?? '',
     land_value: schedule.land_area ? String(schedule.land_area.value) : '',
     land_unit: schedule.land_area?.unit ?? 'sqft',
-    built_value: schedule.built_up_area ? String(schedule.built_up_area.value) : '',
+    built_value: schedule.built_up_area
+      ? String(schedule.built_up_area.value)
+      : '',
     built_unit: schedule.built_up_area?.unit ?? 'sqft',
   };
 }

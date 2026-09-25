@@ -11,7 +11,13 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 import { rateDistrict } from './districts';
-import { pageTexts, planSkippedPages, skippedRunEnd } from './page-filter';
+import {
+  pageTexts,
+  planSkippedPages,
+  printedAreaUnit,
+  settleUnits,
+  skippedRunEnd,
+} from './page-filter';
 import {
   districtPattern,
   desiredClass,
@@ -33,6 +39,7 @@ import type {
   PropertyClass,
   PropertySchedule,
   AreaUnit,
+  LandClass,
   ValuationOptions,
 } from './types';
 
@@ -115,6 +122,7 @@ interface RateRow {
   road: string | null;
   survey_numbers: string | null;
   property_class: string;
+  land_class?: string | null;
   rate: number | string;
   unit: string;
   page: number | null;
@@ -135,6 +143,7 @@ function toRate(row: RateRow): GuidanceRate {
     road: row.road,
     survey_numbers: row.survey_numbers,
     property_class: row.property_class as PropertyClass,
+    land_class: (row.land_class ?? null) as LandClass | null,
     rate: Number(row.rate),
     unit: row.unit as AreaUnit,
     page: row.page,
@@ -280,7 +289,8 @@ export async function parseNextSourceChunk(
     const knownPages =
       source.page_count ?? pdf?.getPageCount() ?? countPdfPages(buffer);
     const fromPage = source.pages_parsed + 1;
-    const skippedPages = pdf ? planSkippedPages(pageTexts(pdf)) : [];
+    const texts = pdf ? pageTexts(pdf) : [];
+    const skippedPages = planSkippedPages(texts);
     if (skippedPages[fromPage - 1]) {
       const parsedTo = Math.min(
         skippedRunEnd(skippedPages, fromPage),
@@ -348,7 +358,7 @@ export async function parseNextSourceChunk(
       const { error: insertError } = await db
         .from('guidance_value_rates')
         .insert(
-          rows.map((row) => ({
+          settleUnits(rows, printedAreaUnit(texts)).map((row) => ({
             ...row,
             source_id: source.id,
             district: rateDistrict(row.district, source.district),

@@ -186,7 +186,7 @@ import {
 import { JOURNEY_LIFECYCLE_STATUSES } from '@/lib/journey/overview-state';
 import { CONVERSATION_CLOSE_REASONS } from '@/lib/conversations/closure';
 import { LANGUAGE_CODES, SUPPORTED_LANGUAGES } from '@/lib/languages';
-import { schedulePrinted } from '@/lib/guidance-value/present';
+import { rateHeadline, schedulePrinted } from '@/lib/guidance-value/present';
 
 /** Every .ts/.tsx file under `<root>/<dir>`, recursively. */
 function modulePathsUnder(root: string, dir: string, out: string[] = []) {
@@ -3370,6 +3370,50 @@ describe('[EKH-002] the e-Khata proposal is built by one rule on both surfaces',
       );
     }
     expect(mobile.E_KHATA_MAX_BYTES).toBe(EKhataWeb.E_KHATA_MAX_BYTES);
+  });
+});
+
+describe('mobile/lib/guidance-value.ts mirrors the web rate line', () => {
+  const mobile = mobileModule<{ rateHeadline: typeof rateHeadline }>(
+    'lib/guidance-value.ts',
+    {
+      './api':
+        'export class ApiError extends Error {}\nexport async function apiFetch() {}',
+    }
+  );
+
+  it('[GVL-019] names the land class of an agricultural rate the same way', () => {
+    expect(
+      rateHeadline({
+        rate: 952500,
+        unit: 'acre',
+        property_class: 'agricultural',
+        land_class: 'dry',
+      })
+    ).toMatch(/ \/ acre · Agricultural · Dry land$/);
+    for (const rate of [
+      {
+        rate: 952500,
+        unit: 'acre' as const,
+        property_class: 'agricultural' as const,
+        land_class: 'dry' as const,
+      },
+      {
+        rate: 1533000,
+        unit: 'acre' as const,
+        property_class: 'agricultural' as const,
+        land_class: 'plantation' as const,
+      },
+      {
+        rate: 3500,
+        unit: 'sqm' as const,
+        property_class: 'residential_site' as const,
+      },
+    ]) {
+      expect(mobile.rateHeadline(rate).split(' / ')[1]).toBe(
+        rateHeadline(rate).split(' / ')[1]
+      );
+    }
   });
 });
 

@@ -2138,6 +2138,34 @@
           ]
         },
         {
+          "id": "GVL-019",
+          "rule": "Agricultural guidance values keep the land class of the column they were printed in: the reader asks Gemini for separate codes for dry land (Khushki / Punja), wet land (Tari / Nanja), garden land (Bagayat) and plantation (coconut, arecanut, coffee), stores it as guidance_value_rates.land_class, and falls back to no class only when the column names none. Web and mobile show the class after the property class in the rate line with the same wording.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/batch.test.ts",
+              "case": "[GVL-019]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[GVL-019]"
+            }
+          ]
+        },
+        {
+          "id": "GVL-020",
+          "rule": "A notification whose text layer prints exactly one of square metres or square feet (Sq.Mtr, square meter, ಚದರ ಮೀಟರ್ / sq.ft, square feet, ಚದರ ಅಡಿ) has every sq m or sq ft rate stored in that unit, whatever unit Gemini wrote, because the header is often printed once on an early page and the model guesses on later pages. A notification that prints both units, or neither, is stored as read. Land units (acre, gunta, hectare) are never changed. The batch path records the printed unit on each chunk when it is queued; the interactive reader derives it from the same text.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/page-filter.test.ts",
+              "case": "[GVL-020]"
+            },
+            {
+              "file": "src/lib/guidance-value/batch.test.ts",
+              "case": "[GVL-020]"
+            }
+          ]
+        },
+        {
           "id": "GVL-018",
           "rule": "Before any page of a notification is sent to Gemini, its text layer is read locally (pdf-lib, decoding each font's ToUnicode map) and pages that are positively identified as not rate tables are skipped without a request: the preamble before the first rate page (gazette header, instructions, amenities lists, pages with almost no large numbers, at most the first thirty pages), pages naming a ready reckoner, construction cost, floor-rise or car-parking table that carry no rate words, and the pure numeric grids that continue such a page. A page is never skipped when its text is blank or garbled, when it carries rate words (village, hobli, road, survey, ward, block, PID numbers), or when no page in the notification reads as a rate table. Skipped pages count as read: the batch planner records them as request-free chunks and the interactive reader advances over them, so progress stays contiguous.",
           "tests": [
