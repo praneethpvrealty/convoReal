@@ -17,18 +17,6 @@ export const LISTING_TYPE_VALUES = [
 
 export type ListingType = (typeof LISTING_TYPE_VALUES)[number];
 
-/**
- * The shape of an AI preference extraction, apart from the extraction
- * itself.
- *
- * Kept in its own module because the type is read where the extractor
- * is not: src/lib/requirements/profiles.ts needs it, matching.ts needs
- * profiles, and the mobile app type-checks matching through @shared/.
- * Importing the type from preference-extraction.ts pulled Gemini, the
- * notification dispatcher and 18 WhatsApp modules into that program
- * for a type that names none of them. preference-extraction.ts
- * re-exports both, so every other caller is unaffected.
- */
 export interface ExtractedPreferences {
   property_types: string[];
   property_categories: PropertyCategory[];

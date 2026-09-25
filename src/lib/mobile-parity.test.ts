@@ -2844,17 +2844,24 @@ describe('contact language is one tap from the record on both surfaces', () => {
       return null;
     };
 
+    // preProcessFile covers every import form TypeScript follows: both
+    // quote styles, side-effect imports, re-exports and dynamic import().
+    const specifiersIn = (file: string) =>
+      ts
+        .preProcessFile(readFileSync(file, 'utf8'), true, true)
+        .importedFiles.map((ref) => ref.fileName);
+
     const mobileFiles = [
       ...modulePathsUnder(join(process.cwd(), 'mobile'), 'lib'),
       ...modulePathsUnder(join(process.cwd(), 'mobile'), 'components'),
       ...modulePathsUnder(join(process.cwd(), 'mobile'), 'app'),
     ];
     const entries = new Set<string>();
+    const SHARED = '@shared/';
     for (const file of mobileFiles) {
-      for (const m of readFileSync(file, 'utf8').matchAll(
-        /from '@shared\/([^']+)'/g
-      )) {
-        const resolved = resolveSpec(`@/${m[1]}`, srcRoot);
+      for (const spec of specifiersIn(file)) {
+        if (!spec.startsWith(SHARED)) continue;
+        const resolved = resolveSpec(`@/${spec.slice(SHARED.length)}`, srcRoot);
         if (resolved) entries.add(resolved);
       }
     }
@@ -2868,8 +2875,8 @@ describe('contact language is one tap from the record on both surfaces', () => {
       if (seen.has(file)) continue;
       seen.add(file);
       const dir = dirname(file);
-      for (const m of readFileSync(file, 'utf8').matchAll(/from '([^']+)'/g)) {
-        const next = resolveSpec(m[1], dir);
+      for (const spec of specifiersIn(file)) {
+        const next = resolveSpec(spec, dir);
         if (next && !seen.has(next)) {
           if (!reachedBy.has(next)) reachedBy.set(next, file);
           queue.push(next);
