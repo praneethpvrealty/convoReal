@@ -61,6 +61,8 @@ export interface GeminiCallOpts {
   apiKey?: string;
   /** Which managed keys to draw from. Default 'general'. */
   keyScope?: GeminiKeyScope;
+  /** Deadline for the whole call; once aborted, no fallback model is tried. */
+  signal?: AbortSignal;
 }
 
 export {
@@ -179,6 +181,7 @@ async function generateContentWithKey(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
+        signal: opts.signal,
       });
 
       if (!response.ok) {
@@ -242,6 +245,7 @@ async function generateContentWithKey(
 
       if (
         (isTransientError || isRetiredModelMessage(errorMessage)) &&
+        !opts.signal?.aborted &&
         model !== models[models.length - 1]
       ) {
         console.log(
