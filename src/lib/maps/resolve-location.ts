@@ -128,13 +128,17 @@ export async function resolveLocationFromCoordinates(
 }
 
 /**
- * Coordinates behind a map link, without any geocoding. A pin is an
- * exact point the lister placed, so these beat anything derived from
- * address text — which resolves to the wrong "KHB Colony" or "1st Main"
- * often enough to push a property kilometres off its real location.
+ * Coordinates behind a map link. A pin is an exact point the lister
+ * placed, so these beat anything derived from address text — which
+ * resolves to the wrong "KHB Colony" or "1st Main" often enough to push
+ * a property kilometres off its real location.
  *
  * Short `maps.app.goo.gl` links cost one redirect hop; every other form
- * is parsed straight out of the URL.
+ * is parsed straight out of the URL. A link that names a place rather
+ * than a point (`/maps/place/<name>`, `?q=<address>`) is geocoded by
+ * that name when a Google key is configured — the lister chose that
+ * place, so it still beats the free-text address. A link that resolves
+ * to neither stays null.
  */
 export async function resolveCoordinatesFromMapLink(
   url: string
@@ -144,7 +148,17 @@ export async function resolveCoordinatesFromMapLink(
 
   try {
     const res = await fetchWithTimeout(url, { redirect: "follow" });
-    return res.url ? extractCoordinatesFromMapUrl(res.url) : null;
+    const resolvedUrl = res.url || url;
+    const pinned = extractCoordinatesFromMapUrl(resolvedUrl);
+    if (pinned) return pinned;
+
+    const placeName =
+      extractPlaceNameFromMapUrl(resolvedUrl) || extractPlaceNameFromMapUrl(url);
+    if (!placeName || !hasGoogleMapsKey()) return null;
+    const geocoded = await geocodeAddress(placeName);
+    return geocoded
+      ? { latitude: geocoded.latitude, longitude: geocoded.longitude }
+      : null;
   } catch (err) {
     console.error("[maps] resolveCoordinatesFromMapLink failed:", err);
     return null;

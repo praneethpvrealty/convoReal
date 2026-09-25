@@ -324,8 +324,16 @@ describe('resolveLocationFromGoogleMapLink', () => {
 });
 
 describe('resolveCoordinatesFromMapLink', () => {
+  const originalKey = process.env.GOOGLE_MAPS_API_KEY;
+
   beforeEach(() => {
     vi.restoreAllMocks();
+    delete process.env.GOOGLE_MAPS_API_KEY;
+  });
+
+  afterEach(() => {
+    if (originalKey === undefined) delete process.env.GOOGLE_MAPS_API_KEY;
+    else process.env.GOOGLE_MAPS_API_KEY = originalKey;
   });
 
   it('reads inline coordinates without any network call', async () => {
@@ -349,8 +357,8 @@ describe('resolveCoordinatesFromMapLink', () => {
     });
   });
 
-  it('returns null for a link that names a place instead of a point', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+  it('returns null for a link that names a place when no Maps key is configured', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       url: 'https://www.google.com/maps/search/?api=1&query=Koramangala+Bengaluru',
       json: async () => ({}),
@@ -361,6 +369,94 @@ describe('resolveCoordinatesFromMapLink', () => {
         'https://www.google.com/maps/search/?api=1&query=Koramangala+Bengaluru'
       )
     ).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('geocodes the place a short link names when it carries no coordinates', async () => {
+    process.env.GOOGLE_MAPS_API_KEY = 'test-key';
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        url: 'https://www.google.com/maps/place/Prestige+Lakeside+Habitat,+Varthur,+Bengaluru',
+        json: async () => ({}),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          results: [
+            {
+              place_id: 'plh',
+              formatted_address: 'Prestige Lakeside Habitat, Varthur, Bengaluru',
+              geometry: { location: { lat: 12.9416, lng: 77.7466 } },
+            },
+          ],
+        }),
+      } as unknown as Response);
+
+    expect(await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/place')).toEqual({
+      latitude: 12.9416,
+      longitude: 77.7466,
+    });
+    const geocodeUrl = new URL(String(fetchMock.mock.calls[1][0]));
+    expect(geocodeUrl.pathname).toBe('/maps/api/geocode/json');
+    expect(geocodeUrl.searchParams.get('address')).toBe(
+      'Prestige Lakeside Habitat, Varthur, Bengaluru'
+    );
+  });
+
+  it('geocodes a ?q= address link', async () => {
+    process.env.GOOGLE_MAPS_API_KEY = 'test-key';
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        url: 'https://www.google.com/maps?q=Sobha+Dream+Acres,+Panathur',
+        json: async () => ({}),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          results: [{ geometry: { location: { lat: 12.9357, lng: 77.7128 } } }],
+        }),
+      } as unknown as Response);
+
+    expect(
+      await resolveCoordinatesFromMapLink('https://www.google.com/maps?q=Sobha+Dream+Acres,+Panathur')
+    ).toEqual({ latitude: 12.9357, longitude: 77.7128 });
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get('address')).toBe(
+      'Sobha Dream Acres, Panathur'
+    );
+  });
+
+  it('does not geocode a dead link that lands on the Maps home page', async () => {
+    process.env.GOOGLE_MAPS_API_KEY = 'test-key';
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      url: 'https://www.google.com/maps',
+      json: async () => ({}),
+    } as unknown as Response);
+
+    expect(await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/gone')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when the geocoder finds nothing for the named place', async () => {
+    process.env.GOOGLE_MAPS_API_KEY = 'test-key';
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        url: 'https://www.google.com/maps/place/Nowhere+Layout',
+        json: async () => ({}),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ status: 'ZERO_RESULTS', results: [] }),
+      } as unknown as Response);
+
+    expect(await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/nowhere')).toBeNull();
   });
 
   it('never throws when the redirect hop fails', async () => {
