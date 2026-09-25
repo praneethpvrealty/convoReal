@@ -18,7 +18,11 @@ vi.mock('@/lib/ai/gemini-keys', async (importOriginal) => ({
 
 import { PDFDocument } from 'pdf-lib';
 
-import { parseRatePages, RATE_READ_TIMEOUT_MS } from './rate-parse';
+import {
+  parseRatePages,
+  RATE_MAX_OUTPUT_TOKENS,
+  RATE_READ_TIMEOUT_MS,
+} from './rate-parse';
 
 async function pdf(pages: number): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
@@ -136,6 +140,47 @@ describe('parseRatePages', () => {
       parseRatePages({ buffer: await pdf(6), fromPage: 5, toPage: 5 })
     ).rejects.toThrow('timed out');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('[GVL-017] reads a range whose output hit the cap one page at a time', async () => {
+    stallingDeadlines();
+    const prompts: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = String(init.body);
+        const asked = body.match(/rates on (pages \d+ to \d+)/)?.[1] ?? '';
+        prompts.push(asked);
+        expect(JSON.parse(body).generationConfig.maxOutputTokens).toBe(
+          RATE_MAX_OUTPUT_TOKENS
+        );
+        if (asked === 'pages 3 to 4') {
+          return new Response(
+            JSON.stringify({
+              candidates: [
+                {
+                  content: { parts: [{ text: '{"groups":[' }] },
+                  finishReason: 'MAX_TOKENS',
+                },
+              ],
+            }),
+            { status: 200 }
+          );
+        }
+        return asked === 'pages 3 to 3'
+          ? reply(3, 'Addoor - Interior')
+          : reply(4, 'Adyapadi - Interior');
+      })
+    );
+
+    const { rows } = await parseRatePages({
+      buffer: await pdf(6),
+      fromPage: 3,
+      toPage: 4,
+    });
+
+    expect(prompts).toEqual(['pages 3 to 4', 'pages 3 to 3', 'pages 4 to 4']);
+    expect(rows.map((r) => r.page)).toEqual([3, 4]);
   });
 
   it('[GVL-016] keeps the deadline under the parse route limit', () => {

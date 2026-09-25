@@ -2138,6 +2138,20 @@
           ]
         },
         {
+          "id": "GVL-017",
+          "rule": "Every guidance value read, interactive or batched, caps Gemini's output at RATE_MAX_OUTPUT_TOKENS, and a response that hits the cap counts as unread rather than as data. Interactively the range is then read one page at a time; in a batch the range's pages are remembered on the notification (single_pages) and the next queue run submits them singly, and a single page that still overflows marks the notification failed and drops its queue request instead of being resubmitted every run. The tokens Gemini reports as thinking are logged separately (thought_tokens) on every call.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/batch.test.ts",
+              "case": "[GVL-017]"
+            },
+            {
+              "file": "src/lib/guidance-value/rate-read.test.ts",
+              "case": "[GVL-017]"
+            }
+          ]
+        },
+        {
           "id": "GVL-016",
           "rule": "Reading a notification range interactively has one deadline (RATE_READ_TIMEOUT_MS) for the whole Gemini call, shared across the fallback model chain so a stalled request is never retried on every model. When a two-page range misses the deadline, its pages are read one at a time, each with its own deadline and with the previous page's last headings as context, so one range the model stalls on no longer blocks the rest of the notification; three deadlines stay under the parse route's 300-second limit.",
           "tests": [

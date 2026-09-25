@@ -63,6 +63,16 @@ export interface GeminiCallOpts {
   keyScope?: GeminiKeyScope;
   /** Deadline for the whole call; once aborted, no fallback model is tried. */
   signal?: AbortSignal;
+  /** Output cap; a response that hits it fails with OUTPUT_CUT_OFF. */
+  maxOutputTokens?: number;
+}
+
+export const OUTPUT_CUT_OFF = 'Output cut off at the token cap';
+
+export function isOutputCutOff(err: unknown): boolean {
+  return (err instanceof Error ? err.message : String(err)).includes(
+    OUTPUT_CUT_OFF
+  );
 }
 
 export {
@@ -92,6 +102,7 @@ interface GeneratePayload {
   generationConfig?: {
     responseMimeType?: string;
     temperature?: number;
+    maxOutputTokens?: number;
   };
 }
 
@@ -174,6 +185,12 @@ async function generateContentWithKey(
           temperature: 0,
         };
       }
+      if (opts.maxOutputTokens) {
+        payload.generationConfig = {
+          ...payload.generationConfig,
+          maxOutputTokens: opts.maxOutputTokens,
+        };
+      }
 
       const response = await fetch(url, {
         method: 'POST',
@@ -197,6 +214,9 @@ async function generateContentWithKey(
       if (!text) {
         throw new Error('No text returned in Gemini response candidates.');
       }
+      if (data.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+        throw new Error(OUTPUT_CUT_OFF);
+      }
 
       console.log(`[Gemini AI] Generation succeeded with model: ${model}`);
       logAiCall({
@@ -210,6 +230,7 @@ async function generateContentWithKey(
         hasMedia,
         promptTokens: data.usageMetadata?.promptTokenCount ?? null,
         responseTokens: data.usageMetadata?.candidatesTokenCount ?? null,
+        thoughtTokens: data.usageMetadata?.thoughtsTokenCount ?? null,
         promptChars: inputText.length,
         responseChars: text.length,
         systemPreview: systemInstructionText,

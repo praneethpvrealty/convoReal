@@ -3,6 +3,7 @@ import { PDFDocument } from 'pdf-lib';
 import {
   classifyGeminiKeyFailure,
   generateJsonFromParts,
+  isOutputCutOff,
   type GeminiPart,
   type GeminiTier,
 } from '@/lib/ai/gemini';
@@ -17,6 +18,7 @@ import { normaliseUnit } from './units';
 
 export const PAGES_PER_CHUNK = 2;
 export const RATE_READ_TIMEOUT_MS = 80_000;
+export const RATE_MAX_OUTPUT_TOKENS = 8_192;
 export const MAX_ROWS_PER_CHUNK = 1500;
 
 export type AiOutage = 'unavailable' | 'rate_limited';
@@ -360,7 +362,12 @@ export async function parseRatePages(
   try {
     return await readRatePages(input, signal);
   } catch (err) {
-    if (!signal.aborted || input.toPage <= input.fromPage) throw err;
+    if (
+      !(signal.aborted || isOutputCutOff(err)) ||
+      input.toPage <= input.fromPage
+    ) {
+      throw err;
+    }
   }
   const rows: ParsedRateRow[] = [];
   let totalPages: number | null = null;
@@ -401,6 +408,7 @@ async function readRatePages(
       tier: rateParseTier(),
       keyScope: 'import',
       signal,
+      maxOutputTokens: RATE_MAX_OUTPUT_TOKENS,
     }
   );
   const parsed = sanitiseRateRows(
