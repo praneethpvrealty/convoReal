@@ -1031,6 +1031,24 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "PRP-013",
+          "rule": "On the public showcase, a location that no published listing names is searched by distance only when the visitor asks for it (Enter or the Search near option): listings naming the place come first, then published Available listings within 10 km ranked by distance, shown with a distance coarsened to half a kilometre and never with coordinates.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/nearby-search.test.ts",
+              "case": "[PRP-013]"
+            },
+            {
+              "file": "src/app/api/public/properties/near/route.test.ts",
+              "case": "[PRP-013]"
+            },
+            {
+              "file": "src/components/showcase/showcase-view.location-search.test.tsx",
+              "case": "[PRP-013]"
+            }
+          ]
         }
       ]
     },

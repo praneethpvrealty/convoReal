@@ -2,7 +2,7 @@
 // @vitest-environment-options { "settings": { "disableIframePageLoading": true, "disableJavaScriptFileLoading": true, "disableCSSFileLoading": true } }
 
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import type { Property, ShowcaseSettings } from '@/types';
 
@@ -104,6 +104,91 @@ describe('showcase location picker', () => {
     expect(screen.getByRole('button', { name: 'Remove Koramangala' })).toBeTruthy();
     expect(screen.getByText('Koramangala Villa')).toBeTruthy();
     expect(screen.queryByText('Indiranagar Apartment')).toBeNull();
+  });
+
+  it('applies the first matching area when Enter is pressed', () => {
+    render(
+      <ShowcaseView
+        properties={properties}
+        settings={settings}
+        accountId="account-1"
+        disableSavedState
+      />
+    );
+
+    const input = screen.getByRole('textbox', { name: 'Search locations' });
+    fireEvent.change(input, { target: { value: 'indira' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(screen.getByRole('button', { name: 'Remove Indiranagar' })).toBeTruthy();
+    expect(screen.queryByText('Koramangala Villa')).toBeNull();
+  });
+
+  it('[PRP-013] searches near an area no listing names and ranks results by distance', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation((input) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve(
+            String(input).startsWith('/api/public/properties/near')
+              ? {
+                  data: {
+                    label: 'Basavanagudi',
+                    results: [
+                      { id: 'indiranagar', tier: 'nearby', distance_km: 2.5 },
+                    ],
+                  },
+                }
+              : { data: [] }
+          ),
+      } as Response)
+    );
+
+    render(
+      <ShowcaseView
+        properties={properties}
+        settings={settings}
+        accountId="account-1"
+        disableSavedState
+      />
+    );
+
+    const input = screen.getByRole('textbox', { name: 'Search locations' });
+    fireEvent.change(input, { target: { value: 'basavan' } });
+    expect(screen.getByRole('option', { name: /Search near .basavan./ })).toBeTruthy();
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Remove near Basavanagudi' })).toBeTruthy()
+    );
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url) === '/api/public/properties/near?account_id=account-1&q=basavan'
+      )
+    ).toBe(true);
+    expect(screen.getByText('No listings in Basavanagudi — showing the nearest ones.')).toBeTruthy();
+    expect(screen.getByText('Indiranagar Apartment')).toBeTruthy();
+    expect(screen.getByText('2.5 km away')).toBeTruthy();
+    expect(screen.queryByText('Koramangala Villa')).toBeNull();
+  });
+
+  it('says when a short location has no listed area instead of showing nothing', () => {
+    render(
+      <ShowcaseView
+        properties={properties}
+        settings={settings}
+        accountId="account-1"
+        disableSavedState
+      />
+    );
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search locations' }), {
+      target: { value: 'zz' },
+    });
+
+    expect(screen.getByText(/No listed areas match/)).toBeTruthy();
   });
 
   it('records the normalized property search in Showcase Pulse', () => {
