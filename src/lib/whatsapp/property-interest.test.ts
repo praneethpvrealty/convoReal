@@ -4,6 +4,7 @@ import {
   buildCatalogOrderMessage,
   buildPropertyInterestAck,
   buildPropertyInterestQuestion,
+  isDeliberateEnquiry,
   isDirectPropertyInterest,
   mentionedAreaSqft,
   resolvePropertyReference,
@@ -189,5 +190,53 @@ describe('property interest replies', () => {
     expect(reply).toContain('site visit');
     expect(reply).toContain('conversation with the owner');
     expect(reply).toContain('preferred date and time');
+  });
+});
+
+describe('isDeliberateEnquiry', () => {
+  const discussed = (value: boolean) => async () => value;
+
+  it('[PRP-014] treats a bare title question about an unavailable listing as an enquiry', async () => {
+    const plot = property({
+      title: 'Corner Residential Plot',
+      status: 'Under Contract',
+    });
+    const resolution = resolvePropertyReference(
+      'Is Corner Residential Plot still available?',
+      [plot]
+    );
+    expect(resolution).toMatchObject({ kind: 'match', matchedBy: 'title' });
+    expect(await isDeliberateEnquiry('title', plot, discussed(false))).toBe(
+      true
+    );
+  });
+
+  it('[PRP-014] does not repeat itself once the conversation has already named that listing', async () => {
+    const plot = property({ status: 'Sold' });
+    expect(await isDeliberateEnquiry('title', plot, discussed(true))).toBe(
+      false
+    );
+  });
+
+  it('[PRP-014] leaves a title match on an available listing to the existing flow without a lookup', async () => {
+    let looked = false;
+    expect(
+      await isDeliberateEnquiry('title', property(), async () => {
+        looked = true;
+        return false;
+      })
+    ).toBe(false);
+    expect(looked).toBe(false);
+  });
+
+  it('keeps a property code deliberate whatever the status or history', async () => {
+    const plot = property();
+    expect(await isDeliberateEnquiry('code', plot, discussed(true))).toBe(true);
+    expect(await isDeliberateEnquiry('natural', plot, discussed(false))).toBe(
+      false
+    );
+    expect(await isDeliberateEnquiry('context', plot, discussed(false))).toBe(
+      false
+    );
   });
 });

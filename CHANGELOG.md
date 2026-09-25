@@ -30,6 +30,19 @@ than a written entry. Newest first.
   phase or numbered main/cross road are dropped, a list pasted as one
   entry is split, and repeats are kept once.
 
+- **Guidance batch queuing continues in the background.** Clicking Queue now
+  marks every waiting notification, and the 15-minute cron keeps queuing any
+  that one request could not reach, so leaving the page no longer stops the
+  import. **Migration required:**
+  `20260925100121_guidance_value_batch_requested.sql`.
+- **A map link that names a place now pins the listing there.** Links
+  such as `maps.app.goo.gl/…` that open a named place, or
+  `google.com/maps?q=<address>`, carry no coordinates, so the listing fell
+  back to a guess from its address text. The place the link names is now
+  geocoded when the listing is saved (and by the pin-repair script), so it
+  gets a pin from the place the lister chose. Links that open
+  nothing stay unpinned.
+
 - **Showcase "Search near" now looks 5 km around the place, down from
   10 km.** In central Bengaluru 10 km covered most of a brokerage's
   catalog, so "near Basavanagudi" listed around a hundred homes. The

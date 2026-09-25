@@ -585,7 +585,7 @@ describe('the radar is wired up', () => {
   it('the webhook records a reply before the enquiry branch can consume it', () => {
     const source = read('src/lib/whatsapp/webhook-handler.ts');
     const heat = source.indexOf('maybeAutoHeatContact({');
-    const enquiryBranch = source.indexOf('enquiryByCode &&\n');
+    const enquiryBranch = source.indexOf('enquiryIsDeliberate &&\n');
     const heatBlock = source.slice(heat, enquiryBranch);
     expect(heat).toBeGreaterThan(-1);
     expect(enquiryBranch).toBeGreaterThan(-1);

@@ -265,6 +265,7 @@ import {
   buildUnresolvedPropertyInterestAck,
   isDirectPropertyInterest,
   resolvePropertyReference,
+  isDeliberateEnquiry,
   type PropertyInterestCandidate,
   type WhatsAppCatalogOrder,
 } from '@/lib/whatsapp/property-interest';
@@ -1249,7 +1250,7 @@ interface InboundChainPayload {
     assigned_at?: string | null;
   };
   enquiryPropertyId: string | null;
-  enquiryByCode: boolean;
+  enquiryIsDeliberate: boolean;
   enquiryPropertyTitle: string | null;
   enquiryPropertyStatus?: string | null;
   specificPropertyInterest: boolean;
@@ -1449,8 +1450,10 @@ async function processMessage(
   // The property CODE appearing in the message is a deliberate enquiry
   // — nothing puts "PROP-1030" in a buyer's message except the showcase
   // CTA or the buyer copying it on purpose. A TITLE appearing is much
-  // weaker: any chat about a listing contains its title.
-  let enquiryByCode = false;
+  // weaker: any chat about a listing contains its title, so it counts
+  // only for a listing no longer Available that the buyer was not
+  // already discussing.
+  let enquiryIsDeliberate = false;
   let enquiryPropertyTitle: string | null = null;
   let enquiryPropertyStatus: string | null = null;
   const specificPropertyInterest =
@@ -1480,7 +1483,16 @@ async function processMessage(
 
         if (resolution.kind === 'match') {
           const matchedProperty = resolution.property;
-          enquiryByCode = resolution.matchedBy === 'code';
+          enquiryIsDeliberate = await isDeliberateEnquiry(
+            resolution.matchedBy,
+            matchedProperty,
+            () =>
+              listingAlreadyDiscussed(
+                accountId,
+                conversation.id,
+                matchedProperty
+              )
+          );
           enquiryPropertyId = matchedProperty.id;
           enquiryPropertyTitle = matchedProperty.title;
           enquiryPropertyStatus = matchedProperty.status ?? null;
@@ -1642,7 +1654,7 @@ async function processMessage(
       nfmResponseJson,
       routingUpdate,
       enquiryPropertyId,
-      enquiryByCode,
+      enquiryIsDeliberate,
       enquiryPropertyTitle,
       enquiryPropertyStatus,
       specificPropertyInterest,
@@ -1682,7 +1694,7 @@ async function handleInboundChain(
     nfmResponseJson,
     routingUpdate,
     enquiryPropertyId,
-    enquiryByCode,
+    enquiryIsDeliberate,
     enquiryPropertyTitle,
     enquiryPropertyStatus = null,
     specificPropertyInterest,
@@ -2019,7 +2031,7 @@ async function handleInboundChain(
   if (
     !ownerCheck.isOwner &&
     specificPropertyInterest &&
-    (message.type === 'order' || !enquiryByCode)
+    (message.type === 'order' || !enquiryIsDeliberate)
   ) {
     const admin = supabaseAdmin();
 
@@ -2174,7 +2186,8 @@ async function handleInboundChain(
 
   // A deliberate enquiry — the property CODE is in the message, which
   // nothing produces except the showcase's Enquire button or a buyer
-  // quoting the code on purpose. This is a request for one listing, not
+  // quoting the code on purpose, or the title of a listing that is no
+  // longer Available. This is a request for one listing, not
   // a requirement to qualify: the first live tap of the button was
   // answered by the ladder with "what budget range are you working
   // with?" — interrogating a buyer who had just named the exact
@@ -2186,7 +2199,7 @@ async function handleInboundChain(
   if (
     !ownerCheck.isOwner &&
     enquiryPropertyId &&
-    enquiryByCode &&
+    enquiryIsDeliberate &&
     message.type === 'text'
   ) {
     const preview = (contentText || '').slice(0, 140);
@@ -3702,6 +3715,32 @@ async function handleInboundChain(
       console.error('[automations] dispatch failed:', err);
     }
   }
+}
+
+async function listingAlreadyDiscussed(
+  accountId: string,
+  conversationId: string,
+  property: { title: string; property_code?: string | null }
+): Promise<boolean> {
+  const needles = [property.title, property.property_code].filter(
+    (value): value is string => Boolean(value && value.trim())
+  );
+  for (const needle of needles) {
+    const { data, error } = await supabaseAdmin()
+      .from('messages')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('conversation_id', conversationId)
+      .neq('sender_type', 'customer')
+      .ilike('content_text', `%${needle.replace(/[\\%_]/g, '\\$&')}%`)
+      .limit(1);
+    if (error) {
+      console.error('[webhook] listing history lookup failed:', error);
+      return true;
+    }
+    if (data && data.length > 0) return true;
+  }
+  return false;
 }
 
 async function qualifyDeferredLine(
