@@ -194,7 +194,9 @@ describe('property interest replies', () => {
 });
 
 describe('isDeliberateEnquiry', () => {
-  it('[PRP-014] treats a bare title question about an unavailable listing as an enquiry', () => {
+  const discussed = (value: boolean) => async () => value;
+
+  it('[PRP-014] treats a bare title question about an unavailable listing as an enquiry', async () => {
     const plot = property({
       title: 'Corner Residential Plot',
       status: 'Under Contract',
@@ -204,22 +206,37 @@ describe('isDeliberateEnquiry', () => {
       [plot]
     );
     expect(resolution).toMatchObject({ kind: 'match', matchedBy: 'title' });
-    expect(isDeliberateEnquiry('title', plot, null)).toBe(true);
+    expect(await isDeliberateEnquiry('title', plot, discussed(false))).toBe(
+      true
+    );
   });
 
-  it('[PRP-014] does not repeat itself once the buyer is already discussing that listing', () => {
+  it('[PRP-014] does not repeat itself once the conversation has already named that listing', async () => {
     const plot = property({ status: 'Sold' });
-    expect(isDeliberateEnquiry('title', plot, plot.id)).toBe(false);
+    expect(await isDeliberateEnquiry('title', plot, discussed(true))).toBe(
+      false
+    );
   });
 
-  it('[PRP-014] leaves a title match on an available listing to the existing flow', () => {
-    expect(isDeliberateEnquiry('title', property(), null)).toBe(false);
+  it('[PRP-014] leaves a title match on an available listing to the existing flow without a lookup', async () => {
+    let looked = false;
+    expect(
+      await isDeliberateEnquiry('title', property(), async () => {
+        looked = true;
+        return false;
+      })
+    ).toBe(false);
+    expect(looked).toBe(false);
   });
 
-  it('keeps a property code deliberate whatever the status or history', () => {
+  it('keeps a property code deliberate whatever the status or history', async () => {
     const plot = property();
-    expect(isDeliberateEnquiry('code', plot, plot.id)).toBe(true);
-    expect(isDeliberateEnquiry('natural', plot, null)).toBe(false);
-    expect(isDeliberateEnquiry('context', plot, null)).toBe(false);
+    expect(await isDeliberateEnquiry('code', plot, discussed(true))).toBe(true);
+    expect(await isDeliberateEnquiry('natural', plot, discussed(false))).toBe(
+      false
+    );
+    expect(await isDeliberateEnquiry('context', plot, discussed(false))).toBe(
+      false
+    );
   });
 });

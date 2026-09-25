@@ -92,6 +92,24 @@ describe('parseEnquiryReply', () => {
 });
 
 describe('buildEnquiryCardBody', () => {
+  it('[PRP-014] warns the agent on the card when the listing is not available', () => {
+    const body = buildEnquiryCardBody(
+      { title: 'Corner Residential Plot', status: 'Under Contract' },
+      'Ravi',
+      '+919800000000',
+      'Is Corner Residential Plot still available?'
+    );
+    expect(body).toContain('Listing is marked "Under Contract"');
+    expect(
+      buildEnquiryCardBody(
+        { title: 'Open Plot', status: 'Available' },
+        'Ravi',
+        '+91',
+        'hi'
+      )
+    ).not.toContain('Listing is marked');
+  });
+
   const property = {
     title: '50x70 Commercial Land in 6th Block, Koramangala',
     property_code: 'PROP-1030',
@@ -387,13 +405,9 @@ describe('the webhook wires the card up', () => {
 
   it('[PRP-014] routes a title-only enquiry about an unavailable listing through the card', () => {
     expect(source).toMatch(
-      /enquiryIsDeliberate = isDeliberateEnquiry\(\s*resolution\.matchedBy,\s*matchedProperty,\s*contactRecord\.last_inquired_property_id\s*\)/
+      /enquiryIsDeliberate = await isDeliberateEnquiry\(\s*resolution\.matchedBy,\s*matchedProperty,\s*\(\) =>\s*listingAlreadyDiscussed\(/
     );
-    expect(
-      source.indexOf('enquiryIsDeliberate = isDeliberateEnquiry(')
-    ).toBeLessThan(
-      source.indexOf('last_inquired_property_id: matchedProperty.id')
-    );
+    expect(source).toContain(".neq('sender_type', 'customer')");
   });
 
   it('[PRP-014] never promises a visit or owner call for an unavailable listing', () => {

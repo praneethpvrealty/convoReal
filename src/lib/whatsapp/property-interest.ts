@@ -137,20 +137,18 @@ function exactTitleMatch<T extends PropertyInterestCandidate>(
   );
 }
 
-export function isDeliberateEnquiry(
+export async function isDeliberateEnquiry(
   matchedBy: Extract<
     PropertyReferenceResolution<PropertyInterestCandidate>,
     { kind: 'match' }
   >['matchedBy'],
-  property: Pick<PropertyInterestCandidate, 'id' | 'status'>,
-  lastInquiredPropertyId: string | null | undefined
-): boolean {
+  property: Pick<PropertyInterestCandidate, 'status'>,
+  alreadyDiscussed: () => Promise<boolean>
+): Promise<boolean> {
   if (matchedBy === 'code') return true;
-  return (
-    matchedBy === 'title' &&
-    listingAvailabilityNotice(property.status) !== null &&
-    lastInquiredPropertyId !== property.id
-  );
+  if (matchedBy !== 'title') return false;
+  if (listingAvailabilityNotice(property.status) === null) return false;
+  return !(await alreadyDiscussed());
 }
 
 export function resolvePropertyReference<T extends PropertyInterestCandidate>(

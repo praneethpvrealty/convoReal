@@ -23,6 +23,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 // took three attempts to get right — see its own comment. Reused
 // rather than rewritten so both cards reach the same person.
 import { resolveOwnerWhatsAppContact } from '@/lib/inventory/location-requests';
+import { listingStatusAgentLine } from '@/lib/inventory/listing-status';
 
 export const ENQUIRY_APPROVE_PREFIX = 'enq_approve:';
 export const ENQUIRY_REJECT_PREFIX = 'enq_reject:';
@@ -73,6 +74,7 @@ export interface EnquiryCardProperty {
   location?: string | null;
   sublocality?: string | null;
   city?: string | null;
+  status?: string | null;
 }
 
 function inr(amount?: number | null): string {
@@ -104,11 +106,13 @@ export function buildEnquiryCardBody(
     .filter(Boolean)
     .join(', ');
   const price = inr(property.price);
+  const statusLine = listingStatusAgentLine(property.status);
 
   return [
     '🔔 *New Property Enquiry*',
     `Property: ${label || 'a listing'}`,
     ...(where || price ? [[price, where].filter(Boolean).join(' · ')] : []),
+    ...(statusLine ? [statusLine] : []),
     `From: ${leadName} · ${leadPhone}`,
     '',
     `"${enquiryText.slice(0, 160)}"`,
@@ -199,7 +203,9 @@ export async function sendPropertyEnquiryCard(
   try {
     const { data: property } = await db
       .from('properties')
-      .select('title, property_code, price, location, sublocality, city')
+      .select(
+        'title, property_code, price, location, sublocality, city, status'
+      )
       .eq('id', propertyId)
       .eq('account_id', accountId)
       .maybeSingle();

@@ -1483,10 +1483,15 @@ async function processMessage(
 
         if (resolution.kind === 'match') {
           const matchedProperty = resolution.property;
-          enquiryIsDeliberate = isDeliberateEnquiry(
+          enquiryIsDeliberate = await isDeliberateEnquiry(
             resolution.matchedBy,
             matchedProperty,
-            contactRecord.last_inquired_property_id
+            () =>
+              listingAlreadyDiscussed(
+                accountId,
+                conversation.id,
+                matchedProperty
+              )
           );
           enquiryPropertyId = matchedProperty.id;
           enquiryPropertyTitle = matchedProperty.title;
@@ -3710,6 +3715,32 @@ async function handleInboundChain(
       console.error('[automations] dispatch failed:', err);
     }
   }
+}
+
+async function listingAlreadyDiscussed(
+  accountId: string,
+  conversationId: string,
+  property: { title: string; property_code?: string | null }
+): Promise<boolean> {
+  const needles = [property.title, property.property_code].filter(
+    (value): value is string => Boolean(value && value.trim())
+  );
+  for (const needle of needles) {
+    const { data, error } = await supabaseAdmin()
+      .from('messages')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('conversation_id', conversationId)
+      .neq('sender_type', 'customer')
+      .ilike('content_text', `%${needle.replace(/[\\%_]/g, '\\$&')}%`)
+      .limit(1);
+    if (error) {
+      console.error('[webhook] listing history lookup failed:', error);
+      return true;
+    }
+    if (data && data.length > 0) return true;
+  }
+  return false;
 }
 
 async function qualifyDeferredLine(
