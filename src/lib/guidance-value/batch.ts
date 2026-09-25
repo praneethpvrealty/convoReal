@@ -33,6 +33,8 @@ export const BATCH_FEATURE = 'guidance_value_source_batch';
 export const BATCH_MAX_BYTES = 15 * 1024 * 1024;
 export const BATCH_BUILD_BUDGET_MS = 200_000;
 export const CRON_BUILD_BUDGET_MS = 120_000;
+export const CRON_DEADLINE_MS = 240_000;
+export const CRON_MIN_QUEUE_MS = 15_000;
 const APPLYING_STALE_MS = 15 * 60_000;
 const UNSUBMITTED_PREFIX = 'unsubmitted:';
 const UNSUBMITTED_STALE_MS = 30 * 60_000;
@@ -565,7 +567,11 @@ async function finishBatch(
 ): Promise<void> {
   await db
     .from('guidance_value_sources')
-    .update({ ...sourcePatch, batch_id: null })
+    .update({
+      ...sourcePatch,
+      ...(patch.state === 'failed' ? { batch_requested_at: null } : {}),
+      batch_id: null,
+    })
     .eq('batch_id', row.id)
     .select('id');
   await db
@@ -689,6 +695,10 @@ export interface PollResult {
   applied: number;
   failed: number;
   running: number;
+}
+
+export function cronQueueBudgetMs(startedAt: number, now: number): number {
+  return Math.min(CRON_BUILD_BUDGET_MS, startedAt + CRON_DEADLINE_MS - now);
 }
 
 export async function pollGuidanceBatches(

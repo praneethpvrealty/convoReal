@@ -33,6 +33,8 @@ import {
   assembleSourceRows,
   batchRequest,
   planChunks,
+  cronQueueBudgetMs,
+  CRON_BUILD_BUDGET_MS,
   pollGuidanceBatches,
   queueGuidanceBatches,
   readBatchOperation,
@@ -610,6 +612,14 @@ function answer(text: string) {
   };
 }
 
+describe('cronQueueBudgetMs', () => {
+  it('[GVL-014] gives the cron queue only the time polling left over', () => {
+    expect(cronQueueBudgetMs(0, 5_000)).toBe(CRON_BUILD_BUDGET_MS);
+    expect(cronQueueBudgetMs(0, 200_000)).toBe(40_000);
+    expect(cronQueueBudgetMs(0, 250_000)).toBeLessThan(0);
+  });
+});
+
 describe('pollGuidanceBatches', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -692,7 +702,7 @@ describe('pollGuidanceBatches', () => {
     );
   });
 
-  it('[GVL-012] frees the notifications when Gemini reports the batch failed', async () => {
+  it('[GVL-014] frees the notifications when Gemini reports the batch failed', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(
@@ -708,7 +718,7 @@ describe('pollGuidanceBatches', () => {
     expect(result.failed).toBe(1);
     expect(
       writes.find((w) => w.table === 'guidance_value_sources')?.value
-    ).toMatchObject({ batch_id: null });
+    ).toMatchObject({ batch_id: null, batch_requested_at: null });
     expect(
       writes.findLast((w) => w.table === 'guidance_value_batches')?.value
     ).toMatchObject({ state: 'failed', error: 'expired' });

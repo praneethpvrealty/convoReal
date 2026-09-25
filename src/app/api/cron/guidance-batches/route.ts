@@ -2,7 +2,8 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 
 import {
-  CRON_BUILD_BUDGET_MS,
+  CRON_MIN_QUEUE_MS,
+  cronQueueBudgetMs,
   pollGuidanceBatches,
   queueGuidanceBatches,
   type QueueResult,
@@ -35,15 +36,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   try {
     const db = supabaseAdmin();
     const polled = await pollGuidanceBatches(db);
     let queued: QueueResult | { error: string } | null = null;
+    const budgetMs = cronQueueBudgetMs(startedAt, Date.now());
     try {
-      queued = await queueGuidanceBatches(db, Date.now, {
-        requestedOnly: true,
-        budgetMs: CRON_BUILD_BUDGET_MS,
-      });
+      if (budgetMs >= CRON_MIN_QUEUE_MS) {
+        queued = await queueGuidanceBatches(db, Date.now, {
+          requestedOnly: true,
+          budgetMs,
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('[guidance-value] background queue failed:', message);
