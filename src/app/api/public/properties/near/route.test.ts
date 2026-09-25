@@ -105,7 +105,15 @@ describe('GET /api/public/properties/near', () => {
 
     expect(placesAutocomplete).toHaveBeenCalledWith(
       'basavan, Bengaluru',
-      expect.any(String)
+      expect.any(String),
+      {
+        regionsOnly: true,
+        bias: {
+          latitude: expect.closeTo(13.01495, 6),
+          longitude: expect.closeTo(77.5863, 6),
+          radiusKm: 30,
+        },
+      }
     );
     const session = placesAutocomplete.mock.calls[0][1];
     expect(placeDetails).toHaveBeenCalledWith('basavanagudi', session);

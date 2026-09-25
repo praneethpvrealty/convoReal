@@ -1047,6 +1047,10 @@
             {
               "file": "src/components/showcase/showcase-view.location-search.test.tsx",
               "case": "[PRP-013]"
+            },
+            {
+              "file": "src/lib/maps/google-places.test.ts",
+              "case": "[PRP-013]"
             }
           ]
         }

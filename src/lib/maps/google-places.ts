@@ -42,9 +42,15 @@ export interface PlaceSuggestion {
   secondary_text: string;
 }
 
+export interface AutocompleteOptions {
+  regionsOnly?: boolean;
+  bias?: { latitude: number; longitude: number; radiusKm: number };
+}
+
 export async function placesAutocomplete(
   input: string,
-  sessionToken: string
+  sessionToken: string,
+  options: AutocompleteOptions = {}
 ): Promise<PlaceSuggestion[]> {
   const res = await fetchWithTimeout('https://places.googleapis.com/v1/places:autocomplete', {
     method: 'POST',
@@ -57,6 +63,20 @@ export async function placesAutocomplete(
       sessionToken,
       includedRegionCodes: ['in'],
       languageCode: 'en',
+      ...(options.regionsOnly ? { includedPrimaryTypes: ['(regions)'] } : {}),
+      ...(options.bias
+        ? {
+            locationBias: {
+              circle: {
+                center: {
+                  latitude: options.bias.latitude,
+                  longitude: options.bias.longitude,
+                },
+                radius: Math.min(50_000, options.bias.radiusKm * 1000),
+              },
+            },
+          }
+        : {}),
     }),
   });
 

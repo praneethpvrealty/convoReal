@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   dominantCity,
   geocodeQuery,
+  inventoryCentre,
   publicDistanceKm,
   rankNearbyListings,
   type NearbyCandidate,
@@ -96,5 +97,17 @@ describe('showcase nearby search', () => {
       'Basavanagudi, Bengaluru'
     );
     expect(geocodeQuery('basavan', null)).toBe('basavan');
+  });
+
+  it('centres the place lookup on the median listing so a stray pin cannot drag it', () => {
+    expect(
+      inventoryCentre([
+        row({ id: 'a', latitude: 12.9, longitude: 77.5 }),
+        row({ id: 'b', latitude: '12.95', longitude: '77.6' }),
+        row({ id: 'c', latitude: 28.6, longitude: 77.2 }),
+        row({ id: 'd' }),
+      ])
+    ).toEqual({ latitude: 12.95, longitude: 77.5 });
+    expect(inventoryCentre([row({ id: 'd' })])).toBeNull();
   });
 });

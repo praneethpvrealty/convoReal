@@ -49,6 +49,28 @@ export function dominantCity(
   return best?.label ?? null;
 }
 
+export function inventoryCentre(rows: NearbyCandidate[]): NearbyCentre | null {
+  const lats: number[] = [];
+  const lngs: number[] = [];
+  for (const row of rows) {
+    const lat = row.latitude === null ? NaN : Number(row.latitude);
+    const lng = row.longitude === null ? NaN : Number(row.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      lats.push(lat);
+      lngs.push(lng);
+    }
+  }
+  if (lats.length === 0) return null;
+  const median = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2
+      ? sorted[mid]
+      : (sorted[mid - 1] + sorted[mid]) / 2;
+  };
+  return { latitude: median(lats), longitude: median(lngs) };
+}
+
 export function geocodeQuery(query: string, city: string | null): string {
   const trimmed = query.trim();
   if (!city || trimmed.toLocaleLowerCase().includes(city.toLocaleLowerCase())) {
