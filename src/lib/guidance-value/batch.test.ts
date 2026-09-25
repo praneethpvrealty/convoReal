@@ -144,6 +144,43 @@ describe('sanitiseRateRows (compact)', () => {
   });
 });
 
+describe('non-rate tables', () => {
+  it('[GVL-011] drops ready reckoners, construction, floor and parking tables', () => {
+    const { rows } = sanitiseRateRows(
+      {
+        groups: [
+          {
+            taluk: 'Statewide',
+            village: 'Statewide',
+            rows: [['RCC Building', '', '', 'sqm', 3, { ot: 18000 }]],
+          },
+          {
+            village: 'READY RECKONER FOR APARTMENT RATE',
+            rows: [['114', '', '', 'sqm', 3, { ra: 11400 }]],
+          },
+          {
+            village: 'Parking Charges',
+            rows: [['Up to 50,00,000/-', '', '', 'sqm', 3, { ot: 500 }]],
+          },
+          {
+            village: 'Additional Rate for Apartment Floors',
+            rows: [['6th Floor', '', '', 'sqm', 3, { ra: 2 }]],
+          },
+          {
+            village: 'Kallahalli',
+            rows: [['', '', '12/1', 'acre', 4, { ag: 900000 }]],
+          },
+        ],
+      },
+      3,
+      4
+    );
+    expect(rows.map((r) => [r.village, r.taluk])).toEqual([
+      ['Kallahalli', undefined],
+    ]);
+  });
+});
+
 describe('planChunks', () => {
   it('[GVL-012] covers every unread page two at a time', () => {
     expect(planChunks(5, 0)).toEqual([
@@ -327,6 +364,66 @@ describe('assembleSourceRows', () => {
     expect(result.parsedTo).toBe(4);
     expect(result.failed).toBe(1);
     expect(result.rows.map((r) => r.page)).toEqual([3, 7]);
+  });
+
+  it('[GVL-012] carries the last printed hobli into later ranges of the same taluk', () => {
+    const { rows } = assembleSourceRows(0, [
+      {
+        chunk: chunk(1, 2),
+        rows: [
+          {
+            taluk: 'Kanakapura',
+            hobli: 'Maralavadi',
+            village: 'Chiliru',
+            property_class: 'agricultural',
+            rate: 1,
+            unit: 'acre',
+            page: 2,
+          },
+        ],
+      },
+      {
+        chunk: chunk(3, 4),
+        rows: [
+          {
+            taluk: 'Kanakapura Taluk',
+            village: 'Kiranagere',
+            property_class: 'agricultural',
+            rate: 2,
+            unit: 'acre',
+            page: 3,
+          },
+          {
+            taluk: 'Kanakapura',
+            hobli: 'Sathanur',
+            village: 'Kolalagundi',
+            property_class: 'agricultural',
+            rate: 3,
+            unit: 'acre',
+            page: 4,
+          },
+        ],
+      },
+      {
+        chunk: chunk(5, 6),
+        rows: [
+          {
+            taluk: 'Magadi',
+            village: 'Kudur',
+            property_class: 'agricultural',
+            rate: 4,
+            unit: 'acre',
+            page: 5,
+          },
+        ],
+      },
+    ]);
+    expect(rows.map((r) => [r.village, r.hobli])).toEqual([
+      ['Chiliru', 'Maralavadi'],
+      ['Kiranagere', 'Maralavadi'],
+      ['Kolalagundi', 'Sathanur'],
+      ['Kudur', undefined],
+    ]);
   });
 
   it('[GVL-012] never carries an old hobli or village into a range that opens a new district', () => {

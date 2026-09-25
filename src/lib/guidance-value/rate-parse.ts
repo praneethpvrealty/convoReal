@@ -52,16 +52,25 @@ export interface PdfSlice {
   lastPage: number;
 }
 
+export async function openPdf(buffer: Uint8Array): Promise<PDFDocument | null> {
+  try {
+    return await PDFDocument.load(buffer, {
+      ignoreEncryption: true,
+      updateMetadata: false,
+    });
+  } catch {
+    return null;
+  }
+}
+
 export async function slicePdf(
-  buffer: Uint8Array,
+  input: Uint8Array | PDFDocument,
   fromPage: number,
   toPage: number
 ): Promise<PdfSlice | null> {
   try {
-    const source = await PDFDocument.load(buffer, {
-      ignoreEncryption: true,
-      updateMetadata: false,
-    });
+    const source = input instanceof PDFDocument ? input : await openPdf(input);
+    if (!source) return null;
     const pageCount = source.getPageCount();
     const firstPage = Math.max(1, fromPage - 1);
     const lastPage = Math.min(toPage, pageCount);
@@ -139,9 +148,16 @@ Return compact JSON, writing each heading once:
 A group is every rate under one district / taluk (sub-registrar office) /
 hobli / village heading; village is the revenue village, or the ward or
 area for urban tables. Start a new group whenever any heading changes and
-give every group all four headings, carried down from earlier headings,
-including headings printed on an earlier page when the table continues.
-Use "" for a heading the notification does not have.
+give every group the headings printed above its rows, carried down from
+earlier headings on these pages or the page before them. Copy headings
+exactly as printed and never infer one from a place name you recognise:
+write "" for any heading not printed on these pages, and it is carried
+over from the pages before.
+
+Transcribe only the area-wise guidance value tables. Skip construction
+cost and building-type tables, floor-rise or additional-floor rates,
+parking charges, ready reckoners, worked examples and general guideline
+or instruction pages; return no rows for them.
 
 Each row is one line of the table:
   locality        the area, layout, extension, block or colony, e.g.
@@ -182,6 +198,15 @@ function parseClass(value: unknown): PropertyClass | null {
 
 const HEADING_KEYS = ['district', 'taluk', 'hobli', 'village'] as const;
 
+export const NON_RATE_TABLE =
+  /\b(ready reckoner|construction rates?|building rates|building construction|parking (charges|rates)|additional (floor|rate for apartment floors)|floor[- ]?(wise|rise|rates?|weightage|additional)|calculation example|general guidelines?|special instructions|conversion guidelines|statewide|madras terrace|kadapa terrace|mangalore tiles)\b/i;
+
+function isNonRateTable(row: RawRate): boolean {
+  return [row.headings.village, row.locality].some(
+    (value) => typeof value === 'string' && NON_RATE_TABLE.test(value)
+  );
+}
+
 interface RawRate {
   headings: Record<string, unknown>;
   locality: unknown;
@@ -202,6 +227,9 @@ function compactRates(groups: unknown[]): RawRate[] {
     const headings: Record<string, unknown> = { ...carried };
     for (const key of HEADING_KEYS) {
       if (typeof g[key] === 'string') headings[key] = g[key];
+    }
+    if (typeof g.village === 'string' && NON_RATE_TABLE.test(g.village)) {
+      continue;
     }
     carried = headings;
     for (const line of Array.isArray(g.rows) ? g.rows : []) {
@@ -263,6 +291,7 @@ export function sanitiseRateRows(
     : legacyRates(Array.isArray(input.rows) ? input.rows : []);
 
   for (const row of candidates) {
+    if (isNonRateTable(row)) continue;
     const propertyClass = parseClass(row.property_class);
     const unit = normaliseUnit(row.unit);
     const rate = Number(

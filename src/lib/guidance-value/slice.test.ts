@@ -33,6 +33,17 @@ describe('slicePdf', () => {
     expect(last).toMatchObject({ firstPage: 4, lastPage: 5 });
   });
 
+  it('[GVL-012] slices a notification loaded once as it does from bytes', async () => {
+    const bytes = await pdfWithPages(12);
+    const doc = await PDFDocument.load(bytes);
+    const fromDoc = await slicePdf(doc, 5, 6);
+    const fromBytes = await slicePdf(bytes, 5, 6);
+    expect(fromDoc).toMatchObject({ pageCount: 12, firstPage: 4, lastPage: 6 });
+    expect((await PDFDocument.load(fromDoc!.bytes)).getPageCount()).toBe(
+      (await PDFDocument.load(fromBytes!.bytes)).getPageCount()
+    );
+  });
+
   it('falls back to the whole PDF when it cannot be split', async () => {
     expect(
       await slicePdf(new TextEncoder().encode('%PDF-junk'), 1, 2)

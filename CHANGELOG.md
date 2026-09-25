@@ -94,6 +94,11 @@ than a written entry. Newest first.
   interrupted instead of skipping it forever.
   It only does so when the PDF is really missing and nothing was read yet: a
   storage hiccup leaves the notification and its rates alone for the next run.
+- **Guidance value accuracy.** Gemini no longer guesses a hobli or taluk from a
+  place name it recognises; a heading printed earlier in the notification is
+  carried forward instead. Construction-cost, floor-rise, parking and
+  ready-reckoner tables are no longer stored as rates, and queuing loads each
+  PDF once, so a single run queues far more notifications.
 
 #### 24 September 2026
 
