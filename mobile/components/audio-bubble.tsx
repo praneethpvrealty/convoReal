@@ -13,7 +13,7 @@ import { formatDuration } from '@/lib/attachments';
 import { haptic } from '@/lib/haptics';
 import { mediaSource } from '@/lib/media-source';
 import { useTheme } from '@/lib/theme';
-import { useMediaFile } from '@/lib/use-media-file';
+import { mediaFileMissing, useMediaFile } from '@/lib/use-media-file';
 
 /**
  * A playable voice note or audio clip.
@@ -47,6 +47,12 @@ export function AudioBubble({
         : null;
   const failed = !resolved || proxied.isError;
 
+  const ensurePlayable = () => {
+    if (!proxied.data || !mediaFileMissing(proxied.data)) return true;
+    void proxied.refetch();
+    return false;
+  };
+
   const meta = outgoing ? colors.outgoingMeta : colors.textMuted;
   const accent = outgoing ? colors.outgoingText : colors.primary;
 
@@ -75,6 +81,7 @@ export function AudioBubble({
       accent={accent}
       meta={meta}
       bold={f.semibold}
+      ensurePlayable={ensurePlayable}
     />
   );
 }
@@ -86,11 +93,13 @@ function AudioPlayerRow({
   accent,
   meta,
   bold,
+  ensurePlayable,
 }: {
   source: { uri: string };
   accent: string;
   meta: string;
   bold: string;
+  ensurePlayable: () => boolean;
 }) {
   const player = useAudioPlayer(source);
   const status = useAudioPlayerStatus(player);
@@ -106,6 +115,7 @@ function AudioPlayerRow({
       player.pause();
       return;
     }
+    if (!ensurePlayable()) return;
     // A clip played to the end stays parked there; without the rewind
     // the second tap plays nothing.
     if (

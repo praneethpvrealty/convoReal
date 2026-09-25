@@ -30,6 +30,10 @@ async function downloadMedia(path: string): Promise<string> {
   return file.uri;
 }
 
+export function mediaFileMissing(uri: string): boolean {
+  return !new File(uri).exists;
+}
+
 export function discardCachedMedia(path: string): void {
   cachedFile(path)?.delete();
 }
@@ -48,7 +52,7 @@ export function useMediaFile(path: string | null) {
 
   const { data, refetch } = query;
   useEffect(() => {
-    if (data && !new File(data).exists) void refetch();
+    if (data && mediaFileMissing(data)) void refetch();
   }, [data, refetch]);
 
   return query;

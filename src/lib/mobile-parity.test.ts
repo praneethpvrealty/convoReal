@@ -1311,6 +1311,7 @@ describe('mobile inbox images load through the API client', () => {
   it('plays voice notes from the downloaded file, never with a header', () => {
     const audio = mobileSource('components/audio-bubble.tsx');
     expect(audio).toContain('useMediaFile(');
+    expect(audio).toContain('if (!ensurePlayable()) return;');
     expect(audio).not.toContain('headers');
     expect(audio).not.toContain('authHeaders');
   });
