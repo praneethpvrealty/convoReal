@@ -38,7 +38,7 @@ import {
   readBatchOperation,
   type BatchChunk,
 } from './batch';
-import { sanitiseRateRows } from './rate-parse';
+import { NON_RATE_TABLE, sanitiseRateRows } from './rate-parse';
 
 const compact = {
   total_pages: 12,
@@ -178,6 +178,56 @@ describe('non-rate tables', () => {
     expect(rows.map((r) => [r.village, r.taluk])).toEqual([
       ['Kallahalli', undefined],
     ]);
+  });
+});
+
+describe('non-rate tables named in rows', () => {
+  it('[GVL-011] skips a group whose every line is a non-rate label and carries none of its headings', () => {
+    const { rows } = sanitiseRateRows(
+      {
+        groups: [
+          {
+            district: 'Belagavi',
+            taluk: 'Chikkodi',
+            hobli: 'Kasaba',
+            village: 'Ankali',
+            rows: [['', '', '1/1', 'acre', 3, { ag: 100 }]],
+          },
+          {
+            district: 'Statewide',
+            taluk: 'All',
+            hobli: 'All',
+            village: 'Rates',
+            rows: [
+              ['Construction Cost', '', '', 'sqm', 3, { ot: 18000 }],
+              ['Worked Example', '', '', 'sqm', 3, { ot: 2 }],
+            ],
+          },
+          { rows: [['', '', '2/1', 'acre', 4, { ag: 200 }]] },
+        ],
+      },
+      3,
+      4
+    );
+    expect(rows.map((r) => [r.district, r.village, r.rate])).toEqual([
+      ['Belagavi', 'Ankali', 100],
+      ['Belagavi', 'Ankali', 200],
+    ]);
+  });
+
+  it('[GVL-011] recognises the ordinary names of the excluded tables', () => {
+    for (const label of [
+      'Construction Cost',
+      'Worked Example',
+      'Building Type',
+      'Building Types',
+      'Construction Costs',
+    ]) {
+      expect(NON_RATE_TABLE.test(label)).toBe(true);
+    }
+    for (const label of ['Koramangala', 'Kallahalli', 'KIADB Area']) {
+      expect(NON_RATE_TABLE.test(label)).toBe(false);
+    }
   });
 });
 
