@@ -1,33 +1,27 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 
-import { authHeaders } from '@/lib/api';
 import { mediaSource } from '@/lib/media-source';
 import { radius, useTheme } from '@/lib/theme';
+import { useMediaFile } from '@/lib/use-media-file';
 
 export function MediaImage({ mediaUrl }: { mediaUrl: string }) {
   const { colors } = useTheme();
   const resolved = useMemo(() => mediaSource(mediaUrl), [mediaUrl]);
-  const [headers, setHeaders] = useState<Record<string, string> | null>(null);
+  const proxied = useMediaFile(
+    resolved?.kind === 'proxy' ? resolved.path : null
+  );
   const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    if (!resolved || resolved.kind !== 'proxy') return;
-    let cancelled = false;
-    authHeaders()
-      .then((next) => {
-        if (!cancelled) setHeaders(next);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [resolved]);
+  const uri =
+    resolved?.kind === 'public'
+      ? resolved.uri
+      : resolved?.kind === 'proxy'
+        ? proxied.data
+        : undefined;
 
-  if (!resolved || failed) {
+  if (!resolved || failed || proxied.isError) {
     return (
       <View
         style={{
@@ -48,7 +42,7 @@ export function MediaImage({ mediaUrl }: { mediaUrl: string }) {
     );
   }
 
-  if (resolved.kind === 'proxy' && !headers) {
+  if (!uri) {
     return (
       <View
         style={{
@@ -63,11 +57,7 @@ export function MediaImage({ mediaUrl }: { mediaUrl: string }) {
 
   return (
     <Image
-      source={
-        resolved.kind === 'public'
-          ? { uri: resolved.uri }
-          : { uri: resolved.uri, headers: headers ?? undefined }
-      }
+      source={{ uri }}
       style={{ width: 210, height: 210, borderRadius: radius.md }}
       resizeMode="cover"
       onError={() => setFailed(true)}

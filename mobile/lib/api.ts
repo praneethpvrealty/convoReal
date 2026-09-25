@@ -127,6 +127,17 @@ export async function apiFetch<T>(
   path: string,
   init?: ApiRequestInit
 ): Promise<T> {
+  const res = await apiResponse(path, init);
+  // 204 No Content (e.g. DELETE /api/properties/[id]) has an empty body —
+  // res.json() would throw and turn a successful call into an error dialog.
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+export async function apiResponse(
+  path: string,
+  init?: ApiRequestInit
+): Promise<Response> {
   const { signal: callerSignal, timeoutMs, ...rest } = init ?? {};
   const method = (rest.method ?? 'GET').toUpperCase();
   // Replaying a body is only safe when the call has no side effect.
@@ -239,10 +250,7 @@ export async function apiFetch<T>(
       body?.data
     );
   }
-  // 204 No Content (e.g. DELETE /api/properties/[id]) has an empty body —
-  // res.json() would throw and turn a successful call into an error dialog.
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  return res;
 }
 
 /** Bearer headers for non-JSON requests (e.g. <Image> media fetches). */

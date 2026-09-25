@@ -1293,6 +1293,22 @@ describe('mobile/lib/use-photo-source.ts resolves guarded photos', () => {
   });
 });
 
+describe('mobile inbox images load through the API client', () => {
+  const image = mobileSource('components/media-image.tsx');
+  const loader = mobileSource('lib/use-media-file.ts');
+
+  it('never hands <Image> a header it cannot carry', () => {
+    expect(image).not.toContain('headers');
+    expect(image).not.toContain('authHeaders');
+    expect(image).toContain('useMediaFile(');
+  });
+
+  it('downloads proxied media with apiResponse into the cache', () => {
+    expect(loader).toContain('await apiResponse(path)');
+    expect(loader).toContain('Paths.cache');
+  });
+});
+
 describe('mobile/lib/photo-sources.ts mirrors photo-sources', () => {
   // Both galleries have to find a gated listing's photos in the guarded
   // bucket, in the same order, at the same proxy index — the index IS
