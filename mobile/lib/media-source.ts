@@ -51,12 +51,19 @@ export function mediaSource(
   return resolved ? { kind: 'public', uri: resolved } : null;
 }
 
-const IMAGE_EXTENSIONS: Record<string, string> = {
+const MEDIA_EXTENSIONS: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
   'image/gif': 'gif',
+  'audio/ogg': 'ogg',
+  'audio/mpeg': 'mp3',
+  'audio/mp4': 'm4a',
+  'audio/aac': 'aac',
+  'audio/amr': 'amr',
 };
+
+export const CACHEABLE_MEDIA_TYPES = Object.keys(MEDIA_EXTENSIONS);
 
 export function mediaCacheFileName(
   path: string,
@@ -64,5 +71,5 @@ export function mediaCacheFileName(
 ): string {
   const id = path.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+/, '');
   const mime = (contentType ?? '').split(';')[0].trim().toLowerCase();
-  return `wa-${id}.${IMAGE_EXTENSIONS[mime] ?? 'img'}`;
+  return `wa-${id}.${MEDIA_EXTENSIONS[mime] ?? 'img'}`;
 }

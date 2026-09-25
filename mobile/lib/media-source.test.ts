@@ -64,6 +64,12 @@ describe('mediaCacheFileName', () => {
     expect(name.endsWith('.png')).toBe(true);
   });
 
+  it('names a voice note after its audio type', () => {
+    expect(
+      mediaCacheFileName('/api/whatsapp/media/77', 'audio/ogg; codecs=opus')
+    ).toBe('wa-api_whatsapp_media_77.ogg');
+  });
+
   it('falls back to a neutral extension for an unknown type', () => {
     expect(
       mediaCacheFileName('/api/whatsapp/media/9', 'application/octet-stream')

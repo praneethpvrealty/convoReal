@@ -1,14 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { File } from 'expo-file-system';
 
 import { ApiError, apiResponse } from '@/lib/api';
 import { mediaCacheDir } from '@/lib/media-cache';
-import { mediaCacheFileName } from '@/lib/media-source';
-
-const CACHED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+import { CACHEABLE_MEDIA_TYPES, mediaCacheFileName } from '@/lib/media-source';
 
 function cachedFile(path: string): File | null {
-  for (const type of [...CACHED_TYPES, null]) {
+  for (const type of [...CACHEABLE_MEDIA_TYPES, null]) {
     const file = new File(mediaCacheDir(), mediaCacheFileName(path, type));
     if (file.exists && (file.size ?? 0) > 0) return file;
   }
@@ -36,7 +35,7 @@ export function discardCachedMedia(path: string): void {
 }
 
 export function useMediaFile(path: string | null) {
-  return useQuery({
+  const query = useQuery({
     queryKey: ['whatsapp-media-file', path],
     queryFn: () => downloadMedia(path as string),
     enabled: Boolean(path),
@@ -46,4 +45,11 @@ export function useMediaFile(path: string | null) {
       !(err instanceof ApiError && err.status >= 400 && err.status < 500) &&
       count < 2,
   });
+
+  const { data, refetch } = query;
+  useEffect(() => {
+    if (data && !new File(data).exists) void refetch();
+  }, [data, refetch]);
+
+  return query;
 }
