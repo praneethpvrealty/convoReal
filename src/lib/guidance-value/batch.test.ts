@@ -569,7 +569,14 @@ async function pdf(pages: number): Promise<Uint8Array> {
   return doc.save();
 }
 
-async function queueDb(lost: string[]) {
+async function queueDb(
+  lost: string[],
+  opts: {
+    downloadFails?: boolean;
+    listed?: string[];
+    pagesParsed?: number;
+  } = {}
+) {
   const bytes = await pdf(3);
   const writes: Array<{
     table: string;
@@ -616,7 +623,7 @@ async function queueDb(lost: string[]) {
               id: sid,
               storage_path: `KA/${sid}.pdf`,
               page_count: 3,
-              pages_parsed: 0,
+              pages_parsed: opts.pagesParsed ?? 0,
             })),
             error: null,
           });
@@ -633,8 +640,12 @@ async function queueDb(lost: string[]) {
     },
     storage: {
       from: () => ({
-        download: async () => ({
-          data: new Blob([new Uint8Array(bytes)]),
+        download: async () =>
+          opts.downloadFails
+            ? { data: null, error: { message: 'Gateway timeout' } }
+            : { data: new Blob([new Uint8Array(bytes)]), error: null },
+        list: async () => ({
+          data: (opts.listed ?? []).map((name) => ({ name })),
           error: null,
         }),
       }),
@@ -688,5 +699,44 @@ describe('queueGuidanceBatches', () => {
         (w) => w.table === 'guidance_value_batches' && w.op === 'delete'
       )
     ).toBe(true);
+  });
+});
+
+describe('queueGuidanceBatches downloads', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('[GVL-012] reports a never-uploaded PDF only when it is missing and nothing was read', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const { db, writes } = await queueDb([], { downloadFails: true });
+    const result = await queueGuidanceBatches(db);
+    expect(result.skipped.map((s) => s.code)).toEqual([
+      'SOURCE_NOT_STORED',
+      'SOURCE_NOT_STORED',
+    ]);
+    expect(
+      writes.filter(
+        (w) =>
+          w.table === 'guidance_value_sources' &&
+          (w.value as { status?: string }).status === 'failed'
+      )
+    ).toHaveLength(2);
+  });
+
+  it('[GVL-012] leaves a notification untouched when its stored PDF only fails to download', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    for (const opts of [
+      { downloadFails: true, listed: ['src-1.pdf', 'src-2.pdf'] },
+      { downloadFails: true, pagesParsed: 2 },
+    ]) {
+      const { db, writes } = await queueDb([], opts);
+      const result = await queueGuidanceBatches(db);
+      expect(result.skipped.map((s) => s.code)).toEqual([
+        'DOWNLOAD_FAILED',
+        'DOWNLOAD_FAILED',
+      ]);
+      expect(
+        writes.filter((w) => w.table === 'guidance_value_sources')
+      ).toEqual([]);
+    }
   });
 });
