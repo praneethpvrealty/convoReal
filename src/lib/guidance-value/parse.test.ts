@@ -117,3 +117,29 @@ describe('sanitiseRateRows', () => {
     expect(countPdfPages(new Uint8Array())).toBeNull();
   });
 });
+
+describe('sanitiseSchedule (RTC)', () => {
+  it('[GVL-013] keeps the document type, the Kannada village and the printed extent', () => {
+    expect(
+      sanitiseSchedule({
+        document_type: 'RTC',
+        taluk: 'Mangaluru',
+        hobli: 'Gurupura',
+        village: 'Adduru',
+        village_local: ' ಅಡ್ಡೂರು ',
+        survey_number: '6/32',
+        extent_printed: '0.16.25.00',
+        kind: 'agricultural',
+      })
+    ).toMatchObject({
+      document_type: 'rtc',
+      village: 'Adduru',
+      village_local: 'ಅಡ್ಡೂರು',
+      extent_printed: '0.16.25.00',
+      survey_number: '6/32',
+    });
+    expect(
+      sanitiseSchedule({ document_type: 'will' }).document_type
+    ).toBeUndefined();
+  });
+});

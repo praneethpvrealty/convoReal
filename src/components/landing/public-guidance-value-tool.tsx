@@ -346,12 +346,12 @@ export function PublicGuidanceValueTool() {
           </div>
           <div>
             <p className="text-sm font-bold text-white">
-              Have the sale deed? Skip the typing.
+              Have the sale deed or RTC? Skip the typing.
             </p>
             <p className="mt-1 text-xs leading-relaxed text-slate-400">
-              Inside ConvoReal you upload the schedule page as a PDF or photo
-              and the location, survey number and extent are read out and
-              matched for you, then saved against the property or deal.
+              Inside ConvoReal you upload the schedule page or the RTC as a PDF
+              or photo and the location, survey number and extent are read out
+              and matched for you, then saved against the property or deal.
             </p>
           </div>
         </div>

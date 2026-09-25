@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/server';
 import {
   districtPattern,
   desiredClass,
+  placeKey,
   rankMatches,
   searchQueries,
 } from './match';
@@ -154,6 +155,20 @@ async function searchRates(
   return (data ?? []) as RateRow[];
 }
 
+async function searchRatesBySpelling(
+  db: SupabaseClient,
+  key: string,
+  pattern: string
+): Promise<RateRow[]> {
+  const { data, error } = await db.rpc('search_guidance_value_rates_by_key', {
+    p_key: key,
+    p_district_pattern: pattern,
+    p_limit: 80,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as RateRow[];
+}
+
 export async function findCandidateRates(
   db: SupabaseClient,
   schedule: PropertySchedule
@@ -163,6 +178,12 @@ export async function findCandidateRates(
   for (const query of searchQueries(schedule)) {
     const rows = await searchRates(db, query, pattern);
     for (const row of rows) byId.set(row.id, toRate(row));
+  }
+  const key = placeKey(schedule.village);
+  if (pattern && key.length >= 3) {
+    for (const row of await searchRatesBySpelling(db, key, pattern)) {
+      byId.set(row.id, toRate(row));
+    }
   }
   return [...byId.values()];
 }

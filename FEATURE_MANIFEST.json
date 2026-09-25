@@ -2106,6 +2106,24 @@
           ]
         },
         {
+          "id": "GVL-013",
+          "rule": "The schedule reader also reads a Karnataka RTC (Pahani): it records document_type 'rtc', drops the village code, transliterates Kannada names letter by letter without substituting a similar-sounding place, keeps the village as printed in village_local and the extent as printed in extent_printed, joins survey and hissa as the survey number, and fills land_area only when the extent's column units are certain, otherwise leaving it for the user to enter. Web and mobile show the as-printed village and extent under the summary with the same wording. Rate ranking compares place names by a spelling key that ignores doubled letters, aspirated consonants, long-vowel spellings and a trailing vowel, so Adduru matches a notification's Addur but not Adyar; when the district is known, candidates are also fetched by that key (search_guidance_value_rates_by_key over the indexed guidance_spelling_key of village and locality, which mirrors placeKey), so a spelling too far apart for trigram search is still found, and the key lookup never runs without a district.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/match.test.ts",
+              "case": "[GVL-013]"
+            },
+            {
+              "file": "src/lib/guidance-value/parse.test.ts",
+              "case": "[GVL-013]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[GVL-013]"
+            }
+          ]
+        },
+        {
           "id": "GVL-014",
           "rule": "A queue request is remembered on every waiting notification (batch_requested_at) before any batch is built, so the guidance-batches cron keeps queuing requested notifications that one time-limited request did not reach, with its own shorter budget, even after the admin leaves the page. The cron never queues a notification nobody asked to batch; the request is cleared when the notification is ready, when its PDF cannot be read, or when a batch returns without advancing its progress, and when its batch fails, is cancelled or expires, so an unreadable range or a failed batch is not resubmitted every 15 minutes. The cron's queue budget is what remains of one route deadline after polling, and it skips queuing when too little time is left.",
           "tests": [

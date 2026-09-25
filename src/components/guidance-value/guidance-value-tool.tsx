@@ -22,6 +22,7 @@ import {
   rateLocation,
   rateSourceText,
   scheduleHeadline,
+  schedulePrinted,
   scheduleToForm,
   type ScheduleForm,
 } from '@/lib/guidance-value/present';
@@ -184,10 +185,11 @@ export function GuidanceValueTool({
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold">
-              Upload the sale deed schedule
+              Upload the sale deed schedule or RTC
             </p>
             <p className="text-muted-foreground text-xs">
-              A PDF or photo of the schedule page (under 4 MB). Karnataka only.
+              A PDF or photo of the schedule page or RTC (under 4 MB). Karnataka
+              only.
               {creditCost ? ` Reading it costs ${creditCost} credits.` : ''}
             </p>
           </div>
@@ -244,6 +246,11 @@ export function GuidanceValueTool({
           {baseSchedule?.summary && (
             <p className="text-muted-foreground text-xs">
               {baseSchedule.summary}
+            </p>
+          )}
+          {baseSchedule && schedulePrinted(baseSchedule) && (
+            <p className="text-muted-foreground text-xs">
+              {schedulePrinted(baseSchedule)}
             </p>
           )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

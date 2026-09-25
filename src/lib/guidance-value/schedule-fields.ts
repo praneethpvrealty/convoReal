@@ -1,8 +1,10 @@
 import {
+  SCHEDULE_DOCUMENTS,
   SCHEDULE_KINDS,
   SCHEDULE_USAGES,
   type Boundaries,
   type PropertySchedule,
+  type ScheduleDocument,
   type ScheduleFloor,
   type ScheduleKind,
   type ScheduleUsage,
@@ -89,6 +91,16 @@ export function sanitiseSchedule(raw: unknown): PropertySchedule {
     const value = cleanString(input[key]);
     if (value) out[key] = value;
   }
+
+  const villageLocal = cleanString(input.village_local, 80);
+  if (villageLocal) out.village_local = villageLocal;
+  const extentPrinted = cleanString(input.extent_printed, 40);
+  if (extentPrinted) out.extent_printed = extentPrinted;
+  const documentType = pickEnum<ScheduleDocument>(
+    input.document_type,
+    SCHEDULE_DOCUMENTS
+  );
+  if (documentType) out.document_type = documentType;
 
   const pincode = cleanString(input.pincode, 12)?.replace(/\D/g, '');
   if (pincode && /^[1-9]\d{5}$/.test(pincode)) out.pincode = pincode;

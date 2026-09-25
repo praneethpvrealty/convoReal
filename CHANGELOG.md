@@ -25,6 +25,11 @@ than a written entry. Newest first.
   admin to queue them again. The cron now gives its queue step only the
   time polling left over, and skips queuing when too little is left.
 
+- **Guidance value from an RTC.** Upload a Karnataka RTC (Pahani) on web or
+  mobile and its taluk, hobli, village, survey/hissa and extent are read; the
+  Kannada village and the extent are shown as printed, and village names match
+  the notification's spelling (Adduru finds Addur, never Adyar).
+
 - **Address fragments are no longer saved as a buyer's area.** Contacts
   were filed under "#365", "#650", "Block", "Sector", "24th Main" and
   survey numbers, and the bot read them back ("listings near #365"). A
