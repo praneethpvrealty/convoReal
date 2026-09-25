@@ -14,6 +14,7 @@ import {
 import {
   dominantCity,
   geocodeQuery,
+  inventoryCentre,
   rankNearbyListings,
   type NearbyCandidate,
   type NearbyCentre,
@@ -21,6 +22,7 @@ import {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLACE_CACHE_CAP = 500;
+const PLACE_BIAS_RADIUS_KM = 30;
 type ResolvedCentre = NearbyCentre & { label: string };
 
 const placeCache = new Map<string, ResolvedCentre | null>();
@@ -31,9 +33,15 @@ function clientIp(request: Request): string {
   return request.headers.get('x-real-ip')?.trim() || 'unknown';
 }
 
-async function resolvePlace(text: string): Promise<ResolvedCentre | null> {
+async function resolvePlace(
+  text: string,
+  bias: NearbyCentre | null
+): Promise<ResolvedCentre | null> {
   const session = randomUUID();
-  const [first] = await placesAutocomplete(text, session);
+  const [first] = await placesAutocomplete(text, session, {
+    regionsOnly: true,
+    bias: bias ? { ...bias, radiusKm: PLACE_BIAS_RADIUS_KM } : undefined,
+  });
   if (!first) return null;
   const place = await placeDetails(first.place_id, session);
   return {
@@ -43,10 +51,16 @@ async function resolvePlace(text: string): Promise<ResolvedCentre | null> {
   };
 }
 
-async function cachedPlace(text: string): Promise<ResolvedCentre | null> {
-  const key = text.toLocaleLowerCase();
+async function cachedPlace(
+  text: string,
+  bias: NearbyCentre | null
+): Promise<ResolvedCentre | null> {
+  const key = [
+    text.toLocaleLowerCase(),
+    bias ? `${bias.latitude.toFixed(1)},${bias.longitude.toFixed(1)}` : '',
+  ].join('|');
   if (placeCache.has(key)) return placeCache.get(key) ?? null;
-  const result = await resolvePlace(text).catch(() => null);
+  const result = await resolvePlace(text, bias).catch(() => null);
   if (placeCache.size >= PLACE_CACHE_CAP) {
     const oldest = placeCache.keys().next().value;
     if (oldest !== undefined) placeCache.delete(oldest);
@@ -105,7 +119,10 @@ export async function GET(request: Request) {
   const rows = (data || []) as NearbyCandidate[];
   const place =
     rows.length > 0 && hasGoogleMapsKey()
-      ? await cachedPlace(geocodeQuery(query, dominantCity(rows)))
+      ? await cachedPlace(
+          geocodeQuery(query, dominantCity(rows)),
+          inventoryCentre(rows)
+        )
       : null;
   const label = place?.label || query;
 

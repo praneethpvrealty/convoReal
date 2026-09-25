@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Showcase "Search near" now asks Google for areas only, near the
+  brokerage's own listings.** With autocomplete open to every kind of
+  place, "basavan" matched a temple in central Bengaluru before the
+  Basavanagudi neighbourhood, so the search was centred on the temple.
+  The lookup is now limited to localities and neighbourhoods and
+  weighted toward the middle of the showcase's inventory, so a partly
+  typed area lands on the area. The dashboard's own place search is
+  unchanged.
+
 - **Showcase "Search near" now understands a partly typed area.** The
   first version sent the text to Google's address geocoder, which could
   not place a fragment like "basavan" and fell back to the middle of

@@ -105,7 +105,15 @@ describe('GET /api/public/properties/near', () => {
 
     expect(placesAutocomplete).toHaveBeenCalledWith(
       'basavan, Bengaluru',
-      expect.any(String)
+      expect.any(String),
+      {
+        regionsOnly: true,
+        bias: {
+          latitude: expect.closeTo(13.01495, 6),
+          longitude: expect.closeTo(77.5863, 6),
+          radiusKm: 30,
+        },
+      }
     );
     const session = placesAutocomplete.mock.calls[0][1];
     expect(placeDetails).toHaveBeenCalledWith('basavanagudi', session);
@@ -129,6 +137,22 @@ describe('GET /api/public/properties/near', () => {
     await GET(req('Cached Place'));
     expect(placesAutocomplete).toHaveBeenCalledTimes(1);
     expect(placeDetails).not.toHaveBeenCalled();
+  });
+
+  it('does not share a biased place between showcases whose inventories sit apart', async () => {
+    placesAutocomplete.mockResolvedValue([]);
+    await GET(req('shared place'));
+    rows.data = [
+      {
+        id: 'mysuru',
+        latitude: 12.3,
+        longitude: 76.64,
+        city: 'Bengaluru',
+        sublocality: 'Vijayanagar',
+      },
+    ];
+    await GET(req('shared place', { account: `${ACCOUNT.slice(0, -1)}b` }));
+    expect(placesAutocomplete).toHaveBeenCalledTimes(2);
   });
 
   it('falls back to named-area matches when Places cannot resolve the text', async () => {
