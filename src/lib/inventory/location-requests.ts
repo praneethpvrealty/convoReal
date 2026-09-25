@@ -34,6 +34,7 @@ import {
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import {
+  LISTING_ACCESS_TEMPLATE_NAME,
   LOCATION_REVEAL_TEMPLATE_NAME,
   buildLocationRevealParams,
 } from '@/lib/whatsapp/location-reveal-template';
@@ -288,6 +289,23 @@ export function templateParamCount(
   ).size;
 }
 
+async function loadRevealTemplate(
+  admin: SupabaseClient,
+  request: Pick<LocationRequestRow, 'account_id' | 'via_contact_id' | 'scope'>
+) {
+  const load = (name: string) =>
+    loadTemplateForContact<MessageTemplate>(admin, {
+      accountId: request.account_id,
+      contactId: request.via_contact_id,
+      names: [name],
+    });
+  if (request.scope === 'listing') {
+    const listing = await load(LISTING_ACCESS_TEMPLATE_NAME);
+    if (listing.template?.status === 'APPROVED') return listing;
+  }
+  return load(LOCATION_REVEAL_TEMPLATE_NAME);
+}
+
 async function sendRevealToSeeker(
   admin: SupabaseClient,
   request: Pick<
@@ -326,11 +344,7 @@ async function sendRevealToSeeker(
     template,
     language: revealLanguage,
     fellBack,
-  } = await loadTemplateForContact<MessageTemplate>(admin, {
-    accountId: request.account_id,
-    contactId: request.via_contact_id,
-    names: [LOCATION_REVEAL_TEMPLATE_NAME],
-  });
+  } = await loadRevealTemplate(admin, request);
   if (fellBack) {
     warnLanguageFallback(
       'location-requests',

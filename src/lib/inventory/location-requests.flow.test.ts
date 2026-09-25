@@ -662,6 +662,86 @@ describe('reveal delivery outside the 24-hour window', () => {
     expect(tpl?.messageParams?.buttonParams?.[0]).toBe(row.share_token);
   });
 
+  function seedListingAccessTemplate(
+    tables: Record<string, Row[]>,
+    status: string
+  ) {
+    tables.message_templates.push({
+      id: 'tpl-listing',
+      account_id: ACCOUNT,
+      name: 'listing_access_approved',
+      status,
+      language: 'en_US',
+      body_text:
+        'Hi {{1}}, your request to view the full listing of {{2}} has been approved by the listing team.\n\n📐 {{3}}\n\nThe link stays valid for 7 days.',
+      buttons: [
+        {
+          type: 'URL',
+          text: 'View full details',
+          url: 'https://app.convoreal.com/reveal/{{1}}',
+        },
+      ],
+      last_submitted_at: new Date().toISOString(),
+    });
+  }
+
+  it('[PRP-019] sends a listing approval on listing_access_approved once Meta approves it', async () => {
+    const tables = freshTables();
+    seedApprovedRevealTemplate(tables);
+    seedListingAccessTemplate(tables, 'APPROVED');
+    const admin = fakeAdmin(tables);
+    const request = seedRequest(tables, { scope: 'listing' });
+
+    const { shareLink, revealDelivered } = await approveRequestAndSendReveal(
+      admin,
+      request,
+      OWNER_USER
+    );
+
+    expect(revealDelivered).toBe(true);
+    const grant = tables.property_share_grants[0];
+    expect(shareLink).toContain(`/reveal/${grant.token}`);
+    const tpl = sent.find((m) => m.kind === 'template');
+    expect(tpl?.templateName).toBe('listing_access_approved');
+    expect(tpl?.messageParams?.body).toHaveLength(3);
+    expect(tpl?.messageParams?.body?.[0]).toBe('Rahul');
+    expect(tpl?.messageParams?.buttonParams?.[0]).toBe(grant.token);
+  });
+
+  it('[PRP-019] keeps listing approvals on location_reveal while listing_access_approved is pending', async () => {
+    const tables = freshTables();
+    seedApprovedRevealTemplate(tables);
+    seedListingAccessTemplate(tables, 'PENDING');
+    const admin = fakeAdmin(tables);
+    const request = seedRequest(tables, { scope: 'listing' });
+
+    const { revealDelivered } = await approveRequestAndSendReveal(
+      admin,
+      request,
+      OWNER_USER
+    );
+
+    expect(revealDelivered).toBe(true);
+    const tpl = sent.find((m) => m.kind === 'template');
+    expect(tpl?.templateName).toBe('location_reveal');
+    expect(tpl?.messageParams?.buttonParams?.[0]).toBe(
+      tables.property_share_grants[0].token
+    );
+  });
+
+  it('[PRP-019] never sends a location approval on the listing template', async () => {
+    const tables = freshTables();
+    seedApprovedRevealTemplate(tables);
+    seedListingAccessTemplate(tables, 'APPROVED');
+    const admin = fakeAdmin(tables);
+    const request = seedRequest(tables, { scope: 'location' });
+
+    await approveRequestAndSendReveal(admin, request, OWNER_USER);
+
+    const tpl = sent.find((m) => m.kind === 'template');
+    expect(tpl?.templateName).toBe('location_reveal');
+  });
+
   it('never claims the reveal was sent when no approved template exists', async () => {
     const tables = freshTables();
     const admin = fakeAdmin(tables);

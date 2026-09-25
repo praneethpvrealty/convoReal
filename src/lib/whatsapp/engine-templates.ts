@@ -22,7 +22,9 @@ import {
   PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME,
 } from './property-enquiry-photos-template';
 import {
+  buildListingAccessTemplatePayload,
   buildLocationRevealTemplatePayload,
+  LISTING_ACCESS_TEMPLATE_NAME,
   LOCATION_REVEAL_TEMPLATE_NAME,
 } from './location-reveal-template';
 import {
@@ -127,6 +129,14 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       'Delivers an approved exact-location request to a seeker who asked from the public showcase.',
     build: buildLocationRevealTemplatePayload,
+  },
+  {
+    name: LISTING_ACCESS_TEMPLATE_NAME,
+    copyKey: 'listing_access',
+    label: 'Listing access approved',
+    whyItMatters:
+      'Delivers an approved listing-access request with the right wording: full photos, address and map pin for 7 days. Until it is approved, those approvals go out on Location reveal, which describes a 48-hour exact-location link.',
+    build: buildListingAccessTemplatePayload,
   },
   {
     name: LOCATION_CONSENT_TEMPLATE_NAME,

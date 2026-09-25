@@ -13,7 +13,7 @@ Write your correction in the last column / block. Leave it blank if the current 
 
 ---
 
-## Buttons (12)
+## Buttons (22)
 
 The tappable options underneath a message.
 
@@ -27,16 +27,96 @@ The tappable options underneath a message.
 | 6 | Still considering it | இன்னும் பரிசீலனை | 16/25 | |
 | 7 | Today itself | இன்றே | 5/25 | |
 | 8 | In 2 days | 2 நாட்களில் | 11/25 | |
-| 9 | Can't say yet | இப்போது சொல்ல முடியாது | 22/25 | |
-| 10 | View full details | முழு விவரம் காண்க | 17/25 | |
-| 11 | View location | இடத்தைக் காண்க | 14/25 | |
-| 12 | Browse showcase | பட்டியலைக் காண்க | 16/25 | |
+| 9 | Yes, send them | ஆம், அனுப்புங்கள் | 17/25 | |
+| 10 | Paperwork on track | ஆவணப் பணி சரி | 13/25 | |
+| 11 | Something is pending | ஏதோ நிலுவையில் உள்ளது | 21/25 | |
+| 12 | Approve request | கோரிக்கையை ஏற்கவும் | 19/25 | |
+| 13 | Decline request | கோரிக்கையை நிராகரி | 18/25 | |
+| 14 | Approve access | அணுகலை ஏற்கவும் | 15/25 | |
+| 15 | It's perfect | இது சரியானது | 12/25 | |
+| 16 | Not interested | ஆர்வம் இல்லை | 12/25 | |
+| 17 | Reject access | அணுகலை நிராகரி | 14/25 | |
+| 18 | Can't say yet | இப்போது சொல்ல முடியாது | 22/25 | |
+| 19 | View full details | முழு விவரம் காண்க | 17/25 | |
+| 20 | View location | இடத்தைக் காண்க | 14/25 | |
+| 21 | Browse showcase | பட்டியலைக் காண்க | 16/25 | |
+| 22 | Noted, thanks | சரி, நன்றி | 10/25 | |
 
 ---
 
-## Messages (9)
+## Messages (18)
 
-### 1. Property details — sent when a buyer asks about a listing
+### 1. Number change notice — the brokerage now messages from a different WhatsApp number
+
+*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name · `{{3}}` = previous WhatsApp number
+
+**English**
+
+> Hi {{1}}, this is an account notice from {{2}}.
+>
+> Our WhatsApp number has changed. Messages sent to the previous number {{3}} will no longer be received.
+>
+> Please save this number to continue receiving updates on your enquiries. Reply here to confirm.
+
+**தமிழ் — current**
+
+> வணக்கம் {{1}}, இது {{2}} இடமிருந்து கணக்கு அறிவிப்பு.
+>
+> எங்கள் WhatsApp எண் மாறிவிட்டது. முந்தைய எண் {{3}} க்கு அனுப்பப்படும் செய்திகள் இனி பெறப்படாது.
+>
+> உங்கள் விசாரணைகள் குறித்த புதுப்பிப்புகளைத் தொடர்ந்து பெற இந்த எண்ணைச் சேமிக்கவும். உறுதிப்படுத்த இங்கே பதிலளிக்கவும்.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 2. Property share feedback — follow up to see if a shared property matched
+
+*Placeholders:* `{{1}}` = buyer first name
+
+**English**
+
+> Hi {{1}}, following up on the property I shared earlier.
+>
+> Did it match what you are looking for?
+
+**தமிழ் — current**
+
+> வணக்கம் {{1}}, நான் பகிர்ந்த சொத்து பற்றிய பின்தொடர்தல்.
+>
+> இது உங்கள் தேவைக்கு பொருந்துகிறதா?
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 3. Requirement review — verify the property search recorded for an enquiry
+
+*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name
+
+**English**
+
+> Hi {{1}}, this is a request from {{2}} to verify the property requirement recorded for your enquiry.
+>
+> Please review or correct the property types, preferred locations and budget. The details you submit will update your enquiry record.
+
+**தமிழ் — current**
+
+> வணக்கம் {{1}}, உங்கள் விசாரணையில் பதிவான சொத்து தேவையைச் சரிபார்க்க {{2}} சார்பாக இந்தக் கோரிக்கை அனுப்பப்பட்டுள்ளது.
+>
+> சொத்து வகைகள், விருப்பமான இடங்கள் மற்றும் பட்ஜெட்டை சரிபார்த்து தேவையெனில் திருத்தவும். நீங்கள் சமர்ப்பிக்கும் விவரங்கள் உங்கள் விசாரணைப் பதிவை புதுப்பிக்கும்.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 4. Property details — sent when a buyer asks about a listing
 
 *Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality
 
@@ -66,9 +146,9 @@ The tappable options underneath a message.
 
 ---
 
-### 2. Property photos — the same, led by a photo
+### 5. Property photos — the same, led by a photo
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality
+*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality · `{{6}}` = Google Maps link
 
 **English**
 
@@ -77,6 +157,7 @@ The tappable options underneath a message.
 > Property: {{3}}
 > Details: {{4}}
 > Location: {{5}}
+> Google Maps: {{6}}
 >
 > Reply to this message if you need any further information about this enquiry.
 
@@ -87,6 +168,7 @@ The tappable options underneath a message.
 > சொத்து: {{3}}
 > விவரங்கள்: {{4}}
 > இடம்: {{5}}
+> Google Maps: {{6}}
 >
 > இந்த விசாரணை குறித்து மேலும் தகவல் தேவைப்பட்டால் இந்தச் செய்திக்கு பதிலளிக்கவும்.
 
@@ -96,7 +178,7 @@ The tappable options underneath a message.
 
 ---
 
-### 3. Location reveal — approved request for an exact address
+### 6. Location reveal — approved request for an exact address
 
 *Placeholders:* `{{1}}` = requester first name · `{{2}}` = listing title
 
@@ -106,6 +188,9 @@ The tappable options underneath a message.
 >
 > Hi {{1}}, your request for the exact location of {{2}} has been approved by the listing team.
 >
+> 📐 {{3}}
+> 📍 {{4}}
+>
 > Tap the button below to view the address, map pin and full photos. The link stays valid for 48 hours.
 
 **தமிழ் — current**
@@ -113,6 +198,9 @@ The tappable options underneath a message.
 > 📍 *இட கோரிக்கை அங்கீகரிக்கப்பட்டது*
 >
 > வணக்கம் {{1}}, நீங்கள் சரியான இடம் கேட்ட சொத்து — {{2}} — பட்டியல் குழுவால் அங்கீகரிக்கப்பட்டது.
+>
+> 📐 {{3}}
+> 📍 {{4}}
 >
 > முகவரி, வரைபடம் மற்றும் அனைத்து புகைப்படங்களையும் காண கீழே உள்ள பொத்தானை அழுத்தவும். இந்த இணைப்பு 48 மணி நேரம் செல்லுபடியாகும்.
 
@@ -122,21 +210,107 @@ The tappable options underneath a message.
 
 ---
 
-### 4. Inventory update — a refreshed catalogue snapshot
+### 7. Listing access approved — approved request to view the full listing
+
+*Placeholders:* `{{1}}` = requester first name · `{{2}}` = listing title · `{{3}}` = listing specs
+
+**English**
+
+> 🔓 *Listing Access Approved*
+>
+> Hi {{1}}, your request to view the full listing of {{2}} has been approved by the listing team.
+>
+> 📐 {{3}}
+>
+> Tap the button below to open the listing with full photos, address and map pin. The link stays valid for 7 days. Please do not forward the link or photos.
+
+**தமிழ் — current**
+
+> 🔓 *பட்டியல் அணுகல் அங்கீகரிக்கப்பட்டது*
+>
+> வணக்கம் {{1}}, நீங்கள் முழு பட்டியலைப் பார்க்கக் கேட்ட சொத்து — {{2}} — பட்டியல் குழுவால் அங்கீகரிக்கப்பட்டது.
+>
+> 📐 {{3}}
+>
+> அனைத்து புகைப்படங்கள், முகவரி மற்றும் வரைபடத்துடன் பட்டியலைத் திறக்க கீழே உள்ள பொத்தானை அழுத்தவும். இந்த இணைப்பு 7 நாட்கள் செல்லுபடியாகும். இணைப்பையோ புகைப்படங்களையோ பகிர வேண்டாம்.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 8. Location consent request — a co-broker decides whether a protected request can advance
+
+*Placeholders:* `{{1}}` = co-broker first name · `{{2}}` = listing title · `{{3}}` = masked requester identity
+
+**English**
+
+> Location access consent request
+>
+> Hi {{1}}, a contact who received {{2}} through your shared link requested protected property access.
+>
+> Requester: {{3}}
+>
+> Their identity remains masked from the listing side. Approve to forward this request for the next consent step, or decline to close it.
+
+**தமிழ் — current**
+
+> இட அணுகல் ஒப்புதல் கோரிக்கை
+>
+> வணக்கம் {{1}}, நீங்கள் பகிர்ந்த இணைப்பில் {{2}} பார்த்த ஒருவர் பாதுகாக்கப்பட்ட சொத்து அணுகலைக் கோரியுள்ளார்.
+>
+> கோரியவர்: {{3}}
+>
+> அவரது அடையாளம் பட்டியல் தரப்பிலிருந்து மறைக்கப்படும். அடுத்த ஒப்புதல் படிக்கு அனுப்ப ஏற்கவும் அல்லது மூட நிராகரிக்கவும்.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 9. Location owner decision — the listing side approves or rejects protected access
+
+*Placeholders:* `{{1}}` = request type · `{{2}}` = listing title and code · `{{3}}` = requester identity or masked identity · `{{4}}` = access being requested
+
+**English**
+
+> Protected property access decision
+>
+> Request: {{1}}
+> Property: {{2}}
+> Requester: {{3}}
+>
+> Approve to release {{4}} to this requester, or reject to close the request. You can also decide from the dashboard.
+
+**தமிழ் — current**
+
+> பாதுகாக்கப்பட்ட சொத்து அணுகல் முடிவு
+>
+> கோரிக்கை: {{1}}
+> சொத்து: {{2}}
+> கோரியவர்: {{3}}
+>
+> இந்த நபருக்கு {{4}} வழங்க ஏற்கவும் அல்லது கோரிக்கையை மூட நிராகரிக்கவும். டாஷ்போர்டிலும் முடிவு செய்யலாம்.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 10. Inventory update — a refreshed catalogue snapshot
 
 *Placeholders:* `{{1}}` = contact first name · `{{2}}` = residential summary · `{{3}}` = commercial summary · `{{4}}` = farm & land summary
 
 **English**
 
-> 🏠 *New Inventory Update*
+> 🏠 *Selected Property Options*
 >
-> Hi {{1}}! We've just refreshed our property catalog. Quick snapshot:
+> Hi {{1}}! I've selected these properties based on what you're looking for:
 >
-> 🏡 Residential: {{2}}
->
-> 🏢 Commercial: {{3}}
->
-> 🌾 Farm & land: {{4}}
+> {{2}}
 >
 > Reply to this message for photos, exact locations, or to book a site visit — I answer personally on this number.
 
@@ -144,15 +318,11 @@ The tappable options underneath a message.
 
 **தமிழ் — current**
 
-> 🏠 *புதிய பட்டியல் புதுப்பிப்பு*
+> 🏠 *தேர்ந்தெடுக்கப்பட்ட சொத்து வாய்ப்புகள்*
 >
-> வணக்கம் {{1}}! எங்கள் சொத்துப் பட்டியலைப் புதுப்பித்துள்ளோம். ஒரு பார்வை:
+> வணக்கம் {{1}}! உங்கள் தேவைக்கு ஏற்ப இந்த சொத்துகளைத் தேர்ந்தெடுத்துள்ளேன்:
 >
-> 🏡 குடியிருப்பு: {{2}}
->
-> 🏢 வணிகம்: {{3}}
->
-> 🌾 பண்ணை மற்றும் நிலம்: {{4}}
+> {{2}}
 >
 > புகைப்படங்கள், சரியான இடம் அல்லது தள வருகைக்கு இந்தச் செய்திக்கு பதிலளிக்கவும் — இதே எண்ணில் நானே பதிலளிக்கிறேன்.
 
@@ -164,7 +334,7 @@ The tappable options underneath a message.
 
 ---
 
-### 5. Enquiry status — the listing they asked about is gone
+### 11. Enquiry status — the listing they asked about is gone
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name
 
@@ -190,7 +360,7 @@ The tappable options underneath a message.
 
 ---
 
-### 6. Enquiry notice — the same, naming the listing
+### 12. Enquiry notice — the same, naming the listing
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
@@ -220,7 +390,7 @@ The tappable options underneath a message.
 
 ---
 
-### 7. Enquiry check-in — is this still under consideration?
+### 13. Enquiry check-in — is this still under consideration?
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
@@ -250,7 +420,7 @@ The tappable options underneath a message.
 
 ---
 
-### 8. Enquiry timeline — when should we check back with you?
+### 14. Enquiry timeline — when should we check back with you?
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
@@ -280,7 +450,7 @@ The tappable options underneath a message.
 
 ---
 
-### 9. Enquiry follow-up reminder — confirm or move the scheduled follow-up date
+### 15. Enquiry follow-up reminder — confirm or move the scheduled follow-up date
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = scheduled follow-up date
 
@@ -301,6 +471,82 @@ The tappable options underneath a message.
 > அடுத்த தொடர்பு திட்டமிடப்பட்டுள்ளது: {{4}}
 >
 > இந்த தேதியை உறுதிப்படுத்த அல்லது மாற்ற கீழே உள்ள பொத்தானை அழுத்தவும். "இப்போது சொல்ல முடியாது" எனத் தேர்ந்தெடுத்தால், திட்டமிட்ட தொடர்பு நீக்கப்பட்டு விசாரணை திறந்தே இருக்கும்.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 16. Purchase progress — where does the paperwork stand on a deal already at legal?
+
+*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = property being bought · `{{4}}` = stage the purchase is recorded at
+
+**English**
+
+> Hi {{1}}, an update on your property purchase with {{2}}.
+>
+> Property: {{3}}
+> Current step: {{4}}
+>
+> Our records still show this step as open. Reply here to tell us where the paperwork stands, or what is pending at our end.
+
+**தமிழ் — current**
+
+> வணக்கம் {{1}}, உங்கள் சொத்து வாங்குதல் குறித்து {{2}} சார்பில் ஒரு தகவல்.
+>
+> சொத்து: {{3}}
+> தற்போதைய படி: {{4}}
+>
+> எங்கள் பதிவுகளில் இந்தப் படி இன்னும் திறந்திருப்பதாக உள்ளது. ஆவணப் பணி எந்த நிலையில் உள்ளது, அல்லது எங்கள் பக்கம் என்ன நிலுவையில் உள்ளது என்பதைத் தெரிவிக்க இங்கே பதிலளிக்கவும்.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 17. Audio announcement — a voice-note update, delivered as a playable video
+
+*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name
+
+**English**
+
+> Hello {{1}}, there is an update for you from {{2}} — play the video above to hear it.
+>
+> Reply here if you would like to know more, or reply STOP to opt out of these updates.
+
+**தமிழ் — current**
+
+> வணக்கம் {{1}}, உங்களுக்காக ஒரு புதுப்பிப்பு உள்ளது {{2}} இடமிருந்து — கேட்க மேலே உள்ள வீடியோவை இயக்கவும்.
+>
+> மேலும் அறிய இங்கே பதிலளிக்கவும், அல்லது இந்தப் புதுப்பிப்புகளை நிறுத்த STOP என பதிலளிக்கவும்.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 18. Post-call options — after a qualification call, offer the matching listings
+
+*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = stated requirement (budget / areas)
+
+**English**
+
+> Hi {{1}}, thank you for speaking with {{2}} just now about your property enquiry.
+>
+> Requirement noted: {{3}}
+>
+> To receive the closest current listings for this requirement, tap "Yes, send them". If not, no further messages will be sent about this call.
+
+**தமிழ் — current**
+
+> வணக்கம் {{1}}, உங்கள் சொத்து விசாரணை குறித்து இப்போது {{2}} உடன் பேசியதற்கு நன்றி.
+>
+> பதிவான தேவை: {{3}}
+>
+> இந்தத் தேவைக்குப் பொருந்தும் தற்போதைய சொத்துகளைப் பெற "ஆம், அனுப்புங்கள்" தேர்ந்தெடுக்கவும். இல்லையெனில் இந்த அழைப்பு குறித்து வேறு செய்தி அனுப்பப்படாது.
 
 **Your correction** *(leave blank if the above is fine)*
 

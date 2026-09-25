@@ -22,6 +22,14 @@ import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template'
 
 export const LOCATION_REVEAL_TEMPLATE_NAME = 'location_reveal';
 
+/**
+ * The listing-scope counterpart. A listing approval opens the full
+ * teaser-gated page for 7 days, which `location_reveal` — worded for a
+ * 48-hour exact-location card — misdescribes. Preferred for listing
+ * approvals once Meta approves it; `location_reveal` stays the fallback.
+ */
+export const LISTING_ACCESS_TEMPLATE_NAME = 'listing_access_approved';
+
 export function buildLocationRevealTemplatePayload(
   origin: string,
   language: LanguageCode = DEFAULT_LANGUAGE
@@ -48,6 +56,33 @@ export function buildLocationRevealTemplatePayload(
         'Villa in Whitefield',
         'Villa · 3 BHK · 2400 sqft · East facing · ₹2.4 Cr',
         'Available only through the secure link',
+      ],
+    },
+  };
+}
+
+export function buildListingAccessTemplatePayload(
+  origin: string,
+  language: LanguageCode = DEFAULT_LANGUAGE
+): TemplatePayload {
+  return {
+    name: LISTING_ACCESS_TEMPLATE_NAME,
+    category: 'Utility',
+    language: metaLanguageCode(language),
+    body_text: templateBody('listing_access', language),
+    buttons: [
+      {
+        type: 'URL',
+        text: templateButtonLabel('view_full_details', language),
+        url: `${origin.replace(/\/+$/, '')}/reveal/{{1}}`,
+        example: '9db392b91ba84d1ab88b77ca26c6f6bc9c166ff124b1471f',
+      },
+    ],
+    sample_values: {
+      body: [
+        'Rahul',
+        'Villa in Whitefield',
+        'Villa · 3 BHK · 2400 sqft · East facing · ₹2.4 Cr',
       ],
     },
   };

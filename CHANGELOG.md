@@ -19,6 +19,21 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Listing access approvals get their own WhatsApp template.** An approved
+  listing-access request went out on `location_reveal`, which told the
+  requester their "exact location" request was approved and the link lasts
+  48 hours. A listing approval actually opens the full listing, photos,
+  address and map pin for 7 days. The new `listing_access_approved` Utility
+  template (all seven languages, submitted from Settings → Templates) says
+  that, and is used as soon as Meta approves it. Until then listing
+  approvals keep going out on `location_reveal`, so nothing stops sending.
+
+- **Internal notes no longer look sent on mobile.** Inbox notes the Engine
+  writes for the team, such as "Listing Access Request", are never sent to
+  WhatsApp, but the mobile app drew them as outgoing green bubbles with
+  delivery ticks. They now show as a dashed "Internal note · not sent" chip,
+  as they already did on web.
+
 - **One district name per guidance value rate.** Rates had been saved under
   Bellary and Ballari, Bagalkot and Bagalkote, taluk names such as Anekal
   and Devanahalli, and placeholders such as "Not specified". A rate now
