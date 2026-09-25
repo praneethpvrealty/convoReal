@@ -11,6 +11,7 @@ import { parseJsonResponse } from '@/lib/invoices/document-extract';
 
 import {
   PROPERTY_CLASSES,
+  type AreaUnit,
   type LandClass,
   type ParsedRateRow,
   type PropertyClass,
@@ -143,16 +144,23 @@ export const LAND_CLASS_CODES: Record<string, LandClass> = {
   ap: 'plantation',
 };
 
+function unitInstructions(unit?: AreaUnit | null): string {
+  if (!unit) return '';
+  const name = unit === 'sqm' ? 'square metre ("sqm")' : 'square foot ("sqft")';
+  return `\nThis notification's rate header states rates per ${name}. Unless a table on these pages prints its own unit, write that unit for site and building rates; keep land rates in the acre, gunta or hectare unit their column states.`;
+}
+
 export function rateInstructions(
   fromPage: number,
   toPage: number,
   slice: PdfSlice | null = null,
-  headings?: RateHeadings | null
+  headings?: RateHeadings | null,
+  unit?: AreaUnit | null
 ): string {
   return `
 You are transcribing a Karnataka guidance value notification (the
 government's market value guidelines, published by the Central Valuation
-Committee / Department of Stamps and Registration). ${scopeInstructions(fromPage, toPage, slice)}${headingsInstructions(headings)}
+Committee / Department of Stamps and Registration). ${scopeInstructions(fromPage, toPage, slice)}${headingsInstructions(headings)}${unitInstructions(unit)}
 
 Return compact JSON, writing each heading once:
 {"total_pages": number, "groups": [
@@ -181,7 +189,8 @@ Each row is one line of the table:
                   e.g. "18th Main"; "" when it covers the whole area
   survey_numbers  survey numbers as printed, or ""
   unit            "sqm", "sqft", "acre", "gunta" or "hectare" as the
-                  column header states
+                  column header states; never assume one the notification
+                  does not print
   page            the 1-based page number the line is on
   {code: rate}    one entry per non-empty rate column, the number only
                   with no commas or currency. Codes: "rs" residential
@@ -375,6 +384,7 @@ interface RatePagesInput {
   fromPage: number;
   toPage: number;
   headings?: RateHeadings | null;
+  unit?: AreaUnit | null;
 }
 
 type RatePagesResult = { rows: ParsedRateRow[]; totalPages: number | null };
@@ -426,7 +436,13 @@ async function readRatePages(
   ];
   const response = await generateJsonFromParts(
     parts,
-    rateInstructions(input.fromPage, input.toPage, slice, input.headings),
+    rateInstructions(
+      input.fromPage,
+      input.toPage,
+      slice,
+      input.headings,
+      input.unit
+    ),
     {
       feature: 'guidance_value_source_parse',
       tier: rateParseTier(),

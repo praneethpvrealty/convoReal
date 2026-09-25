@@ -8,7 +8,7 @@ import {
   decodePDFRawStream,
 } from 'pdf-lib';
 
-import type { AreaUnit, ParsedRateRow } from './types';
+import type { AreaUnit } from './types';
 
 const RATE_SIGNAL =
   /\b(villages?|hobli|main roads?|cross roads?|interior|layouts?|survey|s\.?\s*no\.?|potential area|extensions?|nagar|colony|cross|roads?|streets?|block no|ward no|plots?|sites?|khata|pid|property id)\b|\b\d{1,3}-\d{1,3}-\d{1,4}[A-Za-z]?\b/i;
@@ -263,25 +263,13 @@ export function skippedRunEnd(skip: boolean[], fromPage: number): number {
 }
 
 const PRINTED_SQM =
-  /\bsq\.?\s*m(?:trs?|ts?|eters?|etres?)?\b|square\s*met(?:er|re)s?|ಚದರ\s*ಮೀ/i;
+  /\b(?:per|rate\s*\/)\s*sq\.?\s*m(?:trs?|ts?|eters?|etres?)?\b|\bper\s*square\s*met(?:er|re)|ಪ್ರತಿ\s*ಚದರ\s*ಮೀ/i;
 const PRINTED_SQFT =
-  /\bsq\.?\s*f(?:ts?|eet|oot)\b|square\s*f(?:eet|oot)|ಚದರ\s*ಅಡಿ/i;
+  /\b(?:per|rate\s*\/)\s*sq\.?\s*f(?:ts?|eet|oot)\b|\bper\s*square\s*f(?:eet|oot)|ಪ್ರತಿ\s*ಚದರ\s*ಅಡಿ/i;
 
 export function printedAreaUnit(texts: string[]): AreaUnit | null {
   const sqm = texts.some((text) => PRINTED_SQM.test(text));
   const sqft = texts.some((text) => PRINTED_SQFT.test(text));
   if (sqm === sqft) return null;
   return sqm ? 'sqm' : 'sqft';
-}
-
-export function settleUnits<T extends Pick<ParsedRateRow, 'unit'>>(
-  rows: T[],
-  printed: AreaUnit | null | undefined
-): T[] {
-  if (!printed) return rows;
-  return rows.map((row) =>
-    (row.unit === 'sqm' || row.unit === 'sqft') && row.unit !== printed
-      ? { ...row, unit: printed }
-      : row
-  );
 }

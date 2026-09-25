@@ -2153,14 +2153,14 @@
         },
         {
           "id": "GVL-020",
-          "rule": "A notification whose text layer prints exactly one of square metres or square feet (Sq.Mtr, square meter, ಚದರ ಮೀಟರ್ / sq.ft, square feet, ಚದರ ಅಡಿ) has every sq m or sq ft rate stored in that unit, whatever unit Gemini wrote, because the header is often printed once on an early page and the model guesses on later pages. A notification that prints both units, or neither, is stored as read. Land units (acre, gunta, hectare) are never changed. The batch path records the printed unit on each chunk when it is queued; the interactive reader derives it from the same text.",
+          "rule": "When a notification's text layer states its rate unit in a header (\"per Sq.Mtr\", \"Rate per sq.ft\", \"ಪ್ರತಿ ಚದರ ಮೀಟರ್\"), and states only one of square metres or square feet that way, every read of that notification (interactive or batched) tells Gemini that unit, to be used for site and building rates unless a table on the pages prints its own; land units keep their column. Units mentioned outside a rate header (a project's measured area, a site-size category, the carpet-area conversion note) are ignored, and stored rates are never relabelled after the fact, because a rate stored in the wrong unit is not always a unit mix-up (per-acre figures have been stored as sq ft).",
           "tests": [
             {
               "file": "src/lib/guidance-value/page-filter.test.ts",
               "case": "[GVL-020]"
             },
             {
-              "file": "src/lib/guidance-value/batch.test.ts",
+              "file": "src/lib/guidance-value/slice.test.ts",
               "case": "[GVL-020]"
             }
           ]

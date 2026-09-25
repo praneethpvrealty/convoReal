@@ -8,7 +8,6 @@ import {
   parseToUnicode,
   planSkippedPages,
   printedAreaUnit,
-  settleUnits,
   skippedRunEnd,
 } from './page-filter';
 
@@ -128,31 +127,31 @@ describe('parseToUnicode', () => {
 });
 
 describe('printedAreaUnit', () => {
-  it('[GVL-020] names the one area unit a notification prints', () => {
+  it('[GVL-020] names the unit a rate header states', () => {
     expect(printedAreaUnit(['REVISED RESIDENTIAL SITE RATE PER Sq.Mtr'])).toBe(
+      'sqm'
+    );
+    expect(printedAreaUnit(['Residential rate per Sq Mtrs in Rs.'])).toBe(
       'sqm'
     );
     expect(printedAreaUnit(['ನಿವೇಶನಗಳ ದರ ಪ್ರತಿ ಚದರ ಮೀಟರ್‌ಗೆ'])).toBe('sqm');
     expect(printedAreaUnit(['Rate per sq.ft', 'Katipalla'])).toBe('sqft');
-    expect(
-      printedAreaUnit(['per Sq.Mtr', '1 sq.mt = 10.764 sq.ft'])
-    ).toBeNull();
-    expect(printedAreaUnit(['Katipalla Village 35,20,000'])).toBeNull();
   });
-});
 
-describe('settleUnits', () => {
-  it('[GVL-020] moves only sq ft / sq m rates onto the printed unit', () => {
-    const rows = [
-      { unit: 'sqft' as const, rate: 3500 },
-      { unit: 'sqm' as const, rate: 2500 },
-      { unit: 'acre' as const, rate: 952500 },
-    ];
-    expect(settleUnits(rows, 'sqm').map((r) => r.unit)).toEqual([
-      'sqm',
-      'sqm',
-      'acre',
-    ]);
-    expect(settleUnits(rows, null)).toBe(rows);
+  it('[GVL-020] ignores units that are not a rate header', () => {
+    expect(
+      printedAreaUnit(['Ward no. 184, Measuring 60984 Sq.Ft, B+G+4UF'])
+    ).toBeNull();
+    expect(
+      printedAreaUnit([
+        'Yelahanka New Town (for above 4000 Sq.ft sites measurement)',
+      ])
+    ).toBeNull();
+    expect(
+      printedAreaUnit([
+        'Super built-up area in square meter-1.25 X Carpet Area',
+      ])
+    ).toBeNull();
+    expect(printedAreaUnit(['per Sq.Mtr', 'Rate per sq.ft'])).toBeNull();
   });
 });
