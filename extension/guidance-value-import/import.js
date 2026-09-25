@@ -376,14 +376,16 @@ async function reuploadSkipped(settings, rows, skipped) {
     const row = rows.find((r) => r.source_id === entry.source_id);
     if (!row) continue;
     if (entry.code !== 'SOURCE_NOT_STORED') {
-      setRow(row, 'failed', entry.error);
+      setRow(row, entry.code === 'DOWNLOAD_FAILED' ? 'retry later' : 'failed', entry.error);
       continue;
     }
     try {
       setRow(row, 'uploading again', 'The last upload was interrupted');
-      await api(settings, `/api/admin/guidance-values/sources/${row.source_id}`, {
-        method: 'DELETE',
-      });
+      await api(
+        settings,
+        `/api/admin/guidance-values/sources/${row.source_id}?unread=1`,
+        { method: 'DELETE' }
+      );
       row.source_id = await uploadRow(settings, row);
       setRow(row, 'uploaded', 'Queued for the half-price batch');
       reuploaded += 1;

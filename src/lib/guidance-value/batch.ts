@@ -220,7 +220,7 @@ interface SourceForBatch {
 }
 
 interface SkippedSource {
-  code: 'SOURCE_NOT_STORED' | 'PAGE_COUNT_UNKNOWN';
+  code: 'SOURCE_NOT_STORED' | 'PAGE_COUNT_UNKNOWN' | 'DOWNLOAD_FAILED';
   error: string;
 }
 
@@ -232,6 +232,20 @@ interface PreparedSource {
   bytes: number;
 }
 
+async function isStored(
+  db: SupabaseClient,
+  storagePath: string
+): Promise<boolean> {
+  const slash = storagePath.lastIndexOf('/');
+  const folder = slash >= 0 ? storagePath.slice(0, slash) : '';
+  const name = storagePath.slice(slash + 1);
+  const { data, error } = await db.storage
+    .from(GUIDANCE_SOURCE_BUCKET)
+    .list(folder, { search: name, limit: 10 });
+  if (error) return true;
+  return (data ?? []).some((entry) => entry.name === name);
+}
+
 async function prepareSource(
   db: SupabaseClient,
   source: SourceForBatch,
@@ -241,9 +255,18 @@ async function prepareSource(
     .from(GUIDANCE_SOURCE_BUCKET)
     .download(source.storage_path);
   if (error || !file) {
+    if (
+      source.pages_parsed === 0 &&
+      !(await isStored(db, source.storage_path))
+    ) {
+      return {
+        code: 'SOURCE_NOT_STORED',
+        error: 'The PDF for this notification never finished uploading.',
+      };
+    }
     return {
-      code: 'SOURCE_NOT_STORED',
-      error: 'The stored PDF could not be read. Upload it again.',
+      code: 'DOWNLOAD_FAILED',
+      error: `The stored PDF could not be read (${error?.message ?? 'empty download'}); the next run retries it.`,
     };
   }
   const buffer = new Uint8Array(await file.arrayBuffer());
@@ -434,11 +457,14 @@ export async function queueGuidanceBatches(
       BATCH_MAX_BYTES - pendingBytes
     );
     if ('error' in prepared) {
-      await db
-        .from('guidance_value_sources')
-        .update({ status: 'failed', error: prepared.error })
-        .eq('id', source.id)
-        .select('id');
+      if (prepared.code !== 'DOWNLOAD_FAILED') {
+        await db
+          .from('guidance_value_sources')
+          .update({ status: 'failed', error: prepared.error })
+          .eq('id', source.id)
+          .is('batch_id', null)
+          .select('id');
+      }
       result.skipped.push({
         source_id: source.id,
         code: prepared.code,

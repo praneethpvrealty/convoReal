@@ -42,6 +42,8 @@ than a written entry. Newest first.
   new district no longer inherits the previous area's hobli or village; and
   the import extension re-uploads a notification whose earlier upload was
   interrupted instead of skipping it forever.
+  It only does so when the PDF is really missing and nothing was read yet: a
+  storage hiccup leaves the notification and its rates alone for the next run.
 
 #### 24 September 2026
 
