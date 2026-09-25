@@ -5,6 +5,7 @@ import { canViewExactLocation } from '@/lib/inventory/location-guard';
 import { storageObjectPath } from '@/lib/storage/url';
 
 const PRIVATE_BUCKET = 'property-images-private';
+const SIGNED_URL_TTL_SECONDS = 10 * 60;
 
 // GET /api/properties/[id]/private-images/[index]
 // Streams one private photo to a viewer who may see through the guard
@@ -66,6 +67,20 @@ export async function GET(
     }
 
     const key = objectPath.slice(PRIVATE_BUCKET.length + 1);
+
+    // React Native's <Image> does not reliably carry a bearer header, so
+    // the mobile app asks for a short-lived link through its API client
+    // instead, after the same guard the stream answers to.
+    if (new URL(request.url).searchParams.get('format') === 'json') {
+      const { data: signed, error: signError } = await supabaseAdmin()
+        .storage.from(PRIVATE_BUCKET)
+        .createSignedUrl(key, SIGNED_URL_TTL_SECONDS);
+      if (signError || !signed?.signedUrl) {
+        return NextResponse.json({ error: 'Photo not found' }, { status: 404 });
+      }
+      return NextResponse.json({ data: { url: signed.signedUrl } });
+    }
+
     const { data: file, error: downloadError } = await supabaseAdmin()
       .storage.from(PRIVATE_BUCKET)
       .download(key);
