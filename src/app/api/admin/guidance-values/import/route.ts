@@ -20,6 +20,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import { sourceDistrict } from '@/lib/guidance-value/districts';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const maxDuration = 120;
@@ -131,7 +132,7 @@ export async function POST(request: Request) {
       const { data, error } = await db
         .from('guidance_value_sources')
         .insert({
-          district,
+          district: sourceDistrict(district),
           taluk: text(body?.taluk),
           sro: text(body?.sro),
           title,

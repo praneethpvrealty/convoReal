@@ -1,3 +1,5 @@
+import { districtFromLabel } from './districts';
+
 export const SOURCE_MAX_BYTES = 14 * 1024 * 1024;
 
 export const IGR_GUIDANCE_PAGE =
@@ -112,66 +114,6 @@ export function extractPdfLinks(
     });
   }
   return out;
-}
-
-const DISTRICTS: Array<[string, string[]]> = [
-  ['Bengaluru Rural', ['bengaluru rural', 'bangalore rural']],
-  ['Ramanagara', ['ramanagara', 'ramanagaram', 'bengaluru south']],
-  [
-    'Bengaluru Urban',
-    [
-      'bengaluru urban',
-      'bangalore urban',
-      'bbmp',
-      'gandhinagar',
-      'gandhinagara',
-      'jayanagar',
-      'jayanagara',
-      'rajajinagar',
-      'rajajinagara',
-      'shivajinagar',
-      'shivajinagara',
-      'basavanagudi',
-      'bengaluru',
-      'bangalore',
-    ],
-  ],
-  ['Bagalkote', ['bagalkote', 'bagalkot']],
-  ['Ballari', ['ballari', 'bellary']],
-  ['Belagavi', ['belagavi', 'belgaum']],
-  ['Bidar', ['bidar']],
-  ['Chamarajanagar', ['chamarajanagar', 'chamarajanagara']],
-  ['Chikkaballapur', ['chikkaballapur', 'chikkaballapura']],
-  ['Chikkamagaluru', ['chikkamagaluru', 'chikmagalur']],
-  ['Chitradurga', ['chitradurga']],
-  ['Dakshina Kannada', ['dakshina kannada', 'mangaluru', 'mangalore']],
-  ['Davanagere', ['davanagere', 'davangere']],
-  ['Dharwad', ['dharwad', 'hubballi', 'hubli']],
-  ['Gadag', ['gadag']],
-  ['Hassan', ['hassan']],
-  ['Haveri', ['haveri']],
-  ['Kalaburagi', ['kalaburagi', 'gulbarga']],
-  ['Kodagu', ['kodagu', 'coorg']],
-  ['Kolar', ['kolar']],
-  ['Koppal', ['koppal']],
-  ['Mandya', ['mandya']],
-  ['Mysuru', ['mysuru', 'mysore']],
-  ['Raichur', ['raichur']],
-  ['Shivamogga', ['shivamogga', 'shimoga']],
-  ['Tumakuru', ['tumakuru', 'tumkur']],
-  ['Udupi', ['udupi']],
-  ['Uttara Kannada', ['uttara kannada', 'karwar']],
-  ['Vijayanagara', ['vijayanagara', 'hosapete', 'hospet']],
-  ['Vijayapura', ['vijayapura', 'bijapur']],
-  ['Yadgir', ['yadgir', 'yadagiri']],
-];
-
-export function districtFromLabel(label: string): string | null {
-  const text = ` ${label.toLowerCase().replace(/[^a-z]+/g, ' ')} `;
-  for (const [district, names] of DISTRICTS) {
-    if (names.some((name) => text.includes(` ${name} `))) return district;
-  }
-  return null;
 }
 
 function cellUrl(cellHtml: string, baseUrl: string): string | null {

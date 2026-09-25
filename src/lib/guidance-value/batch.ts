@@ -15,6 +15,7 @@ import {
 } from '@/lib/ai/gemini-keys';
 import { parseJsonResponse } from '@/lib/invoices/document-extract';
 
+import { rateDistrict } from './districts';
 import {
   PAGES_PER_CHUNK,
   countPdfPages,
@@ -658,7 +659,7 @@ async function applyResults(
           assembled.rows.map((rate) => ({
             ...rate,
             source_id: sourceId,
-            district: rate.district ?? source.district,
+            district: rateDistrict(rate.district, source.district),
             taluk: rate.taluk ?? source.taluk,
           }))
         );
