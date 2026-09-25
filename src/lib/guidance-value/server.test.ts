@@ -9,11 +9,19 @@ vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
 
 const aiFailure = vi.hoisted(() => ({ message: '' }));
+const skipPlan = vi.hoisted(() => ({ pages: [] as boolean[] }));
 vi.mock('./rate-parse', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./rate-parse')>()),
+  openPdf: async () =>
+    skipPlan.pages.length ? { getPageCount: () => 10 } : null,
   parseRatePages: async () => {
     throw new Error(aiFailure.message);
   },
+}));
+vi.mock('./page-filter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./page-filter')>()),
+  pageTexts: () => [],
+  planSkippedPages: () => skipPlan.pages,
 }));
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -86,6 +94,10 @@ function sourceDb(
         updates.push(row);
         return builder;
       };
+      builder.single = async () => ({
+        data: { id: 'src-1', ...updates.at(-1) },
+        error: null,
+      });
       return builder;
     },
     storage: {
@@ -158,6 +170,51 @@ describe('findCandidateRates spelling fallback', () => {
 });
 
 describe('parseNextSourceChunk', () => {
+  it('[GVL-018] advances over pages the filter identifies as non-rate without calling Gemini', async () => {
+    skipPlan.pages = [
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ];
+    try {
+      const { db, updates } = sourceDb(0, true);
+      const source = await parseNextSourceChunk(db, 'src-1');
+      expect(source.pages_parsed).toBe(3);
+      expect(updates.at(-1)).toMatchObject({
+        pages_parsed: 3,
+        page_count: 10,
+        status: 'parsing',
+        error: null,
+      });
+      expect(updates.at(-1)).not.toHaveProperty('batch_requested_at');
+    } finally {
+      skipPlan.pages = [];
+    }
+  });
+
+  it('[GVL-018] marks a notification ready when only skipped pages remain', async () => {
+    skipPlan.pages = [...Array.from({ length: 8 }, () => false), true, true];
+    try {
+      const { db, updates } = sourceDb(8, true);
+      const source = await parseNextSourceChunk(db, 'src-1');
+      expect(source.pages_parsed).toBe(10);
+      expect(updates.at(-1)).toMatchObject({
+        pages_parsed: 10,
+        status: 'ready',
+        batch_requested_at: null,
+      });
+    } finally {
+      skipPlan.pages = [];
+    }
+  });
+
   it('[GVL-012] never reads a source that is queued in a batch', async () => {
     const { db, updates } = sourceDb(4, true, 'batch-1');
     await expect(parseNextSourceChunk(db, 'src-1')).rejects.toBeInstanceOf(

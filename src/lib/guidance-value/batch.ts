@@ -16,6 +16,7 @@ import {
 import { parseJsonResponse } from '@/lib/invoices/document-extract';
 
 import { rateDistrict } from './districts';
+import { pageTexts, planSkippedPages, skippedRunEnd } from './page-filter';
 import {
   PAGES_PER_CHUNK,
   countPdfPages,
@@ -46,6 +47,7 @@ export interface BatchChunk {
   from_page: number;
   to_page: number;
   context_page: number | null;
+  skipped?: boolean;
 }
 
 export interface BatchChunkResult {
@@ -65,18 +67,32 @@ export interface BatchStatus {
   results: BatchChunkResult[];
 }
 
+export interface PlannedChunk {
+  from: number;
+  to: number;
+  skipped?: boolean;
+}
+
 export function planChunks(
   pageCount: number,
   pagesParsed: number,
-  singlePages: number[] = []
-): Array<{ from: number; to: number }> {
+  singlePages: number[] = [],
+  skippedPages: boolean[] = []
+): PlannedChunk[] {
   const singles = new Set(singlePages);
-  const chunks: Array<{ from: number; to: number }> = [];
+  const skipped = (page: number) => Boolean(skippedPages[page - 1]);
+  const chunks: PlannedChunk[] = [];
   let from = pagesParsed + 1;
   while (from <= pageCount) {
+    if (skipped(from)) {
+      const to = skippedRunEnd(skippedPages, from);
+      chunks.push({ from, to: Math.min(to, pageCount), skipped: true });
+      from = to + 1;
+      continue;
+    }
     let to = Math.min(from + PAGES_PER_CHUNK - 1, pageCount);
     for (let page = from; page <= to; page += 1) {
-      if (singles.has(page)) to = Math.max(from, page - 1);
+      if (singles.has(page) || skipped(page)) to = Math.max(from, page - 1);
     }
     if (singles.has(from)) to = from;
     chunks.push({ from, to });
@@ -329,11 +345,23 @@ async function prepareSource(
     requests: [],
     bytes: 0,
   };
-  for (const { from, to } of planChunks(
+  const skippedPages = pdf ? planSkippedPages(pageTexts(pdf)) : [];
+  for (const { from, to, skipped } of planChunks(
     pageCount,
     source.pages_parsed,
-    source.single_pages ?? []
+    source.single_pages ?? [],
+    skippedPages
   )) {
+    if (skipped) {
+      prepared.chunks.push({
+        source_id: source.id,
+        from_page: from,
+        to_page: to,
+        context_page: null,
+        skipped: true,
+      });
+      continue;
+    }
     const slice = pdf ? await slicePdf(pdf, from, to) : null;
     const bytes = slice?.bytes ?? buffer;
     const size = Math.ceil((bytes.byteLength * 4) / 3) + 8_000;
@@ -351,6 +379,25 @@ async function prepareSource(
     prepared.bytes += size;
   }
   return prepared;
+}
+
+async function skipWithoutBatch(
+  db: SupabaseClient,
+  prepared: PreparedSource
+): Promise<void> {
+  const parsedTo = prepared.chunks[prepared.chunks.length - 1].to_page;
+  const done = parsedTo >= prepared.pageCount;
+  await db
+    .from('guidance_value_sources')
+    .update({
+      pages_parsed: parsedTo,
+      status: done ? 'ready' : 'parsing',
+      error: null,
+      ...(done ? { batch_requested_at: null } : {}),
+    })
+    .eq('id', prepared.source.id)
+    .is('batch_id', null)
+    .select('id');
 }
 
 async function createRemoteBatch(
@@ -535,7 +582,10 @@ export async function queueGuidanceBatches(
       });
       continue;
     }
-    if (!prepared.requests.length) continue;
+    if (!prepared.requests.length) {
+      if (prepared.chunks.length) await skipWithoutBatch(db, prepared);
+      continue;
+    }
     if (pendingBytes + prepared.bytes > BATCH_MAX_BYTES && pending.length) {
       await flush();
       queue.unshift(source);
@@ -619,8 +669,16 @@ async function applyResults(
     Array<{ chunk: BatchChunk; rows: ParsedRateRow[] | null; cutOff: boolean }>
   >();
   let failedCount = 0;
-  row.chunks.forEach((chunk, index) => {
-    const result = results[index];
+  let requestIndex = 0;
+  row.chunks.forEach((chunk) => {
+    if (chunk.skipped) {
+      const list = bySource.get(chunk.source_id) ?? [];
+      list.push({ chunk, rows: [], cutOff: false });
+      bySource.set(chunk.source_id, list);
+      return;
+    }
+    const result = results[requestIndex];
+    requestIndex += 1;
     let rows: ParsedRateRow[] | null = null;
     if (result?.text) {
       try {

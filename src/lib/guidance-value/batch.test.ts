@@ -249,6 +249,22 @@ describe('planChunks', () => {
     expect(planChunks(5, 5)).toEqual([]);
   });
 
+  it('[GVL-018] turns skipped pages into request-free chunks', () => {
+    const skipped = [true, true, false, false, true, false, false];
+    expect(planChunks(7, 0, [], skipped)).toEqual([
+      { from: 1, to: 2, skipped: true },
+      { from: 3, to: 4 },
+      { from: 5, to: 5, skipped: true },
+      { from: 6, to: 7 },
+    ]);
+    expect(planChunks(7, 2, [], [true, true, false, true])).toEqual([
+      { from: 3, to: 3 },
+      { from: 4, to: 4, skipped: true },
+      { from: 5, to: 6 },
+      { from: 7, to: 7 },
+    ]);
+  });
+
   it('[GVL-017] reads a page that overflowed the output cap on its own', () => {
     expect(planChunks(6, 0, [3, 4])).toEqual([
       { from: 1, to: 2 },
@@ -603,7 +619,7 @@ describe('batch pricing', () => {
   });
 });
 
-function pollDb() {
+function pollDb(overrides: { chunks?: BatchChunk[] } = {}) {
   const writes: Array<{ table: string; op: string; value: unknown }> = [];
   const batchRow = {
     id: 'batch-1',
@@ -612,7 +628,7 @@ function pollDb() {
     key_label: 'praneeku@gmail.com',
     model: 'gemini-3.1-flash-lite',
     state: 'pending',
-    chunks: [chunk(1, 2), chunk(3, 3)],
+    chunks: overrides.chunks ?? [chunk(1, 2), chunk(3, 3)],
     updated_at: '2026-09-25T00:00:00Z',
   };
   const db = {
@@ -765,6 +781,62 @@ describe('pollGuidanceBatches', () => {
         responseTokens: 200,
       })
     );
+  });
+
+  it('[GVL-018] counts a skipped chunk as read and lines results up with the rest', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              name: 'batches/abc',
+              metadata: {
+                state: 'BATCH_STATE_SUCCEEDED',
+                output: {
+                  inlinedResponses: {
+                    inlinedResponses: [
+                      answer(
+                        JSON.stringify({
+                          groups: [
+                            {
+                              district: 'Bengaluru Urban',
+                              village: 'Koramangala',
+                              rows: [
+                                ['7th Block', '', '', 'sqm', 3, { rs: 90 }],
+                              ],
+                            },
+                          ],
+                        })
+                      ),
+                    ],
+                  },
+                },
+              },
+            }),
+            { status: 200 }
+          )
+      )
+    );
+    const { db, writes } = pollDb({
+      chunks: [{ ...chunk(1, 2), skipped: true }, chunk(3, 3)],
+    });
+
+    const result = await pollGuidanceBatches(db);
+
+    expect(result).toMatchObject({ applied: 1, failed: 0 });
+    const inserted = writes.find(
+      (w) => w.table === 'guidance_value_rates' && w.op === 'insert'
+    )?.value as Array<Record<string, unknown>>;
+    expect(inserted.map((r) => r.page)).toEqual([3]);
+    expect(
+      writes.find(
+        (w) =>
+          w.table === 'guidance_value_sources' &&
+          (w.value as { status?: string })?.status === 'ready'
+      )?.value
+    ).toMatchObject({ pages_parsed: 3, batch_id: null });
+    expect(vi.mocked(logAiCall)).toHaveBeenCalledTimes(1);
   });
 
   it('[GVL-017] reads an overflowing range one page at a time on the next run', async () => {

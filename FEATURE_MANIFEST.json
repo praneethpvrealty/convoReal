@@ -2138,6 +2138,24 @@
           ]
         },
         {
+          "id": "GVL-018",
+          "rule": "Before any page of a notification is sent to Gemini, its text layer is read locally (pdf-lib, decoding each font's ToUnicode map) and pages that are positively identified as not rate tables are skipped without a request: the preamble before the first rate page (gazette header, instructions, amenities lists, pages with almost no large numbers, at most the first thirty pages), pages naming a ready reckoner, construction cost, floor-rise or car-parking table that carry no rate words, and the pure numeric grids that continue such a page. A page is never skipped when its text is blank or garbled, when it carries rate words (village, hobli, road, survey, ward, block, PID numbers), or when no page in the notification reads as a rate table. Skipped pages count as read: the batch planner records them as request-free chunks and the interactive reader advances over them, so progress stays contiguous.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/page-filter.test.ts",
+              "case": "[GVL-018]"
+            },
+            {
+              "file": "src/lib/guidance-value/batch.test.ts",
+              "case": "[GVL-018]"
+            },
+            {
+              "file": "src/lib/guidance-value/server.test.ts",
+              "case": "[GVL-018]"
+            }
+          ]
+        },
+        {
           "id": "GVL-017",
           "rule": "Every guidance value read, interactive or batched, caps Gemini's output at RATE_MAX_OUTPUT_TOKENS, and a response that hits the cap counts as unread rather than as data. Interactively the range is then read one page at a time; in a batch the range's pages are remembered on the notification (single_pages) and the next queue run submits them singly, and a single page that still overflows marks the notification failed and drops its queue request instead of being resubmitted every run. The tokens Gemini reports as thinking are logged separately (thought_tokens) on every call.",
           "tests": [

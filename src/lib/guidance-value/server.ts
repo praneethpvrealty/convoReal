@@ -11,6 +11,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 import { rateDistrict } from './districts';
+import { pageTexts, planSkippedPages, skippedRunEnd } from './page-filter';
 import {
   districtPattern,
   desiredClass,
@@ -22,6 +23,7 @@ import {
   PAGES_PER_CHUNK,
   countPdfPages,
   classifyAiOutage,
+  openPdf,
   parseRatePages,
   type RateHeadings,
 } from './rate-parse';
@@ -274,11 +276,36 @@ export async function parseNextSourceChunk(
     }
     const buffer = new Uint8Array(await file.arrayBuffer());
 
-    const knownPages = source.page_count ?? countPdfPages(buffer);
+    const pdf = await openPdf(buffer);
+    const knownPages =
+      source.page_count ?? pdf?.getPageCount() ?? countPdfPages(buffer);
     const fromPage = source.pages_parsed + 1;
-    const toPage = knownPages
+    const skippedPages = pdf ? planSkippedPages(pageTexts(pdf)) : [];
+    if (skippedPages[fromPage - 1]) {
+      const parsedTo = Math.min(
+        skippedRunEnd(skippedPages, fromPage),
+        knownPages ?? Number.MAX_SAFE_INTEGER
+      );
+      const done = knownPages !== null && parsedTo >= knownPages;
+      const { data: skipped, error: skipError } = await db
+        .from('guidance_value_sources')
+        .update({
+          pages_parsed: parsedTo,
+          page_count: knownPages,
+          status: done ? 'ready' : 'parsing',
+          error: null,
+          ...(done ? { batch_requested_at: null } : {}),
+        })
+        .eq('id', source.id)
+        .select(SOURCE_COLUMNS)
+        .single<GuidanceSourceRow>();
+      if (skipError) throw new Error(skipError.message);
+      return skipped;
+    }
+    let toPage = knownPages
       ? Math.min(fromPage + PAGES_PER_CHUNK - 1, knownPages)
       : fromPage + PAGES_PER_CHUNK - 1;
+    if (skippedPages[toPage - 1]) toPage = fromPage;
 
     const { data: headings } = await db
       .from('guidance_value_rates')
