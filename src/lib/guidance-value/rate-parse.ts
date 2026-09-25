@@ -11,6 +11,7 @@ import { parseJsonResponse } from '@/lib/invoices/document-extract';
 
 import {
   PROPERTY_CLASSES,
+  type LandClass,
   type ParsedRateRow,
   type PropertyClass,
 } from './types';
@@ -128,7 +129,18 @@ export const RATE_CLASS_CODES: Record<string, PropertyClass> = {
   ca: 'commercial_apartment',
   in: 'industrial',
   ag: 'agricultural',
+  ad: 'agricultural',
+  aw: 'agricultural',
+  ab: 'agricultural',
+  ap: 'agricultural',
   ot: 'other',
+};
+
+export const LAND_CLASS_CODES: Record<string, LandClass> = {
+  ad: 'dry',
+  aw: 'wet',
+  ab: 'garden',
+  ap: 'plantation',
 };
 
 export function rateInstructions(
@@ -174,8 +186,13 @@ Each row is one line of the table:
   {code: rate}    one entry per non-empty rate column, the number only
                   with no commas or currency. Codes: "rs" residential
                   site, "ra" residential apartment, "cs" commercial site,
-                  "ca" commercial apartment, "in" industrial, "ag"
-                  agricultural (dry / wet / garden land), "ot" other.
+                  "ca" commercial apartment, "in" industrial, "ot" other.
+                  Agricultural land uses the column's land class: "ad"
+                  dry land (Khushki, Kushki, Punja, ಖುಷ್ಕಿ, ಪುಂಜ), "aw"
+                  wet land (Tari, Nanja, irrigated, ತರಿ, ನಂಜ), "ab"
+                  garden land (Bagayat, ಬಾಗಾಯ್ತು, ಭಾಗಾಯ್ತು), "ap"
+                  plantation (coconut, arecanut, coffee, ತೆಂಗು, ಅಡಿಕೆ);
+                  "ag" only when the column names no land class.
 
 If two columns of one line use different units, write one row per unit.
 Tables are often bilingual; transcribe the English names. Skip blank,
@@ -304,6 +321,12 @@ export function sanitiseRateRows(
   for (const row of candidates) {
     if (isNonRateTable(row)) continue;
     const propertyClass = parseClass(row.property_class);
+    const landClass =
+      propertyClass === 'agricultural'
+        ? LAND_CLASS_CODES[
+            cleanString(row.property_class, 4)?.toLowerCase() ?? ''
+          ]
+        : undefined;
     const unit = normaliseUnit(row.unit);
     const rate = Number(
       typeof row.rate === 'string' ? row.rate.replace(/[^\d.]/g, '') : row.rate
@@ -319,6 +342,7 @@ export function sanitiseRateRows(
     if (contextPage !== null && page === contextPage) continue;
     const out: ParsedRateRow = {
       property_class: propertyClass,
+      ...(landClass ? { land_class: landClass } : {}),
       rate,
       unit,
       page:

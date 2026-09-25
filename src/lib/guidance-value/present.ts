@@ -1,4 +1,5 @@
 import {
+  LAND_CLASS_LABELS,
   PROPERTY_CLASS_LABELS,
   type Area,
   type AreaUnit,
@@ -17,9 +18,12 @@ export function rateLocation(
 }
 
 export function rateHeadline(
-  rate: Pick<GuidanceRate, 'rate' | 'unit' | 'property_class'>
+  rate: Pick<GuidanceRate, 'rate' | 'unit' | 'property_class' | 'land_class'>
 ): string {
-  return `${formatInr(rate.rate)} / ${UNIT_LABELS[rate.unit]} · ${PROPERTY_CLASS_LABELS[rate.property_class]}`;
+  const land = rate.land_class
+    ? ` · ${LAND_CLASS_LABELS[rate.land_class]}`
+    : '';
+  return `${formatInr(rate.rate)} / ${UNIT_LABELS[rate.unit]} · ${PROPERTY_CLASS_LABELS[rate.property_class]}${land}`;
 }
 
 export function perSqftText(ratePerSqft: number): string {

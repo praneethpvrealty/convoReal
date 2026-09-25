@@ -19,6 +19,18 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Guidance values say which land class an agricultural rate is for, and
+  site rates keep the notification's own unit.** An agricultural village
+  row carries four figures (dry, wet, garden, plantation) that were all
+  saved as plain "Agricultural"; they now keep their class, shown on web
+  and mobile. And the per-square-metre header is printed once near the
+  front of a notification, so later pages were often saved per square
+  foot, making values about 10.8× too high (Ramanagara Taluk: 911 of
+  1,000 site rates). When a notification prints only one of sq m / sq ft,
+  every rate is now stored in that unit. **Migration required:**
+  `20260925180000_guidance_rate_land_class.sql` and
+  `20260925180100_guidance_search_land_class.sql`.
+
 - **Guidance value reading skips the pages that hold no rates.** Every
   notification opens with a gazette header, instructions, an amenities list
   and an apartment ready reckoner, and Gemini was paid to read them and

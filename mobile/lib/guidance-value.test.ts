@@ -22,7 +22,9 @@ describe('scheduleRejection', () => {
 
   it('refuses other types and large files', () => {
     expect(scheduleRejection('image/heic', 10)).toMatch(/PDF/);
-    expect(scheduleRejection('application/pdf', 5 * 1024 * 1024)).toMatch(/4 MB/);
+    expect(scheduleRejection('application/pdf', 5 * 1024 * 1024)).toMatch(
+      /4 MB/
+    );
   });
 });
 
@@ -32,7 +34,9 @@ describe('draft round trip', () => {
       locality: 'Koramangala 6th Block',
       road: '18th Main',
       kind: 'house' as const,
-      floors: [{ label: 'Ground', area: { value: 1916, unit: 'sqft' as const } }],
+      floors: [
+        { label: 'Ground', area: { value: 1916, unit: 'sqft' as const } },
+      ],
     };
     const draft = draftFromSchedule(base);
     expect(draft.locality).toBe('Koramangala 6th Block');
@@ -49,8 +53,20 @@ describe('presentation', () => {
   it('formats rupees and rate lines', () => {
     expect(formatRupees(1234567.4)).toBe('₹12,34,567');
     expect(
-      rateHeadline({ rate: 210000, unit: 'sqm', property_class: 'residential_site' })
+      rateHeadline({
+        rate: 210000,
+        unit: 'sqm',
+        property_class: 'residential_site',
+      })
     ).toBe('₹2,10,000 / sq.m · Residential site');
+    expect(
+      rateHeadline({
+        rate: 1533000,
+        unit: 'acre',
+        property_class: 'agricultural',
+        land_class: 'plantation',
+      })
+    ).toBe('₹15,33,000 / acre · Agricultural · Plantation');
     expect(
       rateLocation({
         road: '18th Main',

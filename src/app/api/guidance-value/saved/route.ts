@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     const { data: rate } = await supabaseAdmin()
       .from('guidance_value_rates')
       .select(
-        'id, district, taluk, hobli, village, locality, road, survey_numbers, property_class, rate, unit, page, source:guidance_value_sources(title, effective_from)'
+        'id, district, taluk, hobli, village, locality, road, survey_numbers, property_class, land_class, rate, unit, page, source:guidance_value_sources(title, effective_from)'
       )
       .eq('id', rateId)
       .maybeSingle();
@@ -151,6 +151,7 @@ export async function POST(request: Request) {
           road: rate.road,
           survey_numbers: rate.survey_numbers,
           property_class: rate.property_class,
+          land_class: rate.land_class,
           unit: rate.unit,
           page: rate.page,
           rate: Number(rate.rate),

@@ -12,6 +12,16 @@ export const PROPERTY_CLASSES = [
 ] as const;
 export type PropertyClass = (typeof PROPERTY_CLASSES)[number];
 
+export const LAND_CLASSES = ['dry', 'wet', 'garden', 'plantation'] as const;
+export type LandClass = (typeof LAND_CLASSES)[number];
+
+export const LAND_CLASS_LABELS: Record<LandClass, string> = {
+  dry: 'Dry land',
+  wet: 'Wet land',
+  garden: 'Garden land',
+  plantation: 'Plantation',
+};
+
 export const PROPERTY_CLASS_LABELS: Record<PropertyClass, string> = {
   residential_site: 'Residential site',
   residential_apartment: 'Residential apartment',
@@ -97,6 +107,7 @@ export interface GuidanceRate {
   road: string | null;
   survey_numbers: string | null;
   property_class: PropertyClass;
+  land_class?: LandClass | null;
   rate: number;
   unit: AreaUnit;
   page: number | null;
@@ -114,6 +125,7 @@ export interface ParsedRateRow {
   road?: string;
   survey_numbers?: string;
   property_class: PropertyClass;
+  land_class?: LandClass;
   rate: number;
   unit: AreaUnit;
   page?: number;

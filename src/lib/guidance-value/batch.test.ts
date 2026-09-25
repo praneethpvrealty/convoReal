@@ -74,6 +74,46 @@ const compact = {
   ],
 };
 
+describe('sanitiseRateRows (land class)', () => {
+  it('[GVL-019] keeps the land class of each agricultural column', () => {
+    const { rows } = sanitiseRateRows(
+      {
+        groups: [
+          {
+            district: 'Dakshina Kannada',
+            hobli: 'Gurupura Hobli',
+            village: 'Addoor Village',
+            rows: [
+              [
+                'Addoor Village',
+                '',
+                '',
+                'acre',
+                126,
+                { ad: 952500, aw: 972000, ab: 1106000, ap: 1533000 },
+              ],
+              ['Old survey land', '', '', 'acre', 126, { ag: 800000 }],
+              ['Addoor - Main Road', '', '', 'sqm', 126, { rs: 3500 }],
+            ],
+          },
+        ],
+      },
+      126,
+      126
+    );
+    expect(
+      rows.map((r) => [r.property_class, r.land_class ?? null, r.rate])
+    ).toEqual([
+      ['agricultural', 'dry', 952500],
+      ['agricultural', 'wet', 972000],
+      ['agricultural', 'garden', 1106000],
+      ['agricultural', 'plantation', 1533000],
+      ['agricultural', null, 800000],
+      ['residential_site', null, 3500],
+    ]);
+  });
+});
+
 describe('sanitiseRateRows (compact)', () => {
   it('[GVL-011] expands grouped rows into one rate per column, headings written once', () => {
     const { rows, totalPages } = sanitiseRateRows(compact, 3, 4);
@@ -781,6 +821,74 @@ describe('pollGuidanceBatches', () => {
         responseTokens: 200,
       })
     );
+  });
+
+  it('[GVL-020] stores rates in the only area unit the notification prints', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              name: 'batches/abc',
+              metadata: {
+                state: 'BATCH_STATE_SUCCEEDED',
+                output: {
+                  inlinedResponses: {
+                    inlinedResponses: [
+                      answer(
+                        JSON.stringify({
+                          groups: [
+                            {
+                              village: 'Addoor Village',
+                              rows: [
+                                [
+                                  'Addoor - Main Road',
+                                  '',
+                                  '',
+                                  'sqft',
+                                  1,
+                                  { rs: 3500 },
+                                ],
+                                [
+                                  'Addoor Village',
+                                  '',
+                                  '',
+                                  'acre',
+                                  2,
+                                  { ad: 952500 },
+                                ],
+                              ],
+                            },
+                          ],
+                        })
+                      ),
+                      answer(JSON.stringify({ groups: [] })),
+                    ],
+                  },
+                },
+              },
+            }),
+            { status: 200 }
+          )
+      )
+    );
+    const { db, writes } = pollDb({
+      chunks: [
+        { ...chunk(1, 2), unit: 'sqm' },
+        { ...chunk(3, 3), unit: 'sqm' },
+      ],
+    });
+
+    await pollGuidanceBatches(db);
+
+    const inserted = writes.find(
+      (w) => w.table === 'guidance_value_rates' && w.op === 'insert'
+    )?.value as Array<Record<string, unknown>>;
+    expect(inserted.map((r) => [r.unit, r.land_class ?? null])).toEqual([
+      ['sqm', null],
+      ['acre', 'dry'],
+    ]);
   });
 
   it('[GVL-018] counts a skipped chunk as read and lines results up with the rest', async () => {
