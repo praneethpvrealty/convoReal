@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Guidance batch queuing continues in the background.** Clicking Queue now
+  marks every waiting notification, and the 15-minute cron keeps queuing any
+  that one request could not reach, so leaving the page no longer stops the
+  import. **Migration required:**
+  `20260925100121_guidance_value_batch_requested.sql`.
 - **A map link that names a place now pins the listing there.** Links
   such as `maps.app.goo.gl/…` that open a named place, or
   `google.com/maps?q=<address>`, carry no coordinates, so the listing fell

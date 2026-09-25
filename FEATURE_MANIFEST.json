@@ -2084,6 +2084,16 @@
           ]
         },
         {
+          "id": "GVL-014",
+          "rule": "A queue request is remembered on every waiting notification (batch_requested_at) before any batch is built, so the guidance-batches cron keeps queuing requested notifications that one time-limited request did not reach, with its own shorter budget, even after the admin leaves the page. The cron never queues a notification nobody asked to batch; the request is cleared when the notification is ready, when its PDF cannot be read, or when a batch returns without advancing its progress, so an unreadable range is not resubmitted every 15 minutes.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/batch.test.ts",
+              "case": "[GVL-014]"
+            }
+          ]
+        },
+        {
           "id": "GVL-011",
           "rule": "Rate parsing asks Gemini for compact output: rates are grouped under their district, taluk, hobli and village headings written once per group, and each table line is one array carrying locality, road, survey numbers, unit, page and a map of short class codes to rates. Headings are copied only as printed, never inferred from a recognised place name, and construction-cost, floor-rise, parking, ready-reckoner, example and general-guideline tables are skipped. The parser expands each code into its own stored rate, carries group headings into the next group that omits them, drops rows (and heading carry) from a non-rate table the model returns anyway, drops context-page rows, and still reads the older one-object-per-rate format.",
           "tests": [

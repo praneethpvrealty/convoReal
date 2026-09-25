@@ -410,7 +410,7 @@ async function queueBatches(settings, rows) {
   }
   status(
     sent.sources
-      ? `Queued ${sent.sources} notifications (${sent.requests} page ranges) in ${sent.batches} half-price batch${sent.batches === 1 ? '' : 'es'}. ConvoReal reads them in the background — usually within a few hours, at most a day — so you can close this tab. Run it again later to see what is ready; ${totals.done} of ${total} are imported so far.`
+      ? `Queued ${sent.sources} notifications (${sent.requests} page ranges) in ${sent.batches} half-price batch${sent.batches === 1 ? '' : 'es'}. ConvoReal reads them in the background — usually within a few hours, at most a day — and keeps queuing any it could not reach yet every 15 minutes, so you can close this tab. Run it again later to see what is ready; ${totals.done} of ${total} are imported so far.`
       : `Nothing new to queue: ${totals.done} of ${total} imported; the rest are already in a batch.`,
     'done'
   );
