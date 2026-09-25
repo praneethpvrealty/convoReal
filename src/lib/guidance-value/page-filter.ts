@@ -9,7 +9,7 @@ import {
 } from 'pdf-lib';
 
 const RATE_SIGNAL =
-  /\b(villages?|hobli|main roads?|cross roads?|interior|layouts?|survey|s\.?\s*no\.?|potential area|extensions?|nagar|colony|cross|roads?|streets?|block no|ward no|plots?|sites?|khata)\b|\b\d{1,3}-\d{1,3}-\d{1,4}[A-Za-z]?\b/i;
+  /\b(villages?|hobli|main roads?|cross roads?|interior|layouts?|survey|s\.?\s*no\.?|potential area|extensions?|nagar|colony|cross|roads?|streets?|block no|ward no|plots?|sites?|khata|pid|property id)\b|\b\d{1,3}-\d{1,3}-\d{1,4}[A-Za-z]?\b/i;
 
 const NON_RATE_PAGE =
   /\b(ready reckoner|special amenities|amenities|car parking|cellar|stilt|weightage|(calculation|worked) examples?|general guidelines?|special instructions|construction (rates?|costs?)|building (rates?|types?|costs?)|floor[- ]?(wise|rise|weightage)|gazette|valuation committee)\b/i;
@@ -17,8 +17,12 @@ const NON_RATE_PAGE =
 const KNOWN_MIN_CHARS = 20;
 const LEADING_SKIP_MAX = 30;
 const LEADING_MIN_NUMBERS = 5;
+const XOBJECT_DEPTH = 3;
 
-type GlyphMap = Map<string, string>;
+export interface GlyphMap {
+  codes: Map<string, string>;
+  widths: number[];
+}
 
 function utf16(hex: string): string {
   const codes: number[] = [];
@@ -28,12 +32,17 @@ function utf16(hex: string): string {
   return String.fromCharCode(...codes);
 }
 
-function parseToUnicode(text: string): GlyphMap {
-  const map: GlyphMap = new Map();
-  const key = (code: number) => code.toString(16).padStart(4, '0');
+export function parseToUnicode(text: string): GlyphMap {
+  const codes = new Map<string, string>();
+  const widths = new Set<number>();
+  const key = (code: number, sourceHex: string) => {
+    const width = Math.max(1, Math.ceil(sourceHex.length / 2));
+    widths.add(width);
+    return code.toString(16).padStart(width * 2, '0');
+  };
   for (const block of text.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
     for (const m of block[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
-      map.set(key(parseInt(m[1], 16)), utf16(m[2]));
+      codes.set(key(parseInt(m[1], 16), m[1]), utf16(m[2]));
     }
   }
   for (const block of text.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
@@ -45,7 +54,7 @@ function parseToUnicode(text: string): GlyphMap {
       if (hi < lo || hi - lo > 65535) continue;
       if (m[3].startsWith('[')) {
         [...m[3].matchAll(/<([0-9A-Fa-f]+)>/g)].forEach((x, i) =>
-          map.set(key(lo + i), utf16(x[1]))
+          codes.set(key(lo + i, m[1]), utf16(x[1]))
         );
         continue;
       }
@@ -53,11 +62,32 @@ function parseToUnicode(text: string): GlyphMap {
       const prefix = base.slice(0, -4);
       const start = parseInt(base.slice(-4), 16);
       for (let code = lo; code <= hi; code += 1) {
-        map.set(key(code), utf16(prefix + key(start + code - lo)));
+        codes.set(
+          key(code, m[1]),
+          utf16(prefix + (start + code - lo).toString(16).padStart(4, '0'))
+        );
       }
     }
   }
-  return map;
+  return { codes, widths: [...widths].sort((a, b) => a - b) };
+}
+
+export function decodeGlyphs(hex: string, glyphs: GlyphMap): string {
+  let out = '';
+  let i = 0;
+  while (i < hex.length) {
+    let used = 0;
+    for (const width of glyphs.widths) {
+      const text = glyphs.codes.get(hex.slice(i, i + width * 2));
+      if (text !== undefined) {
+        out += text;
+        used = width;
+        break;
+      }
+    }
+    i += (used || glyphs.widths[0] || 2) * 2;
+  }
+  return out;
 }
 
 function streamText(doc: PDFDocument, obj: unknown): string | null {
@@ -75,12 +105,12 @@ interface FontInfo {
   twoByte: boolean;
 }
 
-function pageFonts(
+function resourceFonts(
   doc: PDFDocument,
-  page: ReturnType<PDFDocument['getPage']>
+  resources: PDFDict | undefined
 ): Map<string, FontInfo> {
   const fonts = new Map<string, FontInfo>();
-  const dict = page.node.Resources()?.lookup(PDFName.of('Font'));
+  const dict = resources?.lookup(PDFName.of('Font'));
   if (!(dict instanceof PDFDict)) return fonts;
   for (const [name, ref] of dict.entries()) {
     const font = doc.context.lookup(ref);
@@ -95,41 +125,74 @@ function pageFonts(
 }
 
 function decodeHex(hex: string, font: FontInfo | undefined): string {
-  if (font?.glyphs) {
-    let out = '';
-    for (let i = 0; i + 4 <= hex.length; i += 4) {
-      out += font.glyphs.get(hex.slice(i, i + 4)) ?? '';
-    }
-    return out;
-  }
+  if (font?.glyphs) return decodeGlyphs(hex, font.glyphs);
   if (font?.twoByte) return '';
   return Buffer.from(hex, 'hex').toString('latin1');
 }
 
+function formXObject(
+  resources: PDFDict | undefined,
+  name: string
+): PDFRawStream | null {
+  const dict = resources?.lookup(PDFName.of('XObject'));
+  if (!(dict instanceof PDFDict)) return null;
+  const stream = dict.lookup(PDFName.of(name));
+  return stream instanceof PDFRawStream &&
+    stream.dict.get(PDFName.of('Subtype')) === PDFName.of('Form')
+    ? stream
+    : null;
+}
+
 const CONTENT_TOKEN =
-  /\/([^\s/[\]<>()]+)\s+[\d.-]+\s+Tf|<([0-9A-Fa-f]*)>|\(((?:\\.|[^\\)])*)\)|(TJ|Tj|T\*|Td|TD|Tm|ET)\b/g;
+  /\/([^\s/[\]<>()]+)\s+[\d.-]+\s+Tf|\/([^\s/[\]<>()]+)\s+Do\b|<([0-9A-Fa-f]*)>|\(((?:\\.|[^\\)])*)\)|(TJ|Tj|T\*|Td|TD|Tm|ET)\b/g;
+
+function collectParts(
+  doc: PDFDocument,
+  text: string,
+  resources: PDFDict | undefined,
+  parts: string[],
+  depth: number
+): void {
+  const fonts = resourceFonts(doc, resources);
+  let font: FontInfo | undefined;
+  for (const m of text.matchAll(CONTENT_TOKEN)) {
+    if (m[1]) {
+      font = fonts.get(m[1]);
+    } else if (m[2]) {
+      const form = depth < XOBJECT_DEPTH ? formXObject(resources, m[2]) : null;
+      const inner = form ? streamText(doc, form) : null;
+      if (form && inner) {
+        const own = form.dict.lookup(PDFName.of('Resources'));
+        collectParts(
+          doc,
+          inner,
+          own instanceof PDFDict ? own : resources,
+          parts,
+          depth + 1
+        );
+        parts.push(' ');
+      }
+    } else if (m[3] !== undefined) {
+      parts.push(decodeHex(m[3].toLowerCase(), font));
+    } else if (m[4] !== undefined) {
+      parts.push(m[4].replace(/\\([()\\])/g, '$1').replace(/\\\d{3}/g, ''));
+    } else {
+      parts.push(' ');
+    }
+  }
+}
 
 export function pageText(doc: PDFDocument, index: number): string {
   const page = doc.getPage(index);
-  const fonts = pageFonts(doc, page);
   const contents = page.node.Contents();
   const resolved =
     contents instanceof PDFRef ? doc.context.lookup(contents) : contents;
   const streams =
     resolved instanceof PDFArray ? resolved.asArray() : [resolved];
   const parts: string[] = [];
-  let font: FontInfo | undefined;
   for (const item of streams) {
     const text = streamText(doc, item);
-    if (!text) continue;
-    for (const m of text.matchAll(CONTENT_TOKEN)) {
-      if (m[1]) font = fonts.get(m[1]);
-      else if (m[2] !== undefined)
-        parts.push(decodeHex(m[2].toLowerCase(), font));
-      else if (m[3] !== undefined) {
-        parts.push(m[3].replace(/\\([()\\])/g, '$1').replace(/\\\d{3}/g, ''));
-      } else parts.push(' ');
-    }
+    if (text) collectParts(doc, text, page.node.Resources(), parts, 0);
   }
   return parts.join('').replace(/\s+/g, ' ').trim();
 }
@@ -145,7 +208,7 @@ export function pageTexts(doc: PDFDocument): string[] {
 }
 
 function printableChars(text: string): number {
-  return (text.match(/[A-Za-z0-9\u0C80-\u0CFF]/g) ?? []).length;
+  return (text.match(/[A-Za-z0-9ಀ-೿]/g) ?? []).length;
 }
 
 function readable(text: string): boolean {
@@ -162,7 +225,7 @@ function largeNumbers(text: string): number {
 function numericGrid(text: string): boolean {
   return (
     /^[\d\s.,()%]*$/.test(text.replace(/[^\x20-\x7e]/g, '')) &&
-    (text.match(/[\u0C80-\u0CFF]/g) ?? []).length < 40
+    (text.match(/[ಀ-೿]/g) ?? []).length < 40
   );
 }
 

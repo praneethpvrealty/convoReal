@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
 import {
+  decodeGlyphs,
   pageText,
   pageTexts,
+  parseToUnicode,
   planSkippedPages,
   skippedRunEnd,
 } from './page-filter';
@@ -24,6 +26,8 @@ const PID_PAGE =
   '244 39, 1-5-41, 1-5-41, 1-5-91, 1-5-31, 1-5-105A, 1-5-47, 1-5-49, 1-5-51, 1-5-107, 1-5-17, 1-5-19, 1-5-109A';
 const PLURAL_ROADS =
   '28 3 Main Roads 1 1 501 - 502 1 - 1 - 501 - 172B, 1 - 1 - 501 - 187, 1 - 1 - 501 - 224 4500 5000';
+const PID_LABELS =
+  'Ward 4 PID 12/44 PID 12/45 PID 12/46 PID 12/47 ಮುಖ್ಯ ರಸ್ತೆ 4500 ಅಡ್ಡ ರಸ್ತೆ 3500';
 const GARBAGE =
   'P lP g P g ( A z t v z A P E S ) 2 0 2 3 - 2 4 f v P Ai g U j v i U a i g P m z g n G A z u P j U P A i i A i f e jU Az AP : 01-10-2023';
 
@@ -42,8 +46,16 @@ describe('planSkippedPages', () => {
 
   it('[GVL-018] keeps PID lists, plural road headings and blank or garbled pages', () => {
     expect(
-      planSkippedPages([GAZETTE, PID_PAGE, '', GARBAGE, PLURAL_ROADS, RATES])
-    ).toEqual([true, false, false, false, false, false]);
+      planSkippedPages([
+        GAZETTE,
+        PID_PAGE,
+        '',
+        GARBAGE,
+        PLURAL_ROADS,
+        PID_LABELS,
+        RATES,
+      ])
+    ).toEqual([true, false, false, false, false, false, false]);
   });
 
   it('[GVL-018] skips nothing when no page reads as a rate table', () => {
@@ -80,5 +92,35 @@ describe('pageText', () => {
     const loaded = await PDFDocument.load(await doc.save());
     expect(pageText(loaded, 0)).toContain('Addoor Village (Gurupura Hobli)');
     expect(pageTexts(loaded)).toEqual([expect.stringContaining('3500'), '']);
+  });
+
+  it('[GVL-018] reads text drawn through a form XObject', async () => {
+    const inner = await PDFDocument.create();
+    const font = await inner.embedFont(StandardFonts.Helvetica);
+    inner.addPage([300, 300]).drawText('Kudupu Village (Gurupura Hobli)', {
+      x: 20,
+      y: 250,
+      size: 10,
+      font,
+    });
+    const outer = await PDFDocument.create();
+    const [embedded] = await outer.embedPdf(await inner.save());
+    outer.addPage([300, 300]).drawPage(embedded);
+    const loaded = await PDFDocument.load(await outer.save());
+    expect(pageText(loaded, 0)).toContain('Kudupu Village (Gurupura Hobli)');
+  });
+});
+
+describe('parseToUnicode', () => {
+  it('[GVL-018] decodes one-byte and two-byte source codes by their declared width', () => {
+    const oneByte = parseToUnicode(
+      '1 begincodespacerange <00> <FF> endcodespacerange 2 beginbfchar <41> <0041> <42> <0042> endbfchar'
+    );
+    expect(decodeGlyphs('4142', oneByte)).toBe('AB');
+    const twoByte = parseToUnicode(
+      '1 beginbfrange <0010> <0012> <0061> endbfrange 1 beginbfchar <0003> <0020> endbfchar'
+    );
+    expect(decodeGlyphs('001000110012', twoByte)).toBe('abc');
+    expect(decodeGlyphs('00100003', twoByte)).toBe('a ');
   });
 });
