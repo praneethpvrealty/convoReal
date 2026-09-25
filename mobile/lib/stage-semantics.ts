@@ -46,19 +46,6 @@ export function dealStatusForStage(stageName: string): 'open' | 'won' | 'lost' {
   return 'open';
 }
 
-export function propertyStatusForPipelineStage(
-  stageName: string
-): 'Available' | 'Under Contract' | 'Sold' | null {
-  const name = normalizedStageName(stageName);
-  const outcome = pipelineOutcomeForStage(name);
-  if (outcome === 'lost') return 'Available';
-  if (outcome === 'successful') return 'Sold';
-  if (name.includes('negotiation') || name.includes('token')) {
-    return 'Under Contract';
-  }
-  return null;
-}
-
 export function shouldCaptureBrokerage(stageName: string): boolean {
   const name = normalizedStageName(stageName);
   return (

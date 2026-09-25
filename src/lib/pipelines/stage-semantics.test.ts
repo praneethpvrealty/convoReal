@@ -24,6 +24,21 @@ describe('pipeline stage semantics', () => {
     expect(propertyStatusForPipelineStage('Closed Lost')).toBe('Available');
   });
 
+  it('[PRP-015] keeps a listing under contract through negotiation and due diligence', () => {
+    expect(propertyStatusForPipelineStage('Negotiation/Token')).toBe(
+      'Under Contract'
+    );
+    expect(propertyStatusForPipelineStage('Due Diligence/Contract')).toBe(
+      'Under Contract'
+    );
+    expect(propertyStatusForPipelineStage('Contract Signed')).toBe(
+      'Under Contract'
+    );
+    expect(propertyStatusForPipelineStage('Deal Closed/Won')).toBe('Sold');
+    expect(propertyStatusForPipelineStage('New Inquiry')).toBeNull();
+    expect(propertyStatusForPipelineStage('Site Visit Scheduled')).toBeNull();
+  });
+
   it('marks only brokerage paid as the terminal success stage', () => {
     expect(isBrokeragePaidStage('Brokerage Paid')).toBe(true);
     expect(isBrokeragePaidStage('Brokerage Pending')).toBe(false);
