@@ -46,6 +46,7 @@ export interface AiCallLogEntry {
   hasMedia: boolean;
   promptTokens?: number | null;
   responseTokens?: number | null;
+  thoughtTokens?: number | null;
   promptChars: number;
   responseChars?: number;
   systemPreview?: string;
@@ -58,24 +59,27 @@ export function logAiCall(entry: AiCallLogEntry): void {
   void (async () => {
     try {
       if (!(await isLoggingEnabled())) return;
-      await supabaseAdmin().from('ai_call_log').insert({
-        key_label: entry.keyLabel ?? null,
-        feature: entry.feature ?? null,
-        model: entry.model,
-        tier: entry.tier ?? null,
-        success: entry.success,
-        error_message: entry.errorMessage?.slice(0, PREVIEW_CHARS) ?? null,
-        latency_ms: Math.round(entry.latencyMs),
-        json_mode: entry.jsonMode,
-        has_media: entry.hasMedia,
-        prompt_tokens: entry.promptTokens ?? null,
-        response_tokens: entry.responseTokens ?? null,
-        prompt_chars: entry.promptChars,
-        response_chars: entry.responseChars ?? null,
-        system_preview: entry.systemPreview?.slice(0, 80) ?? null,
-        input_preview: entry.inputPreview?.slice(0, PREVIEW_CHARS) ?? null,
-        output_preview: entry.outputPreview?.slice(0, PREVIEW_CHARS) ?? null,
-      } as unknown as never);
+      await supabaseAdmin()
+        .from('ai_call_log')
+        .insert({
+          key_label: entry.keyLabel ?? null,
+          feature: entry.feature ?? null,
+          model: entry.model,
+          tier: entry.tier ?? null,
+          success: entry.success,
+          error_message: entry.errorMessage?.slice(0, PREVIEW_CHARS) ?? null,
+          latency_ms: Math.round(entry.latencyMs),
+          json_mode: entry.jsonMode,
+          has_media: entry.hasMedia,
+          prompt_tokens: entry.promptTokens ?? null,
+          response_tokens: entry.responseTokens ?? null,
+          thought_tokens: entry.thoughtTokens ?? null,
+          prompt_chars: entry.promptChars,
+          response_chars: entry.responseChars ?? null,
+          system_preview: entry.systemPreview?.slice(0, 80) ?? null,
+          input_preview: entry.inputPreview?.slice(0, PREVIEW_CHARS) ?? null,
+          output_preview: entry.outputPreview?.slice(0, PREVIEW_CHARS) ?? null,
+        } as unknown as never);
     } catch {
       // Telemetry must never surface into the AI call path.
     }

@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Guidance value reads stop paying for runaway output.** Twelve batch
+  requests today ran to Gemini's 65,000-token ceiling on two pages each,
+  produced nothing readable, and were resubmitted every 15 minutes. Output
+  is now capped at 8,192 tokens; a range that hits the cap is read one page
+  at a time, and a page that still overflows is marked instead of retried.
+  Thinking tokens are now logged per call. **Migration required:**
+  `20260925143000_guidance_output_cap.sql`.
+
 - **Guidance value reading no longer stalls on one range.** The Mangaluru
   Taluk notification stopped at page 66: every request for pages 67–68 ran
   for five minutes and failed, while each page alone read in three seconds.

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { logAiCall } from '@/lib/ai/call-log';
-import { modelChain } from '@/lib/ai/gemini';
+import { modelChain, OUTPUT_CUT_OFF } from '@/lib/ai/gemini';
 import {
   classifyGeminiKeyFailure,
   isRetiredModelMessage,
@@ -24,6 +24,7 @@ import {
   sanitiseRateRows,
   openPdf,
   slicePdf,
+  RATE_MAX_OUTPUT_TOKENS,
 } from './rate-parse';
 import { GUIDANCE_SOURCE_BUCKET } from './server';
 import type { ParsedRateRow } from './types';
@@ -50,8 +51,10 @@ export interface BatchChunk {
 export interface BatchChunkResult {
   text: string | null;
   error: string | null;
+  cutOff: boolean;
   promptTokens: number | null;
   responseTokens: number | null;
+  thoughtTokens: number | null;
 }
 
 export type BatchState = 'running' | 'succeeded' | 'failed';
@@ -64,11 +67,20 @@ export interface BatchStatus {
 
 export function planChunks(
   pageCount: number,
-  pagesParsed: number
+  pagesParsed: number,
+  singlePages: number[] = []
 ): Array<{ from: number; to: number }> {
+  const singles = new Set(singlePages);
   const chunks: Array<{ from: number; to: number }> = [];
-  for (let from = pagesParsed + 1; from <= pageCount; from += PAGES_PER_CHUNK) {
-    chunks.push({ from, to: Math.min(from + PAGES_PER_CHUNK - 1, pageCount) });
+  let from = pagesParsed + 1;
+  while (from <= pageCount) {
+    let to = Math.min(from + PAGES_PER_CHUNK - 1, pageCount);
+    for (let page = from; page <= to; page += 1) {
+      if (singles.has(page)) to = Math.max(from, page - 1);
+    }
+    if (singles.has(from)) to = from;
+    chunks.push({ from, to });
+    from = to + 1;
   }
   return chunks;
 }
@@ -100,6 +112,7 @@ export function batchRequest(
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0,
+        maxOutputTokens: RATE_MAX_OUTPUT_TOKENS,
       },
     },
     metadata: {
@@ -155,23 +168,32 @@ export function readBatchOperation(op: unknown): BatchStatus {
         response?: {
           candidates?: Array<{
             content?: { parts?: Array<{ text?: string }> };
+            finishReason?: string;
           }>;
           usageMetadata?: {
             promptTokenCount?: number;
             candidatesTokenCount?: number;
+            thoughtsTokenCount?: number;
           };
         };
       };
-      const text =
-        entry.response?.candidates?.[0]?.content?.parts
-          ?.map((part) => part.text ?? '')
-          .join('') || null;
+      const candidate = entry.response?.candidates?.[0];
+      const cutOff = candidate?.finishReason === 'MAX_TOKENS';
+      const text = cutOff
+        ? null
+        : candidate?.content?.parts?.map((part) => part.text ?? '').join('') ||
+          null;
       return {
         text,
-        error: errorText(entry.error) ?? (text ? null : 'No text returned'),
+        error:
+          errorText(entry.error) ??
+          (cutOff ? OUTPUT_CUT_OFF : text ? null : 'No text returned'),
+        cutOff,
         promptTokens: entry.response?.usageMetadata?.promptTokenCount ?? null,
         responseTokens:
           entry.response?.usageMetadata?.candidatesTokenCount ?? null,
+        thoughtTokens:
+          entry.response?.usageMetadata?.thoughtsTokenCount ?? null,
       };
     }),
   };
@@ -236,6 +258,7 @@ interface SourceForBatch {
   storage_path: string;
   page_count: number | null;
   pages_parsed: number;
+  single_pages: number[] | null;
 }
 
 interface SkippedSource {
@@ -306,7 +329,11 @@ async function prepareSource(
     requests: [],
     bytes: 0,
   };
-  for (const { from, to } of planChunks(pageCount, source.pages_parsed)) {
+  for (const { from, to } of planChunks(
+    pageCount,
+    source.pages_parsed,
+    source.single_pages ?? []
+  )) {
     const slice = pdf ? await slicePdf(pdf, from, to) : null;
     const bytes = slice?.bytes ?? buffer;
     const size = Math.ceil((bytes.byteLength * 4) / 3) + 8_000;
@@ -389,7 +416,7 @@ export async function queueGuidanceBatches(
   }
   let select = db
     .from('guidance_value_sources')
-    .select('id, storage_path, page_count, pages_parsed')
+    .select('id, storage_path, page_count, pages_parsed, single_pages')
     .in('status', ['uploaded', 'parsing', 'failed'])
     .is('batch_id', null);
   if (opts.requestedOnly) select = select.not('batch_requested_at', 'is', null);
@@ -589,7 +616,7 @@ async function applyResults(
 ): Promise<number> {
   const bySource = new Map<
     string,
-    Array<{ chunk: BatchChunk; rows: ParsedRateRow[] | null }>
+    Array<{ chunk: BatchChunk; rows: ParsedRateRow[] | null; cutOff: boolean }>
   >();
   let failedCount = 0;
   row.chunks.forEach((chunk, index) => {
@@ -620,18 +647,19 @@ async function applyResults(
       hasMedia: true,
       promptTokens: result?.promptTokens ?? null,
       responseTokens: result?.responseTokens ?? null,
+      thoughtTokens: result?.thoughtTokens ?? null,
       promptChars: 0,
       responseChars: result?.text?.length ?? 0,
     });
     const list = bySource.get(chunk.source_id) ?? [];
-    list.push({ chunk, rows });
+    list.push({ chunk, rows, cutOff: Boolean(result?.cutOff) });
     bySource.set(chunk.source_id, list);
   });
 
   for (const [sourceId, chunks] of bySource) {
     const { data: source } = await db
       .from('guidance_value_sources')
-      .select('id, district, taluk, page_count, pages_parsed')
+      .select('id, district, taluk, page_count, pages_parsed, single_pages')
       .eq('id', sourceId)
       .maybeSingle<{
         id: string;
@@ -639,9 +667,19 @@ async function applyResults(
         taluk: string | null;
         page_count: number | null;
         pages_parsed: number;
+        single_pages: number[] | null;
       }>();
     if (!source) continue;
     const assembled = assembleSourceRows(source.pages_parsed, chunks);
+    const singlePages = new Set(source.single_pages ?? []);
+    let stuckPage: number | null = null;
+    for (const { chunk, cutOff } of chunks) {
+      if (!cutOff) continue;
+      if (chunk.from_page === chunk.to_page) stuckPage ??= chunk.from_page;
+      for (let page = chunk.from_page; page <= chunk.to_page; page += 1) {
+        singlePages.add(page);
+      }
+    }
     for (const { chunk, rows } of chunks) {
       if (!rows) continue;
       const { error: deleteError } = await db
@@ -677,13 +715,16 @@ async function applyResults(
         batch_id: null,
         pages_parsed: assembled.parsedTo,
         row_count: count ?? 0,
-        status: done ? 'ready' : 'parsing',
-        ...(done || assembled.parsedTo <= source.pages_parsed
+        single_pages: [...singlePages].sort((a, b) => a - b),
+        status: done ? 'ready' : stuckPage ? 'failed' : 'parsing',
+        ...(done || stuckPage || assembled.parsedTo <= source.pages_parsed
           ? { batch_requested_at: null }
           : {}),
-        error: assembled.failed
-          ? `${assembled.failed} page range(s) could not be read in the batch; the next run retries them.`
-          : null,
+        error: stuckPage
+          ? `Page ${stuckPage} produces more output than the reader allows; it cannot be read in a batch.`
+          : assembled.failed
+            ? `${assembled.failed} page range(s) could not be read in the batch; the next run retries them.`
+            : null,
       })
       .eq('id', sourceId)
       .select('id');

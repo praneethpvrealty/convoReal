@@ -26,6 +26,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { PDFDocument } from 'pdf-lib';
 
 import { logAiCall } from '@/lib/ai/call-log';
+import { OUTPUT_CUT_OFF } from '@/lib/ai/gemini';
 import { DEFAULT_PRICING, estimateCostUsd } from '@/lib/ai/keys-admin';
 
 import {
@@ -40,7 +41,11 @@ import {
   readBatchOperation,
   type BatchChunk,
 } from './batch';
-import { NON_RATE_TABLE, sanitiseRateRows } from './rate-parse';
+import {
+  NON_RATE_TABLE,
+  RATE_MAX_OUTPUT_TOKENS,
+  sanitiseRateRows,
+} from './rate-parse';
 
 const compact = {
   total_pages: 12,
@@ -243,6 +248,21 @@ describe('planChunks', () => {
     expect(planChunks(5, 4)).toEqual([{ from: 5, to: 5 }]);
     expect(planChunks(5, 5)).toEqual([]);
   });
+
+  it('[GVL-017] reads a page that overflowed the output cap on its own', () => {
+    expect(planChunks(6, 0, [3, 4])).toEqual([
+      { from: 1, to: 2 },
+      { from: 3, to: 3 },
+      { from: 4, to: 4 },
+      { from: 5, to: 6 },
+    ]);
+    expect(planChunks(6, 0, [2])).toEqual([
+      { from: 1, to: 1 },
+      { from: 2, to: 2 },
+      { from: 3, to: 4 },
+      { from: 5, to: 6 },
+    ]);
+  });
 });
 
 describe('batchRequest', () => {
@@ -267,6 +287,7 @@ describe('batchRequest', () => {
     expect(request.request.generationConfig).toEqual({
       responseMimeType: 'application/json',
       temperature: 0,
+      maxOutputTokens: RATE_MAX_OUTPUT_TOKENS,
     });
     expect(request.metadata.key).toBe('src-1:3-4');
   });
@@ -309,14 +330,58 @@ describe('readBatchOperation', () => {
       {
         text: '{"groups":[]}',
         error: null,
+        cutOff: false,
         promptTokens: 1200,
         responseTokens: 300,
+        thoughtTokens: null,
       },
       {
         text: null,
         error: 'Internal error',
+        cutOff: false,
         promptTokens: null,
         responseTokens: null,
+        thoughtTokens: null,
+      },
+    ]);
+  });
+
+  it('[GVL-017] treats a response that hit the output cap as unread and keeps its thinking tokens', () => {
+    const status = readBatchOperation({
+      done: true,
+      metadata: {
+        state: 'BATCH_STATE_SUCCEEDED',
+        output: {
+          inlinedResponses: {
+            inlinedResponses: [
+              {
+                response: {
+                  candidates: [
+                    {
+                      content: { parts: [{ text: '{"groups":[{"rows":[[' }] },
+                      finishReason: 'MAX_TOKENS',
+                    },
+                  ],
+                  usageMetadata: {
+                    promptTokenCount: 1200,
+                    candidatesTokenCount: 8192,
+                    thoughtsTokenCount: 950,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(status.results).toEqual([
+      {
+        text: null,
+        error: OUTPUT_CUT_OFF,
+        cutOff: true,
+        promptTokens: 1200,
+        responseTokens: 8192,
+        thoughtTokens: 950,
       },
     ]);
   });
@@ -698,6 +763,82 @@ describe('pollGuidanceBatches', () => {
         feature: BATCH_FEATURE,
         promptTokens: 1000,
         responseTokens: 200,
+      })
+    );
+  });
+
+  it('[GVL-017] reads an overflowing range one page at a time on the next run', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              name: 'batches/abc',
+              metadata: {
+                state: 'BATCH_STATE_SUCCEEDED',
+                output: {
+                  inlinedResponses: {
+                    inlinedResponses: [
+                      {
+                        response: {
+                          candidates: [
+                            {
+                              content: { parts: [{ text: '{"groups":[' }] },
+                              finishReason: 'MAX_TOKENS',
+                            },
+                          ],
+                          usageMetadata: {
+                            promptTokenCount: 1000,
+                            candidatesTokenCount: 8192,
+                            thoughtsTokenCount: 700,
+                          },
+                        },
+                      },
+                      answer(
+                        JSON.stringify({
+                          groups: [
+                            {
+                              district: 'Bengaluru Urban',
+                              village: 'Koramangala',
+                              rows: [
+                                ['7th Block', '', '', 'sqm', 3, { rs: 90 }],
+                              ],
+                            },
+                          ],
+                        })
+                      ),
+                    ],
+                  },
+                },
+              },
+            }),
+            { status: 200 }
+          )
+      )
+    );
+    const { db, writes } = pollDb();
+
+    const result = await pollGuidanceBatches(db);
+
+    expect(result).toMatchObject({ applied: 1 });
+    const sourceWrite = writes.find(
+      (w) =>
+        w.table === 'guidance_value_sources' &&
+        'single_pages' in (w.value as Record<string, unknown>)
+    )?.value as Record<string, unknown>;
+    expect(sourceWrite).toMatchObject({
+      single_pages: [1, 2],
+      pages_parsed: 0,
+      status: 'parsing',
+      batch_requested_at: null,
+    });
+    expect(vi.mocked(logAiCall)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        errorMessage: OUTPUT_CUT_OFF,
+        responseTokens: 8192,
+        thoughtTokens: 700,
       })
     );
   });
