@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Guidance value reading no longer stalls on one range.** The Mangaluru
+  Taluk notification stopped at page 66: every request for pages 67–68 ran
+  for five minutes and failed, while each page alone read in three seconds.
+  A range read now has an 80-second deadline across all fallback models, and
+  a two-page range that misses it is read one page at a time.
+
 - **Listing access approvals get their own WhatsApp template.** An approved
   listing-access request went out on `location_reveal`, which told the
   requester their "exact location" request was approved and the link lasts

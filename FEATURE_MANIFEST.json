@@ -2138,6 +2138,16 @@
           ]
         },
         {
+          "id": "GVL-016",
+          "rule": "Reading a notification range interactively has one deadline (RATE_READ_TIMEOUT_MS) for the whole Gemini call, shared across the fallback model chain so a stalled request is never retried on every model. When a two-page range misses the deadline, its pages are read one at a time, each with its own deadline and with the previous page's last headings as context, so one range the model stalls on no longer blocks the rest of the notification; three deadlines stay under the parse route's 300-second limit.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/rate-read.test.ts",
+              "case": "[GVL-016]"
+            }
+          ]
+        },
+        {
           "id": "GVL-015",
           "rule": "Every stored rate and notification carries one canonical Karnataka district name. A rate keeps the district printed above it only when that heading is exactly a district or one of its old spellings (Bellary, Bagalkot, Bangalore, Bengaluru Urban District); a taluk, town, placeholder, page number or multi-district heading is replaced by the notification's district. A notification's district label (a registration office such as Basavangudi, or an old spelling) is filed under its district when uploaded or imported.",
           "tests": [

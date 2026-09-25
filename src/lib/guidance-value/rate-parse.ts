@@ -16,6 +16,7 @@ import {
 import { normaliseUnit } from './units';
 
 export const PAGES_PER_CHUNK = 2;
+export const RATE_READ_TIMEOUT_MS = 80_000;
 export const MAX_ROWS_PER_CHUNK = 1500;
 
 export type AiOutage = 'unavailable' | 'rate_limited';
@@ -343,12 +344,43 @@ export function sanitiseRateRows(
   };
 }
 
-export async function parseRatePages(input: {
+interface RatePagesInput {
   buffer: Uint8Array;
   fromPage: number;
   toPage: number;
   headings?: RateHeadings | null;
-}): Promise<{ rows: ParsedRateRow[]; totalPages: number | null }> {
+}
+
+type RatePagesResult = { rows: ParsedRateRow[]; totalPages: number | null };
+
+export async function parseRatePages(
+  input: RatePagesInput
+): Promise<RatePagesResult> {
+  const signal = AbortSignal.timeout(RATE_READ_TIMEOUT_MS);
+  try {
+    return await readRatePages(input, signal);
+  } catch (err) {
+    if (!signal.aborted || input.toPage <= input.fromPage) throw err;
+  }
+  const rows: ParsedRateRow[] = [];
+  let totalPages: number | null = null;
+  let headings = input.headings;
+  for (let page = input.fromPage; page <= input.toPage; page += 1) {
+    const result = await readRatePages(
+      { ...input, fromPage: page, toPage: page, headings },
+      AbortSignal.timeout(RATE_READ_TIMEOUT_MS)
+    );
+    rows.push(...result.rows);
+    totalPages = result.totalPages ?? totalPages;
+    headings = result.rows.at(-1) ?? headings;
+  }
+  return { rows, totalPages };
+}
+
+async function readRatePages(
+  input: RatePagesInput,
+  signal: AbortSignal
+): Promise<RatePagesResult> {
   const slice = await slicePdf(input.buffer, input.fromPage, input.toPage);
   const parts: GeminiPart[] = [
     {
@@ -368,6 +400,7 @@ export async function parseRatePages(input: {
       feature: 'guidance_value_source_parse',
       tier: rateParseTier(),
       keyScope: 'import',
+      signal,
     }
   );
   const parsed = sanitiseRateRows(
