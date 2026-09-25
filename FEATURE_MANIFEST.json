@@ -1053,6 +1053,24 @@
               "case": "[PRP-013]"
             }
           ]
+        },
+        {
+          "id": "PRP-014",
+          "rule": "A public showcase listing whose status is not Available (Under Contract, Sold, Off Market, Archived, Rejected, Pending Review) tells the enquirer so in the detail view and on its card, prefills the WhatsApp inquiry with a request for the latest status, and never offers the listing Q&A; a WhatsApp enquiry that names such a published listing by its property code, or as a direct property enquiry, is acknowledged with the same status and a promise to check with the owner, is never promised a site visit or owner call, and alerts the agent with the listing's status. Available listings show none of this.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/listing-status.test.ts",
+              "case": "[PRP-014]"
+            },
+            {
+              "file": "src/components/showcase/showcase-view.availability.test.tsx",
+              "case": "[PRP-014]"
+            },
+            {
+              "file": "src/lib/whatsapp/enquiry-card.test.ts",
+              "case": "[PRP-014]"
+            }
+          ]
         }
       ]
     },

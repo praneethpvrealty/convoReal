@@ -185,6 +185,10 @@ import {
 } from '@/lib/buyer/alerts';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 import {
+  appendListingStatusNote,
+  listingStatusAgentLine,
+} from '@/lib/inventory/listing-status';
+import {
   CONSENT_APPROVE_PREFIX,
   CONSENT_DECLINE_PREFIX,
   OWNER_APPROVE_PREFIX,
@@ -1247,6 +1251,7 @@ interface InboundChainPayload {
   enquiryPropertyId: string | null;
   enquiryByCode: boolean;
   enquiryPropertyTitle: string | null;
+  enquiryPropertyStatus?: string | null;
   specificPropertyInterest: boolean;
   propertyReferenceNeedsAgent: boolean;
   isFirstInboundMessage: boolean;
@@ -1447,6 +1452,7 @@ async function processMessage(
   // weaker: any chat about a listing contains its title.
   let enquiryByCode = false;
   let enquiryPropertyTitle: string | null = null;
+  let enquiryPropertyStatus: string | null = null;
   const specificPropertyInterest =
     message.type === 'order' || isDirectPropertyInterest(contentText);
   let propertyReferenceNeedsAgent = false;
@@ -1477,6 +1483,7 @@ async function processMessage(
           enquiryByCode = resolution.matchedBy === 'code';
           enquiryPropertyId = matchedProperty.id;
           enquiryPropertyTitle = matchedProperty.title;
+          enquiryPropertyStatus = matchedProperty.status ?? null;
           await supabaseAdmin()
             .from('contacts')
             .update({
@@ -1637,6 +1644,7 @@ async function processMessage(
       enquiryPropertyId,
       enquiryByCode,
       enquiryPropertyTitle,
+      enquiryPropertyStatus,
       specificPropertyInterest,
       propertyReferenceNeedsAgent,
       isFirstInboundMessage,
@@ -1676,6 +1684,7 @@ async function handleInboundChain(
     enquiryPropertyId,
     enquiryByCode,
     enquiryPropertyTitle,
+    enquiryPropertyStatus = null,
     specificPropertyInterest,
     propertyReferenceNeedsAgent,
     ownerCheck,
@@ -2018,6 +2027,7 @@ async function handleInboundChain(
       const visitRequested = isInboundVisitRequest(contentText || '');
       const ownerContactRequested = requestsHumanContact(contentText);
       const actionRequested = visitRequested || ownerContactRequested;
+      const statusAgentLine = listingStatusAgentLine(enquiryPropertyStatus);
       await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
@@ -2026,10 +2036,13 @@ async function handleInboundChain(
         toPhone: senderPhone,
         kind: 'text',
         senderType: 'bot',
-        text: buildPropertyInterestAck(
-          contactRecord.name,
-          enquiryPropertyTitle,
-          { visitRequested, ownerContactRequested }
+        text: appendListingStatusNote(
+          buildPropertyInterestAck(
+            contactRecord.name,
+            enquiryPropertyTitle,
+            statusAgentLine ? {} : { visitRequested, ownerContactRequested }
+          ),
+          enquiryPropertyStatus
         ),
       });
 
@@ -2080,17 +2093,22 @@ async function handleInboundChain(
         title: actionRequested
           ? `${contactRecord.name || senderPhone} needs follow-up for ${enquiryPropertyTitle}`
           : `${contactRecord.name || senderPhone} wants ${enquiryPropertyTitle}`,
-        body: shareSent
-          ? actionRequested
-            ? [
-                visitRequested ? 'Site visit requested.' : '',
-                ownerContactRequested ? 'Owner conversation requested.' : '',
-                'The exact property details were sent; please coordinate the requested next step.',
-              ]
-                .filter(Boolean)
-                .join(' ')
-            : 'The exact property details were sent. Reply to answer any property-specific questions.'
-          : 'The listing was matched, but the automatic details send failed. Please share it and follow up now.',
+        body: [
+          statusAgentLine,
+          shareSent
+            ? actionRequested
+              ? [
+                  visitRequested ? 'Site visit requested.' : '',
+                  ownerContactRequested ? 'Owner conversation requested.' : '',
+                  'The exact property details were sent; please coordinate the requested next step.',
+                ]
+                  .filter(Boolean)
+                  .join(' ')
+              : 'The exact property details were sent. Reply to answer any property-specific questions.'
+            : 'The listing was matched, but the automatic details send failed. Please share it and follow up now.',
+        ]
+          .filter(Boolean)
+          .join(' '),
         entityType: 'conversation',
         entityId: conversation.id,
         link: `/inbox?conversation=${conversation.id}`,
@@ -2100,6 +2118,7 @@ async function handleInboundChain(
             : '🔥 *Specific property interest*',
           `👤 ${contactRecord.name || senderPhone}`,
           `🏠 ${enquiryPropertyTitle}`,
+          ...(statusAgentLine ? [statusAgentLine] : []),
           '',
           (contentText || '').slice(0, 300),
           '',
@@ -2219,7 +2238,10 @@ async function handleInboundChain(
       conversationId: conversation.id,
       kind: 'text',
       senderType: 'bot',
-      text: buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle),
+      text: appendListingStatusNote(
+        buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle),
+        enquiryPropertyStatus
+      ),
     });
     return;
   }

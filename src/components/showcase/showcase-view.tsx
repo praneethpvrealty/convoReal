@@ -43,6 +43,7 @@ import {
   BookmarkCheck,
   FolderInput,
   UserPlus,
+  AlertTriangle,
 } from 'lucide-react';
 import type { Property, ShowcaseSettings, AgencyService, AgencyArticle } from '@/types';
 import { BRANDING } from '@/config/branding';
@@ -77,6 +78,10 @@ import {
   type ShowcaseStyle,
 } from '@/lib/showcase/style';
 import { useShowcaseShortlist } from '@/hooks/use-showcase-shortlist';
+import {
+  listingAvailabilityNotice,
+  listingStatusInquiryLine,
+} from '@/lib/inventory/listing-status';
 import { ShowcaseShortlist } from '@/components/showcase/showcase-shortlist';
 import { ShowcaseMap } from '@/components/showcase/showcase-map';
 import './showcase-designs.css';
@@ -320,6 +325,7 @@ export function ShowcaseView({
   const detailMediaCount = detailImages.length + (detailHasVideo ? 1 : 0);
   const isVideoSlide = detailHasVideo && activeImageIdx >= detailImages.length;
   const detailTouchXRef = useRef<number | null>(null);
+  const selectedAvailabilityNotice = listingAvailabilityNotice(selectedProperty?.status);
 
   // Pulse: record property views with dwell time. Runs on every
   // selectedProperty transition — closing or switching the modal emits the
@@ -931,6 +937,9 @@ export function ShowcaseView({
     } else {
       message = message.replace('({property_code})', '').replace('{property_code}', '');
     }
+
+    const statusLine = listingStatusInquiryLine(property.status);
+    if (statusLine) message += ` ${statusLine}`;
 
     const cleanPhone =
       enquiryWhatsAppPhone(property).replace(/\D/g, '') || '919876543210';
@@ -2180,6 +2189,11 @@ export function ShowcaseView({
                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest truncate">
                           {property.project ? `🏢 ${property.project}` : ''}
                         </span>
+                        {listingAvailabilityNotice(property.status) && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0 border border-amber-500/30">
+                            {listingAvailabilityNotice(property.status)?.label}
+                          </span>
+                        )}
                         {property.property_code && (
                           <span className="text-[9px] font-mono font-bold text-slate-400 bg-slate-950/40 px-1.5 py-0.5 rounded shrink-0 border border-slate-900/30">
                             {property.property_code}
@@ -2689,6 +2703,23 @@ export function ShowcaseView({
                     </span>
                   </div>
                 </div>
+
+                {selectedAvailabilityNotice && (
+                  <div
+                    role="status"
+                    className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-xl flex items-start gap-2.5"
+                  >
+                    <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <h5 className="text-[11px] font-extrabold text-amber-500 uppercase tracking-wider">
+                        {selectedAvailabilityNotice.label}
+                      </h5>
+                      <p className="text-[11px] text-slate-300 leading-relaxed mt-0.5">
+                        {selectedAvailabilityNotice.message}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Price Box */}
                 <div className="bg-slate-950/65 border border-slate-900/80 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 backdrop-blur-md">
@@ -3302,6 +3333,7 @@ export function ShowcaseView({
                 )}
 
                 {/* Ask about this property — AI Q&A funnel */}
+                {!selectedAvailabilityNotice && (
                 <AskPropertyChat
                   accountId={accountId}
                   propertyId={selectedProperty.id}
@@ -3311,6 +3343,7 @@ export function ShowcaseView({
                   prefillPhone={inquiryPhone}
                   onWhatsAppClick={() => trackWhatsAppInquiry(selectedProperty)}
                 />
+                )}
 
                 {/* Similar properties — browse-more growth loop */}
                 <SimilarProperties
