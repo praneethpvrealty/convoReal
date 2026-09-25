@@ -1075,7 +1075,7 @@ export function ShowcaseView({
     result = filterPropertiesBySearch(result, searchQuery);
 
     // Sort
-    if (nearbyRank && sortBy === 'newest') {
+    if (nearbyRank) {
       result.sort((a, b) => (nearbyRank.get(a.id) ?? 0) - (nearbyRank.get(b.id) ?? 0));
     } else if (sortBy === 'price-low') {
       result.sort((a, b) => a.price - b.price);
@@ -1876,6 +1876,11 @@ export function ShowcaseView({
                       </button>
                     )
                   )}
+                  {nearbyError && (
+                    <p role="alert" className="px-3 py-2 text-xs text-rose-400">
+                      {nearbyError}
+                    </p>
+                  )}
                   {matchingLocations.map((location) => (
                     <button
                       key={location}
@@ -1934,10 +1939,14 @@ export function ShowcaseView({
             <div className="relative lg:col-span-2 flex items-center gap-2">
               <ArrowUpDown className="size-4 text-slate-500 shrink-0" />
               <select
-                value={sortBy}
+                value={nearbySearch ? 'nearest' : sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="bg-slate-950/60 border border-slate-900 rounded-xl text-slate-350 text-sm p-2.5 w-full focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer"
+                disabled={!!nearbySearch}
+                aria-label="Sort listings"
+                title={nearbySearch ? 'Clear the Near filter to sort another way' : undefined}
+                className="bg-slate-950/60 border border-slate-900 rounded-xl text-slate-350 text-sm p-2.5 w-full focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-70"
               >
+                {nearbySearch && <option value="nearest">Nearest first</option>}
                 <option value="newest">Newest Listed</option>
                 <option value="price-low">Price: Low to High</option>
                 <option value="price-high">Price: High to Low</option>
