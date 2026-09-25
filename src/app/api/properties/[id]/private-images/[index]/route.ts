@@ -68,9 +68,6 @@ export async function GET(
 
     const key = objectPath.slice(PRIVATE_BUCKET.length + 1);
 
-    // React Native's <Image> does not reliably carry a bearer header, so
-    // the mobile app asks for a short-lived link through its API client
-    // instead, after the same guard the stream answers to.
     if (new URL(request.url).searchParams.get('format') === 'json') {
       const { data: signed, error: signError } = await supabaseAdmin()
         .storage.from(PRIVATE_BUCKET)

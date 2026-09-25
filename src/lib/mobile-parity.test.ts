@@ -1279,9 +1279,6 @@ describe('mobile/lib/map-links.ts mirrors the pin resolver', () => {
 });
 
 describe('mobile/lib/use-photo-source.ts resolves guarded photos', () => {
-  // <Image> loses a bearer header (and a 308 to the canonical host strips
-  // it anyway), so a confidential listing's gallery rendered blank on the
-  // phone while the web, on cookies, showed it.
   const source = mobileSource('lib/use-photo-source.ts');
 
   it('exchanges each guarded path for a signed link through apiFetch', () => {
