@@ -5,13 +5,14 @@ vi.mock('./env', () => ({
   ENV: { supabaseUrl: 'https://proj.supabase.co' },
 }));
 
-const { mediaSource } = await import('./media-source');
+const { mediaSource, mediaCacheFileName } = await import('./media-source');
 
 describe('mediaSource', () => {
   it('sends inbound Meta media through the auth-gated proxy', () => {
     expect(mediaSource('/api/whatsapp/media/wamid.123')).toEqual({
       kind: 'proxy',
       uri: 'https://app.example.com/api/whatsapp/media/wamid.123',
+      path: '/api/whatsapp/media/wamid.123',
     });
   });
 
@@ -47,6 +48,26 @@ describe('mediaSource', () => {
     // A bearer token on a cross-origin storage request is both useless
     // and a token leak to another host.
     expect(mediaSource('chat-media/a/b.jpg')?.kind).toBe('public');
+  });
+});
+
+describe('mediaCacheFileName', () => {
+  it('names a proxied image after its media path and type', () => {
+    expect(
+      mediaCacheFileName('/api/whatsapp/media/1234567890', 'image/jpeg')
+    ).toBe('wa-api_whatsapp_media_1234567890.jpg');
+  });
+
+  it('keeps nothing from the path that could leave the cache directory', () => {
+    const name = mediaCacheFileName('/api/whatsapp/media/../../x', 'image/png');
+    expect(name).not.toContain('/');
+    expect(name.endsWith('.png')).toBe(true);
+  });
+
+  it('falls back to a neutral extension for an unknown type', () => {
+    expect(
+      mediaCacheFileName('/api/whatsapp/media/9', 'application/octet-stream')
+    ).toBe('wa-api_whatsapp_media_9.img');
   });
 });
 

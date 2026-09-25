@@ -61,9 +61,12 @@ export function useAuthListener() {
       }
     });
 
-    const appStateSubscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void syncSession();
-    });
+    const appStateSubscription = AppState.addEventListener(
+      'change',
+      (state) => {
+        if (state === 'active') void syncSession();
+      }
+    );
 
     return () => {
       cancelled = true;
@@ -78,7 +81,9 @@ export function useAuthListener() {
     let cancelled = false;
     supabase
       .from('profiles')
-      .select('account_id, account_role, org_role, full_name, active_ui_language')
+      .select(
+        'account_id, account_role, org_role, full_name, active_ui_language'
+      )
       .eq('user_id', userId)
       .maybeSingle()
       .then(({ data }) => {
@@ -116,5 +121,8 @@ export async function signOut(): Promise<void> {
     queryClient.clear();
     await asyncStoragePersister.removeClient();
     await AsyncStorage.removeItem('convoreal-query-cache');
+    await import('./media-cache')
+      .then(({ clearMediaCache }) => clearMediaCache())
+      .catch(() => undefined);
   }
 }

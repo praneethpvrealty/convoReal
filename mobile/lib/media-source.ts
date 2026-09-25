@@ -18,7 +18,7 @@ import { storagePublicUrl } from './storage-url';
 
 export type MediaSource =
   /** Auth-gated proxy: fetch with bearer headers. */
-  | { kind: 'proxy'; uri: string }
+  | { kind: 'proxy'; uri: string; path: string }
   /** Public object: no headers, and none should be sent. */
   | { kind: 'public'; uri: string };
 
@@ -29,22 +29,40 @@ const PROXY_PREFIX = '/api/whatsapp/media/';
  * Resolve a stored `media_url` to something fetchable, or null when the
  * row carries no media at all.
  */
-export function mediaSource(mediaUrl: string | null | undefined): MediaSource | null {
+export function mediaSource(
+  mediaUrl: string | null | undefined
+): MediaSource | null {
   if (!mediaUrl) return null;
   const value = mediaUrl.trim();
   if (!value) return null;
 
   if (value.startsWith(PROXY_PREFIX)) {
-    return { kind: 'proxy', uri: `${apiBase()}${value}` };
+    return { kind: 'proxy', uri: `${apiBase()}${value}`, path: value };
   }
 
   // Any other relative path is still ours — an older row, or a proxy
   // path written before the prefix settled. Treating it as public would
   // point it at the Supabase host, where it does not exist.
   if (value.startsWith('/')) {
-    return { kind: 'proxy', uri: `${apiBase()}${value}` };
+    return { kind: 'proxy', uri: `${apiBase()}${value}`, path: value };
   }
 
   const resolved = storagePublicUrl(value);
   return resolved ? { kind: 'public', uri: resolved } : null;
+}
+
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
+
+export function mediaCacheFileName(
+  path: string,
+  contentType: string | null | undefined
+): string {
+  const id = path.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+/, '');
+  const mime = (contentType ?? '').split(';')[0].trim().toLowerCase();
+  return `wa-${id}.${IMAGE_EXTENSIONS[mime] ?? 'img'}`;
 }
