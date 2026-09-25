@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 25 September 2026
 
+- **Showcase "Search near" now looks 5 km around the place, down from
+  10 km.** In central Bengaluru 10 km covered most of a brokerage's
+  catalog, so "near Basavanagudi" listed around a hundred homes. The
+  dashboard's own locality search keeps its 10 km radius.
+
 - **A buyer's locality is saved as they spelt it, not as a listing
   misspells it.** A lead who typed "Vijaya Bank Layout" was told the
   engine was matching "near Vijayanbank layout" and had "4 listings in
