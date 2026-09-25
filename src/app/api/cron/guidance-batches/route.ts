@@ -1,13 +1,19 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 
-import { pollGuidanceBatches } from '@/lib/guidance-value/batch';
+import {
+  CRON_BUILD_BUDGET_MS,
+  pollGuidanceBatches,
+  queueGuidanceBatches,
+  type QueueResult,
+} from '@/lib/guidance-value/batch';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const maxDuration = 300;
 
-// Collects finished Gemini batches of guidance value notifications and
-// saves their rates. Auth matches the other cron routes: the shared
+// Collects finished Gemini batches of guidance value notifications, saves
+// their rates, then keeps queuing notifications an admin asked to batch
+// that one time-limited queue request did not reach. Auth matches the other cron routes: the shared
 // secret via `x-cron-secret` or Vercel Cron's `Authorization: Bearer`,
 // failing closed when no secret is configured.
 export async function GET(request: Request) {
@@ -30,9 +36,20 @@ export async function GET(request: Request) {
   }
 
   try {
-    return NextResponse.json({
-      data: await pollGuidanceBatches(supabaseAdmin()),
-    });
+    const db = supabaseAdmin();
+    const polled = await pollGuidanceBatches(db);
+    let queued: QueueResult | { error: string } | null = null;
+    try {
+      queued = await queueGuidanceBatches(db, Date.now, {
+        requestedOnly: true,
+        budgetMs: CRON_BUILD_BUDGET_MS,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[guidance-value] background queue failed:', message);
+      queued = { error: message };
+    }
+    return NextResponse.json({ data: { polled, queued } });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[guidance-value] batch poll failed:', message);

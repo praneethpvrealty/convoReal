@@ -125,8 +125,9 @@ export function BatchImportCard({ onChanged }: BatchImportCardProps) {
         </h2>
         <p className="text-sm text-slate-400">
           Sends every unfinished notification to Gemini as a batch at half the
-          price. Results usually arrive within a few hours (at most a day) and
-          are saved automatically; this page does not need to stay open.
+          price. Whatever one click cannot reach keeps queuing in the background
+          every 15 minutes, and results (usually within a few hours, at most a
+          day) are saved automatically, so this page does not need to stay open.
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
