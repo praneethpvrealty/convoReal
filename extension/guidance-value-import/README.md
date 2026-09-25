@@ -42,10 +42,16 @@ Settings at the top of the tab (saved for next time):
 - **IGR page** — the revised guidelines value page.
 - **In parallel** — how many PDFs are read at once (1–4, default 2).
 - **BDA corrigenda** — also import the BDA corrigendum gazettes.
+- **Half price (batch)** — on by default. The tab downloads and uploads
+  every PDF, then queues them all as Gemini batches at half the price and
+  finishes; ConvoReal collects the results in the background (usually
+  within a few hours, at most a day), so the tab can be closed. Run it
+  again later to see which notifications are ready. Untick it to read each
+  PDF straight away at the full price.
 
 ## Cost
 
-Every page of every PDF is read by Gemini, two pages per call, and each call sends only those pages plus the one before them — never the whole PDF. A full state run is hundreds of
+Every page of every PDF is read by Gemini, two pages per call, and each call sends only those pages plus the one before them — never the whole PDF. Gemini answers in a compact form that writes each heading once per table, which keeps the output tokens, the dearest part of each call, small; batch mode halves the price again. A full state run is hundreds of
 PDFs; start with the default settings and watch the first few finish before
 leaving it to run. Add the keys in ConvoReal under Admin → AI keys — a key
 marked "Guidance value import only" is used for imports alone, so a long run

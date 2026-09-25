@@ -20,6 +20,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
   AiUnavailableError,
+  SourceInBatchError,
   SourceNotStoredError,
   findCandidateRates,
   parseNextSourceChunk,
@@ -49,7 +50,11 @@ describe('findCandidateRates', () => {
   });
 });
 
-function sourceDb(pagesParsed: number, stored = false) {
+function sourceDb(
+  pagesParsed: number,
+  stored = false,
+  batchId: string | null = null
+) {
   const updates: Record<string, unknown>[] = [];
   const orders: string[] = [];
   const db = {
@@ -73,6 +78,7 @@ function sourceDb(pagesParsed: number, stored = false) {
                 pages_parsed: pagesParsed,
                 page_count: 10,
                 storage_path: 'KA/1-x.pdf',
+                batch_id: batchId,
               },
         error: null,
       });
@@ -98,6 +104,14 @@ function sourceDb(pagesParsed: number, stored = false) {
 }
 
 describe('parseNextSourceChunk', () => {
+  it('[GVL-012] never reads a source that is queued in a batch', async () => {
+    const { db, updates } = sourceDb(4, true, 'batch-1');
+    await expect(parseNextSourceChunk(db, 'src-1')).rejects.toBeInstanceOf(
+      SourceInBatchError
+    );
+    expect(updates).toEqual([]);
+  });
+
   it('[GVL-007] reports a source whose upload never landed so it can be re-uploaded', async () => {
     const { db } = sourceDb(0);
     await expect(parseNextSourceChunk(db, 'src-1')).rejects.toBeInstanceOf(

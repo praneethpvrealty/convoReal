@@ -42,6 +42,16 @@ export class SourceNotStoredError extends Error {
   }
 }
 
+export class SourceInBatchError extends Error {
+  readonly code = 'SOURCE_IN_BATCH' as const;
+  constructor() {
+    super(
+      'This notification is queued in a half-price batch; its rates arrive when the batch finishes.'
+    );
+    this.name = 'SourceInBatchError';
+  }
+}
+
 export class AiUnavailableError extends Error {
   readonly code: 'AI_UNAVAILABLE' | 'AI_RATE_LIMITED';
   constructor(message: string, rateLimited: boolean) {
@@ -205,13 +215,14 @@ export interface GuidanceSourceRow {
   pages_parsed: number;
   row_count: number;
   status: 'uploaded' | 'parsing' | 'ready' | 'failed';
+  batch_id: string | null;
   error: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export const SOURCE_COLUMNS =
-  'id, state_code, district, taluk, sro, title, effective_from, storage_path, source_url, page_count, pages_parsed, row_count, status, error, created_at, updated_at';
+  'id, state_code, district, taluk, sro, title, effective_from, storage_path, source_url, page_count, pages_parsed, row_count, status, batch_id, error, created_at, updated_at';
 
 export async function parseNextSourceChunk(
   db: SupabaseClient,
@@ -225,6 +236,7 @@ export async function parseNextSourceChunk(
   if (error) throw new Error(error.message);
   if (!source) throw new Error('Source not found');
   if (source.status === 'ready') return source;
+  if (source.batch_id) throw new SourceInBatchError();
 
   try {
     const { data: file, error: downloadError } = await db.storage

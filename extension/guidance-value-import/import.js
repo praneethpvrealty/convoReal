@@ -6,8 +6,10 @@
 // 2. Hands that HTML to ConvoReal, which maps each row to a district
 //    and SRO and says which PDFs are already imported.
 // 3. For each PDF still missing: download it here, register it with
-//    ConvoReal, PUT it to the signed storage URL, then call the parse
-//    endpoint until ConvoReal reports it ready.
+//    ConvoReal, PUT it to the signed storage URL, then either call the
+//    parse endpoint until ConvoReal reports it ready or, in half-price
+//    batch mode, queue every unfinished PDF as a Gemini batch that
+//    ConvoReal collects in the background.
 //
 // Requests to ConvoReal carry the browser's own signed-in session, so
 // the admin must be signed in to ConvoReal in this Chrome profile.
@@ -19,6 +21,7 @@ const DEFAULTS = {
   igrUrl: 'https://igr.karnataka.gov.in/72/revised-guidelines-value/en',
   concurrency: 2,
   includeCorrigenda: true,
+  batchMode: true,
 };
 const MAX_PDF_BYTES = 14 * 1024 * 1024;
 const PAGE_WAIT_MS = 60_000;
@@ -53,6 +56,7 @@ function readForm() {
     igrUrl: $('igrUrl').value.trim(),
     concurrency: Math.min(4, Math.max(1, Number($('concurrency').value) || 2)),
     includeCorrigenda: $('includeCorrigenda').checked,
+    batchMode: $('batchMode').checked,
   };
 }
 
@@ -61,6 +65,7 @@ function fillForm(settings) {
   $('igrUrl').value = settings.igrUrl;
   $('concurrency').value = String(settings.concurrency);
   $('includeCorrigenda').checked = settings.includeCorrigenda;
+  $('batchMode').checked = settings.batchMode;
 }
 
 function status(text, cls = '') {
@@ -271,6 +276,7 @@ async function parseRow(settings, row, sourceId) {
     } catch (err) {
       if (err.status === 401 || err.status === 403) throw err;
       if (err.code === 'SOURCE_NOT_STORED') throw err;
+      if (err.code === 'SOURCE_IN_BATCH') return 'in_batch';
       if (err.code === 'AI_UNAVAILABLE') throw err;
       if (err.code === 'AI_RATE_LIMITED') {
         rateWaits += 1;
@@ -292,6 +298,10 @@ async function processRow(settings, row) {
   refreshTotals();
   try {
     let sourceId = row.source_id || (await uploadRow(settings, row));
+    if (settings.batchMode) {
+      setRow(row, 'uploaded', 'Queued for the half-price batch');
+      return;
+    }
     let result;
     try {
       result = await parseRow(settings, row, sourceId);
@@ -306,6 +316,10 @@ async function processRow(settings, row) {
     }
     if (result === 'stopped') {
       setRow(row, 'stopped', 'Resumes on the next run');
+      return;
+    }
+    if (result === 'in_batch') {
+      setRow(row, 'in batch', 'Rates arrive when the batch finishes');
       return;
     }
     totals.done += 1;
@@ -334,6 +348,29 @@ async function processRow(settings, row) {
     totals.working -= 1;
     refreshTotals();
   }
+}
+
+async function queueBatches(settings, total) {
+  const sent = { batches: 0, sources: 0, requests: 0 };
+  for (;;) {
+    status(
+      `Queuing half-price Gemini batches… ${sent.sources} notifications so far`
+    );
+    const { data } = await api(settings, '/api/admin/guidance-values/batches', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'queue' }),
+    });
+    sent.batches += data.batches;
+    sent.sources += data.sources;
+    sent.requests += data.requests;
+    if (!data.remaining || !data.sources) break;
+  }
+  status(
+    sent.sources
+      ? `Queued ${sent.sources} notifications (${sent.requests} page ranges) in ${sent.batches} half-price batch${sent.batches === 1 ? '' : 'es'}. ConvoReal reads them in the background — usually within a few hours, at most a day — so you can close this tab. Run it again later to see what is ready; ${totals.done} of ${total} are imported so far.`
+      : `Nothing new to queue: ${totals.done} of ${total} imported; the rest are already in a batch.`,
+    'done'
+  );
 }
 
 async function run() {
@@ -380,6 +417,8 @@ async function run() {
         totals.done += 1;
         totals.rates += row.row_count || 0;
         setRow(row, 'done', 'Already imported');
+      } else if (row.in_batch) {
+        setRow(row, 'in batch', 'Rates arrive when the batch finishes');
       } else {
         setRow(row, 'queued', row.source_id ? 'Resumes where it stopped' : '');
         queue.push(row);
@@ -394,6 +433,11 @@ async function run() {
       }
     });
     await Promise.all(workers);
+
+    if (settings.batchMode && !stopped) {
+      await queueBatches(settings, rows.length);
+      return;
+    }
 
     if (stopped) {
       if (!$('status').classList.contains('failed')) {

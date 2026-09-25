@@ -109,6 +109,16 @@ function headingsInstructions(headings?: RateHeadings | null): string {
     : '';
 }
 
+export const RATE_CLASS_CODES: Record<string, PropertyClass> = {
+  rs: 'residential_site',
+  ra: 'residential_apartment',
+  cs: 'commercial_site',
+  ca: 'commercial_apartment',
+  in: 'industrial',
+  ag: 'agricultural',
+  ot: 'other',
+};
+
 export function rateInstructions(
   fromPage: number,
   toPage: number,
@@ -120,30 +130,37 @@ You are transcribing a Karnataka guidance value notification (the
 government's market value guidelines, published by the Central Valuation
 Committee / Department of Stamps and Registration). ${scopeInstructions(fromPage, toPage, slice)}${headingsInstructions(headings)}
 
-Return JSON: {"total_pages": number, "rows": [...]}. Each row is ONE rate:
-  district        district name, carried down from headings
-  taluk           taluk / sub-registrar office name, carried down
-  hobli           hobli name, carried down
-  village         revenue village name, or the ward / area for urban
-                  tables, carried down from headings
-  locality        the area, layout, extension, block or colony the rate is
-                  for, e.g. "Koramangala 6th Block"
-  road            the street or road if the rate is for one road only,
-                  e.g. "18th Main"; omit when the rate covers the whole area
-  survey_numbers  survey numbers the rate covers, as printed
-  property_class  one of ${PROPERTY_CLASSES.map((c) => `"${c}"`).join(', ')}
-  rate            the number only, no commas or currency
-  unit            "sqm", "sqft", "acre", "gunta" or "hectare" as the column
-                  header states
-  page            the 1-based page number the row is on
+Return compact JSON, writing each heading once:
+{"total_pages": number, "groups": [
+  {"district": "...", "taluk": "...", "hobli": "...", "village": "...",
+   "rows": [[locality, road, survey_numbers, unit, page, {code: rate}], ...]}
+]}
 
-A table with separate columns for residential site, residential
-apartment, commercial site and commercial apartment produces one row per
-non-empty column. Agricultural dry / wet / garden land rates are
-"agricultural". Tables are often bilingual; transcribe the English names.
-Carry headings (district, taluk, hobli, village) down to every row under
-them, including headings printed on an earlier page when the table
-continues. Skip blank, "-", or "NA" cells. Return ONLY valid JSON.`;
+A group is every rate under one district / taluk (sub-registrar office) /
+hobli / village heading; village is the revenue village, or the ward or
+area for urban tables. Start a new group whenever any heading changes and
+give every group all four headings, carried down from earlier headings,
+including headings printed on an earlier page when the table continues.
+Use "" for a heading the notification does not have.
+
+Each row is one line of the table:
+  locality        the area, layout, extension, block or colony, e.g.
+                  "Koramangala 6th Block"
+  road            the street or road if the rate is for one road only,
+                  e.g. "18th Main"; "" when it covers the whole area
+  survey_numbers  survey numbers as printed, or ""
+  unit            "sqm", "sqft", "acre", "gunta" or "hectare" as the
+                  column header states
+  page            the 1-based page number the line is on
+  {code: rate}    one entry per non-empty rate column, the number only
+                  with no commas or currency. Codes: "rs" residential
+                  site, "ra" residential apartment, "cs" commercial site,
+                  "ca" commercial apartment, "in" industrial, "ag"
+                  agricultural (dry / wet / garden land), "ot" other.
+
+If two columns of one line use different units, write one row per unit.
+Tables are often bilingual; transcribe the English names. Skip blank,
+"-", or "NA" cells. Return ONLY valid JSON.`;
 }
 
 function cleanString(value: unknown, maxLength = 160): string | undefined {
@@ -156,9 +173,75 @@ function parseClass(value: unknown): PropertyClass | null {
   const text = cleanString(value, 40)
     ?.toLowerCase()
     .replace(/[\s-]+/g, '_');
-  return text && (PROPERTY_CLASSES as readonly string[]).includes(text)
+  if (!text) return null;
+  if (RATE_CLASS_CODES[text]) return RATE_CLASS_CODES[text];
+  return (PROPERTY_CLASSES as readonly string[]).includes(text)
     ? (text as PropertyClass)
     : null;
+}
+
+const HEADING_KEYS = ['district', 'taluk', 'hobli', 'village'] as const;
+
+interface RawRate {
+  headings: Record<string, unknown>;
+  locality: unknown;
+  road: unknown;
+  survey_numbers: unknown;
+  property_class: unknown;
+  rate: unknown;
+  unit: unknown;
+  page: unknown;
+}
+
+function compactRates(groups: unknown[]): RawRate[] {
+  const out: RawRate[] = [];
+  let carried: Record<string, unknown> = {};
+  for (const group of groups) {
+    if (!group || typeof group !== 'object') continue;
+    const g = group as Record<string, unknown>;
+    const headings: Record<string, unknown> = { ...carried };
+    for (const key of HEADING_KEYS) {
+      if (typeof g[key] === 'string') headings[key] = g[key];
+    }
+    carried = headings;
+    for (const line of Array.isArray(g.rows) ? g.rows : []) {
+      if (!Array.isArray(line)) continue;
+      const [locality, road, surveys, unit, page, rates] = line;
+      if (!rates || typeof rates !== 'object' || Array.isArray(rates)) continue;
+      for (const [code, rate] of Object.entries(rates)) {
+        out.push({
+          headings,
+          locality,
+          road,
+          survey_numbers: surveys,
+          property_class: code,
+          rate,
+          unit,
+          page,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+function legacyRates(rows: unknown[]): RawRate[] {
+  const out: RawRate[] = [];
+  for (const item of rows) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    out.push({
+      headings: row,
+      locality: row.locality,
+      road: row.road,
+      survey_numbers: row.survey_numbers,
+      property_class: row.property_class,
+      rate: row.rate,
+      unit: row.unit,
+      page: row.page,
+    });
+  }
+  return out;
 }
 
 export function sanitiseRateRows(
@@ -168,13 +251,18 @@ export function sanitiseRateRows(
   contextPage: number | null = null
 ): { rows: ParsedRateRow[]; totalPages: number | null } {
   if (!raw || typeof raw !== 'object') return { rows: [], totalPages: null };
-  const input = raw as { rows?: unknown; total_pages?: unknown };
+  const input = raw as {
+    rows?: unknown;
+    groups?: unknown;
+    total_pages?: unknown;
+  };
   const totalPages = Number(input.total_pages);
   const rows: ParsedRateRow[] = [];
+  const candidates = Array.isArray(input.groups)
+    ? compactRates(input.groups)
+    : legacyRates(Array.isArray(input.rows) ? input.rows : []);
 
-  for (const item of Array.isArray(input.rows) ? input.rows : []) {
-    if (!item || typeof item !== 'object') continue;
-    const row = item as Record<string, unknown>;
+  for (const row of candidates) {
     const propertyClass = parseClass(row.property_class);
     const unit = normaliseUnit(row.unit);
     const rate = Number(
@@ -183,7 +271,7 @@ export function sanitiseRateRows(
     if (!propertyClass || !unit || !Number.isFinite(rate) || rate <= 0)
       continue;
     const locality = cleanString(row.locality);
-    const village = cleanString(row.village);
+    const village = cleanString(row.headings.village);
     const road = cleanString(row.road);
     if (!locality && !village && !road) continue;
 
@@ -199,7 +287,7 @@ export function sanitiseRateRows(
           : fromPage,
     };
     for (const key of ['district', 'taluk', 'hobli'] as const) {
-      const value = cleanString(row[key]);
+      const value = cleanString(row.headings[key]);
       if (value) out[key] = value;
     }
     if (village) out.village = village;

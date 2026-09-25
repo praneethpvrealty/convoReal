@@ -1969,7 +1969,7 @@
         },
         {
           "id": "GVL-009",
-          "rule": "Rate parsing never resends the whole notification: each Gemini call receives an excerpt of only the pages being transcribed plus the page before them for heading context, with instructions mapping excerpt pages back to notification page numbers and the headings of the last saved row (by page, then insertion seq) carried forward; rows Gemini returns from the context page are dropped. A PDF that cannot be loaded, copied or saved by pdf-lib falls back to sending the whole file.",
+          "rule": "Rate parsing never resends the whole notification: each Gemini call receives an excerpt of only the pages being transcribed plus the page before them for heading context, with instructions mapping excerpt pages back to notification page numbers and, for an interactive read, the headings of the last saved row (by page, then insertion seq) carried forward (a batch carries them across ranges after reading, GVL-012); rows Gemini returns from the context page are dropped. A PDF that cannot be loaded, copied or saved by pdf-lib falls back to sending the whole file.",
           "tests": [
             {
               "file": "src/lib/guidance-value/slice.test.ts",
@@ -1988,6 +1988,30 @@
             {
               "file": "src/lib/guidance-value/slice.test.ts",
               "case": "[GVL-010]"
+            }
+          ]
+        },
+        {
+          "id": "GVL-011",
+          "rule": "Rate parsing asks Gemini for compact output: rates are grouped under their district, taluk, hobli and village headings written once per group, and each table line is one array carrying locality, road, survey numbers, unit, page and a map of short class codes to rates. The parser expands each code into its own stored rate, carries group headings into the next group that omits them, drops context-page rows, and still reads the older one-object-per-rate format.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/batch.test.ts",
+              "case": "[GVL-011]"
+            }
+          ]
+        },
+        {
+          "id": "GVL-012",
+          "rule": "A platform admin can queue every unfinished notification as a Gemini Batch API job at half the interactive price, from Admin or the import extension. Each unread two-page range becomes one request with the page before it for context; batches stay under the inline size limit, a notification whose PDF cannot be read is marked failed, and a queued notification is never read interactively (the parse endpoint answers 409 SOURCE_IN_BATCH). A cron every 15 minutes collects finished batches with the key that submitted them, saves each range's rates with headings carried across range boundaries, advances progress only over ranges read without a gap, logs every response's tokens under guidance_value_source_batch (priced at half in Admin → AI keys), and frees the notifications of a failed, cancelled or expired batch so they can be queued again.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/batch.test.ts",
+              "case": "[GVL-012]"
+            },
+            {
+              "file": "src/lib/guidance-value/server.test.ts",
+              "case": "[GVL-012]"
             }
           ]
         }

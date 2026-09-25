@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ConvoReal Guidance Value Import",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "One click imports every Karnataka IGR guidance value notification into ConvoReal: reads the IGR table, downloads each PDF in your browser, uploads it and has ConvoReal extract the rates.",
   "permissions": ["storage", "scripting"],
   "host_permissions": [
