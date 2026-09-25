@@ -53,7 +53,12 @@ export function propertyStatusForPipelineStage(
   const outcome = pipelineOutcomeForStage(name);
   if (outcome === 'lost') return 'Available';
   if (outcome === 'successful') return 'Sold';
-  if (name.includes('negotiation') || name.includes('token')) {
+  if (
+    name.includes('negotiation') ||
+    name.includes('token') ||
+    name.includes('due diligence') ||
+    name.includes('contract')
+  ) {
     return 'Under Contract';
   }
   return null;

@@ -1071,6 +1071,20 @@
               "case": "[PRP-014]"
             }
           ]
+        },
+        {
+          "id": "PRP-015",
+          "rule": "Moving a listing's deal into a negotiation, token, due diligence or contract stage marks the listing Under Contract on web and mobile; a won, registered or brokerage stage marks it Sold, a lost stage returns it to Available, and an earlier stage sets it back to Available.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/stage-semantics.test.ts",
+              "case": "[PRP-015]"
+            },
+            {
+              "file": "mobile/lib/stage-semantics.test.ts",
+              "case": "[PRP-015]"
+            }
+          ]
         }
       ]
     },
