@@ -156,6 +156,22 @@ describe('GET /api/public/properties/near', () => {
     expect(placesAutocomplete).toHaveBeenCalledTimes(4);
   });
 
+  it('does not share a lookup between showcases in different cities at the same centre', async () => {
+    placesAutocomplete.mockResolvedValue([]);
+    await GET(req('twin place'));
+    rows.data = (rows.data as Array<Record<string, unknown>>).map((row) => ({
+      ...row,
+      city: 'Bangalore',
+    }));
+    await GET(req('twin place', { account: `${ACCOUNT.slice(0, -1)}c` }));
+    expect(placesAutocomplete.mock.calls.map((call) => call[0])).toEqual([
+      'twin place',
+      'twin place, Bengaluru',
+      'twin place',
+      'twin place, Bangalore',
+    ]);
+  });
+
   it('retries with the inventory city when the bare text names no area', async () => {
     placesAutocomplete
       .mockResolvedValueOnce([])
