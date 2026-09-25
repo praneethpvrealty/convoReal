@@ -139,6 +139,22 @@ describe('GET /api/public/properties/near', () => {
     expect(placeDetails).not.toHaveBeenCalled();
   });
 
+  it('does not share a biased place between showcases whose inventories sit apart', async () => {
+    placesAutocomplete.mockResolvedValue([]);
+    await GET(req('shared place'));
+    rows.data = [
+      {
+        id: 'mysuru',
+        latitude: 12.3,
+        longitude: 76.64,
+        city: 'Bengaluru',
+        sublocality: 'Vijayanagar',
+      },
+    ];
+    await GET(req('shared place', { account: `${ACCOUNT.slice(0, -1)}b` }));
+    expect(placesAutocomplete).toHaveBeenCalledTimes(2);
+  });
+
   it('falls back to named-area matches when Places cannot resolve the text', async () => {
     placesAutocomplete.mockRejectedValue(new Error('quota'));
     const res = await GET(req('Jayanagar 9th'));

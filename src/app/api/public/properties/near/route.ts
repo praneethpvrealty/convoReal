@@ -55,7 +55,10 @@ async function cachedPlace(
   text: string,
   bias: NearbyCentre | null
 ): Promise<ResolvedCentre | null> {
-  const key = text.toLocaleLowerCase();
+  const key = [
+    text.toLocaleLowerCase(),
+    bias ? `${bias.latitude.toFixed(1)},${bias.longitude.toFixed(1)}` : '',
+  ].join('|');
   if (placeCache.has(key)) return placeCache.get(key) ?? null;
   const result = await resolvePlace(text, bias).catch(() => null);
   if (placeCache.size >= PLACE_CACHE_CAP) {
