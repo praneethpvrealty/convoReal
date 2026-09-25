@@ -1,7 +1,7 @@
 import { haversineKm } from '@/lib/geo';
 import { rowMatchesLocality } from '@/lib/locality-match';
 
-export const SHOWCASE_NEARBY_RADIUS_KM = 10;
+export const SHOWCASE_NEARBY_RADIUS_KM = 5;
 
 export interface NearbyCandidate {
   id: string;

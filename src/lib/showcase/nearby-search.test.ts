@@ -78,6 +78,17 @@ describe('showcase nearby search', () => {
     ]);
   });
 
+  it('[PRP-013] keeps the showcase radius to 5 km around the searched place', () => {
+    const rows = [
+      row({ id: 'four-km', latitude: 12.9056, longitude: 77.5738 }),
+      row({ id: 'seven-km', latitude: 12.8786, longitude: 77.5738 }),
+    ];
+
+    expect(rankNearbyListings(rows, basavanagudi, ['Basavanagudi'])).toEqual([
+      { id: 'four-km', tier: 'nearby', distance_km: 4 },
+    ]);
+  });
+
   it('coarsens distances to half a kilometre so a public search never pins a listing', () => {
     expect(publicDistanceKm(0.04)).toBe(0.5);
     expect(publicDistanceKm(1.26)).toBe(1.5);
