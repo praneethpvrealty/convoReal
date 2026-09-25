@@ -147,13 +147,14 @@ export async function resolveCoordinatesFromMapLink(
   if (inline) return inline;
 
   try {
-    const res = await fetchWithTimeout(url, { redirect: "follow" });
-    const resolvedUrl = res.url || url;
-    const pinned = extractCoordinatesFromMapUrl(resolvedUrl);
-    if (pinned) return pinned;
-
-    const placeName =
-      extractPlaceNameFromMapUrl(resolvedUrl) || extractPlaceNameFromMapUrl(url);
+    let placeName = extractPlaceNameFromMapUrl(url);
+    if (!placeName) {
+      const res = await fetchWithTimeout(url, { redirect: "follow" });
+      const resolvedUrl = res.url || url;
+      const pinned = extractCoordinatesFromMapUrl(resolvedUrl);
+      if (pinned) return pinned;
+      placeName = extractPlaceNameFromMapUrl(resolvedUrl);
+    }
     if (!placeName || !hasGoogleMapsKey()) return null;
     const geocoded = await geocodeAddress(placeName);
     return geocoded

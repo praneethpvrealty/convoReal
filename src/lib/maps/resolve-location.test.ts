@@ -357,22 +357,18 @@ describe('resolveCoordinatesFromMapLink', () => {
     });
   });
 
-  it('returns null for a link that names a place when no Maps key is configured', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      url: 'https://www.google.com/maps/search/?api=1&query=Koramangala+Bengaluru',
-      json: async () => ({}),
-    } as unknown as Response);
+  it('[PRP-016] returns null for a link that names a place when no Maps key is configured', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
 
     expect(
       await resolveCoordinatesFromMapLink(
         'https://www.google.com/maps/search/?api=1&query=Koramangala+Bengaluru'
       )
     ).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('geocodes the place a short link names when it carries no coordinates', async () => {
+  it('[PRP-016] geocodes the place a short link names when it carries no coordinates', async () => {
     process.env.GOOGLE_MAPS_API_KEY = 'test-key';
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -406,15 +402,10 @@ describe('resolveCoordinatesFromMapLink', () => {
     );
   });
 
-  it('geocodes a ?q= address link', async () => {
+  it('[PRP-016] geocodes a ?q= address link without a redirect hop', async () => {
     process.env.GOOGLE_MAPS_API_KEY = 'test-key';
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce({
-        ok: true,
-        url: 'https://www.google.com/maps?q=Sobha+Dream+Acres,+Panathur',
-        json: async () => ({}),
-      } as unknown as Response)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -426,12 +417,13 @@ describe('resolveCoordinatesFromMapLink', () => {
     expect(
       await resolveCoordinatesFromMapLink('https://www.google.com/maps?q=Sobha+Dream+Acres,+Panathur')
     ).toEqual({ latitude: 12.9357, longitude: 77.7128 });
-    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get('address')).toBe(
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('address')).toBe(
       'Sobha Dream Acres, Panathur'
     );
   });
 
-  it('does not geocode a dead link that lands on the Maps home page', async () => {
+  it('[PRP-016] does not geocode a dead link that lands on the Maps home page', async () => {
     process.env.GOOGLE_MAPS_API_KEY = 'test-key';
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,

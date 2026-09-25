@@ -1089,6 +1089,16 @@
               "case": "[PRP-015]"
             }
           ]
+        },
+        {
+          "id": "PRP-016",
+          "rule": "A listing's map pin comes from its map link first: coordinates carried by the link, or by the URL a short link redirects to, are used as they are. A link that names a place instead of a point (/maps/place/<name>, ?q=<address>) is geocoded by that name when a Google Maps key is configured, on create, on a map-link edit and in the pin-repair script, without a redirect hop when the name is already in the link. A link that resolves to neither (a dead link landing on the Maps home page) gives no pin and costs no Geocoding call, and resolving a link never throws.",
+          "tests": [
+            {
+              "file": "src/lib/maps/resolve-location.test.ts",
+              "case": "[PRP-016]"
+            }
+          ]
         }
       ]
     },
