@@ -23,6 +23,7 @@ vi.mock('@/lib/ai/gemini-keys', async (importOriginal) => ({
 }));
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { PDFDocument } from 'pdf-lib';
 
 import { logAiCall } from '@/lib/ai/call-log';
 import { DEFAULT_PRICING, estimateCostUsd } from '@/lib/ai/keys-admin';
@@ -33,6 +34,7 @@ import {
   batchRequest,
   planChunks,
   pollGuidanceBatches,
+  queueGuidanceBatches,
   readBatchOperation,
   type BatchChunk,
 } from './batch';
@@ -326,6 +328,45 @@ describe('assembleSourceRows', () => {
     expect(result.failed).toBe(1);
     expect(result.rows.map((r) => r.page)).toEqual([3, 7]);
   });
+
+  it('[GVL-012] never carries an old hobli or village into a range that opens a new district', () => {
+    const { rows } = assembleSourceRows(0, [
+      {
+        chunk: chunk(1, 2),
+        rows: [
+          {
+            district: 'Bengaluru Urban',
+            hobli: 'Begur',
+            village: 'Koramangala',
+            locality: 'A',
+            property_class: 'residential_site',
+            rate: 1,
+            unit: 'sqm',
+            page: 2,
+          },
+        ],
+      },
+      {
+        chunk: chunk(3, 4),
+        rows: [
+          {
+            district: 'Bengaluru Rural',
+            locality: 'B',
+            property_class: 'residential_site',
+            rate: 2,
+            unit: 'sqm',
+            page: 3,
+          },
+        ],
+      },
+    ]);
+    expect(rows[1]).toMatchObject({
+      district: 'Bengaluru Rural',
+      locality: 'B',
+    });
+    expect(rows[1].hobli).toBeUndefined();
+    expect(rows[1].village).toBeUndefined();
+  });
 });
 
 describe('batch pricing', () => {
@@ -519,5 +560,133 @@ describe('pollGuidanceBatches', () => {
     expect(
       writes.findLast((w) => w.table === 'guidance_value_batches')?.value
     ).toMatchObject({ state: 'failed', error: 'expired' });
+  });
+});
+
+async function pdf(pages: number): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  for (let i = 0; i < pages; i += 1) doc.addPage([200, 200]);
+  return doc.save();
+}
+
+async function queueDb(lost: string[]) {
+  const bytes = await pdf(3);
+  const writes: Array<{
+    table: string;
+    op: string;
+    value: unknown;
+    id?: string;
+  }> = [];
+  const db = {
+    from: (table: string) => {
+      let op = 'select';
+      let id: string | undefined;
+      let value: unknown;
+      const builder: Record<string, unknown> = {};
+      for (const method of ['in', 'is', 'order', 'limit', 'select']) {
+        builder[method] = () => builder;
+      }
+      builder.eq = (column: string, v: string) => {
+        if (column === 'id') id = v;
+        return builder;
+      };
+      builder.insert = (v: unknown) => {
+        op = 'insert';
+        value = v;
+        return builder;
+      };
+      builder.update = (v: unknown) => {
+        op = 'update';
+        value = v;
+        return builder;
+      };
+      builder.delete = () => {
+        op = 'delete';
+        return builder;
+      };
+      builder.single = async () => {
+        writes.push({ table, op, value });
+        return { data: { id: 'batch-1' }, error: null };
+      };
+      builder.then = (resolve: (v: unknown) => void) => {
+        if (op !== 'select') writes.push({ table, op, value, id });
+        if (table === 'guidance_value_sources' && op === 'select') {
+          resolve({
+            data: ['src-1', 'src-2'].map((sid) => ({
+              id: sid,
+              storage_path: `KA/${sid}.pdf`,
+              page_count: 3,
+              pages_parsed: 0,
+            })),
+            error: null,
+          });
+        } else if (table === 'guidance_value_sources' && op === 'update') {
+          resolve({
+            data: id && lost.includes(id) ? [] : [{ id }],
+            error: null,
+          });
+        } else {
+          resolve({ data: [{ id: 'x' }], error: null });
+        }
+      };
+      return builder;
+    },
+    storage: {
+      from: () => ({
+        download: async () => ({
+          data: new Blob([new Uint8Array(bytes)]),
+          error: null,
+        }),
+      }),
+    },
+  } as unknown as SupabaseClient;
+  return { db, writes };
+}
+
+describe('queueGuidanceBatches', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('[GVL-012] submits only the notifications it claimed, so an overlapping run never pays twice', async () => {
+    const fetchMock = vi.fn<
+      (url: string, init: RequestInit) => Promise<Response>
+    >(
+      async () =>
+        new Response(JSON.stringify({ name: 'batches/xyz' }), { status: 200 })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { db, writes } = await queueDb(['src-2']);
+
+    const result = await queueGuidanceBatches(db);
+
+    expect(result).toMatchObject({ batches: 1, sources: 1, requests: 2 });
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    const keys = body.batch.inputConfig.requests.requests.map(
+      (r: { metadata: { key: string } }) => r.metadata.key
+    );
+    expect(keys).toEqual(['src-1:1-2', 'src-1:3-3']);
+    expect(
+      writes.findLast(
+        (w) => w.table === 'guidance_value_batches' && w.op === 'update'
+      )?.value
+    ).toMatchObject({ gemini_name: 'batches/xyz', request_count: 2 });
+  });
+
+  it('[GVL-012] discards the claim when Gemini refuses the batch', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: { message: 'Bad request' } }), {
+            status: 400,
+          })
+      )
+    );
+    const { db, writes } = await queueDb([]);
+    await expect(queueGuidanceBatches(db)).rejects.toThrow('Bad request');
+    expect(
+      writes.some(
+        (w) => w.table === 'guidance_value_batches' && w.op === 'delete'
+      )
+    ).toBe(true);
   });
 });

@@ -27,6 +27,11 @@ than a written entry. Newest first.
   Gemini batch at half price; results are saved in the background by a
   new 15-minute cron, usually within a few hours. **Migration required:**
   `20260925024645_guidance_value_batches.sql`.
+- **Batch import fixes.** A notification is claimed before its batch is sent,
+  so two queue runs at once never pay for it twice; a page range that opens a
+  new district no longer inherits the previous area's hobli or village; and
+  the import extension re-uploads a notification whose earlier upload was
+  interrupted instead of skipping it forever.
 
 #### 24 September 2026
 
