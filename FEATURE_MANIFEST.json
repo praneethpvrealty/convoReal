@@ -58,7 +58,7 @@
         },
         {
           "id": "INB-004",
-          "rule": "A buyer's stated locality matches inventory across spelling variants, listings in that locality lead every buyer-facing shortlist ordered by property-type fit before nearby listings, and a stated plot type matches plot listings rather than houses.",
+          "rule": "A buyer's stated locality matches inventory across spelling variants, listings in that locality lead every buyer-facing shortlist ordered by property-type fit before nearby listings, a stated plot type matches plot listings rather than houses, and a locality the buyer types is saved in the spelling they typed (or the curated locality) rather than a misspelt inventory variant.",
           "tests": [
             {
               "file": "src/lib/locality-match.test.ts",
@@ -70,6 +70,10 @@
             },
             {
               "file": "src/lib/buyer/matches-ranking.test.ts",
+              "case": "[INB-004]"
+            },
+            {
+              "file": "src/lib/ai/buyer-qualification.test.ts",
               "case": "[INB-004]"
             }
           ]

@@ -309,6 +309,29 @@ describe('resolveInventoryLocalityReply', () => {
     );
   });
 
+  it('[INB-004] keeps the spelling the buyer typed when inventory carries a misspelt variant', () => {
+    const layout = [
+      { locality_canonical: null, sublocality: 'Vijayanbank layout' },
+      { locality_canonical: null, sublocality: 'Vijaya Bank Layout' },
+    ];
+    expect(resolveInventoryLocalityReply('Vijaya Bank Layout', layout)).toBe(
+      'Vijaya Bank Layout'
+    );
+    expect(resolveInventoryLocalityReply('vijaya bank layout', layout)).toBe(
+      'Vijaya Bank Layout'
+    );
+  });
+
+  it('[INB-004] prefers the curated locality over a misspelt sublocality', () => {
+    const layout = [
+      { locality_canonical: null, sublocality: 'Vijayabank layout' },
+      { locality_canonical: 'Vijaya Bank Layout', sublocality: 'Bilekahalli' },
+    ];
+    expect(resolveInventoryLocalityReply('Vijay Bank Layout', layout)).toBe(
+      'Vijaya Bank Layout'
+    );
+  });
+
   it('does not mistake a generic follow-up for a locality', () => {
     expect(
       resolveInventoryLocalityReply('Any options??', inventory)
