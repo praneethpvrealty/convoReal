@@ -132,6 +132,16 @@ afterEach(() => {
   localStorage.clear();
 });
 
+function pick(blank: string, option: string) {
+  const trigger = screen.getByRole('combobox', { name: blank });
+  fireEvent.pointerDown(trigger);
+  fireEvent.click(trigger);
+  const item = screen.getByRole('option', { name: option });
+  fireEvent.pointerDown(item);
+  fireEvent.pointerUp(item);
+  fireEvent.click(item);
+}
+
 describe('Deal Floor showcase design [PRP-020]', () => {
   it('is only drawn for the deal-floor style', () => {
     renderDealFloor('quiet-luxury');
@@ -188,27 +198,19 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     renderDealFloor();
     const grid = () => within(screen.getByLabelText('Property listings'));
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Property kind' }), {
-      target: { value: 'kind:houses' },
-    });
+    pick('Property kind', 'houses & villas');
     expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
     expect(grid().getByText(villa.title)).toBeTruthy();
     expect(grid().queryByText(plot.title)).toBeNull();
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Property kind' }), {
-      target: { value: 'All' },
-    });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Budget' }), {
-      target: { value: String(80_000_000) },
-    });
+    pick('Property kind', 'any property');
+    pick('Budget', 'under ₹8 Cr');
     expect(screen.getByRole('button', { name: /See 3 matches/ })).toBeTruthy();
     expect(grid().queryByText(building.title)).toBeNull();
     expect(grid().getByText(rental.title)).toBeTruthy();
     expect(grid().getByText(plot.title)).toBeTruthy();
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Locality' }), {
-      target: { value: 'Kasavanahalli' },
-    });
+    pick('Locality', 'Kasavanahalli');
     expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
     expect(grid().getByText(villa.title)).toBeTruthy();
   });

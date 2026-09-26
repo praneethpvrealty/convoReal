@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 26 September 2026
 
+- **Deal Floor's hero blanks open a styled menu.** The three blanks in the
+  "Show me … in … at any budget" sentence were native selects, and Chrome
+  on Android drew their options in the system font at the headline's
+  size. They now open the app's own menu, in the design's body face at
+  reading size, on every browser.
 - **A fourth agency showcase design, Deal Floor.** Warm charcoal with a
   saffron accent, chosen like the other designs under Settings → Public
   profile on web and mobile. Its hero is a sentence with blanks — "Show me
