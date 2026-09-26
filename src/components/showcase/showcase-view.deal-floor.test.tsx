@@ -353,6 +353,9 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     expect(refine.getByRole('combobox', { name: 'Sort' })).toBeTruthy();
     expect(refine.getByRole('button', { name: /Near a place/ })).toBeTruthy();
 
+    expect(
+      refine.getByRole('combobox', { name: 'Deal type' }).textContent
+    ).toContain('Any deal type');
     pick('Deal type', 'For rent');
     expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
     expect(

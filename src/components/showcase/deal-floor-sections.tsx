@@ -197,7 +197,7 @@ export function DealFloorHero({
 }
 
 const DEAL_TYPE_OPTIONS = [
-  { value: 'All', label: 'Sale & rent' },
+  { value: 'All', label: 'Any deal type' },
   { value: 'Sale', label: 'For sale' },
   { value: 'Rent', label: 'For rent' },
   { value: 'JV/JD', label: 'JV / JD' },
