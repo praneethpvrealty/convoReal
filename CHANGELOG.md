@@ -17,6 +17,15 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 26 September 2026
+
+- **Guidance value lookups find villages printed with a suffix.** A
+  notification often prints a village as "Addoor Village (Gurupura Hobli)",
+  and the spelling-tolerant lookup compared the whole name, so an RTC's
+  Adduru found nothing once Mangaluru Taluk was re-read. Bracketed text and
+  the words village and grama are now ignored on both sides. **Migration
+  required:** `20260926031500_guidance_place_key.sql`.
+
 #### 25 September 2026
 
 - **Guidance value units come from the notification's header, as a hint.**
@@ -162,7 +171,7 @@ than a written entry. Newest first.
 - **The showcase location box now finds listings near a place none of
   them name.** Typing an area the catalog has no listing in (say
   "basavan") used to empty the suggestions and leave every listing on
-  screen. The box now offers *Search near "basavan"*, and Enter runs
+  screen. The box now offers _Search near "basavan"_, and Enter runs
   it. The place is geocoded in the city most of the inventory is in,
   and the result lists the listings that name it first, then the other
   published, available listings within 10 km, closest first, each

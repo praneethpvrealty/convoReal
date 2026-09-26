@@ -122,7 +122,7 @@ describe('findCandidateRates spelling fallback', () => {
       rpc: async (fn: string, args: Record<string, unknown>) => {
         calls.push({ fn, args });
         return {
-          data: fn === 'search_guidance_value_rates_by_key' ? byKey : [],
+          data: fn === 'search_guidance_value_rates_by_place_key' ? byKey : [],
           error: null,
         };
       },
@@ -147,7 +147,7 @@ describe('findCandidateRates spelling fallback', () => {
       village: 'Bheema',
     });
     expect(calls.at(-1)).toEqual({
-      fn: 'search_guidance_value_rates_by_key',
+      fn: 'search_guidance_value_rates_by_place_key',
       args: {
         p_key: 'bim',
         p_district_pattern: '(dakshina kannada|mangalore)'.replace(
@@ -164,7 +164,7 @@ describe('findCandidateRates spelling fallback', () => {
     const { db, calls } = rpcDb();
     await findCandidateRates(db, { village: 'Bheema' });
     expect(calls.map((c) => c.fn)).not.toContain(
-      'search_guidance_value_rates_by_key'
+      'search_guidance_value_rates_by_place_key'
     );
   });
 });

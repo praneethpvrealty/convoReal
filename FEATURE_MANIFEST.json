@@ -1777,7 +1777,9 @@
             { "file": "src/lib/deals/index-row.test.ts", "case": "[TXW-022]" },
             { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-022]" }
           ],
-          "guards": ["supabase/migrations/20260924150000_transaction_index_expected_close.sql"]
+          "guards": [
+            "supabase/migrations/20260924150000_transaction_index_expected_close.sql"
+          ]
         }
       ]
     },
@@ -2121,7 +2123,7 @@
         },
         {
           "id": "GVL-013",
-          "rule": "The schedule reader also reads a Karnataka RTC (Pahani): it records document_type 'rtc', drops the village code, transliterates Kannada names letter by letter without substituting a similar-sounding place, keeps the village as printed in village_local and the extent as printed in extent_printed, joins survey and hissa as the survey number, and fills land_area only when the extent's column units are certain, otherwise leaving it for the user to enter. Web and mobile show the as-printed village and extent under the summary with the same wording. Rate ranking compares place names by a spelling key that ignores doubled letters, aspirated consonants, long-vowel spellings and a trailing vowel, so Adduru matches a notification's Addur but not Adyar; when the district is known, candidates are also fetched by that key (search_guidance_value_rates_by_key over the indexed guidance_spelling_key of village and locality, which mirrors placeKey), so a spelling too far apart for trigram search is still found, and the key lookup never runs without a district.",
+          "rule": "The schedule reader also reads a Karnataka RTC (Pahani): it records document_type 'rtc', drops the village code, transliterates Kannada names letter by letter without substituting a similar-sounding place, keeps the village as printed in village_local and the extent as printed in extent_printed, joins survey and hissa as the survey number, and fills land_area only when the extent's column units are certain, otherwise leaving it for the user to enter. Web and mobile show the as-printed village and extent under the summary with the same wording. Rate ranking compares place names by a spelling key that ignores doubled letters, aspirated consonants, long-vowel spellings and a trailing vowel, so Adduru matches a notification's Addur but not Adyar; when the district is known, candidates are also fetched by that key (search_guidance_value_rates_by_place_key over the indexed guidance_place_key of village and locality, which mirrors placeKey and ignores bracketed text and the words village and grama, so a notification's \"Addoor Village (Gurupura Hobli)\" still matches Adduru), so a spelling too far apart for trigram search is still found, and the key lookup never runs without a district.",
           "tests": [
             {
               "file": "src/lib/guidance-value/match.test.ts",
