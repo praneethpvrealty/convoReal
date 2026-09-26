@@ -50,6 +50,11 @@ export interface RateHeadings {
   locality?: string | null;
 }
 
+export interface RateColumn {
+  code: string;
+  unit: AreaUnit;
+}
+
 export interface PdfSlice {
   bytes: Uint8Array;
   pageCount: number;
@@ -144,10 +149,67 @@ export const LAND_CLASS_CODES: Record<string, LandClass> = {
   ap: 'plantation',
 };
 
+const CODE_BY_CLASS: Partial<Record<PropertyClass, string>> = {
+  residential_site: 'rs',
+  residential_apartment: 'ra',
+  commercial_site: 'cs',
+  commercial_apartment: 'ca',
+  industrial: 'in',
+  other: 'ot',
+};
+
+const LAND_CODE_BY_CLASS: Record<LandClass, string> = {
+  dry: 'ad',
+  wet: 'aw',
+  garden: 'ab',
+  plantation: 'ap',
+};
+
 function unitInstructions(unit?: AreaUnit | null): string {
   if (!unit) return '';
   const name = unit === 'sqm' ? 'square metre ("sqm")' : 'square foot ("sqft")';
   return `\nThis notification's rate header states rates per ${name}. Unless a table on these pages prints its own unit, write that unit for site and building rates; keep land rates in the acre, gunta or hectare unit their column states.`;
+}
+
+function columnsInstructions(columns?: RateColumn[] | null): string {
+  if (!columns?.length) return '';
+  const order = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
+  const list = columns
+    .slice(0, order.length)
+    .map((c, i) => `the ${order[i]} rate column is "${c.code}" (${c.unit})`)
+    .join(', ');
+  return `\nThe table on the page before these pages continues onto any page here that prints no column header of its own. On such a page ${list}; use exactly these codes and units for its columns, left to right, and no others.`;
+}
+
+export function siteUnits(
+  columns?: RateColumn[] | null,
+  unit?: AreaUnit | null
+): Partial<Record<string, AreaUnit>> {
+  const codes = Object.values(CODE_BY_CLASS);
+  const out: Partial<Record<string, AreaUnit>> = {};
+  if (unit) for (const code of codes) if (code) out[code] = unit;
+  for (const column of columns ?? []) {
+    if (codes.includes(column.code)) out[column.code] = column.unit;
+  }
+  return out;
+}
+
+export function rateColumns(
+  rows: Pick<ParsedRateRow, 'property_class' | 'land_class' | 'unit'>[]
+): RateColumn[] {
+  const out: RateColumn[] = [];
+  for (const row of rows) {
+    const code =
+      row.property_class === 'agricultural'
+        ? row.land_class
+          ? LAND_CODE_BY_CLASS[row.land_class]
+          : 'ag'
+        : CODE_BY_CLASS[row.property_class];
+    if (!code || out.some((c) => c.code === code && c.unit === row.unit))
+      continue;
+    out.push({ code, unit: row.unit });
+  }
+  return out;
 }
 
 export function rateInstructions(
@@ -155,12 +217,13 @@ export function rateInstructions(
   toPage: number,
   slice: PdfSlice | null = null,
   headings?: RateHeadings | null,
-  unit?: AreaUnit | null
+  unit?: AreaUnit | null,
+  columns?: RateColumn[] | null
 ): string {
   return `
 You are transcribing a Karnataka guidance value notification (the
 government's market value guidelines, published by the Central Valuation
-Committee / Department of Stamps and Registration). ${scopeInstructions(fromPage, toPage, slice)}${headingsInstructions(headings)}${unitInstructions(unit)}
+Committee / Department of Stamps and Registration). ${scopeInstructions(fromPage, toPage, slice)}${headingsInstructions(headings)}${unitInstructions(unit)}${columnsInstructions(columns)}
 
 Return compact JSON, writing each heading once:
 {"total_pages": number, "groups": [
@@ -344,7 +407,8 @@ export function sanitiseRateRows(
   raw: unknown,
   fromPage: number,
   toPage: number,
-  contextPage: number | null = null
+  contextPage: number | null = null,
+  siteUnits: Partial<Record<string, AreaUnit>> = {}
 ): { rows: ParsedRateRow[]; totalPages: number | null } {
   if (!raw || typeof raw !== 'object') return { rows: [], totalPages: null };
   const input = raw as {
@@ -373,8 +437,14 @@ export function sanitiseRateRows(
     );
     if (!propertyClass || !scaled || !Number.isFinite(printed) || printed <= 0)
       continue;
-    const { unit } = scaled;
-    const rate = Math.round(printed * scaled.scale * 100) / 100;
+    const misplaced =
+      scaled.scale > 1 && propertyClass !== 'agricultural' && printed >= 1000;
+    const code = cleanString(row.property_class, 4)?.toLowerCase() ?? '';
+    const unit = misplaced ? siteUnits[code] : scaled.unit;
+    if (!unit) continue;
+    const rate = misplaced
+      ? printed
+      : Math.round(printed * scaled.scale * 100) / 100;
     const locality = cleanString(row.locality);
     const village = cleanString(row.headings.village);
     const road = cleanString(row.road);
@@ -418,6 +488,7 @@ interface RatePagesInput {
   toPage: number;
   headings?: RateHeadings | null;
   unit?: AreaUnit | null;
+  columns?: RateColumn[] | null;
 }
 
 type RatePagesResult = { rows: ParsedRateRow[]; totalPages: number | null };
@@ -439,14 +510,17 @@ export async function parseRatePages(
   const rows: ParsedRateRow[] = [];
   let totalPages: number | null = null;
   let headings = input.headings;
+  let columns = input.columns;
   for (let page = input.fromPage; page <= input.toPage; page += 1) {
     const result = await readRatePages(
-      { ...input, fromPage: page, toPage: page, headings },
+      { ...input, fromPage: page, toPage: page, headings, columns },
       AbortSignal.timeout(RATE_READ_TIMEOUT_MS)
     );
     rows.push(...result.rows);
     totalPages = result.totalPages ?? totalPages;
     headings = result.rows.at(-1) ?? headings;
+    const found = rateColumns(result.rows);
+    if (found.length) columns = found;
   }
   return { rows, totalPages };
 }
@@ -474,7 +548,8 @@ async function readRatePages(
       input.toPage,
       slice,
       input.headings,
-      input.unit
+      input.unit,
+      input.columns
     ),
     {
       feature: 'guidance_value_source_parse',
@@ -488,7 +563,8 @@ async function readRatePages(
     parseJsonResponse(response),
     input.fromPage,
     input.toPage,
-    slice && slice.firstPage < input.fromPage ? slice.firstPage : null
+    slice && slice.firstPage < input.fromPage ? slice.firstPage : null,
+    siteUnits(input.columns, input.unit)
   );
   return slice ? { ...parsed, totalPages: slice.pageCount } : parsed;
 }

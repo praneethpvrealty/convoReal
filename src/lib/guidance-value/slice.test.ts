@@ -2,6 +2,7 @@ import { PDFDocument } from 'pdf-lib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  rateColumns,
   rateInstructions,
   rateParseTier,
   sanitiseRateRows,
@@ -62,6 +63,26 @@ describe('rateInstructions', () => {
     expect(text).toContain('Transcribe ONLY pages 7 to 8');
     expect(text).toContain('Page 6 is included only');
     expect(text).toContain('village "Malleshwaram"');
+  });
+
+  it('[GVL-022] carries the previous page rate columns to a page without a header', () => {
+    const columns = rateColumns([
+      { property_class: 'agricultural', land_class: 'dry', unit: 'acre' },
+      { property_class: 'agricultural', land_class: 'wet', unit: 'acre' },
+      { property_class: 'agricultural', land_class: 'garden', unit: 'acre' },
+      { property_class: 'residential_site', unit: 'sqm' },
+      { property_class: 'agricultural', land_class: 'dry', unit: 'acre' },
+    ]);
+    expect(columns).toEqual([
+      { code: 'ad', unit: 'acre' },
+      { code: 'aw', unit: 'acre' },
+      { code: 'ab', unit: 'acre' },
+      { code: 'rs', unit: 'sqm' },
+    ]);
+    const text = rateInstructions(236, 237, null, null, null, columns);
+    expect(text).toContain('the first rate column is "ad" (acre)');
+    expect(text).toContain('the fourth rate column is "rs" (sqm)');
+    expect(rateInstructions(236, 237)).not.toContain('rate column is');
   });
 
   it('[GVL-021] asks Gemini to mark lakh columns and keep land columns off site codes', () => {

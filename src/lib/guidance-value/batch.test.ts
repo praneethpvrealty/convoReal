@@ -159,6 +159,42 @@ describe('sanitiseRateRows (lakh columns)', () => {
   });
 });
 
+describe('sanitiseRateRows (site rate in a lakh row)', () => {
+  const raw = {
+    groups: [
+      {
+        village: 'Kothipura',
+        rows: [
+          [
+            'Kothipura',
+            '',
+            '',
+            'lakh/acre',
+            236,
+            { ad: 60, aw: 80, ab: 100, rs: 8500 },
+          ],
+        ],
+      },
+    ],
+  };
+
+  it('[GVL-022] keeps a site figure found in a lakh row at the site column unit, unscaled', () => {
+    const { rows } = sanitiseRateRows(raw, 236, 236, null, { rs: 'sqm' });
+    expect(rows.map((r) => [r.property_class, r.rate, r.unit])).toEqual([
+      ['agricultural', 6000000, 'acre'],
+      ['agricultural', 8000000, 'acre'],
+      ['agricultural', 10000000, 'acre'],
+      ['residential_site', 8500, 'sqm'],
+    ]);
+  });
+
+  it('[GVL-022] drops that site figure when the site column unit is unknown', () => {
+    const { rows } = sanitiseRateRows(raw, 236, 236);
+    expect(rows.map((r) => r.property_class)).not.toContain('residential_site');
+    expect(rows).toHaveLength(3);
+  });
+});
+
 describe('sanitiseRateRows (compact)', () => {
   it('[GVL-011] expands grouped rows into one rate per column, headings written once', () => {
     const { rows, totalPages } = sanitiseRateRows(compact, 3, 4);

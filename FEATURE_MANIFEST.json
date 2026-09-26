@@ -2182,6 +2182,20 @@
           ]
         },
         {
+          "id": "GVL-022",
+          "rule": "A notification page that prints no column header of its own continues the table on the page before: each interactive read passes Gemini the rate columns of the last page already read (codes and units, left to right, taken from the stored rows) and asks it to use exactly those for a page without its own header, and the single-page fallback carries them from page to page. A site or building figure of 1000 or more that Gemini writes in a lakh or crore row is the site column misplaced: it is stored unscaled at that site column's unit (from the carried columns, else the notification's header unit) and dropped when neither is known; land figures are never dropped this way. Batch reads get no carried columns, because their chunks are prepared before any page is read.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/batch.test.ts",
+              "case": "[GVL-022]"
+            },
+            {
+              "file": "src/lib/guidance-value/slice.test.ts",
+              "case": "[GVL-022]"
+            }
+          ]
+        },
+        {
           "id": "GVL-018",
           "rule": "Before any page of a notification is sent to Gemini, its text layer is read locally (pdf-lib, decoding each font's ToUnicode map) and pages that are positively identified as not rate tables are skipped without a request: the preamble before the first rate page (gazette header, instructions, amenities lists, pages with almost no large numbers, at most the first thirty pages), pages naming a ready reckoner, construction cost, floor-rise or car-parking table that carry no rate words, and the pure numeric grids that continue such a page. A page is never skipped when its text is blank or garbled, when it carries rate words (village, hobli, road, survey, ward, block, PID numbers), or when no page in the notification reads as a rate table. Skipped pages count as read: the batch planner records them as request-free chunks and the interactive reader advances over them, so progress stays contiguous.",
           "tests": [
