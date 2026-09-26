@@ -64,6 +64,12 @@ describe('rateInstructions', () => {
     expect(text).toContain('village "Malleshwaram"');
   });
 
+  it('[GVL-021] asks Gemini to mark lakh columns and keep land columns off site codes', () => {
+    const text = rateInstructions(7, 8);
+    expect(text).toContain('"lakh/acre"');
+    expect(text).toContain('never a site, apartment');
+  });
+
   it('[GVL-020] tells Gemini the unit the notification header states', () => {
     expect(rateInstructions(7, 8, null, null, 'sqm')).toContain(
       'rate header states rates per square metre ("sqm")'

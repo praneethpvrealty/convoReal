@@ -19,6 +19,13 @@ than a written entry. Newest first.
 
 #### 26 September 2026
 
+- **Guidance values printed in lakhs are stored in rupees.** Village
+  tables in Ramanagara, Mysuru and Bengaluru print land rates "in lakhs
+  per acre", and the reader stored 55 lakh as ₹55; on some pages it also
+  filed the dry, wet and garden columns as site and apartment rates. The
+  reader now marks lakh and crore columns and stores full rupees, and
+  affected notifications are re-read.
+
 - **Guidance value lookups find villages printed with a suffix.** A
   notification often prints a village as "Addoor Village (Gurupura Hobli)",
   and the spelling-tolerant lookup compared the whole name, so an RTC's
