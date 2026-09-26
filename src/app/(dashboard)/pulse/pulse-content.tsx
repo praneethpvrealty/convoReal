@@ -34,6 +34,10 @@ import {
   type HydratedShowcaseEvent,
 } from '@/lib/pulse/queries';
 import {
+  nextPulseFeedCursor,
+  type PulseFeedCursor,
+} from '@/lib/pulse/feed-page';
+import {
   dedupeConsecutiveEvents,
   groupEventsByVisitor,
   type DedupedShowcaseEvent,
@@ -60,6 +64,8 @@ export default function PulsePage() {
   const { accountId } = useAuth();
   const [stats, setStats] = useState<PulseStats | null>(null);
   const [feed, setFeed] = useState<HydratedShowcaseEvent[] | null>(null);
+  const [feedCursor, setFeedCursor] = useState<PulseFeedCursor | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('all');
@@ -84,6 +90,7 @@ export default function PulsePage() {
         ]);
         setStats(statsData);
         setFeed(feedData);
+        setFeedCursor(nextPulseFeedCursor(feedData));
       } catch (err: unknown) {
         console.error('[pulse] fetch failed:', err);
         toast.error('Failed to load Showcase Pulse analytics');
@@ -100,6 +107,21 @@ export default function PulsePage() {
       fetchStatsAndFeed(accountId);
     }
   }, [accountId, fetchStatsAndFeed]);
+
+  const loadOlderActivity = async () => {
+    if (!feedCursor || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const older = await loadPulseFeed(createClient(), feedCursor);
+      setFeed((current) => [...(current ?? []), ...older]);
+      setFeedCursor(nextPulseFeedCursor(older));
+    } catch (err: unknown) {
+      console.error('[pulse] older activity fetch failed:', err);
+      toast.error('Failed to load older visitor activity');
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
 
   const handleOpenChat = async (contactId: string) => {
     try {
@@ -524,6 +546,24 @@ export default function PulsePage() {
                     );
                   })}
                 </div>
+              )}
+              {feedCursor && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={loadOlderActivity}
+                  disabled={loadingOlder}
+                  className="w-full cursor-pointer rounded-xl border border-slate-800 text-xs font-bold text-slate-400 hover:bg-slate-900/40 hover:text-white"
+                >
+                  {loadingOlder ? (
+                    <RefreshCw className="mr-1.5 size-3.5 animate-spin" />
+                  ) : (
+                    <ChevronDown className="mr-1.5 size-3.5" />
+                  )}
+                  {loadingOlder
+                    ? 'Loading older activity...'
+                    : 'Load older activity'}
+                </Button>
               )}
             </div>
 

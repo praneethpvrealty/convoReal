@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ShowcaseEvent, Property, Contact } from '@/types';
+import {
+  PULSE_FEED_PAGE_SIZE,
+  pulseFeedCursorFilter,
+  type PulseFeedCursor,
+} from './feed-page';
 
 type DB = SupabaseClient;
 
@@ -83,14 +88,20 @@ export async function loadPulseStats(
   };
 }
 
-export async function loadPulseFeed(db: DB): Promise<HydratedShowcaseEvent[]> {
-  const { data, error } = await db
+export async function loadPulseFeed(
+  db: DB,
+  cursor: PulseFeedCursor | null = null
+): Promise<HydratedShowcaseEvent[]> {
+  let query = db
     .from('showcase_events')
     .select(
       '*, contact:contacts(*), property:properties(*), share:showcase_share_links(id, created_at)'
-    )
+    );
+  if (cursor) query = query.or(pulseFeedCursorFilter(cursor));
+  const { data, error } = await query
     .order('created_at', { ascending: false })
-    .limit(100);
+    .order('id', { ascending: false })
+    .limit(PULSE_FEED_PAGE_SIZE);
 
   if (error) throw error;
 

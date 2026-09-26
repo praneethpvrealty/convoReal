@@ -2489,6 +2489,44 @@
           ]
         }
       ]
+    },
+    {
+      "id": "showcase-pulse",
+      "name": "Showcase Pulse — visitor activity on shared showcase links",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "PLS-001",
+          "rule": "The visitor activity feed on web and mobile loads newest-first in keyset pages ordered by created_at then id, offers Load older activity until a short page arrives, and never stops at a fixed row window, so one busy visitor cannot hide earlier days of activity.",
+          "tests": [
+            { "file": "src/lib/pulse/feed-page.test.ts", "case": "[PLS-001]" },
+            { "file": "mobile/lib/pulse-feed.test.ts", "case": "[PLS-001]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[PLS-001]" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "copilot",
+      "name": "Copilot — the in-app AI helper",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "CPL-001",
+          "rule": "The floating AI helper button can be dragged anywhere on web and mobile without opening the helper, snaps to the nearer side edge, stays clear of the header and tab bar, remembers its position on the device, and still opens the helper on a plain tap.",
+          "tests": [
+            {
+              "file": "src/lib/copilot/launcher-placement.test.ts",
+              "case": "[CPL-001]"
+            },
+            {
+              "file": "src/components/copilot/copilot-widget.test.tsx",
+              "case": "[CPL-001]"
+            },
+            { "file": "mobile/lib/copilot-fab.test.ts", "case": "[CPL-001]" }
+          ]
+        }
+      ]
     }
   ]
 }
