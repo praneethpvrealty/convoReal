@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { useMemo, useSyncExternalStore } from 'react';
 
 import type { EngineSendOutcome } from '@/lib/property-share-actions';
 import type { Message } from '@/lib/types';
@@ -15,40 +15,79 @@ import type { Message } from '@/lib/types';
  * and reacts to the outcome when it lands: a send that went out is
  * replaced by its real rows, a refusal is explained on the spot.
  *
- * Keyed by conversation so a thread only ever sees its own share.
+ * Every share is its own entry, keyed by its own id: an agent who
+ * starts a second share to the same contact before the first has
+ * answered gets two sets of bubbles and two verdicts, never one
+ * verdict applied to the other share's bubbles. The registry is a
+ * plain module read through `useSyncExternalStore`, so screens follow
+ * it with a hook and nothing else.
  */
 export interface StagedShare {
+  id: string;
+  conversationId: string;
   bubbles: Message[];
   outcome: EngineSendOutcome | null;
 }
 
-interface PendingShareState {
-  shares: Record<string, StagedShare>;
-  stage: (conversationId: string, bubbles: Message[]) => void;
-  settle: (conversationId: string, outcome: EngineSendOutcome) => void;
-  clear: (conversationId: string) => void;
+let shares: StagedShare[] = [];
+const listeners = new Set<() => void>();
+
+function publish(next: StagedShare[]) {
+  shares = next;
+  for (const listener of listeners) listener();
 }
 
-export const usePendingShareStore = create<PendingShareState>((set) => ({
-  shares: {},
-  stage: (conversationId, bubbles) =>
-    set((state) => ({
-      shares: { ...state.shares, [conversationId]: { bubbles, outcome: null } },
-    })),
-  settle: (conversationId, outcome) =>
-    set((state) => {
-      const staged = state.shares[conversationId];
-      if (!staged) return {};
-      return { shares: { ...state.shares, [conversationId]: { ...staged, outcome } } };
-    }),
-  clear: (conversationId) =>
-    set((state) => {
-      if (!(conversationId in state.shares)) return {};
-      const shares = { ...state.shares };
-      delete shares[conversationId];
-      return { shares };
-    }),
-}));
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function snapshot() {
+  return shares;
+}
+
+/** Register a share on its way out. Returns the id `settlePendingShare`
+ *  takes once the server has answered. */
+export function stagePendingShare(conversationId: string, bubbles: Message[]): string {
+  const id = `share-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  publish([...shares, { id, conversationId, bubbles, outcome: null }]);
+  return id;
+}
+
+/** Record the server's verdict for one share. A share nobody staged is
+ *  ignored — there is nothing on screen to react. */
+export function settlePendingShare(id: string, outcome: EngineSendOutcome) {
+  if (!shares.some((share) => share.id === id)) return;
+  publish(shares.map((share) => (share.id === id ? { ...share, outcome } : share)));
+}
+
+/** Drop a share the thread has finished reacting to. */
+export function clearPendingShare(id: string) {
+  if (!shares.some((share) => share.id === id)) return;
+  publish(shares.filter((share) => share.id !== id));
+}
+
+/** Every staged share bound for one thread, in the order they were made. */
+export function pendingSharesFor(conversationId: string): StagedShare[] {
+  return shares.filter((share) => share.conversationId === conversationId);
+}
+
+/** The staged shares for a thread, re-rendering the screen as they are
+ *  staged, settled and cleared. */
+export function usePendingShares(conversationId: string): StagedShare[] {
+  const all = useSyncExternalStore(subscribe, snapshot, snapshot);
+  return useMemo(
+    () => all.filter((share) => share.conversationId === conversationId),
+    [all, conversationId]
+  );
+}
+
+/** Test seam: forget every staged share. */
+export function resetPendingShares() {
+  publish([]);
+}
 
 /**
  * The bubbles a share draws before the server has written anything:

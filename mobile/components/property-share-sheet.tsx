@@ -43,8 +43,9 @@ import {
 import { findContactThread } from '@/lib/open-chat';
 import {
   pendingShareBubbles,
+  settlePendingShare,
   shareOutcomeNotice,
-  usePendingShareStore,
+  stagePendingShare,
 } from '@/lib/pending-share';
 import { fetchShowcaseSubdomain } from '@/lib/showcase-settings';
 import { storagePublicUrl } from '@/lib/storage-url';
@@ -241,7 +242,7 @@ export function PropertyShareSheet({
     const text = addRecipientGreeting(message, contact.name);
     const threadId = await findContactThread(contact.id).catch(() => null);
     if (threadId) {
-      usePendingShareStore.getState().stage(
+      const shareId = stagePendingShare(
         threadId,
         pendingShareBubbles({
           conversationId: threadId,
@@ -261,7 +262,7 @@ export function PropertyShareSheet({
         leadImage
       );
       if (outcome.sent) onShared?.([contact.id]);
-      usePendingShareStore.getState().settle(threadId, outcome);
+      settlePendingShare(shareId, outcome);
       return;
     }
     const outcome = await sendPropertyViaEngine(

@@ -1,20 +1,25 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  clearPendingShare,
   pendingShareBubbles,
+  pendingSharesFor,
+  resetPendingShares,
+  settlePendingShare,
   shareOutcomeNotice,
-  usePendingShareStore,
+  stagePendingShare,
 } from './pending-share';
 
 /**
  * A single-recipient share hands the agent to the thread before the
  * server answers. The thread must find the bubbles it should draw, the
- * outcome must reach it whenever it lands, and a thread that was never
- * staged must never be told anything.
+ * outcome must reach the share it belongs to — and only that share,
+ * even when two are in flight to the same contact — and a thread that
+ * was never staged must never be told anything.
  */
 
 beforeEach(() => {
-  usePendingShareStore.setState({ shares: {} });
+  resetPendingShares();
 });
 
 describe('pendingShareBubbles', () => {
@@ -41,36 +46,58 @@ describe('pendingShareBubbles', () => {
   });
 });
 
-describe('usePendingShareStore', () => {
-  it('stages bubbles for one thread and settles them with the outcome', () => {
+describe('staged shares', () => {
+  it('stages a share for its thread and settles it with the outcome', () => {
     const bubbles = pendingShareBubbles({ conversationId: 'conv-1', text: 'Hi' });
-    usePendingShareStore.getState().stage('conv-1', bubbles);
-    expect(usePendingShareStore.getState().shares['conv-1']).toEqual({
-      bubbles,
-      outcome: null,
-    });
+    const id = stagePendingShare('conv-1', bubbles);
+    expect(pendingSharesFor('conv-1')).toEqual([
+      { id, conversationId: 'conv-1', bubbles, outcome: null },
+    ]);
+    expect(pendingSharesFor('conv-2')).toEqual([]);
 
-    usePendingShareStore.getState().settle('conv-1', { sent: true });
-    expect(usePendingShareStore.getState().shares['conv-1']?.outcome).toEqual({
-      sent: true,
-    });
-    expect(usePendingShareStore.getState().shares['conv-2']).toBeUndefined();
+    settlePendingShare(id, { sent: true });
+    expect(pendingSharesFor('conv-1')[0].outcome).toEqual({ sent: true });
   });
 
-  it('ignores an outcome for a thread that was never staged', () => {
-    usePendingShareStore.getState().settle('conv-9', { sent: false, error: 'x' });
-    expect(usePendingShareStore.getState().shares).toEqual({});
+  it('keeps two in-flight shares to the same contact apart', () => {
+    const first = stagePendingShare(
+      'conv-1',
+      pendingShareBubbles({ conversationId: 'conv-1', text: 'Listing A' })
+    );
+    const second = stagePendingShare(
+      'conv-1',
+      pendingShareBubbles({ conversationId: 'conv-1', text: 'Listing B' })
+    );
+    expect(pendingSharesFor('conv-1').map((s) => s.id)).toEqual([first, second]);
+
+    settlePendingShare(first, { sent: false, error: 'Meta said no' });
+    const [a, b] = pendingSharesFor('conv-1');
+    expect(a.outcome).toEqual({ sent: false, error: 'Meta said no' });
+    expect(a.bubbles[0].content_text).toBe('Listing A');
+    expect(b.outcome).toBeNull();
+
+    clearPendingShare(first);
+    expect(pendingSharesFor('conv-1').map((s) => s.id)).toEqual([second]);
+    expect(pendingSharesFor('conv-1')[0].bubbles[0].content_text).toBe('Listing B');
   });
 
-  it('clears a thread once it has reacted', () => {
-    usePendingShareStore
-      .getState()
-      .stage('conv-1', pendingShareBubbles({ conversationId: 'conv-1', text: 'Hi' }));
-    usePendingShareStore
-      .getState()
-      .stage('conv-2', pendingShareBubbles({ conversationId: 'conv-2', text: 'Yo' }));
-    usePendingShareStore.getState().clear('conv-1');
-    expect(Object.keys(usePendingShareStore.getState().shares)).toEqual(['conv-2']);
+  it('ignores an outcome for a share that was never staged', () => {
+    settlePendingShare('share-nobody', { sent: false, error: 'x' });
+    expect(pendingSharesFor('conv-9')).toEqual([]);
+  });
+
+  it('clears only the share the thread has reacted to', () => {
+    const one = stagePendingShare(
+      'conv-1',
+      pendingShareBubbles({ conversationId: 'conv-1', text: 'Hi' })
+    );
+    const two = stagePendingShare(
+      'conv-2',
+      pendingShareBubbles({ conversationId: 'conv-2', text: 'Yo' })
+    );
+    clearPendingShare(one);
+    expect(pendingSharesFor('conv-1')).toEqual([]);
+    expect(pendingSharesFor('conv-2').map((s) => s.id)).toEqual([two]);
   });
 });
 

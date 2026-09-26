@@ -90,7 +90,7 @@ import {
 } from '@/lib/types';
 import { dayLabel } from '@/lib/format';
 import { restoreFailedDraft, settlePending } from '@/lib/pending-messages';
-import { shareOutcomeNotice, usePendingShareStore } from '@/lib/pending-share';
+import { clearPendingShare, shareOutcomeNotice, usePendingShares } from '@/lib/pending-share';
 import { queryClient } from '@/lib/query';
 import { useCallLog } from '@/lib/use-call-log';
 import { supabase, uniqueChannel } from '@/lib/supabase';
@@ -299,38 +299,41 @@ export default function ConversationScreen() {
   const title = conversationTitle(conversation);
   const contactName = conversation?.contact?.name || undefined;
 
-  // A property share handed to this thread by the share sheet while it
-  // is still sending: its bubbles join the pending list the moment the
-  // screen opens, and the verdict is acted on whenever it lands — the
-  // real rows replace a send that went out, a refusal is explained here
-  // rather than on a sheet the agent has already left.
-  const stagedShare = usePendingShareStore((s) => s.shares[id]);
-  const clearStagedShare = usePendingShareStore((s) => s.clear);
-  const seededShare = useRef<Message[] | null>(null);
+  // Property shares handed to this thread by the share sheet while they
+  // are still sending: each one's bubbles join the pending list the
+  // moment the screen opens, and each verdict is acted on whenever it
+  // lands — the real rows replace a send that went out, a refusal is
+  // explained here rather than on a sheet the agent has already left.
+  // Two shares in flight to the same contact are two entries, so one
+  // verdict never lands on the other's bubbles.
+  const stagedShares = usePendingShares(id);
+  const seededShares = useRef(new Set<string>());
   useEffect(() => {
-    const bubbles = stagedShare?.bubbles;
-    if (!bubbles || seededShare.current === bubbles) return;
-    seededShare.current = bubbles;
+    const fresh = stagedShares.filter((share) => !seededShares.current.has(share.id));
+    if (fresh.length === 0) return;
+    for (const share of fresh) seededShares.current.add(share.id);
+    const bubbles = fresh.flatMap((share) => share.bubbles);
     setPending((prev) => [...bubbles, ...settlePending(prev, messages ?? [])]);
-  }, [stagedShare?.bubbles, messages]);
+  }, [stagedShares, messages]);
   useEffect(() => {
-    const outcome = stagedShare?.outcome;
-    if (!stagedShare || !outcome) return;
-    const staged = new Set(stagedShare.bubbles.map((m) => m.id));
-    const drop = () => setPending((prev) => prev.filter((m) => !staged.has(m.id)));
-    clearStagedShare(id);
-    if (outcome.sent) {
-      haptic.success();
-      // Fetched before the bubbles go, so the message never blinks out
-      // between the API answering and the thread catching up.
-      queryClient.invalidateQueries({ queryKey: ['messages', id] }).then(drop, drop);
-      return;
+    for (const share of stagedShares) {
+      if (!share.outcome) continue;
+      const staged = new Set(share.bubbles.map((m) => m.id));
+      const drop = () => setPending((prev) => prev.filter((m) => !staged.has(m.id)));
+      clearPendingShare(share.id);
+      if (share.outcome.sent) {
+        haptic.success();
+        // Fetched before the bubbles go, so the message never blinks out
+        // between the API answering and the thread catching up.
+        queryClient.invalidateQueries({ queryKey: ['messages', id] }).then(drop, drop);
+        continue;
+      }
+      drop();
+      haptic.warn();
+      const notice = shareOutcomeNotice(share.outcome, contactName ?? 'This contact');
+      if (notice) show(notice);
     }
-    drop();
-    haptic.warn();
-    const notice = shareOutcomeNotice(outcome, contactName ?? 'This contact');
-    if (notice) show(notice);
-  }, [stagedShare, id, contactName, show, clearStagedShare]);
+  }, [stagedShares, id, contactName, show]);
 
   // Swipe-to-reply and the quote tap both need the composer's attention,
   // so the reply target is set here and the composer reads it.
