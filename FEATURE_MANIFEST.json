@@ -1365,7 +1365,7 @@
         },
         {
           "id": "JRN-009",
-          "rule": "Every confirmed property share captures the contact×property pair on the journey through one server-side ledger writer, whichever surface sent it: the share sheet on web and mobile (both channels), a personal-WhatsApp or email share the agent logs, a contact's hand-picked listings, Radar sends and the bot's own listing sends. A share the agent composed for one contact is visible at once; a broadcast or bot batch waits hidden in the Captured tray; re-sharing never duplicates, resurrects or un-hides a pair.",
+          "rule": "Every confirmed property share captures the contact×property pair on the journey through one server-side ledger writer, whichever surface sent it: the share sheet on web and mobile (both channels), a personal-WhatsApp or email share the agent logs, a contact's hand-picked listings, Radar sends and the bot's own listing sends; the ledger's insert trigger makes the same capture for a row written any other way, reading the visibility the writer recorded on it. A share the agent composed for one contact is visible at once; a broadcast or bot batch waits hidden in the Captured tray; re-sharing never duplicates, resurrects or un-hides a pair.",
           "tests": [
             {
               "file": "src/lib/journey/capture-server.test.ts",
@@ -1390,13 +1390,18 @@
             {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[JRN-009]"
+            },
+            {
+              "file": "src/lib/migrations/journey-share-trigger.test.ts",
+              "case": "[JRN-009]"
             }
           ],
           "guards": [
             "src/lib/journey/capture-server.ts",
             "src/lib/whatsapp/share-property-send.ts",
             "src/app/api/properties/share-log/route.ts",
-            "supabase/migrations/20260926115400_journey_backfill_share_captures.sql"
+            "supabase/migrations/20260926115400_journey_backfill_share_captures.sql",
+            "supabase/migrations/20260926121500_journey_capture_share_trigger.sql"
           ]
         },
         {

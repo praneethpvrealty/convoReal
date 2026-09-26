@@ -67,8 +67,12 @@ export interface ShareLedgerOptions {
  *  whichever surface sent it. The pair is captured onto the contact's
  *  journey in the same call: recording a share and putting it on the
  *  journey were two steps once, and every surface but one forgot the
- *  second. Best-effort: a ledger failure must never turn a delivered
- *  message into a reported error. */
+ *  second. The ledger's own insert trigger (journey_capture_from_share)
+ *  makes the same capture for a row written by anything else, reading
+ *  journey_visible off the row; the call here still covers a pair that
+ *  was removed from the journey after an earlier share. Best-effort: a
+ *  ledger failure must never turn a delivered message into a reported
+ *  error. */
 export async function logPropertyShare(
   db: SupabaseClient,
   accountId: string,
@@ -97,6 +101,7 @@ export async function logPropertyShare(
       recipient_kind: recipientClassification === 'Agent' ? 'agent' : 'buyer',
       channel: options.channel ?? 'whatsapp',
       created_by: userId,
+      journey_visible: Boolean(options.journeyVisible),
     },
     { onConflict: 'account_id,property_id,contact_id', ignoreDuplicates: true }
   );
@@ -163,6 +168,7 @@ export async function logListingsSent(
         recipient_kind: contact?.classification === 'Agent' ? 'agent' : 'buyer',
         channel: 'whatsapp',
         created_by: userId,
+        journey_visible: false,
       })),
       {
         onConflict: 'account_id,property_id,contact_id',

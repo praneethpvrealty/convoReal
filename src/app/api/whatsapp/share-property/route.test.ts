@@ -611,6 +611,7 @@ describe('share-property — channel selection', () => {
         recipient_kind: 'buyer',
         channel: 'whatsapp',
         created_by: 'user-1',
+        journey_visible: true,
       },
     });
   });

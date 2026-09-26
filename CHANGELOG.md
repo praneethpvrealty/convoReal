@@ -19,6 +19,13 @@ than a written entry. Newest first.
 
 #### 26 September 2026
 
+- **The share ledger captures the journey itself.** A trigger on
+  `property_shares` now puts the contact×property pair on the journey for
+  any row that reaches the table, whatever wrote it, so no future share
+  surface can record a share and skip the journey the way every surface
+  but one did from mid-August. The ledger row carries the visibility the
+  writer asked for. **Migration required:**
+  `20260926121500_journey_capture_share_trigger.sql`.
 - **Deal Floor has one set of filters, not two.** The showcase's shared
   filter bar still rendered under the new hero, so the page asked for the
   locality twice and a search term left from an earlier visit could narrow
