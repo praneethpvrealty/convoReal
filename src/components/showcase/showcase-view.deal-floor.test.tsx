@@ -1,7 +1,15 @@
 // @vitest-environment happy-dom
 // @vitest-environment-options { "settings": { "disableIframePageLoading": true, "disableJavaScriptFileLoading": true, "disableCSSFileLoading": true } }
 
-import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  afterEach,
+  onTestFinished,
+} from 'vitest';
 import {
   render,
   cleanup,
@@ -240,7 +248,9 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
     expect(grid().queryByText(plot.title)).toBeNull();
     expect(grid().getByText(villa.title)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /^New this week$/ }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove New this week' })
+    );
     expect(screen.getByRole('button', { name: /See 4 matches/ })).toBeTruthy();
     expect(board.getByRole('button', { name: '1 in Domlur' })).toBeTruthy();
     expect(board.getByRole('button', { name: '1 Koramangala' })).toBeTruthy();
@@ -325,5 +335,91 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     fireEvent.click(deck().getByRole('button', { name: 'Undo' }));
     expect(screen.getByText('2 shortlisted')).toBeTruthy();
     expect(deck().getByRole('heading', { name: building.title })).toBeTruthy();
+  });
+  it('replaces the shared filter bar with one refine row, only under Deal Floor', () => {
+    renderDealFloor('quiet-luxury');
+    expect(screen.getByPlaceholderText(/Search properties/)).toBeTruthy();
+    expect(screen.getByLabelText('Search locations')).toBeTruthy();
+    cleanup();
+
+    renderDealFloor();
+    expect(screen.queryByPlaceholderText(/Search properties/)).toBeNull();
+    expect(screen.queryByLabelText('Search locations')).toBeNull();
+    const refine = within(
+      screen.getByRole('group', { name: 'Refine listings' })
+    );
+    expect(refine.getByRole('combobox', { name: 'Deal type' })).toBeTruthy();
+    expect(refine.getByRole('combobox', { name: 'Bedrooms' })).toBeTruthy();
+    expect(refine.getByRole('combobox', { name: 'Sort' })).toBeTruthy();
+    expect(refine.getByRole('button', { name: /Near a place/ })).toBeTruthy();
+
+    expect(
+      refine.getByRole('combobox', { name: 'Deal type' }).textContent
+    ).toContain('Any deal type');
+    pick('Deal type', 'For rent');
+    expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
+    expect(
+      within(screen.getByLabelText('Property listings')).getByText(rental.title)
+    ).toBeTruthy();
+  });
+
+  it('shows a restored search term as a removable chip so the match count explains itself', () => {
+    localStorage.setItem(
+      'showcase_state',
+      JSON.stringify({
+        timestamp: Date.now(),
+        searchQuery: 'Commercial',
+        selectedLocations: [],
+      })
+    );
+    renderDealFloor('deal-floor', false);
+    expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
+    const chip = screen.getByRole('button', { name: 'Remove “Commercial”' });
+    fireEvent.click(chip);
+    expect(screen.getByRole('button', { name: /See 4 matches/ })).toBeTruthy();
+    expect(screen.queryByLabelText('Active filters')).toBeNull();
+  });
+
+  it('searches near a place that no listing names from the Locality blank', async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation();
+    vi.mocked(fetch).mockImplementation(((url: string) =>
+      String(url).startsWith('/api/public/properties/near?')
+        ? Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                data: {
+                  label: 'Hebbal',
+                  results: [{ id: villa.id, tier: 'nearby', distance_km: 2.5 }],
+                },
+              }),
+          } as Response)
+        : defaultFetch!(url)) as typeof fetch);
+    onTestFinished(() => {
+      vi.mocked(fetch).mockImplementation(defaultFetch!);
+    });
+    renderDealFloor();
+    pick('Locality', 'a place not listed…');
+    const input = await screen.findByLabelText('Search near a place');
+    fireEvent.change(input, { target: { value: 'Hebbal' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+
+    expect(
+      await screen.findByRole('button', { name: 'Remove Near Hebbal · 5 km' })
+    ).toBeTruthy();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([url]) =>
+          String(url).startsWith('/api/public/properties/near?')
+        )
+    ).toBe(true);
+    expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
+    expect(
+      screen.getByRole('combobox', { name: 'Locality' }).textContent
+    ).toContain('near Hebbal');
+    expect(
+      screen.getByText('No listings in Hebbal, so these are the nearest.')
+    ).toBeTruthy();
   });
 });
