@@ -705,13 +705,11 @@ function ContactCard({ contact }: { contact: Contact }) {
                 label="Share Portal"
                 onPress={() => setPortalInviteOpen(true)}
               />
-              {contact.classification !== 'Agent' ? (
-                <ActionButton
-                  icon="key-outline"
-                  label="Portfolio Invite"
-                  onPress={() => setPortfolioInviteOpen(true)}
-                />
-              ) : null}
+              <ActionButton
+                icon="key-outline"
+                label="Portfolio Invite"
+                onPress={() => setPortfolioInviteOpen(true)}
+              />
               {contact.classification !== 'Agent' ? (
                 <ActionButton
                   icon="paper-plane-outline"
@@ -1038,7 +1036,7 @@ function ContactCard({ contact }: { contact: Contact }) {
           }}
         />
       ) : null}
-      {hasPhone(contact) && contact.classification !== 'Agent' ? (
+      {hasPhone(contact) ? (
         <PortfolioInviteSheet
           visible={portfolioInviteOpen}
           onClose={() => setPortfolioInviteOpen(false)}

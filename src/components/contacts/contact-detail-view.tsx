@@ -1960,17 +1960,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         Share Portal
                       </button>
                     )}
-                    {hasPhone(contact) &&
-                      contact.classification !== 'Agent' && (
-                        <button
-                          onClick={() => setPortfolioInviteOpen(true)}
-                          className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
-                          title="Invite them to sign in to their buyer or owner Portfolio from business or personal WhatsApp"
-                        >
-                          <KeyRound className="size-3 text-emerald-400" />
-                          Portfolio Invite
-                        </button>
-                      )}
+                    {hasPhone(contact) && (
+                      <button
+                        onClick={() => setPortfolioInviteOpen(true)}
+                        className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
+                        title="Invite them to sign in to their buyer or owner Portfolio from business or personal WhatsApp"
+                      >
+                        <KeyRound className="size-3 text-emerald-400" />
+                        Portfolio Invite
+                      </button>
+                    )}
                     <button
                       onClick={() => setScheduleOpen(true)}
                       className="text-primary hover:text-primary-foreground hover:bg-primary/10 border-primary/20 flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5 font-medium transition-all"

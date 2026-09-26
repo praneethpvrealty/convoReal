@@ -2,7 +2,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { Contact } from '@/types';
 import { BRANDING } from '@/config/branding';
-import { resolveConversation } from '@/lib/conversations/resolve';
+import {
+  findConversation,
+  resolveConversation,
+} from '@/lib/conversations/resolve';
 import { accountBrandName } from '@/lib/showcase/account-showcase-url';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
@@ -256,34 +259,28 @@ export async function sendPortfolioInvite(args: {
     };
   }
 
-  const { conversation, error: conversationError } = await resolveConversation<{
-    id: string;
-  }>(db, { accountId, contactId: contact.id, userId, columns: 'id' });
-  if (!conversation) {
-    return {
-      success: false,
-      side,
-      message,
-      url,
-      error: conversationError?.message || 'Could not open the contact thread.',
-    };
-  }
+  const existing = await findConversation<{ id: string }>(db, {
+    accountId,
+    contactId: contact.id,
+    columns: 'id',
+  });
+  const { data: lastCustomer } = existing
+    ? await db
+        .from('messages')
+        .select('created_at')
+        .eq('conversation_id', existing.id)
+        .eq('sender_type', 'customer')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
 
-  const { data: lastCustomer } = await db
-    .from('messages')
-    .select('created_at')
-    .eq('conversation_id', conversation.id)
-    .eq('sender_type', 'customer')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (isWithinCustomerWindow(lastCustomer?.created_at)) {
+  if (existing && isWithinCustomerWindow(lastCustomer?.created_at)) {
     const result = await sendWhatsAppMessageAndPersist({
       accountId,
       userId,
       contactId: contact.id,
-      conversationId: conversation.id,
+      conversationId: existing.id,
       kind: 'text',
       senderType: 'agent',
       text: message,
@@ -316,6 +313,19 @@ export async function sendPortfolioInvite(args: {
       message,
       url,
       error: PORTFOLIO_INVITE_WINDOW_CLOSED_ERROR,
+    };
+  }
+
+  const { conversation, error: conversationError } = await resolveConversation<{
+    id: string;
+  }>(db, { accountId, contactId: contact.id, userId, columns: 'id' });
+  if (!conversation) {
+    return {
+      success: false,
+      side,
+      message,
+      url,
+      error: conversationError?.message || 'Could not open the contact thread.',
     };
   }
 

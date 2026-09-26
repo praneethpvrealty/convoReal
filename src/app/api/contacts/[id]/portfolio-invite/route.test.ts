@@ -44,12 +44,18 @@ function makeDb() {
 
 const sendPortfolioInvite = vi.fn();
 
+let readOnly = false;
+
 vi.mock('@/lib/auth/account', () => ({
   requireRole: async () => ({
     supabase: makeDb(),
     accountId: 'acc-1',
     userId: 'user-1',
   }),
+  requireWriteRole: async () => {
+    if (readOnly) throw new Error('Read-only members cannot make changes.');
+    return { supabase: makeDb(), accountId: 'acc-1', userId: 'user-1' };
+  },
   toErrorResponse: (err: unknown) =>
     Response.json(
       { error: err instanceof Error ? err.message : String(err) },
@@ -96,6 +102,7 @@ beforeEach(() => {
   inserts = [];
   updates = [];
   sendPortfolioInvite.mockReset();
+  readOnly = false;
 });
 
 describe('GET /api/contacts/[id]/portfolio-invite', () => {
@@ -220,6 +227,17 @@ describe('POST /api/contacts/[id]/portfolio-invite', () => {
     const res = await POST(post({ channel: 'personal' }), { params });
     expect(res.status).toBe(409);
     expect(inserts).toHaveLength(0);
+  });
+
+  it('[CTM-011] refuses a read-only member before sending or noting anything', async () => {
+    readOnly = true;
+    queues['contacts'] = [{ data: ownerBuyer }];
+
+    const res = await POST(post({ channel: 'personal' }), { params });
+    expect(res.status).toBe(500);
+    expect(sendPortfolioInvite).not.toHaveBeenCalled();
+    expect(inserts).toHaveLength(0);
+    expect(updates).toHaveLength(0);
   });
 
   it('refuses a contact from another account', async () => {

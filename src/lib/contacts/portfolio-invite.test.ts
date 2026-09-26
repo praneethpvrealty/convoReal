@@ -9,8 +9,12 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
     sendWhatsAppMessageAndPersist(...args),
 }));
 
+const findConversation = vi.fn();
+const resolveConversation = vi.fn();
+
 vi.mock('@/lib/conversations/resolve', () => ({
-  resolveConversation: async () => ({ conversation: { id: 'conv-1' } }),
+  findConversation: (...args: unknown[]) => findConversation(...args),
+  resolveConversation: (...args: unknown[]) => resolveConversation(...args),
 }));
 
 vi.mock('@/lib/whatsapp/template-language', async (importOriginal) => ({
@@ -80,6 +84,10 @@ beforeEach(() => {
   queues = {};
   calls = [];
   sendWhatsAppMessageAndPersist.mockReset();
+  findConversation.mockReset().mockResolvedValue({ id: 'conv-1' });
+  resolveConversation
+    .mockReset()
+    .mockResolvedValue({ conversation: { id: 'conv-1' } });
   vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://www.convoreal.com/');
 });
 
@@ -270,6 +278,22 @@ describe('sendPortfolioInvite', () => {
     expect(result.success).toBe(false);
     expect(result.error).toBe(PORTFOLIO_INVITE_WINDOW_CLOSED_ERROR);
     expect(result.message).toContain('Owner Portfolio');
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('[CTM-011] leaves no empty thread behind when a contact with no conversation cannot be sent to', async () => {
+    findConversation.mockResolvedValue(null);
+    queues['message_templates'] = [{ data: [] }];
+
+    const result = await sendPortfolioInvite({
+      db: makeDb() as never,
+      accountId: 'acc-1',
+      userId: 'user-1',
+      contact: owner,
+    });
+    expect(result.error).toBe(PORTFOLIO_INVITE_WINDOW_CLOSED_ERROR);
+    expect(resolveConversation).not.toHaveBeenCalled();
+    expect(calls.some((call) => call.table === 'messages')).toBe(false);
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
   });
 

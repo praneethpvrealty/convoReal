@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  requireRole,
+  requireWriteRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -68,7 +72,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: contactId } = await params;
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     const limit = await checkRateLimit(
       `contact:portfolio-invite:${ctx.userId}`,
       RATE_LIMITS.adminAction
