@@ -2169,7 +2169,7 @@
         },
         {
           "id": "GVL-021",
-          "rule": "Rates a notification prints in lakhs or crores (\"Rs. in lakhs per acre\", \"ಲಕ್ಷಗಳಲ್ಲಿ\") are stored in full rupees: the reader asks Gemini to mark such a column's unit as lakh/<unit> or crore/<unit> and copy the printed number, and the sanitiser multiplies by 1,00,000 or 1,00,00,000 and stores the plain unit. A rate's size alone never triggers scaling. On a village line that prints land rates followed by a gramathana site rate, the land columns keep their land codes and only the site column is a site rate.",
+          "rule": "Rates a notification prints in lakhs or crores (\"Rs. in lakhs per acre\", \"ಲಕ್ಷಗಳಲ್ಲಿ\") are stored in full rupees: the reader asks Gemini to mark such a column's unit as lakh/<unit> or crore/<unit> and copy the printed number, and the sanitiser multiplies by 1,00,000 or 1,00,00,000 and stores the plain unit. The sanitiser never scales by a rate's size; only the reader decides, and besides a printed lakh or crore header it treats a per-acre land column with no other printed land unit (the lakh is often stated only in the Kannada header) with figures under 1000 as lakhs, because no Karnataka land is valued under 1,000 rupees an acre; it never does so for a column printed per gunta, hectare, sq m or sq ft. On a village line that prints land rates followed by a gramathana site rate, the land columns keep their land codes and only the site column is a site rate.",
           "tests": [
             {
               "file": "src/lib/guidance-value/batch.test.ts",

@@ -68,6 +68,9 @@ describe('rateInstructions', () => {
     const text = rateInstructions(7, 8);
     expect(text).toContain('"lakh/acre"');
     expect(text).toContain('never a site, apartment');
+    expect(text).toContain(
+      'Never do this for a column printed per gunta, hectare, square metre or'
+    );
   });
 
   it('[GVL-020] tells Gemini the unit the notification header states', () => {

@@ -216,9 +216,11 @@ a site rate for gramathana or local-authority sites: give the land columns
 their land codes and only the site column "rs", never a site, apartment
 or commercial code for a land column. Land columns never take the site
 column's unit: write them as their own row with the land unit. Karnataka
-village tables print land in rupees per acre (lakhs of rupees) or in
-lakhs per acre; a land figure under 1000 is lakhs, so write "lakh/acre"
-unless its header prints another land unit.
+village tables print land in rupees per acre or in lakhs per acre, the
+lakh often stated only in the Kannada header; a land figure under 1000 is
+lakhs, so write "lakh/acre" unless its header prints another land unit.
+Never do this for a column printed per gunta, hectare, square metre or
+square foot.
 Tables are often bilingual; transcribe the English names. Skip blank,
 "-", or "NA" cells. Return ONLY valid JSON.`;
 }
