@@ -68,13 +68,21 @@ describe('pricing', () => {
     expect(pricing.inrPerUsd).toBe(90);
     expect(
       estimateCostUsd('gemini-9-flash-lite', 1_000_000, 0, DEFAULT_PRICING)
-    ).toBe(DEFAULT_PRICING.models['gemini-2.5-flash-lite'].input);
+    ).toBe(DEFAULT_PRICING.models['gemini-3.5-flash-lite'].input);
     expect(
       estimateCostUsd('gemini-2.5-flash', 1_000_000, 1_000_000, pricing)
     ).toBe(3);
     expect(
-      estimateCostUsd('gemini-3.8-flash', 1_000_000, 0, DEFAULT_PRICING)
+      estimateCostUsd('gemini-4-flash', 1_000_000, 0, DEFAULT_PRICING)
     ).toBe(DEFAULT_PRICING.models['gemini-3.5-flash'].input);
+    expect(DEFAULT_PRICING.models['gemini-3.8-flash']).toEqual({
+      input: 0.75,
+      output: 3.75,
+    });
+    expect(DEFAULT_PRICING.models['gemini-3.6-flash']).toEqual({
+      input: 0.75,
+      output: 3.75,
+    });
   });
 });
 
@@ -220,7 +228,7 @@ describe('buildKeyDashboard', () => {
       managed: false,
       status: 'unmanaged',
     });
-    expect(byLabel.primary.today.costUsd).toBeCloseTo(0.1 + 0.04);
+    expect(byLabel.primary.today.costUsd).toBeCloseTo(0.25 + 0.15);
     expect(dashboard.daily.byKey).toHaveLength(30);
     expect(dashboard.daily.byKey.at(-1)).toMatchObject({ day: TODAY });
     expect(dashboard.daily.keyLabels).toEqual(['primary']);

@@ -19,6 +19,11 @@ import {
   type GeminiKeyScope,
 } from '@/lib/ai/gemini-keys';
 import { applyListingDerivations } from '@/lib/ai/listing-derivations';
+import {
+  applyModelLifecycle,
+  cachedModelLifecycle,
+  refreshModelLifecycle,
+} from '@/lib/ai/model-lifecycle';
 
 export { PROPERTY_TYPE_VALUES, normalizePropertyType };
 
@@ -32,25 +37,28 @@ export { PROPERTY_TYPE_VALUES, normalizePropertyType };
 // high-volume tasks (classification, simple text parses) and falls back UP
 // to full Flash on transient errors, so quality is the floor, not the
 // ceiling. Every name live-verified on 2026-09-26; each has its own free-tier
-// quota, so a key over quota on one model still answers on the next. On
-// 2026-09-26 Google stopped serving gemini-2.5-flash to the managed key ("no
-// longer available to new users"), as it had earlier retired gemini-1.5-flash
-// and gated off gemini-2.5-flash-lite; a dead fallback fails exactly when the
-// primary is down.
+// quota, so a key over quota on one model still answers on the next. Full
+// Flash leads with gemini-3.8-flash, Google's named successor and half the
+// price of gemini-3.5-flash. On 2026-09-26 Google stopped serving
+// gemini-2.5-flash to the managed key ("no longer available to new users"),
+// as it had earlier retired gemini-1.5-flash and gated off
+// gemini-2.5-flash-lite; a dead fallback fails exactly when the primary is
+// down. These chains are the default: the daily model lifecycle check
+// (model-lifecycle-check.ts) drops a model Google retires and substitutes the
+// successor it names once that successor answers, without a redeploy.
 export type GeminiTier = 'standard' | 'lite';
+const FULL_FLASH = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash'];
 const MODEL_CHAINS: Record<GeminiTier, string[]> = {
-  standard: ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.8-flash'],
-  lite: [
-    'gemini-3.1-flash-lite',
-    'gemini-3.5-flash-lite',
-    'gemini-3.5-flash',
-    'gemini-3.6-flash',
-    'gemini-3.8-flash',
-  ],
+  standard: FULL_FLASH,
+  lite: ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', ...FULL_FLASH],
 };
 
 export function modelChain(tier: GeminiTier): string[] {
-  return MODEL_CHAINS[tier];
+  return applyModelLifecycle(MODEL_CHAINS[tier], cachedModelLifecycle());
+}
+
+export function configuredModels(): string[] {
+  return [...new Set(Object.values(MODEL_CHAINS).flat())];
 }
 
 export interface GeminiCallOpts {
@@ -116,6 +124,7 @@ async function generateContentRaw(
   jsonMode: boolean = false,
   opts: GeminiCallOpts = {}
 ): Promise<string> {
+  await refreshModelLifecycle();
   return withGeminiKeys(
     { scope: opts.keyScope, override: opts.apiKey },
     (entry) =>
@@ -139,7 +148,7 @@ async function generateContentWithKey(
   const apiKey = entry.key;
 
   const tier: GeminiTier = opts.tier ?? 'standard';
-  const models = usableModels(entry, MODEL_CHAINS[tier]);
+  const models = usableModels(entry, modelChain(tier));
 
   // Telemetry inputs (see ai_call_log, migration 123). Media parts are
   // counted as a flag only — never previewed or sized.
@@ -396,7 +405,8 @@ export async function embedText(text: string): Promise<number[]> {
 }
 
 export async function probeGeminiKey(apiKey: string): Promise<void> {
-  const model = MODEL_CHAINS.lite[0];
+  await refreshModelLifecycle();
+  const model = modelChain('lite')[0];
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const response = await fetch(url, {
     method: 'POST',

@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { logAiCall } from '@/lib/ai/call-log';
 import { modelChain, OUTPUT_CUT_OFF } from '@/lib/ai/gemini';
+import { refreshModelLifecycle } from '@/lib/ai/model-lifecycle';
 import {
   classifyGeminiKeyFailure,
   isRetiredModelMessage,
@@ -413,6 +414,7 @@ async function skipWithoutBatch(
 async function createRemoteBatch(
   requests: Record<string, unknown>[]
 ): Promise<{ name: string; model: string; key: GeminiKey }> {
+  await refreshModelLifecycle();
   return withGeminiKeys({ scope: 'import' }, async (key) => {
     let lastError: Error | null = null;
     for (const model of usableModels(key, modelChain(rateParseTier()))) {

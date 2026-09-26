@@ -2358,11 +2358,21 @@
         },
         {
           "id": "AIK-007",
-          "rule": "A model Google has retired for a key (\"no longer available to new users\", not found, or not supported for generateContent) never ends a call: the call moves to the next model in its tier's chain, and that key skips the model for the rest of the process while other keys keep it. The lite chain runs gemini-3.1-flash-lite, gemini-3.5-flash-lite, gemini-3.5-flash, gemini-3.6-flash, gemini-3.8-flash and the standard chain gemini-3.5-flash, gemini-3.6-flash, gemini-3.8-flash, and neither chain carries gemini-2.5-flash, which Google stopped serving to the managed key on 2026-09-26; each model carries its own quota, so a key over quota or retired on one model still answers on the next. When every model in a chain is retired for a key, the call moves on to the next ready key without resting this one, and later calls try the full chain again rather than none.",
+          "rule": "A model Google has retired for a key (\"no longer available to new users\", not found, or not supported for generateContent) never ends a call: the call moves to the next model in its tier's chain, and that key skips the model for the rest of the process while other keys keep it. By default the lite chain runs gemini-3.1-flash-lite, gemini-3.5-flash-lite, gemini-3.8-flash, gemini-3.6-flash, gemini-3.5-flash and the standard chain gemini-3.8-flash, gemini-3.6-flash, gemini-3.5-flash, and neither chain carries gemini-2.5-flash, which Google stopped serving to the managed key on 2026-09-26; each model carries its own quota, so a key over quota or retired on one model still answers on the next. When every model in a chain is retired for a key, the call moves on to the next ready key without resting this one, and later calls try the full chain again rather than none.",
           "tests": [
             {
               "file": "src/lib/ai/gemini-keys.test.ts",
               "case": "[AIK-007]"
+            }
+          ]
+        },
+        {
+          "id": "AIK-008",
+          "rule": "A daily cron (/api/cron/gemini-model-lifecycle) probes every model in the default chains, plus every successor already adopted, with one tiny call on each ready key. A model is recorded retired in system_settings.ai_model_lifecycle only when at least one key reports it retired and no key can still call it; the successor Google names in the error is adopted only after it answers, and a non-text successor (tts, image, embedding, audio, live) is never adopted. Every Gemini call and the guidance value batch read that record (cached a minute), swap each retired model for its adopted successor, following successors onward, drop one with none, and never empty a chain. A probe that is neither success nor retirement (quota, billing, network) leaves the record unchanged, a retired model that answers again is restored, and with no ready key the check writes nothing. Each new retirement, changed successor or restoration notifies every super_admin (ai_key_alert); an unchanged record never re-alerts. Admin tooling — no mobile counterpart.",
+          "tests": [
+            {
+              "file": "src/lib/ai/model-lifecycle.test.ts",
+              "case": "[AIK-008]"
             }
           ]
         }
