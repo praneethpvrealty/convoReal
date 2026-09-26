@@ -1,14 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+import { ArrowRight, MapPin, MessageCircle, Play, Search } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
-  ArrowRight,
-  ChevronDown,
-  MapPin,
-  MessageCircle,
-  Play,
-  Search,
-} from 'lucide-react';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { Property } from '@/types';
 import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 import { storagePublicUrl } from '@/lib/storage/url';
@@ -22,6 +23,7 @@ import {
 
 interface DealFloorHeroProps {
   siteName: string;
+  fontClassName?: string;
   total: number;
   kinds: DealFloorKindCount[];
   selectedType: string;
@@ -36,33 +38,55 @@ interface DealFloorHeroProps {
   onPlay: () => void;
 }
 
+const ANY = '__any__';
+
 function Blank({
   label,
   value,
+  options,
   onChange,
-  children,
+  fontClassName,
 }: {
   label: string;
   value: string;
+  options: Array<{ value: string; label: string }>;
   onChange: (value: string) => void;
-  children: React.ReactNode;
+  fontClassName?: string;
 }) {
   return (
-    <span className="df-blank">
-      <select
-        aria-label={label}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+    <Select
+      value={value || ANY}
+      onValueChange={(next) => onChange(next === ANY ? '' : String(next))}
+      items={options.map((option) => ({
+        value: option.value || ANY,
+        label: option.label,
+      }))}
+    >
+      <SelectTrigger aria-label={label} className="df-blank">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent
+        className={cn('df-blank-menu', fontClassName)}
+        alignItemWithTrigger={false}
+        align="start"
       >
-        {children}
-      </select>
-      <ChevronDown className="size-5" aria-hidden="true" />
-    </span>
+        {options.map((option) => (
+          <SelectItem
+            key={option.value || ANY}
+            value={option.value || ANY}
+            className="df-blank-item"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
 export function DealFloorHero({
   siteName,
+  fontClassName,
   total,
   kinds,
   selectedType,
@@ -86,39 +110,46 @@ export function DealFloorHero({
       </span>
       <h1 className="df-serif df-hero-title">
         Show me{' '}
-        <Blank label="Property kind" value={typeValue} onChange={onTypeChange}>
-          <option value="All">any property</option>
-          {kinds.map((kind) => (
-            <option key={kind.key} value={kind.key}>
-              {kind.label.toLocaleLowerCase()}
-            </option>
-          ))}
-        </Blank>{' '}
+        <Blank
+          label="Property kind"
+          value={typeValue === 'All' ? '' : typeValue}
+          options={[
+            { value: '', label: 'any property' },
+            ...kinds.map((kind) => ({
+              value: kind.key,
+              label: kind.label.toLocaleLowerCase(),
+            })),
+          ]}
+          onChange={(value) => onTypeChange(value || 'All')}
+          fontClassName={fontClassName}
+        />{' '}
         in{' '}
         <Blank
           label="Locality"
           value={selectedLocation ?? ''}
+          options={[
+            { value: '', label: 'any locality' },
+            ...locations.map((location) => ({
+              value: location,
+              label: location,
+            })),
+          ]}
           onChange={(value) => onLocationChange(value || null)}
-        >
-          <option value="">any locality</option>
-          {locations.map((location) => (
-            <option key={location} value={location}>
-              {location}
-            </option>
-          ))}
-        </Blank>{' '}
+          fontClassName={fontClassName}
+        />{' '}
         <Blank
           label="Budget"
           value={maxBudget === null ? '' : String(maxBudget)}
+          options={[
+            { value: '', label: 'at any budget' },
+            ...DEAL_FLOOR_BUDGETS.map((budget) => ({
+              value: String(budget.max),
+              label: budget.label,
+            })),
+          ]}
           onChange={(value) => onBudgetChange(value ? Number(value) : null)}
-        >
-          <option value="">at any budget</option>
-          {DEAL_FLOOR_BUDGETS.map((budget) => (
-            <option key={budget.max} value={budget.max}>
-              {budget.label}
-            </option>
-          ))}
-        </Blank>
+          fontClassName={fontClassName}
+        />
       </h1>
       <div className="df-hero-actions">
         <button type="button" className="df-btn-accent" onClick={onSeeMatches}>

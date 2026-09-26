@@ -475,17 +475,14 @@
   text-wrap: balance;
 }
 [data-showcase-design='deal-floor'] .df-blank {
-  position: relative;
   display: inline-flex;
   align-items: center;
+  gap: 0.35em;
   vertical-align: baseline;
-  margin: 0.15em 0;
-}
-[data-showcase-design='deal-floor'] .df-blank select {
-  appearance: none;
-  -webkit-appearance: none;
+  height: auto;
   max-width: 14em;
-  padding: 0 1.9em 0.08em 0.6em;
+  margin: 0.15em 0;
+  padding: 0 0.6em 0.08em 0.6em;
   border-radius: 999px;
   border: 2px dashed var(--primary);
   background: rgb(255 176 32 / 0.08);
@@ -494,27 +491,54 @@
   font-style: italic;
   line-height: 1.15;
   cursor: pointer;
-  text-overflow: ellipsis;
+  transition: background-color 0.2s ease;
 }
-[data-showcase-design='deal-floor'] .df-blank select:hover {
+[data-showcase-design='deal-floor'] .df-blank:hover {
   background: rgb(255 176 32 / 0.16);
 }
-[data-showcase-design='deal-floor'] .df-blank select:focus-visible {
+[data-showcase-design='deal-floor'] .df-blank:focus-visible {
   outline: 3px solid var(--showcase-ink);
   outline-offset: 2px;
+  border-color: var(--primary);
+  box-shadow: none;
 }
-[data-showcase-design='deal-floor'] .df-blank select option {
-  font-style: normal;
-  font-size: 1rem;
-  font-family: var(--df-body);
-  color: var(--showcase-ink);
-  background: var(--showcase-panel);
+[data-showcase-design='deal-floor'] .df-blank [data-slot='select-value'] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 [data-showcase-design='deal-floor'] .df-blank svg {
-  position: absolute;
-  right: 0.55em;
-  pointer-events: none;
+  width: 0.5em;
+  height: 0.5em;
   color: var(--primary);
+}
+.df-blank-menu {
+  min-width: 14rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  padding: 0.35rem;
+  border-radius: 1rem;
+  background: #1d1a16;
+  color: #f4efe6;
+  font-family: var(--font-deal-floor-body, system-ui, sans-serif);
+  font-size: 1rem;
+  box-shadow: 0 24px 48px rgb(0 0 0 / 0.5);
+  --tw-ring-color: #3a342c;
+}
+.df-blank-menu .df-blank-item {
+  min-height: 2.75rem;
+  padding: 0.5rem 2.25rem 0.5rem 0.9rem;
+  border-radius: 0.7rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.df-blank-menu .df-blank-item:focus,
+.df-blank-menu .df-blank-item[data-highlighted] {
+  background: rgb(255 176 32 / 0.16);
+  color: #f4efe6;
+}
+.df-blank-menu .df-blank-item[data-selected] {
+  color: #ffb020;
 }
 [data-showcase-design='deal-floor'] .df-hero-actions {
   display: flex;
@@ -1227,7 +1251,7 @@
   [data-showcase-design='deal-floor'] .df-kind {
     flex: 0 0 7.5rem;
   }
-  [data-showcase-design='deal-floor'] .df-blank select {
+  [data-showcase-design='deal-floor'] .df-blank {
     max-width: 11em;
   }
 }

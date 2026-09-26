@@ -1696,6 +1696,7 @@ export function ShowcaseView({
         {dealFloor && !hero ? (
           <DealFloorHero
             siteName={siteName}
+            fontClassName={designFontClassName}
             total={properties.length}
             kinds={dealFloorKinds}
             selectedType={selectedType}
