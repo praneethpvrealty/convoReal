@@ -37,6 +37,7 @@ import {
   nextPulseFeedCursor,
   type PulseFeedCursor,
 } from '@/lib/pulse/feed-page';
+import { pulseVisitorLabel } from '@/lib/pulse/visitor-label';
 import { visitorContactHref } from '@/lib/pulse/visitor-link';
 import {
   dedupeConsecutiveEvents,
@@ -228,11 +229,7 @@ export default function PulsePage() {
   };
 
   const getVisitorName = (event: HydratedShowcaseEvent) =>
-    event.contact
-      ? event.contact.name || event.contact.phone
-      : event.share
-        ? `Guest via link shared ${formatTimeAgo(event.share.created_at)} · ${event.session_key.slice(0, 8)}`
-        : `Anonymous Guest · ${event.session_key.slice(0, 8)}`;
+    pulseVisitorLabel(event, formatTimeAgo);
 
   const toggleVisitor = (visitorId: string) => {
     setExpandedVisitors((current) => {

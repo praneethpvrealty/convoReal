@@ -9,6 +9,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { findOrCreateContact } from '@/lib/contacts/find-or-create';
+import { attachIdentifiedSession } from '@/lib/pulse/visitor-identity';
 
 export interface VisitorLeadInput {
   accountId: string;
@@ -74,23 +75,12 @@ export async function captureVisitorLead(
       note_text: input.note,
     });
 
-    // The visitor just revealed who they are, so their earlier
-    // "Anonymous Guest" Pulse events from this browser session can show
-    // up under their name too. Only unattributed rows are touched — a
-    // session already tied to another contact is never rewritten.
     if (input.sessionKey) {
-      const { error: stitchError } = await db
-        .from('showcase_events')
-        .update({ contact_id: contactId })
-        .eq('account_id', input.accountId)
-        .eq('session_key', input.sessionKey)
-        .is('contact_id', null);
-      if (stitchError) {
-        console.error(
-          '[captureVisitorLead] Pulse session stitch failed (non-fatal):',
-          stitchError
-        );
-      }
+      await attachIdentifiedSession(
+        db,
+        { accountId: input.accountId, contactId, sessionKey: input.sessionKey },
+        '[captureVisitorLead]'
+      );
     }
 
     return contactId;

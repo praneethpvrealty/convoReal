@@ -15,6 +15,9 @@ interface QueuedResponse {
 
 let queues: Record<string, QueuedResponse[]>;
 let inserts: Array<{ table: string; rows: unknown }>;
+let updates: Array<{ table: string; values: unknown }>;
+let rpcs: Array<{ fn: string; args: Record<string, unknown> }>;
+let identity: QueuedResponse;
 
 const { getCurrentAccount } = vi.hoisted(() => ({
   getCurrentAccount: vi.fn(),
@@ -24,6 +27,13 @@ vi.mock('@/lib/auth/account', () => ({ getCurrentAccount }));
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
+    rpc(fn: string, args: Record<string, unknown>) {
+      rpcs.push({ fn, args });
+      return Promise.resolve({
+        data: identity.data,
+        error: identity.error ?? null,
+      });
+    },
     from(table: string) {
       const response = (queues[table] ?? []).shift() ?? {
         data: null,
@@ -33,7 +43,10 @@ vi.mock('@supabase/supabase-js', () => ({
         select: () => builder,
         eq: () => builder,
         is: () => builder,
-        update: () => builder,
+        update: (values: unknown) => {
+          updates.push({ table, values });
+          return builder;
+        },
         insert: (rows: unknown) => {
           inserts.push({ table, rows });
           return Promise.resolve({ error: null });
@@ -76,12 +89,16 @@ function beacon(extra: Record<string, unknown> = {}) {
 
 function insertedEvents(): Array<{
   share_id: string | null;
+  contact_id: string | null;
+  via_contact_id: string | null;
   event_type: string;
   metadata: Record<string, unknown>;
 }> {
   const batch = inserts.find((i) => i.table === 'showcase_events');
   return (batch?.rows ?? []) as Array<{
     share_id: string | null;
+    contact_id: string | null;
+    via_contact_id: string | null;
     event_type: string;
     metadata: Record<string, unknown>;
   }>;
@@ -90,6 +107,9 @@ function insertedEvents(): Array<{
 beforeEach(() => {
   queues = { accounts: [{ data: { id: ACCOUNT }, error: null }] };
   inserts = [];
+  updates = [];
+  rpcs = [];
+  identity = { data: [{ contact_id: null, via_contact_id: null }] };
   getCurrentAccount.mockRejectedValue(new Error('Unauthorized'));
 });
 
@@ -183,5 +203,76 @@ describe('showcase-events beacon — share-instance stamping', () => {
     expect(res.status).toBe(204);
     expect(insertedEvents()).toHaveLength(1);
     expect(insertedEvents()[0].share_id).toBeNull();
+  });
+});
+
+describe('showcase-events beacon — personalized link attribution', () => {
+  const CONTACT = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+
+  it('resolves the ref through resolve_showcase_visitor with the session', async () => {
+    identity = { data: [{ contact_id: CONTACT, via_contact_id: null }] };
+
+    await POST(beacon({ ref: CONTACT, session_key: 'sess-first-device' }));
+
+    expect(rpcs).toEqual([
+      {
+        fn: 'resolve_showcase_visitor',
+        args: {
+          p_account_id: ACCOUNT,
+          p_session_key: 'sess-first-device',
+          p_contact_id: CONTACT,
+        },
+      },
+    ]);
+  });
+
+  it('attributes the first device to open the link and stitches its earlier events', async () => {
+    identity = { data: [{ contact_id: CONTACT, via_contact_id: null }] };
+
+    await POST(beacon({ ref: CONTACT }));
+
+    expect(insertedEvents()[0].contact_id).toBe(CONTACT);
+    expect(insertedEvents()[0].via_contact_id).toBeNull();
+    expect(updates).toEqual([
+      { table: 'showcase_events', values: { contact_id: CONTACT } },
+    ]);
+  });
+
+  it('[PLS-003] records a forwarded link as a guest via the contact, never as the contact', async () => {
+    identity = { data: [{ contact_id: null, via_contact_id: CONTACT }] };
+
+    await POST(beacon({ ref: CONTACT }));
+
+    expect(insertedEvents()[0].contact_id).toBeNull();
+    expect(insertedEvents()[0].via_contact_id).toBe(CONTACT);
+    expect(updates).toEqual([]);
+  });
+
+  it('[PLS-003] keeps a known device attributed when it arrives on the bare link', async () => {
+    identity = { data: [{ contact_id: CONTACT, via_contact_id: null }] };
+
+    await POST(beacon());
+
+    expect(rpcs[0].args.p_contact_id).toBeNull();
+    expect(insertedEvents()[0].contact_id).toBe(CONTACT);
+  });
+
+  it('passes a non-UUID ref as no contact', async () => {
+    await POST(beacon({ ref: 'not-a-uuid' }));
+
+    expect(rpcs[0].args.p_contact_id).toBeNull();
+    expect(insertedEvents()[0].contact_id).toBeNull();
+    expect(insertedEvents()[0].via_contact_id).toBeNull();
+  });
+
+  it('still records the events anonymously when identity resolution fails', async () => {
+    identity = { data: null, error: { message: 'boom' } };
+
+    const res = await POST(beacon({ ref: CONTACT }));
+
+    expect(res.status).toBe(204);
+    expect(insertedEvents()).toHaveLength(1);
+    expect(insertedEvents()[0].contact_id).toBeNull();
+    expect(updates).toEqual([]);
   });
 });

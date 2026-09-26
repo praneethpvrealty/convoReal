@@ -10,6 +10,7 @@ export interface PulseEvent extends ShowcaseEvent {
   contact: Pick<Contact, 'id' | 'name' | 'phone' | 'name_tag'> | null;
   property: { id: string; title: string } | null;
   share?: { id: string; created_at: string } | null;
+  via_contact?: Pick<Contact, 'id' | 'name' | 'phone'> | null;
 }
 
 /** A merged run of consecutive, near-identical events. */
@@ -149,4 +150,30 @@ export function visitorContactRoute(
   event: Pick<PulseEvent, 'contact'>
 ): `/(app)/contact/${string}` | null {
   return event.contact ? `/(app)/contact/${event.contact.id}` : null;
+}
+
+/**
+ * Who a feed row belongs to — web parity with
+ * src/lib/pulse/visitor-label.ts. An identified visitor is named; a
+ * guest who arrived on a contact's forwarded link is labelled as coming
+ * via that contact, never as the contact; a guest from a generic share
+ * is dated to the share; everyone else is an anonymous guest.
+ */
+export function pulseVisitorLabel(
+  event: Pick<PulseEvent, 'contact' | 'via_contact' | 'share' | 'session_key'>,
+  timeAgo: (iso: string) => string
+): string {
+  if (event.contact) {
+    return event.contact.name || event.contact.phone || 'Contact';
+  }
+  const tail = event.session_key.slice(0, 8);
+  if (event.via_contact) {
+    const sender =
+      event.via_contact.name || event.via_contact.phone || 'a contact';
+    return `Guest via ${sender}'s link · ${tail}`;
+  }
+  if (event.share) {
+    return `Guest · link shared ${timeAgo(event.share.created_at)} · ${tail}`;
+  }
+  return `Anonymous guest · ${tail}`;
 }

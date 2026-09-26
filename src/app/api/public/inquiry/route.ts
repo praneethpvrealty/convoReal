@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
 import { findOrCreateContact } from "@/lib/contacts/find-or-create";
+import { attachIdentifiedSession } from "@/lib/pulse/visitor-identity";
 import { MAX_SHORTLIST_PROPERTIES, parseInquiryPropertyIds } from "@/lib/showcase/shortlist";
 
 const INQUIRY_SESSION_LIMIT = { limit: 5, windowMs: 60_000 };
@@ -185,20 +186,10 @@ export async function POST(request: Request) {
     // Retroactive stitching: this visitor just revealed who they are, so
     // their earlier "Anonymous Guest" Pulse events from the same browser
     // session (tracked via the same showcase_session_key in localStorage)
-    // can now show up under their name too. Same pattern as the ref/v=
-    // stitching in /api/public/showcase-events. Only null rows are
-    // touched — a session already attributed to another contact is never
-    // rewritten.
+    // can now show up under their name, and this browser becomes one of
+    // their known devices for later visits.
     if (typeof sessionKey === "string" && sessionKey.trim()) {
-      const { error: stitchError } = await admin
-        .from("showcase_events")
-        .update({ contact_id: contactId })
-        .eq("account_id", accountId)
-        .eq("session_key", sessionKey.trim().slice(0, 64))
-        .is("contact_id", null);
-      if (stitchError) {
-        console.error("[POST /api/public/inquiry] Pulse session stitch failed (non-fatal):", stitchError);
-      }
+      await attachIdentifiedSession(admin, { accountId, contactId, sessionKey }, "[POST /api/public/inquiry]");
     }
 
     // 3. Add inquiry details as a contact note
