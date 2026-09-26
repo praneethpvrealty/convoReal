@@ -35,8 +35,8 @@ interface PropertyViewersDialogProps {
 
 // Lists the identified viewers of a single property — the ones whose
 // showcase views tied to a contact (a personalized ?v= tracked link, or a
-// later self-identification). Anonymous / forwarded views carry no
-// identity and can't appear here.
+// later self-identification). Anonymous views and views on a forwarded
+// link carry no identity of their own and can't appear here.
 export function PropertyViewersDialog({
   propertyId,
   propertyTitle,
@@ -140,7 +140,8 @@ export function PropertyViewersDialog({
             <p className="text-sm font-semibold text-slate-300">No identified viewers yet</p>
             <p className="mt-1 text-xs text-slate-500">
               Views tie to a contact only when you share a personalized tracked link (Send personally)
-              or the visitor submits an inquiry. Anonymous and forwarded views cannot be attributed.
+              or the visitor submits an inquiry. A forwarded link shows in the activity feed as a
+              guest via the sender&apos;s link until that visitor identifies themselves.
             </p>
           </div>
         ) : (
@@ -172,8 +173,8 @@ export function PropertyViewersDialog({
               ))}
             </div>
             <p className="text-[11px] text-slate-500">
-              Only viewers who opened a tracked link or identified themselves appear here. Anonymous
-              and forwarded views are not attributable.
+              Only viewers who opened their own tracked link or identified themselves appear here.
+              Anonymous views and views on a forwarded link are not attributed.
             </p>
           </>
         )}

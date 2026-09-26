@@ -412,6 +412,7 @@ export interface ShowcaseEvent {
   property_id: string | null;
   session_key: string;
   share_id?: string | null;
+  via_contact_id?: string | null;
   event_type: ShowcaseEventType;
   metadata: { duration_ms?: number; query?: string } & Record<string, unknown>;
   created_at: string;

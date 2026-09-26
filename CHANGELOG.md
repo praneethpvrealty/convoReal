@@ -33,6 +33,18 @@ than a written entry. Newest first.
   instead of a grey "No Photos Available" box. **Migration required:**
   `20260926120000_deal_floor_showcase_design.sql` admits the new value in
   both showcase-style checks.
+- **A forwarded showcase link no longer shows up in Pulse as the person you
+  sent it to.** A personalized link (`?v=`) now belongs to the first browser
+  that opens it. Any other device opening the same link is recorded as
+  "Guest via Ravi's link" on web and mobile — a guest referred by that
+  contact, never the contact — until the visitor identifies themselves by
+  sending an inquiry or a phone number in Ask chat, at which point their
+  session is stitched to the real contact and their browser becomes one of
+  that contact's known devices. A known device is also attributed on later
+  visits even when it arrives on the bare link. Contacts already seen in
+  Pulse keep the device they were first seen on. **Migration required:**
+  `20260926130000_showcase_visitor_devices.sql` (new table, new
+  `showcase_events.via_contact_id`, new function, backfill).
 - **Every property share now lands on the buyer's journey.** For six
   weeks nearly every share reached the share ledger and never the journey:
   the browser wrote the two as separate requests behind only the share

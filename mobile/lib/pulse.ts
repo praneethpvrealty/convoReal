@@ -117,9 +117,10 @@ async function fetchPulseFeedUnbounded(
   let query = supabase
     .from('showcase_events')
     .select(
-      'id, contact_id, property_id, session_key, share_id, event_type, metadata, created_at, ' +
-        'contact:contacts(id, name, phone, name_tag), property:properties(id, title), ' +
-        'share:showcase_share_links(id, created_at)'
+      'id, contact_id, via_contact_id, property_id, session_key, share_id, event_type, metadata, created_at, ' +
+        'contact:contacts!showcase_events_contact_id_fkey(id, name, phone, name_tag), ' +
+        'via_contact:contacts!showcase_events_via_contact_id_fkey(id, name, phone), ' +
+        'property:properties(id, title), share:showcase_share_links(id, created_at)'
     );
   if (cursor) query = query.or(pulseFeedCursorFilter(cursor));
   const { data, error } = await query
@@ -128,8 +129,9 @@ async function fetchPulseFeedUnbounded(
     .limit(PULSE_FEED_PAGE_SIZE);
   if (error) throw error;
 
-  type Row = Omit<PulseEvent, 'contact' | 'property' | 'share'> & {
+  type Row = Omit<PulseEvent, 'contact' | 'via_contact' | 'property' | 'share'> & {
     contact: PulseEvent['contact'] | PulseEvent['contact'][] | null;
+    via_contact: PulseEvent['via_contact'] | PulseEvent['via_contact'][] | null;
     property: PulseEvent['property'] | PulseEvent['property'][] | null;
     share: PulseEvent['share'] | PulseEvent['share'][] | null;
   };
@@ -137,6 +139,7 @@ async function fetchPulseFeedUnbounded(
   return ((data ?? []) as unknown as Row[]).map((row) => ({
     ...row,
     contact: one(row.contact),
+    via_contact: one(row.via_contact),
     property: one(row.property),
     share: one(row.share),
   }));
