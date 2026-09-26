@@ -64,6 +64,7 @@ describe('[JRN-009] logPropertyShare', () => {
           recipient_kind: 'buyer',
           channel: 'whatsapp',
           created_by: 'user-1',
+          journey_visible: false,
         },
       },
     ]);
@@ -87,6 +88,7 @@ describe('[JRN-009] logPropertyShare', () => {
     expect(upserts[0].row).toMatchObject({
       recipient_kind: 'agent',
       channel: 'email',
+      journey_visible: true,
     });
     expect(captures[0]).toMatchObject({ hidden: false });
   });
@@ -111,8 +113,16 @@ describe('[JRN-009] logListingsSent', () => {
     ]);
 
     expect(upserts[0].row).toEqual([
-      expect.objectContaining({ property_id: 'p-1', created_by: null }),
-      expect.objectContaining({ property_id: 'p-2', created_by: null }),
+      expect.objectContaining({
+        property_id: 'p-1',
+        created_by: null,
+        journey_visible: false,
+      }),
+      expect.objectContaining({
+        property_id: 'p-2',
+        created_by: null,
+        journey_visible: false,
+      }),
     ]);
     expect(captures).toEqual([
       {
