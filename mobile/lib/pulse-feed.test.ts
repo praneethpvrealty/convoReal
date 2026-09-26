@@ -6,6 +6,7 @@ import {
   nextPulseFeedCursor,
   PULSE_FEED_PAGE_SIZE,
   pulseFeedCursorFilter,
+  visitorContactRoute,
   type PulseEvent,
 } from './pulse-feed';
 
@@ -238,5 +239,19 @@ describe('[PLS-001] pulse feed paging', () => {
     ).toBe(
       'created_at.lt.2026-09-25T10:00:00+00:00,and(created_at.eq.2026-09-25T10:00:00+00:00,id.lt.b7)'
     );
+  });
+});
+
+describe('[PLS-002] visitor contact link', () => {
+  it('opens the identified visitor’s contact screen', () => {
+    expect(
+      visitorContactRoute({
+        contact: { id: 'c-42', name: 'Pramod', phone: null, name_tag: null },
+      })
+    ).toBe('/(app)/contact/c-42');
+  });
+
+  it('gives an anonymous guest no link', () => {
+    expect(visitorContactRoute({ contact: null })).toBeNull();
   });
 });

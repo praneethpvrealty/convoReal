@@ -2527,6 +2527,17 @@
             { "file": "mobile/lib/pulse-feed.test.ts", "case": "[PLS-001]" },
             { "file": "src/lib/mobile-parity.test.ts", "case": "[PLS-001]" }
           ]
+        },
+        {
+          "id": "PLS-002",
+          "rule": "Tapping an identified visitor in the activity feed opens that contact's details — the contact screen on mobile, the contact page from the visitor's name on web (the web avatar still opens their chat) — and an anonymous guest has no link.",
+          "tests": [
+            {
+              "file": "src/lib/pulse/visitor-link.test.ts",
+              "case": "[PLS-002]"
+            },
+            { "file": "mobile/lib/pulse-feed.test.ts", "case": "[PLS-002]" }
+          ]
         }
       ]
     },

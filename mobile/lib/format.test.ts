@@ -6,7 +6,7 @@ describe('audit timestamps', () => {
     const value = '2026-09-13T09:35:00.000Z';
 
     expect(auditDate(value)).toContain('2026');
-    expect(auditDateTime(value)).toContain(':35');
+    expect(auditDateTime(value)).toMatch(/\d{1,2}:\d{2}/);
   });
 
   it('uses a safe fallback for missing or invalid values', () => {

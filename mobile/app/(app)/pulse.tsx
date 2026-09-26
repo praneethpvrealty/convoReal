@@ -39,6 +39,7 @@ import {
   formatTimeAgo,
   groupEventsByVisitor,
   nextPulseFeedCursor,
+  visitorContactRoute,
   type DedupedPulseEvent,
   type PulseFeedCursor,
   type VisitorActivityGroup,
@@ -461,6 +462,7 @@ function VisitorActivityCard({
       ? `Guest · link shared ${formatTimeAgo(event.share.created_at)} · ${event.session_key.slice(0, 8)}`
       : `Anonymous guest · ${event.session_key.slice(0, 8)}`);
   const hasEarlierActivity = visitor.events.length > 1;
+  const contactRoute = visitorContactRoute(event);
 
   return (
     <View
@@ -470,7 +472,13 @@ function VisitorActivityCard({
       ]}
     >
       <View style={styles.visitorSummary}>
-        <Avatar name={who} size={38} />
+        <Pressable
+          onPress={contactRoute ? () => router.push(contactRoute) : undefined}
+          disabled={!contactRoute}
+          accessible={false}
+        >
+          <Avatar name={who} size={38} />
+        </Pressable>
         <View style={{ flex: 1, gap: 4 }}>
           <View style={styles.eventHead}>
             <Text
@@ -481,6 +489,11 @@ function VisitorActivityCard({
                 flex: 1,
               }}
               numberOfLines={1}
+              onPress={
+                contactRoute ? () => router.push(contactRoute) : undefined
+              }
+              accessibilityRole={contactRoute ? 'link' : undefined}
+              accessibilityLabel={contactRoute ? `Open ${who}` : undefined}
             >
               {who}
             </Text>
