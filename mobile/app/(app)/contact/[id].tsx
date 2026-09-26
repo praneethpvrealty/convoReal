@@ -34,6 +34,7 @@ import { ConvoRealLoader } from '@/components/loader';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
 import { PortalInviteSheet } from '@/components/portal-invite-sheet';
+import { PortfolioInviteSheet } from '@/components/portfolio-invite-sheet';
 import { ContactRequirementsSheet } from '@/components/contact-requirements-sheet';
 import { ContactMergeSheet } from '@/components/contact-merge-sheet';
 import { ShowcaseShareSheet } from '@/components/showcase-share-sheet';
@@ -321,6 +322,7 @@ function ContactCard({ contact }: { contact: Contact }) {
   const [shareListingsOpen, setShareListingsOpen] = useState(false);
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
   const [portalInviteOpen, setPortalInviteOpen] = useState(false);
+  const [portfolioInviteOpen, setPortfolioInviteOpen] = useState(false);
   const [requirementsOpen, setRequirementsOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
@@ -703,6 +705,11 @@ function ContactCard({ contact }: { contact: Contact }) {
                 label="Share Portal"
                 onPress={() => setPortalInviteOpen(true)}
               />
+              <ActionButton
+                icon="key-outline"
+                label="Portfolio Invite"
+                onPress={() => setPortfolioInviteOpen(true)}
+              />
               {contact.classification !== 'Agent' ? (
                 <ActionButton
                   icon="paper-plane-outline"
@@ -1018,6 +1025,21 @@ function ContactCard({ contact }: { contact: Contact }) {
         <PortalInviteSheet
           visible={portalInviteOpen}
           onClose={() => setPortalInviteOpen(false)}
+          contact={contact}
+          onSent={() => {
+            void queryClient.invalidateQueries({
+              queryKey: ['contact', contact.id],
+            });
+            void queryClient.invalidateQueries({
+              queryKey: ['contact-notes', contact.id],
+            });
+          }}
+        />
+      ) : null}
+      {hasPhone(contact) ? (
+        <PortfolioInviteSheet
+          visible={portfolioInviteOpen}
+          onClose={() => setPortfolioInviteOpen(false)}
           contact={contact}
           onSent={() => {
             void queryClient.invalidateQueries({

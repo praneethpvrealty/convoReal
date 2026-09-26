@@ -27,6 +27,7 @@ describe('missingEngineTemplates', () => {
       'post_call_options',
       'property_share_feedback',
       'contact_number_update',
+      'portfolio_access_notice',
     ]);
   });
 

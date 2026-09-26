@@ -484,6 +484,28 @@ describe('the portal link invite is one server draft on both surfaces', () => {
     }
   });
 
+  it('[CTM-011] sends the buyer or owner Portfolio invite from the same route on web and mobile', () => {
+    const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
+    const mobileSheet = mobileSource('components/portfolio-invite-sheet.tsx');
+    const webContact = webSource('components/contacts/contact-detail-view.tsx');
+    const webDialog = webSource(
+      'components/contacts/portfolio-invite-dialog.tsx'
+    );
+
+    expect(mobileContact).toContain('label="Portfolio Invite"');
+    expect(mobileContact).toContain('<PortfolioInviteSheet');
+    expect(webContact).toContain('Portfolio Invite');
+    expect(webContact).toContain('<PortfolioInviteDialog');
+    for (const source of [mobileSheet, webDialog]) {
+      expect(source).toContain('/portfolio-invite`');
+      expect(source).toContain("channel: 'business', side");
+      expect(source).toContain("channel: 'personal', side");
+      expect(source).toContain('https://wa.me/${digits}?text=');
+      expect(source).toContain('Owner Portfolio');
+      expect(source).toContain('Buyer Portfolio');
+    }
+  });
+
   it('[CTM-004] shares hand-picked listings with a buyer from the contact record and saves them to their Portfolio', () => {
     const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
     const mobileSheet = mobileSource('components/showcase-share-sheet.tsx');
