@@ -35,6 +35,10 @@ import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
 import { findDuplicate, type ExistingRow } from '@/lib/calendar/event-dedupe';
 import { createNotification } from '@/lib/notifications/create';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
+import {
+  recordSiteVisitBooked,
+  recordVisitRequestOnJourney,
+} from '@/lib/journey/visit-capture';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { buildCallUpdateParams } from '@/lib/whatsapp/call-update-template';
 import { CALL_UPDATE_TEMPLATE_NAME } from '@/lib/whatsapp/call-update-template';
@@ -2122,6 +2126,21 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
       contextText: text,
       replaceWamid: pending?.waMessageId,
     });
+    // The words are the buyer's answer on this listing: they go on the
+    // journey now, since the check-in handler never sees a message the
+    // scheduler consumed.
+    try {
+      await recordVisitRequestOnJourney({
+        db: admin,
+        accountId,
+        userId: agentUserId,
+        contactId: contactRecord.id,
+        propertyId: selectedProperty.id,
+        text,
+      });
+    } catch (err) {
+      console.error('[wa-scheduler] journey visit capture failed:', err);
+    }
     return true;
   }
 
@@ -2199,6 +2218,20 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
     waMessageId: pending?.waMessageId,
     client: admin,
   });
+
+  // A visit on the calendar is the branch reaching Site Visit Scheduled.
+  // A reply that only supplied the time was already logged when the
+  // day arrived, so only a self-contained booking adds its words.
+  if (property && eventType === 'site_visit') {
+    await recordSiteVisitBooked({
+      db: admin,
+      accountId,
+      userId: agentUserId,
+      contactId: contactRecord.id,
+      propertyId: property.id,
+      text: pending ? '' : text,
+    });
+  }
 
   const whenLabel = new Date(startIso).toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
