@@ -37,6 +37,7 @@ import {
   nextPulseFeedCursor,
   type PulseFeedCursor,
 } from '@/lib/pulse/feed-page';
+import { visitorContactHref } from '@/lib/pulse/visitor-link';
 import {
   dedupeConsecutiveEvents,
   groupEventsByVisitor,
@@ -449,6 +450,7 @@ export default function PulsePage() {
                           .toUpperCase()
                       : '?';
                     const isExpanded = expandedVisitors.has(visitor.id);
+                    const contactHref = visitorContactHref(evt);
                     const hasEarlierActivity = visitor.events.length > 1;
 
                     return (
@@ -475,7 +477,17 @@ export default function PulsePage() {
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <p className="truncate text-xs font-black text-white">
-                                  {getVisitorName(evt)}
+                                  {contactHref ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => router.push(contactHref)}
+                                      className="hover:text-primary cursor-pointer hover:underline"
+                                    >
+                                      {getVisitorName(evt)}
+                                    </button>
+                                  ) : (
+                                    getVisitorName(evt)
+                                  )}
                                   <NameTagBadge tag={evt.contact?.name_tag} />
                                 </p>
                                 <div className="mt-1 flex items-start gap-1.5 text-[11px] leading-relaxed font-medium text-slate-400">

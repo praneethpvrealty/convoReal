@@ -39,6 +39,7 @@ import {
   formatTimeAgo,
   groupEventsByVisitor,
   nextPulseFeedCursor,
+  visitorContactRoute,
   type DedupedPulseEvent,
   type PulseFeedCursor,
   type VisitorActivityGroup,
@@ -461,6 +462,7 @@ function VisitorActivityCard({
       ? `Guest · link shared ${formatTimeAgo(event.share.created_at)} · ${event.session_key.slice(0, 8)}`
       : `Anonymous guest · ${event.session_key.slice(0, 8)}`);
   const hasEarlierActivity = visitor.events.length > 1;
+  const contactRoute = visitorContactRoute(event);
 
   return (
     <View
@@ -469,7 +471,13 @@ function VisitorActivityCard({
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ]}
     >
-      <View style={styles.visitorSummary}>
+      <Pressable
+        onPress={contactRoute ? () => router.push(contactRoute) : undefined}
+        disabled={!contactRoute}
+        accessibilityRole={contactRoute ? 'link' : undefined}
+        accessibilityLabel={contactRoute ? `Open ${who}` : undefined}
+        style={styles.visitorSummary}
+      >
         <Avatar name={who} size={38} />
         <View style={{ flex: 1, gap: 4 }}>
           <View style={styles.eventHead}>
@@ -539,7 +547,7 @@ function VisitorActivityCard({
             </Pressable>
           ) : null}
         </View>
-      </View>
+      </Pressable>
       {expanded && hasEarlierActivity ? (
         <View
           style={[styles.earlierActivity, { borderTopColor: colors.border }]}

@@ -136,10 +136,17 @@ export function pulseFeedCursorFilter(cursor: PulseFeedCursor): string {
 }
 
 export function nextPulseFeedCursor(
-  rows: ReadonlyArray<{ id: string; created_at: string }>,
+  rows: readonly { id: string; created_at: string }[],
   pageSize: number = PULSE_FEED_PAGE_SIZE
 ): PulseFeedCursor | null {
   if (rows.length < pageSize) return null;
   const last = rows[rows.length - 1];
   return { createdAt: last.created_at, id: last.id };
+}
+
+/** Web parity: src/lib/pulse/visitor-link.ts. */
+export function visitorContactRoute(
+  event: Pick<PulseEvent, 'contact'>
+): `/(app)/contact/${string}` | null {
+  return event.contact ? `/(app)/contact/${event.contact.id}` : null;
 }
