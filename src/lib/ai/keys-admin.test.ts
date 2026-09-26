@@ -72,6 +72,9 @@ describe('pricing', () => {
     expect(
       estimateCostUsd('gemini-2.5-flash', 1_000_000, 1_000_000, pricing)
     ).toBe(3);
+    expect(
+      estimateCostUsd('gemini-3.8-flash', 1_000_000, 0, DEFAULT_PRICING)
+    ).toBe(DEFAULT_PRICING.models['gemini-3.5-flash'].input);
   });
 });
 
