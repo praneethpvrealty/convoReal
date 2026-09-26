@@ -1,8 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, MapPin, MessageCircle, Play, Search } from 'lucide-react';
+import {
+  ArrowRight,
+  Loader2,
+  LocateFixed,
+  MapPin,
+  MessageCircle,
+  Play,
+  Search,
+  X,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -31,6 +45,8 @@ interface DealFloorHeroProps {
   locations: string[];
   selectedLocation: string | null;
   onLocationChange: (value: string | null) => void;
+  nearbyLabel: string | null;
+  onSearchNearRequest: () => void;
   maxBudget: number | null;
   onBudgetChange: (value: number | null) => void;
   matchCount: number;
@@ -39,6 +55,8 @@ interface DealFloorHeroProps {
 }
 
 const ANY = '__any__';
+const NEAR_ACTIVE = '__near_active__';
+const NEAR_REQUEST = '__near__';
 
 function Blank({
   label,
@@ -94,6 +112,8 @@ export function DealFloorHero({
   locations,
   selectedLocation,
   onLocationChange,
+  nearbyLabel,
+  onSearchNearRequest,
   maxBudget,
   onBudgetChange,
   matchCount,
@@ -126,15 +146,22 @@ export function DealFloorHero({
         in{' '}
         <Blank
           label="Locality"
-          value={selectedLocation ?? ''}
+          value={nearbyLabel ? NEAR_ACTIVE : (selectedLocation ?? '')}
           options={[
             { value: '', label: 'any locality' },
             ...locations.map((location) => ({
               value: location,
               label: location,
             })),
+            ...(nearbyLabel
+              ? [{ value: NEAR_ACTIVE, label: `near ${nearbyLabel}` }]
+              : []),
+            { value: NEAR_REQUEST, label: 'a place not listed…' },
           ]}
-          onChange={(value) => onLocationChange(value || null)}
+          onChange={(value) => {
+            if (value === NEAR_REQUEST) onSearchNearRequest();
+            else if (value !== NEAR_ACTIVE) onLocationChange(value || null);
+          }}
           fontClassName={fontClassName}
         />{' '}
         <Blank
@@ -166,6 +193,244 @@ export function DealFloorHero({
         {MATCH_REPORT_SHORTLIST} and we send your match report on WhatsApp.
       </p>
     </section>
+  );
+}
+
+const DEAL_TYPE_OPTIONS = [
+  { value: 'All', label: 'Sale & rent' },
+  { value: 'Sale', label: 'For sale' },
+  { value: 'Rent', label: 'For rent' },
+  { value: 'JV/JD', label: 'JV / JD' },
+  { value: 'Built to Suit', label: 'Built to suit' },
+];
+
+const BEDS_OPTIONS = [
+  { value: 'All', label: 'Any BHK' },
+  { value: '1', label: '1+ BHK' },
+  { value: '2', label: '2+ BHK' },
+  { value: '3', label: '3+ BHK' },
+  { value: '4', label: '4+ BHK' },
+];
+
+const SORT_OPTIONS = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'price-low', label: 'Price: low to high' },
+  { value: 'price-high', label: 'Price: high to low' },
+  { value: 'area-high', label: 'Largest first' },
+];
+
+function Pill({
+  label,
+  value,
+  defaultValue,
+  options,
+  onChange,
+  disabled,
+  fontClassName,
+}: {
+  label: string;
+  value: string;
+  defaultValue: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  fontClassName?: string;
+}) {
+  return (
+    <Select
+      value={value}
+      onValueChange={(next) => onChange(String(next))}
+      items={options}
+      disabled={disabled}
+    >
+      <SelectTrigger
+        aria-label={label}
+        className="df-pill"
+        data-active={value !== defaultValue ? 'true' : undefined}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent
+        className={cn('df-blank-menu', fontClassName)}
+        alignItemWithTrigger={false}
+        align="start"
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            className="df-blank-item"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+export interface DealFloorChip {
+  key: string;
+  label: string;
+  onRemove: () => void;
+}
+
+interface DealFloorRefineProps {
+  fontClassName?: string;
+  listingType: string;
+  onListingTypeChange: (value: string) => void;
+  minBeds: string;
+  onMinBedsChange: (value: string) => void;
+  sortBy: string;
+  onSortChange: (value: string) => void;
+  nearbyActive: boolean;
+  nearOpen: boolean;
+  onNearOpenChange: (open: boolean) => void;
+  onSearchNear: (query: string) => Promise<boolean>;
+  nearbyPending: boolean;
+  nearbyError: string | null;
+  nearbyNote: string | null;
+  chips: DealFloorChip[];
+  onClearChips: () => void;
+}
+
+export function DealFloorRefine({
+  fontClassName,
+  listingType,
+  onListingTypeChange,
+  minBeds,
+  onMinBedsChange,
+  sortBy,
+  onSortChange,
+  nearbyActive,
+  nearOpen,
+  onNearOpenChange,
+  onSearchNear,
+  nearbyPending,
+  nearbyError,
+  nearbyNote,
+  chips,
+  onClearChips,
+}: DealFloorRefineProps) {
+  const [place, setPlace] = useState('');
+  return (
+    <div className="df-refine-block">
+      <div className="df-refine" role="group" aria-label="Refine listings">
+        <Pill
+          label="Deal type"
+          value={listingType}
+          defaultValue="All"
+          options={DEAL_TYPE_OPTIONS}
+          onChange={onListingTypeChange}
+          fontClassName={fontClassName}
+        />
+        <Pill
+          label="Bedrooms"
+          value={minBeds}
+          defaultValue="All"
+          options={BEDS_OPTIONS}
+          onChange={onMinBedsChange}
+          fontClassName={fontClassName}
+        />
+        <Pill
+          label="Sort"
+          value={nearbyActive ? 'nearest' : sortBy}
+          defaultValue={nearbyActive ? 'nearest' : 'newest'}
+          options={
+            nearbyActive
+              ? [{ value: 'nearest', label: 'Nearest first' }]
+              : SORT_OPTIONS
+          }
+          onChange={onSortChange}
+          disabled={nearbyActive}
+          fontClassName={fontClassName}
+        />
+        <Popover open={nearOpen} onOpenChange={onNearOpenChange}>
+          <PopoverTrigger
+            className="df-pill"
+            data-active={nearbyActive ? 'true' : undefined}
+          >
+            <LocateFixed className="size-4" aria-hidden="true" />
+            Near a place
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            className={cn('df-blank-menu df-near', fontClassName)}
+          >
+            <form
+              className="df-near-form"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                if (await onSearchNear(place)) {
+                  setPlace('');
+                  onNearOpenChange(false);
+                }
+              }}
+            >
+              <label className="df-near-label" htmlFor="df-near-input">
+                Search near a place
+              </label>
+              <div className="df-near-row">
+                <input
+                  id="df-near-input"
+                  value={place}
+                  onChange={(event) => setPlace(event.target.value)}
+                  placeholder="An area, landmark or road"
+                  autoComplete="off"
+                />
+                <button
+                  type="submit"
+                  className="df-btn-accent df-btn-small"
+                  disabled={nearbyPending || place.trim().length < 3}
+                >
+                  {nearbyPending ? (
+                    <Loader2
+                      className="size-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                  Search
+                </button>
+              </div>
+              <p className="df-near-hint">
+                Listings named there come first, then everything within 5 km.
+              </p>
+              {nearbyError && (
+                <p role="alert" className="df-near-error">
+                  {nearbyError}
+                </p>
+              )}
+            </form>
+          </PopoverContent>
+        </Popover>
+      </div>
+      {chips.length > 0 && (
+        <div className="df-active" aria-label="Active filters">
+          {chips.map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              className="df-chip df-chip-clear"
+              aria-label={`Remove ${chip.label}`}
+              onClick={chip.onRemove}
+            >
+              {chip.label}
+              <X className="size-3.5" aria-hidden="true" />
+            </button>
+          ))}
+          {chips.length > 1 && (
+            <button
+              type="button"
+              className="df-btn-link df-clear-all"
+              onClick={onClearChips}
+            >
+              Clear these
+            </button>
+          )}
+        </div>
+      )}
+      {nearbyNote && <p className="df-refine-note">{nearbyNote}</p>}
+    </div>
   );
 }
 

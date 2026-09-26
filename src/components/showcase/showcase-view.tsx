@@ -88,6 +88,8 @@ import {
   DealFloorBoard,
   DealFloorHero,
   DealFloorKinds,
+  DealFloorRefine,
+  type DealFloorChip,
 } from '@/components/showcase/deal-floor-sections';
 import { QuickPicksDeck } from '@/components/showcase/quick-picks-deck';
 import { PlotFace } from '@/components/showcase/plot-face';
@@ -300,6 +302,7 @@ export function ShowcaseView({
   const [selectedType, setSelectedType] = useState('All');
   const [maxBudget, setMaxBudget] = useState<number | null>(null);
   const [recentOnly, setRecentOnly] = useState(false);
+  const [nearOpen, setNearOpen] = useState(false);
   const [deckMode, setDeckMode] = useState(false);
   const [shortlistOpenRequest, setShortlistOpenRequest] = useState(0);
   const [selectedListingType, setSelectedListingType] = useState<'All' | 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'>('All');
@@ -1161,6 +1164,50 @@ export function ShowcaseView({
     () => (dealFloor ? newThisWeek(properties) : 0),
     [dealFloor, properties]
   );
+  const dealFloorChips: DealFloorChip[] = [];
+  if (dealFloor) {
+    const term = searchQuery.trim();
+    if (term) {
+      dealFloorChips.push({
+        key: 'search',
+        label: `“${term}”`,
+        onRemove: () => setSearchQuery(''),
+      });
+    }
+    if (nearbySearch) {
+      dealFloorChips.push({
+        key: 'near',
+        label: `Near ${nearbySearch.label} · ${SHOWCASE_NEARBY_RADIUS_KM} km`,
+        onRemove: () => setNearbySearch(null),
+      });
+    }
+    selectedLocations.slice(1).forEach((location) => {
+      dealFloorChips.push({
+        key: `location:${location}`,
+        label: location,
+        onRemove: () =>
+          setSelectedLocations((current) =>
+            current.filter((selected) => selected !== location)
+          ),
+      });
+    });
+    if (recentOnly) {
+      dealFloorChips.push({
+        key: 'recent',
+        label: 'New this week',
+        onRemove: () => setRecentOnly(false),
+      });
+    }
+  }
+  const dealFloorNearbyNote =
+    dealFloor && nearbySearch
+      ? nearbySearch.results.length === 0
+        ? `No listings within ${SHOWCASE_NEARBY_RADIUS_KM} km of ${nearbySearch.label}.`
+        : nearbySearch.results.some((match) => match.tier === 'exact')
+          ? `Listings in ${nearbySearch.label} first, then nearby by distance.`
+          : `No listings in ${nearbySearch.label}, so these are the nearest.`
+      : null;
+
   const scrollToListings = () => {
     (dealFloorAnchorRef.current ?? listingDeckRef.current)?.scrollIntoView?.({
       behavior: 'smooth',
@@ -1292,9 +1339,9 @@ export function ShowcaseView({
     setLocationQuery('');
   };
 
-  const searchNearby = async (rawQuery: string) => {
+  const searchNearby = async (rawQuery: string): Promise<boolean> => {
     const query = rawQuery.trim().replace(/\s+/g, ' ');
-    if (query.length < 3 || nearbyPending) return;
+    if (query.length < 3 || nearbyPending) return false;
     setNearbyPending(true);
     setNearbyError(null);
     try {
@@ -1306,7 +1353,7 @@ export function ShowcaseView({
             ? 'Too many location searches. Try again in a minute.'
             : `Couldn't search near "${query}". Try again.`
         );
-        return;
+        return false;
       }
       const body = (await res.json()) as {
         data?: { label?: string; results?: NearbyMatch[] };
@@ -1317,8 +1364,10 @@ export function ShowcaseView({
       });
       setSelectedLocations([]);
       setLocationQuery('');
+      return true;
     } catch {
       setNearbyError(`Couldn't search near "${query}". Try again.`);
+      return false;
     } finally {
       setNearbyPending(false);
     }
@@ -1707,6 +1756,12 @@ export function ShowcaseView({
               setNearbySearch(null);
               setSelectedLocations(value ? [value] : []);
             }}
+            nearbyLabel={nearbySearch?.label ?? null}
+            onSearchNearRequest={() => {
+              setDeckMode(false);
+              scrollToListings();
+              setNearOpen(true);
+            }}
             maxBudget={maxBudget}
             onBudgetChange={setMaxBudget}
             matchCount={filteredProperties.length}
@@ -1960,6 +2015,7 @@ export function ShowcaseView({
         </div>
 
         {/* Filter Controls Bar */}
+        {!dealFloor && (
         <div className="relative z-20 bg-slate-900/35 border border-slate-900/60 rounded-3xl p-5 mb-8 backdrop-blur-md shadow-xl flex flex-col gap-4 hover:border-slate-800/80 transition-all duration-300">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             
@@ -2176,6 +2232,7 @@ export function ShowcaseView({
             ))}
           </div>
         </div>
+        )}
 
         {showcaseStyle === 'map-discovery' && (
           <div className="showcase-map-toggle mb-4 flex gap-2" aria-label="Property view">
@@ -2198,12 +2255,6 @@ export function ShowcaseView({
                 ? `All ${properties.length} listings`
                 : `${filteredProperties.length} of ${properties.length} listings`}
             </h2>
-            {recentOnly && (
-              <button type="button" className="df-chip df-chip-clear" onClick={() => setRecentOnly(false)}>
-                New this week
-                <X className="size-3.5" />
-              </button>
-            )}
             {!isAgentMode && (
               <div className="df-mode" role="group" aria-label="Browse mode">
                 <button type="button" aria-pressed={!deckMode} onClick={() => setDeckMode(false)}>
@@ -2216,6 +2267,36 @@ export function ShowcaseView({
               </div>
             )}
           </div>
+        )}
+        {dealFloor && (
+          <DealFloorRefine
+            fontClassName={designFontClassName}
+            listingType={selectedListingType}
+            onListingTypeChange={(value) =>
+              setSelectedListingType(value as 'All' | 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit')
+            }
+            minBeds={minBeds}
+            onMinBedsChange={setMinBeds}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            nearbyActive={!!nearbySearch}
+            nearOpen={nearOpen}
+            onNearOpenChange={(open) => {
+              setNearOpen(open);
+              if (!open) setNearbyError(null);
+            }}
+            onSearchNear={searchNearby}
+            nearbyPending={nearbyPending}
+            nearbyError={nearbyError}
+            nearbyNote={dealFloorNearbyNote}
+            chips={dealFloorChips}
+            onClearChips={() => {
+              setSearchQuery('');
+              setNearbySearch(null);
+              setSelectedLocations((current) => current.slice(0, 1));
+              setRecentOnly(false);
+            }}
+          />
         )}
         <div className={showcaseStyle === 'map-discovery' && mapPanelOpen ? 'showcase-map-layout' : undefined} data-map-view={mapView ? 'map' : 'list'}>
         {/* Listings Result Grid */}

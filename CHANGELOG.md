@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 26 September 2026
 
+- **Deal Floor has one set of filters, not two.** The showcase's shared
+  filter bar still rendered under the new hero, so the page asked for the
+  locality twice and a search term left from an earlier visit could narrow
+  the grid with nothing in the hero to show it. Deal Floor now drops that
+  bar: deal type, bedrooms and sort sit as pills beside the listing count,
+  "a place not listed…" in the Locality blank searches within 5 km, and any
+  active search, nearby place or new-this-week filter shows as a chip you
+  can remove. The other designs keep the full filter bar.
 - **Deal Floor's hero blanks open a styled menu.** The three blanks in the
   "Show me … in … at any budget" sentence were native selects, and Chrome
   on Android drew their options in the system font at the headline's

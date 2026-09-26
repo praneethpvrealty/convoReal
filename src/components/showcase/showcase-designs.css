@@ -818,6 +818,132 @@
   margin-bottom: 1rem;
   scroll-margin-top: 5rem;
 }
+[data-showcase-design='deal-floor'] .df-refine-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+[data-showcase-design='deal-floor'] .df-refine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+[data-showcase-design='deal-floor'] .df-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: auto;
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--showcase-line);
+  background: var(--showcase-panel);
+  color: var(--showcase-ink);
+  font-family: var(--df-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+[data-showcase-design='deal-floor'] .df-pill:hover {
+  border-color: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-pill[data-active='true'] {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-pill:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+[data-showcase-design='deal-floor'] .df-pill:focus-visible {
+  outline: 3px solid var(--showcase-ink);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+[data-showcase-design='deal-floor'] .df-pill svg {
+  color: currentColor;
+}
+[data-showcase-design='deal-floor'] .df-active {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+[data-showcase-design='deal-floor'] .df-clear-all {
+  min-height: 2.25rem;
+  font-size: 0.8rem;
+}
+[data-showcase-design='deal-floor'] .df-refine-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--showcase-muted);
+}
+.df-near {
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 0.9rem;
+}
+.df-near-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.df-near-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.df-near-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.df-near-row input {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0 0.8rem;
+  border-radius: 0.7rem;
+  border: 1px solid #3a342c;
+  background: #14120f;
+  color: #f4efe6;
+  font: inherit;
+  font-size: 0.95rem;
+}
+.df-near-row input:focus {
+  outline: 2px solid #ffb020;
+  outline-offset: 1px;
+}
+.df-near-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+  border-radius: 0.7rem;
+  border: 0;
+  background: #ffb020;
+  color: #14120f;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.df-near-row button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.df-near-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #a89f92;
+}
+.df-near-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #ff8a70;
+}
 [data-showcase-design='deal-floor'] .df-mode {
   display: flex;
   padding: 0.25rem;

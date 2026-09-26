@@ -1185,7 +1185,7 @@
         },
         {
           "id": "PRP-020",
-          "rule": "The Deal Floor showcase design is one more agency design selectable on web and mobile: its fill-in-the-blank hero (kind family, locality, budget), kind tiles and board tiles all narrow the same catalogue grid as the other designs, a photoless listing shows a plot face drawn from its dimensions, area, facing and road width instead of a No Photos placeholder, and Quick Picks shortlists into the same shortlist as the cards, undoes cleanly, and offers the shortlist enquiry once three properties are shortlisted. Other designs are unchanged.",
+          "rule": "The Deal Floor showcase design is one more agency design selectable on web and mobile: its fill-in-the-blank hero (kind family, locality, budget), kind tiles and board tiles all narrow the same catalogue grid as the other designs, a photoless listing shows a plot face drawn from its dimensions, area, facing and road width instead of a No Photos placeholder, and Quick Picks shortlists into the same shortlist as the cards, undoes cleanly, and offers the shortlist enquiry once three properties are shortlisted. Deal Floor draws no second filter bar: deal type, bedrooms and sort are refine pills, a place no listing names is searched within 5 km from the Locality blank, and any active search term, nearby place, extra locality or new-this-week filter shows as a removable chip beside the match count. Other designs keep the shared filter bar unchanged.",
           "tests": [
             {
               "file": "src/lib/showcase/deal-floor.test.ts",
