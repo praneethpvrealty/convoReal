@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 26 September 2026
 
+- **Guidance value pages without a column header keep the table's
+  columns.** Ramanagara's village pages print dry, wet and garden land
+  (lakhs per acre) and a site rate under a header on the first page only;
+  continuation pages were read as site, apartment and commercial rates.
+  Each read now tells Gemini the columns of the page before, and a site
+  figure written into a lakh row keeps its own unit instead of being
+  multiplied.
+
 - **Guidance values printed in lakhs are stored in rupees.** Village
   tables in Ramanagara, Mysuru and Bengaluru print land rates "in lakhs
   per acre", and the reader stored 55 lakh as ₹55; on some pages it also

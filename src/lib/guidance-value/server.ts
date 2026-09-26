@@ -30,11 +30,13 @@ import {
   classifyAiOutage,
   openPdf,
   parseRatePages,
+  rateColumns,
   type RateHeadings,
 } from './rate-parse';
 import type {
   GuidanceRate,
   LookupResult,
+  ParsedRateRow,
   PropertyClass,
   PropertySchedule,
   AreaUnit,
@@ -321,13 +323,23 @@ export async function parseNextSourceChunk(
 
     const { data: headings } = await db
       .from('guidance_value_rates')
-      .select('district, taluk, hobli, village, locality')
+      .select('district, taluk, hobli, village, locality, page')
       .eq('source_id', source.id)
       .lt('page', fromPage)
       .order('page', { ascending: false })
       .order('seq', { ascending: false })
       .limit(1)
-      .maybeSingle<RateHeadings>();
+      .maybeSingle<RateHeadings & { page: number }>();
+
+    const { data: previous } = headings
+      ? await db
+          .from('guidance_value_rates')
+          .select('property_class, land_class, unit')
+          .eq('source_id', source.id)
+          .eq('page', headings.page)
+          .order('seq', { ascending: true })
+          .limit(200)
+      : { data: null };
 
     const { rows, totalPages } = await parseRatePages({
       buffer,
@@ -335,6 +347,7 @@ export async function parseNextSourceChunk(
       toPage,
       headings,
       unit: printedAreaUnit(texts),
+      columns: rateColumns((previous ?? []) as ParsedRateRow[]),
     }).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       const outage = classifyAiOutage(message);
