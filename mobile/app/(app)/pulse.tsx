@@ -471,14 +471,14 @@ function VisitorActivityCard({
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ]}
     >
-      <Pressable
-        onPress={contactRoute ? () => router.push(contactRoute) : undefined}
-        disabled={!contactRoute}
-        accessibilityRole={contactRoute ? 'link' : undefined}
-        accessibilityLabel={contactRoute ? `Open ${who}` : undefined}
-        style={styles.visitorSummary}
-      >
-        <Avatar name={who} size={38} />
+      <View style={styles.visitorSummary}>
+        <Pressable
+          onPress={contactRoute ? () => router.push(contactRoute) : undefined}
+          disabled={!contactRoute}
+          accessible={false}
+        >
+          <Avatar name={who} size={38} />
+        </Pressable>
         <View style={{ flex: 1, gap: 4 }}>
           <View style={styles.eventHead}>
             <Text
@@ -489,6 +489,11 @@ function VisitorActivityCard({
                 flex: 1,
               }}
               numberOfLines={1}
+              onPress={
+                contactRoute ? () => router.push(contactRoute) : undefined
+              }
+              accessibilityRole={contactRoute ? 'link' : undefined}
+              accessibilityLabel={contactRoute ? `Open ${who}` : undefined}
             >
               {who}
             </Text>
@@ -547,7 +552,7 @@ function VisitorActivityCard({
             </Pressable>
           ) : null}
         </View>
-      </Pressable>
+      </View>
       {expanded && hasEarlierActivity ? (
         <View
           style={[styles.earlierActivity, { borderTopColor: colors.border }]}
