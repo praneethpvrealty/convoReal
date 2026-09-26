@@ -82,4 +82,16 @@ describe('CopilotWidget', () => {
     fireEvent.click(launcher);
     expect(openPanel).toHaveBeenCalledOnce();
   });
+
+  it('[CPL-001] pulls a position saved in a taller window back on screen', () => {
+    window.localStorage.setItem(
+      'copilot-launcher-placement',
+      JSON.stringify({ side: 'right', bottom: 5000 })
+    );
+    render(<CopilotWidget />);
+    const launcher = screen.getByRole('button', { name: 'Open the helper' });
+
+    expect(launcher.style.bottom).toBe(`${window.innerHeight - 80 - 48}px`);
+    expect(launcher.style.right).toBe('16px');
+  });
 });

@@ -2486,7 +2486,8 @@
           "rule": "The visitor activity feed on web and mobile loads newest-first in keyset pages ordered by created_at then id, offers Load older activity until a short page arrives, and never stops at a fixed row window, so one busy visitor cannot hide earlier days of activity.",
           "tests": [
             { "file": "src/lib/pulse/feed-page.test.ts", "case": "[PLS-001]" },
-            { "file": "mobile/lib/pulse-feed.test.ts", "case": "[PLS-001]" }
+            { "file": "mobile/lib/pulse-feed.test.ts", "case": "[PLS-001]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[PLS-001]" }
           ]
         }
       ]

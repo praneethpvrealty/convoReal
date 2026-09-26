@@ -35,6 +35,11 @@ import {
   rejectMedia,
 } from '@/lib/whatsapp/media-kinds';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
+import {
+  PULSE_FEED_PAGE_SIZE,
+  nextPulseFeedCursor,
+  pulseFeedCursorFilter,
+} from '@/lib/pulse/feed-page';
 import * as EKhataWeb from '@/lib/inventory/e-khata-fields';
 import {
   AMENITIES_BY_CATEGORY,
@@ -3438,6 +3443,36 @@ describe('mobile/lib/guidance-value.ts mirrors the web RTC print line', () => {
       { village: 'Koramangala' },
     ]) {
       expect(mobile.schedulePrinted(schedule)).toBe(schedulePrinted(schedule));
+    }
+  });
+});
+
+describe('[PLS-001] mobile Showcase Pulse feed paging matches web', () => {
+  const mobile = mobileModule<{
+    PULSE_FEED_PAGE_SIZE: number;
+    nextPulseFeedCursor: typeof nextPulseFeedCursor;
+    pulseFeedCursorFilter: typeof pulseFeedCursorFilter;
+  }>('lib/pulse-feed.ts');
+
+  it('requests the same page size and resumes from the same cursor', () => {
+    expect(mobile.PULSE_FEED_PAGE_SIZE).toBe(PULSE_FEED_PAGE_SIZE);
+    const cursor = { createdAt: '2026-09-25T10:00:00.5+00:00', id: 'e9' };
+    expect(mobile.pulseFeedCursorFilter(cursor)).toBe(
+      pulseFeedCursorFilter(cursor)
+    );
+    for (const length of [
+      0,
+      1,
+      PULSE_FEED_PAGE_SIZE - 1,
+      PULSE_FEED_PAGE_SIZE,
+    ]) {
+      const rows = Array.from({ length }, (_, i) => ({
+        id: `e${i}`,
+        created_at: `2026-09-25T00:00:${String(i % 60).padStart(2, '0')}Z`,
+      }));
+      expect(mobile.nextPulseFeedCursor(rows)).toEqual(
+        nextPulseFeedCursor(rows)
+      );
     }
   });
 });

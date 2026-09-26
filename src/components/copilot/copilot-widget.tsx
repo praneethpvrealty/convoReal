@@ -27,8 +27,11 @@ import { COPILOT_ENABLED } from '@/lib/copilot/config';
 import { readStored, writeStored } from '@/lib/safe-storage';
 import {
   LAUNCHER_EDGE_PX,
+  LAUNCHER_HEIGHT_PX,
   LAUNCHER_STORAGE_KEY,
+  clampLauncherBottom,
   isLauncherDrag,
+  nudgeAnchor,
   parseLauncherPlacement,
   snapLauncher,
   type LauncherPlacement,
@@ -36,7 +39,6 @@ import {
 /** Auto-hide the bubble after this long (counts as shown, not
  *  dismissed-forever — the 24h global cooldown still applies). */
 const NUDGE_AUTO_HIDE_MS = 20_000;
-const NUDGE_OFFSET_PX = 64;
 
 const placementEvent = 'copilot-launcher-placement-change';
 let memoryPlacement: string | null = null;
@@ -58,10 +60,24 @@ function savePlacement(placement: LauncherPlacement) {
   window.dispatchEvent(new Event(placementEvent));
 }
 
-function sideStyle(placement: LauncherPlacement, bottom: number) {
-  return placement.side === 'left'
-    ? { bottom, left: LAUNCHER_EDGE_PX, right: 'auto' }
-    : { bottom, right: LAUNCHER_EDGE_PX, left: 'auto' };
+function subscribeViewport(listener: () => void) {
+  window.addEventListener('resize', listener);
+  return () => window.removeEventListener('resize', listener);
+}
+const readViewportHeight = () => window.innerHeight;
+const serverViewportHeight = () => 0;
+
+function sideStyle(
+  side: LauncherPlacement['side'],
+  vertical: { bottom: number } | { top: number }
+) {
+  const horizontal =
+    side === 'left'
+      ? { left: LAUNCHER_EDGE_PX, right: 'auto' }
+      : { right: LAUNCHER_EDGE_PX, left: 'auto' };
+  return 'top' in vertical
+    ? { ...horizontal, ...vertical, bottom: 'auto' }
+    : { ...horizontal, ...vertical, top: 'auto' };
 }
 
 export function CopilotWidget() {
@@ -69,9 +85,25 @@ export function CopilotWidget() {
   const { nudge, dismiss, accept } = useCopilotNudges();
   const router = useRouter();
   const t = useT();
-  const placement = parseLauncherPlacement(
+  const saved = parseLauncherPlacement(
     useSyncExternalStore(subscribePlacement, readPlacement, serverPlacement)
   );
+  const viewportHeight = useSyncExternalStore(
+    subscribeViewport,
+    readViewportHeight,
+    serverViewportHeight
+  );
+  const placement =
+    saved && viewportHeight > 0
+      ? {
+          side: saved.side,
+          bottom: clampLauncherBottom(
+            saved.bottom,
+            viewportHeight,
+            LAUNCHER_HEIGHT_PX
+          ),
+        }
+      : null;
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const suppressClick = useRef(false);
@@ -139,7 +171,10 @@ export function CopilotWidget() {
         <div
           style={
             placement
-              ? sideStyle(placement, placement.bottom + NUDGE_OFFSET_PX)
+              ? sideStyle(
+                  placement.side,
+                  nudgeAnchor(placement.bottom, viewportHeight)
+                )
               : undefined
           }
           className={`fixed right-4 bottom-56 z-[60] w-[min(280px,calc(100vw-32px))] rounded-2xl ${placement?.side === 'left' ? 'rounded-bl-sm' : 'rounded-br-sm'} border border-slate-700 bg-slate-950/95 p-3.5 shadow-2xl shadow-black/50 backdrop-blur-xl md:bottom-32`}
@@ -183,7 +218,9 @@ export function CopilotWidget() {
           title={t('copilot.assistant')}
           data-tour="copilot-button"
           style={{
-            ...(placement ? sideStyle(placement, placement.bottom) : {}),
+            ...(placement
+              ? sideStyle(placement.side, { bottom: placement.bottom })
+              : {}),
             ...(drag
               ? { transform: `translate(${drag.dx}px, ${drag.dy}px)` }
               : {}),

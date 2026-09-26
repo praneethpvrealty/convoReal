@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   clampLauncherBottom,
   isLauncherDrag,
+  nudgeAnchor,
   parseLauncherPlacement,
   snapLauncher,
 } from './launcher-placement';
@@ -37,5 +38,10 @@ describe('[CPL-001] copilot launcher placement', () => {
     expect(parseLauncherPlacement('{"side":"left"}')).toBeNull();
     expect(parseLauncherPlacement('{oops')).toBeNull();
     expect(parseLauncherPlacement(null)).toBeNull();
+  });
+
+  it('opens the nudge below the launcher once it sits in the top half', () => {
+    expect(nudgeAnchor(160, 800)).toEqual({ bottom: 224 });
+    expect(nudgeAnchor(672, 800)).toEqual({ top: 136 });
   });
 });

@@ -93,7 +93,7 @@ export default function PulseScreen() {
     retry: retryAnalyticsRequest,
   });
   const feed = useInfiniteQuery({
-    queryKey: ['pulse-feed'],
+    queryKey: ['pulse-feed-pages'],
     enabled: Boolean(accountId),
     queryFn: ({ pageParam }) => fetchPulseFeed(pageParam),
     initialPageParam: null as PulseFeedCursor | null,

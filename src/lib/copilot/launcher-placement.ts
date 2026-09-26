@@ -6,10 +6,12 @@ export interface LauncherPlacement {
 }
 
 export const LAUNCHER_EDGE_PX = 16;
+export const LAUNCHER_HEIGHT_PX = 48;
 export const LAUNCHER_STORAGE_KEY = 'copilot-launcher-placement';
 const MIN_BOTTOM_PX = 16;
 const TOP_CLEARANCE_PX = 80;
 const DRAG_THRESHOLD_PX = 6;
+const NUDGE_GAP_PX = 16;
 
 export function isLauncherDrag(dx: number, dy: number): boolean {
   return Math.hypot(dx, dy) > DRAG_THRESHOLD_PX;
@@ -25,6 +27,16 @@ export function clampLauncherBottom(
     viewportHeight - TOP_CLEARANCE_PX - launcherHeight
   );
   return Math.min(max, Math.max(MIN_BOTTOM_PX, Math.round(bottom)));
+}
+
+export function nudgeAnchor(
+  launcherBottom: number,
+  viewportHeight: number
+): { bottom: number } | { top: number } {
+  if (launcherBottom + LAUNCHER_HEIGHT_PX / 2 > viewportHeight / 2) {
+    return { top: viewportHeight - launcherBottom + NUDGE_GAP_PX / 2 };
+  }
+  return { bottom: launcherBottom + LAUNCHER_HEIGHT_PX + NUDGE_GAP_PX };
 }
 
 export function snapLauncher(
