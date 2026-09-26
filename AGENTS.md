@@ -743,6 +743,7 @@ Use Upstash, Redis Labs, or self-hosted Redis. Webhook queue key: `whatsapp-webh
 
 Defined in `vercel.json`:
 
+- `/api/cron/gemini-model-lifecycle` — daily 02:20 UTC
 - `/api/cron/cleanup-images` — daily 03:00 UTC
 - `/api/cron/market-stats` — daily 21:30 UTC
 - `/api/cron/owner-digest` — daily 04:30 UTC

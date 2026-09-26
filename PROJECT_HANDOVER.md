@@ -21,7 +21,7 @@ To ensure the new model has full context:
 - **Styling**: Tailwind CSS & Shadcn UI (Lucide React Icons)
 - **Database**: Supabase (PostgreSQL, Realtime, row-level security (RLS), custom triggers, and functions)
 - **AI Integrations**: 
-  - **Gemini API** (tiered failover chains in `src/lib/ai/gemini.ts`, full Flash starting on `gemini-3.5-flash`). Used for description copywriting, chatbot message classification, and multi-contact parsing.
+  - **Gemini API** (tiered failover chains in `src/lib/ai/gemini.ts`, full Flash starting on `gemini-3.8-flash`, with a daily cron retiring models Google stops serving). Used for description copywriting, chatbot message classification, and multi-contact parsing.
   - **Hugging Face / OpenAI / Google** options for AI Flyer generation.
 - **WhatsApp Integration**: Meta WhatsApp Cloud API (Graph API) for webhook status callbacks, interactive templates, and button messages.
 - **Testing**: Vitest (all 379 tests passing successfully).

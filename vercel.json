@@ -7,6 +7,10 @@
       "schedule": "40 2 * * *"
     },
     {
+      "path": "/api/cron/gemini-model-lifecycle",
+      "schedule": "20 2 * * *"
+    },
+    {
       "path": "/api/cron/cleanup-images",
       "schedule": "0 3 * * *"
     },

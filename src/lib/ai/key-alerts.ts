@@ -131,6 +131,30 @@ export async function alertAllKeysResting(
   }
 }
 
+export async function alertModelLifecycle(
+  retired: Array<{ model: string; replacement: string | null }>,
+  restored: string[]
+): Promise<boolean> {
+  try {
+    const lines = [
+      ...retired.map(({ model, replacement }) =>
+        replacement
+          ? `${model} is retired; calls now use ${replacement}.`
+          : `${model} is retired and dropped; Google named no working successor.`
+      ),
+      ...restored.map((model) => `${model} answers again and is back in use.`),
+    ];
+    await notifyPlatformAdmins(
+      'Gemini models updated',
+      `${lines.join('\n')}\n\nAdd a price for any new model in Admin → AI keys, and update the default chains in src/lib/ai/gemini.ts.`
+    );
+    return true;
+  } catch (err) {
+    console.error('[ai-key-alerts] model lifecycle alert failed:', err);
+    return false;
+  }
+}
+
 export function resetKeyAlertState(): void {
   recent.clear();
 }

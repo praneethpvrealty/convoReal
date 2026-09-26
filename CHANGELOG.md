@@ -19,6 +19,23 @@ than a written entry. Newest first.
 
 #### 26 September 2026
 
+- **Retired Gemini models are replaced without a deploy.** A daily check
+  (`/api/cron/gemini-model-lifecycle`, 02:20 UTC) sends one tiny request to
+  every model the app uses. When Google reports a model retired and no key
+  can still call it, the model is dropped from every chain and the successor
+  Google names takes its place, but only after that successor answers.
+  Super admins get a notification naming the change. The record lives in
+  `system_settings.ai_model_lifecycle`; the chains in `gemini.ts` stay the
+  default.
+- **Full Flash now starts on `gemini-3.8-flash`** (then 3.6, then 3.5).
+  Google prices 3.8 and 3.6 at $0.75/M input and $3.75/M output until
+  31 December 2026 ($1.50/$7.50 after), against $1.50/$9.00 for 3.5.
+- **Spend estimates use Google's current prices.** Default price rows added
+  for `gemini-3.6-flash`, `gemini-3.8-flash` and `gemini-3.5-flash-lite`,
+  and corrected for `gemini-3.5-flash` ($1.50/$9.00, was $0.30/$2.50) and
+  `gemini-3.1-flash-lite` ($0.25/$1.50). A price saved in Admin → AI keys
+  still overrides the default.
+
 - **Gemini calls no longer start on a model Google stopped serving.** The
   managed key now gets "no longer available to new users" for
   `gemini-2.5-flash`, so every full-Flash call spent a failed request on it
