@@ -1182,6 +1182,23 @@
               "case": "[PRP-019]"
             }
           ]
+        },
+        {
+          "id": "PRP-020",
+          "rule": "The Deal Floor showcase design is one more agency design selectable on web and mobile: its fill-in-the-blank hero (kind family, locality, budget), kind tiles and board tiles all narrow the same catalogue grid as the other designs, a photoless listing shows a plot face drawn from its dimensions, area, facing and road width instead of a No Photos placeholder, and Quick Picks shortlists into the same shortlist as the cards, undoes cleanly, and offers the shortlist enquiry once three properties are shortlisted. Other designs are unchanged.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/deal-floor.test.ts",
+              "case": "[PRP-020]"
+            },
+            {
+              "file": "src/components/showcase/showcase-view.deal-floor.test.tsx",
+              "case": "[PRP-020]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260926120000_deal_floor_showcase_design.sql"
+          ]
         }
       ]
     },

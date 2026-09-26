@@ -68,7 +68,7 @@ export function ShowcasePresentationControls({
         <p className="text-sm font-medium text-slate-200">{title}</p>
         <p className="mt-1 text-xs text-slate-500">{description}</p>
       </div>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-4">
         {AGENCY_SHOWCASE_DESIGNS.map((design) => (
           <button
             key={design.value}

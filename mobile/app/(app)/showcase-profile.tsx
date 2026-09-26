@@ -186,6 +186,14 @@ function PublicProfileForm({
             background: '#202420',
             accent: '#bea775',
           },
+          {
+            value: 'deal-floor',
+            label: 'Deal Floor',
+            detail:
+              'Warm charcoal, saffron, fill-in-the-blank search and Quick Picks',
+            background: '#14120f',
+            accent: '#ffb020',
+          },
         ] as const
       ).map((design) => (
         <Pressable

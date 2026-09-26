@@ -29,10 +29,19 @@ interface ShowcaseShortlistProps {
   email: string;
   onRemove: (id: string) => void;
   onClear: () => void;
+  /** Bumped by the page to open the enquiry from elsewhere (the Deal
+   *  Floor match-report tile and Quick Picks). */
+  openRequest?: number;
 }
 
 export function ShowcaseShortlist(props: ShowcaseShortlistProps) {
   const [open, setOpen] = useState(false);
+  const [handledRequest, setHandledRequest] = useState(0);
+  const openRequest = props.openRequest ?? 0;
+  if (openRequest > handledRequest) {
+    setHandledRequest(openRequest);
+    if (props.properties.length > 0) setOpen(true);
+  }
   if (!props.properties.length && !open) return null;
   return (
     <>

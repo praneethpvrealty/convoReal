@@ -308,3 +308,918 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── Deal Floor ─────────────────────────────────────────────────── */
+[data-showcase-design='deal-floor'] {
+  --showcase-canvas: #14120f;
+  --showcase-panel: #1d1a16;
+  --showcase-ink: #f4efe6;
+  --showcase-muted: #a89f92;
+  --showcase-line: #332d26;
+  --primary: #ffb020;
+  --primary-hover: #ffc24d;
+  --primary-foreground: #14120f;
+  --df-whatsapp: #25d366;
+  --df-whatsapp-ink: #062d17;
+  --df-display: var(
+    --font-deal-floor-display,
+    Georgia,
+    'Times New Roman',
+    serif
+  );
+  --df-body: var(
+    --font-deal-floor-body,
+    var(--font-sans),
+    system-ui,
+    sans-serif
+  );
+  --df-mono: var(
+    --font-deal-floor-mono,
+    ui-monospace,
+    'SFMono-Regular',
+    monospace
+  );
+  font-family: var(--df-body);
+  color-scheme: dark;
+}
+[data-showcase-design='deal-floor'] .df-serif,
+[data-showcase-design='deal-floor'] .showcase-hero h1,
+[data-showcase-design='deal-floor'] .showcase-listing-price {
+  font-family: var(--df-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+[data-showcase-design='deal-floor'] .df-mono,
+[data-showcase-design='deal-floor'] .df-eyebrow,
+[data-showcase-design='deal-floor'] .df-tag,
+[data-showcase-design='deal-floor'] .showcase-listing-type,
+[data-showcase-design='deal-floor'] .showcase-listing-facts {
+  font-family: var(--df-mono);
+}
+[data-showcase-design='deal-floor'] .df-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--showcase-muted);
+}
+[data-showcase-design='deal-floor'] .df-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: rgb(20 18 15 / 0.85);
+  color: var(--showcase-ink);
+}
+[data-showcase-design='deal-floor'] .df-tag-accent {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+[data-showcase-design='deal-floor']
+  :is(
+    .df-btn-accent,
+    .df-btn-ink,
+    .df-btn-ghost,
+    .df-btn-whatsapp,
+    .df-btn-link
+  ) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 3rem;
+  padding: 0 1.4rem;
+  border-radius: 1rem;
+  border: 1px solid transparent;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+[data-showcase-design='deal-floor'] .df-btn-accent {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+[data-showcase-design='deal-floor'] .df-btn-accent:hover {
+  background: var(--primary-hover);
+}
+[data-showcase-design='deal-floor'] .df-btn-ink {
+  background: var(--showcase-canvas);
+  color: var(--showcase-ink);
+}
+[data-showcase-design='deal-floor'] .df-btn-ghost {
+  background: transparent;
+  border-color: var(--showcase-line);
+  color: var(--showcase-ink);
+}
+[data-showcase-design='deal-floor'] .df-btn-ghost:hover {
+  border-color: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-btn-ghost:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+[data-showcase-design='deal-floor'] .df-btn-small {
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+  font-size: 0.8rem;
+}
+[data-showcase-design='deal-floor'] .df-btn-whatsapp {
+  background: var(--df-whatsapp);
+  color: var(--df-whatsapp-ink);
+}
+[data-showcase-design='deal-floor'] .df-btn-link {
+  min-height: 2.75rem;
+  padding: 0 0.4rem;
+  background: transparent;
+  color: var(--showcase-ink);
+  font-weight: 600;
+}
+[data-showcase-design='deal-floor'] .df-btn-link:hover {
+  color: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+[data-showcase-design='deal-floor'] .df-section-head h2,
+[data-showcase-design='deal-floor'] .df-listings-head h2 {
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  line-height: 1.1;
+}
+
+/* Hero */
+[data-showcase-design='deal-floor'] .df-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin: 0.5rem 0 2.5rem;
+}
+[data-showcase-design='deal-floor'] .df-hero-title {
+  margin: 0;
+  max-width: 62rem;
+  font-size: clamp(2.2rem, 5.2vw, 4.6rem);
+  line-height: 1.12;
+  text-wrap: balance;
+}
+[data-showcase-design='deal-floor'] .df-blank {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: baseline;
+  margin: 0.15em 0;
+}
+[data-showcase-design='deal-floor'] .df-blank select {
+  appearance: none;
+  -webkit-appearance: none;
+  max-width: 14em;
+  padding: 0 1.9em 0.08em 0.6em;
+  border-radius: 999px;
+  border: 2px dashed var(--primary);
+  background: rgb(255 176 32 / 0.08);
+  color: var(--primary);
+  font: inherit;
+  font-style: italic;
+  line-height: 1.15;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+[data-showcase-design='deal-floor'] .df-blank select:hover {
+  background: rgb(255 176 32 / 0.16);
+}
+[data-showcase-design='deal-floor'] .df-blank select:focus-visible {
+  outline: 3px solid var(--showcase-ink);
+  outline-offset: 2px;
+}
+[data-showcase-design='deal-floor'] .df-blank select option {
+  font-style: normal;
+  font-size: 1rem;
+  font-family: var(--df-body);
+  color: var(--showcase-ink);
+  background: var(--showcase-panel);
+}
+[data-showcase-design='deal-floor'] .df-blank svg {
+  position: absolute;
+  right: 0.55em;
+  pointer-events: none;
+  color: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+[data-showcase-design='deal-floor'] .df-hero-actions .df-btn-accent {
+  min-height: 3.5rem;
+  font-size: 1rem;
+}
+[data-showcase-design='deal-floor'] .df-hero-copy {
+  margin: 0;
+  max-width: 36rem;
+  color: var(--showcase-muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+/* Kind tiles */
+[data-showcase-design='deal-floor'] .df-kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin-bottom: 2.5rem;
+}
+[data-showcase-design='deal-floor'] .df-kind-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.6rem;
+}
+[data-showcase-design='deal-floor'] .df-kind {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.4rem;
+  min-height: 5.5rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 1rem;
+  border: 1px solid var(--showcase-line);
+  background: var(--showcase-panel);
+  color: var(--showcase-ink);
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+[data-showcase-design='deal-floor'] .df-kind .df-mono {
+  font-size: 1.35rem;
+  color: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-kind:hover {
+  border-color: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-kind[aria-pressed='true'] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+[data-showcase-design='deal-floor'] .df-kind[aria-pressed='true'] .df-mono {
+  color: var(--primary-foreground);
+}
+
+/* Board */
+[data-showcase-design='deal-floor'] .df-board {
+  margin-bottom: 2.5rem;
+}
+[data-showcase-design='deal-floor'] .df-board-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(15rem, auto);
+  gap: 1rem;
+}
+[data-showcase-design='deal-floor'] .df-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.15rem;
+  border-radius: 1.4rem;
+  border: 1px solid var(--showcase-line);
+  background: var(--showcase-panel);
+  color: var(--showcase-ink);
+  text-align: left;
+  overflow: hidden;
+  min-width: 0;
+}
+[data-showcase-design='deal-floor'] button.df-tile {
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+[data-showcase-design='deal-floor'] button.df-tile:hover {
+  border-color: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-tile-featured {
+  grid-column: span 2;
+  grid-row: span 2;
+  min-height: 24rem;
+  padding: 1.5rem;
+  justify-content: flex-end;
+}
+[data-showcase-design='deal-floor'] .df-tile-featured > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+[data-showcase-design='deal-floor'] .df-tile-featured::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgb(20 18 15 / 0) 40%,
+    rgb(20 18 15 / 0.92) 100%
+  );
+}
+[data-showcase-design='deal-floor'] .df-tile-tags {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1;
+  display: flex;
+  gap: 0.5rem;
+}
+[data-showcase-design='deal-floor'] .df-tile-caption {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+[data-showcase-design='deal-floor'] .df-tile-price {
+  font-size: clamp(2.2rem, 4vw, 3.5rem);
+  line-height: 1;
+}
+[data-showcase-design='deal-floor'] .df-tile-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+[data-showcase-design='deal-floor'] .df-tile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--showcase-muted);
+}
+[data-showcase-design='deal-floor'] .df-tile-meta button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+[data-showcase-design='deal-floor'] .df-tile-meta button:hover {
+  color: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-tile-number {
+  font-size: clamp(4rem, 7vw, 6rem);
+  line-height: 0.9;
+  color: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-tile-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-tile-lead {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: var(--showcase-ink);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+}
+[data-showcase-design='deal-floor'] .df-tile-lead:hover {
+  color: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-tile-quote {
+  font-size: 1.35rem;
+  line-height: 1.2;
+  font-style: italic;
+}
+[data-showcase-design='deal-floor'] .df-ask-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding: 0 0.35rem 0 0.9rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--showcase-line);
+  background: var(--showcase-canvas);
+}
+[data-showcase-design='deal-floor'] .df-ask-field input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--showcase-ink);
+  font: inherit;
+  font-size: 0.9rem;
+}
+[data-showcase-design='deal-floor'] .df-ask-field button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.7rem;
+  border: 0;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  cursor: pointer;
+}
+[data-showcase-design='deal-floor'] .df-tile-report {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+[data-showcase-design='deal-floor'] .df-tile-report .df-eyebrow {
+  color: var(--primary-foreground);
+}
+[data-showcase-design='deal-floor'] .df-report-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+[data-showcase-design='deal-floor'] .df-report-row svg {
+  width: 4.5rem;
+  height: 4.5rem;
+  flex-shrink: 0;
+}
+[data-showcase-design='deal-floor'] .df-report-row p {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+[data-showcase-design='deal-floor'] .df-ring-track {
+  fill: none;
+  stroke: rgb(20 18 15 / 0.2);
+}
+[data-showcase-design='deal-floor'] .df-ring-fill {
+  fill: none;
+  stroke: var(--primary-foreground);
+}
+[data-showcase-design='deal-floor'] .df-ring-text {
+  font-family: var(--df-mono);
+  font-size: 18px;
+  fill: var(--primary-foreground);
+}
+
+/* Listings head + mode */
+[data-showcase-design='deal-floor'] .df-listings-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  scroll-margin-top: 5rem;
+}
+[data-showcase-design='deal-floor'] .df-mode {
+  display: flex;
+  padding: 0.25rem;
+  border-radius: 0.8rem;
+  border: 1px solid var(--showcase-line);
+  background: var(--showcase-panel);
+}
+[data-showcase-design='deal-floor'] .df-mode button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+  padding: 0 0.9rem;
+  border-radius: 0.6rem;
+  border: 0;
+  background: transparent;
+  color: var(--showcase-ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+[data-showcase-design='deal-floor'] .df-mode button[aria-pressed='true'] {
+  background: var(--showcase-ink);
+  color: var(--showcase-canvas);
+  font-weight: 700;
+}
+[data-showcase-design='deal-floor'] .showcase-type-pills {
+  display: none;
+}
+
+/* Cards */
+[data-showcase-design='deal-floor'] .showcase-listing-card {
+  border-radius: 1.4rem;
+}
+[data-showcase-design='deal-floor'] .showcase-listing-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 48px rgb(0 0 0 / 0.45);
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+[data-showcase-design='deal-floor'] .showcase-listing-price {
+  font-size: 1.75rem;
+}
+[data-showcase-design='deal-floor'] .showcase-listing-type {
+  background: rgb(20 18 15 / 0.85);
+  color: var(--showcase-ink);
+  letter-spacing: 0.08em;
+}
+[data-showcase-design='deal-floor']
+  .showcase-photo-shortlist[aria-pressed='true'] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+[data-showcase-design='deal-floor'] .showcase-listing-facts {
+  font-size: 0.75rem;
+}
+[data-showcase-design='deal-floor'] .showcase-card-actions .bg-green-600 {
+  background-color: var(--df-whatsapp);
+  color: var(--df-whatsapp-ink);
+}
+[data-showcase-design='deal-floor'] .showcase-card-actions .bg-green-600 svg {
+  color: var(--df-whatsapp-ink);
+  fill: var(--df-whatsapp-ink);
+}
+
+/* Plot face (photoless listings) */
+[data-showcase-design='deal-floor'] .df-plot-face {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  background: #262219;
+  color: var(--showcase-ink);
+  overflow: hidden;
+}
+[data-showcase-design='deal-floor'] .df-plot-face > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+[data-showcase-design='deal-floor'] .df-plot-outline {
+  fill: var(--primary);
+  fill-opacity: 0.12;
+  stroke: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-plot-mono {
+  font-family: var(--df-mono);
+  font-size: 12px;
+  fill: var(--showcase-muted);
+}
+[data-showcase-design='deal-floor'] .df-plot-copy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 1rem;
+  text-align: center;
+}
+[data-showcase-design='deal-floor'] .df-plot-headline {
+  font-family: var(--df-display);
+  font-size: 1.9rem;
+  line-height: 1;
+}
+[data-showcase-design='deal-floor'] .df-plot-caption {
+  font-family: var(--df-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--showcase-muted);
+}
+
+/* Quick Picks deck */
+[data-showcase-design='deal-floor'] .df-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 26rem;
+  margin: 0 auto;
+  scroll-margin-top: 5rem;
+}
+[data-showcase-design='deal-floor'] .df-deck-empty,
+[data-showcase-design='deal-floor'] .df-deck-done {
+  padding: 1.5rem;
+  border-radius: 1.5rem;
+  border: 1px solid var(--showcase-line);
+  background: var(--showcase-panel);
+}
+[data-showcase-design='deal-floor'] .df-deck-empty p {
+  margin: 0;
+  color: var(--showcase-muted);
+}
+[data-showcase-design='deal-floor'] .df-deck-headline {
+  margin: 0;
+  font-size: 2.2rem;
+  line-height: 1.1;
+}
+[data-showcase-design='deal-floor'] .df-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-showcase-design='deal-floor'] .df-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+[data-showcase-design='deal-floor'] .df-deck-liked {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-showcase-design='deal-floor'] .df-deck-liked button {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--showcase-ink);
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+[data-showcase-design='deal-floor'] .df-deck-liked img,
+[data-showcase-design='deal-floor'] .df-deck-liked .df-plot-face {
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 0;
+  border-radius: 0.9rem;
+  object-fit: cover;
+}
+[data-showcase-design='deal-floor'] .df-deck-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+[data-showcase-design='deal-floor'] .df-deck-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+[data-showcase-design='deal-floor'] .df-deck-dots {
+  display: flex;
+  gap: 0.25rem;
+}
+[data-showcase-design='deal-floor'] .df-deck-dots span {
+  width: 1.5rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: var(--showcase-line);
+}
+[data-showcase-design='deal-floor'] .df-deck-dots span[data-state='liked'] {
+  background: var(--primary);
+}
+[data-showcase-design='deal-floor'] .df-deck-dots span[data-state='skipped'] {
+  background: var(--showcase-muted);
+}
+[data-showcase-design='deal-floor'] .df-deck-dots span[data-state='current'] {
+  background: var(--showcase-ink);
+}
+[data-showcase-design='deal-floor'] .df-deck-stage {
+  position: relative;
+}
+[data-showcase-design='deal-floor'] .df-deck-under {
+  position: absolute;
+  inset: 1.25rem -0.4rem auto;
+  height: 100%;
+  border-radius: 1.6rem;
+  border: 1px solid var(--showcase-line);
+  background: #2d2820;
+  overflow: hidden;
+  transform: rotate(-2deg);
+}
+[data-showcase-design='deal-floor'] .df-deck-under img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.45;
+}
+@keyframes df-deal-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) rotate(-3deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0);
+  }
+}
+[data-showcase-design='deal-floor'] .df-deck-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 1.6rem;
+  border: 1px solid var(--showcase-line);
+  background: var(--showcase-panel);
+  overflow: hidden;
+  box-shadow: 0 30px 60px rgb(0 0 0 / 0.55);
+  animation: df-deal-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-showcase-design='deal-floor'] .df-deck-card {
+    animation: none;
+  }
+}
+[data-showcase-design='deal-floor'] .df-deck-photo {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3.4;
+  padding: 0;
+  border: 0;
+  background: #262219;
+  color: var(--showcase-ink);
+  cursor: pointer;
+  overflow: hidden;
+}
+[data-showcase-design='deal-floor'] .df-deck-photo > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+[data-showcase-design='deal-floor'] .df-deck-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgb(20 18 15 / 0) 55%,
+    rgb(20 18 15 / 0.9) 100%
+  );
+  pointer-events: none;
+}
+[data-showcase-design='deal-floor'] .df-deck-photo .df-tag {
+  position: absolute;
+  top: 0.85rem;
+  left: 0.85rem;
+  z-index: 1;
+}
+[data-showcase-design='deal-floor'] .df-deck-photo .df-tag-accent {
+  left: auto;
+  right: 0.85rem;
+}
+[data-showcase-design='deal-floor'] .df-deck-price {
+  position: absolute;
+  left: 1.1rem;
+  bottom: 1rem;
+  z-index: 1;
+  font-size: 2.5rem;
+  line-height: 1;
+}
+[data-showcase-design='deal-floor'] .df-deck-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.9rem 1.1rem 1.1rem;
+}
+[data-showcase-design='deal-floor'] .df-deck-body h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+[data-showcase-design='deal-floor'] .df-deck-body p {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--showcase-muted);
+}
+[data-showcase-design='deal-floor'] .df-deck-hint {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+}
+[data-showcase-design='deal-floor'] .df-deck-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+[data-showcase-design='deal-floor'] .df-deck-actions-column {
+  flex-direction: column;
+  align-items: stretch;
+}
+[data-showcase-design='deal-floor'] .df-deck-like {
+  flex: 1;
+  min-height: 4rem;
+  border-radius: 1.25rem;
+  font-size: 1rem;
+}
+[data-showcase-design='deal-floor'] .df-deck-skip,
+[data-showcase-design='deal-floor'] .df-deck-ask {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  flex-shrink: 0;
+  border-radius: 1.25rem;
+  cursor: pointer;
+}
+[data-showcase-design='deal-floor'] .df-deck-skip {
+  border: 1px solid var(--showcase-line);
+  background: var(--showcase-panel);
+  color: var(--showcase-ink);
+}
+[data-showcase-design='deal-floor'] .df-deck-skip:hover {
+  border-color: var(--showcase-ink);
+}
+[data-showcase-design='deal-floor'] .df-deck-ask {
+  border: 0;
+  background: var(--df-whatsapp);
+  color: var(--df-whatsapp-ink);
+}
+
+/* Shortlist dock */
+[data-showcase-shortlist][data-showcase-design='deal-floor'] {
+  border-radius: 999px;
+  border-color: #c9c0b2;
+  background: var(--showcase-ink);
+  color: var(--showcase-canvas);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.55);
+}
+[data-showcase-shortlist][data-showcase-design='deal-floor'] .text-white {
+  color: var(--showcase-canvas);
+}
+[data-showcase-shortlist][data-showcase-design='deal-floor'] button {
+  border-radius: 999px;
+}
+[data-showcase-shortlist][data-showcase-design='deal-floor'] .bg-primary {
+  background: var(--df-whatsapp);
+  color: var(--df-whatsapp-ink);
+}
+
+@media (min-width: 1024px) {
+  [data-showcase-design='deal-floor'] .df-board-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: 17rem;
+  }
+  [data-showcase-design='deal-floor'] .df-tile-featured {
+    min-height: 0;
+  }
+}
+@media (max-width: 639px) {
+  [data-showcase-design='deal-floor'] .df-board-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+  }
+  [data-showcase-design='deal-floor'] .df-tile-featured {
+    grid-column: auto;
+    grid-row: auto;
+    min-height: 19rem;
+  }
+  [data-showcase-design='deal-floor'] .df-kind-row {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: none;
+  }
+  [data-showcase-design='deal-floor'] .df-kind {
+    flex: 0 0 7.5rem;
+  }
+  [data-showcase-design='deal-floor'] .df-blank select {
+    max-width: 11em;
+  }
+}
