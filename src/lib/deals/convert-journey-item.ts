@@ -1,7 +1,7 @@
 import type { AccountContext } from '@/lib/auth/account';
 import {
   buildConversionDeal,
-  defaultStageForConversion,
+  conversionStageForItem,
   type ConvertibleJourneyItem,
 } from '@/lib/deals/conversion';
 import { writeDealEvent, type DealEventSource } from '@/lib/deals/events';
@@ -42,6 +42,7 @@ type JourneyStageRef = {
   id: string;
   name: string;
   stage_kind: JourneyStageKind;
+  pipeline_stage_id: string | null;
 };
 type ItemRow = Omit<ConvertibleJourneyItem, 'contact' | 'property'> & {
   contact:
@@ -81,7 +82,7 @@ export async function convertJourneyItemToDeal(
       'id, contact_id, property_id, stage_id, status, ' +
         'contact:contacts(name, phone), ' +
         'property:properties(title, unit_no, price), ' +
-        'stage:journey_stages!journey_items_stage_id_fkey(id, name, stage_kind)'
+        'stage:journey_stages!journey_items_stage_id_fkey(id, name, stage_kind, pipeline_stage_id)'
     )
     .eq('id', itemId)
     .eq('account_id', ctx.accountId)
@@ -166,9 +167,10 @@ export async function convertJourneyItemToDeal(
     .order('position');
   const stage = input.stageId
     ? ((stages ?? []).find((s) => s.id === input.stageId) ?? null)
-    : defaultStageForConversion(
+    : conversionStageForItem(
         stages ?? [],
-        journeyStage?.stage_kind ?? 'prospecting'
+        journeyStage?.stage_kind ?? 'prospecting',
+        journeyStage?.pipeline_stage_id ?? null
       );
   if (!stage) {
     return {

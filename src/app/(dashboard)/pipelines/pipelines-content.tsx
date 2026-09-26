@@ -366,6 +366,7 @@ export default function PipelinesPage() {
       void queryClient.invalidateQueries({
         queryKey: ['transaction-workspace-index'],
       });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
     [refreshDeals, deals, stages, queryClient]
   );

@@ -58,6 +58,28 @@ export function defaultStageForConversion(
   return ordered[0];
 }
 
+/**
+ * The stage a conversion opens on when the caller names none: the
+ * board stage the branch already mirrors, so a journey at Site Visit
+ * Scheduled opens its deal there rather than back at the first stage;
+ * a branch on a terminal or unmirrored stage falls back to the
+ * kind-based default above. Conversion opens a deal, it never closes
+ * one.
+ */
+export function conversionStageForItem(
+  stages: readonly ConversionStage[],
+  journeyStageKind: JourneyStageKind,
+  mirroredStageId: string | null | undefined
+): ConversionStage | null {
+  const mirrored = mirroredStageId
+    ? (stages.find((s) => s.id === mirroredStageId) ?? null)
+    : null;
+  if (mirrored && pipelineOutcomeForStage(mirrored.name) === 'active') {
+    return mirrored;
+  }
+  return defaultStageForConversion(stages, journeyStageKind);
+}
+
 export function conversionTitle(item: ConvertibleJourneyItem): string {
   const who =
     item.contact?.name?.trim() || item.contact?.phone?.trim() || 'Buyer';
@@ -109,9 +131,7 @@ export function buildConversionDeal(args: {
 
 type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
-export function parseConversionInput(
-  raw: unknown
-): ParseResult<{
+export function parseConversionInput(raw: unknown): ParseResult<{
   itemId: string;
   pipelineId: string | null;
   title: string | null;

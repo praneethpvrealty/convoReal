@@ -1417,6 +1417,30 @@
             "src/lib/journey/visit-capture.ts",
             "src/lib/calendar/whatsapp-scheduler.ts"
           ]
+        },
+        {
+          "id": "JRN-011",
+          "rule": "Journey, Board, Records and the Dashboard describe the same items: every deal with a contact and a property is linked to that pair's journey branch, created at the deal's mirrored stage when the pair was never on the journey, and on the default pipeline stage and outcome mirror both ways — a deal moved or marked open, won or lost on the Board moves its branch and sets it active or dropped; a branch moved, dropped or reactivated on the Journey moves its deal and sets it open, won or lost. A conversion opens the deal on the stage the branch already mirrors, a second deal for the same pair stays unlinked, and Focus counts as live only the journeys the overview still shows as active.",
+          "tests": [
+            {
+              "file": "src/lib/migrations/journey-deal-link-sync.test.ts",
+              "case": "[JRN-011]"
+            },
+            {
+              "file": "src/lib/deals/conversion.test.ts",
+              "case": "[JRN-011]"
+            },
+            {
+              "file": "src/lib/focus/lifecycle.test.ts",
+              "case": "[JRN-011]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260926123000_journey_deal_link_sync.sql",
+            "supabase/migrations/20260926123100_journey_deal_link_backfill.sql",
+            "src/lib/deals/conversion.ts",
+            "src/lib/focus/queries.ts"
+          ]
         }
       ]
     },

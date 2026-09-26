@@ -769,7 +769,7 @@ async function appendDealNotes(
     .select('id, notes')
     .eq('contact_id', contactId)
     .eq('property_id', propertyId)
-    .eq('status', 'active');
+    .eq('status', 'open');
   let updated = 0;
   for (const deal of (deals ?? []) as Array<{
     id: string;

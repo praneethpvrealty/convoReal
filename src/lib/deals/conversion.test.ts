@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildConversionDeal,
+  conversionStageForItem,
   conversionTitle,
   defaultStageForConversion,
   parseConversionInput,
@@ -114,5 +115,27 @@ describe('[TXW-001] journey → deal conversion', () => {
       ok: false,
       error: 'item_id is required',
     });
+  });
+});
+
+describe('[JRN-011] a conversion opens on the stage the branch already mirrors', () => {
+  const board = [
+    { id: 's0', name: 'New Inquiry', position: 0 },
+    { id: 's2', name: 'Site Visit Scheduled', position: 2 },
+    { id: 's3', name: 'Negotiation/Token', position: 3 },
+    { id: 's8', name: 'Closed Lost', position: 8 },
+  ];
+
+  it('uses the mirrored board stage when the branch sits on one', () => {
+    expect(conversionStageForItem(board, 'prospecting', 's2')?.id).toBe('s2');
+    expect(conversionStageForItem(board, 'closing', 's3')?.id).toBe('s3');
+  });
+
+  it('falls back to the kind default when the mirror is terminal, missing or unknown', () => {
+    expect(conversionStageForItem(board, 'prospecting', 's8')?.id).toBe('s0');
+    expect(conversionStageForItem(board, 'closing', null)?.id).toBe('s3');
+    expect(conversionStageForItem(board, 'prospecting', 'elsewhere')?.id).toBe(
+      's0'
+    );
   });
 });
