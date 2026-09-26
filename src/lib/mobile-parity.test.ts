@@ -40,6 +40,7 @@ import {
   nextPulseFeedCursor,
   pulseFeedCursorFilter,
 } from '@/lib/pulse/feed-page';
+import { pulseVisitorLabel } from '@/lib/pulse/visitor-label';
 import * as EKhataWeb from '@/lib/inventory/e-khata-fields';
 import {
   AMENITIES_BY_CATEGORY,
@@ -3483,6 +3484,28 @@ describe('mobile/lib/guidance-value.ts mirrors the web RTC print line', () => {
     ]) {
       expect(mobile.schedulePrinted(schedule)).toBe(schedulePrinted(schedule));
     }
+  });
+});
+
+describe('[PLS-003] mobile Showcase Pulse forwarded-link label matches web', () => {
+  const mobile = mobileModule<{
+    pulseVisitorLabel: typeof pulseVisitorLabel;
+  }>('lib/pulse-feed.ts');
+
+  it('labels a forwarded-link guest via the sender on both surfaces', () => {
+    const event = {
+      contact: null,
+      via_contact: { id: 'c-1', name: 'Ravi', phone: '+91' },
+      share: null,
+      session_key: 'e3e4ba9d-1234-4abc-8def-000000000000',
+    };
+    const timeAgo = () => '2h ago';
+    expect(mobile.pulseVisitorLabel(event, timeAgo)).toBe(
+      pulseVisitorLabel(event, timeAgo)
+    );
+    expect(pulseVisitorLabel(event, timeAgo)).toBe(
+      "Guest via Ravi's link · e3e4ba9d"
+    );
   });
 });
 

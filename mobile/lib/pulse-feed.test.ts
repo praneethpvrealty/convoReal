@@ -6,6 +6,7 @@ import {
   nextPulseFeedCursor,
   PULSE_FEED_PAGE_SIZE,
   pulseFeedCursorFilter,
+  pulseVisitorLabel,
   visitorContactRoute,
   type PulseEvent,
 } from './pulse-feed';
@@ -253,5 +254,61 @@ describe('[PLS-002] visitor contact link', () => {
 
   it('gives an anonymous guest no link', () => {
     expect(visitorContactRoute({ contact: null })).toBeNull();
+  });
+});
+
+describe('[PLS-003] visitor label', () => {
+  const timeAgo = () => '2h ago';
+  const session = 'e3e4ba9d-1234-4abc-8def-000000000000';
+
+  it('names an identified visitor', () => {
+    expect(
+      pulseVisitorLabel(
+        {
+          contact: { id: 'c-1', name: 'Salman', phone: '+91', name_tag: null },
+          via_contact: null,
+          share: null,
+          session_key: session,
+        },
+        timeAgo
+      )
+    ).toBe('Salman');
+  });
+
+  it('labels a forwarded-link viewer as a guest via the sender, never as the sender', () => {
+    const label = pulseVisitorLabel(
+      {
+        contact: null,
+        via_contact: { id: 'c-1', name: 'Ravi', phone: '+91' },
+        share: null,
+        session_key: session,
+      },
+      timeAgo
+    );
+    expect(label).toBe("Guest via Ravi's link · e3e4ba9d");
+    expect(label).not.toBe('Ravi');
+  });
+
+  it('dates a generic-share guest to the share', () => {
+    expect(
+      pulseVisitorLabel(
+        {
+          contact: null,
+          via_contact: null,
+          share: { id: 's-1', created_at: '2026-09-26T10:00:00Z' },
+          session_key: session,
+        },
+        timeAgo
+      )
+    ).toBe('Guest · link shared 2h ago · e3e4ba9d');
+  });
+
+  it('falls back to an anonymous guest', () => {
+    expect(
+      pulseVisitorLabel(
+        { contact: null, via_contact: null, share: null, session_key: session },
+        timeAgo
+      )
+    ).toBe('Anonymous guest · e3e4ba9d');
   });
 });

@@ -2611,6 +2611,22 @@
             },
             { "file": "mobile/lib/pulse-feed.test.ts", "case": "[PLS-002]" }
           ]
+        },
+        {
+          "id": "PLS-003",
+          "rule": "A personalized showcase link belongs to the first device that opens it; any other device opening the same link is recorded as a guest via that contact's link, never as the contact, until the visitor identifies themselves, and a known device stays attributed when it returns on the bare link. The activity feed labels a forwarded-link guest by the sender's name on web and mobile.",
+          "tests": [
+            {
+              "file": "src/app/api/public/showcase-events/route.test.ts",
+              "case": "[PLS-003]"
+            },
+            {
+              "file": "src/lib/pulse/visitor-label.test.ts",
+              "case": "[PLS-003]"
+            },
+            { "file": "mobile/lib/pulse-feed.test.ts", "case": "[PLS-003]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[PLS-003]" }
+          ]
         }
       ]
     },

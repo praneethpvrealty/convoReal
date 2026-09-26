@@ -39,6 +39,8 @@ export interface HydratedShowcaseEvent extends Omit<ShowcaseEvent, 'metadata'> {
   property?: Property | null;
   /** The share-instance link the visit came through, when it did. */
   share?: { id: string; created_at: string } | null;
+  /** The contact whose forwarded link brought this guest here. */
+  via_contact?: Pick<Contact, 'id' | 'name' | 'phone'> | null;
 }
 
 /** Aggregated in Postgres (migration 172) — counting opens, distinct
@@ -95,7 +97,9 @@ export async function loadPulseFeed(
   let query = db
     .from('showcase_events')
     .select(
-      '*, contact:contacts(*), property:properties(*), share:showcase_share_links(id, created_at)'
+      '*, contact:contacts!showcase_events_contact_id_fkey(*), ' +
+        'via_contact:contacts!showcase_events_via_contact_id_fkey(id, name, phone), ' +
+        'property:properties(*), share:showcase_share_links(id, created_at)'
     );
   if (cursor) query = query.or(pulseFeedCursorFilter(cursor));
   const { data, error } = await query
@@ -106,8 +110,10 @@ export async function loadPulseFeed(
   if (error) throw error;
 
   type ShareRow = { id: string; created_at: string };
+  type ViaRow = Pick<Contact, 'id' | 'name' | 'phone'>;
   type EventRow = Omit<ShowcaseEvent, 'contact' | 'property'> & {
     contact: Contact | Contact[] | null;
+    via_contact: ViaRow | ViaRow[] | null;
     property: Property | Property[] | null;
     share: ShareRow | ShareRow[] | null;
   };
@@ -116,6 +122,7 @@ export async function loadPulseFeed(
     ...row,
     metadata: row.metadata as HydratedShowcaseEvent['metadata'],
     contact: one(row.contact),
+    via_contact: one(row.via_contact),
     property: one(row.property),
     share: one(row.share),
   })) as HydratedShowcaseEvent[];

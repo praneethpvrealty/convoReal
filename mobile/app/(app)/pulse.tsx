@@ -37,6 +37,7 @@ import {
   dedupeConsecutiveEvents,
   formatDwellTime,
   formatTimeAgo,
+  pulseVisitorLabel,
   groupEventsByVisitor,
   nextPulseFeedCursor,
   visitorContactRoute,
@@ -455,12 +456,7 @@ function VisitorActivityCard({
 }) {
   const { colors, fonts: f } = useTheme();
   const event = visitor.latestEvent;
-  const who =
-    event.contact?.name ||
-    event.contact?.phone ||
-    (event.share
-      ? `Guest · link shared ${formatTimeAgo(event.share.created_at)} · ${event.session_key.slice(0, 8)}`
-      : `Anonymous guest · ${event.session_key.slice(0, 8)}`);
+  const who = pulseVisitorLabel(event, formatTimeAgo);
   const hasEarlierActivity = visitor.events.length > 1;
   const contactRoute = visitorContactRoute(event);
 

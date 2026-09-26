@@ -12,7 +12,9 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 //   - account existence check before any insert
 //   - authenticated members viewing their own workspace are excluded
 //   - `ref` (the contact the link was personalized for) is only recorded
-//     when it resolves to a contact IN that account
+//     when it resolves to a contact IN that account, and only for the
+//     first device that opens the link — a forwarded link marks the
+//     visitor as a guest referred by that contact, never as the contact
 //   - batch capped, event types whitelisted, metadata size-clamped
 // No IP or user-agent is stored.
 
@@ -110,17 +112,35 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     if (!account) return new NextResponse(null, { status: 204 });
 
-    // Resolve ref → contact, but only within this account: a forged ref
-    // from another tenant must never attach events to a foreign contact.
+    // Resolve ref → contact through resolve_showcase_visitor (migration
+    // 20260926130000): the contact must belong to this account, a
+    // session already known as someone's device keeps that identity,
+    // and a personalized link is claimed by the first device that opens
+    // it. Any later device presenting the same ref is a forwarded viewer
+    // — its events carry via_contact_id instead of contact_id.
+    const ref = body?.ref && UUID_RE.test(body.ref) ? body.ref : null;
     let contactId: string | null = null;
-    if (body?.ref && UUID_RE.test(body.ref)) {
-      const { data: contact } = await db
-        .from('contacts')
-        .select('id')
-        .eq('id', body.ref)
-        .eq('account_id', accountId)
-        .maybeSingle();
-      contactId = contact?.id ?? null;
+    let viaContactId: string | null = null;
+    const { data: identity, error: identityError } = await db.rpc(
+      'resolve_showcase_visitor',
+      {
+        p_account_id: accountId,
+        p_session_key: sessionKey,
+        p_contact_id: ref,
+      }
+    );
+    if (identityError) {
+      console.error(
+        '[showcase-events] identity resolve failed:',
+        identityError.message
+      );
+    } else {
+      const resolved = (Array.isArray(identity) ? identity[0] : identity) as {
+        contact_id: string | null;
+        via_contact_id: string | null;
+      } | null;
+      contactId = resolved?.contact_id ?? null;
+      viaContactId = resolved?.via_contact_id ?? null;
     }
 
     // Resolve the share-instance token (?s= on generic showcase shares,
@@ -149,6 +169,7 @@ export async function POST(request: NextRequest) {
       .map(({ event, metadata }) => ({
         account_id: accountId,
         contact_id: contactId,
+        via_contact_id: viaContactId,
         property_id:
           typeof event.property_id === 'string' &&
           UUID_RE.test(event.property_id)
@@ -167,10 +188,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Retroactive stitching: the session_key persists in the visitor's
-    // localStorage, so once a session is ever identified (they opened a
-    // personalized v= link), earlier anonymous events from the same
-    // device inherit that identity. Only null rows are touched — a
-    // session already attributed to another contact is never rewritten.
+    // localStorage, so once a session is ever identified (it claimed a
+    // personalized v= link, or is a known device), earlier anonymous
+    // events from the same device inherit that identity. Only null rows
+    // are touched — a session already attributed to another contact is
+    // never rewritten, and a forwarded viewer is never stitched.
     if (contactId) {
       const { error } = await db
         .from('showcase_events')
