@@ -65,7 +65,7 @@ export function priceFor(model: string, pricing: Pricing): ModelPrice {
   if (lower.includes('lite')) {
     return pricing.models['gemini-2.5-flash-lite'] ?? { input: 0, output: 0 };
   }
-  return pricing.models['gemini-2.5-flash'] ?? { input: 0, output: 0 };
+  return pricing.models['gemini-3.5-flash'] ?? { input: 0, output: 0 };
 }
 
 export const BATCH_FEATURES: ReadonlySet<string> = new Set([

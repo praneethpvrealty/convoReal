@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 26 September 2026
 
+- **Gemini calls no longer start on a model Google stopped serving.** The
+  managed key now gets "no longer available to new users" for
+  `gemini-2.5-flash`, so every full-Flash call spent a failed request on it
+  before falling back (1,809 of 1,843 such calls in three days). Both
+  chains drop it: full Flash runs `gemini-3.5-flash` → `gemini-3.6-flash` →
+  `gemini-3.8-flash`, and the lite tier falls back up to that same chain.
+  Unpriced full-Flash models are costed at the `gemini-3.5-flash` rate.
+
 - **Guidance value pages without a column header keep the table's
   columns.** Ramanagara's village pages print dry, wet and garden land
   (lakhs per acre) and a site rate under a header on the first page only;

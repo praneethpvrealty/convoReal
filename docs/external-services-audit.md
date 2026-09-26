@@ -54,7 +54,7 @@ Derived per-account averages used for the projections in §5: **~25 MB storage**
 
 | Service | Used for | Tier | Limits |
 | :--- | :--- | :--- | :--- |
-| **Google Gemini** | Copilot, chatbot engine, intake parsing, listing derivations, `gemini-embedding-001`. Chains in `src/lib/ai/gemini.ts`: standard `gemini-2.5-flash` → `gemini-3.5-flash`; lite `gemini-3.1-flash-lite` → `gemini-2.5-flash` | Free unless billing is attached | Free 2.5 Flash: ~10 RPM / 250K TPM / **500 RPD**. Paid: $0.30/M input, $2.50/M output. |
+| **Google Gemini** | Copilot, chatbot engine, intake parsing, listing derivations, `gemini-embedding-001`. Chains in `src/lib/ai/gemini.ts`: standard `gemini-3.5-flash` → `gemini-3.6-flash` → `gemini-3.8-flash`; lite `gemini-3.1-flash-lite` → `gemini-3.5-flash-lite` → the standard chain | Free unless billing is attached | Free tier limits are per model. Paid (3.5 Flash): $0.30/M input, $2.50/M output. |
 | **Google Maps / Places** | Locality lookup, inventory map | Pay-as-you-go | The universal $200 credit was retired in March 2025. Now **10,000 free calls per SKU per month, non-pooling**. Place Details $5/1,000 on Essentials thereafter. |
 | **Google OAuth + YouTube Data API** | Listing video upload | Free API | **10,000 quota units/day; one upload costs ~1,600 units → ~6 uploads/day per project.** Hard ceiling. |
 | **Stability AI** | AI photo enhancement (`sd3` / `ultra`) | Prepaid credits | ~$0.04/image SD3, ~$0.08 Ultra. No free tier. |

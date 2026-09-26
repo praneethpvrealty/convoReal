@@ -51,6 +51,7 @@ vi.mock('@/lib/supabase/admin', () => ({
 import {
   classifyGeminiKeyFailure,
   generateText,
+  modelChain,
   resetGeminiKeyState,
 } from './gemini';
 import {
@@ -304,68 +305,71 @@ describe('retired models', () => {
   const retired = {
     status: 404,
     message:
-      'This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.6-flash.',
+      'This model models/gemini-3.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash.',
+  };
+  const overQuota = {
+    status: 429,
+    message: 'You exceeded your current quota, please check your plan.',
   };
 
   it('[AIK-007] moves past a model Google retired for the key and skips it afterwards', async () => {
-    modelFailures['env-a:gemini-2.5-flash'] = retired;
+    modelFailures['env-a:gemini-3.5-flash'] = retired;
     expect(await generateText('hi')).toBe('ok from env-a');
-    expect(seenModels).toEqual(['gemini-2.5-flash', 'gemini-3.5-flash']);
+    expect(seenModels).toEqual(['gemini-3.5-flash', 'gemini-3.6-flash']);
     seenModels.length = 0;
     expect(await generateText('again')).toBe('ok from env-a');
-    expect(seenModels).toEqual(['gemini-3.5-flash']);
+    expect(seenModels).toEqual(['gemini-3.6-flash']);
   });
 
   it('[AIK-007] lets the lite tier reach full Flash when lite is over quota and the fallback is retired', async () => {
-    modelFailures['env-a:gemini-3.1-flash-lite'] = {
-      status: 429,
-      message: 'You exceeded your current quota, please check your plan.',
-    };
-    modelFailures['env-a:gemini-3.5-flash-lite'] = {
-      status: 429,
-      message: 'You exceeded your current quota, please check your plan.',
-    };
-    modelFailures['env-a:gemini-2.5-flash'] = retired;
+    modelFailures['env-a:gemini-3.1-flash-lite'] = overQuota;
+    modelFailures['env-a:gemini-3.5-flash-lite'] = overQuota;
+    modelFailures['env-a:gemini-3.5-flash'] = retired;
     expect(await generateText('hi', undefined, { tier: 'lite' })).toBe(
       'ok from env-a'
     );
     expect(seenModels).toEqual([
       'gemini-3.1-flash-lite',
       'gemini-3.5-flash-lite',
-      'gemini-2.5-flash',
-      'gemini-3.5-flash',
-    ]);
-  });
-
-  it('[AIK-007] moves to the next key when every model is retired for one key', async () => {
-    modelFailures['env-a:gemini-2.5-flash'] = retired;
-    modelFailures['env-a:gemini-3.5-flash'] = retired;
-    modelFailures['env-a:gemini-3.6-flash'] = retired;
-    expect(await generateText('hi')).toBe('ok from env-b');
-    expect(seen).toEqual(['env-a', 'env-a', 'env-a', 'env-b']);
-  });
-
-  it('[AIK-007] reaches gemini-3.6-flash when the earlier full-Flash models are over quota', async () => {
-    modelFailures['env-a:gemini-2.5-flash'] = retired;
-    modelFailures['env-a:gemini-3.5-flash'] = {
-      status: 429,
-      message: 'You exceeded your current quota, please check your plan.',
-    };
-    expect(await generateText('hi')).toBe('ok from env-a');
-    expect(seenModels).toEqual([
-      'gemini-2.5-flash',
       'gemini-3.5-flash',
       'gemini-3.6-flash',
     ]);
   });
 
+  it('[AIK-007] moves to the next key when every model is retired for one key', async () => {
+    modelFailures['env-a:gemini-3.5-flash'] = retired;
+    modelFailures['env-a:gemini-3.6-flash'] = retired;
+    modelFailures['env-a:gemini-3.8-flash'] = retired;
+    expect(await generateText('hi')).toBe('ok from env-b');
+    expect(seen).toEqual(['env-a', 'env-a', 'env-a', 'env-b']);
+  });
+
+  it('[AIK-007] reaches gemini-3.8-flash when the earlier full-Flash models are over quota', async () => {
+    modelFailures['env-a:gemini-3.5-flash'] = retired;
+    modelFailures['env-a:gemini-3.6-flash'] = overQuota;
+    expect(await generateText('hi')).toBe('ok from env-a');
+    expect(seenModels).toEqual([
+      'gemini-3.5-flash',
+      'gemini-3.6-flash',
+      'gemini-3.8-flash',
+    ]);
+  });
+
+  it('[AIK-007] never starts a chain on a model Google has stopped serving', () => {
+    for (const tier of ['standard', 'lite'] as const) {
+      expect(modelChain(tier)).not.toContain('gemini-2.5-flash');
+    }
+    expect(modelChain('standard')[0]).toBe('gemini-3.5-flash');
+    expect(modelChain('lite').slice(-3)).toEqual(modelChain('standard'));
+  });
+
   it('[AIK-007] retires a model for that key only', () => {
     const [a, b] = parseEnvKeys('a=key-a, b=key-b', (i) => `k${i}`, 'general');
-    const chain = ['gemini-2.5-flash', 'gemini-3.5-flash'];
-    markModelRetired(a, 'gemini-2.5-flash');
-    expect(usableModels(a, chain)).toEqual(['gemini-3.5-flash']);
-    expect(usableModels(b, chain)).toEqual(chain);
+    const chain = ['gemini-3.5-flash', 'gemini-3.6-flash'];
     markModelRetired(a, 'gemini-3.5-flash');
+    expect(usableModels(a, chain)).toEqual(['gemini-3.6-flash']);
+    expect(usableModels(b, chain)).toEqual(chain);
+    markModelRetired(a, 'gemini-3.6-flash');
     expect(usableModels(a, chain)).toEqual(chain);
   });
 });
