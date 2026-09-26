@@ -28,12 +28,13 @@ import {
   rateInstructions,
   rateParseTier,
   sanitiseRateRows,
+  siteUnits,
   openPdf,
   slicePdf,
   RATE_MAX_OUTPUT_TOKENS,
 } from './rate-parse';
 import { GUIDANCE_SOURCE_BUCKET } from './server';
-import type { ParsedRateRow } from './types';
+import type { AreaUnit, ParsedRateRow } from './types';
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -53,6 +54,7 @@ export interface BatchChunk {
   to_page: number;
   context_page: number | null;
   skipped?: boolean;
+  unit?: AreaUnit | null;
 }
 
 export interface BatchChunkResult {
@@ -378,6 +380,7 @@ async function prepareSource(
       from_page: from,
       to_page: to,
       context_page: slice && slice.firstPage < from ? slice.firstPage : null,
+      ...(unit ? { unit } : {}),
     };
     prepared.chunks.push(chunk);
     prepared.requests.push(
@@ -693,7 +696,8 @@ async function applyResults(
           parseJsonResponse(result.text),
           chunk.from_page,
           chunk.to_page,
-          chunk.context_page
+          chunk.context_page,
+          siteUnits(null, chunk.unit)
         ).rows;
       } catch {
         rows = null;

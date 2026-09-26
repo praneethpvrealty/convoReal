@@ -171,14 +171,15 @@ function unitInstructions(unit?: AreaUnit | null): string {
   return `\nThis notification's rate header states rates per ${name}. Unless a table on these pages prints its own unit, write that unit for site and building rates; keep land rates in the acre, gunta or hectare unit their column states.`;
 }
 
-function columnsInstructions(columns?: RateColumn[] | null): string {
+function columnsInstructions(
+  fromPage: number,
+  columns?: RateColumn[] | null
+): string {
   if (!columns?.length) return '';
-  const order = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
   const list = columns
-    .slice(0, order.length)
-    .map((c, i) => `the ${order[i]} rate column is "${c.code}" (${c.unit})`)
+    .map((c, i) => `rate column ${i + 1} is "${c.code}" (${c.unit})`)
     .join(', ');
-  return `\nThe table on the page before these pages continues onto any page here that prints no column header of its own. On such a page ${list}; use exactly these codes and units for its columns, left to right, and no others.`;
+  return `\nIf page ${fromPage} prints no column header of its own, it continues the table on the page before it, whose rate columns were, left to right: ${list}; use exactly these codes and units for page ${fromPage}'s columns and no others. A later page without a header continues the page before it here.`;
 }
 
 export function siteUnits(
@@ -223,7 +224,7 @@ export function rateInstructions(
   return `
 You are transcribing a Karnataka guidance value notification (the
 government's market value guidelines, published by the Central Valuation
-Committee / Department of Stamps and Registration). ${scopeInstructions(fromPage, toPage, slice)}${headingsInstructions(headings)}${unitInstructions(unit)}${columnsInstructions(columns)}
+Committee / Department of Stamps and Registration). ${scopeInstructions(fromPage, toPage, slice)}${headingsInstructions(headings)}${unitInstructions(unit)}${columnsInstructions(fromPage, columns)}
 
 Return compact JSON, writing each heading once:
 {"total_pages": number, "groups": [
@@ -439,7 +440,7 @@ export function sanitiseRateRows(
       continue;
     const misplaced =
       scaled.scale > 1 && propertyClass !== 'agricultural' && printed >= 1000;
-    const code = cleanString(row.property_class, 4)?.toLowerCase() ?? '';
+    const code = CODE_BY_CLASS[propertyClass] ?? '';
     const unit = misplaced ? siteUnits[code] : scaled.unit;
     if (!unit) continue;
     const rate = misplaced
