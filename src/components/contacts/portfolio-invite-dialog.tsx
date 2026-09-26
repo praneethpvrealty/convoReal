@@ -87,13 +87,16 @@ export function PortfolioInviteDialog({
         body: JSON.stringify({ channel: 'business', side }),
       });
       const body = (await response.json().catch(() => ({}))) as {
+        data?: { delivery?: 'free_text' | 'template' };
         error?: string;
       };
       if (!response.ok) {
         throw new Error(body.error || 'Could not send the Portfolio invite');
       }
       toast.success(
-        `${SIDE_LABELS[side]} invite sent to ${name} from your business WhatsApp`
+        body.data?.delivery === 'template'
+          ? `${SIDE_LABELS[side]} invite sent to ${name} with the approved Portfolio access template`
+          : `${SIDE_LABELS[side]} invite sent to ${name} from your business WhatsApp`
       );
       onSent();
       onOpenChange(false);
@@ -189,9 +192,10 @@ export function PortfolioInviteDialog({
         </div>
 
         <p className="text-xs leading-5 text-slate-500">
-          Business WhatsApp is sent and tracked in ConvoReal while the 24-hour
-          window is open. Personal WhatsApp opens this message in your own app
-          and notes the invite on the timeline.
+          Business WhatsApp is sent and tracked in ConvoReal; outside the
+          24-hour window it goes out as the approved Portfolio access template
+          with a sign-in button. Personal WhatsApp opens this message in your
+          own app and notes the invite on the timeline.
         </p>
 
         {error ? (

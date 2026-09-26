@@ -6,6 +6,15 @@ import { resolveConversation } from '@/lib/conversations/resolve';
 import { accountBrandName } from '@/lib/showcase/account-showcase-url';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import {
+  buildPortfolioAccessParams,
+  PORTFOLIO_ACCESS_TEMPLATE_NAME,
+  portfolioAccessButtonSuffix,
+} from '@/lib/whatsapp/portfolio-access-template';
+import {
+  narrowToLanguage,
+  resolveSendLanguage,
+} from '@/lib/whatsapp/template-language';
 
 export type PortfolioSide = 'buyer' | 'owner';
 
@@ -30,7 +39,7 @@ export interface PortfolioInvite {
 
 export interface PortfolioInviteResult {
   success: boolean;
-  delivery?: 'free_text';
+  delivery?: 'free_text' | 'template';
   side: PortfolioSide | null;
   message: string;
   url: string | null;
@@ -41,7 +50,7 @@ export const PORTFOLIO_INVITE_NOT_ELIGIBLE_ERROR =
   'Portfolio is for buyers and owners. Classify this contact as a Buyer, Owner or Seller first.';
 
 export const PORTFOLIO_INVITE_WINDOW_CLOSED_ERROR =
-  'The 24-hour window is closed, so the business number can only send an approved template and none carries the Portfolio link. Use personal WhatsApp instead.';
+  'The 24-hour window is closed and the Portfolio access template is not approved yet. Submit it from Settings → Templates, or use personal WhatsApp.';
 
 export const PORTFOLIO_INVITE_PERSONAL_NOTES: Record<PortfolioSide, string> = {
   buyer: '🔑 Shared the buyer Portfolio invite via personal WhatsApp',
@@ -209,6 +218,13 @@ export async function buildPortfolioInvite(args: {
   };
 }
 
+interface PortfolioTemplateRow {
+  name: string;
+  language?: string | null;
+  status?: string | null;
+  body_text?: string | null;
+}
+
 export async function sendPortfolioInvite(args: {
   db: SupabaseClient;
   accountId: string;
@@ -262,7 +278,38 @@ export async function sendPortfolioInvite(args: {
     .limit(1)
     .maybeSingle();
 
-  if (!isWithinCustomerWindow(lastCustomer?.created_at)) {
+  if (isWithinCustomerWindow(lastCustomer?.created_at)) {
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId,
+      contactId: contact.id,
+      conversationId: conversation.id,
+      kind: 'text',
+      senderType: 'agent',
+      text: message,
+      customDbClient: db,
+    });
+    return {
+      success: result.success,
+      delivery: result.success ? 'free_text' : undefined,
+      side,
+      message,
+      url,
+      error: result.error,
+    };
+  }
+
+  const language = await resolveSendLanguage(db, accountId, contact.id);
+  const { data: rows } = await db
+    .from('message_templates')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('name', PORTFOLIO_ACCESS_TEMPLATE_NAME);
+  const template = narrowToLanguage(
+    (rows ?? []) as PortfolioTemplateRow[],
+    language
+  ).find((row) => (row.status ?? '').toUpperCase() === 'APPROVED');
+  if (!template || !url) {
     return {
       success: false,
       side,
@@ -272,19 +319,34 @@ export async function sendPortfolioInvite(args: {
     };
   }
 
+  const templateParams = buildPortfolioAccessParams(
+    contact.name,
+    await accountBrandName(db, accountId)
+  );
   const result = await sendWhatsAppMessageAndPersist({
     accountId,
     userId,
     contactId: contact.id,
     conversationId: conversation.id,
-    kind: 'text',
+    kind: 'template',
     senderType: 'agent',
-    text: message,
+    templateName: template.name,
+    templateLanguage: template.language || 'en_US',
+    templateParams,
+    messageParams: {
+      body: templateParams,
+      buttonParams: { 0: portfolioAccessButtonSuffix(url) },
+    },
+    text: (template.body_text || '').replace(
+      /\{\{(\d+)\}\}/g,
+      (_, n) => templateParams[Number(n) - 1] ?? ''
+    ),
+    templateRow: template,
     customDbClient: db,
   });
   return {
     success: result.success,
-    delivery: result.success ? 'free_text' : undefined,
+    delivery: result.success ? 'template' : undefined,
     side,
     message,
     url,

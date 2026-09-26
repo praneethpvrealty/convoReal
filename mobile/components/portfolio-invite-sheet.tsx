@@ -50,7 +50,10 @@ export function PortfolioInviteSheet({
 }) {
   const { colors, fonts: f } = useTheme();
   const [sending, setSending] = useState(false);
-  const [sentSide, setSentSide] = useState<PortfolioSide | null>(null);
+  const [sent, setSent] = useState<{
+    side: PortfolioSide;
+    delivery: 'free_text' | 'template';
+  } | null>(null);
   const [chosenSide, setChosenSide] = useState<PortfolioSide | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const name = contact.name?.trim() || contact.phone || 'this contact';
@@ -70,7 +73,7 @@ export function PortfolioInviteSheet({
 
   function closeSheet() {
     setSending(false);
-    setSentSide(null);
+    setSent(null);
     setSendError(null);
     onClose();
   }
@@ -80,11 +83,13 @@ export function PortfolioInviteSheet({
     setSending(true);
     setSendError(null);
     try {
-      await apiFetch(path, {
+      const response = await apiFetch<{
+        data: { delivery: 'free_text' | 'template' };
+      }>(path, {
         method: 'POST',
         body: JSON.stringify({ channel: 'business', side }),
       });
-      setSentSide(side);
+      setSent({ side, delivery: response.data.delivery });
       onSent();
     } catch (reason) {
       haptic.warn();
@@ -125,13 +130,17 @@ export function PortfolioInviteSheet({
     }
   }
 
-  if (sentSide) {
+  if (sent) {
     return (
       <SuccessSheet
         visible={visible}
         onClose={closeSheet}
         title="Portfolio invite sent"
-        message={`The ${SIDE_LABELS[sentSide]} invite was sent to ${name} from your business WhatsApp. Their reply lands in your Inbox.`}
+        message={
+          sent.delivery === 'template'
+            ? `The approved Portfolio access template went to ${name} with a button to sign in to their ${SIDE_LABELS[sent.side]}. Their reply lands in your Inbox.`
+            : `The ${SIDE_LABELS[sent.side]} invite was sent to ${name} from your business WhatsApp. Their reply lands in your Inbox.`
+        }
         confetti={false}
         actions={[
           {
@@ -262,9 +271,10 @@ export function PortfolioInviteSheet({
               lineHeight: 18,
             }}
           >
-            Business WhatsApp is sent and tracked in ConvoReal while the 24-hour
-            window is open. Personal WhatsApp opens this message in your own app
-            and notes the invite on the timeline.
+            Business WhatsApp is sent and tracked in ConvoReal; outside the
+            24-hour window it goes out as the approved Portfolio access template
+            with a sign-in button. Personal WhatsApp opens this message in your
+            own app and notes the invite on the timeline.
           </Text>
         </View>
 

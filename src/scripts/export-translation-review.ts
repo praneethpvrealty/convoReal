@@ -71,6 +71,8 @@ const TEMPLATE_LABELS: Record<EngineTemplateKey, string> = {
   share_feedback: 'Property share feedback — follow up to see if a shared property matched',
   contact_number_update:
     'Number change notice — the brokerage now messages from a different WhatsApp number',
+  portfolio_access:
+    'Portfolio access — a buyer or owner is sent their Portfolio sign-in link',
 };
 
 /** What each numbered placeholder gets filled with at send time. */
@@ -134,6 +136,7 @@ const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
   ],
   share_feedback: ['buyer first name'],
   contact_number_update: ['contact first name', 'brokerage name', 'previous WhatsApp number'],
+  portfolio_access: ['contact first name', 'brokerage name'],
 };
 
 /** The buttons each template actually carries, so a bubble shows the
@@ -161,6 +164,7 @@ const REPLY_BUTTONS: Record<EngineTemplateKey, TemplateButtonAction[]> = {
   post_call_options: ['send_options'],
   share_feedback: ['feedback_perfect', 'feedback_not_interested', 'update_preferences'],
   contact_number_update: ['acknowledge_update'],
+  portfolio_access: ['portfolio_sign_in'],
 };
 
 const BUTTON_ORDER = Object.keys(

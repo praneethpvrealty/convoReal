@@ -13,6 +13,13 @@ vi.mock('@/lib/conversations/resolve', () => ({
   resolveConversation: async () => ({ conversation: { id: 'conv-1' } }),
 }));
 
+vi.mock('@/lib/whatsapp/template-language', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/lib/whatsapp/template-language')
+  >()),
+  resolveSendLanguage: async () => 'en',
+}));
+
 import {
   buildPortfolioInviteMessage,
   portfolioEligibilityFacts,
@@ -194,8 +201,65 @@ describe('sendPortfolioInvite', () => {
     );
   });
 
-  it('[CTM-011] refuses the business number once the window is closed instead of sending a template', async () => {
+  it('[CTM-011] falls back to the approved Portfolio access template once the window is closed', async () => {
     queues['messages'] = [{ data: { created_at: '2020-01-01T00:00:00.000Z' } }];
+    queues['message_templates'] = [
+      {
+        data: [
+          {
+            name: 'portfolio_access_notice',
+            language: 'en_US',
+            status: 'APPROVED',
+            body_text: 'Hi {{1}}, this is an account notice from {{2}}.',
+          },
+        ],
+      },
+    ];
+    queues['accounts'] = [
+      { data: { name: 'Aryavarta Ventures' } },
+      { data: { name: 'Aryavarta Ventures' } },
+    ];
+    sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
+
+    const result = await sendPortfolioInvite({
+      db: makeDb() as never,
+      accountId: 'acc-1',
+      userId: 'user-1',
+      contact: owner,
+    });
+    expect(result).toMatchObject({
+      success: true,
+      delivery: 'template',
+      side: 'owner',
+    });
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'template',
+        templateName: 'portfolio_access_notice',
+        templateLanguage: 'en_US',
+        templateParams: ['Lakshmi', 'Aryavarta Ventures'],
+        messageParams: {
+          body: ['Lakshmi', 'Aryavarta Ventures'],
+          buttonParams: { 0: 'den/login' },
+        },
+        text: 'Hi Lakshmi, this is an account notice from Aryavarta Ventures.',
+      })
+    );
+  });
+
+  it('[CTM-011] refuses the business number once the window is closed and the template is not approved', async () => {
+    queues['messages'] = [{ data: { created_at: '2020-01-01T00:00:00.000Z' } }];
+    queues['message_templates'] = [
+      {
+        data: [
+          {
+            name: 'portfolio_access_notice',
+            language: 'en_US',
+            status: 'PENDING',
+          },
+        ],
+      },
+    ];
 
     const result = await sendPortfolioInvite({
       db: makeDb() as never,

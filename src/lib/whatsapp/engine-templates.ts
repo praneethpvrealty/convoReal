@@ -80,6 +80,10 @@ import {
   buildNumberChangeTemplatePayload,
   NUMBER_CHANGE_TEMPLATE_NAME,
 } from './number-change-template';
+import {
+  buildPortfolioAccessTemplatePayload,
+  PORTFOLIO_ACCESS_TEMPLATE_NAME,
+} from './portfolio-access-template';
 
 export interface EngineTemplateDef {
   name: string;
@@ -242,6 +246,14 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       'Tells a contact the brokerage now messages from a different WhatsApp number after a switch in Settings, so the new number is saved and not ignored as unknown. Sent to contacts active in the last 7 days on request, and once ahead of any routine message for 7 days after the switch.',
     build: (_origin, language) => buildNumberChangeTemplatePayload(language),
+  },
+  {
+    name: PORTFOLIO_ACCESS_TEMPLATE_NAME,
+    copyKey: 'portfolio_access',
+    label: 'Portfolio access',
+    whyItMatters:
+      "Sends a buyer or owner their Portfolio sign-in link from the contact record when their 24-hour window has closed. Without it, the Portfolio invite can only go out from the agent's personal WhatsApp once the window closes.",
+    build: buildPortfolioAccessTemplatePayload,
   },
 ];
 
