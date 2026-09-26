@@ -597,6 +597,36 @@ describe('applyExplicitContactDraftUpdate', () => {
     });
   });
 
+  it('splits labelled name and company instead of folding them into the name', () => {
+    const current = makeContainer([
+      makeContact({
+        name: 'Akanksha',
+        name_tag: 'Land Procuring',
+        phone: '+91 95494 44439',
+      }),
+    ]);
+
+    expect(
+      applyExplicitContactDraftUpdate(current, 'Name -  Akanksha Singh, company - Godrej')
+    ).toEqual({
+      contacts: [
+        expect.objectContaining({
+          name: 'Akanksha Singh',
+          company: 'Godrej',
+          name_tag: 'Land Procuring',
+          phone: '+91 95494 44439',
+        }),
+      ],
+    });
+  });
+
+  it('hands unlabelled or unknown segments to the AI updater', () => {
+    const one = makeContainer([makeContact({ name: 'A' })]);
+    expect(applyExplicitContactDraftUpdate(one, 'Name - Singh, Akanksha')).toBeNull();
+    expect(applyExplicitContactDraftUpdate(one, 'Name - A B, budget - 2cr')).toBeNull();
+    expect(applyExplicitContactDraftUpdate(one, 'Name - A B, email - not-an-email')).toBeNull();
+  });
+
   it('leaves ambiguous and multi-contact instructions for the AI updater', () => {
     expect(
       applyExplicitContactDraftUpdate(
