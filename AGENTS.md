@@ -4,6 +4,8 @@
 
 User-facing product invariants live in `FEATURE_MANIFEST.json`. Read the applicable feature entry before changing behaviour, preserve every listed invariant, and keep its named regression cases executable. A feature change is incomplete when the manifest, implementation, and tests disagree.
 
+Report times to the user in IST (Asia/Kolkata, UTC+05:30). Session clocks, scheduled check-ins, GitHub, Vercel and Supabase report UTC, so convert before quoting a time; give UTC alongside only when the user needs it to match a log or a cron expression.
+
 ## Important: This is NOT the stock Next.js you trained on
 
 Next.js 16 has breaking changes compared with older versions — APIs, file conventions, and behaviour differ from training data. Before writing code, read the relevant guide in `node_modules/next/dist/docs/` and heed any deprecation notices. Do not assume the patterns from Next.js 14/15 work unchanged.
