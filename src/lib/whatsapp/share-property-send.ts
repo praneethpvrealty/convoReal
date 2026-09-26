@@ -60,20 +60,26 @@ export async function logPropertyShare(
   accountId: string,
   userId: string,
   propertyId: string,
-  contactId: string
+  contactId: string,
+  classification?: string | null
 ) {
-  const { data: contact } = await db
-    .from('contacts')
-    .select('classification')
-    .eq('id', contactId)
-    .eq('account_id', accountId)
-    .maybeSingle();
+  const recipientClassification =
+    classification === undefined
+      ? (
+          await db
+            .from('contacts')
+            .select('classification')
+            .eq('id', contactId)
+            .eq('account_id', accountId)
+            .maybeSingle()
+        ).data?.classification
+      : classification;
   const { error } = await db.from('property_shares').upsert(
     {
       account_id: accountId,
       property_id: propertyId,
       contact_id: contactId,
-      recipient_kind: contact?.classification === 'Agent' ? 'agent' : 'buyer',
+      recipient_kind: recipientClassification === 'Agent' ? 'agent' : 'buyer',
       channel: 'whatsapp',
       created_by: userId,
     },
@@ -209,6 +215,7 @@ export async function sendPropertyToContact(opts: {
   userId: string;
   contactId: string;
   contactName: string | null;
+  contactClassification?: string | null;
   property: Property;
   message: string;
   headerImage?: string | null;
@@ -263,6 +270,7 @@ export async function sendPropertyToContact(opts: {
         accountId,
         userId,
         contactId,
+        conversationId: existingConvId ?? undefined,
         kind: 'media',
         mediaKind: 'image',
         mediaLink: inlineImage,
@@ -278,6 +286,7 @@ export async function sendPropertyToContact(opts: {
       accountId,
       userId,
       contactId,
+      conversationId: existingConvId ?? undefined,
       kind: 'text',
       text: ensureTrackedPropertyShowcaseLink(
         message,
@@ -288,7 +297,14 @@ export async function sendPropertyToContact(opts: {
       senderType: 'agent',
     });
     if (res.success) {
-      await logPropertyShare(db, accountId, userId, property.id, contactId);
+      await logPropertyShare(
+        db,
+        accountId,
+        userId,
+        property.id,
+        contactId,
+        opts.contactClassification
+      );
       return {
         sent: true,
         channel: 'freeform',
@@ -397,6 +413,7 @@ export async function sendPropertyToContact(opts: {
     accountId,
     userId,
     contactId,
+    conversationId: existingConvId ?? undefined,
     kind: 'template',
     senderType: 'agent',
     templateName: alertTemplate.name,
@@ -419,7 +436,14 @@ export async function sendPropertyToContact(opts: {
       error: res.error || 'Failed to send',
     };
   }
-  await logPropertyShare(db, accountId, userId, property.id, contactId);
+  await logPropertyShare(
+    db,
+    accountId,
+    userId,
+    property.id,
+    contactId,
+    opts.contactClassification
+  );
   return {
     sent: true,
     channel: 'template',

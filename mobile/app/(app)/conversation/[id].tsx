@@ -90,6 +90,7 @@ import {
 } from '@/lib/types';
 import { dayLabel } from '@/lib/format';
 import { restoreFailedDraft, settlePending } from '@/lib/pending-messages';
+import { shareOutcomeNotice, usePendingShareStore } from '@/lib/pending-share';
 import { queryClient } from '@/lib/query';
 import { useCallLog } from '@/lib/use-call-log';
 import { supabase, uniqueChannel } from '@/lib/supabase';
@@ -297,6 +298,39 @@ export default function ConversationScreen() {
 
   const title = conversationTitle(conversation);
   const contactName = conversation?.contact?.name || undefined;
+
+  // A property share handed to this thread by the share sheet while it
+  // is still sending: its bubbles join the pending list the moment the
+  // screen opens, and the verdict is acted on whenever it lands — the
+  // real rows replace a send that went out, a refusal is explained here
+  // rather than on a sheet the agent has already left.
+  const stagedShare = usePendingShareStore((s) => s.shares[id]);
+  const clearStagedShare = usePendingShareStore((s) => s.clear);
+  const seededShare = useRef<Message[] | null>(null);
+  useEffect(() => {
+    const bubbles = stagedShare?.bubbles;
+    if (!bubbles || seededShare.current === bubbles) return;
+    seededShare.current = bubbles;
+    setPending((prev) => [...bubbles, ...settlePending(prev, messages ?? [])]);
+  }, [stagedShare?.bubbles, messages]);
+  useEffect(() => {
+    const outcome = stagedShare?.outcome;
+    if (!stagedShare || !outcome) return;
+    const staged = new Set(stagedShare.bubbles.map((m) => m.id));
+    const drop = () => setPending((prev) => prev.filter((m) => !staged.has(m.id)));
+    clearStagedShare(id);
+    if (outcome.sent) {
+      haptic.success();
+      // Fetched before the bubbles go, so the message never blinks out
+      // between the API answering and the thread catching up.
+      queryClient.invalidateQueries({ queryKey: ['messages', id] }).then(drop, drop);
+      return;
+    }
+    drop();
+    haptic.warn();
+    const notice = shareOutcomeNotice(outcome, contactName ?? 'This contact');
+    if (notice) show(notice);
+  }, [stagedShare, id, contactName, show, clearStagedShare]);
 
   // Swipe-to-reply and the quote tap both need the composer's attention,
   // so the reply target is set here and the composer reads it.

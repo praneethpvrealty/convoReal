@@ -40,6 +40,12 @@ import {
   type ShareDetailLevel,
   type ShareTone,
 } from '@/lib/share-message';
+import { findContactThread } from '@/lib/open-chat';
+import {
+  pendingShareBubbles,
+  shareOutcomeNotice,
+  usePendingShareStore,
+} from '@/lib/pending-share';
 import { fetchShowcaseSubdomain } from '@/lib/showcase-settings';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -223,13 +229,45 @@ export function PropertyShareSheet({
   // server sends free text inside the 24-hour window and falls back to
   // the pre-approved property template outside it — the dialog below
   // only appears when that template isn't approved yet.
+  //
+  // A contact with a thread already is handed to it straight away: the
+  // photo and the message appear there as sending bubbles, the way the
+  // composer's own sends do, and the request finishes behind them. Only
+  // a first-ever message has to wait here, since the thread it will
+  // land in does not exist until the server creates it.
   async function sendViaConvoReal(contact: Contact) {
     setEngineSending(true);
     haptic.send();
+    const text = addRecipientGreeting(message, contact.name);
+    const threadId = await findContactThread(contact.id).catch(() => null);
+    if (threadId) {
+      usePendingShareStore.getState().stage(
+        threadId,
+        pendingShareBubbles({
+          conversationId: threadId,
+          text,
+          image: leadImage ? storagePublicUrl(leadImage) : null,
+          caption: property.title,
+        })
+      );
+      setEngineSending(false);
+      setPicker(null);
+      onClose();
+      router.push(`/(app)/conversation/${threadId}`);
+      const outcome = await sendPropertyViaEngine(
+        contact,
+        property,
+        text,
+        leadImage
+      );
+      if (outcome.sent) onShared?.([contact.id]);
+      usePendingShareStore.getState().settle(threadId, outcome);
+      return;
+    }
     const outcome = await sendPropertyViaEngine(
       contact,
       property,
-      addRecipientGreeting(message, contact.name),
+      text,
       leadImage
     );
     setEngineSending(false);
@@ -242,17 +280,15 @@ export function PropertyShareSheet({
         router.push(`/(app)/conversation/${outcome.conversationId}`);
       return;
     }
+    const notice = shareOutcomeNotice(
+      outcome,
+      contact.name || contact.phone || 'This contact'
+    ) ?? { title: 'Could not send', message: 'Please try again.' };
     if (outcome.templateStatus) {
       haptic.warn();
       const convId = outcome.conversationId;
-      const pending = outcome.templateStatus === 'PENDING';
       setDialog({
-        title: pending
-          ? 'Template awaiting Meta approval'
-          : 'One-time template setup needed',
-        message: pending
-          ? `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so this share needs the approved property template — it’s still under review by Meta (usually minutes to a few hours). Try again once it’s approved, or open the chat to send another approved template.`
-          : `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so WhatsApp requires a pre-approved template. An Org Manager can set up the property template once from Radar on the ConvoReal web app — after Meta approves it, shares like this go out automatically. For now, open the chat to send an approved template.`,
+        ...notice,
         actions: [
           {
             label: 'Not now',
@@ -278,10 +314,7 @@ export function PropertyShareSheet({
     }
     haptic.warn();
     setDialog({
-      title: outcome.timedOut ? 'Still sending' : 'Could not send',
-      message: outcome.timedOut
-        ? 'WhatsApp is taking longer than usual to answer. The message may still go out — open the chat in a moment to check before sending it again.'
-        : (outcome.error ?? 'Please try again.'),
+      ...notice,
       actions: [
         { label: 'OK', variant: 'primary', onPress: () => setDialog(null) },
       ],

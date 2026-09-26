@@ -19,6 +19,28 @@ than a written entry. Newest first.
 
 #### 26 September 2026
 
+- **Sharing a listing from the phone no longer holds you on a spinner.**
+  Picking a buyer in "Broadcast this property" now opens their chat at
+  once, with the photo and the message drawn as sending, and the send
+  finishes behind them — the same way the composer's own messages appear.
+  A refusal (past the 24-hour window with no approved template, or a
+  WhatsApp error) is explained in that chat instead. Only a first-ever
+  message to a contact still waits, since its thread does not exist until
+  the send creates it.
+- **Every API call runs next to the database.** The Vercel functions were
+  in Washington (`iad1`) while Supabase is in Mumbai; each of a route's
+  database round trips crossed that distance. Functions now run in Mumbai
+  (`bom1`, via `regions` in `vercel.json`) — the step the region migration
+  guide called for and the one that was never applied. A property share,
+  which makes two dozen such round trips, spent most of its ten seconds
+  there.
+- **A WhatsApp send makes fewer trips to the database.** The share route
+  hands the thread it already looked up to both sends instead of resolving
+  it again for each; the dispatcher reads the configuration, the
+  duplicate guard and the 24-hour window in one wave before calling Meta,
+  and writes the thread bookkeeping in one wave after. This applies to
+  every outbound message, not only shares.
+
 - **Retired Gemini models are replaced without a deploy.** A daily check
   (`/api/cron/gemini-model-lifecycle`, 02:20 UTC) sends one tiny request to
   every model the app uses. When Google reports a model retired and no key

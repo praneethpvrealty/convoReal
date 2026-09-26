@@ -469,6 +469,51 @@ export async function sendWhatsAppMessageAndPersist(
       resolvedConversationId = conversation.id
     }
 
+    // The configuration row and the 24-hour-window lookup below depend
+    // on nothing the duplicate guards decide, so they leave with them
+    // rather than after them: one round trip to the database instead of
+    // three, which is most of what a send costs once Meta has answered.
+    // Neither ever rejects: a guard below may return before they are
+    // awaited, and a lookup that failed reads the same as one that found
+    // nothing, which is what the checks that use them already handle.
+    const configOnce = (async () => {
+      let config = null
+      let configErr: { message?: string } | null = null
+      try {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const result = await db
+            .from('whatsapp_config')
+            .select('*')
+            .eq('account_id', accountId)
+            .maybeSingle()
+          config = result.data
+          configErr = result.error
+          if (config) break
+        }
+      } catch (err) {
+        configErr = { message: err instanceof Error ? err.message : String(err) }
+      }
+      return { config, configErr }
+    })()
+    const lastInboundOnce =
+      args.kind === 'text' || args.kind === 'interactive'
+        ? (async () => {
+            try {
+              const { data } = await db
+                .from('messages')
+                .select('created_at')
+                .eq('conversation_id', resolvedConversationId)
+                .eq('sender_type', 'customer')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+              return (data as { created_at?: string | null } | null)?.created_at ?? null
+            } catch {
+              return null
+            }
+          })()
+        : Promise.resolve(null)
+
     // 2b. Idempotency guard for template sends. A rapid double-submit or
     // two overlapping triggers (e.g. a manual share plus an automation, or
     // the same automation firing twice) must not deliver the identical
@@ -540,18 +585,7 @@ export async function sendWhatsAppMessageAndPersist(
       throw new Error(`Contact phone invalid format: ${targetPhone}`)
     }
 
-    let config = null
-    let configErr: { message?: string } | null = null
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const result = await db
-        .from('whatsapp_config')
-        .select('*')
-        .eq('account_id', accountId)
-        .maybeSingle()
-      config = result.data
-      configErr = result.error
-      if (config) break
-    }
+    const { config, configErr } = await configOnce
     if (configErr) {
       console.error('[meta-api-dispatcher] WhatsApp configuration lookup error:', configErr)
       throw new Error('Could not load WhatsApp configuration. Please try again.')
@@ -592,16 +626,7 @@ export async function sendWhatsAppMessageAndPersist(
       (args.kind === 'text' || args.kind === 'interactive') &&
       config.integration_type !== 'sandbox'
     ) {
-      const { data: lastInbound } = await db
-        .from('messages')
-        .select('created_at')
-        .eq('conversation_id', resolvedConversationId)
-        .eq('sender_type', 'customer')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (!isWithinCustomerWindow(lastInbound?.created_at ?? null)) {
+      if (!isWithinCustomerWindow(await lastInboundOnce)) {
         throw new Error(CUSTOMER_WINDOW_EXPIRED_MESSAGE)
       }
     }
@@ -850,7 +875,9 @@ export async function sendWhatsAppMessageAndPersist(
       )
     })
 
-    await db
+    // The thread bookkeeping after a send touches three independent
+    // rows, so it goes out as one wave rather than three round trips.
+    const conversationTouch = db
       .from('conversations')
       .update({
         last_message_text: previewText,
@@ -862,18 +889,19 @@ export async function sendWhatsAppMessageAndPersist(
 
     // A human replied — the chatbot's "Talk to an Agent" handoff flag
     // is resolved, so the thread leaves the pending queue.
-    if (args.senderType === 'agent') {
-      await db
-        .from('conversations')
-        .update({
-          status: 'open',
-          close_reason: null,
-          close_note: null,
-          closed_at: null,
-        })
-        .eq('id', resolvedConversationId)
-        .eq('status', 'pending')
-    }
+    const handoffResolved =
+      args.senderType === 'agent'
+        ? db
+            .from('conversations')
+            .update({
+              status: 'open',
+              close_reason: null,
+              close_note: null,
+              closed_at: null,
+            })
+            .eq('id', resolvedConversationId)
+            .eq('status', 'pending')
+        : Promise.resolve(null)
 
     // Flow integration: Pause active Flow runs if agent manually sends a message.
     //
@@ -884,9 +912,11 @@ export async function sendWhatsAppMessageAndPersist(
     // reply. A lead negotiating with an agent kept being answered
     // "Sorry, I didn't quite catch that" by a run nobody could stop.
     // .select() makes a future refusal visible instead of silent.
-    if (args.senderType === 'agent' && resolvedContactId) {
-      // Never let the pause fail the send it follows — the message has
-      // already reached the lead by this point.
+    //
+    // Never let the pause fail the send it follows — the message has
+    // already reached the lead by this point.
+    const flowsStoodDown = (async () => {
+      if (args.senderType !== 'agent' || !resolvedContactId) return
       try {
         const paused = await standDownActiveFlowRuns(
           defaultAdminClient() as unknown as SupabaseClient,
@@ -901,7 +931,9 @@ export async function sendWhatsAppMessageAndPersist(
       } catch (flowErr) {
         console.error('[meta-api-dispatcher] flow pause warning:', flowErr)
       }
-    }
+    })()
+
+    await Promise.all([conversationTouch, handoffResolved, flowsStoodDown])
 
     // What the agent just told the buyer may be a fact about the
     // listing ("seller's final price is 10.5k per sqft"). Propose it

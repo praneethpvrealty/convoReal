@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     ] = await Promise.all([
       ctx.supabase
         .from('contacts')
-        .select('id, name')
+        .select('id, name, classification')
         .eq('id', contactId)
         .eq('account_id', ctx.accountId)
         .maybeSingle(),
@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
       userId: ctx.userId,
       contactId,
       contactName: (contact.name as string | null) ?? null,
+      contactClassification: (contact.classification as string | null) ?? null,
       property: listing,
       message,
       headerImage,
