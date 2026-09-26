@@ -37,7 +37,10 @@ vi.mock('./copilot-panel', () => ({
 }));
 
 describe('CopilotWidget', () => {
-  beforeEach(() => openPanel.mockClear());
+  beforeEach(() => {
+    openPanel.mockClear();
+    window.localStorage.clear();
+  });
   afterEach(cleanup);
 
   it('renders a labelled launcher above the feedback control', () => {
@@ -55,6 +58,28 @@ describe('CopilotWidget', () => {
     render(<CopilotWidget />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Open the helper' }));
+    expect(openPanel).toHaveBeenCalledOnce();
+  });
+
+  it('[CPL-001] drags the launcher to an edge without opening the panel and remembers it', () => {
+    render(<CopilotWidget />);
+    const launcher = screen.getByRole('button', { name: 'Open the helper' });
+
+    fireEvent.pointerDown(launcher, { button: 0, clientX: 600, clientY: 600 });
+    fireEvent.pointerMove(launcher, { clientX: 300, clientY: 400 });
+    fireEvent.pointerUp(launcher, { clientX: 300, clientY: 400 });
+    fireEvent.click(launcher);
+
+    expect(openPanel).not.toHaveBeenCalled();
+    const saved = JSON.parse(
+      window.localStorage.getItem('copilot-launcher-placement') ?? 'null'
+    );
+    expect(saved?.side).toBe('left');
+    expect(launcher.style.left).toBe('16px');
+
+    fireEvent.pointerDown(launcher, { button: 0, clientX: 20, clientY: 400 });
+    fireEvent.pointerUp(launcher, { clientX: 21, clientY: 400 });
+    fireEvent.click(launcher);
     expect(openPanel).toHaveBeenCalledOnce();
   });
 });

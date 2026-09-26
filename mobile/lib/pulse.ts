@@ -1,4 +1,9 @@
-import type { PulseEvent } from '@/lib/pulse-feed';
+import {
+  PULSE_FEED_PAGE_SIZE,
+  pulseFeedCursorFilter,
+  type PulseEvent,
+  type PulseFeedCursor,
+} from '@/lib/pulse-feed';
 import { withAnalyticsTimeout } from '@/lib/analytics-request';
 import { supabase } from '@/lib/supabase';
 
@@ -32,9 +37,6 @@ export interface PulseViewer {
   sessions: number;
   lastAt: string;
 }
-
-/** Newest events first; the same 100-row window the web timeline shows. */
-const FEED_LIMIT = 100;
 
 function one<T>(v: T | T[] | null | undefined): T | null {
   if (v === null || v === undefined) return null;
@@ -99,23 +101,31 @@ async function fetchPulseTopPropertiesUnbounded(
   }));
 }
 
-export async function fetchPulseFeed(): Promise<PulseEvent[]> {
+/** Newest events first, one page at a time — the same pages the web timeline loads. */
+export async function fetchPulseFeed(
+  cursor: PulseFeedCursor | null = null
+): Promise<PulseEvent[]> {
   return withAnalyticsTimeout(
-    fetchPulseFeedUnbounded(),
+    fetchPulseFeedUnbounded(cursor),
     'Showcase Pulse activity'
   );
 }
 
-async function fetchPulseFeedUnbounded(): Promise<PulseEvent[]> {
-  const { data, error } = await supabase
+async function fetchPulseFeedUnbounded(
+  cursor: PulseFeedCursor | null
+): Promise<PulseEvent[]> {
+  let query = supabase
     .from('showcase_events')
     .select(
       'id, contact_id, property_id, session_key, share_id, event_type, metadata, created_at, ' +
         'contact:contacts(id, name, phone, name_tag), property:properties(id, title), ' +
         'share:showcase_share_links(id, created_at)'
-    )
+    );
+  if (cursor) query = query.or(pulseFeedCursorFilter(cursor));
+  const { data, error } = await query
     .order('created_at', { ascending: false })
-    .limit(FEED_LIMIT);
+    .order('id', { ascending: false })
+    .limit(PULSE_FEED_PAGE_SIZE);
   if (error) throw error;
 
   type Row = Omit<PulseEvent, 'contact' | 'property' | 'share'> & {

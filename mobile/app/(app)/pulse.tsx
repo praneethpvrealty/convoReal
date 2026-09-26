@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -38,7 +38,9 @@ import {
   formatDwellTime,
   formatTimeAgo,
   groupEventsByVisitor,
+  nextPulseFeedCursor,
   type DedupedPulseEvent,
+  type PulseFeedCursor,
   type VisitorActivityGroup,
 } from '@/lib/pulse-feed';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -90,25 +92,28 @@ export default function PulseScreen() {
     queryFn: () => fetchPulseTopProperties(accountId!),
     retry: retryAnalyticsRequest,
   });
-  const feed = useQuery({
+  const feed = useInfiniteQuery({
     queryKey: ['pulse-feed'],
     enabled: Boolean(accountId),
-    queryFn: fetchPulseFeed,
+    queryFn: ({ pageParam }) => fetchPulseFeed(pageParam),
+    initialPageParam: null as PulseFeedCursor | null,
+    getNextPageParam: (last) => nextPulseFeedCursor(last) ?? undefined,
     retry: retryAnalyticsRequest,
   });
+  const feedRows = useMemo(() => feed.data?.pages.flat() ?? [], [feed.data]);
 
   const events = useMemo(() => {
-    const rows = (feed.data ?? []).filter((evt) => {
+    const rows = feedRows.filter((evt) => {
       if (filter === 'identified') return Boolean(evt.contact);
       if (filter === 'property_views')
         return evt.event_type === 'view_property';
       return true;
     });
     return groupEventsByVisitor(dedupeConsecutiveEvents(rows));
-  }, [feed.data, filter]);
+  }, [feedRows, filter]);
 
-  const total = feed.data?.length ?? 0;
-  const anonymous = (feed.data ?? []).filter((evt) => !evt.contact).length;
+  const total = feedRows.length;
+  const anonymous = feedRows.filter((evt) => !evt.contact).length;
   const showNudge =
     total >= ANONYMOUS_NUDGE_MIN_EVENTS &&
     anonymous / total >= ANONYMOUS_NUDGE_THRESHOLD;
@@ -279,6 +284,31 @@ export default function PulseScreen() {
               }
             />
           )
+        }
+        ListFooterComponent={
+          feed.hasNextPage ? (
+            <Pressable
+              onPress={() => feed.fetchNextPage()}
+              disabled={feed.isFetchingNextPage}
+              accessibilityRole="button"
+              accessibilityLabel="Load older activity"
+              style={[styles.loadOlder, { borderColor: colors.border }]}
+            >
+              {feed.isFetchingNextPage ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Text
+                  style={{
+                    fontSize: 13.5,
+                    fontFamily: f.bold,
+                    color: colors.primary,
+                  }}
+                >
+                  Load older activity
+                </Text>
+              )}
+            </Pressable>
+          ) : null
         }
         renderItem={({ item, index }) => (
           <EnterRow index={index}>
@@ -621,6 +651,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  loadOlder: {
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    paddingVertical: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.lg,
+  },
   stat: {
     borderWidth: 1,
     gap: 4,
