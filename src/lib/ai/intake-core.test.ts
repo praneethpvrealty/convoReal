@@ -625,6 +625,17 @@ describe('applyExplicitContactDraftUpdate', () => {
     expect(applyExplicitContactDraftUpdate(one, 'Name - Singh, Akanksha')).toBeNull();
     expect(applyExplicitContactDraftUpdate(one, 'Name - A B, budget - 2cr')).toBeNull();
     expect(applyExplicitContactDraftUpdate(one, 'Name - A B, email - not-an-email')).toBeNull();
+    expect(applyExplicitContactDraftUpdate(one, 'Name-A B')).toBeNull();
+  });
+
+  it('reads hyphenated labels whole instead of splitting on their hyphen', () => {
+    const one = makeContainer([makeContact({ name: 'A' })]);
+    expect(
+      applyExplicitContactDraftUpdate(one, 'Name - Akanksha, company-name - Godrej')?.contacts[0]
+    ).toEqual(expect.objectContaining({ name: 'Akanksha', company: 'Godrej' }));
+    expect(
+      applyExplicitContactDraftUpdate(one, 'Name: A - B, Email: a@b.co')?.contacts[0]
+    ).toEqual(expect.objectContaining({ name: 'A - B', email: 'a@b.co' }));
   });
 
   it('leaves ambiguous and multi-contact instructions for the AI updater', () => {

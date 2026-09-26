@@ -392,8 +392,8 @@ export function applyExplicitContactDraftUpdate(
 
   const updates: Partial<Record<'name' | 'company' | 'email', string>> = {};
   for (const segment of segments) {
-    const match = segment.match(/^([a-z ]+?)\s*(?:-|:|\bis\b)\s*(.+)$/i);
-    const field = match && EXPLICIT_CONTACT_FIELDS[match[1].trim().toLowerCase().replace(/\s+/g, ' ')];
+    const match = segment.match(/^([a-z][a-z _-]*?)\s*(?::|\s-\s|\bis\b)\s*(.+)$/i);
+    const field = match && EXPLICIT_CONTACT_FIELDS[match[1].trim().toLowerCase().replace(/[\s_-]+/g, ' ')];
     const value = match?.[2]?.trim();
     if (!field || !value || updates[field]) return null;
     if (field === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return null;
