@@ -95,6 +95,7 @@ import {
   dealFloorKindCounts,
   dealFloorKindTypes,
   featuredProperty,
+  listedThisWeek,
   newThisWeek,
   topLocalities,
   withinBudget,
@@ -298,6 +299,7 @@ export function ShowcaseView({
 
   const [selectedType, setSelectedType] = useState('All');
   const [maxBudget, setMaxBudget] = useState<number | null>(null);
+  const [recentOnly, setRecentOnly] = useState(false);
   const [deckMode, setDeckMode] = useState(false);
   const [shortlistOpenRequest, setShortlistOpenRequest] = useState(0);
   const [selectedListingType, setSelectedListingType] = useState<'All' | 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'>('All');
@@ -1081,7 +1083,7 @@ export function ShowcaseView({
     if (selectedType !== 'All') {
       const kindTypes = dealFloorKindTypes(selectedType);
       if (kindTypes) {
-        result = result.filter((p) => kindTypes.includes(p.type));
+        if (dealFloor) result = result.filter((p) => kindTypes.includes(p.type));
       } else if (selectedType in CATEGORY_SUBTYPES) {
         result = result.filter((p) => CATEGORY_SUBTYPES[selectedType].includes(p.type));
       } else {
@@ -1089,8 +1091,12 @@ export function ShowcaseView({
       }
     }
 
-    if (maxBudget !== null) {
+    if (dealFloor && maxBudget !== null) {
       result = result.filter((p) => withinBudget(p, maxBudget));
+    }
+
+    if (dealFloor && recentOnly) {
+      result = result.filter((p) => listedThisWeek(p));
     }
 
     // Filter by listing type
@@ -1137,7 +1143,7 @@ export function ShowcaseView({
       ...result.filter((p) => !listingAvailabilityNotice(p.status)),
       ...result.filter((p) => listingAvailabilityNotice(p.status)),
     ];
-  }, [properties, pinnedIds, selectedType, maxBudget, selectedListingType, minBeds, searchQuery, selectedLocations, nearbySearch, sortBy]);
+  }, [properties, pinnedIds, dealFloor, selectedType, maxBudget, recentOnly, selectedListingType, minBeds, searchQuery, selectedLocations, nearbySearch, sortBy]);
 
   const dealFloorKinds = useMemo(
     () => (dealFloor ? dealFloorKindCounts(properties) : []),
@@ -1756,8 +1762,10 @@ export function ShowcaseView({
                 formatPrice={formatPrice}
                 onOpen={openPropertyModal}
                 newCount={dealFloorNewCount}
+                recentOnly={recentOnly}
                 onSeeNew={() => {
                   setSortBy('newest');
+                  setRecentOnly((current) => !current);
                   setDeckMode(false);
                   scrollToListings();
                 }}
@@ -2189,6 +2197,12 @@ export function ShowcaseView({
                 ? `All ${properties.length} listings`
                 : `${filteredProperties.length} of ${properties.length} listings`}
             </h2>
+            {recentOnly && (
+              <button type="button" className="df-chip df-chip-clear" onClick={() => setRecentOnly(false)}>
+                New this week
+                <X className="size-3.5" />
+              </button>
+            )}
             {!isAgentMode && (
               <div className="df-mode" role="group" aria-label="Browse mode">
                 <button type="button" aria-pressed={!deckMode} onClick={() => setDeckMode(false)}>

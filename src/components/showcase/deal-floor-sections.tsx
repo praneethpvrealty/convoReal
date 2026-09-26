@@ -187,6 +187,7 @@ interface DealFloorBoardProps {
   formatPrice: (amount: number) => string;
   onOpen: (property: Property) => void;
   newCount: number;
+  recentOnly: boolean;
   onSeeNew: () => void;
   localities: Array<{ name: string; count: number }>;
   onPickLocality: (name: string) => void;
@@ -201,6 +202,7 @@ export function DealFloorBoard({
   formatPrice,
   onOpen,
   newCount,
+  recentOnly,
   onSeeNew,
   localities,
   onPickLocality,
@@ -259,12 +261,13 @@ export function DealFloorBoard({
         <button
           type="button"
           className="df-tile df-tile-new"
+          aria-pressed={recentOnly}
           onClick={onSeeNew}
         >
           <span className="df-eyebrow">New this week</span>
           <span className="df-serif df-tile-number">{newCount}</span>
           <span className="df-tile-link">
-            {newCount === 0 ? 'Browse the newest' : 'See them'}
+            {recentOnly ? 'Show everything' : 'See them'}
             <ArrowRight className="size-4" />
           </span>
         </button>

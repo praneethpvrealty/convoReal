@@ -135,11 +135,13 @@ export function withinBudget(property: Property, max: number | null): boolean {
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+export function listedThisWeek(property: Property, now = Date.now()): boolean {
+  const created = new Date(property.created_at).getTime();
+  return Number.isFinite(created) && now - created <= WEEK_MS;
+}
+
 export function newThisWeek(properties: Property[], now = Date.now()): number {
-  return properties.filter((property) => {
-    const created = new Date(property.created_at).getTime();
-    return Number.isFinite(created) && now - created <= WEEK_MS;
-  }).length;
+  return properties.filter((property) => listedThisWeek(property, now)).length;
 }
 
 export function topLocalities(

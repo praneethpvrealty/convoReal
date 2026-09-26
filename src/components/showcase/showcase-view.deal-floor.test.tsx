@@ -62,6 +62,7 @@ function property(overrides: Partial<Property>): Property {
 
 const villa = property({
   id: 'villa',
+  created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
   title: 'North-facing villa in Kasavanahalli',
   price: 67_900_000,
   property_code: 'CR-101',
@@ -108,7 +109,10 @@ const settings = {
   contact_phone: '+919900277111',
 } as unknown as ShowcaseSettings;
 
-function renderDealFloor(style: 'deal-floor' | 'quiet-luxury' = 'deal-floor') {
+function renderDealFloor(
+  style: 'deal-floor' | 'quiet-luxury' = 'deal-floor',
+  disableSavedState = true
+) {
   window.history.replaceState({}, '', '/');
   render(
     <ShowcaseView
@@ -118,7 +122,7 @@ function renderDealFloor(style: 'deal-floor' | 'quiet-luxury' = 'deal-floor') {
       siteName="Aryavarta Ventures"
       showcaseStyle={style}
       designFontClassName="df-fonts"
-      disableSavedState
+      disableSavedState={disableSavedState}
     />
   );
 }
@@ -136,6 +140,22 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     ).toBeNull();
     expect(screen.queryByRole('group', { name: 'Browse mode' })).toBeNull();
     expect(screen.getByText('No Photos Available')).toBeTruthy();
+  });
+
+  it('ignores a saved Deal Floor family key when another design restores it', () => {
+    localStorage.setItem(
+      'showcase_state',
+      JSON.stringify({
+        timestamp: Date.now(),
+        selectedType: 'kind:houses',
+        selectedLocations: [],
+      })
+    );
+    renderDealFloor('quiet-luxury', false);
+    const grid = within(screen.getByLabelText('Property listings'));
+    expect(grid.getByText(villa.title)).toBeTruthy();
+    expect(grid.getByText(plot.title)).toBeTruthy();
+    expect(grid.getByText(building.title)).toBeTruthy();
   });
 
   it('renders the fill-in-the-blank hero, kind tiles with counts and the font class', () => {
@@ -210,6 +230,16 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     const featured = board.getByRole('button', { name: /Featured/ });
     expect(featured.textContent).toContain(building.title);
     expect(featured.textContent).toContain('₹32 Cr');
+
+    const grid = () => within(screen.getByLabelText('Property listings'));
+    const newTile = board.getByRole('button', { name: /New this week/ });
+    expect(newTile.textContent).toContain('1');
+    fireEvent.click(newTile);
+    expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
+    expect(grid().queryByText(plot.title)).toBeNull();
+    expect(grid().getByText(villa.title)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^New this week$/ }));
+    expect(screen.getByRole('button', { name: /See 4 matches/ })).toBeTruthy();
     expect(board.getByRole('button', { name: '1 in Domlur' })).toBeTruthy();
     expect(board.getByRole('button', { name: '1 Koramangala' })).toBeTruthy();
     expect(
@@ -260,5 +290,38 @@ describe('Deal Floor showcase design [PRP-020]', () => {
       done.getByRole('button', { name: /Send my 3 picks on WhatsApp/ })
     );
     expect(screen.getByRole('dialog', { name: 'Your shortlist' })).toBeTruthy();
+  });
+
+  it("keeps an earlier round's shortlist when a replayed pick is undone", () => {
+    localStorage.setItem(
+      'showcase_shortlist:acct-1',
+      JSON.stringify([villa.id])
+    );
+    renderDealFloor();
+    expect(screen.getByText('1 shortlisted')).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole('button', { name: /or play Quick Picks/ })
+    );
+    const deck = () =>
+      within(screen.getByRole('region', { name: 'Quick Picks' }));
+
+    expect(deck().getByText('Quick Picks · 1 of 3')).toBeTruthy();
+    fireEvent.click(deck().getByRole('button', { name: 'Shortlist' }));
+    expect(screen.getByText('2 shortlisted')).toBeTruthy();
+    fireEvent.click(
+      deck().getByRole('button', { name: `Skip ${rental.title}` })
+    );
+    fireEvent.click(deck().getByRole('button', { name: `Skip ${plot.title}` }));
+    const done = within(
+      screen.getByRole('region', { name: 'Quick Picks round complete' })
+    );
+
+    fireEvent.click(done.getByRole('button', { name: 'Play the round again' }));
+    expect(deck().getByRole('heading', { name: building.title })).toBeTruthy();
+    fireEvent.click(deck().getByRole('button', { name: 'Shortlist' }));
+    expect(screen.getByText('2 shortlisted')).toBeTruthy();
+    fireEvent.click(deck().getByRole('button', { name: 'Undo' }));
+    expect(screen.getByText('2 shortlisted')).toBeTruthy();
+    expect(deck().getByRole('heading', { name: building.title })).toBeTruthy();
   });
 });

@@ -49,7 +49,7 @@ export function QuickPicksDeck({
   );
   const [index, setIndex] = useState(0);
   const [history, setHistory] = useState<
-    Array<{ id: string; verdict: Verdict }>
+    Array<{ id: string; verdict: Verdict; added: boolean }>
   >([]);
 
   const finished = index >= deck.length;
@@ -61,17 +61,16 @@ export function QuickPicksDeck({
 
   function advance(verdict: Verdict) {
     if (!card) return;
-    if (verdict === 'like' && !shortlistIds.includes(card.id)) {
-      onToggleShortlist(card.id);
-    }
-    setHistory((current) => [...current, { id: card.id, verdict }]);
+    const added = verdict === 'like' && !shortlistIds.includes(card.id);
+    if (added) onToggleShortlist(card.id);
+    setHistory((current) => [...current, { id: card.id, verdict, added }]);
     setIndex((current) => current + 1);
   }
 
   function undo() {
     const last = history.at(-1);
     if (!last) return;
-    if (last.verdict === 'like' && shortlistIds.includes(last.id)) {
+    if (last.added && shortlistIds.includes(last.id)) {
       onToggleShortlist(last.id);
     }
     setHistory((current) => current.slice(0, -1));

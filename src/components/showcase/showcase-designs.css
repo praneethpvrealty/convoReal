@@ -955,6 +955,14 @@
   font-size: 0.8rem;
   font-weight: 700;
 }
+[data-showcase-design='deal-floor'] .df-chip-clear {
+  gap: 0.4rem;
+  background: transparent;
+  cursor: pointer;
+}
+[data-showcase-design='deal-floor'] .df-tile-new[aria-pressed='true'] {
+  border-color: var(--primary);
+}
 [data-showcase-design='deal-floor'] .df-deck-liked {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
