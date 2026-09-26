@@ -2,12 +2,12 @@
  * Journey auto-capture — turns "property shared to contact" moments
  * into journey_items rows without the agent lifting a finger.
  *
- * Client-side helper (uses the browser Supabase client) called from:
- *   - the WhatsApp share dialog, after a confirmed send
- *     (source 'whatsapp_share', hidden = true → lands in the
- *     Captured tray on /journey instead of hogging the canvas)
- *   - the /journey page's "Import from chat" and "Import inquiries"
- *     buttons (explicit user action → visible immediately)
+ * Client-side helper (uses the browser Supabase client) called from
+ * the /journey page's "Import from chat" and "Import inquiries" buttons
+ * (explicit user action → visible immediately). Shares capture through
+ * the server ledger writer instead — see capture-server.ts and
+ * src/lib/whatsapp/share-property-send.ts — so every share surface,
+ * bot sends included, lands on the journey.
  *
  * Idempotent by construction: the upsert ignores pairs that already
  * exist (the UNIQUE(account_id, contact_id, property_id) constraint),

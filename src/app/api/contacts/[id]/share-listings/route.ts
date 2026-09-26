@@ -139,7 +139,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         ctx.accountId,
         ctx.userId,
         propertyId,
-        contact.id
+        contact.id,
+        contact.classification,
+        { journeyVisible: true }
       );
     }
 

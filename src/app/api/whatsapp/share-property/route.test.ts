@@ -90,6 +90,16 @@ vi.mock('@supabase/supabase-js', () => ({
     ),
 }));
 
+const journeyCaptures: Array<Record<string, unknown>> = [];
+vi.mock('@/lib/journey/capture-server', () => ({
+  captureJourneyItems: vi.fn(
+    async (_db: unknown, input: Record<string, unknown>) => {
+      journeyCaptures.push(input);
+      return { created: 1, error: null };
+    }
+  ),
+}));
+
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: vi.fn(
     async (args: Record<string, unknown>) => {
@@ -168,6 +178,7 @@ beforeEach(() => {
   adminInserts = [];
   dispatcherCalls = [];
   dispatcherResults = [];
+  journeyCaptures.length = 0;
 });
 
 describe('share-property — channel selection', () => {
@@ -189,6 +200,35 @@ describe('share-property — channel selection', () => {
         new RegExp(`property_id=${PROPERTY.id}.*[?&]v=${CONTACT.id}`)
       ),
     });
+  });
+
+  it('[JRN-009] puts a share-sheet send on the journey, visible, whichever channel carried it', async () => {
+    primeLookups({ windowOpen: true });
+    const open = await POST(request(shareBody()));
+    expect(open.status).toBe(200);
+    expect(journeyCaptures).toEqual([
+      expect.objectContaining({
+        accountId: 'acc-1',
+        userId: 'user-1',
+        pairs: [{ contactId: CONTACT.id, propertyId: PROPERTY.id }],
+        source: 'whatsapp_share',
+        hidden: false,
+      }),
+    ]);
+
+    journeyCaptures.length = 0;
+    primeLookups({ windowOpen: false });
+    adminQueues.message_templates = [
+      { data: [APPROVED_TEMPLATE], error: null },
+    ];
+    const closed = await POST(request(shareBody()));
+    expect(closed.status).toBe(200);
+    expect(journeyCaptures).toEqual([
+      expect.objectContaining({
+        pairs: [{ contactId: CONTACT.id, propertyId: PROPERTY.id }],
+        hidden: false,
+      }),
+    ]);
   });
 
   it('attributes the free-form showcase link to the recipient for Pulse', async () => {

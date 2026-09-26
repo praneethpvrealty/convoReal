@@ -1362,6 +1362,56 @@
               "case": "[JRN-008]"
             }
           ]
+        },
+        {
+          "id": "JRN-009",
+          "rule": "Every confirmed property share captures the contact×property pair on the journey through one server-side ledger writer, whichever surface sent it: the share sheet on web and mobile (both channels), a personal-WhatsApp or email share the agent logs, a contact's hand-picked listings, Radar sends and the bot's own listing sends. A share the agent composed for one contact is visible at once; a broadcast or bot batch waits hidden in the Captured tray; re-sharing never duplicates, resurrects or un-hides a pair.",
+          "tests": [
+            {
+              "file": "src/lib/journey/capture-server.test.ts",
+              "case": "[JRN-009]"
+            },
+            {
+              "file": "src/lib/whatsapp/share-property-send.test.ts",
+              "case": "[JRN-009]"
+            },
+            {
+              "file": "src/app/api/properties/share-log/route.test.ts",
+              "case": "[JRN-009]"
+            },
+            {
+              "file": "src/app/api/whatsapp/share-property/route.test.ts",
+              "case": "[JRN-009]"
+            },
+            {
+              "file": "src/lib/inventory/share-log.test.ts",
+              "case": "[JRN-009]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-009]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/capture-server.ts",
+            "src/lib/whatsapp/share-property-send.ts",
+            "src/app/api/properties/share-log/route.ts",
+            "supabase/migrations/20260926115400_journey_backfill_share_captures.sql"
+          ]
+        },
+        {
+          "id": "JRN-010",
+          "rule": "A buyer's visit request that the WhatsApp scheduler consumes is logged as a client response on their journey branch for that listing (captured visibly at the first stage when the pair was never on the journey), and once the visit is on the calendar the branch advances to the account's site-visit stage through the same move as the board, forward only, never back from a later stage.",
+          "tests": [
+            {
+              "file": "src/lib/journey/visit-capture.test.ts",
+              "case": "[JRN-010]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/visit-capture.ts",
+            "src/lib/calendar/whatsapp-scheduler.ts"
+          ]
         }
       ]
     },

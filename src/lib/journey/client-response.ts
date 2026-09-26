@@ -78,6 +78,10 @@ import {
   rankJourneyPropertyCandidates,
   type RankedPropertyCandidate,
 } from '@/lib/journey/property-candidates';
+import {
+  ensureJourneyItem as ensureJourneyItemServer,
+  loadJourneyStages,
+} from '@/lib/journey/capture-server';
 
 export const CLIENT_FOLLOWUP_PREFIX = 'jfu_';
 
@@ -418,28 +422,7 @@ async function loadStages(
   db: SupabaseClient,
   accountId: string
 ): Promise<StageRow[]> {
-  const load = async () => {
-    const { data } = await db
-      .from('journey_stages')
-      .select('id, name, position')
-      .eq('account_id', accountId)
-      .not('pipeline_stage_id', 'is', null)
-      .order('position');
-    return (data ?? []) as StageRow[];
-  };
-  let stages = await load();
-  if (stages.length === 0) {
-    const { error } = await db.rpc('journey_stages_for_account', {
-      p_account_id: accountId,
-    });
-    if (error)
-      console.error(
-        '[client-response] journey stage mirror failed:',
-        error.message
-      );
-    stages = await load();
-  }
-  return stages;
+  return loadJourneyStages(db, accountId);
 }
 
 async function matchClientContact(
@@ -572,60 +555,16 @@ async function ensureJourneyItem(
   stages: StageRow[],
   captureReason: string
 ): Promise<ItemRow | null> {
-  const read = async () => {
-    const { data } = await db
-      .from('journey_items')
-      .select('id, stage_id, status, planned_at')
-      .eq('account_id', accountId)
-      .eq('contact_id', contactId)
-      .eq('property_id', propertyId)
-      .maybeSingle();
-    return (data ?? null) as ItemRow | null;
-  };
-  const existing = await read();
-  if (existing) return existing;
-  const firstStage = stages[0];
-  if (!firstStage) return null;
-
-  const { data: inserted, error } = await db
-    .from('journey_items')
-    .upsert(
-      {
-        account_id: accountId,
-        contact_id: contactId,
-        property_id: propertyId,
-        stage_id: firstStage.id,
-        source: 'chat_import',
-        hidden: false,
-        created_by: userId,
-      },
-      {
-        onConflict: 'account_id,contact_id,property_id',
-        ignoreDuplicates: true,
-      }
-    )
-    .select('id, stage_id, status, planned_at');
-  if (error) {
-    console.error(
-      '[client-response] journey item capture failed:',
-      error.message
-    );
-    return read();
-  }
-  const created = (inserted ?? [])[0] as ItemRow | undefined;
-  if (!created) return read();
-
-  const { error: evError } = await db.from('journey_events').insert({
-    account_id: accountId,
-    item_id: created.id,
-    event_type: 'added',
-    to_stage_id: firstStage.id,
+  return ensureJourneyItemServer(db, {
+    accountId,
+    userId,
+    contactId,
+    propertyId,
+    source: 'chat_import',
+    hidden: false,
     reason: captureReason,
-    created_by: userId,
+    stages,
   });
-  if (evError)
-    console.error('[client-response] capture event failed:', evError.message);
-  return created;
 }
 
 /** Fills {{1}}-style placeholders so the inbox shows what was sent

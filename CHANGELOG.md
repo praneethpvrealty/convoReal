@@ -33,6 +33,23 @@ than a written entry. Newest first.
   instead of a grey "No Photos Available" box. **Migration required:**
   `20260926120000_deal_floor_showcase_design.sql` admits the new value in
   both showcase-style checks.
+- **Every property share now lands on the buyer's journey.** For six
+  weeks nearly every share reached the share ledger and never the journey:
+  the browser wrote the two as separate requests behind only the share
+  dialog's broadcast paths, and every other surface — the share sheet on
+  web and mobile, a contact's hand-picked listings, Radar sends, the bot's
+  own listing sends — recorded the ledger from a server route that never
+  captured the pair. One server-side writer now does both, so a share
+  the agent composed for one contact appears on the journey at once and a
+  broadcast or bot batch waits in the Captured tray. **Migration
+  required:** `20260926115400_journey_backfill_share_captures.sql` puts the
+  shares already on the ledger into each contact's Captured tray.
+- **A visit request moves the journey.** "I want to visit on Sunday" was
+  consumed by the scheduler before the check-in handler saw it, so the
+  reply left no trace on the journey, and a booked site visit never moved
+  the branch. The words are now logged as a client response on the
+  listing's branch, and once the visit is on the calendar the branch
+  advances to Site Visit Scheduled — forward only.
 - **Sharing a listing from the phone no longer holds you on a spinner.**
   Picking a buyer in "Broadcast this property" now opens their chat at
   once, with the photo and the message drawn as sending, and the send
