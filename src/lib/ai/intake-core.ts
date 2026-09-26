@@ -369,20 +369,40 @@ export function mergeContactDraftsContainer(
   return { contacts: merged };
 }
 
+const EXPLICIT_CONTACT_FIELDS: Record<string, 'name' | 'company' | 'email'> = {
+  name: 'name',
+  'contact name': 'name',
+  company: 'company',
+  'company name': 'company',
+  email: 'email',
+  'email id': 'email',
+};
+
 export function applyExplicitContactDraftUpdate(
   current: ParsedContactDraftsContainer,
   instruction: string
 ): ParsedContactDraftsContainer | null {
   if (current.contacts.length !== 1) return null;
 
-  const match = instruction
-    .trim()
-    .match(/^(?:contact\s+)?name\s*(?:-|:|is)\s*(.+)$/i);
-  const name = match?.[1]?.trim();
-  if (!name) return null;
+  const segments = instruction
+    .split(/[,;\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (segments.length === 0) return null;
+
+  const updates: Partial<Record<'name' | 'company' | 'email', string>> = {};
+  for (const segment of segments) {
+    const match = segment.match(/^([a-z][a-z _-]*?)\s*(?::|\s-\s|\bis\b)\s*(.+)$/i);
+    const field = match && EXPLICIT_CONTACT_FIELDS[match[1].trim().toLowerCase().replace(/[\s_-]+/g, ' ')];
+    const value = match?.[2]?.trim();
+    if (!field || !value || updates[field]) return null;
+    if (field === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return null;
+    updates[field] = value;
+  }
+  if (!updates.name) return null;
 
   return {
-    contacts: [{ ...current.contacts[0], name }],
+    contacts: [{ ...current.contacts[0], ...updates }],
   };
 }
 
