@@ -17,6 +17,7 @@ import {
   type RequestCandidate,
 } from './rank'
 import type { FocusSnapshot } from './types'
+import { isLiveJourneyState, type JourneyLifecycleRow } from './lifecycle'
 
 /**
  * Loaders behind GET /api/focus. They expect an RLS-scoped client —
@@ -56,7 +57,7 @@ export async function loadJourneyCandidates(
   db: DB,
   accountId: string,
 ): Promise<JourneyCandidate[]> {
-  const [itemsRes, stagesRes, prioritiesRes] = await Promise.all([
+  const [itemsRes, stagesRes, prioritiesRes, statesRes] = await Promise.all([
     db
       .from('journey_items')
       .select(
@@ -77,10 +78,24 @@ export async function loadJourneyCandidates(
       .from('journey_priorities')
       .select('mode, subject_id, priority')
       .eq('account_id', accountId),
+    db
+      .from('journey_overview_states')
+      .select('mode, subject_id, lifecycle_status, archived_at')
+      .eq('account_id', accountId),
   ])
   if (itemsRes.error) throw itemsRes.error
   if (stagesRes.error) throw stagesRes.error
   if (prioritiesRes.error) throw prioritiesRes.error
+  if (statesRes.error) throw statesRes.error
+
+  // A journey closed or archived on the overview is not a live one
+  // here either: Focus ranks what the Journey tab still shows as active.
+  const states = new Map<string, JourneyLifecycleRow>(
+    ((statesRes.data ?? []) as JourneyLifecycleRow[]).map((r) => [
+      `${r.mode}:${r.subject_id}`,
+      r,
+    ]),
+  )
 
   const stages = (stagesRes.data ?? []) as JourneyStage[]
   const priorities = new Map<string, JourneyPriority>(
@@ -114,6 +129,7 @@ export async function loadJourneyCandidates(
 
     for (const subject of subjects) {
       const key = `${subject.mode}:${subject.id}`
+      if (!isLiveJourneyState(states.get(key))) continue
       let candidate = byKey.get(key)
       if (!candidate) {
         candidate = {

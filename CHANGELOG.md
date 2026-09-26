@@ -19,6 +19,21 @@ than a written entry. Newest first.
 
 #### 26 September 2026
 
+- **Journey, Board, Records and the Dashboard now describe the same
+  deals.** A deal created on the Board never reached the buyer's journey
+  (7 of one account's 9 deals), a branch dropped on the Journey left its
+  deal open everywhere else, and a deal marked lost left its branch live.
+  Every deal with a contact and a property is now linked to that pair's
+  journey branch the moment it is created, and stage and outcome follow
+  both ways: open, won and lost on the Board become active or dropped on
+  the Journey, and a move, drop or reactivation on the Journey moves the
+  deal. A conversion opens its deal on the stage the branch already
+  mirrors instead of the first stage, Focus stops counting closed or
+  archived journeys as live, and a Board move refreshes the Dashboard
+  tiles. **Migration required:**
+  `20260926123000_journey_deal_link_sync.sql`, then
+  `20260926123100_journey_deal_link_backfill.sql`, which links the
+  existing deals and aligns their branches.
 - **The share ledger captures the journey itself.** A trigger on
   `property_shares` now puts the contact×property pair on the journey for
   any row that reaches the table, whatever wrote it, so no future share
