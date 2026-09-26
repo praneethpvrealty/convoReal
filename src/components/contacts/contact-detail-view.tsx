@@ -114,6 +114,7 @@ import {
   Send,
   Globe,
   Languages,
+  KeyRound,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -148,6 +149,7 @@ import { ShareInventoryDialog } from '@/components/contacts/share-inventory-dial
 import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
 import { PropertyInterestFollowUpDialog } from '@/components/contacts/property-interest-follow-up-dialog';
 import { PortalInviteDialog } from '@/components/contacts/portal-invite-dialog';
+import { PortfolioInviteDialog } from '@/components/contacts/portfolio-invite-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 
@@ -208,6 +210,7 @@ export function ContactDetailView({
   const [inventoryShareOpen, setInventoryShareOpen] = useState(false);
   const [shareListingsOpen, setShareListingsOpen] = useState(false);
   const [portalInviteOpen, setPortalInviteOpen] = useState(false);
+  const [portfolioInviteOpen, setPortfolioInviteOpen] = useState(false);
   const collectsBuyerRequirements =
     contact?.classification === 'Buyer' ||
     contact?.classification === 'Owner & Buyer';
@@ -1957,6 +1960,17 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         Share Portal
                       </button>
                     )}
+                    {hasPhone(contact) &&
+                      contact.classification !== 'Agent' && (
+                        <button
+                          onClick={() => setPortfolioInviteOpen(true)}
+                          className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
+                          title="Invite them to sign in to their buyer or owner Portfolio from business or personal WhatsApp"
+                        >
+                          <KeyRound className="size-3 text-emerald-400" />
+                          Portfolio Invite
+                        </button>
+                      )}
                     <button
                       onClick={() => setScheduleOpen(true)}
                       className="text-primary hover:text-primary-foreground hover:bg-primary/10 border-primary/20 flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5 font-medium transition-all"
@@ -4033,6 +4047,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 contactName={contact.name || ''}
                 contactPhone={contact.phone}
                 contactClassification={contact.classification}
+                onSent={() => {
+                  fetchNotes();
+                  onUpdated();
+                }}
+              />
+            )}
+            {contactId && contact && hasPhone(contact) && (
+              <PortfolioInviteDialog
+                open={portfolioInviteOpen}
+                onOpenChange={setPortfolioInviteOpen}
+                contactId={contactId}
+                contactName={contact.name || ''}
+                contactPhone={contact.phone}
                 onSent={() => {
                   fetchNotes();
                   onUpdated();

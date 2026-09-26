@@ -592,6 +592,25 @@
               "case": "[CTM-010]"
             }
           ]
+        },
+        {
+          "id": "CTM-011",
+          "rule": "From a buyer or owner contact's record on web or mobile, agents can send a Portfolio sign-in invite from the business WhatsApp number or their personal WhatsApp; the invite is offered only for the sides a Portfolio sign-in would link that contact to (buyer: Buyer or Owner & Buyer classification, an enquiry or a rating; owner: Owner, Seller or Owner & Buyer classification, or an owner-direct listing), an owner invite links the owner sign-in and says they can add properties themselves, the business number sends free text only inside the 24-hour window and otherwise refuses with a pointer to personal WhatsApp, and a personal invite is noted on the contact's timeline.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/portfolio-invite.test.ts",
+              "case": "[CTM-011]"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/portfolio-invite/route.test.ts",
+              "case": "[CTM-011]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-011]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },
