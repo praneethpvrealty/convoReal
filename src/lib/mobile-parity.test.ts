@@ -442,7 +442,7 @@ describe('a logged personal share is an outgoing share, not an enquiry', () => {
       mobileShare.indexOf('const SHARE_TIMEOUT_MS')
     );
 
-    expect(logShare).toContain("from('property_shares').upsert(");
+    expect(logShare).toContain("apiFetch('/api/properties/share-log'");
     expect(webDialog).toContain('recordPropertyShares({');
     for (const source of [logShare, webDialog]) {
       expect(source).toContain('.update({ last_contacted_at: now })');
@@ -623,6 +623,23 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('{canEdit && confirming ? (');
     expect(screen).toContain('{canEdit && !confirming ? (');
     expect(screen).toContain('copilotFabClearance(insets.bottom)');
+  });
+
+  it('[JRN-009] records a personal-WhatsApp share through the server ledger that captures the journey', () => {
+    const actions = mobileSource('lib/property-share-actions.ts');
+    const logShare = actions.slice(
+      actions.indexOf('export async function logExternalShare'),
+      actions.indexOf('const SHARE_TIMEOUT_MS')
+    );
+    expect(logShare).toContain("apiFetch('/api/properties/share-log'");
+    expect(logShare).not.toContain("from('property_shares')");
+    const webLog = webSource('lib/inventory/share-log.ts');
+    const recordShares = webLog.slice(
+      webLog.indexOf('export async function recordPropertyShares'),
+      webLog.indexOf('export async function fetchPropertyShareLog')
+    );
+    expect(recordShares).toContain("fetch('/api/properties/share-log'");
+    expect(recordShares).not.toContain("from('property_shares')");
   });
 
   it('[JRN-006] focuses one stage from its own control, searches within it, and collapses from the header', () => {

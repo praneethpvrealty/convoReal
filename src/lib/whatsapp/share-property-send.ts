@@ -27,6 +27,7 @@ import {
   trackedPropertyButtonParam,
 } from '@/lib/showcase/account-showcase-url';
 import { storagePublicUrl } from '@/lib/storage/url';
+import { captureJourneyItems } from '@/lib/journey/capture-server';
 import type { MessageTemplate, Property } from '@/types';
 
 // One property share to one contact through the account's WhatsApp
@@ -50,18 +51,32 @@ function adminClient() {
 
 const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+export type ShareLedgerChannel = 'whatsapp' | 'email';
+
+export interface ShareLedgerOptions {
+  /** How the listing went out. Defaults to whatsapp. */
+  channel?: ShareLedgerChannel;
+  /** A deliberate one-to-one share lands on the journey map at once;
+   *  otherwise the pair waits in the Captured tray. */
+  journeyVisible?: boolean;
+}
+
 /** Property share ledger row for a confirmed send — the same table the
  *  web share dialog writes through src/lib/inventory/share-log.ts, so
  *  the Matching Contacts list marks a recipient as already contacted
- *  whichever surface sent it. Best-effort: a ledger failure must never
- *  turn a delivered message into a reported error. */
+ *  whichever surface sent it. The pair is captured onto the contact's
+ *  journey in the same call: recording a share and putting it on the
+ *  journey were two steps once, and every surface but one forgot the
+ *  second. Best-effort: a ledger failure must never turn a delivered
+ *  message into a reported error. */
 export async function logPropertyShare(
   db: SupabaseClient,
   accountId: string,
   userId: string,
   propertyId: string,
   contactId: string,
-  classification?: string | null
+  classification?: string | null,
+  options: ShareLedgerOptions = {}
 ) {
   const recipientClassification =
     classification === undefined
@@ -80,13 +95,30 @@ export async function logPropertyShare(
       property_id: propertyId,
       contact_id: contactId,
       recipient_kind: recipientClassification === 'Agent' ? 'agent' : 'buyer',
-      channel: 'whatsapp',
+      channel: options.channel ?? 'whatsapp',
       created_by: userId,
     },
     { onConflict: 'account_id,property_id,contact_id', ignoreDuplicates: true }
   );
   if (error)
     console.error('[share-property-send] share ledger failed:', error.message);
+
+  try {
+    const capture = await captureJourneyItems(db, {
+      accountId,
+      userId,
+      pairs: [{ contactId, propertyId }],
+      source: 'whatsapp_share',
+      hidden: !options.journeyVisible,
+    });
+    if (capture.error)
+      console.error(
+        '[share-property-send] journey capture failed:',
+        capture.error
+      );
+  } catch (err) {
+    console.error('[share-property-send] journey capture threw:', err);
+  }
 }
 
 /**
@@ -99,6 +131,10 @@ export async function logPropertyShare(
  * 11 July and came back as "here's one that fits" on 23 August, because
  * the only guard compared titles against the last few bot messages in
  * the thread. What was sent has to outlive the window it was sent in.
+ *
+ * The pairs are captured onto the journey too, hidden: a shortlist the
+ * bot picked is evidence the buyer saw the listing, not yet a branch
+ * the agent chose to track.
  *
  * Best-effort, like its single-row twin: a ledger failure must never
  * turn a delivered message into a reported error.
@@ -118,8 +154,9 @@ export async function logListingsSent(
       .eq('id', contactId)
       .eq('account_id', accountId)
       .maybeSingle();
+    const unique = [...new Set(propertyIds)];
     const { error } = await db.from('property_shares').upsert(
-      [...new Set(propertyIds)].map((propertyId) => ({
+      unique.map((propertyId) => ({
         account_id: accountId,
         property_id: propertyId,
         contact_id: contactId,
@@ -136,6 +173,18 @@ export async function logListingsSent(
       console.error(
         '[share-property-send] bot share ledger failed:',
         error.message
+      );
+    const capture = await captureJourneyItems(db, {
+      accountId,
+      userId,
+      pairs: unique.map((propertyId) => ({ contactId, propertyId })),
+      source: 'whatsapp_share',
+      hidden: true,
+    });
+    if (capture.error)
+      console.error(
+        '[share-property-send] bot journey capture failed:',
+        capture.error
       );
   } catch (err) {
     console.error('[share-property-send] bot share ledger threw:', err);
@@ -303,7 +352,8 @@ export async function sendPropertyToContact(opts: {
         userId,
         property.id,
         contactId,
-        opts.contactClassification
+        opts.contactClassification,
+        { journeyVisible: true }
       );
       return {
         sent: true,
@@ -442,7 +492,8 @@ export async function sendPropertyToContact(opts: {
     userId,
     property.id,
     contactId,
-    opts.contactClassification
+    opts.contactClassification,
+    { journeyVisible: true }
   );
   return {
     sent: true,

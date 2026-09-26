@@ -15,11 +15,13 @@ import type { Contact, Property } from '@/lib/types';
 /** Record an external share on the contact's timeline — a contact note
  *  plus last-contacted, mirroring the web's log-external-share dialog —
  *  and on the property share ledger, which is what marks the recipient
- *  as already contacted on the listing's Matching Contacts list. A share
- *  is something the agent sent, not something the contact asked about,
- *  so it never touches last_inquired_property_id ("Contacted about").
- *  Best-effort: failures don't block the WhatsApp hand-off the caller is
- *  about to make. */
+ *  as already contacted on the listing's Matching Contacts list and
+ *  captures the pair on their journey. The ledger goes through the same
+ *  server route the web uses so the journey capture cannot be skipped.
+ *  A share is something the agent sent, not something the contact asked
+ *  about, so it never touches last_inquired_property_id ("Contacted
+ *  about"). Best-effort: failures don't block the WhatsApp hand-off the
+ *  caller is about to make. */
 export async function logExternalShare(
   contact: Contact,
   property: Property
@@ -44,20 +46,20 @@ export async function logExternalShare(
       account_id: profile.account_id,
       note_text: `📱 Shared via personal WhatsApp\n🏠 Property: ${label}`,
     }),
-    supabase.from('property_shares').upsert(
-      {
-        account_id: profile.account_id,
+    apiFetch('/api/properties/share-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         property_id: property.id,
-        contact_id: contact.id,
-        recipient_kind: contact.classification === 'Agent' ? 'agent' : 'buyer',
+        recipients: [
+          {
+            contact_id: contact.id,
+            classification: contact.classification ?? null,
+          },
+        ],
         channel: 'whatsapp',
-        created_by: session.user.id,
-      },
-      {
-        onConflict: 'account_id,property_id,contact_id',
-        ignoreDuplicates: true,
-      }
-    ),
+      }),
+    }),
   ]);
 }
 
