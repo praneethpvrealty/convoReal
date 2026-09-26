@@ -6,6 +6,7 @@ export const SHOWCASE_STYLES = [
   'warm-editorial',
   'map-discovery',
   'quiet-luxury',
+  'deal-floor',
 ] as const;
 
 export type ShowcaseStyle = (typeof SHOWCASE_STYLES)[number];
@@ -59,6 +60,15 @@ export const AGENCY_SHOWCASE_DESIGNS = [
     background: '#202420',
     accent: '#bea775',
     foreground: '#f7f5ef',
+  },
+  {
+    value: 'deal-floor',
+    label: 'Deal Floor',
+    description:
+      'Warm charcoal, saffron accent, a fill-in-the-blank search and Quick Picks',
+    background: '#14120f',
+    accent: '#ffb020',
+    foreground: '#f4efe6',
   },
 ] as const;
 

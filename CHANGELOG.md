@@ -19,6 +19,20 @@ than a written entry. Newest first.
 
 #### 26 September 2026
 
+- **A fourth agency showcase design, Deal Floor.** Warm charcoal with a
+  saffron accent, chosen like the other designs under Settings → Public
+  profile on web and mobile. Its hero is a sentence with blanks — "Show me
+  _any property_ in _any locality_ _at any budget_" — and each blank
+  narrows the catalogue live, with the match count on the button. The
+  category chip cloud becomes kind tiles with counts, a board surfaces the
+  featured listing, what is new this week, the busiest localities, a
+  catalogue search and a match-report meter, and a Quick Picks mode deals
+  listings one at a time to skip or shortlist, then sums up the visitor's
+  taste and hands the shortlist to the WhatsApp enquiry. A listing without
+  photos gets a plot drawn from its dimensions, facing and road width
+  instead of a grey "No Photos Available" box. **Migration required:**
+  `20260926120000_deal_floor_showcase_design.sql` admits the new value in
+  both showcase-style checks.
 - **A forwarded showcase link no longer shows up in Pulse as the person you
   sent it to.** A personalized link (`?v=`) now belongs to the first browser
   that opens it. Any other device opening the same link is recorded as

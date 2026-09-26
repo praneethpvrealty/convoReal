@@ -49,7 +49,7 @@ describe('parsePublicProfilePatch', () => {
   });
 });
 
-it.each(['warm-editorial', 'map-discovery', 'quiet-luxury'])(
+it.each(['warm-editorial', 'map-discovery', 'quiet-luxury', 'deal-floor'])(
   'accepts agency design %s',
   (showcaseStyle) => {
     expect(parsePublicProfilePatch({ showcaseStyle })).toEqual({

@@ -28,7 +28,7 @@ describe('ShowcasePresentationControls', () => {
     ).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: /Spotlight/ }));
     expect(onValueChange).toHaveBeenCalledWith('spotlight');
-    expect(screen.getAllByRole('button')).toHaveLength(8);
+    expect(screen.getAllByRole('button')).toHaveLength(9);
   });
 
   it('turns responsive 3D transitions off', () => {

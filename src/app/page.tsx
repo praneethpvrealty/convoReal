@@ -40,6 +40,7 @@ import {
   SHOWCASE_STYLES,
   type ShowcaseStyle,
 } from '@/lib/showcase/style';
+import { dealFloorFontClassName } from '@/lib/showcase/deal-floor-fonts';
 
 const DEFAULT_METADATA: Metadata = {
   title: `${BRANDING.name} — AI-Powered WhatsApp Deal Engine & Property Portals`,
@@ -578,6 +579,7 @@ export default async function RootPage({ searchParams }: PageProps) {
         articles={articles}
         showcaseStyle={presentation.style}
         showcase3dEnabled={presentation.threeDimensional}
+        designFontClassName={dealFloorFontClassName}
       />
       <AuthorityLinks
         businessName={siteName}

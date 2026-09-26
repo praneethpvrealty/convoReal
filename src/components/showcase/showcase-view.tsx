@@ -84,6 +84,22 @@ import {
 } from '@/lib/inventory/listing-status';
 import { ShowcaseShortlist } from '@/components/showcase/showcase-shortlist';
 import { ShowcaseMap } from '@/components/showcase/showcase-map';
+import {
+  DealFloorBoard,
+  DealFloorHero,
+  DealFloorKinds,
+} from '@/components/showcase/deal-floor-sections';
+import { QuickPicksDeck } from '@/components/showcase/quick-picks-deck';
+import { PlotFace } from '@/components/showcase/plot-face';
+import {
+  dealFloorKindCounts,
+  dealFloorKindTypes,
+  featuredProperty,
+  listedThisWeek,
+  newThisWeek,
+  topLocalities,
+  withinBudget,
+} from '@/lib/showcase/deal-floor';
 import './showcase-designs.css';
 
 // Dwell-time cap for Pulse view_property events — a tab left open in the
@@ -153,6 +169,10 @@ interface ShowcaseViewProps {
   services?: AgencyService[];
   articles?: AgencyArticle[];
   showcaseStyle?: ShowcaseStyle;
+  /** Class from next/font that sets the Deal Floor design's font
+   *  variables; the page supplies it so the client bundle never
+   *  imports next/font itself. */
+  designFontClassName?: string;
   showcase3dEnabled?: boolean;
 }
 
@@ -190,6 +210,7 @@ export function ShowcaseView({
   services = [],
   articles = [],
   showcaseStyle = DEFAULT_SHOWCASE_STYLE,
+  designFontClassName,
   showcase3dEnabled = false,
 }: ShowcaseViewProps) {
   const shortlistable = useMemo(
@@ -198,6 +219,7 @@ export function ShowcaseView({
   );
   const shortlist = useShowcaseShortlist(accountId, shortlistable);
   const agencyDesign = isAgencyShowcaseDesign(showcaseStyle);
+  const dealFloor = showcaseStyle === 'deal-floor';
   const motionEnabled = showcase3dEnabled && !agencyDesign;
   const [mapView, setMapView] = useState(false);
   const [mapPanelOpen, setMapPanelOpen] = useState(true);
@@ -276,6 +298,10 @@ export function ShowcaseView({
   }, [settings?.theme, initialTheme]);
 
   const [selectedType, setSelectedType] = useState('All');
+  const [maxBudget, setMaxBudget] = useState<number | null>(null);
+  const [recentOnly, setRecentOnly] = useState(false);
+  const [deckMode, setDeckMode] = useState(false);
+  const [shortlistOpenRequest, setShortlistOpenRequest] = useState(0);
   const [selectedListingType, setSelectedListingType] = useState<'All' | 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'>('All');
   const [minBeds, setMinBeds] = useState('All');
   const [sortBy, setSortBy] = useState('newest');
@@ -443,6 +469,7 @@ export function ShowcaseView({
 
   const isStateLoadedRef = useRef(false);
   const listingDeckRef = useRef<HTMLDivElement>(null);
+  const dealFloorAnchorRef = useRef<HTMLDivElement>(null);
 
   // 1. Client-side mount hook to load state from URL and localStorage (retained for 7 days)
   useEffect(() => {
@@ -1054,11 +1081,22 @@ export function ShowcaseView({
 
     // Filter by type
     if (selectedType !== 'All') {
-      if (selectedType in CATEGORY_SUBTYPES) {
+      const kindTypes = dealFloorKindTypes(selectedType);
+      if (kindTypes) {
+        if (dealFloor) result = result.filter((p) => kindTypes.includes(p.type));
+      } else if (selectedType in CATEGORY_SUBTYPES) {
         result = result.filter((p) => CATEGORY_SUBTYPES[selectedType].includes(p.type));
       } else {
         result = result.filter((p) => p.type === selectedType);
       }
+    }
+
+    if (dealFloor && maxBudget !== null) {
+      result = result.filter((p) => withinBudget(p, maxBudget));
+    }
+
+    if (dealFloor && recentOnly) {
+      result = result.filter((p) => listedThisWeek(p));
     }
 
     // Filter by listing type
@@ -1105,7 +1143,30 @@ export function ShowcaseView({
       ...result.filter((p) => !listingAvailabilityNotice(p.status)),
       ...result.filter((p) => listingAvailabilityNotice(p.status)),
     ];
-  }, [properties, pinnedIds, selectedType, selectedListingType, minBeds, searchQuery, selectedLocations, nearbySearch, sortBy]);
+  }, [properties, pinnedIds, dealFloor, selectedType, maxBudget, recentOnly, selectedListingType, minBeds, searchQuery, selectedLocations, nearbySearch, sortBy]);
+
+  const dealFloorKinds = useMemo(
+    () => (dealFloor ? dealFloorKindCounts(properties) : []),
+    [dealFloor, properties]
+  );
+  const dealFloorFeatured = useMemo(
+    () => (dealFloor ? featuredProperty(properties) : null),
+    [dealFloor, properties]
+  );
+  const dealFloorLocalities = useMemo(
+    () => (dealFloor ? topLocalities(properties, 4) : []),
+    [dealFloor, properties]
+  );
+  const dealFloorNewCount = useMemo(
+    () => (dealFloor ? newThisWeek(properties) : 0),
+    [dealFloor, properties]
+  );
+  const scrollToListings = () => {
+    (dealFloorAnchorRef.current ?? listingDeckRef.current)?.scrollIntoView?.({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  };
 
   const nearbyById = useMemo(
     () => new Map((nearbySearch?.results ?? []).map((match) => [match.id, match])),
@@ -1579,7 +1640,7 @@ export function ShowcaseView({
       data-showcase-style={showcaseStyle}
       data-showcase-3d={motionEnabled ? 'true' : 'false'}
       data-showcase-design={agencyDesign ? showcaseStyle : undefined}
-      className={`showcase-surface min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-primary selection:text-white relative overflow-hidden ${shortlist.selected.length && !isAgentMode ? 'pb-24' : ''}`}
+      className={`showcase-surface min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-primary selection:text-white relative overflow-hidden ${shortlist.selected.length && !isAgentMode ? 'pb-24' : ''} ${dealFloor && designFontClassName ? designFontClassName : ''}`}
     >
       {/* Decorative Radial Background Lights */}
       <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-primary/8 rounded-full blur-[130px] pointer-events-none" />
@@ -1632,6 +1693,32 @@ export function ShowcaseView({
       <main className="showcase-main flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 z-10">
         
         {/* Hero Section */}
+        {dealFloor && !hero ? (
+          <DealFloorHero
+            siteName={siteName}
+            total={properties.length}
+            kinds={dealFloorKinds}
+            selectedType={selectedType}
+            onTypeChange={setSelectedType}
+            locations={availableLocations}
+            selectedLocation={selectedLocations[0] ?? null}
+            onLocationChange={(value) => {
+              setNearbySearch(null);
+              setSelectedLocations(value ? [value] : []);
+            }}
+            maxBudget={maxBudget}
+            onBudgetChange={setMaxBudget}
+            matchCount={filteredProperties.length}
+            onSeeMatches={() => {
+              setDeckMode(false);
+              scrollToListings();
+            }}
+            onPlay={() => {
+              setDeckMode(true);
+              scrollToListings();
+            }}
+          />
+        ) : (
         <div className="showcase-hero text-center max-w-3xl mx-auto mb-12 animate-fade-in">
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight leading-tight">
             {hero?.title || (agencyDesign ? showcaseStyle === 'quiet-luxury' ? 'Exceptional places.' : showcaseStyle === 'map-discovery' ? 'Explore properties.' : 'Find a place' : 'Discover Your Dream')}{' '}
@@ -1656,6 +1743,50 @@ export function ShowcaseView({
             </div>
           )}
         </div>
+        )}
+
+        {dealFloor && (
+          <>
+            <DealFloorKinds
+              total={properties.length}
+              kinds={dealFloorKinds}
+              selectedType={selectedType}
+              onSelect={(value) => {
+                setSelectedType(value);
+                scrollToListings();
+              }}
+            />
+            {!isAgentMode && (
+              <DealFloorBoard
+                featured={dealFloorFeatured}
+                formatPrice={formatPrice}
+                onOpen={openPropertyModal}
+                newCount={dealFloorNewCount}
+                recentOnly={recentOnly}
+                onSeeNew={() => {
+                  setSortBy('newest');
+                  setRecentOnly((current) => !current);
+                  setDeckMode(false);
+                  scrollToListings();
+                }}
+                localities={dealFloorLocalities}
+                onPickLocality={(name) => {
+                  setNearbySearch(null);
+                  setSelectedLocations([name]);
+                  scrollToListings();
+                }}
+                onAsk={(query) => {
+                  setSearchQuery(query);
+                  setDeckMode(false);
+                  scrollToListings();
+                }}
+                shortlistCount={shortlist.ids.length}
+                onSendReport={() => setShortlistOpenRequest((n) => n + 1)}
+                onRequirements={openRequirementsModal}
+              />
+            )}
+          </>
+        )}
 
         <section
           aria-labelledby="business-profile-heading"
@@ -2027,7 +2158,7 @@ export function ShowcaseView({
           )}
 
           {/* Type Pills */}
-          <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-900/60 overflow-x-auto scrollbar-none">
+          <div className="showcase-type-pills flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-900/60 overflow-x-auto scrollbar-none">
             <span className="text-xs text-slate-550 font-bold uppercase tracking-wider mr-2">Category:</span>
             {propertyTypes.map((type) => (
               <button
@@ -2059,9 +2190,51 @@ export function ShowcaseView({
             </Button>
           </div>
         )}
+        {dealFloor && (
+          <div className="df-listings-head" ref={dealFloorAnchorRef}>
+            <h2 className="df-serif">
+              {filteredProperties.length === properties.length
+                ? `All ${properties.length} listings`
+                : `${filteredProperties.length} of ${properties.length} listings`}
+            </h2>
+            {recentOnly && (
+              <button type="button" className="df-chip df-chip-clear" onClick={() => setRecentOnly(false)}>
+                New this week
+                <X className="size-3.5" />
+              </button>
+            )}
+            {!isAgentMode && (
+              <div className="df-mode" role="group" aria-label="Browse mode">
+                <button type="button" aria-pressed={!deckMode} onClick={() => setDeckMode(false)}>
+                  Grid
+                </button>
+                <button type="button" aria-pressed={deckMode} onClick={() => setDeckMode(true)}>
+                  <Play className="size-3.5" />
+                  Quick Picks
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <div className={showcaseStyle === 'map-discovery' && mapPanelOpen ? 'showcase-map-layout' : undefined} data-map-view={mapView ? 'map' : 'list'}>
         {/* Listings Result Grid */}
-        {filteredProperties.length === 0 ? (
+        {dealFloor && deckMode && !isAgentMode ? (
+          <QuickPicksDeck
+            key={filteredProperties.map((p) => p.id).join(':')}
+            properties={filteredProperties}
+            shortlistIds={shortlist.ids}
+            onToggleShortlist={shortlist.toggle}
+            onOpen={openPropertyModal}
+            formatPrice={formatPrice}
+            whatsAppLink={(property) =>
+              displayPhone || property.agent_details?.phone ? getWhatsAppLink(property) : null
+            }
+            onWhatsApp={trackWhatsAppInquiry}
+            onSendReport={() => setShortlistOpenRequest((n) => n + 1)}
+            onRequirements={openRequirementsModal}
+            onExit={() => setDeckMode(false)}
+          />
+        ) : filteredProperties.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-20 border border-dashed border-slate-900 rounded-3xl bg-slate-900/10">
             <Building className="size-16 text-slate-750 opacity-40 mb-3 animate-pulse" />
             <h3 className="text-lg font-bold text-white mb-1">No matching properties found</h3>
@@ -2143,6 +2316,8 @@ export function ShowcaseView({
                         }}
                         className="showcase-listing-photo w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                       />
+                    ) : dealFloor ? (
+                      <PlotFace property={property} />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 gap-2 bg-slate-950">
                         <Building className="size-12 opacity-30" />
@@ -2454,6 +2629,7 @@ export function ShowcaseView({
           email={visitorEmail}
           onRemove={shortlist.toggle}
           onClear={shortlist.clear}
+          openRequest={shortlistOpenRequest}
         />
       )}
          {/* Property Detail Modal.
