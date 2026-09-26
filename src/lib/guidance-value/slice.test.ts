@@ -80,9 +80,22 @@ describe('rateInstructions', () => {
       { code: 'rs', unit: 'sqm' },
     ]);
     const text = rateInstructions(236, 237, null, null, null, columns);
-    expect(text).toContain('the first rate column is "ad" (acre)');
-    expect(text).toContain('the fourth rate column is "rs" (sqm)');
-    expect(rateInstructions(236, 237)).not.toContain('rate column is');
+    expect(text).toContain('If page 236 prints no column header');
+    expect(text).toContain('rate column 1 is "ad" (acre)');
+    expect(text).toContain('rate column 4 is "rs" (sqm)');
+    const wide = rateInstructions(
+      236,
+      237,
+      null,
+      null,
+      null,
+      ['rs', 'ra', 'cs', 'ca', 'in', 'ot', 'ad'].map((code) => ({
+        code,
+        unit: 'sqm' as const,
+      }))
+    );
+    expect(wide).toContain('rate column 7 is "ad" (sqm)');
+    expect(rateInstructions(236, 237)).not.toContain('rate column 1');
   });
 
   it('[GVL-021] asks Gemini to mark lakh columns and keep land columns off site codes', () => {

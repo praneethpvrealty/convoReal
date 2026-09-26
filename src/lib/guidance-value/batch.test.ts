@@ -188,6 +188,29 @@ describe('sanitiseRateRows (site rate in a lakh row)', () => {
     ]);
   });
 
+  it('[GVL-022] finds the site column unit for a full property class name', () => {
+    const { rows } = sanitiseRateRows(
+      {
+        rows: [
+          {
+            village: 'Kothipura',
+            property_class: 'residential_site',
+            rate: 8500,
+            unit: 'lakh/acre',
+            page: 236,
+          },
+        ],
+      },
+      236,
+      236,
+      null,
+      { rs: 'sqm' }
+    );
+    expect(rows.map((r) => [r.property_class, r.rate, r.unit])).toEqual([
+      ['residential_site', 8500, 'sqm'],
+    ]);
+  });
+
   it('[GVL-022] drops that site figure when the site column unit is unknown', () => {
     const { rows } = sanitiseRateRows(raw, 236, 236);
     expect(rows.map((r) => r.property_class)).not.toContain('residential_site');
@@ -824,6 +847,62 @@ describe('cronQueueBudgetMs', () => {
 
 describe('pollGuidanceBatches', () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it('[GVL-022] keeps a site figure found in a lakh row at the unit the chunk carried', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              name: 'batches/abc',
+              metadata: {
+                state: 'BATCH_STATE_SUCCEEDED',
+                output: {
+                  inlinedResponses: {
+                    inlinedResponses: [
+                      answer(
+                        JSON.stringify({
+                          groups: [
+                            {
+                              village: 'Kothipura',
+                              rows: [
+                                [
+                                  'Kothipura',
+                                  '',
+                                  '',
+                                  'lakh/acre',
+                                  1,
+                                  { ad: 60, rs: 8500 },
+                                ],
+                              ],
+                            },
+                          ],
+                        })
+                      ),
+                    ],
+                  },
+                },
+              },
+            }),
+            { status: 200 }
+          )
+      )
+    );
+    const { db, writes } = pollDb({
+      chunks: [{ ...chunk(1, 3), unit: 'sqm' }],
+    });
+
+    await pollGuidanceBatches(db);
+
+    const inserted = writes.find(
+      (w) => w.table === 'guidance_value_rates' && w.op === 'insert'
+    )?.value as Array<Record<string, unknown>>;
+    expect(inserted.map((r) => [r.property_class, r.rate, r.unit])).toEqual([
+      ['agricultural', 6000000, 'acre'],
+      ['residential_site', 8500, 'sqm'],
+    ]);
+  });
 
   it('[GVL-012] saves a finished batch and marks the notification ready', async () => {
     const fetchMock = vi.fn<(url: string) => Promise<Response>>(
