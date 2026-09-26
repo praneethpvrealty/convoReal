@@ -238,6 +238,34 @@ describe('share-property — channel selection', () => {
     });
   });
 
+  it('hands the thread it already looked up to both sends instead of resolving it twice more', async () => {
+    primeLookups({ windowOpen: true });
+    ctxQueues.properties = [
+      { data: { ...PROPERTY, images: ['property-images/acc-1/front.jpg'] } },
+    ];
+    const res = await POST(request(shareBody()));
+
+    expect(res.status).toBe(200);
+    expect(dispatcherCalls).toHaveLength(2);
+    expect(dispatcherCalls[0]).toMatchObject({ conversationId: 'conv-1' });
+    expect(dispatcherCalls[1]).toMatchObject({ conversationId: 'conv-1' });
+    expect(
+      adminInserts.filter((row) => row.table === 'property_shares')
+    ).toHaveLength(1);
+  });
+
+  it('leaves the thread to the dispatcher when the contact has none yet', async () => {
+    primeLookups({ windowOpen: false, conversation: null });
+    adminQueues.message_templates = [
+      { data: [APPROVED_TEMPLATE], error: null },
+    ];
+    const res = await POST(request(shareBody()));
+
+    expect(res.status).toBe(200);
+    expect(dispatcherCalls).toHaveLength(1);
+    expect(dispatcherCalls[0].conversationId).toBeUndefined();
+  });
+
   it('still sends the message when the photo will not go', async () => {
     primeLookups({ windowOpen: true });
     ctxQueues.properties = [
@@ -549,7 +577,9 @@ describe('share-property — channel selection', () => {
 
   it('snapshots an agent recipient as such on the ledger', async () => {
     primeLookups({ windowOpen: true });
-    adminQueues.contacts = [{ data: { classification: 'Agent' }, error: null }];
+    ctxQueues.contacts = [
+      { data: { ...CONTACT, classification: 'Agent' }, error: null },
+    ];
 
     await POST(request(shareBody()));
 
