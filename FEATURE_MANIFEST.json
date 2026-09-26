@@ -2168,6 +2168,20 @@
           ]
         },
         {
+          "id": "GVL-021",
+          "rule": "Rates a notification prints in lakhs or crores (\"Rs. in lakhs per acre\", \"ಲಕ್ಷಗಳಲ್ಲಿ\") are stored in full rupees: the reader asks Gemini to mark such a column's unit as lakh/<unit> or crore/<unit> and copy the printed number, and the sanitiser multiplies by 1,00,000 or 1,00,00,000 and stores the plain unit. A rate's size alone never triggers scaling. On a village line that prints land rates followed by a gramathana site rate, the land columns keep their land codes and only the site column is a site rate.",
+          "tests": [
+            {
+              "file": "src/lib/guidance-value/batch.test.ts",
+              "case": "[GVL-021]"
+            },
+            {
+              "file": "src/lib/guidance-value/slice.test.ts",
+              "case": "[GVL-021]"
+            }
+          ]
+        },
+        {
           "id": "GVL-018",
           "rule": "Before any page of a notification is sent to Gemini, its text layer is read locally (pdf-lib, decoding each font's ToUnicode map) and pages that are positively identified as not rate tables are skipped without a request: the preamble before the first rate page (gazette header, instructions, amenities lists, pages with almost no large numbers, at most the first thirty pages), pages naming a ready reckoner, construction cost, floor-rise or car-parking table that carry no rate words, and the pure numeric grids that continue such a page. A page is never skipped when its text is blank or garbled, when it carries rate words (village, hobli, road, survey, ward, block, PID numbers), or when no page in the notification reads as a rate table. Skipped pages count as read: the batch planner records them as request-free chunks and the interactive reader advances over them, so progress stays contiguous.",
           "tests": [

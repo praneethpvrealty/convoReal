@@ -114,6 +114,51 @@ describe('sanitiseRateRows (land class)', () => {
   });
 });
 
+describe('sanitiseRateRows (lakh columns)', () => {
+  it('[GVL-021] stores rates printed in lakhs or crores as full rupees', () => {
+    const { rows } = sanitiseRateRows(
+      {
+        groups: [
+          {
+            village: 'Kallugopahalli',
+            rows: [
+              [
+                'Kallugopahalli',
+                '',
+                '',
+                'lakh/acre',
+                218,
+                { ad: 55, aw: '65', ab: 12.5 },
+              ],
+              [
+                'Kallugopahalli',
+                '',
+                '',
+                'Rs. in Lakhs per Acre',
+                218,
+                { ad: 7 },
+              ],
+              ['Kallugopahalli', '', '', 'crore/hectare', 218, { ag: 1.2 }],
+              ['Kallugopahalli', '', '', 'sqm', 218, { rs: 14500 }],
+              ['Kallugopahalli', '', '', 'lakh/furlong', 218, { ad: 5 }],
+            ],
+          },
+        ],
+      },
+      218,
+      218
+    );
+    expect(rows.map((r) => [r.property_class, r.rate, r.unit])).toEqual([
+      ['agricultural', 5500000, 'acre'],
+      ['agricultural', 6500000, 'acre'],
+      ['agricultural', 1250000, 'acre'],
+      ['agricultural', 700000, 'acre'],
+      ['agricultural', 12000000, 'hectare'],
+      ['residential_site', 14500, 'sqm'],
+    ]);
+  });
+});
+
 describe('sanitiseRateRows (compact)', () => {
   it('[GVL-011] expands grouped rows into one rate per column, headings written once', () => {
     const { rows, totalPages } = sanitiseRateRows(compact, 3, 4);

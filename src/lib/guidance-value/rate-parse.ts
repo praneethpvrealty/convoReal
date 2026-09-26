@@ -190,7 +190,14 @@ Each row is one line of the table:
   survey_numbers  survey numbers as printed, or ""
   unit            "sqm", "sqft", "acre", "gunta" or "hectare" as the
                   column header states; never assume one the notification
-                  does not print
+                  does not print. Read the Kannada header too: it often
+                  gives the land unit alone, e.g. "ಪ್ರತಿ ಎಕರೆಗೆ
+                  ಲಕ್ಷಗಳಲ್ಲಿ" (per acre, in lakhs); ಎಕರೆ is acre, ಗುಂಟೆ
+                  gunta, ಹೆಕ್ಟೇರ್ hectare, ಚದರ ಮೀಟರ್ sqm, ಚದರ ಅಡಿ sqft.
+                  When a header prints rates in lakhs or crores ("Rs. in
+                  lakhs per acre", "ಲಕ್ಷಗಳಲ್ಲಿ", "ಕೋಟಿ"), write "lakh/acre"
+                  or "crore/acre" (likewise for other units) and copy the
+                  number as printed
   page            the 1-based page number the line is on
   {code: rate}    one entry per non-empty rate column, the number only
                   with no commas or currency. Codes: "rs" residential
@@ -204,8 +211,30 @@ Each row is one line of the table:
                   "ag" only when the column names no land class.
 
 If two columns of one line use different units, write one row per unit.
+A village line often prints its land rates (dry, wet, garden) followed by
+a site rate for gramathana or local-authority sites: give the land columns
+their land codes and only the site column "rs", never a site, apartment
+or commercial code for a land column. Land columns never take the site
+column's unit: write them as their own row with the land unit. Karnataka
+village tables print land in rupees per acre (lakhs of rupees) or in
+lakhs per acre; a land figure under 1000 is lakhs, so write "lakh/acre"
+unless its header prints another land unit.
 Tables are often bilingual; transcribe the English names. Skip blank,
 "-", or "NA" cells. Return ONLY valid JSON.`;
+}
+
+const RATE_SCALE =
+  /^\s*(?:rs\.?\s*)?(?:in\s*)?(lakhs?|lacs?|crores?)\s*(?:\/|per\b)?\s*/i;
+
+export function scaledUnit(
+  raw: unknown
+): { unit: AreaUnit; scale: number } | null {
+  if (typeof raw !== 'string') return null;
+  const match = raw.match(RATE_SCALE);
+  const unit = normaliseUnit(match ? raw.slice(match[0].length) : raw);
+  if (!unit) return null;
+  const scale = !match ? 1 : /^cr/i.test(match[1]) ? 10_000_000 : 100_000;
+  return { unit, scale };
 }
 
 function cleanString(value: unknown, maxLength = 160): string | undefined {
@@ -336,12 +365,14 @@ export function sanitiseRateRows(
             cleanString(row.property_class, 4)?.toLowerCase() ?? ''
           ]
         : undefined;
-    const unit = normaliseUnit(row.unit);
-    const rate = Number(
+    const scaled = scaledUnit(row.unit);
+    const printed = Number(
       typeof row.rate === 'string' ? row.rate.replace(/[^\d.]/g, '') : row.rate
     );
-    if (!propertyClass || !unit || !Number.isFinite(rate) || rate <= 0)
+    if (!propertyClass || !scaled || !Number.isFinite(printed) || printed <= 0)
       continue;
+    const { unit } = scaled;
+    const rate = Math.round(printed * scaled.scale * 100) / 100;
     const locality = cleanString(row.locality);
     const village = cleanString(row.headings.village);
     const road = cleanString(row.road);
