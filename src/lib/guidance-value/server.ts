@@ -171,11 +171,14 @@ async function searchRatesBySpelling(
   key: string,
   pattern: string
 ): Promise<RateRow[]> {
-  const { data, error } = await db.rpc('search_guidance_value_rates_by_key', {
-    p_key: key,
-    p_district_pattern: pattern,
-    p_limit: 80,
-  });
+  const { data, error } = await db.rpc(
+    'search_guidance_value_rates_by_place_key',
+    {
+      p_key: key,
+      p_district_pattern: pattern,
+      p_limit: 80,
+    }
+  );
   if (error) throw new Error(error.message);
   return (data ?? []) as RateRow[];
 }

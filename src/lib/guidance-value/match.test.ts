@@ -252,7 +252,7 @@ describe('RTC village spellings', () => {
 });
 
 describe('placeKey', () => {
-  it('[GVL-013] matches the database guidance_spelling_key output', () => {
+  it('[GVL-013] matches the database guidance_place_key output', () => {
     const fromDatabase: Record<string, string> = {
       Adduru: 'adur',
       Addur: 'adur',
@@ -263,7 +263,11 @@ describe('placeKey', () => {
       'Koramangala 6th Block': 'koramangal 6 block',
       Gurupura: 'gurupur',
       'K.I.A.D.B. Area': 'k i a d b are',
-      'Thurukarahosahalli (T.Hosahalli)': 'turukarahosahal t hosahal',
+      'Thurukarahosahalli (T.Hosahalli)': 'turukarahosahal',
+      'Addoor Village (Gurupura Hobli)': 'adur',
+      'Addoor Village': 'adur',
+      'Kalyanapura Grama': 'kalyanapur',
+      Villagepura: 'vilagepur',
     };
     for (const [name, key] of Object.entries(fromDatabase)) {
       expect(placeKey(name)).toBe(key);

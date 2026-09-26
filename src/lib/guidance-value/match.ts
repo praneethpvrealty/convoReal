@@ -91,7 +91,11 @@ export function spellingKey(token: string): string {
 }
 
 export function placeKey(value: string | null | undefined): string {
-  return normaliseText(value)
+  return normaliseText(
+    (value ?? '')
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/\b(?:village|grama)\b/gi, ' ')
+  )
     .split(' ')
     .filter(Boolean)
     .map(spellingKey)
