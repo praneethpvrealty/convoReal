@@ -107,21 +107,27 @@ export async function sendUnavailableListingReply({
     resolveSendLanguage(supabase, accountId, contactId),
     supabase.from('accounts').select('name').eq('id', accountId).maybeSingle(),
   ]);
-  const candidates = narrowToLanguage(
-    (rows ?? []) as MessageTemplate[],
-    language,
-    {
-      preferUtility: true,
-    }
-  );
+  const approved = (rows ?? []) as MessageTemplate[];
+  const inLanguage = (family: MessageTemplate[]) =>
+    narrowToLanguage(family, language, { preferUtility: true }).filter(
+      (row) => (row.category ?? '').toUpperCase() === 'UTILITY'
+    );
   const availabilityTemplate = canBecomeAvailable
-    ? pickListingAvailabilityTemplate(candidates)
+    ? pickListingAvailabilityTemplate(
+        inLanguage(
+          approved.filter(
+            (row) => row.name === LISTING_AVAILABILITY_TEMPLATE_NAME
+          )
+        )
+      )
     : null;
   const template =
     availabilityTemplate ??
     pickEnquiryNoticeTemplate(
-      candidates.filter(
-        (row) => (row.category ?? '').toUpperCase() === 'UTILITY'
+      inLanguage(
+        approved.filter(
+          (row) => row.name !== LISTING_AVAILABILITY_TEMPLATE_NAME
+        )
       )
     );
   if (!template) {
