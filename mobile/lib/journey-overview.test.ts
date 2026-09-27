@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_JOURNEY_SORT,
   focusBuckets,
+  journeyEnquiryLabel,
   journeyRaceLabel,
   sortJourneys,
   splitItemsAtStage,
@@ -108,5 +109,13 @@ describe('sortJourneys', () => {
 
   it('[JRN-003] keeps the saved manual order when chosen', () => {
     expect(sortJourneys(input, 'manual')[0].id).toBe('once-old');
+  });
+});
+
+describe('journeyEnquiryLabel', () => {
+  it('[JRN-012] labels the enquiry count and hides it when there is none', () => {
+    expect(journeyEnquiryLabel(0)).toBeNull();
+    expect(journeyEnquiryLabel(1)).toBe('1 enquiry');
+    expect(journeyEnquiryLabel(19)).toBe('19 enquiries');
   });
 });

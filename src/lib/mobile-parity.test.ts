@@ -754,6 +754,15 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
       expect(source).toContain("rpc('journey_overview_enquiries'");
       expect(source).toContain("canDrag={sort === 'manual'}");
     }
+    const labelBody = (source: string) =>
+      source
+        .slice(source.indexOf('export function journeyEnquiryLabel'))
+        .split('export function journeyRaceLabel')[0];
+    expect(labelBody(helpers)).toEqual(labelBody(webShared));
+    expect(screen).toContain(
+      'const enquiryLabel = journeyEnquiryLabel(group.enquiryCount);'
+    );
+    expect(webOverview).toContain('{journeyEnquiryLabel(group.enquiryCount)}');
     expect(screen).toContain('return sortJourneys(summaries, sort);');
     expect(screen).toContain('{canEdit && canDrag ? (');
   });

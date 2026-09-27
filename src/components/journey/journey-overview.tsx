@@ -35,6 +35,7 @@ import {
   Flag,
   Focus,
   GripVertical,
+  MessageSquare,
   Plus,
   RotateCcw,
   Search,
@@ -93,6 +94,7 @@ import {
   JOURNEY_PRIORITY_ORDER,
   JOURNEY_SORT_LABELS,
   focusBuckets,
+  journeyEnquiryLabel,
   journeyRaceLabel,
   navigateJourney,
   sortJourneys,
@@ -172,6 +174,13 @@ function updatedLabel(group: JourneyGroup) {
   const date = new Date(group.lastUpdated);
   if (Number.isNaN(date.getTime())) return '';
   return formatDistanceToNowStrict(date, { addSuffix: true });
+}
+
+function enquiredLabel(group: JourneyGroup) {
+  if (!group.lastEnquiredAt) return '';
+  const date = new Date(group.lastEnquiredAt);
+  if (Number.isNaN(date.getTime())) return '';
+  return `Last enquired ${formatDistanceToNowStrict(date, { addSuffix: true })}`;
 }
 
 function pageHrefOf(group: JourneyGroup, mode: JourneyMode) {
@@ -1337,6 +1346,15 @@ function SortableJourneyRow({
               </span>
               {mode === 'buyer' && group.contact?.name && (
                 <NameTagBadge tag={group.contact.name_tag} />
+              )}
+              {journeyEnquiryLabel(group.enquiryCount) && (
+                <span
+                  title={enquiredLabel(group)}
+                  className="bg-primary/10 text-primary inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold"
+                >
+                  <MessageSquare className="h-3 w-3" />
+                  {journeyEnquiryLabel(group.enquiryCount)}
+                </span>
               )}
             </span>
             <span className="block truncate text-xs text-slate-400">
