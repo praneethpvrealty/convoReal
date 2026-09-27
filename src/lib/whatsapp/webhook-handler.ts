@@ -4420,7 +4420,7 @@ async function handleEnquiryCardReply(
 
   const { data: propertyRow } = await admin
     .from('properties')
-    .select('title')
+    .select('title, status')
     .eq('id', action.propertyId)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -4482,6 +4482,38 @@ async function handleEnquiryCardReply(
     columns: 'id',
   });
   if (!conversation) return false;
+
+  const unavailableReply = unavailableListingReply(
+    lead.name,
+    propertyRow?.title,
+    propertyRow?.status
+  );
+  if (unavailableReply) {
+    const { data: alreadyTold } = await admin
+      .from('messages')
+      .select('id')
+      .eq('conversation_id', conversation.id)
+      .eq('content_text', unavailableReply)
+      .neq('status', 'failed')
+      .limit(1)
+      .maybeSingle();
+    if (!alreadyTold) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: action.contactId,
+        conversationId: conversation.id,
+        toPhone: lead.phone as string,
+        kind: 'text',
+        senderType: 'bot',
+        text: unavailableReply,
+      });
+    }
+    await confirmToAgent(
+      `⚠️ Not sent — ${propertyLabel} is marked "${propertyRow?.status}". ${lead.name || lead.phone} was told it is not available and asked for their requirements and budget.`
+    );
+    return true;
+  }
 
   if (action.action === 'photos') {
     const sent = await sendSubjectPhotos({
