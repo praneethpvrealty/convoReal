@@ -147,6 +147,23 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]): st
   });
 }
 
+async function closedEnquiryOnListing(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  propertyId: string,
+  contactId: string
+): Promise<boolean> {
+  const { data, error } = await db
+    .from('listing_feedback')
+    .select('contact_id')
+    .eq('account_id', accountId)
+    .eq('property_id', propertyId)
+    .eq('contact_id', contactId)
+    .eq('verdict', 'rejected')
+    .maybeSingle();
+  return !!error || !!data;
+}
+
 async function listingStillHasStatus(
   db: ReturnType<typeof supabaseAdmin>,
   accountId: string,
@@ -389,6 +406,10 @@ export async function notifyBuyersOfPropertyStatus(
         `[property-status-notification] ${propertyId} is no longer ${status}; remaining updates not sent`
       );
       break;
+    }
+    if (await closedEnquiryOnListing(db, accountId, propertyId, contactId)) {
+      skipped++;
+      continue;
     }
     const open = await isSessionOpen(db, accountId, contactId);
 

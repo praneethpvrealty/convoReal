@@ -120,6 +120,22 @@ describe('dedupeAudience', () => {
     expect(recheck).toBeLessThan(firstSend);
   });
 
+  it('[PRP-014] re-checks each contact for a closed enquiry right before their send', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(
+      new URL('./sold-notification.ts', import.meta.url),
+      'utf8'
+    );
+    const loop = source.indexOf('for (const contactId of audience) {');
+    const closed = source.indexOf(
+      'if (await closedEnquiryOnListing(db, accountId, propertyId, contactId)) {'
+    );
+    const firstSend = source.indexOf('sendWhatsAppMessageAndPersist(', loop);
+    expect(closed).toBeGreaterThan(loop);
+    expect(closed).toBeLessThan(firstSend);
+    expect(source).toMatch(/return !!error \|\| !!data;/);
+  });
+
   it('handles empty sources and null owner', () => {
     expect(dedupeAudience([[], []], null)).toEqual([]);
     expect(dedupeAudience([['a']], null)).toEqual(['a']);
