@@ -5,6 +5,7 @@ import type { DealEventSource } from '@/lib/deals/events';
 import { actorName } from '@/lib/deals/server';
 import { brokerageAmount, type BrokerageType } from '@/lib/pipelines/brokerage';
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
+import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 
 export type DealStatus = 'open' | 'won' | 'lost';
 
@@ -140,13 +141,13 @@ export async function syncPropertyStatus(
     : input.status === 'won'
       ? 'Sold'
       : 'Available';
-  const { data: synced } = await ctx.supabase
-    .from('properties')
-    .update({ status: propertyStatus })
-    .eq('id', input.propertyId)
-    .eq('account_id', ctx.accountId)
-    .select('id');
-  if (!synced?.length) {
+  const synced = await setListingStatusFromDeal(
+    ctx.supabase,
+    ctx.accountId,
+    input.propertyId,
+    propertyStatus
+  );
+  if (!synced) {
     console.warn(
       '[deals/stage-move] Property status not synced:',
       input.propertyId

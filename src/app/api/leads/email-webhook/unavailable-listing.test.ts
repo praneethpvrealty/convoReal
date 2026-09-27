@@ -202,6 +202,32 @@ describe('sendUnavailableListingReply', () => {
     expect(send.mock.calls[1][0].templateName).toBe('listing_status_notice');
   });
 
+  it('[PRP-014] falls back to the Utility status notice when Meta filed the availability notice as Marketing', async () => {
+    send
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true });
+    const supabase = fakeDb({
+      properties: property,
+      message_templates: [
+        {
+          ...notice,
+          name: 'listing_availability_notice',
+          category: 'MARKETING',
+        },
+        notice,
+      ],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'template'
+    );
+    expect(send.mock.calls[1][0].templateName).toBe('listing_status_notice');
+    expect(send.mock.calls[1][0].templateParams).toHaveLength(3);
+  });
+
   it('reports a closed window with no approved notice instead of failing silently', async () => {
     send.mockResolvedValueOnce({
       success: false,

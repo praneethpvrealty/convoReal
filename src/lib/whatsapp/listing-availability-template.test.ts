@@ -109,16 +109,36 @@ describe('buildListingAvailabilityParams', () => {
 });
 
 describe('pickListingAvailabilityTemplate', () => {
-  it('only picks an approved row', () => {
+  it('only picks an approved Utility row', () => {
     expect(
       pickListingAvailabilityTemplate([
-        { name: LISTING_AVAILABILITY_TEMPLATE_NAME, status: 'PENDING' },
+        {
+          name: LISTING_AVAILABILITY_TEMPLATE_NAME,
+          status: 'PENDING',
+          category: 'Utility',
+        },
       ])
     ).toBeNull();
     expect(
       pickListingAvailabilityTemplate([
-        { name: LISTING_AVAILABILITY_TEMPLATE_NAME, status: 'APPROVED' },
+        {
+          name: LISTING_AVAILABILITY_TEMPLATE_NAME,
+          status: 'APPROVED',
+          category: 'UTILITY',
+        },
       ])?.name
     ).toBe(LISTING_AVAILABILITY_TEMPLATE_NAME);
+  });
+
+  it('never picks a row Meta filed as Marketing', () => {
+    expect(
+      pickListingAvailabilityTemplate([
+        {
+          name: LISTING_AVAILABILITY_TEMPLATE_NAME,
+          status: 'APPROVED',
+          category: 'MARKETING',
+        },
+      ])
+    ).toBeNull();
   });
 });

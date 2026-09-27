@@ -16,6 +16,7 @@ import {
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
 import { DEAL_DOCUMENT_BUCKET } from '@/lib/invoices/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -151,14 +152,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (effectivePropertyId && typeof stage_name === 'string') {
       const propertyStatus =
         propertyStatusForPipelineStage(stage_name) ?? 'Available';
-      const { data: synced } = await ctx.supabase
-        .from('properties')
-        .update({ status: propertyStatus })
-        .eq('id', effectivePropertyId)
-        .select('id');
+      const synced = await setListingStatusFromDeal(
+        ctx.supabase,
+        ctx.accountId,
+        effectivePropertyId,
+        propertyStatus
+      );
       // The deal is already saved; a listing that did not follow is
       // worth a line in the log, not a failed request.
-      if (!synced?.length) {
+      if (!synced) {
         console.warn(
           '[PUT /api/deals/[id]] Property status not synced:',
           effectivePropertyId
@@ -327,12 +329,13 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     // Reset property status to Available if it was linked
     if (deal?.property_id) {
-      const { data: released } = await ctx.supabase
-        .from('properties')
-        .update({ status: 'Available' })
-        .eq('id', deal.property_id)
-        .select('id');
-      if (!released?.length) {
+      const released = await setListingStatusFromDeal(
+        ctx.supabase,
+        ctx.accountId,
+        deal.property_id,
+        'Available'
+      );
+      if (!released) {
         console.warn(
           '[DELETE /api/deals/[id]] Property not released:',
           deal.property_id

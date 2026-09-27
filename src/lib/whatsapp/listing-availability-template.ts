@@ -43,7 +43,10 @@ export const LISTING_AVAILABILITY_TEMPLATE_NAME = 'listing_availability_notice';
 export function pickListingAvailabilityTemplate<
   T extends ApprovedTemplateCandidate,
 >(rows: T[]): T | null {
-  return pickApprovedTemplate(rows, [LISTING_AVAILABILITY_TEMPLATE_NAME]);
+  return pickApprovedTemplate(
+    rows.filter((row) => (row.category ?? '').toUpperCase() === 'UTILITY'),
+    [LISTING_AVAILABILITY_TEMPLATE_NAME]
+  );
 }
 
 export function buildListingAvailabilityTemplatePayload(

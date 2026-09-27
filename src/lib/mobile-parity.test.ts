@@ -2747,9 +2747,14 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
     );
     const stageMove = webSource('lib/deals/stage-move.ts');
     expect(stageMove.match(/\.eq\('account_id', accountId\)/g)?.length).toBe(3);
+    expect(stageMove).toMatch(
+      /setListingStatusFromDeal\(\s*ctx\.supabase,\s*ctx\.accountId,/
+    );
     expect(
-      stageMove.match(/\.eq\('account_id', ctx\.accountId\)/g)?.length
-    ).toBe(1);
+      webSource('lib/inventory/listing-status-sync.ts').match(
+        /\.eq\('account_id', accountId\)/g
+      )?.length
+    ).toBe(2);
     expect(sameAccount).toContain(
       "PERFORM pg_advisory_xact_lock(hashtext('ensure_default_pipeline'), hashtext(p_account_id::text));"
     );

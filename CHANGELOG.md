@@ -25,8 +25,13 @@ than a written entry. Newest first.
   outside WhatsApp's 24-hour window that the listing they enquired about is
   under contract, off the market or not listed right now, names that status,
   promises an update if it becomes available again, and asks for their
-  requirements and budget. Until Meta approves it, and always for a Sold
-  listing, those leads keep getting the listing status notice.
+  requirements and budget. Until Meta approves it as Utility, and always for
+  a Sold listing, those leads keep getting the listing status notice.
+- **"We'll update you" is now kept when a deal falls through.** Losing,
+  reopening or deleting a deal on the pipeline puts its listing back to
+  Available, and that now tells everyone who enquired about it or was sent
+  it, just as editing the listing's status does. Before, only an edit on the
+  listing itself sent the update.
 - **Enquiries on an unavailable listing get an honest, kind answer.** A
   buyer who enquires on WhatsApp about a listing that is Under Contract, Off
   Market, Archived or Sold now hears an apology and its status instead of

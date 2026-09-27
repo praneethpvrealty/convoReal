@@ -6,6 +6,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
+import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 
 // POST /api/deals — create a deal and atomically sync the linked property's status.
 // Replaces the multi-step client-side writes in deal-form.tsx.
@@ -120,14 +121,15 @@ export async function POST(request: Request) {
     if (insertData.property_id && typeof stage_name === 'string') {
       const propertyStatus =
         propertyStatusForPipelineStage(stage_name) ?? 'Available';
-      const { data: synced } = await ctx.supabase
-        .from('properties')
-        .update({ status: propertyStatus })
-        .eq('id', insertData.property_id)
-        .select('id');
+      const synced = await setListingStatusFromDeal(
+        ctx.supabase,
+        ctx.accountId,
+        insertData.property_id,
+        propertyStatus
+      );
       // The deal is created; a listing that did not follow is a log
       // line, not a failed creation.
-      if (!synced?.length) {
+      if (!synced) {
         console.warn(
           '[POST /api/deals] Property status not synced:',
           insertData.property_id
