@@ -3612,6 +3612,109 @@ describe('[PLS-001] mobile Showcase Pulse feed paging matches web', () => {
   });
 });
 
+function interfaceFields(source: string, name: string): string[] {
+  const match = source.match(
+    new RegExp(`export interface ${name} \\{([\\s\\S]*?)\\n\\}`)
+  );
+  if (!match) throw new Error(`interface ${name} not found`);
+  return [...match[1].matchAll(/^\s*(\w+)\??:/gm)]
+    .map((field) => field[1])
+    .sort();
+}
+
+describe('[SLP-006] seller page on mobile uses the same API as web', () => {
+  const mobile = mobileModule<{
+    sellerPagePath: (contactId: string) => string;
+    updateSellerPage: (
+      contactId: string,
+      action: 'enable' | 'rotate' | 'disable'
+    ) => Promise<{ path: string; init: { method: string; body?: string } }>;
+  }>('lib/seller-page.ts', {
+    '@/lib/api':
+      'export async function apiFetch(path, init) { return { data: { path, init } }; }',
+  });
+
+  it('calls the contact seller-page route with the same verbs and bodies as the web dialog', async () => {
+    expect(mobile.sellerPagePath('c1')).toBe('/api/contacts/c1/seller-page');
+    expect(
+      existsSync(
+        join(process.cwd(), 'src/app/api/contacts/[id]/seller-page/route.ts')
+      )
+    ).toBe(true);
+    await expect(mobile.updateSellerPage('c1', 'enable')).resolves.toEqual({
+      path: '/api/contacts/c1/seller-page',
+      init: { method: 'POST', body: JSON.stringify({ rotate: false }) },
+    });
+    await expect(mobile.updateSellerPage('c1', 'rotate')).resolves.toEqual({
+      path: '/api/contacts/c1/seller-page',
+      init: { method: 'POST', body: JSON.stringify({ rotate: true }) },
+    });
+    await expect(mobile.updateSellerPage('c1', 'disable')).resolves.toEqual({
+      path: '/api/contacts/c1/seller-page',
+      init: { method: 'DELETE' },
+    });
+    const web = webSource('components/contacts/seller-page-dialog.tsx');
+    expect(web).toContain("method: action === 'disable' ? 'DELETE' : 'POST'");
+    expect(web).toContain("JSON.stringify({ rotate: action === 'rotate' })");
+  });
+
+  it('reads the same status and Portfolio fields the server returns', () => {
+    expect(
+      interfaceFields(mobileSource('lib/seller-page.ts'), 'SellerPageStatus')
+    ).toEqual(
+      interfaceFields(
+        webSource('lib/contacts/seller-page.ts'),
+        'SellerPageStatus'
+      )
+    );
+    const serverDen = interfaceFields(
+      webSource('lib/den/seller-pages.ts'),
+      'DenSellerPage'
+    );
+    expect(
+      interfaceFields(mobileSource('lib/den-api.ts'), 'DenSellerPage')
+    ).toEqual(serverDen);
+    expect(
+      interfaceFields(
+        webSource('components/den/den-provider.tsx'),
+        'DenSellerPage'
+      )
+    ).toEqual(serverDen);
+  });
+
+  it('offers the agency controls only to members who can edit, on both surfaces', () => {
+    const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
+    expect(mobileContact).toContain(
+      "const canMerge = useAuthStore((s) => s.profile?.account_role) !== 'viewer';"
+    );
+    expect(mobileContact).toMatch(
+      /canMerge && contact\.classification !== 'Agent' \? \(\s*<ActionButton\s+icon="storefront-outline"/
+    );
+    expect(mobileContact).toMatch(
+      /canMerge && contact\.classification !== 'Agent' \? \(\s*<SellerPageSheet/
+    );
+    const webContact = webSource('components/contacts/contact-detail-view.tsx');
+    expect(webContact).toMatch(
+      /canEditContacts && contact\.classification !== 'Agent' && \(\s*<button\s+onClick=\{\(\) => setSellerPageOpen\(true\)\}/
+    );
+  });
+
+  it('mounts the agency sheet and the Portfolio card', () => {
+    expect(mobileSource('app/(app)/contact/[id].tsx')).toContain(
+      '<SellerPageSheet'
+    );
+    expect(mobileSource('app/(den)/den/index.tsx')).toContain(
+      '<DenSellerPageCard'
+    );
+    expect(webSource('components/contacts/contact-detail-view.tsx')).toContain(
+      '<SellerPageDialog'
+    );
+    expect(webSource('components/den/dashboard-content.tsx')).toContain(
+      '<SellerPageCard'
+    );
+  });
+});
+
 describe('mobile/lib/personal-showcase.ts mirrors the showcase style resolver', () => {
   // An agent with no personal design follows the company one (PRP-021).
   // If the phone resolved it differently, the profile sheet would show a

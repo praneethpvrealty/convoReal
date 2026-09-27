@@ -152,3 +152,23 @@ describe('POST /api/public/requirements — bounded locations', () => {
     expect(inserts.contacts?.[0].areas_of_interest).toEqual(['HSR Layout', 'Whitefield']);
   });
 });
+
+describe('POST /api/public/requirements — seller page attribution', () => {
+  beforeEach(() => {
+    fixtures.contacts.push(
+      { id: 'seller-1', account_id: VICTIM, seller_page_slug: 'bcdfghjkmn' },
+      { id: 'seller-foreign', account_id: 'acc-other', seller_page_slug: 'pqrstvwxyz' }
+    );
+  });
+
+  it('[SLP-005] records the seller whose page the requirement came from', async () => {
+    const res = await post({ accountId: VICTIM, phone: '9900277111', sellerPage: 'bcdfghjkmn' });
+    expect(res.status).toBe(200);
+    expect(inserts.contacts?.[0].referrer_contact_id).toBe('seller-1');
+  });
+
+  it("ignores another account's seller slug", async () => {
+    await post({ accountId: VICTIM, phone: '9900277111', sellerPage: 'pqrstvwxyz' });
+    expect(inserts.contacts?.[0].referrer_contact_id).toBeNull();
+  });
+});

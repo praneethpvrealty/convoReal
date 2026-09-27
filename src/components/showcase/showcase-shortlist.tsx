@@ -24,6 +24,7 @@ interface ShowcaseShortlistProps {
   properties: Property[];
   accountId: string;
   referrerContactId?: string;
+  sellerPage?: string;
   name: string;
   phone: string;
   email: string;
@@ -91,6 +92,7 @@ function ShortlistEnquiry({
   properties,
   accountId,
   referrerContactId,
+  sellerPage,
   name: initialName,
   phone: initialPhone,
   email: initialEmail,
@@ -126,6 +128,7 @@ function ShortlistEnquiry({
           email: email.trim() || undefined,
           message: message.trim() || undefined,
           referrerContactId,
+          sellerPage,
           sessionKey: getShowcaseSessionKey(),
         }),
       });

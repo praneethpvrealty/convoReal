@@ -11,6 +11,7 @@ import type {
   AgencyArticle,
 } from '@/types';
 import type { ShowcaseStyle } from '@/lib/showcase/style';
+import { resolveSellerPage } from '@/lib/showcase/seller-page';
 
 export interface ShowcaseData {
   settings: ShowcaseSettings | null;
@@ -195,6 +196,10 @@ export const cachedResolveShowcaseRef = unstable_cache(
   },
   ['showcase-ref'],
   { revalidate: 3600 }
+);
+
+export const cachedResolveSellerPage = cache((slug: string) =>
+  resolveSellerPage(supabaseAdmin(), slug)
 );
 
 export const cachedFetchFallbackAccount = unstable_cache(

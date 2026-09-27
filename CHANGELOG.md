@@ -31,6 +31,16 @@ than a written entry. Newest first.
   drops the Gallery default so new members start unset, and clears a
   member's personal design whenever they move to another account, so
   someone accepting an invite follows their new company's design.
+- **Seller pages: one link with all of a seller's live listings.** From a
+  contact record on web or mobile, an agent can turn on a seller page at
+  `/seller/<link>` on the agency's showcase. It shows only that seller's
+  published listings, never agent-referred stock, and every call and
+  WhatsApp enquiry on it goes to the agency's own number. Nothing about the
+  seller appears on the page. The seller sees the link in Portfolio on web
+  and mobile with copy and share buttons. Visits count in Pulse as guests
+  via the seller, and enquiries record the seller as referrer. "New link"
+  retires the old URL at once, and "Turn off" takes the page down.
+  **Migration required:** `20260927142814_contact_seller_page_slug.sql`.
 - **A WhatsApp template that promises an update on an unavailable listing.**
   New engine template `listing_availability_notice` (Utility, all seven
   languages), submitted from Settings → Templates. It tells a portal lead

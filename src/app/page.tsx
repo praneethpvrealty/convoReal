@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { ShowcaseView } from '@/components/showcase/showcase-view';
@@ -11,6 +11,7 @@ import {
   cachedFetchShowcaseData,
   cachedResolveAccountFromSubdomain,
   cachedResolvePropertyById,
+  cachedResolveSellerPage,
   cachedResolveShowcaseRef,
   resolveSubdomainFromHost,
   toPublicProperties,
@@ -27,6 +28,10 @@ import {
   teaserTitle,
 } from '@/lib/inventory/showcase-visibility';
 import { propertySlug } from '@/lib/showcase/property-slug';
+import {
+  filterSellerListings,
+  isSellerListing,
+} from '@/lib/showcase/seller-page';
 import { resolveRequestOrigin } from '@/lib/showcase/site-url';
 import {
   jsonLdScript,
@@ -85,6 +90,7 @@ interface PageProps {
      *  keys tenants apart. Spoofing it buys nothing: it resolves the
      *  same public catalogue the subdomain itself would. */
     __tenant?: string;
+    __seller?: string;
   }>;
 }
 
@@ -99,6 +105,21 @@ export async function generateMetadata({
   searchParams,
 }: PageProps): Promise<Metadata> {
   const resolvedParams = await searchParams;
+  if (resolvedParams.__seller) {
+    const sellerPage = await cachedResolveSellerPage(resolvedParams.__seller);
+    if (!sellerPage) notFound();
+    const data = await cachedFetchShowcaseData(sellerPage.accountId, false);
+    const siteName = data.accountName || BRANDING.name;
+    const title = `A curated collection · ${siteName}`;
+    const description = `Selected listings from ${siteName}.`;
+    return {
+      title: { absolute: title },
+      description,
+      robots: { index: false, follow: false },
+      openGraph: { title, description, type: 'website' },
+      twitter: { card: 'summary', title, description },
+    };
+  }
   const propertyId = resolvedParams.property_id;
   if (!propertyId) {
     const reqHeaders = await headers();
@@ -329,9 +350,14 @@ export default async function RootPage({ searchParams }: PageProps) {
   const ref =
     resolvedParams.ref || resolvedParams.account_id || resolvedParams.agent_id;
   const initialPropertyId = resolvedParams.property_id;
+  const sellerSlug = resolvedParams.__seller;
+  const sellerPage = sellerSlug
+    ? await cachedResolveSellerPage(sellerSlug)
+    : null;
+  if (sellerSlug && !sellerPage) notFound();
 
   // If there is no subdomain and no showcase query parameters, serve the product landing page
-  if (!subdomain && !ref && !initialPropertyId) {
+  if (!subdomain && !ref && !initialPropertyId && !sellerPage) {
     return <MarketingLanding />;
   }
 
@@ -356,23 +382,35 @@ export default async function RootPage({ searchParams }: PageProps) {
         )
       : null;
   const targetProperty =
-    resolvedTarget && opensByDirectLink(resolvedTarget, draftGrant !== null)
+    resolvedTarget &&
+    opensByDirectLink(resolvedTarget, draftGrant !== null) &&
+    (!sellerPage ||
+      (resolvedTarget.is_published === true &&
+        resolvedTarget.account_id === sellerPage.accountId &&
+        isSellerListing(resolvedTarget, sellerPage.contactId)))
       ? resolvedTarget
       : null;
 
   if (subdomainAccount) accountId = subdomainAccount;
+  if (sellerPage) {
+    if (subdomainAccount && subdomainAccount !== sellerPage.accountId) {
+      notFound();
+    }
+    accountId = sellerPage.accountId;
+  }
   if (targetProperty) accountId = targetProperty.account_id;
 
   // ── Fast path: clean-view shares don't need referrer/contacts/profiles ─
   // 'view' is the public value ('agent' kept for previously shared links —
   // it read as an internal role name to buyers, so links now say mode=view).
   const isAgentMode =
-    resolvedParams.mode === 'view' || resolvedParams.mode === 'agent';
+    !sellerPage &&
+    (resolvedParams.mode === 'view' || resolvedParams.mode === 'agent');
 
   let filterContactId: string | null = null;
   let filterUserId: string | null = null;
 
-  if (!isAgentMode && ref) {
+  if (!isAgentMode && !sellerPage && ref) {
     const resolved = await cachedResolveShowcaseRef(ref);
     if (resolved) {
       if (!accountId) accountId = resolved.accountId;
@@ -424,7 +462,12 @@ export default async function RootPage({ searchParams }: PageProps) {
   let filteredProperties = [...publishedProperties, ...underContract];
 
   // Apply referrer filter client-side
-  if (filterContactId) {
+  if (sellerPage) {
+    filteredProperties = filterSellerListings(
+      filteredProperties,
+      sellerPage.contactId
+    );
+  } else if (filterContactId) {
     filteredProperties = filteredProperties.filter(
       (p) => p.owner_contact_id === filterContactId
     );
@@ -446,7 +489,7 @@ export default async function RootPage({ searchParams }: PageProps) {
   // ── Phase 3: Resolve referrer phone (cached, skip in agent mode) ──
   let referrerPhone: string | null = null;
 
-  if (!isAgentMode) {
+  if (!isAgentMode && !sellerPage) {
     const referrerResult = await cachedResolveReferrerPhone(
       accountId,
       filterContactId,
@@ -568,7 +611,9 @@ export default async function RootPage({ searchParams }: PageProps) {
         referrerContactId={filterContactId || undefined}
         referrerPhone={referrerPhone || undefined}
         engineWhatsAppPhone={engineWhatsAppPhone}
-        initialPropertyId={targetProperty?.id ?? initialPropertyId}
+        initialPropertyId={
+          targetProperty?.id ?? (sellerPage ? undefined : initialPropertyId)
+        }
         initialCategory={resolvedParams.category}
         initialAgentMode={isAgentMode}
         initialOnboardOffer={resolvedParams.onboard === '1'}
@@ -580,11 +625,14 @@ export default async function RootPage({ searchParams }: PageProps) {
         showcaseStyle={presentation.style}
         showcase3dEnabled={presentation.threeDimensional}
         designFontClassName={dealFloorFontClassName}
+        sellerPageSlug={sellerPage ? sellerSlug : undefined}
       />
-      <AuthorityLinks
-        businessName={siteName}
-        properties={publishedProperties}
-      />
+      {!sellerPage && (
+        <AuthorityLinks
+          businessName={siteName}
+          properties={publishedProperties}
+        />
+      )}
     </>
   );
 }

@@ -35,6 +35,7 @@ import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-sheet';
 import { PortalInviteSheet } from '@/components/portal-invite-sheet';
 import { PortfolioInviteSheet } from '@/components/portfolio-invite-sheet';
+import { SellerPageSheet } from '@/components/seller-page-sheet';
 import { ContactRequirementsSheet } from '@/components/contact-requirements-sheet';
 import { ContactMergeSheet } from '@/components/contact-merge-sheet';
 import { ShowcaseShareSheet } from '@/components/showcase-share-sheet';
@@ -323,6 +324,7 @@ function ContactCard({ contact }: { contact: Contact }) {
   const [detailsRequestOpen, setDetailsRequestOpen] = useState(false);
   const [portalInviteOpen, setPortalInviteOpen] = useState(false);
   const [portfolioInviteOpen, setPortfolioInviteOpen] = useState(false);
+  const [sellerPageOpen, setSellerPageOpen] = useState(false);
   const [requirementsOpen, setRequirementsOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
@@ -728,6 +730,13 @@ function ContactCard({ contact }: { contact: Contact }) {
               ) : null}
             </>
           ) : null}
+          {canMerge && contact.classification !== 'Agent' ? (
+            <ActionButton
+              icon="storefront-outline"
+              label="Seller Page"
+              onPress={() => setSellerPageOpen(true)}
+            />
+          ) : null}
           {BUYER_PREF_CLASSIFICATIONS.includes(
             contact.classification ?? 'Others'
           ) ? (
@@ -1034,6 +1043,13 @@ function ContactCard({ contact }: { contact: Contact }) {
               queryKey: ['contact-notes', contact.id],
             });
           }}
+        />
+      ) : null}
+      {canMerge && contact.classification !== 'Agent' ? (
+        <SellerPageSheet
+          visible={sellerPageOpen}
+          onClose={() => setSellerPageOpen(false)}
+          contact={contact}
         />
       ) : null}
       {hasPhone(contact) ? (

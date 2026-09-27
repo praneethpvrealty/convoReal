@@ -5,6 +5,13 @@ import { apiFetch } from '@/lib/api';
  * they authenticate via the Authorization: Bearer transport.
  */
 
+export interface DenSellerPage {
+  account_id: string;
+  agency_name: string | null;
+  url: string | null;
+  share_message: string | null;
+}
+
 export interface DenMe {
   den_user_id: string;
   phone: string;
@@ -14,6 +21,7 @@ export interface DenMe {
   digest_frequency: 'off' | 'daily' | 'weekly';
   links: { account_id: string; contact_id: string; agency_name: string | null }[];
   property_count: number;
+  seller_pages?: DenSellerPage[];
 }
 
 export interface DenDashboardProperty {

@@ -39,7 +39,8 @@ export interface ShowcaseTracker {
 export function createShowcaseTracker(
   accountId: string,
   visitorRef: string | null | undefined,
-  shareId?: string | null
+  shareId?: string | null,
+  sellerPage?: string | null
 ): ShowcaseTracker {
   if (typeof window === 'undefined') {
     return { track: () => {}, flush: () => {} };
@@ -69,6 +70,7 @@ export function createShowcaseTracker(
           session_key: sessionKey,
           ref: visitorRef || undefined,
           share_id: shareId || undefined,
+          seller_page: sellerPage || undefined,
           events,
         }),
       }).catch(() => {});

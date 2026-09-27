@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { getCurrentAccount } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
+import { resolveSellerPage } from '@/lib/showcase/seller-page';
 
 // POST /api/public/showcase-events
 // Body: { account_id, session_key, ref?, events: [{ type, property_id?, metadata? }] }
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
       session_key?: string;
       ref?: string;
       share_id?: string;
+      seller_page?: string;
       events?: BeaconEvent[];
     } | null;
 
@@ -143,6 +145,13 @@ export async function POST(request: NextRequest) {
       viaContactId = resolved?.via_contact_id ?? null;
     }
 
+    const sellerPage = body?.seller_page
+      ? await resolveSellerPage(db, body.seller_page, accountId)
+      : null;
+    if (sellerPage && !contactId && !viaContactId) {
+      viaContactId = sellerPage.contactId;
+    }
+
     // Resolve the share-instance token (?s= on generic showcase shares,
     // migration 173) with the same tenancy rule as ref: a forged id
     // from another account must never label this account's events.
@@ -178,7 +187,10 @@ export async function POST(request: NextRequest) {
         session_key: sessionKey,
         share_id: shareId,
         event_type: event.type,
-        metadata,
+        metadata:
+          sellerPage && event.type === 'open'
+            ? { ...metadata, seller_page: true }
+            : metadata,
       }));
 
     if (rows.length > 0) {

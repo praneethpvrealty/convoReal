@@ -11,6 +11,7 @@ import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
 import { assignTagsToContact } from "@/app/api/leads/email-webhook/db-utils";
 import { sanitizeAreaList } from "@/lib/contacts/area-fragments";
+import { resolveSellerPage } from "@/lib/showcase/seller-page";
 
 const REQUIREMENTS_SESSION_LIMIT = { limit: 5, windowMs: 60_000 };
 const REQUIREMENTS_ACCOUNT_LIMIT = { limit: 60, windowMs: 60_000 };
@@ -107,6 +108,9 @@ export async function POST(request: Request) {
 
     const systemUserId = account.owner_user_id;
     let targetAgentUserId = systemUserId;
+    const sellerPage = body.sellerPage
+      ? await resolveSellerPage(admin, body.sellerPage, accountId)
+      : null;
 
     // Resolve target agent's user_id from the referrer contact ID
     if (referrerContactId) {
@@ -174,7 +178,7 @@ export async function POST(request: Request) {
       property_interests: categories || [],
       min_roi: minRoi || null,
       requirements: notes || null,
-      referrer_contact_id: referrerContactId || null,
+      referrer_contact_id: sellerPage?.contactId || referrerContactId || null,
       ...(statedListingTypes.length > 0
         ? { pref_listing_types: statedListingTypes }
         : {}),
