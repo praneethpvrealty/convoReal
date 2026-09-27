@@ -29,10 +29,10 @@ export function resolveShowcasePresentation(
   company: ShowcasePresentationSource | null | undefined,
   personal?: ShowcasePresentationSource | null
 ): { style: ShowcaseStyle; threeDimensional: boolean } {
-  const source = personal ?? company;
   return {
-    style: toShowcaseStyle(source?.showcase_style),
-    threeDimensional: source?.showcase_3d_enabled ?? true,
+    style: toShowcaseStyle(personal?.showcase_style ?? company?.showcase_style),
+    threeDimensional:
+      personal?.showcase_3d_enabled ?? company?.showcase_3d_enabled ?? true,
   };
 }
 

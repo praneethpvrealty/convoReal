@@ -1215,6 +1215,35 @@
           "guards": [
             "supabase/migrations/20260926120000_deal_floor_showcase_design.sql"
           ]
+        },
+        {
+          "id": "PRP-021",
+          "rule": "An agent's personal showcase link shows the company showcase design and 3D setting until that agent picks their own; a new member starts with no personal design, joining or leaving an account clears any personal design they carried in, saving any other profile change never stamps one on them, and the personal picker on web and mobile says it is following the company design and offers a way back to it.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/style.test.ts",
+              "case": "[PRP-021]"
+            },
+            {
+              "file": "src/components/settings/profile-form.showcase.test.tsx",
+              "case": "[PRP-021]"
+            },
+            {
+              "file": "src/lib/migrations/profile-showcase-inherits-company.test.ts",
+              "case": "[PRP-021]"
+            },
+            {
+              "file": "mobile/lib/personal-showcase.test.ts",
+              "case": "[PRP-021]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-021]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260927094500_profile_showcase_inherits_company.sql"
+          ]
         }
       ]
     },

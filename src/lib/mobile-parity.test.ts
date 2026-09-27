@@ -27,6 +27,7 @@ import {
   type EntityReference,
 } from '@/lib/copilot/entities';
 import { TOURS } from '@/lib/copilot/tours';
+import { AGENCY_SHOWCASE_DESIGNS, SHOWCASE_STYLES } from '@/lib/showcase/style';
 import { JOURNEY_ITEM_SOURCE_LABELS } from '@/lib/journey/captured';
 import { MESSAGES } from '@/lib/i18n/messages';
 import {
@@ -3594,6 +3595,46 @@ describe('[PLS-001] mobile Showcase Pulse feed paging matches web', () => {
       }));
       expect(mobile.nextPulseFeedCursor(rows)).toEqual(
         nextPulseFeedCursor(rows)
+      );
+    }
+  });
+});
+
+describe('mobile/lib/personal-showcase.ts mirrors the showcase style resolver', () => {
+  // An agent with no personal design follows the company one (PRP-021).
+  // If the phone resolved it differently, the profile sheet would show a
+  // design the agent's own link does not open in.
+  const source = mobileSource('lib/personal-showcase.ts');
+  const web = webSource('lib/showcase/style.ts');
+
+  it.each(['toShowcaseStyle', 'resolveShowcasePresentation'])(
+    '[PRP-021] keeps the %s body identical to the web source',
+    (name) => {
+      const body = (s: string) => {
+        const start = s.indexOf(`export function ${name}`);
+        expect(start, `${name} missing`).toBeGreaterThan(-1);
+        return s.slice(start, s.indexOf('\n}', start));
+      };
+      expect(body(source)).toBe(body(web));
+    }
+  );
+
+  it('[PRP-021] offers the same designs with the same agency swatches', () => {
+    const styles = (s: string) =>
+      s.slice(
+        s.indexOf('export const SHOWCASE_STYLES'),
+        s.indexOf('] as const;', s.indexOf('export const SHOWCASE_STYLES'))
+      );
+    expect(styles(source)).toBe(styles(web));
+    for (const style of SHOWCASE_STYLES) {
+      expect(source).toContain(`value: '${style}'`);
+    }
+    for (const design of AGENCY_SHOWCASE_DESIGNS) {
+      expect(source).toContain(
+        `value: '${design.value}',\n    label: '${design.label}',`
+      );
+      expect(source).toContain(
+        `swatch: { background: '${design.background}', accent: '${design.accent}' }`
       );
     }
   });
