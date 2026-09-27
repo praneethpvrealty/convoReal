@@ -206,4 +206,15 @@ describe('journey close and reopen', () => {
     );
     expect(convert).not.toContain('.update({ status: propertyStatus })');
   });
+
+  it("[PRP-014] releases a deleted deal's listing through the same sync", () => {
+    const remove = readFileSync(
+      join(process.cwd(), 'src/lib/deals/delete-deal.ts'),
+      'utf8'
+    );
+    expect(remove).toMatch(
+      /setListingStatusFromDeal\(\s*ctx\.supabase,\s*ctx\.accountId,\s*deal\.property_id,\s*'Available'\s*\)/
+    );
+    expect(remove).not.toContain(".update({ status: 'Available' })");
+  });
 });

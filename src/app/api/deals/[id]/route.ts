@@ -14,9 +14,7 @@ import {
   type DealStatus,
 } from '@/lib/deals/stage-move';
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
-import { DEAL_DOCUMENT_BUCKET } from '@/lib/invoices/server';
-import { supabaseAdmin } from '@/lib/supabase/admin';
-import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
+import { deleteDealWithCleanup } from '@/lib/deals/delete-deal';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -152,15 +150,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (effectivePropertyId && typeof stage_name === 'string') {
       const propertyStatus =
         propertyStatusForPipelineStage(stage_name) ?? 'Available';
-      const synced = await setListingStatusFromDeal(
-        ctx.supabase,
-        ctx.accountId,
-        effectivePropertyId,
-        propertyStatus
-      );
+      const { data: synced } = await ctx.supabase
+        .from('properties')
+        .update({ status: propertyStatus })
+        .eq('id', effectivePropertyId)
+        .select('id');
       // The deal is already saved; a listing that did not follow is
       // worth a line in the log, not a failed request.
-      if (!synced) {
+      if (!synced?.length) {
         console.warn(
           '[PUT /api/deals/[id]] Property status not synced:',
           effectivePropertyId
@@ -252,95 +249,12 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     );
     if (!limit.success) return rateLimitResponse(limit);
 
-    // Fetch the deal first to get the property_id and the invoice
-    // objects for cleanup
-    const { data: deal } = await ctx.supabase
-      .from('deals')
-      .select('property_id')
-      .eq('id', dealId)
-      .single();
-
-    // Read before the delete: deal_documents cascades with the deal, so
-    // after it runs there is nothing left naming these objects.
-    const { data: docs, error: docsErr } = await ctx.supabase
-      .from('deal_documents')
-      .select('storage_path')
-      .eq('deal_id', dealId)
-      .eq('account_id', ctx.accountId);
-
-    // Swallowing this would delete the deal, cascade the rows away and
-    // report success while the files — Aadhaars among them — stayed in
-    // the bucket with nothing left naming them. Stop instead: the deal
-    // is still here to try again.
-    if (docsErr) {
-      console.error('[DELETE /api/deals/[id]] Document lookup:', docsErr);
+    const result = await deleteDealWithCleanup(ctx, dealId);
+    if (!result.ok) {
       return NextResponse.json(
-        {
-          error:
-            "Could not read this deal's documents, so it was not deleted. Try again.",
-        },
-        { status: 500 }
+        { error: result.error },
+        { status: result.status }
       );
-    }
-
-    const { data: deleted, error: deleteErr } = await ctx.supabase
-      .from('deals')
-      .delete()
-      .eq('id', dealId)
-      .select('id');
-
-    if (deleteErr) {
-      console.error('[DELETE /api/deals/[id]] Delete error:', deleteErr);
-      return NextResponse.json(
-        { error: deleteErr.message ?? 'Failed to delete deal' },
-        { status: 500 }
-      );
-    }
-
-    if (!deleted?.length) {
-      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
-    }
-
-    // deal_documents rows cascade with the deal, but the objects they
-    // pointed at do not: a file left in a private bucket with no row
-    // naming it is nobody's to find or delete later. Paths are read
-    // before the cascade and scoped to this account and deal.
-    const orphaned = (docs ?? [])
-      .map((doc) => doc.storage_path)
-      .filter(
-        (path): path is string =>
-          typeof path === 'string' &&
-          !path.includes('..') &&
-          path.startsWith(`${DEAL_DOCUMENT_BUCKET}/${ctx.accountId}/${dealId}/`)
-      )
-      .map((path) => path.slice(DEAL_DOCUMENT_BUCKET.length + 1));
-
-    if (orphaned.length > 0) {
-      const { error: removeErr } = await supabaseAdmin()
-        .storage.from(DEAL_DOCUMENT_BUCKET)
-        .remove(orphaned);
-      if (removeErr) {
-        console.warn(
-          '[DELETE /api/deals/[id]] Deal document objects not removed:',
-          dealId
-        );
-      }
-    }
-
-    // Reset property status to Available if it was linked
-    if (deal?.property_id) {
-      const released = await setListingStatusFromDeal(
-        ctx.supabase,
-        ctx.accountId,
-        deal.property_id,
-        'Available'
-      );
-      if (!released) {
-        console.warn(
-          '[DELETE /api/deals/[id]] Property not released:',
-          deal.property_id
-        );
-      }
     }
 
     return NextResponse.json({ deleted: true });

@@ -389,6 +389,23 @@ export function logPersonalWhatsAppJourneySend(args: {
   });
 }
 
+/** Remove journey branches and the deals opened from them; the app
+ *  never deletes journey_items itself. */
+export function removeJourneyItems(
+  input: { itemIds: string[] } | { mode: 'buyer' | 'property'; subjectId: string }
+) {
+  return apiFetch<{
+    data: { items: number; deals: number; failed_deals?: string[] };
+  }>('/api/journey/remove', {
+    method: 'POST',
+    body: JSON.stringify(
+      'itemIds' in input
+        ? { item_ids: input.itemIds }
+        : { mode: input.mode, subject_id: input.subjectId }
+    ),
+  });
+}
+
 export function updateJourneyOverview(body: Record<string, unknown>) {
   return apiFetch<{ ok: boolean }>('/api/journey/overview', {
     method: 'POST',

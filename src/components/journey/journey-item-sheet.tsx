@@ -1059,7 +1059,7 @@ export function JourneyItemSheet({
             ) : (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-400">
-                  Delete this branch and its history?
+                  Delete this branch, its history and any deal opened from it?
                 </span>
                 <Button
                   variant="ghost"
