@@ -286,7 +286,7 @@ export function JourneyBody() {
         p_account_id: accountId!,
         p_mode: mode,
       });
-      if (error) return [];
+      if (error) throw error;
       return (data ?? []) as JourneyOverviewEnquiry[];
     },
   });

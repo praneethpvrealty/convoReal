@@ -331,6 +331,12 @@ export function JourneyOverview({
       return;
     }
 
+    if (enquiriesResult.error) {
+      toast.error(`Failed to load enquiries: ${enquiriesResult.error.message}`);
+      setLoading(false);
+      return;
+    }
+
     const statePayload = (await statesResponse.json().catch(() => null)) as {
       data?: JourneyOverviewState[];
       error?: string;

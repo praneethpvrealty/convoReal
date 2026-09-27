@@ -34,7 +34,7 @@ BEGIN
         WHEN p_mode = 'buyer' THEN inquiries.contact_id
         ELSE inquiries.property_id
       END AS id,
-      GREATEST(inquiries.inquiry_date, inquiries.created_at) AS enquired_at
+      COALESCE(inquiries.inquiry_date, inquiries.created_at) AS enquired_at
     FROM contact_property_inquiries inquiries
     WHERE inquiries.account_id = p_account_id
   )
