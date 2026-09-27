@@ -56,14 +56,17 @@ import {
   CLOSED_JOURNEY_STATUS_LABELS,
   DEFAULT_JOURNEY_SORT,
   JOURNEY_CLOSURE_REASONS,
+  JOURNEY_ENQUIRY_SELECT,
   JOURNEY_SORT_LABELS,
   focusBuckets,
+  journeyEnquiryEntries,
   journeyEnquiryLabel,
   journeyRaceLabel,
   sortJourneys,
   splitItemsAtStage,
   type ClosedJourneyStatus,
   type JourneyLifecycleStatus,
+  type JourneyEnquiryRow,
   type JourneySort,
 } from '@/lib/journey-overview';
 import { openContactChat } from '@/lib/open-chat';
@@ -128,6 +131,7 @@ export function JourneyBody() {
   const canEdit = Boolean(profile && profile.account_role !== 'viewer');
   const { show, close, dialogProps } = useAppDialog();
   const [trayGroup, setTrayGroup] = useState<JourneyGroup | null>(null);
+  const [enquiryGroup, setEnquiryGroup] = useState<JourneyGroup | null>(null);
   const [trayBusy, setTrayBusy] = useState(false);
   const [trayError, setTrayError] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
@@ -303,6 +307,31 @@ export function JourneyBody() {
     queryKey: ['journey-stage-notes', noteTarget?.item.id],
     enabled: Boolean(noteTarget),
     queryFn: () => loadJourneyStageNotes(noteTarget!.item.id),
+  });
+
+  const subjectEnquiriesQuery = useQuery({
+    queryKey: [
+      'journey-subject-enquiries',
+      accountId,
+      mode,
+      enquiryGroup?.subjectId,
+    ],
+    enabled: Boolean(accountId && enquiryGroup),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contact_property_inquiries')
+        .select(JOURNEY_ENQUIRY_SELECT)
+        .eq('account_id', accountId!)
+        .eq(
+          mode === 'buyer' ? 'contact_id' : 'property_id',
+          enquiryGroup!.subjectId
+        );
+      if (error) throw error;
+      return journeyEnquiryEntries(
+        (data ?? []) as unknown as JourneyEnquiryRow[],
+        mode
+      );
+    },
   });
 
   const capturedQuery = useQuery({
@@ -946,6 +975,7 @@ export function JourneyBody() {
                 setFocusedBucket(null);
                 setNoteTarget(null);
                 setNoteText('');
+                setEnquiryGroup(null);
                 closeTray();
               }}
               style={[
@@ -1261,6 +1291,7 @@ export function JourneyBody() {
                       onMove={(from, to) => void moveGroup(bucket, from, to)}
                       onActions={() => showGroupActions(group)}
                       onCaptured={() => openTray(group)}
+                      onEnquiries={() => setEnquiryGroup(group)}
                       onCheckIn={askCheckIn}
                       onMoveItem={(item) => canEdit && setMoveTarget(item)}
                       onConvert={askConvert}
@@ -1446,6 +1477,105 @@ export function JourneyBody() {
               </Text>
             </View>
           ))}
+        </ScrollView>
+      </BottomSheet>
+
+      <BottomSheet
+        visible={enquiryGroup !== null}
+        onClose={() => setEnquiryGroup(null)}
+        title={mode === 'buyer' ? 'Enquired properties' : 'Enquiring buyers'}
+      >
+        <ScrollView
+          style={sheetScrollArea}
+          contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}
+        >
+          {enquiryGroup ? (
+            <Text
+              numberOfLines={1}
+              style={{ fontSize: 12.5, color: colors.textMuted }}
+            >
+              {groupTitle(enquiryGroup, mode)}
+            </Text>
+          ) : null}
+          {subjectEnquiriesQuery.isLoading ? (
+            <Text style={{ fontSize: 13, color: colors.textFaint }}>
+              Loading enquiries…
+            </Text>
+          ) : null}
+          {subjectEnquiriesQuery.error ? (
+            <Text style={{ fontSize: 12.5, color: colors.danger }}>
+              Could not load enquiries: {subjectEnquiriesQuery.error.message}
+            </Text>
+          ) : null}
+          {subjectEnquiriesQuery.data?.length === 0 ? (
+            <Text style={{ fontSize: 13, color: colors.textFaint }}>
+              No enquiries recorded.
+            </Text>
+          ) : null}
+          {(subjectEnquiriesQuery.data ?? []).map((entry) => {
+            const meta = [
+              entry.subtitle,
+              entry.source,
+              entry.enquiredAt ? auditDate(entry.enquiredAt) : null,
+            ]
+              .filter(Boolean)
+              .join(' · ');
+            return (
+              <Pressable
+                key={entry.id}
+                disabled={!entry.targetId}
+                onPress={() => {
+                  setEnquiryGroup(null);
+                  router.push(
+                    mode === 'buyer'
+                      ? `/(app)/property/${entry.targetId}`
+                      : `/(app)/contact/${entry.targetId}`
+                  );
+                }}
+                accessibilityRole="button"
+                style={[
+                  styles.capturedRow,
+                  {
+                    backgroundColor: colors.glass,
+                    borderColor: colors.glassBorder,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={mode === 'buyer' ? 'home-outline' : 'person-outline'}
+                  size={15}
+                  color={colors.textFaint}
+                />
+                <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      fontSize: 13.5,
+                      fontFamily: f.semibold,
+                      color: colors.text,
+                    }}
+                  >
+                    {entry.title}
+                  </Text>
+                  {meta ? (
+                    <Text
+                      numberOfLines={1}
+                      style={{ fontSize: 11, color: colors.textFaint }}
+                    >
+                      {meta}
+                    </Text>
+                  ) : null}
+                </View>
+                {entry.targetId ? (
+                  <Ionicons
+                    name="chevron-forward"
+                    size={15}
+                    color={colors.textFaint}
+                  />
+                ) : null}
+              </Pressable>
+            );
+          })}
         </ScrollView>
       </BottomSheet>
 
@@ -1787,6 +1917,7 @@ function DraggableJourneyCard({
   onMove,
   onActions,
   onCaptured,
+  onEnquiries,
   onCheckIn,
   onMoveItem,
   onConvert,
@@ -1808,6 +1939,7 @@ function DraggableJourneyCard({
   onMove: (from: number, to: number) => void;
   onActions: () => void;
   onCaptured: () => void;
+  onEnquiries: () => void;
   onCheckIn: (item: JourneyItem, stageLabel: string | undefined) => void;
   onMoveItem: (item: JourneyItem) => void;
   onConvert: (item: JourneyItem) => void;
@@ -2014,8 +2146,10 @@ function DraggableJourneyCard({
                 {group.closureReason ? ` · ${group.closureReason}` : ''}
               </Text>
               {enquiryLabel ? (
-                <View
-                  accessible
+                <Pressable
+                  onPress={onEnquiries}
+                  hitSlop={6}
+                  accessibilityRole="button"
                   accessibilityLabel={`${enquiryLabel}, last on ${auditDate(group.lastEnquiredAt)}`}
                   style={[
                     styles.capturedChip,
@@ -2039,7 +2173,7 @@ function DraggableJourneyCard({
                   >
                     {enquiryLabel}
                   </Text>
-                </View>
+                </Pressable>
               ) : null}
               {group.captured ? (
                 <Pressable

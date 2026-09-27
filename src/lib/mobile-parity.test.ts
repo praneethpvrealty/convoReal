@@ -759,6 +759,17 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
         .slice(source.indexOf('export function journeyEnquiryLabel'))
         .split('export function journeyRaceLabel')[0];
     expect(labelBody(helpers)).toEqual(labelBody(webShared));
+    for (const source of [
+      screen,
+      webSource('components/journey/enquiries-dialog.tsx'),
+    ]) {
+      expect(source).toContain(".from('contact_property_inquiries')");
+      expect(source).toContain('.select(JOURNEY_ENQUIRY_SELECT)');
+      expect(source).toContain(
+        "mode === 'buyer' ? 'contact_id' : 'property_id'"
+      );
+    }
+    expect(screen).toContain('onPress={onEnquiries}');
     expect(screen).toContain(
       'const enquiryLabel = journeyEnquiryLabel(group.enquiryCount);'
     );
