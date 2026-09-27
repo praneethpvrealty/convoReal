@@ -164,13 +164,14 @@ describe('sync_listing_status_from_deals', () => {
 
   it('locks the listing and keeps the strongest status its deals hold', () => {
     expect(migration).toContain('FOR UPDATE;');
-    expect(migration.match(/SET search_path = public, pg_temp\n/g)).toHaveLength(2);
+    expect(migration).not.toMatch(/OR p_requested = /);
+    expect(
+      migration.match(/SET search_path = public, pg_temp\n/g)
+    ).toHaveLength(2);
     expect(migration).not.toMatch(/SET search_path = public\n/);
     expect(migration).toContain("WHEN d.status = 'won' THEN 2");
     expect(migration).toContain("AND d.status IN ('open', 'won')");
-    expect(migration).toContain(
-      "WHEN v_held = 2 OR p_requested = 'Sold' THEN 'Sold'"
-    );
+    expect(migration).toContain('v_target := CASE v_held');
     expect(
       migration.match(/is_account_member\(p_account_id, 'agent'\)/g)
     ).toHaveLength(2);

@@ -109,7 +109,10 @@ export async function sendUnavailableListingReply({
   ]);
   const candidates = narrowToLanguage(
     (rows ?? []) as MessageTemplate[],
-    language
+    language,
+    {
+      preferUtility: true,
+    }
   );
   const availabilityTemplate = canBecomeAvailable
     ? pickListingAvailabilityTemplate(candidates)

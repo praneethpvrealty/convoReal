@@ -7,6 +7,12 @@
 -- Naming pg_temp explicitly, last, closes that. The bodies are
 -- otherwise unchanged.
 --
+-- The listing's status now comes from its deals alone, read under the
+-- row lock. p_requested is still validated but no longer weighs in:
+-- every caller writes its deal before syncing, so the deals already say
+-- what the request would, and a stale request that arrives last can no
+-- longer overwrite a newer deal state.
+--
 -- Held until merge: CREATE OR REPLACE on functions that already exist.
 
 CREATE OR REPLACE FUNCTION sync_listing_status_from_deals(
@@ -56,9 +62,9 @@ BEGIN
     AND d.property_id = p_property_id
     AND d.status IN ('open', 'won');
 
-  v_target := CASE
-    WHEN v_held = 2 OR p_requested = 'Sold' THEN 'Sold'
-    WHEN v_held = 1 OR p_requested = 'Under Contract' THEN 'Under Contract'
+  v_target := CASE v_held
+    WHEN 2 THEN 'Sold'
+    WHEN 1 THEN 'Under Contract'
     ELSE 'Available'
   END;
 

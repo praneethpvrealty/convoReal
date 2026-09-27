@@ -243,6 +243,36 @@ describe('sendUnavailableListingReply', () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
+  it('[PRP-014] prefers a Utility variant in another language over a Marketing one in the contact language', async () => {
+    vi.mocked(resolveSendLanguage).mockResolvedValueOnce('kn');
+    send
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true });
+    const supabase = fakeDb({
+      properties: property,
+      message_templates: [
+        {
+          ...notice,
+          name: 'listing_availability_notice',
+          language: 'kn',
+          category: 'MARKETING',
+        },
+        { ...notice, name: 'listing_availability_notice' },
+      ],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'template'
+    );
+    expect(send.mock.calls[1][0].templateName).toBe(
+      'listing_availability_notice'
+    );
+    expect(send.mock.calls[1][0].templateLanguage).toBe('en');
+  });
+
   it('reports a closed window with no approved notice instead of failing silently', async () => {
     send.mockResolvedValueOnce({
       success: false,
