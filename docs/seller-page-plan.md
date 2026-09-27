@@ -1,6 +1,6 @@
 # Seller Page — Design & Architecture
 
-> **For the implementing model:** read `AGENTS.md` first; this repo runs Next.js 16 with breaking changes, so consult `node_modules/next/dist/docs/` before touching routes or `next.config.ts`. Ship this as one PR on an `agent/*` branch with web and mobile together (§2.8). The migration in §5 is purely additive and may be applied as soon as the branch is pushed. After each step: `npm run typecheck && npm run lint && npm test`, plus `cd mobile && npm run typecheck && npm run lint && npm test`.
+> **Status:** shipped. The implementation differs from the first draft in three places, recorded here so the doc matches the code: the route is a real `src/app/seller/[slug]/page.tsx` that hands the slug to the root page as `__seller` (no `next.config.ts` rewrite); the browser posts the page slug, never the seller's contact id, and the server resolves it; and the agent-referred exclusion stayed a literal in `isSellerListing` rather than an extracted Den helper, matching the eight existing call sites.
 
 ---
 
@@ -42,7 +42,7 @@ The `ref` path stays exactly as it is: it serves referral partners and agent pro
 | Who the buyer contacts | The agency (`showcase_settings.contact_phone`), never the seller | Core of the value proposition |
 | Seller identity on the page | Not shown. Header reads "A curated collection · <Agency>" | The seller shares it themselves, so recipients already know whose it is; the page never publishes a private person's name or phone |
 | URL shape | `https://<agency>.convoreal.com/seller/<slug>` (or `https://convoreal.com/seller/<slug>` without a subdomain) | Slug alone identifies the account, so the link works with or without the tenant label |
-| Slug | 10 random characters from `abcdefghjkmnpqrstuvwxyz23456789` (no `0 o 1 l i`), globally unique | ≈ 49 bits, unguessable, readable aloud, no name leakage. Regenerating it is the revoke |
+| Slug | 10 random characters from `bcdfghjkmnpqrstvwxyz23456789` (no vowels, no `0 1 l`), globally unique | ≈ 48 bits, unguessable, readable aloud, cannot spell a word, no name leakage. Regenerating it is the revoke |
 | Empty page | Renders the agency-branded empty state, never the full catalogue | A seller with nothing live must not become an unfiltered mirror of the agency |
 | Search engines | `noindex, nofollow` | It is a share surface, not an SEO page; `/property/[slug]` remains the indexable listing page |
 | Multi-agency sellers | One page per (agency, contact); Portfolio lists each with its agency name | `den_contact_links` already spans agencies |
@@ -53,10 +53,10 @@ The `ref` path stays exactly as it is: it serves referral partners and agent pro
 ## 3. Architecture
 
 ```text
-  Seller shares  https://acme.convoreal.com/seller/k7m2xq9dpe
+  Seller shares  https://acme.convoreal.com/seller/k7m2xq9dpw
         │
         ▼
-  next.config.ts rewrite   /seller/:slug  →  /?sp=:slug      (URL stays /seller/…)
+  src/app/seller/[slug]/page.tsx   →  RootPage({ __seller: slug })
         │
         ▼
   src/app/page.tsx (RootPage)
@@ -64,8 +64,8 @@ The `ref` path stays exactly as it is: it serves referral partners and agent pro
     2. tenant label present and ≠ accountId                  → notFound()
     3. accountId := seller's account (a subdomain cannot override it)
     4. cachedFetchShowcaseData(accountId)                     (unchanged)
-    5. sellerListingIds(accountId, contactId)                 (shared ownership rule)
-    6. filteredProperties := published ∩ sellerListingIds     (empty stays empty)
+    5. filterSellerListings(catalogue, contactId)            (Den ownership rule, in memory)
+    6. empty stays empty; AuthorityLinks is not rendered
     7. referrerPhone := null  → CTA = settings.contact_phone
     8. render <ShowcaseView … sellerPage={{ contactId }} />
         │
@@ -77,27 +77,27 @@ The `ref` path stays exactly as it is: it serves referral partners and agent pro
   Owner dashboard (/api/den/dashboard) and Pulse already count these
 ```
 
-### 3.1 Why a rewrite instead of a new page
+### 3.1 Why the seller route delegates to the root page
 
-`src/app/page.tsx` owns subdomain and `__tenant` resolution, share grants, Pulse identity, style and Deal Floor presentation, Open Graph tags and the marketing-landing fallthrough. A second page under `src/app/seller/[slug]/` would have to duplicate or extract all of that. A rewrite keeps `/seller/<slug>` in the address bar and hands the root page one more search param, exactly the pattern the Cloudflare Worker already uses with `?__tenant=`.
+`src/app/page.tsx` owns subdomain and `__tenant` resolution, share grants, Pulse identity, style and Deal Floor presentation, Open Graph tags and the marketing-landing fallthrough. Next.js page files cannot export helpers, so `src/app/seller/[slug]/page.tsx` calls the root page's default export and `generateMetadata` with a whitelisted set of query params plus `__seller`, the same internal-param pattern the Cloudflare Worker uses with `?__tenant=`. `ref`, `mode` and `__tenant` are deliberately not forwarded.
 
 Client-side navigation in `showcase-view.tsx` rebuilds URLs from `window.location.href`, so the `/seller/<slug>` path survives filter and detail-view changes. Implementation must grep for any hard-coded `'/?…'` pushes and confirm none drop the path.
 
 ### 3.2 Resolution order in `RootPage`
 
-The new `sp` param is handled **before** `ref` and takes precedence over it:
+The `__seller` param is handled **before** `ref` and takes precedence over it:
 
-1. Marketing-landing check: `!subdomain && !ref && !initialPropertyId && !sp` → `<MarketingLanding/>`.
-2. `sp` present → `resolveSellerPage(sp)`. Null → `notFound()`. A revoked or mistyped slug is a 404, never a fallthrough to any catalogue.
+1. Marketing-landing check: `!subdomain && !ref && !initialPropertyId && !sellerPage` → `<MarketingLanding/>`.
+2. `__seller` present → `cachedResolveSellerPage(slug)`. Null → `notFound()`. A revoked or mistyped slug is a 404, never a fallthrough to any catalogue.
 3. `accountId = seller.accountId`. If a tenant label resolved to a different account → `notFound()`. Without a label (the Worker only pins `__tenant` on `/`, see `docs/domain-rehosting-guide.md`) the slug is authoritative.
 4. `isAgentMode = false`, `filterContactId = null`, `filterUserId = null` — the seller page never enters the referrer branch, so `cachedResolveReferrerPhone` is skipped and `referrerPhone` stays null.
-5. `?property_id=` may still be combined with `sp` (a seller sharing one of their listings from the page); the targeted property is merged only if it is in `sellerListingIds`, otherwise ignored.
+5. `?property_id=` may still be combined with a seller page (a seller sharing one of their listings from the page); the targeted property opens only if it passes `isSellerListing`, otherwise it is ignored.
 6. `?g=` share grants and `?v=` visitor attribution keep their current meaning.
 
 ### 3.3 Caching
 
 - `resolveSellerPage` uses React `cache` (per request), **not** `unstable_cache`. Rotating or disabling a slug must kill the old link on the next request, the same reasoning as share grants (`page.tsx:459-463`).
-- `sellerListingIds` is one indexed query per render (`idx_properties_owner_contact` exists) and also uses React `cache`. The catalogue itself keeps its content-versioned `unstable_cache`.
+- The seller filter runs in memory over the cached catalogue rows, which are selected with `*` and so carry `owner_contact_id` and `listing_source`; no extra query. The catalogue itself keeps its content-versioned `unstable_cache`.
 - The page-level `s-maxage` + SWR from `next.config.ts` applies as to any showcase URL; the URL includes the slug, so tenants and sellers get separate edge entries.
 
 ### 3.4 Attribution and analytics
@@ -108,7 +108,7 @@ The new `sp` param is handled **before** `ref` and takes precedence over it:
 | Showcase events | `showcase_events.via_contact_id = seller`, `contact_id` null unless a `?v=` visitor is present | Pulse renders "guest via <seller>'s page" using the PLS-003 guest semantics; the owner dashboard's per-property showcase-view counts include them with no change |
 | Page opens | `showcase_events.event_type = 'open'` with `metadata.seller_page = true` | Lets Portfolio show "N opens of your page this week" later without a new table |
 
-`/api/public/showcase-events` must validate `seller_contact_id` the same way it validates `share_id` (`route.ts:150-179`): the contact must exist in the posted account and currently have a slug; otherwise the field is dropped, never rejected.
+`/api/public/showcase-events`, `/api/public/inquiry` and `/api/public/requirements` accept the page slug (`seller_page` / `sellerPage`) and resolve it within the posted account; an unknown or foreign slug is dropped, never rejected.
 
 ### 3.5 Security
 
@@ -185,7 +185,7 @@ Rules: `requireRole('agent')`, contact must belong to `ctx.accountId`, rate-limi
 
 ```json
 "seller_pages": [
-  { "account_id": "…", "agency_name": "Acme Realty", "url": "https://acme.convoreal.com/seller/k7m2xq9dpe" }
+  { "account_id": "…", "agency_name": "Acme Realty", "url": "https://acme.convoreal.com/seller/k7m2xq9dpw" }
 ]
 ```
 
@@ -193,7 +193,7 @@ Built from `ctx.links` joined to `contacts.seller_page_slug`; links without a sl
 
 ### 6.3 Public
 
-No new public route. `RootPage` reads `sp`; `/api/public/showcase-events` accepts `seller_contact_id`.
+No new public API route. `RootPage` reads `__seller`; the events, inquiry and requirements routes accept the slug.
 
 ---
 
@@ -202,8 +202,9 @@ No new public route. `RootPage` reads `sp`; `/api/public/showcase-events` accept
 | File | Exports | Used by |
 | --- | --- | --- |
 | `src/lib/showcase/seller-page.ts` | `generateSellerPageSlug()`, `SELLER_PAGE_SLUG_RE`, `sellerPageUrl(origin, slug)`, `filterSellerListings(properties, ids)` | route, den `me`, `page.tsx`, tests |
-| `src/lib/showcase/public-data.ts` | `resolveSellerPage(slug)` (React `cache`), `sellerListingIds(accountId, contactId)` (React `cache`) | `page.tsx` |
-| `src/lib/den/auth.ts` | `ownerListingFilter(query)` — the `owner_contact_id IN … AND listing_source <> 'agent'` rule, extracted so `resolveOwnerPropertyIds` and `sellerListingIds` share one definition | den routes, showcase |
+| `src/lib/showcase/public-data.ts` | `cachedResolveSellerPage(slug)` (React `cache`) | `page.tsx` |
+| `src/lib/contacts/seller-page.ts` | `getSellerPageStatus`, `enableSellerPage`, `disableSellerPage`, `sellerPageShareMessage` | agency route |
+| `src/lib/den/seller-pages.ts` | `denSellerPages`, `sellerPageForwardMessage` | `/api/den/me` |
 
 `mobile/lib/den-api.ts` and `mobile/lib/types.ts` gain the `seller_pages` shape and a `fetchContactSellerPage` / `setContactSellerPage` pair; no rule lives on mobile.
 
@@ -214,7 +215,7 @@ No new public route. `RootPage` reads `sp`; `/api/public/showcase-events` accept
 | Area | Files |
 | --- | --- |
 | Migration | `supabase/migrations/<ts>_contact_seller_page_slug.sql`, `DATABASE_SCHEMA.md` |
-| Routing | `next.config.ts` (`rewrites()`), `src/app/page.tsx` (`sp` param, resolution branch, metadata `robots: noindex`) |
+| Routing | `src/app/seller/[slug]/page.tsx`, `src/app/page.tsx` (`__seller` param, resolution branch, metadata `robots: noindex`) |
 | Showcase | `src/lib/showcase/seller-page.ts`, `src/lib/showcase/public-data.ts`, `src/components/showcase/showcase-view.tsx` (header label, tracker field) |
 | Tracking | `src/app/api/public/showcase-events/route.ts`, `src/lib/pulse/*` (guest-via label), `src/lib/pulse/tracker.ts` |
 | Agency web | `src/app/api/contacts/[id]/seller-page/route.ts`, `src/components/contacts/seller-page-card.tsx`, contact detail mount point |
@@ -255,8 +256,8 @@ Regression cases: `src/lib/showcase/seller-page.test.ts` (SLP-001, 002 via `filt
 
 ## 10. Implementation order
 
-1. Migration + `seller-page.ts` helpers + `ownerListingFilter` extraction, with unit tests.
-2. `next.config.ts` rewrite + `page.tsx` resolution branch + `noindex` metadata; confirm the client never drops the path.
+1. Migration + `seller-page.ts` helpers, with unit tests.
+2. Seller route + `page.tsx` resolution branch + `noindex` metadata; confirm the client never drops the path.
 3. Tracker field and `showcase-events` validation; Pulse guest-via label.
 4. Agency route + web card + mobile card.
 5. `den/me` extension + web Portfolio card + mobile Portfolio card.

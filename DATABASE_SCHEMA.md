@@ -74,6 +74,7 @@ The Engine address book.
   - `property_interests` (TEXT[]): Desired specifications (e.g. ROI, old building).
   - `min_roi` (NUMERIC): Minimum yield percentage expected by the buyer.
 - `referrer_contact_id` (UUID, FK -> `contacts`): Self-referencing link to track the source contact.
+- `seller_page_slug` (TEXT, unique when set): The seller's public page at `/seller/<slug>`. NULL means the page is off; a new value retires the old link.
 
 #### 5. `tags` & `contact_tags`
 Labels for categorization.

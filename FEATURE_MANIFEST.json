@@ -2757,6 +2757,101 @@
           ]
         }
       ]
+    },
+    {
+      "id": "seller-page",
+      "name": "Seller page — a seller's live listings on the agency's showcase",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "SLP-001",
+          "rule": "A seller page lists only published listings whose owner is the seller and whose listing source is not agent-referred; with none live it renders its own empty state and never the agency's full catalogue or its listing links.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/seller-page.test.ts",
+              "case": "[SLP-001]"
+            },
+            {
+              "file": "src/app/page.seller.test.tsx",
+              "case": "[SLP-001]"
+            }
+          ]
+        },
+        {
+          "id": "SLP-002",
+          "rule": "Every call and WhatsApp prompt on a seller page uses the agency's own number, and the seller's contact id, name and phone never reach the page; the browser identifies the page only by its slug.",
+          "tests": [
+            {
+              "file": "src/app/page.seller.test.tsx",
+              "case": "[SLP-002]"
+            }
+          ]
+        },
+        {
+          "id": "SLP-003",
+          "rule": "Creating a new link or turning a seller page off makes the previous URL return 404 on the next request.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/seller-page.test.ts",
+              "case": "[SLP-003]"
+            },
+            {
+              "file": "src/app/page.seller.test.tsx",
+              "case": "[SLP-003]"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/seller-page/route.test.ts",
+              "case": "[SLP-003]"
+            }
+          ]
+        },
+        {
+          "id": "SLP-004",
+          "rule": "A seller slug opened on a tenant host that belongs to a different account returns 404 rather than that account's catalogue.",
+          "tests": [
+            {
+              "file": "src/app/page.seller.test.tsx",
+              "case": "[SLP-004]"
+            }
+          ]
+        },
+        {
+          "id": "SLP-005",
+          "rule": "Showcase events from a seller page credit guests to the seller through via_contact_id and flag the page open, and enquiries and requirements from it record the seller as referrer; a slug from another account is ignored.",
+          "tests": [
+            {
+              "file": "src/app/api/public/showcase-events/route.test.ts",
+              "case": "[SLP-005]"
+            },
+            {
+              "file": "src/app/api/public/inquiry/tenant-scoping.test.ts",
+              "case": "[SLP-005]"
+            },
+            {
+              "file": "src/app/api/public/requirements/tenant-scoping.test.ts",
+              "case": "[SLP-005]"
+            }
+          ]
+        },
+        {
+          "id": "SLP-006",
+          "rule": "Only agent-role members can turn a seller page on, rotate it or turn it off, from the contact record on web and mobile alike; Portfolio on web and mobile shows each linked agency's live link, or asks the seller to request one.",
+          "tests": [
+            {
+              "file": "src/app/api/contacts/[id]/seller-page/route.test.ts",
+              "case": "[SLP-006]"
+            },
+            {
+              "file": "src/lib/den/seller-pages.test.ts",
+              "case": "[SLP-006]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[SLP-006]"
+            }
+          ]
+        }
+      ]
     }
   ]
 }
