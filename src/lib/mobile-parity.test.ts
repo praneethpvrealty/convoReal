@@ -770,6 +770,8 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
       );
     }
     expect(screen).toContain('onPress={onEnquiries}');
+    expect(screen).toContain("} from '@shared/lib/journey/enquiries';");
+    expect(helpers).not.toContain('journeyEnquiryEntries');
     expect(screen).toContain(
       'const enquiryLabel = journeyEnquiryLabel(group.enquiryCount);'
     );

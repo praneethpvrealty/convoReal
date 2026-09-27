@@ -12,13 +12,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
-import { createClient } from '@/lib/supabase/client';
 import {
   JOURNEY_ENQUIRY_SELECT,
   journeyEnquiryEntries,
   type JourneyEnquiryRow,
-  type JourneyMode,
-} from './shared';
+} from '@/lib/journey/enquiries';
+import { createClient } from '@/lib/supabase/client';
+import type { JourneyMode } from './shared';
 
 interface EnquiriesDialogProps {
   mode: JourneyMode;

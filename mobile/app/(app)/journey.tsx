@@ -56,22 +56,24 @@ import {
   CLOSED_JOURNEY_STATUS_LABELS,
   DEFAULT_JOURNEY_SORT,
   JOURNEY_CLOSURE_REASONS,
-  JOURNEY_ENQUIRY_SELECT,
   JOURNEY_SORT_LABELS,
   focusBuckets,
-  journeyEnquiryEntries,
   journeyEnquiryLabel,
   journeyRaceLabel,
   sortJourneys,
   splitItemsAtStage,
   type ClosedJourneyStatus,
   type JourneyLifecycleStatus,
-  type JourneyEnquiryRow,
   type JourneySort,
 } from '@/lib/journey-overview';
 import { openContactChat } from '@/lib/open-chat';
 import { contactPropertyShareUrl } from '@/lib/showcase-share';
 import { supabase } from '@/lib/supabase';
+import {
+  JOURNEY_ENQUIRY_SELECT,
+  journeyEnquiryEntries,
+  type JourneyEnquiryRow,
+} from '@shared/lib/journey/enquiries';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type {
   JourneyItem,
