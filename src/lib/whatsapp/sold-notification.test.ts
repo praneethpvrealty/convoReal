@@ -34,11 +34,21 @@ describe('property status notifications', () => {
   });
 
   it('notifies only on buyer-visible status transitions', () => {
-    expect(shouldNotifyBuyersOfPropertyStatus('Available', 'Under Contract')).toBe(true);
-    expect(shouldNotifyBuyersOfPropertyStatus('Under Contract', 'Available')).toBe(true);
-    expect(shouldNotifyBuyersOfPropertyStatus('Available', 'Available')).toBe(false);
-    expect(shouldNotifyBuyersOfPropertyStatus('Available', 'Pending Review')).toBe(false);
-    expect(shouldNotifyBuyersOfPropertyStatus('Available', 'Rejected')).toBe(false);
+    expect(
+      shouldNotifyBuyersOfPropertyStatus('Available', 'Under Contract')
+    ).toBe(true);
+    expect(
+      shouldNotifyBuyersOfPropertyStatus('Under Contract', 'Available')
+    ).toBe(true);
+    expect(shouldNotifyBuyersOfPropertyStatus('Available', 'Available')).toBe(
+      false
+    );
+    expect(
+      shouldNotifyBuyersOfPropertyStatus('Available', 'Pending Review')
+    ).toBe(false);
+    expect(shouldNotifyBuyersOfPropertyStatus('Available', 'Rejected')).toBe(
+      false
+    );
   });
 });
 
@@ -77,7 +87,14 @@ describe('dedupeAudience', () => {
 
   it('[PRP-014] leaves out contacts who closed their enquiry on the listing', () => {
     expect(
-      dedupeAudience([['a', 'b'], ['b', 'c']], null, new Set(['b']))
+      dedupeAudience(
+        [
+          ['a', 'b'],
+          ['b', 'c'],
+        ],
+        null,
+        new Set(['b'])
+      )
     ).toEqual(['a', 'c']);
   });
 
@@ -90,7 +107,9 @@ describe('dedupeAudience', () => {
     expect(source).toMatch(
       /\.from\('listing_feedback'\)[\s\S]{0,200}\.eq\('verdict', 'rejected'\)/
     );
-    expect(source).toContain('property.owner_contact_id as string | null,\n    closedEnquiries');
+    expect(source).toContain(
+      'property.owner_contact_id as string | null,\n    closedEnquiries'
+    );
   });
 
   it('[PRP-014] sends nothing when any audience source cannot be read', async () => {
@@ -143,7 +162,12 @@ describe('dedupeAudience', () => {
       'utf8'
     );
     expect(source).toMatch(
-      /status === 'Available' &&\s*\(await dealsStillHoldListing\(db, accountId, propertyId\)\)/
+      /status === 'Available' &&\s*\(await dealsStillHoldListing\(db, accountId, propertyId, stageIds\)\)/
+    );
+    expect(source).toContain('!stageIds ||');
+    expect(source).toContain('.limit(1);');
+    expect(source).not.toContain(
+      "select('status, stage:pipeline_stages(name)')"
     );
     expect(source).toContain('if (error) return true;');
   });

@@ -57,7 +57,8 @@ const STATUS_DETAILS: Record<BuyerVisiblePropertyStatus, string> = {
     'This property is now under contract. It may become available again if the transaction does not proceed.',
   Sold: 'This property is no longer available — it has been sold.',
   Archived: 'This listing has been archived and is no longer active.',
-  'Off Market': 'This property has been taken off the market and is not currently available.',
+  'Off Market':
+    'This property has been taken off the market and is not currently available.',
 };
 
 export function shouldNotifyBuyersOfPropertyStatus(
@@ -141,7 +142,10 @@ async function isSessionOpen(
   return (count ?? 0) > 0;
 }
 
-function resolveTemplateBodyText(bodyTemplateText: string, params: string[]): string {
+function resolveTemplateBodyText(
+  bodyTemplateText: string,
+  params: string[]
+): string {
   return bodyTemplateText.replace(/\{\{(\d+)\}\}/g, (match, numberStr) => {
     const idx = parseInt(numberStr) - 1;
     return idx >= 0 && idx < params.length ? params[idx] : match;
@@ -165,29 +169,44 @@ async function closedEnquiryOnListing(
   return !!error || !!data;
 }
 
+async function holdingStageIds(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string
+): Promise<string[] | null> {
+  const { data, error } = await db
+    .from('pipeline_stages')
+    .select('id, name, pipeline:pipelines!inner(account_id)')
+    .eq('pipeline.account_id', accountId);
+  if (error) return null;
+  return ((data ?? []) as { id: string; name: string | null }[])
+    .filter((stage) => {
+      const held = stage.name
+        ? propertyStatusForPipelineStage(stage.name)
+        : null;
+      return held === 'Under Contract' || held === 'Sold';
+    })
+    .map((stage) => stage.id);
+}
+
 async function dealsStillHoldListing(
   db: ReturnType<typeof supabaseAdmin>,
   accountId: string,
-  propertyId: string
+  propertyId: string,
+  stageIds: string[]
 ): Promise<boolean> {
   const { data, error } = await db
     .from('deals')
-    .select('status, stage:pipeline_stages(name)')
+    .select('id')
     .eq('account_id', accountId)
     .eq('property_id', propertyId)
-    .in('status', ['open', 'won']);
+    .or(
+      stageIds.length > 0
+        ? `status.eq.won,and(status.eq.open,stage_id.in.(${stageIds.join(',')}))`
+        : 'status.eq.won'
+    )
+    .limit(1);
   if (error) return true;
-  return (
-    (data ?? []) as {
-      status: string | null;
-      stage: { name?: string | null } | { name?: string | null }[] | null;
-    }[]
-  ).some((deal) => {
-    if (deal.status === 'won') return true;
-    const stage = Array.isArray(deal.stage) ? deal.stage[0] : deal.stage;
-    const held = stage?.name ? propertyStatusForPipelineStage(stage.name) : null;
-    return held === 'Under Contract' || held === 'Sold';
-  });
+  return (data ?? []).length > 0;
 }
 
 async function listingStillHasStatus(
@@ -252,7 +271,11 @@ async function ensureStatusUpdateTemplate(
       .select('*')
       .eq('account_id', accountId)
       .maybeSingle();
-    if (!config?.waba_id || !config.access_token || config.integration_type === 'sandbox') {
+    if (
+      !config?.waba_id ||
+      !config.access_token ||
+      config.integration_type === 'sandbox'
+    ) {
       return null;
     }
 
@@ -293,7 +316,10 @@ async function ensureStatusUpdateTemplate(
       `[property-status-notification] auto-submitted ${templateName} template for account ${accountId} (status ${meta.status})`
     );
   } catch (err) {
-    console.error('[property-status-notification] template auto-submit failed:', err);
+    console.error(
+      '[property-status-notification] template auto-submit failed:',
+      err
+    );
   }
   // Freshly submitted templates are PENDING — usable on a later update.
   return null;
@@ -320,7 +346,12 @@ export async function notifyBuyersOfPropertyStatus(
   accountId: string,
   propertyId: string,
   status: BuyerVisiblePropertyStatus
-): Promise<{ notified: number; viaTemplate: number; skipped: number; audience: number }> {
+): Promise<{
+  notified: number;
+  viaTemplate: number;
+  skipped: number;
+  audience: number;
+}> {
   const db = supabaseAdmin();
 
   const { data: property } = await db
@@ -331,31 +362,33 @@ export async function notifyBuyersOfPropertyStatus(
     .eq('status', status)
     .maybeSingle();
 
-  if (!property) return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
+  if (!property)
+    return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
 
-  const [interestedRes, inquiriesRes, sharesRes, rejectedRes] = await Promise.all([
-    db
-      .from('contacts')
-      .select('id')
-      .eq('account_id', accountId)
-      .eq('last_inquired_property_id', propertyId),
-    db
-      .from('contact_property_inquiries')
-      .select('contact_id')
-      .eq('account_id', accountId)
-      .eq('property_id', propertyId),
-    db
-      .from('property_shares')
-      .select('contact_id')
-      .eq('account_id', accountId)
-      .eq('property_id', propertyId),
-    db
-      .from('listing_feedback')
-      .select('contact_id')
-      .eq('account_id', accountId)
-      .eq('property_id', propertyId)
-      .eq('verdict', 'rejected'),
-  ]);
+  const [interestedRes, inquiriesRes, sharesRes, rejectedRes] =
+    await Promise.all([
+      db
+        .from('contacts')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('last_inquired_property_id', propertyId),
+      db
+        .from('contact_property_inquiries')
+        .select('contact_id')
+        .eq('account_id', accountId)
+        .eq('property_id', propertyId),
+      db
+        .from('property_shares')
+        .select('contact_id')
+        .eq('account_id', accountId)
+        .eq('property_id', propertyId),
+      db
+        .from('listing_feedback')
+        .select('contact_id')
+        .eq('account_id', accountId)
+        .eq('property_id', propertyId)
+        .eq('verdict', 'rejected'),
+    ]);
   const lookupError =
     interestedRes.error ??
     inquiriesRes.error ??
@@ -377,14 +410,19 @@ export async function notifyBuyersOfPropertyStatus(
   const audience = dedupeAudience(
     [
       ((interestedRes.data ?? []) as { id: string }[]).map((r) => r.id),
-      ((inquiriesRes.data ?? []) as { contact_id: string }[]).map((r) => r.contact_id),
-      ((sharesRes.data ?? []) as { contact_id: string }[]).map((r) => r.contact_id),
+      ((inquiriesRes.data ?? []) as { contact_id: string }[]).map(
+        (r) => r.contact_id
+      ),
+      ((sharesRes.data ?? []) as { contact_id: string }[]).map(
+        (r) => r.contact_id
+      ),
     ],
     property.owner_contact_id as string | null,
     closedEnquiries
   );
 
-  if (audience.length === 0) return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
+  if (audience.length === 0)
+    return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
 
   const template = await ensureStatusUpdateTemplate(accountId, status);
 
@@ -419,20 +457,35 @@ export async function notifyBuyersOfPropertyStatus(
   const buttons =
     status === 'Sold'
       ? [
-          { id: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`, title: 'Check sold price' },
-          { id: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`, title: 'Find similar' },
+          {
+            id: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`,
+            title: 'Check sold price',
+          },
+          {
+            id: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`,
+            title: 'Find similar',
+          },
         ]
-      : [{ id: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`, title: 'Find similar' }];
+      : [
+          {
+            id: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`,
+            title: 'Find similar',
+          },
+        ];
 
   let notified = 0;
   let viaTemplate = 0;
   let skipped = 0;
 
+  const stageIds =
+    status === 'Available' ? await holdingStageIds(db, accountId) : [];
+
   for (const contactId of audience) {
     if (
+      !stageIds ||
       !(await listingStillHasStatus(db, accountId, propertyId, status)) ||
       (status === 'Available' &&
-        (await dealsStillHoldListing(db, accountId, propertyId)))
+        (await dealsStillHoldListing(db, accountId, propertyId, stageIds)))
     ) {
       console.warn(
         `[property-status-notification] ${propertyId} is no longer ${status}; remaining updates not sent`
@@ -476,7 +529,12 @@ export async function notifyBuyersOfPropertyStatus(
         language
       ) ?? template;
     if (isLanguageFallback(localised, language)) {
-      warnLanguageFallback('property-status-notification', accountId, language, localised);
+      warnLanguageFallback(
+        'property-status-notification',
+        accountId,
+        language,
+        localised
+      );
     }
 
     const bodyParams = truncateParametersToBudget(
@@ -526,6 +584,9 @@ export async function notifyBuyersOfPropertyStatus(
   return { notified, viaTemplate, skipped, audience: audience.length };
 }
 
-export function notifyBuyersOfSoldProperty(accountId: string, propertyId: string) {
+export function notifyBuyersOfSoldProperty(
+  accountId: string,
+  propertyId: string
+) {
   return notifyBuyersOfPropertyStatus(accountId, propertyId, 'Sold');
 }
