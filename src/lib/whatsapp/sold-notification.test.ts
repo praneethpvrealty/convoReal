@@ -4,6 +4,7 @@ import {
   buildPropertyStatusNotificationBody,
   buildSoldPriceReply,
   dedupeAudience,
+  usableStatusUpdateTemplate,
   shouldNotifyBuyersOfPropertyStatus,
   SOLD_PRICE_BUTTON_PREFIX,
   SOLD_SIMILAR_BUTTON_PREFIX,
@@ -103,5 +104,22 @@ describe('button id prefixes', () => {
     const uuid = '123e4567-e89b-12d3-a456-426614174000';
     expect(`${SOLD_PRICE_BUTTON_PREFIX}${uuid}`.length).toBeLessThan(256);
     expect(`${SOLD_SIMILAR_BUTTON_PREFIX}${uuid}`.length).toBeLessThan(256);
+  });
+});
+
+describe('usableStatusUpdateTemplate', () => {
+  it('[PRP-014] sends a status update only on an approved Utility template, never a Marketing one', () => {
+    expect(
+      usableStatusUpdateTemplate({ status: 'APPROVED', category: 'UTILITY' })
+    ).not.toBeNull();
+    expect(
+      usableStatusUpdateTemplate({ status: 'APPROVED', category: 'Utility' })
+    ).not.toBeNull();
+    expect(
+      usableStatusUpdateTemplate({ status: 'APPROVED', category: 'MARKETING' })
+    ).toBeNull();
+    expect(
+      usableStatusUpdateTemplate({ status: 'PENDING', category: 'UTILITY' })
+    ).toBeNull();
   });
 });

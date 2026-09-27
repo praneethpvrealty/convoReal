@@ -147,6 +147,15 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]): st
   });
 }
 
+export function usableStatusUpdateTemplate<
+  T extends { status?: string | null; category?: string | null },
+>(template: T): T | null {
+  return template.status === 'APPROVED' &&
+    (template.category ?? '').toUpperCase() === 'UTILITY'
+    ? template
+    : null;
+}
+
 /**
  * Returns the approved template for this status, or null when it is not
  * usable yet. When the account has no row for it, auto-submits the
@@ -173,8 +182,7 @@ async function ensureStatusUpdateTemplate(
     .maybeSingle();
 
   if (latestRow) {
-    const template = latestRow as unknown as MessageTemplate;
-    return template.status === 'APPROVED' ? template : null;
+    return usableStatusUpdateTemplate(latestRow as unknown as MessageTemplate);
   }
 
   try {
@@ -382,7 +390,9 @@ export async function notifyBuyersOfPropertyStatus(
     );
     const localised =
       pickTemplateForLanguage(
-        (statusVariants ?? []) as MessageTemplate[],
+        ((statusVariants ?? []) as MessageTemplate[]).filter(
+          (variant) => usableStatusUpdateTemplate(variant) !== null
+        ),
         language
       ) ?? template;
     if (isLanguageFallback(localised, language)) {

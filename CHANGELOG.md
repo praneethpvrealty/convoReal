@@ -39,7 +39,8 @@ than a written entry. Newest first.
   functions). A listing always takes the strongest
   status its open and won deals hold, so one deal can no longer release or
   overwrite a listing another deal holds, and no status update goes to anyone
-  who closed their enquiry on the listing.
+  who closed their enquiry on the listing. Outside WhatsApp's 24-hour window
+  a status update is sent only on a Utility template, never a Marketing one.
 - **Enquiries on an unavailable listing get an honest, kind answer.** A
   buyer who enquires on WhatsApp about a listing that is Under Contract, Off
   Market, Archived or Sold now hears an apology and its status instead of
