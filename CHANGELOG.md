@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 27 September 2026
 
+- **Enquiries on an unavailable listing get an honest, kind answer.** A
+  buyer who enquires on WhatsApp about a listing that is Under Contract, Off
+  Market, Archived or Sold now hears an apology and its status instead of
+  its photos and details, and is asked for their requirements and budget.
+  Unless it is Sold, they are told we will come back and update them if it
+  becomes available again. A 99acres, MagicBricks or Housing lead matched to
+  such a listing gets the same message right after the auto-reply, or the
+  approved listing status notice when WhatsApp's 24-hour window is closed.
 - **Closing a journey closes its deals; deleting a deal closes its
   branch.** Closing a journey as completed or not proceeding now drops its
   live branches (a won branch survives completion) and marks their deals

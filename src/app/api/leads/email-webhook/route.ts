@@ -19,6 +19,7 @@ import { toSquareFeet } from '@/lib/ai/listing-derivations';
 import { resolveHousingPhone } from './phone-resolver';
 import { writeSyncLog, assignTagsToContact } from './db-utils';
 import { sendAutoReply } from './auto-reply';
+import { sendUnavailableListingReply } from './unavailable-listing';
 import { portalKeyFromSource } from '@/lib/portals/listing-identity';
 import { placeholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
@@ -1025,6 +1026,18 @@ export async function POST(request: Request) {
         console.log(`[lead-webhook] Auto-reply SENT for existing contact ${existingContact.id}: messageId=${replyResult.messageId}`);
       }
 
+      if (matchedPropertyIds.length > 0) {
+        await sendUnavailableListingReply({
+          supabase,
+          accountId,
+          userId,
+          contactId: existingContact.id,
+          conversationId: conversationId || null,
+          leadName: existingContact.name || '',
+          propertyId: matchedPropertyIds[0],
+        });
+      }
+
       // Fire automations for existing contact getting a new lead
       void runAutomationsForTrigger({
         accountId,
@@ -1184,6 +1197,18 @@ export async function POST(request: Request) {
       console.error(`[lead-webhook] Auto-reply FAILED for new contact ${newContact.id}: ${replyResult.error}`);
     } else {
       console.log(`[lead-webhook] Auto-reply SENT for new contact ${newContact.id}: messageId=${replyResult.messageId}`);
+    }
+
+    if (matchedPropertyIds.length > 0) {
+      await sendUnavailableListingReply({
+        supabase,
+        accountId,
+        userId,
+        contactId: newContact.id,
+        conversationId: conversation?.id || null,
+        leadName: parsed.name || '',
+        propertyId: matchedPropertyIds[0],
+      });
     }
 
     // Fire automations for the new contact (e.g. welcome message, property info)

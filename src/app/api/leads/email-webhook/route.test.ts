@@ -96,6 +96,10 @@ vi.mock('./auto-reply', () => ({
   sendAutoReply: vi.fn().mockResolvedValue({ success: true, messageId: 'auto-reply-msg-id' })
 }));
 
+vi.mock('./unavailable-listing', () => ({
+  sendUnavailableListingReply: vi.fn().mockResolvedValue('available')
+}));
+
 vi.mock('@/lib/automations/engine', () => ({
   runAutomationsForTrigger: vi.fn().mockResolvedValue(undefined)
 }));
@@ -122,6 +126,7 @@ import {
   interestFromTypeText,
   POST
 } from './route';
+import { sendUnavailableListingReply } from './unavailable-listing';
 
 
 describe('Email Webhook Lead Parsing', () => {
@@ -853,6 +858,7 @@ Content-Transfer-Encoding: quoted-printable
       mockDb.contacts = [];
       mockDb.contact_property_inquiries = [];
       mockDb.contact_tags = [];
+      vi.mocked(sendUnavailableListingReply).mockClear();
       mockDb.email_sync_logs = [];
       // reset properties to initial state
       mockDb.properties = [
@@ -911,6 +917,14 @@ Content-Transfer-Encoding: quoted-printable
       // Verify contact was associated with the property
       expect(mockDb.contact_property_inquiries.length).toBe(1);
       expect(mockDb.contact_property_inquiries[0].property_id).toBe('prop-123');
+      expect(sendUnavailableListingReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accountId: 'acc-789',
+          userId: 'user-456',
+          leadName: 'Pushpa',
+          propertyId: 'prop-123',
+        })
+      );
 
       // Verify tags were assigned correctly
       expect(mockDb.contact_tags.length).toBeGreaterThan(0);
@@ -1108,6 +1122,7 @@ Content-Transfer-Encoding: quoted-printable
       expect(mockDb.contact_property_inquiries.length).toBe(0);
       expect(mockDb.contacts[0].last_inquired_property_id).toBeNull();
       expect(mockDb.contacts[0].pref_budget_max).toBeNull();
+      expect(sendUnavailableListingReply).not.toHaveBeenCalled();
 
       const log = mockDb.email_sync_logs.at(-1) as Record<string, unknown>;
       expect(log.matched_property_id).toBeNull();

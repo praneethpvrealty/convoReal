@@ -403,6 +403,16 @@ describe('the webhook wires the card up', () => {
     expect(source).toContain('enquiryPropertyStatus = matchedProperty.status');
   });
 
+  it('[PRP-014] answers an enquiry on an unavailable listing with its status and a requirements nudge instead of its details', () => {
+    expect(source).toMatch(
+      /unavailableListingReply\(\s*contactRecord\.name,\s*enquiryPropertyTitle,\s*enquiryPropertyStatus\s*\)\s*\?\?\s*appendListingStatusNote\(\s*buildEnquiryAckText/
+    );
+    expect(source).toMatch(
+      /unavailableReply\s*\?\s*Promise\.resolve\(false\)\s*:\s*handlePropertyShareYesReply\(/
+    );
+    expect(source).toContain('UNAVAILABLE_LISTING_AGENT_NOTE');
+  });
+
   it('[PRP-014] routes a title-only enquiry about an unavailable listing through the card', () => {
     expect(source).toMatch(
       /enquiryIsDeliberate = await isDeliberateEnquiry\(\s*resolution\.matchedBy,\s*matchedProperty,\s*\(\) =>\s*listingAlreadyDiscussed\(/

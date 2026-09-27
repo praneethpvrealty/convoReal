@@ -7,6 +7,7 @@ import {
   listingStatusInquiryLine,
   appendListingStatusNote,
   listingStatusAgentLine,
+  unavailableListingReply,
 } from './listing-status';
 import { PROPERTY_STATUSES } from './property-options';
 
@@ -94,5 +95,43 @@ describe('listingStatusAgentLine', () => {
   it('[PRP-014] warns the agent before a visit is promised on an unavailable listing', () => {
     expect(listingStatusAgentLine('Available')).toBeNull();
     expect(listingStatusAgentLine('Sold')).toContain('marked "Sold"');
+  });
+});
+
+describe('unavailableListingReply', () => {
+  it('[PRP-014] stays silent for an available or unverified listing', () => {
+    expect(unavailableListingReply('Sandeep', 'Plot', 'Available')).toBeNull();
+    expect(unavailableListingReply('Sandeep', 'Plot', null)).toBeNull();
+    expect(unavailableListingReply('Sandeep', 'Plot', 'Pending Review')).toBeNull();
+  });
+
+  it('[PRP-014] promises an update when an under-contract listing frees up and asks for requirements and budget', () => {
+    const text = unavailableListingReply('Sandeep Kumar', 'JP Nagar Plot', 'Under Contract');
+    expect(text).toMatch(/^Hi Sandeep, thank you for your interest in \*JP Nagar Plot\*/);
+    expect(text).toMatch(/I'm sorry/);
+    expect(text).toMatch(/under contract with another buyer/);
+    expect(text).toMatch(/If it becomes available again, we'll come back and update you/);
+    expect(text).toMatch(/requirements and budget/);
+  });
+
+  it('[PRP-014] never promises an update on a sold listing', () => {
+    const text = unavailableListingReply('Sandeep', 'JP Nagar Plot', 'Sold');
+    expect(text).toMatch(/already been sold/);
+    expect(text).not.toMatch(/update you/);
+    expect(text).toMatch(/requirements and budget/);
+  });
+
+  it('[PRP-014] covers every other status the editor can set', () => {
+    for (const status of PROPERTY_STATUSES.filter(
+      (s) => !['Available', 'Pending Review', 'Sold'].includes(s)
+    )) {
+      const text = unavailableListingReply('Sandeep', 'Plot', status);
+      expect(text, status).toMatch(/we'll come back and update you/);
+      expect(text, status).toMatch(/requirements and budget/);
+    }
+  });
+
+  it('greets a placeholder-named portal lead without the placeholder', () => {
+    expect(unavailableListingReply('99acres Lead', 'Plot', 'Sold')).toMatch(/^Hi, thank you/);
   });
 });
