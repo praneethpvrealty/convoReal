@@ -24,10 +24,13 @@ than a written entry. Newest first.
   something, whatever the company had chosen. A personal design is now
   optional: until an agent picks one, their link shows the company's
   design and 3D setting, and the personal picker says so and offers
-  "Use the company design instead" to go back. Agents who already picked
-  a design keep it. **Migration required:**
-  `20260927094500_profile_showcase_inherits_company.sql` drops the
-  Gallery default so new members start unset.
+  "Use the company design instead" to go back — on web (Settings →
+  Profile) and on mobile (More → Edit profile), which gains the personal
+  design picker. Agents who already picked a design keep it. **Migration
+  required:** `20260927094500_profile_showcase_inherits_company.sql`
+  drops the Gallery default so new members start unset, and clears a
+  member's personal design whenever they move to another account, so
+  someone accepting an invite follows their new company's design.
 - **A WhatsApp template that promises an update on an unavailable listing.**
   New engine template `listing_availability_notice` (Utility, all seven
   languages), submitted from Settings → Templates. It tells a portal lead
