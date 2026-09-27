@@ -730,7 +730,7 @@ function ContactCard({ contact }: { contact: Contact }) {
               ) : null}
             </>
           ) : null}
-          {contact.classification !== 'Agent' ? (
+          {canMerge && contact.classification !== 'Agent' ? (
             <ActionButton
               icon="storefront-outline"
               label="Seller Page"
@@ -1045,7 +1045,7 @@ function ContactCard({ contact }: { contact: Contact }) {
           }}
         />
       ) : null}
-      {contact.classification !== 'Agent' ? (
+      {canMerge && contact.classification !== 'Agent' ? (
         <SellerPageSheet
           visible={sellerPageOpen}
           onClose={() => setSellerPageOpen(false)}

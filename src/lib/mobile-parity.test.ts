@@ -3670,6 +3670,23 @@ describe('[SLP-006] seller page on mobile uses the same API as web', () => {
     ).toEqual(serverDen);
   });
 
+  it('offers the agency controls only to members who can edit, on both surfaces', () => {
+    const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
+    expect(mobileContact).toContain(
+      "const canMerge = useAuthStore((s) => s.profile?.account_role) !== 'viewer';"
+    );
+    expect(mobileContact).toMatch(
+      /canMerge && contact\.classification !== 'Agent' \? \(\s*<ActionButton\s+icon="storefront-outline"/
+    );
+    expect(mobileContact).toMatch(
+      /canMerge && contact\.classification !== 'Agent' \? \(\s*<SellerPageSheet/
+    );
+    const webContact = webSource('components/contacts/contact-detail-view.tsx');
+    expect(webContact).toMatch(
+      /canEditContacts && contact\.classification !== 'Agent' && \(\s*<button\s+onClick=\{\(\) => setSellerPageOpen\(true\)\}/
+    );
+  });
+
   it('mounts the agency sheet and the Portfolio card', () => {
     expect(mobileSource('app/(app)/contact/[id].tsx')).toContain(
       '<SellerPageSheet'

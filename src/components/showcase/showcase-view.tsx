@@ -3640,11 +3640,13 @@ export function ShowcaseView({
                 )}
 
                 {/* Similar properties — browse-more growth loop */}
-                <SimilarProperties
-                  accountId={accountId}
-                  currentProperty={selectedProperty}
-                  onSelect={openPropertyModal}
-                />
+                {!sellerPageSlug && (
+                  <SimilarProperties
+                    accountId={accountId}
+                    currentProperty={selectedProperty}
+                    onSelect={openPropertyModal}
+                  />
+                )}
 
                 {/* Interest rating bar inside Modal — hidden in agent mode */}
                 {!isAgentMode && !selectedAvailabilityNotice && (

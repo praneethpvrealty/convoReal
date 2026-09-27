@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement, ReactNode } from 'react';
 
@@ -6,6 +8,7 @@ const state = vi.hoisted(() => ({
   sellerPage: null as { accountId: string; contactId: string } | null,
   subdomainAccount: null as string | null,
   targetProperty: null as Record<string, unknown> | null,
+  grant: null as Record<string, unknown> | null,
 }));
 
 vi.mock('next/headers', () => ({
@@ -55,7 +58,7 @@ vi.mock('@/components/landing/marketing-landing', () => ({
 
 vi.mock('@/lib/inventory/share-grants', () => ({
   grantedReveals: () => ({}),
-  resolveShareGrant: async () => null,
+  resolveShareGrant: async () => state.grant,
   trackGrantView: async () => undefined,
 }));
 
@@ -156,6 +159,7 @@ beforeEach(() => {
   state.sellerPage = { accountId: 'acct-1', contactId: 'seller-contact' };
   state.subdomainAccount = null;
   state.targetProperty = null;
+  state.grant = null;
 });
 
 describe('seller page render', () => {
@@ -222,11 +226,42 @@ describe('seller page render', () => {
     expect(own.props.initialPropertyId).toBe('own-1');
   });
 
+  it('[SLP-001] never opens a draft on a seller page, even with a share grant', async () => {
+    state.targetProperty = {
+      ...listing('draft-1', 'seller-contact'),
+      is_published: false,
+    };
+    state.grant = {
+      token: 'grant-token',
+      property_id: 'draft-1',
+      reveal_listing: true,
+    };
+    const { props } = await renderSellerPage({
+      __seller: 'bcdfghjkmn',
+      property_id: 'draft-1',
+      g: 'grant-token',
+    });
+    expect(props.initialPropertyId).toBeUndefined();
+    expect(props.properties.map((p) => p.id)).not.toContain('draft-1');
+  });
+
   it('is excluded from search indexing', async () => {
     const metadata = await generateMetadata({
       searchParams: Promise.resolve({ __seller: 'bcdfghjkmn' }),
     });
     expect(metadata.robots).toEqual({ index: false, follow: false });
     expect(JSON.stringify(metadata)).toContain('Acme Realty');
+  });
+});
+
+describe('seller page client', () => {
+  it('[SLP-001] does not recommend listings outside the seller collection', () => {
+    const view = readFileSync(
+      join(process.cwd(), 'src/components/showcase/showcase-view.tsx'),
+      'utf8'
+    );
+    const mounts = view.match(/<SimilarProperties\b/g) ?? [];
+    expect(mounts).toHaveLength(1);
+    expect(view).toMatch(/\{!sellerPageSlug && \(\s*<SimilarProperties\b/);
   });
 });

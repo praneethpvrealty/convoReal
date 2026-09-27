@@ -8,7 +8,7 @@ import { denSellerPages } from "@/lib/den/seller-pages";
 export const GET = withDenAuth(async (ctx) => {
   const [propertyIds, sellerPages] = await Promise.all([
     resolveOwnerPropertyIds(ctx),
-    denSellerPages(denAdmin(), ctx.links),
+    denSellerPages(denAdmin(), ctx.denUserId, ctx.links),
   ]);
   return NextResponse.json({
     den_user_id: ctx.denUserId,

@@ -385,7 +385,8 @@ export default async function RootPage({ searchParams }: PageProps) {
     resolvedTarget &&
     opensByDirectLink(resolvedTarget, draftGrant !== null) &&
     (!sellerPage ||
-      (resolvedTarget.account_id === sellerPage.accountId &&
+      (resolvedTarget.is_published === true &&
+        resolvedTarget.account_id === sellerPage.accountId &&
         isSellerListing(resolvedTarget, sellerPage.contactId)))
       ? resolvedTarget
       : null;
