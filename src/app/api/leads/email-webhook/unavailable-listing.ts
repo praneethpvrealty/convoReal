@@ -93,12 +93,18 @@ export async function sendUnavailableListingReply({
     return 'failed';
   }
 
-  const { data: current } = await supabase
+  const { data: current, error: currentError } = await supabase
     .from('properties')
     .select('*')
     .eq('account_id', accountId)
     .eq('id', propertyId)
     .maybeSingle();
+  if (currentError) {
+    console.error(
+      `[lead-webhook] Listing not re-read before the status notice for contact ${contactId}: ${currentError.message}`
+    );
+    return 'failed';
+  }
   const listing = current as Property | null;
   if (
     !listing ||

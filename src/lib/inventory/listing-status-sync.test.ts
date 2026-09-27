@@ -254,6 +254,13 @@ describe('journey close and reopen', () => {
     );
     expect(route).not.toContain('.update({ status: propertyStatus })');
     expect(route).toMatch(
+      /\.eq\('id', dealId\)\s*\.eq\('property_id', previousPropertyId\)\s*\.select\('id'\)/
+    );
+    expect(route).toMatch(
+      /\.eq\('id', dealId\)\s*\.is\('property_id', null\)\s*\.select\('id'\)/
+    );
+    expect(route).toContain("code: 'DEAL_CHANGED'");
+    expect(route).toMatch(
       /previousPropertyId && previousPropertyId !== updateData\.property_id\) \{\s*const released = await setListingStatusFromDeal\(\s*ctx\.supabase,\s*ctx\.accountId,\s*previousPropertyId,\s*'Available'\s*\)/
     );
   });

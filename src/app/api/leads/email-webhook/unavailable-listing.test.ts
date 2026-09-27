@@ -32,7 +32,12 @@ function fakeDb(tables: Record<string, unknown>) {
         select: () => builder,
         eq: () => builder,
         in: () => builder,
-        maybeSingle: () => Promise.resolve({ data: row ?? null, error: null }),
+        maybeSingle: () =>
+          Promise.resolve(
+            row instanceof Error
+              ? { data: null, error: { message: row.message } }
+              : { data: row ?? null, error: null }
+          ),
         then: (resolve: (v: { data: unknown; error: null }) => unknown) =>
           Promise.resolve({ data: row ?? null, error: null }).then(resolve),
       };
@@ -323,6 +328,24 @@ describe('sendUnavailableListingReply', () => {
       'template'
     );
     expect(send.mock.calls[1][0].templateName).toBe('listing_status_notice');
+  });
+
+  it('reports a failed re-read as a failure, not as an available listing', async () => {
+    send.mockResolvedValueOnce({
+      success: false,
+      error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+    });
+    const reads: unknown[] = [property, new Error('timeout')];
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const supabase = fakeDb({
+      properties: () => reads.shift(),
+      message_templates: [notice],
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'failed'
+    );
+    expect(send).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
   });
 
   it('sends no fallback when the listing became available meanwhile', async () => {

@@ -122,19 +122,44 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           { status: 500 }
         );
       }
+      if (!previous) {
+        return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+      }
       previousPropertyId =
-        (previous as { property_id: string | null } | null)?.property_id ??
-        null;
+        (previous as { property_id: string | null }).property_id ?? null;
     }
 
-    const { data: updated, error: updateErr } = await ctx.supabase
-      .from('deals')
-      .update(updateData)
-      .eq('id', dealId)
-      .select('id');
+    const { data: updated, error: updateErr } = await (property_id === undefined
+      ? ctx.supabase
+          .from('deals')
+          .update(updateData)
+          .eq('id', dealId)
+          .select('id')
+      : previousPropertyId
+        ? ctx.supabase
+            .from('deals')
+            .update(updateData)
+            .eq('id', dealId)
+            .eq('property_id', previousPropertyId)
+            .select('id')
+        : ctx.supabase
+            .from('deals')
+            .update(updateData)
+            .eq('id', dealId)
+            .is('property_id', null)
+            .select('id'));
 
     if (!updateErr && !updated?.length) {
-      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+      return property_id !== undefined
+        ? NextResponse.json(
+            {
+              error:
+                'This deal was changed by someone else while you were editing it. Reload it and try again.',
+              code: 'DEAL_CHANGED',
+            },
+            { status: 409 }
+          )
+        : NextResponse.json({ error: 'Deal not found' }, { status: 404 });
     }
 
     if (updateErr) {
