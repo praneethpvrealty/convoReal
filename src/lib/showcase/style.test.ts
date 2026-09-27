@@ -37,6 +37,21 @@ describe('showcase style', () => {
     ).toEqual({ style: 'spotlight', threeDimensional: true });
   });
 
+  it('lets an agent with no personal choice follow the company design [PRP-021]', () => {
+    expect(
+      resolveShowcasePresentation(
+        { showcase_style: 'deal-floor', showcase_3d_enabled: false },
+        { showcase_style: null, showcase_3d_enabled: null }
+      )
+    ).toEqual({ style: 'deal-floor', threeDimensional: false });
+    expect(
+      resolveShowcasePresentation(
+        { showcase_style: 'deal-floor', showcase_3d_enabled: false },
+        { showcase_style: 'editorial', showcase_3d_enabled: null }
+      )
+    ).toEqual({ style: 'editorial', threeDimensional: false });
+  });
+
   it('defaults new showcases to gallery with 3D enabled', () => {
     expect(resolveShowcasePresentation(null)).toEqual({
       style: DEFAULT_SHOWCASE_STYLE,

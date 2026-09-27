@@ -55,8 +55,8 @@ export interface Profile {
   /** Toggled by the agent themselves or their leader — used by the
    *  routing engine's round-robin rule to skip unavailable agents. */
   is_available?: boolean;
-  showcase_style?: ShowcaseStyle;
-  showcase_3d_enabled?: boolean;
+  showcase_style?: ShowcaseStyle | null;
+  showcase_3d_enabled?: boolean | null;
   created_at: string;
 }
 

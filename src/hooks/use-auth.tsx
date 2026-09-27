@@ -49,8 +49,8 @@ interface Profile {
    *  profile row. Narrowed by the locale provider, never trusted raw. */
   ui_languages: string[];
   active_ui_language: string | null;
-  showcase_style: ShowcaseStyle;
-  showcase_3d_enabled: boolean;
+  showcase_style: ShowcaseStyle | null;
+  showcase_3d_enabled: boolean | null;
 }
 
 interface AccountSummary {
@@ -253,8 +253,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // these; the locale provider narrows the defaults anyway.
               ui_languages: [],
               active_ui_language: null,
-              showcase_style: "gallery",
-              showcase_3d_enabled: true,
+              showcase_style: null,
+              showcase_3d_enabled: null,
             });
             setAccount(null);
           }
@@ -308,8 +308,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // sanitizeLanguageSet() turns that into ['en'].
           ui_languages: data.ui_languages ?? [],
           active_ui_language: data.active_ui_language ?? null,
-          showcase_style: data.showcase_style ?? "gallery",
-          showcase_3d_enabled: data.showcase_3d_enabled ?? true,
+          showcase_style: data.showcase_style ?? null,
+          showcase_3d_enabled: data.showcase_3d_enabled ?? null,
           account_id: data.account_id ?? null,
           account_role: accountRole,
           org_role: orgRole,

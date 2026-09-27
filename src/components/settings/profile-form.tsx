@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -37,7 +38,8 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import {
-  DEFAULT_SHOWCASE_STYLE,
+  AGENCY_SHOWCASE_DESIGNS,
+  resolveShowcasePresentation,
   type ShowcaseStyle,
 } from '@/lib/showcase/style';
 import { ShowcasePresentationControls } from '@/components/settings/showcase-presentation-controls';
@@ -68,18 +70,42 @@ export function ProfileForm() {
   const [saving, setSaving] = useState(false);
   const [emailChangePending, setEmailChangePending] = useState(false);
   const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
-  const [showcaseStyle, setShowcaseStyle] = useState<ShowcaseStyle>(
-    DEFAULT_SHOWCASE_STYLE
+  const [showcaseStyle, setShowcaseStyle] = useState<ShowcaseStyle | null>(
+    null
   );
-  const [showcase3dEnabled, setShowcase3dEnabled] = useState(true);
+  const [showcase3dEnabled, setShowcase3dEnabled] = useState<boolean | null>(
+    null
+  );
+  const accountId = profile?.account_id ?? null;
+  const { data: companyPresentation } = useQuery({
+    queryKey: ['showcase-company-presentation', accountId],
+    enabled: !!accountId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('showcase_settings')
+        .select('showcase_style, showcase_3d_enabled')
+        .eq('account_id', accountId as string)
+        .maybeSingle();
+      return resolveShowcasePresentation(data);
+    },
+  });
+  const companyStyle = companyPresentation?.style ?? null;
+  const followsCompany = showcaseStyle === null;
+  const effectiveStyle =
+    showcaseStyle ?? companyPresentation?.style ?? 'gallery';
+  const effective3d =
+    showcase3dEnabled ?? companyPresentation?.threeDimensional ?? true;
+  const companyStyleLabel =
+    AGENCY_SHOWCASE_DESIGNS.find((design) => design.value === companyStyle)
+      ?.label ?? companyStyle;
 
   // Seed form state once the profile loads.
   useEffect(() => {
     if (!profile) return;
     setFullName(profile.full_name ?? '');
     setEmail(profile.email ?? '');
-    setShowcaseStyle(profile.showcase_style ?? DEFAULT_SHOWCASE_STYLE);
-    setShowcase3dEnabled(profile.showcase_3d_enabled ?? true);
+    setShowcaseStyle(profile.showcase_style ?? null);
+    setShowcase3dEnabled(profile.showcase_3d_enabled ?? null);
   }, [profile]);
 
   // Cleanup object URLs to avoid leaks.
@@ -236,8 +262,8 @@ export function ProfileForm() {
       email.trim().toLowerCase() !== (profile.email ?? '').toLowerCase() ||
       pendingAvatar !== null ||
       removeAvatar ||
-      showcaseStyle !== (profile.showcase_style ?? DEFAULT_SHOWCASE_STYLE) ||
-      showcase3dEnabled !== (profile.showcase_3d_enabled ?? true));
+      showcaseStyle !== (profile.showcase_style ?? null) ||
+      showcase3dEnabled !== (profile.showcase_3d_enabled ?? null));
 
   const joined = user?.created_at
     ? new Date(user.created_at).toLocaleDateString(undefined, {
@@ -375,15 +401,43 @@ export function ProfileForm() {
             </p>
           </div>
 
-          <ShowcasePresentationControls
-            title="Personal showcase style"
-            description="Choose how properties appear on your personal agent showcase link."
-            value={showcaseStyle}
-            threeDimensional={showcase3dEnabled}
-            disabled={saving}
-            onValueChange={setShowcaseStyle}
-            onThreeDimensionalChange={setShowcase3dEnabled}
-          />
+          <div className="space-y-2">
+            <ShowcasePresentationControls
+              title="Personal showcase style"
+              description="Choose how properties appear on your personal agent showcase link."
+              value={effectiveStyle}
+              threeDimensional={effective3d}
+              disabled={saving}
+              onValueChange={(style) => {
+                setShowcaseStyle(style);
+                setShowcase3dEnabled((current) => current ?? effective3d);
+              }}
+              onThreeDimensionalChange={(enabled) => {
+                setShowcaseStyle((current) => current ?? effectiveStyle);
+                setShowcase3dEnabled(enabled);
+              }}
+            />
+            {followsCompany ? (
+              <p className="text-xs text-slate-500">
+                Following the company design
+                {companyStyleLabel ? ` (${companyStyleLabel})` : ''}. Pick a
+                design above to use your own.
+              </p>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={saving}
+                onClick={() => {
+                  setShowcaseStyle(null);
+                  setShowcase3dEnabled(null);
+                }}
+              >
+                Use the company design instead
+              </Button>
+            )}
+          </div>
 
           {/* Read-only block */}
           <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
