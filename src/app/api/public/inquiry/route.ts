@@ -5,6 +5,7 @@ import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
 import { findOrCreateContact } from "@/lib/contacts/find-or-create";
 import { attachIdentifiedSession } from "@/lib/pulse/visitor-identity";
 import { MAX_SHORTLIST_PROPERTIES, parseInquiryPropertyIds } from "@/lib/showcase/shortlist";
+import { resolveSellerPage } from "@/lib/showcase/seller-page";
 
 const INQUIRY_SESSION_LIMIT = { limit: 5, windowMs: 60_000 };
 const INQUIRY_ACCOUNT_LIMIT = { limit: 60, windowMs: 60_000 };
@@ -89,6 +90,9 @@ export async function POST(request: Request) {
     }
 
     const systemUserId = account.owner_user_id;
+    const sellerPage = body.sellerPage
+      ? await resolveSellerPage(admin, body.sellerPage, accountId)
+      : null;
     let shortlistProperties: Array<{ id: string; title: string; property_code: string | null; user_id: string }> = [];
     if (propertyIds) {
       if (account.status === 'archived') return NextResponse.json({ error: 'This showcase is unavailable.' }, { status: 400 });
@@ -120,7 +124,7 @@ export async function POST(request: Request) {
     if (shortlistProperties.length && shortlistProperties.every((property) => property.user_id === shortlistProperties[0].user_id)) {
       targetAgentUserId = shortlistProperties[0].user_id || systemUserId;
     }
-    let resolvedReferrerContactId = referrerContactId || null;
+    let resolvedReferrerContactId = sellerPage?.contactId || referrerContactId || null;
 
     if (propertyId && !isShortlist) {
       const { data: propData } = await admin

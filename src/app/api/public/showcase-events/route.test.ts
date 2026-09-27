@@ -276,3 +276,64 @@ describe('showcase-events beacon — personalized link attribution', () => {
     expect(updates).toEqual([]);
   });
 });
+
+describe('showcase-events beacon — seller page attribution', () => {
+  const SELLER = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+
+  it('[SLP-005] credits a guest on a seller page to that seller and flags the open', async () => {
+    queues.contacts = [
+      { data: { id: SELLER, account_id: ACCOUNT }, error: null },
+    ];
+
+    const res = await POST(
+      beacon({
+        seller_page: 'bcdfghjkmn',
+        events: [{ type: 'open' }, { type: 'view_property' }],
+      })
+    );
+
+    expect(res.status).toBe(204);
+    const rows = insertedEvents();
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.via_contact_id === SELLER)).toBe(true);
+    expect(rows[0].metadata).toEqual({ seller_page: true });
+    expect(rows[1].metadata).toEqual({});
+  });
+
+  it('keeps an identified visitor as themselves rather than a guest of the seller', async () => {
+    const VISITOR = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    identity = { data: [{ contact_id: VISITOR, via_contact_id: null }] };
+    queues.contacts = [
+      { data: { id: SELLER, account_id: ACCOUNT }, error: null },
+    ];
+
+    await POST(beacon({ seller_page: 'bcdfghjkmn', ref: VISITOR }));
+
+    expect(insertedEvents()[0]).toMatchObject({
+      contact_id: VISITOR,
+      via_contact_id: null,
+    });
+  });
+
+  it('drops a slug that does not resolve within the account', async () => {
+    queues.contacts = [{ data: null, error: null }];
+
+    await POST(beacon({ seller_page: 'bcdfghjkmn' }));
+
+    expect(insertedEvents()[0]).toMatchObject({
+      via_contact_id: null,
+      metadata: {},
+    });
+  });
+
+  it('never looks up a malformed slug', async () => {
+    queues.contacts = [
+      { data: { id: SELLER, account_id: ACCOUNT }, error: null },
+    ];
+
+    await POST(beacon({ seller_page: "x' or 1=1" }));
+
+    expect(insertedEvents()[0].via_contact_id).toBeNull();
+    expect(queues.contacts).toHaveLength(1);
+  });
+});

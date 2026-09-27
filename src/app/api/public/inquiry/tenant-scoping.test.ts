@@ -238,3 +238,49 @@ describe('showcase shortlist enquiries', () => {
     expect(inserts.todos[0].user_id).toBe(OWNER_USER);
   });
 });
+
+describe('seller page enquiries', () => {
+  beforeEach(() => {
+    fixtures.contacts = [
+      { id: 'seller-1', account_id: VICTIM, seller_page_slug: 'bcdfghjkmn' },
+      {
+        id: 'seller-foreign',
+        account_id: 'acc-other',
+        seller_page_slug: 'pqrstvwxyz',
+      },
+    ];
+  });
+
+  function referrerOfLastContact() {
+    const call = findOrCreateContact.mock.calls.at(-1) as unknown as [
+      unknown,
+      { referrerContactId: string | null },
+    ];
+    return call[1].referrerContactId;
+  }
+
+  it('[SLP-005] records the seller as the referrer ahead of the listing agent', async () => {
+    expect(
+      (
+        await post({
+          accountId: VICTIM,
+          phone: '9900277111',
+          propertyId: 'own-prop',
+          referrerContactId: 'agent-contact',
+          sellerPage: 'bcdfghjkmn',
+        })
+      ).status
+    ).toBe(200);
+    expect(referrerOfLastContact()).toBe('seller-1');
+  });
+
+  it("ignores another account's seller slug", async () => {
+    await post({
+      accountId: VICTIM,
+      phone: '9900277111',
+      referrerContactId: 'agent-contact',
+      sellerPage: 'pqrstvwxyz',
+    });
+    expect(referrerOfLastContact()).toBe('agent-contact');
+  });
+});
