@@ -58,6 +58,7 @@ import type {
 } from '@/types';
 import { captureJourneyItems } from '@/lib/journey/capture';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
+import { removeJourneyItems } from '@/lib/journey/remove';
 import { JourneyCanvas } from './journey-canvas';
 import { JourneyItemSheet } from './journey-item-sheet';
 import { AddItemsDialog } from './add-items-dialog';
@@ -481,23 +482,25 @@ export function JourneySection({
 
   const handleRemove = useCallback(
     async (item: JourneyItem) => {
-      const { data: removed, error } = await supabase
-        .from('journey_items')
-        .delete()
-        .eq('id', item.id)
-        .select('id');
-      if (error) {
-        toast.error(`Failed to remove: ${error.message}`);
-        return;
-      }
-      if (!removed?.length) {
-        toast.error('Nothing was removed — reload and try again.');
+      try {
+        const result = await removeJourneyItems({ itemIds: [item.id] });
+        if (result.failedDeals.length > 0) {
+          toast.error(
+            'The branch was removed but its deal could not be deleted — delete it from the Board.'
+          );
+        } else if (result.deals > 0) {
+          toast.success('Branch and its deal removed');
+        }
+      } catch (err) {
+        toast.error(
+          `Failed to remove: ${err instanceof Error ? err.message : String(err)}`
+        );
         return;
       }
       setSelectedItem(null);
       await refresh();
     },
-    [supabase, refresh]
+    [refresh]
   );
 
   const handlePlan = useCallback(

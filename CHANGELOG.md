@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 27 September 2026
 
+- **Removing a journey branch removes its deal.** Remove a branch from
+  the Journey, or a whole journey from the overview, on web or mobile,
+  and any deal opened from it is deleted from the Board and Records the
+  same way as from the Board itself: its documents are removed from
+  storage and the property is released. The overview now asks before
+  removing a journey and says the deals go with it. Neither surface
+  deletes journey branches directly any more; both go through
+  `POST /api/journey/remove`.
 - **Enquiries on an unavailable listing get an honest, kind answer.** A
   buyer who enquires on WhatsApp about a listing that is Under Contract, Off
   Market, Archived or Sold now hears an apology and its status instead of

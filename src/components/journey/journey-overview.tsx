@@ -53,6 +53,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { useAuth } from '@/hooks/use-auth';
@@ -66,6 +74,7 @@ import {
 import { dealsHref } from '@/lib/deals/routes';
 import { replaceUrl } from '@/lib/navigation';
 import { readStored, writeStored } from '@/lib/safe-storage';
+import { removeJourneyItems } from '@/lib/journey/remove';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import type {
@@ -234,6 +243,7 @@ export function JourneyOverview({
   const [newJourneyOpen, setNewJourneyOpen] = useState(false);
   const [fullscreenId, setFullscreenId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -650,20 +660,28 @@ export function JourneyOverview({
 
   const deleteJourney = async (group: JourneyGroup) => {
     if (!accountId) return;
-    const { data: removed, error } = await supabase
-      .from('journey_items')
-      .delete()
-      .eq('account_id', accountId)
-      .eq(mode === 'buyer' ? 'contact_id' : 'property_id', group.subjectId)
-      .select('id');
-    if (error || !removed?.length) {
+    let result: Awaited<ReturnType<typeof removeJourneyItems>>;
+    try {
+      result = await removeJourneyItems({ mode, subjectId: group.subjectId });
+    } catch (err) {
       toast.error(
-        error ? `Failed to remove: ${error.message}` : 'Nothing was removed'
+        `Failed to remove: ${err instanceof Error ? err.message : String(err)}`
       );
       return;
     }
+    setRemovingId(null);
     setHidden(group.subjectId, false);
-    toast.success(`${titleOf(group, mode)}'s journey removed`);
+    if (result.failedDeals.length > 0) {
+      toast.error(
+        `${titleOf(group, mode)}'s journey removed, but ${result.failedDeals.length} deal(s) could not be deleted — delete them from the Board.`
+      );
+    } else {
+      toast.success(
+        result.deals > 0
+          ? `${titleOf(group, mode)}'s journey and ${result.deals} deal${result.deals === 1 ? '' : 's'} removed`
+          : `${titleOf(group, mode)}'s journey removed`
+      );
+    }
     await loadGroups();
   };
 
@@ -671,6 +689,7 @@ export function JourneyOverview({
     (group) => group.subjectId === fullscreenId
   );
   const closingGroup = groups.find((group) => group.subjectId === closingId);
+  const removingGroup = groups.find((group) => group.subjectId === removingId);
 
   useEffect(() => {
     if (!fullscreenGroup) return;
@@ -847,7 +866,7 @@ export function JourneyOverview({
                 {canEdit && (
                   <button
                     type="button"
-                    onClick={() => deleteJourney(group)}
+                    onClick={() => setRemovingId(group.subjectId)}
                     aria-label={`Remove ${titleOf(group, mode)}'s journey`}
                     className="flex h-full items-center border-l border-slate-800 px-1.5 py-1 text-slate-500 hover:bg-red-500/10 hover:text-red-400"
                   >
@@ -954,6 +973,39 @@ export function JourneyOverview({
         open={newJourneyOpen}
         onOpenChange={setNewJourneyOpen}
       />
+      <Dialog
+        open={Boolean(removingGroup)}
+        onOpenChange={(open) => {
+          if (!open) setRemovingId(null);
+        }}
+      >
+        <DialogContent className="border-slate-800 bg-slate-950 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Remove {removingGroup ? titleOf(removingGroup, mode) : 'this'}
+              &apos;s journey?
+            </DialogTitle>
+            <DialogDescription>
+              Every branch and its history is deleted, and any deal opened from
+              a branch is deleted from the Board and Records with its documents.
+              This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRemovingId(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-red-600 text-white hover:bg-red-500"
+              onClick={() => {
+                if (removingGroup) void deleteJourney(removingGroup);
+              }}
+            >
+              Remove journey and deals
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <CloseJourneyDialog
         open={Boolean(closingGroup)}
         journeyName={closingGroup ? titleOf(closingGroup, mode) : 'this buyer'}
