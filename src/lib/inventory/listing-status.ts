@@ -1,3 +1,5 @@
+import { leadFirstName } from '@/lib/contacts/lead-placeholder';
+
 /**
  * Which listings the proactive senders are still allowed to talk about.
  *
@@ -85,6 +87,39 @@ export function appendListingStatusNote(
   const entry = unavailablePhrase(status);
   if (!entry) return text;
   return `${text}\n\nPlease note: this property is ${entry.phrase}. Our team will check the latest status with the owner and update you here.`;
+}
+
+const ENQUIRY_STATUS_PHRASES: Record<string, string> = {
+  'Under Contract': 'currently under contract with another buyer',
+  'Off Market': 'off the market for now',
+  Archived: 'not actively listed at the moment',
+  Rejected: 'not actively listed at the moment',
+};
+
+export const UNAVAILABLE_LISTING_AGENT_NOTE =
+  'The buyer was told the listing is not available and asked for their requirements and budget — follow up with matching options.';
+
+export function unavailableListingReply(
+  contactName: string | null | undefined,
+  propertyTitle: string | null | undefined,
+  status: string | null | undefined
+): string | null {
+  const value = (status ?? '').trim();
+  if (!value || value === 'Available' || value === 'Pending Review')
+    return null;
+  const first = leadFirstName(contactName);
+  const greeting = first ? `Hi ${first}, thank you` : 'Hi, thank you';
+  const subject = propertyTitle?.trim()
+    ? `*${propertyTitle.trim()}*`
+    : 'this property';
+  const nudge =
+    "Please share your requirements and budget, and I'll send you the best matching options.";
+  if (value === 'Sold') {
+    return `${greeting} for your interest in ${subject}. I'm sorry — this property has already been sold. I'd be glad to find you something similar. ${nudge}`;
+  }
+  const phrase =
+    ENQUIRY_STATUS_PHRASES[value] ?? `marked ${value.toLowerCase()} right now`;
+  return `${greeting} for your interest in ${subject}. I'm sorry — this property is ${phrase}. If it becomes available again, we'll come back and update you right here. Meanwhile, ${nudge.charAt(0).toLowerCase()}${nudge.slice(1)}`;
 }
 
 export function listingStatusAgentLine(

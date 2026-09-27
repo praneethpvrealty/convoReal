@@ -403,6 +403,28 @@ describe('the webhook wires the card up', () => {
     expect(source).toContain('enquiryPropertyStatus = matchedProperty.status');
   });
 
+  it('[PRP-014] answers an enquiry on an unavailable listing with its status and a requirements nudge instead of its details', () => {
+    expect(source).toMatch(
+      /unavailableListingReply\(\s*contactRecord\.name,\s*enquiryPropertyTitle,\s*enquiryPropertyStatus\s*\)\s*\?\?\s*appendListingStatusNote\(\s*buildEnquiryAckText/
+    );
+    expect(source).toMatch(
+      /unavailableReply\s*\?\s*Promise\.resolve\(false\)\s*:\s*handlePropertyShareYesReply\(/
+    );
+    expect(source).toContain('UNAVAILABLE_LISTING_AGENT_NOTE');
+  });
+
+  it('[PRP-014] never sends details or photos of an unavailable listing from an Approve or Photos tap', () => {
+    const handler = source.slice(
+      source.indexOf('async function handleEnquiryCardReply(')
+    );
+    const guard = handler.indexOf('if (unavailableReply) {');
+    expect(handler).toContain(".select('title, status')");
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(handler.indexOf('sendSubjectPhotos('));
+    expect(guard).toBeLessThan(handler.indexOf('handlePropertyShareYesReply('));
+    expect(handler).toContain(".eq('content_text', unavailableReply)");
+  });
+
   it('[PRP-014] routes a title-only enquiry about an unavailable listing through the card', () => {
     expect(source).toMatch(
       /enquiryIsDeliberate = await isDeliberateEnquiry\(\s*resolution\.matchedBy,\s*matchedProperty,\s*\(\) =>\s*listingAlreadyDiscussed\(/

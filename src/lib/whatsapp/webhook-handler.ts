@@ -187,6 +187,8 @@ import { isLocationGuarded } from '@/lib/inventory/location-guard';
 import {
   appendListingStatusNote,
   listingStatusAgentLine,
+  UNAVAILABLE_LISTING_AGENT_NOTE,
+  unavailableListingReply,
 } from '@/lib/inventory/listing-status';
 import {
   CONSENT_APPROVE_PREFIX,
@@ -2040,6 +2042,11 @@ async function handleInboundChain(
       const ownerContactRequested = requestsHumanContact(contentText);
       const actionRequested = visitRequested || ownerContactRequested;
       const statusAgentLine = listingStatusAgentLine(enquiryPropertyStatus);
+      const unavailableReply = unavailableListingReply(
+        contactRecord.name,
+        enquiryPropertyTitle,
+        enquiryPropertyStatus
+      );
       await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
@@ -2048,26 +2055,30 @@ async function handleInboundChain(
         toPhone: senderPhone,
         kind: 'text',
         senderType: 'bot',
-        text: appendListingStatusNote(
-          buildPropertyInterestAck(
-            contactRecord.name,
-            enquiryPropertyTitle,
-            statusAgentLine ? {} : { visitRequested, ownerContactRequested }
+        text:
+          unavailableReply ??
+          appendListingStatusNote(
+            buildPropertyInterestAck(
+              contactRecord.name,
+              enquiryPropertyTitle,
+              statusAgentLine ? {} : { visitRequested, ownerContactRequested }
+            ),
+            enquiryPropertyStatus
           ),
-          enquiryPropertyStatus
-        ),
       });
 
       const [shareSent] = await Promise.all([
-        handlePropertyShareYesReply(
-          enquiryPropertyId,
-          accountId,
-          configOwnerUserId,
-          contactRecord.id,
-          conversation.id,
-          senderPhone,
-          { followUp: actionRequested ? 'none' : 'questions' }
-        ),
+        unavailableReply
+          ? Promise.resolve(false)
+          : handlePropertyShareYesReply(
+              enquiryPropertyId,
+              accountId,
+              configOwnerUserId,
+              contactRecord.id,
+              conversation.id,
+              senderPhone,
+              { followUp: actionRequested ? 'none' : 'questions' }
+            ),
         admin.from('contact_property_inquiries').upsert(
           {
             account_id: accountId,
@@ -2107,7 +2118,9 @@ async function handleInboundChain(
           : `${contactRecord.name || senderPhone} wants ${enquiryPropertyTitle}`,
         body: [
           statusAgentLine,
-          shareSent
+          unavailableReply
+            ? UNAVAILABLE_LISTING_AGENT_NOTE
+            : shareSent
             ? actionRequested
               ? [
                   visitRequested ? 'Site visit requested.' : '',
@@ -2134,7 +2147,9 @@ async function handleInboundChain(
           '',
           (contentText || '').slice(0, 300),
           '',
-          shareSent
+          unavailableReply
+            ? UNAVAILABLE_LISTING_AGENT_NOTE
+            : shareSent
             ? actionRequested
               ? 'The listing details have already been sent. Please coordinate the visit / owner conversation now.'
               : 'The listing details have already been sent.'
@@ -2251,10 +2266,16 @@ async function handleInboundChain(
       conversationId: conversation.id,
       kind: 'text',
       senderType: 'bot',
-      text: appendListingStatusNote(
-        buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle),
-        enquiryPropertyStatus
-      ),
+      text:
+        unavailableListingReply(
+          contactRecord.name,
+          enquiryPropertyTitle,
+          enquiryPropertyStatus
+        ) ??
+        appendListingStatusNote(
+          buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle),
+          enquiryPropertyStatus
+        ),
     });
     return;
   }
@@ -4399,7 +4420,7 @@ async function handleEnquiryCardReply(
 
   const { data: propertyRow } = await admin
     .from('properties')
-    .select('title')
+    .select('title, status')
     .eq('id', action.propertyId)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -4461,6 +4482,38 @@ async function handleEnquiryCardReply(
     columns: 'id',
   });
   if (!conversation) return false;
+
+  const unavailableReply = unavailableListingReply(
+    lead.name,
+    propertyRow?.title,
+    propertyRow?.status
+  );
+  if (unavailableReply) {
+    const { data: alreadyTold } = await admin
+      .from('messages')
+      .select('id')
+      .eq('conversation_id', conversation.id)
+      .eq('content_text', unavailableReply)
+      .neq('status', 'failed')
+      .limit(1)
+      .maybeSingle();
+    if (!alreadyTold) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: action.contactId,
+        conversationId: conversation.id,
+        toPhone: lead.phone as string,
+        kind: 'text',
+        senderType: 'bot',
+        text: unavailableReply,
+      });
+    }
+    await confirmToAgent(
+      `⚠️ Not sent — ${propertyLabel} is marked "${propertyRow?.status}". ${lead.name || lead.phone} was told it is not available and asked for their requirements and budget.`
+    );
+    return true;
+  }
 
   if (action.action === 'photos') {
     const sent = await sendSubjectPhotos({
