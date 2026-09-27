@@ -164,9 +164,13 @@ describe('dedupeAudience', () => {
     expect(source).toMatch(
       /status === 'Available' &&\s*\(await dealsStillHoldListing\(db, accountId, propertyId\)\)/
     );
-    expect(source).toContain('if (won.error || open.error) return true;');
-    expect(source).toContain(".not('stage.name', 'ilike', '*lost*')");
-    expect(source).toContain("{ referencedTable: 'stage' }");
+    expect(source).toContain('if (error || !data) return true;');
+    expect(source).toContain(".not('open.stage.name', 'ilike', '*lost*')");
+    expect(source).toContain("{ referencedTable: 'open.stage' }");
+    expect(source).toContain(
+      "'id, won:deals(id), open:deals(id, stage:pipeline_stages!inner(name))'"
+    );
+    expect(source).not.toMatch(/const \[won, open\] = await Promise\.all/);
     expect(source).not.toMatch(/stage_id\.in\./);
   });
 

@@ -183,31 +183,28 @@ async function dealsStillHoldListing(
   accountId: string,
   propertyId: string
 ): Promise<boolean> {
-  const [won, open] = await Promise.all([
-    db
-      .from('deals')
-      .select('id')
-      .eq('account_id', accountId)
-      .eq('property_id', propertyId)
-      .eq('status', 'won')
-      .limit(1),
-    db
-      .from('deals')
-      .select('id, stage:pipeline_stages!inner(name)')
-      .eq('account_id', accountId)
-      .eq('property_id', propertyId)
-      .eq('status', 'open')
-      .not('stage.name', 'ilike', '*lost*')
-      .or(
-        HOLDING_STAGE_KEYWORDS.map((word) => `name.ilike."*${word}*"`).join(
-          ','
-        ),
-        { referencedTable: 'stage' }
-      )
-      .limit(1),
-  ]);
-  if (won.error || open.error) return true;
-  return (won.data ?? []).length > 0 || (open.data ?? []).length > 0;
+  const { data, error } = await db
+    .from('properties')
+    .select(
+      'id, won:deals(id), open:deals(id, stage:pipeline_stages!inner(name))'
+    )
+    .eq('account_id', accountId)
+    .eq('id', propertyId)
+    .eq('won.account_id', accountId)
+    .eq('won.status', 'won')
+    .limit(1, { referencedTable: 'won' })
+    .eq('open.account_id', accountId)
+    .eq('open.status', 'open')
+    .not('open.stage.name', 'ilike', '*lost*')
+    .or(
+      HOLDING_STAGE_KEYWORDS.map((word) => `name.ilike."*${word}*"`).join(','),
+      { referencedTable: 'open.stage' }
+    )
+    .limit(1, { referencedTable: 'open' })
+    .maybeSingle();
+  if (error || !data) return true;
+  const row = data as { won: unknown[] | null; open: unknown[] | null };
+  return (row.won ?? []).length > 0 || (row.open ?? []).length > 0;
 }
 
 async function listingStillHasStatus(
