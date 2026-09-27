@@ -135,12 +135,19 @@ export async function closePropertyEnquiry(args: {
       to_stage_id: row.stage_id,
       reason,
     });
-    const { data: deals } = await db
+    const { data: deals, error: dealsError } = await db
       .from('deals')
       .select('property_id')
       .eq('account_id', accountId)
       .eq('source_journey_item_id', row.id)
       .not('property_id', 'is', null);
+    if (dealsError) {
+      console.error(
+        '[enquiry-review] Deals of a closed branch could not be read; its listing was not re-synced:',
+        row.id,
+        dealsError.message
+      );
+    }
     const propertyIds = new Set(
       ((deals ?? []) as { property_id: string | null }[])
         .map((deal) => deal.property_id)

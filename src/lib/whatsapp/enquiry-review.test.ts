@@ -194,6 +194,40 @@ describe('closePropertyEnquiry', () => {
     );
   });
 
+  it('[PRP-014] reports a failed deal lookup on a closed branch instead of treating it as no deals', async () => {
+    setListingStatusFromDeal.mockClear();
+    const { db } = stubDb({
+      journey_items: [{ id: 'item-1', stage_id: 'stage-a' }],
+    });
+    const from = (db as { from: (t: string) => Record<string, unknown> }).from;
+    (db as { from: unknown }).from = (table: string) => {
+      const chain = from(table);
+      if (table === 'deals') {
+        chain.then = (resolve: (v: unknown) => unknown) =>
+          Promise.resolve(
+            resolve({ data: null, error: { message: 'timeout' } })
+          );
+      }
+      return chain;
+    };
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await closePropertyEnquiry({
+      db,
+      accountId: 'acct-1',
+      contact: { id: 'c1', name: 'Vasudha Rao' },
+      property: { id: P1, title: 'Renovated 4BHK Villa', property_code: null },
+    });
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('its listing was not re-synced'),
+      'item-1',
+      'timeout'
+    );
+    expect(setListingStatusFromDeal).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it('[INB-010] rejects the listing, drops its journey branch and notes it, leaving the contact alone', async () => {
     const { db, calls } = stubDb({
       journey_items: [{ id: 'item-1', stage_id: 'stage-a' }],
