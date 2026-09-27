@@ -932,6 +932,12 @@ export interface JourneyOverviewGroup {
   property_location?: string | null;
 }
 
+export interface JourneyOverviewEnquiry {
+  subject_id: string;
+  enquiry_count: number;
+  last_enquired_at: string | null;
+}
+
 export type BroadcastStatus =
   'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
 export type RecipientStatus =

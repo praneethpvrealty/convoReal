@@ -15,6 +15,7 @@
 import type {
   Contact,
   ContactRequirementProfile,
+  JourneyOverviewEnquiry,
   JourneyOverviewGroup,
   Property,
 } from '@shared/types';
@@ -22,6 +23,7 @@ import type {
 export type {
   Contact,
   ContactRequirementProfile,
+  JourneyOverviewEnquiry,
   JourneyOverviewGroup,
   Property,
 };

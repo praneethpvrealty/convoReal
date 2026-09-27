@@ -733,6 +733,31 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(webSection).toContain('more at other stages');
   });
 
+  it('[JRN-012] orders journeys by the same enquiry totals on web and mobile', () => {
+    const helpers = mobileSource('lib/journey-overview.ts');
+    const webShared = webSource('components/journey/shared.ts');
+    const webOverview = webSource('components/journey/journey-overview.tsx');
+    for (const source of [helpers, webShared]) {
+      expect(source).toContain("enquiries: 'Most enquired'");
+      expect(source).toContain("enquired: 'Recently enquired'");
+      expect(source).toContain(
+        "export const DEFAULT_JOURNEY_SORT: JourneySort = 'enquiries';"
+      );
+      expect(source).toContain(
+        'enquiries: [byEnquiries, byEnquired, byRecent, byStage]'
+      );
+      expect(source).toContain(
+        'enquired: [byEnquired, byEnquiries, byRecent, byStage]'
+      );
+    }
+    for (const source of [screen, webOverview]) {
+      expect(source).toContain("rpc('journey_overview_enquiries'");
+      expect(source).toContain("canDrag={sort === 'manual'}");
+    }
+    expect(screen).toContain('return sortJourneys(summaries, sort);');
+    expect(screen).toContain('{canEdit && canDrag ? (');
+  });
+
   it('[JRN-004] offers every stage while retaining the complete note history', () => {
     expect(screen).toContain('Journey stage notes');
     expect(screen).toContain('stages.map((stage)');

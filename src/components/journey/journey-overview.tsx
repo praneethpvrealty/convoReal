@@ -79,6 +79,7 @@ import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import type {
   Contact,
+  JourneyOverviewEnquiry,
   JourneyOverviewGroup,
   JourneyStage,
   Property,
@@ -87,6 +88,7 @@ import { CloseJourneyDialog } from './close-journey-dialog';
 import { JourneySection } from './journey-section';
 import { NewJourneyDialog } from './new-journey-dialog';
 import {
+  DEFAULT_JOURNEY_SORT,
   JOURNEY_PRIORITY_META,
   JOURNEY_PRIORITY_ORDER,
   JOURNEY_SORT_LABELS,
@@ -111,6 +113,8 @@ interface JourneyGroup {
   furthestStageIdx: number;
   lostStageId: string | null;
   lastUpdated: string;
+  enquiryCount: number;
+  lastEnquiredAt: string | null;
   priority: JourneyPriority | null;
   lifecycleStatus: JourneyLifecycleStatus;
   closureReason: string | null;
@@ -143,11 +147,11 @@ function writeIdSet(key: string, ids: Set<string>) {
 }
 
 function readSort(key: string): JourneySort {
-  if (typeof window === 'undefined') return 'manual';
+  if (typeof window === 'undefined') return DEFAULT_JOURNEY_SORT;
   const stored = readStored(key);
-  return stored === 'priority' || stored === 'recent' || stored === 'stage'
-    ? stored
-    : 'manual';
+  return stored && stored in JOURNEY_SORT_LABELS
+    ? (stored as JourneySort)
+    : DEFAULT_JOURNEY_SORT;
 }
 
 function titleOf(group: JourneyGroup, mode: JourneyMode) {
@@ -294,19 +298,25 @@ export function JourneyOverview({
     let summariesResult;
     let prioritiesResult;
     let statesResponse;
+    let enquiriesResult;
     try {
-      [summariesResult, prioritiesResult, statesResponse] = await Promise.all([
-        supabase.rpc('journey_overview_groups', {
-          p_account_id: accountId,
-          p_mode: mode,
-        }),
-        supabase
-          .from('journey_priorities')
-          .select('subject_id, priority')
-          .eq('account_id', accountId)
-          .eq('mode', mode),
-        fetch(`/api/journey/overview?mode=${mode}`),
-      ]);
+      [summariesResult, prioritiesResult, statesResponse, enquiriesResult] =
+        await Promise.all([
+          supabase.rpc('journey_overview_groups', {
+            p_account_id: accountId,
+            p_mode: mode,
+          }),
+          supabase
+            .from('journey_priorities')
+            .select('subject_id, priority')
+            .eq('account_id', accountId)
+            .eq('mode', mode),
+          fetch(`/api/journey/overview?mode=${mode}`),
+          supabase.rpc('journey_overview_enquiries', {
+            p_account_id: accountId,
+            p_mode: mode,
+          }),
+        ]);
     } catch (error) {
       toast.error(
         `Failed to load journeys: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -342,6 +352,12 @@ export function JourneyOverview({
     const states = new Map(
       (statePayload?.data ?? []).map((row) => [row.subject_id, row])
     );
+    const enquiries = new Map(
+      ((enquiriesResult.data ?? []) as JourneyOverviewEnquiry[]).map((row) => [
+        row.subject_id,
+        row,
+      ])
+    );
     const summaries = (summariesResult.data ?? []) as JourneyOverviewGroup[];
     setGroups(
       summaries.map((row) => {
@@ -374,6 +390,11 @@ export function JourneyOverview({
           ),
           lostStageId: row.lost_stage_id ?? null,
           lastUpdated: row.last_updated,
+          enquiryCount: Number(
+            enquiries.get(row.subject_id)?.enquiry_count ?? 0
+          ),
+          lastEnquiredAt:
+            enquiries.get(row.subject_id)?.last_enquired_at ?? null,
           priority: priorities.get(row.subject_id) ?? null,
           lifecycleStatus: state?.lifecycle_status ?? 'active',
           closureReason: state?.closure_reason ?? null,

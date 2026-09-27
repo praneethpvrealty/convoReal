@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { JourneyItem, JourneyStage } from '@/types';
 import {
+  DEFAULT_JOURNEY_SORT,
+  JOURNEY_SORT_LABELS,
   focusBuckets,
   journeyRaceLabel,
   planEtaLabel,
@@ -270,8 +272,17 @@ describe('sortJourneys', () => {
     id: string,
     priority: JourneyPriority | null,
     furthestStageIdx: number,
-    lastUpdated: string
-  ) => ({ id, priority, furthestStageIdx, lastUpdated });
+    lastUpdated: string,
+    enquiryCount = 0,
+    lastEnquiredAt: string | null = null
+  ) => ({
+    id,
+    priority,
+    furthestStageIdx,
+    lastUpdated,
+    enquiryCount,
+    lastEnquiredAt,
+  });
 
   const input = [
     j('unrated-far', null, 5, '2026-01-05'),
@@ -315,6 +326,42 @@ describe('sortJourneys', () => {
       'low',
       'unrated-far',
     ]);
+  });
+
+  it('[JRN-012] leads with the most enquired journey and breaks ties by the latest enquiry', () => {
+    const enquired = [
+      j('once-old', null, 0, '2026-01-09', 1, '2026-01-01'),
+      j('none-fresh', 'high', 4, '2026-01-10'),
+      j('thrice', null, 0, '2026-01-01', 3, '2026-01-02'),
+      j('once-new', null, 0, '2026-01-02', 1, '2026-01-05'),
+    ];
+    expect(sortJourneys(enquired, 'enquiries').map((x) => x.id)).toEqual([
+      'thrice',
+      'once-new',
+      'once-old',
+      'none-fresh',
+    ]);
+  });
+
+  it('[JRN-012] leads with the latest enquiry and breaks ties by enquiry count', () => {
+    const enquired = [
+      j('none-fresh', 'high', 4, '2026-01-10'),
+      j('twice-old', null, 0, '2026-01-01', 2, '2026-01-02'),
+      j('once-new', null, 0, '2026-01-01', 1, '2026-01-05'),
+      j('thrice-new', null, 0, '2026-01-01', 3, '2026-01-05'),
+    ];
+    expect(sortJourneys(enquired, 'enquired').map((x) => x.id)).toEqual([
+      'thrice-new',
+      'once-new',
+      'twice-old',
+      'none-fresh',
+    ]);
+  });
+
+  it('[JRN-012] defaults to the most enquired order', () => {
+    expect(DEFAULT_JOURNEY_SORT).toBe('enquiries');
+    expect(JOURNEY_SORT_LABELS.enquiries).toBe('Most enquired');
+    expect(JOURNEY_SORT_LABELS.enquired).toBe('Recently enquired');
   });
 
   it('does not mutate the input array', () => {
