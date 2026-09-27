@@ -31,9 +31,11 @@ than a written entry. Newest first.
   reopening or deleting a deal on the pipeline puts its listing back to
   Available, and that now tells everyone who enquired about it or was sent
   it, just as editing the listing's status does. Before, only an edit on the
-  listing itself sent the update. A listing with another deal still under
-  contract or won keeps that status instead of reverting to Available, and
-  no status update goes to anyone who closed their enquiry on the listing.
+  listing itself sent the update. Closing or reopening a journey now keeps
+  the listings of its deals in step too. A listing always takes the strongest
+  status its open and won deals hold, so one deal can no longer release or
+  overwrite a listing another deal holds, and no status update goes to anyone
+  who closed their enquiry on the listing.
 - **Enquiries on an unavailable listing get an honest, kind answer.** A
   buyer who enquires on WhatsApp about a listing that is Under Contract, Off
   Market, Archived or Sold now hears an apology and its status instead of

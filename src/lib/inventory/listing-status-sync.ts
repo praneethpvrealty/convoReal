@@ -20,6 +20,17 @@ type HeldDeal = {
   stage: { name?: string | null } | { name?: string | null }[] | null;
 };
 
+const DEAL_STATUS_RANK: Record<string, number> = {
+  Available: 0,
+  'Under Contract': 1,
+  Sold: 2,
+};
+
+function stronger(a: string, b: string | null): string {
+  if (!b) return a;
+  return (DEAL_STATUS_RANK[b] ?? 0) > (DEAL_STATUS_RANK[a] ?? 0) ? b : a;
+}
+
 export function statusHeldByDeals(deals: readonly HeldDeal[]): string | null {
   let held: string | null = null;
   for (const deal of deals) {
@@ -39,22 +50,33 @@ export async function setListingStatusFromDeal(
   propertyId: string,
   status: string
 ): Promise<boolean> {
-  const { data: before } = await db
-    .from('properties')
-    .select('status')
-    .eq('id', propertyId)
-    .eq('account_id', accountId)
-    .maybeSingle();
-  let target = status;
-  if (status === 'Available') {
-    const { data: deals } = await db
-      .from('deals')
-      .select('status, stage:pipeline_stages(name)')
-      .eq('account_id', accountId)
-      .eq('property_id', propertyId)
-      .in('status', ['open', 'won']);
-    target = statusHeldByDeals((deals ?? []) as HeldDeal[]) ?? status;
+  const [{ data: before }, { data: deals, error: dealsError }] =
+    await Promise.all([
+      db
+        .from('properties')
+        .select('status')
+        .eq('id', propertyId)
+        .eq('account_id', accountId)
+        .maybeSingle(),
+      db
+        .from('deals')
+        .select('status, stage:pipeline_stages(name)')
+        .eq('account_id', accountId)
+        .eq('property_id', propertyId)
+        .in('status', ['open', 'won']),
+    ]);
+  if (dealsError) {
+    console.error(
+      '[listing-status-sync] Deals holding the listing could not be read:',
+      dealsError.message
+    );
+    return false;
   }
+
+  const target = stronger(
+    status,
+    statusHeldByDeals((deals ?? []) as HeldDeal[])
+  );
   const { data: synced } = await db
     .from('properties')
     .update({ status: target })
@@ -81,4 +103,33 @@ export async function setListingStatusFromDeal(
     );
   }
   return true;
+}
+
+export async function listingsWithJourneyDeals(
+  db: SupabaseClient,
+  accountId: string,
+  mode: 'buyer' | 'property',
+  subjectId: string
+): Promise<string[]> {
+  const { data: items } = await db
+    .from('journey_items')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq(mode === 'buyer' ? 'contact_id' : 'property_id', subjectId)
+    .limit(200);
+  const itemIds = ((items ?? []) as { id: string }[]).map((row) => row.id);
+  if (itemIds.length === 0) return [];
+  const { data: deals } = await db
+    .from('deals')
+    .select('property_id')
+    .eq('account_id', accountId)
+    .in('source_journey_item_id', itemIds)
+    .not('property_id', 'is', null);
+  return [
+    ...new Set(
+      ((deals ?? []) as { property_id: string | null }[])
+        .map((row) => row.property_id)
+        .filter((id): id is string => !!id)
+    ),
+  ];
 }

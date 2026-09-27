@@ -25,7 +25,8 @@ const notify = vi.mocked(notifyBuyersOfPropertyStatus);
 function fakeDb(
   previous: string | null,
   updated = true,
-  deals: Array<{ status: string; stage: { name: string } | null }> = []
+  deals: Array<{ status: string; stage: { name: string } | null }> = [],
+  dealsError: { message: string } | null = null
 ) {
   const filters: Array<[string, unknown]> = [];
   const writes: unknown[] = [];
@@ -45,10 +46,12 @@ function fakeDb(
       Promise.resolve({
         data: previous === null ? null : { status: previous },
       }),
-    then: (resolve: (v: { data: unknown }) => unknown) =>
-      Promise.resolve({
-        data: table === 'deals' ? deals : updated ? [{ id: 'p1' }] : [],
-      }).then(resolve),
+    then: (resolve: (v: { data: unknown; error?: unknown }) => unknown) =>
+      Promise.resolve(
+        table === 'deals'
+          ? { data: dealsError ? null : deals, error: dealsError }
+          : { data: updated ? [{ id: 'p1' }] : [] }
+      ).then(resolve),
   };
   return {
     db: {
@@ -118,6 +121,26 @@ describe('setListingStatusFromDeal', () => {
     expect(scheduled).toHaveLength(0);
   });
 
+  it('never lets a deal move overwrite a listing another deal has won', async () => {
+    const { db, writes } = fakeDb('Sold', true, [
+      { status: 'won', stage: { name: 'Registered' } },
+      { status: 'open', stage: { name: 'Negotiation' } },
+    ]);
+    await setListingStatusFromDeal(db, 'acc-1', 'p1', 'Under Contract');
+    expect(writes).toEqual([{ status: 'Sold' }]);
+  });
+
+  it('[PRP-014] writes nothing and tells nobody when the holding deals cannot be read', async () => {
+    const { db, writes } = fakeDb('Under Contract', true, [], {
+      message: 'timeout',
+    });
+    expect(await setListingStatusFromDeal(db, 'acc-1', 'p1', 'Available')).toBe(
+      false
+    );
+    expect(writes).toEqual([]);
+    expect(scheduled).toHaveLength(0);
+  });
+
   it('reports a listing the update did not reach, and notifies nobody', async () => {
     expect(
       await setListingStatusFromDeal(
@@ -146,5 +169,24 @@ describe('statusHeldByDeals', () => {
         { status: 'won', stage: null },
       ])
     ).toBe('Sold');
+  });
+});
+
+describe('journey close and reopen', () => {
+  it('[PRP-014] re-syncs every listing with a deal on the journey after its deals are closed or restored', async () => {
+    const { readFileSync } = await import('node:fs');
+    const route = readFileSync(
+      new URL('../../app/api/journey/overview/route.ts', import.meta.url),
+      'utf8'
+    );
+    expect(route).toContain(
+      "if (mutation.action === 'close' || mutation.action === 'reopen') {"
+    );
+    expect(route).toMatch(
+      /listingsWithJourneyDeals\(\s*supabase,\s*accountId,\s*mutation\.mode,\s*mutation\.subjectId\s*\)/
+    );
+    expect(route).toMatch(
+      /setListingStatusFromDeal\(\s*supabase,\s*accountId,\s*propertyId,\s*'Available'\s*\)/
+    );
   });
 });
