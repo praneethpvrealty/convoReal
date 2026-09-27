@@ -38,16 +38,18 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Client-facing template reminders, then the three agent-facing
-    // passes: pre-event brief, morning digest, overdue nudge.
-    await checkAndSendAppointmentReminders()
-    await sendAgentEventReminders()
-    await sendDailyScheduleDigests()
-    await sendOverdueNudges()
-    await sendDueTodoReminders()
-    await deliverDeferredNotifications()
-    await deliverRealtimeBuyerAlertsForConnectedAccounts(supabaseAdmin())
-    await sendPortalExpiryReminders()
+    // Independent reminder/notification sweeps — none reads another's
+    // result, so they run concurrently rather than one after another.
+    await Promise.all([
+      checkAndSendAppointmentReminders(),
+      sendAgentEventReminders(),
+      sendDailyScheduleDigests(),
+      sendOverdueNudges(),
+      sendDueTodoReminders(),
+      deliverDeferredNotifications(),
+      deliverRealtimeBuyerAlertsForConnectedAccounts(supabaseAdmin()),
+      sendPortalExpiryReminders(),
+    ])
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[Appointments Cron] Check failed:', error)
