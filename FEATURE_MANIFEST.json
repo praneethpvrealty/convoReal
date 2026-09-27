@@ -1101,7 +1101,7 @@
         },
         {
           "id": "PRP-014",
-          "rule": "A public showcase listing whose status is not Available (Under Contract, Sold, Off Market, Archived, Rejected, Pending Review) tells the enquirer so in the detail view and on its card, prefills the WhatsApp inquiry with a request for the latest status, and never offers the listing Q&A; a WhatsApp enquiry that names such a published listing by its property code, as a direct property enquiry, or by its exact title when the buyer was not already discussing it, is answered with an apology and its status instead of its details — never promised a site visit or owner call — and asked for their requirements and budget, with a promise to update them if it becomes available again unless it is Sold; a portal email lead matched to such a listing gets the same reply, or, when the 24-hour window is closed, the approved listing availability notice (which names the status, apologises, promises an update if it becomes available again and asks for requirements and budget) — falling back to the listing status notice when that is not approved, and always using the status notice for a Sold listing; the availability notice is never picked when Meta filed it as Marketing; a listing a deal move, deal close or deal deletion returns to Available tells its enquirers it is available again, as an edit on the listing does; the agent is alerted with the listing's status, and an enquiry card's Approve or Photos tap on such a listing sends that reply (once) instead of its details or photos. Pending Review listings keep the plain status note. Available listings show none of this.",
+          "rule": "A public showcase listing whose status is not Available (Under Contract, Sold, Off Market, Archived, Rejected, Pending Review) tells the enquirer so in the detail view and on its card, prefills the WhatsApp inquiry with a request for the latest status, and never offers the listing Q&A; a WhatsApp enquiry that names such a published listing by its property code, as a direct property enquiry, or by its exact title when the buyer was not already discussing it, is answered with an apology and its status instead of its details — never promised a site visit or owner call — and asked for their requirements and budget, with a promise to update them if it becomes available again unless it is Sold; a portal email lead matched to such a listing gets the same reply, or, when the 24-hour window is closed, the approved listing availability notice (which names the status, apologises, promises an update if it becomes available again and asks for requirements and budget) — falling back to the listing status notice when that is not approved, and always using the status notice for a Sold listing; the availability notice is never picked when Meta filed it as Marketing; a listing a deal move, deal close or deal deletion returns to Available tells its enquirers it is available again, as an edit on the listing does, but a listing another open or won deal still holds keeps that deal's status and tells nobody; no status update reaches a contact who closed or rejected their enquiry on that listing; the agent is alerted with the listing's status, and an enquiry card's Approve or Photos tap on such a listing sends that reply (once) instead of its details or photos. Pending Review listings keep the plain status note. Available listings show none of this.",
           "tests": [
             {
               "file": "src/lib/inventory/listing-status.test.ts",
@@ -1129,6 +1129,10 @@
             },
             {
               "file": "src/lib/inventory/listing-status-sync.test.ts",
+              "case": "[PRP-014]"
+            },
+            {
+              "file": "src/lib/whatsapp/sold-notification.test.ts",
               "case": "[PRP-014]"
             }
           ]

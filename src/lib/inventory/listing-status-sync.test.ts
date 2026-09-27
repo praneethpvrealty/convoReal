@@ -17,15 +17,26 @@ import { notifyBuyersOfPropertyStatus } from '@/lib/whatsapp/sold-notification';
 import {
   listingReopened,
   setListingStatusFromDeal,
+  statusHeldByDeals,
 } from './listing-status-sync';
 
 const notify = vi.mocked(notifyBuyersOfPropertyStatus);
 
-function fakeDb(previous: string | null, updated = true) {
+function fakeDb(
+  previous: string | null,
+  updated = true,
+  deals: Array<{ status: string; stage: { name: string } | null }> = []
+) {
   const filters: Array<[string, unknown]> = [];
+  const writes: unknown[] = [];
+  let table = '';
   const builder = {
     select: () => builder,
-    update: () => builder,
+    in: () => builder,
+    update: (payload: unknown) => {
+      writes.push(payload);
+      return builder;
+    },
     eq: (column: string, value: unknown) => {
       filters.push([column, value]);
       return builder;
@@ -35,11 +46,19 @@ function fakeDb(previous: string | null, updated = true) {
         data: previous === null ? null : { status: previous },
       }),
     then: (resolve: (v: { data: unknown }) => unknown) =>
-      Promise.resolve({ data: updated ? [{ id: 'p1' }] : [] }).then(resolve),
+      Promise.resolve({
+        data: table === 'deals' ? deals : updated ? [{ id: 'p1' }] : [],
+      }).then(resolve),
   };
   return {
-    db: { from: () => builder } as unknown as SupabaseClient,
+    db: {
+      from: (name: string) => {
+        table = name;
+        return builder;
+      },
+    } as unknown as SupabaseClient,
     filters,
+    writes,
   };
 }
 
@@ -88,6 +107,17 @@ describe('setListingStatusFromDeal', () => {
     expect(scheduled).toHaveLength(0);
   });
 
+  it('[PRP-014] keeps a listing another deal still holds, and tells nobody it is available', async () => {
+    const { db, writes } = fakeDb('Under Contract', true, [
+      { status: 'open', stage: { name: 'Negotiation' } },
+    ]);
+    expect(await setListingStatusFromDeal(db, 'acc-1', 'p1', 'Available')).toBe(
+      true
+    );
+    expect(writes).toEqual([{ status: 'Under Contract' }]);
+    expect(scheduled).toHaveLength(0);
+  });
+
   it('reports a listing the update did not reach, and notifies nobody', async () => {
     expect(
       await setListingStatusFromDeal(
@@ -98,5 +128,23 @@ describe('setListingStatusFromDeal', () => {
       )
     ).toBe(false);
     expect(scheduled).toHaveLength(0);
+  });
+});
+
+describe('statusHeldByDeals', () => {
+  it('returns the strongest status the remaining deals hold', () => {
+    expect(statusHeldByDeals([])).toBeNull();
+    expect(
+      statusHeldByDeals([{ status: 'open', stage: { name: 'New Lead' } }])
+    ).toBeNull();
+    expect(
+      statusHeldByDeals([{ status: 'open', stage: [{ name: 'Token Paid' }] }])
+    ).toBe('Under Contract');
+    expect(
+      statusHeldByDeals([
+        { status: 'open', stage: { name: 'Negotiation' } },
+        { status: 'won', stage: null },
+      ])
+    ).toBe('Sold');
   });
 });

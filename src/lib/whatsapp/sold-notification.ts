@@ -100,9 +100,10 @@ export function buildSoldPriceReply(
  *  duplicates and the property's own owner. */
 export function dedupeAudience(
   lists: string[][],
-  excludeContactId?: string | null
+  excludeContactId?: string | null,
+  closedEnquiries: ReadonlySet<string> = new Set()
 ): string[] {
-  const seen = new Set<string>();
+  const seen = new Set<string>(closedEnquiries);
   const audience: string[] = [];
   for (const list of lists) {
     for (const id of list) {
@@ -263,7 +264,7 @@ export async function notifyBuyersOfPropertyStatus(
 
   if (!property) return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
 
-  const [interestedRes, inquiriesRes, sharesRes] = await Promise.all([
+  const [interestedRes, inquiriesRes, sharesRes, rejectedRes] = await Promise.all([
     db
       .from('contacts')
       .select('id')
@@ -279,7 +280,18 @@ export async function notifyBuyersOfPropertyStatus(
       .select('contact_id')
       .eq('account_id', accountId)
       .eq('property_id', propertyId),
+    db
+      .from('listing_feedback')
+      .select('contact_id')
+      .eq('account_id', accountId)
+      .eq('property_id', propertyId)
+      .eq('verdict', 'rejected'),
   ]);
+  const closedEnquiries = new Set(
+    ((rejectedRes.data ?? []) as { contact_id: string }[]).map(
+      (r) => r.contact_id
+    )
+  );
 
   const audience = dedupeAudience(
     [
@@ -287,7 +299,8 @@ export async function notifyBuyersOfPropertyStatus(
       ((inquiriesRes.data ?? []) as { contact_id: string }[]).map((r) => r.contact_id),
       ((sharesRes.data ?? []) as { contact_id: string }[]).map((r) => r.contact_id),
     ],
-    property.owner_contact_id as string | null
+    property.owner_contact_id as string | null,
+    closedEnquiries
   );
 
   if (audience.length === 0) return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };

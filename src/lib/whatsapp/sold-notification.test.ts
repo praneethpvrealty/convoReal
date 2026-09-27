@@ -74,6 +74,24 @@ describe('dedupeAudience', () => {
     expect(audience).toEqual(['a', 'b', 'c', 'd']);
   });
 
+  it('[PRP-014] leaves out contacts who closed their enquiry on the listing', () => {
+    expect(
+      dedupeAudience([['a', 'b'], ['b', 'c']], null, new Set(['b']))
+    ).toEqual(['a', 'c']);
+  });
+
+  it('[PRP-014] builds the audience without anyone who rejected the listing', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(
+      new URL('./sold-notification.ts', import.meta.url),
+      'utf8'
+    );
+    expect(source).toMatch(
+      /\.from\('listing_feedback'\)[\s\S]{0,200}\.eq\('verdict', 'rejected'\)/
+    );
+    expect(source).toContain('property.owner_contact_id as string | null,\n    closedEnquiries');
+  });
+
   it('handles empty sources and null owner', () => {
     expect(dedupeAudience([[], []], null)).toEqual([]);
     expect(dedupeAudience([['a']], null)).toEqual(['a']);

@@ -2754,7 +2754,7 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
       webSource('lib/inventory/listing-status-sync.ts').match(
         /\.eq\('account_id', accountId\)/g
       )?.length
-    ).toBe(2);
+    ).toBe(3);
     expect(sameAccount).toContain(
       "PERFORM pg_advisory_xact_lock(hashtext('ensure_default_pipeline'), hashtext(p_account_id::text));"
     );
