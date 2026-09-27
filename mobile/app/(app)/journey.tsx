@@ -33,6 +33,7 @@ import {
 import {
   ApiError,
   addJourneyStageNote,
+  loadJourneyEnquiries,
   loadJourneyOverview,
   logPersonalWhatsAppJourneySend,
   removeJourneyItems,
@@ -69,11 +70,6 @@ import {
 import { openContactChat } from '@/lib/open-chat';
 import { contactPropertyShareUrl } from '@/lib/showcase-share';
 import { supabase } from '@/lib/supabase';
-import {
-  JOURNEY_ENQUIRY_SELECT,
-  journeyEnquiryEntries,
-  type JourneyEnquiryRow,
-} from '@shared/lib/journey/enquiries';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type {
   JourneyItem,
@@ -319,21 +315,8 @@ export function JourneyBody() {
       enquiryGroup?.subjectId,
     ],
     enabled: Boolean(accountId && enquiryGroup),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('contact_property_inquiries')
-        .select(JOURNEY_ENQUIRY_SELECT)
-        .eq('account_id', accountId!)
-        .eq(
-          mode === 'buyer' ? 'contact_id' : 'property_id',
-          enquiryGroup!.subjectId
-        );
-      if (error) throw error;
-      return journeyEnquiryEntries(
-        (data ?? []) as unknown as JourneyEnquiryRow[],
-        mode
-      );
-    },
+    queryFn: async () =>
+      (await loadJourneyEnquiries(mode, enquiryGroup!.subjectId)).data,
   });
 
   const capturedQuery = useQuery({

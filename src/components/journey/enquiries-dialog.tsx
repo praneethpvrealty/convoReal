@@ -12,12 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
-import {
-  JOURNEY_ENQUIRY_SELECT,
-  journeyEnquiryEntries,
-  type JourneyEnquiryRow,
-} from '@/lib/journey/enquiries';
-import { createClient } from '@/lib/supabase/client';
+import type { JourneyEnquiryEntry } from '@/lib/journey/enquiries';
 import type { JourneyMode } from './shared';
 
 interface EnquiriesDialogProps {
@@ -38,16 +33,15 @@ export function EnquiriesDialog({
     queryKey: ['journey-subject-enquiries', accountId, mode, subjectId],
     enabled: Boolean(accountId && subjectId),
     queryFn: async () => {
-      const { data, error } = await createClient()
-        .from('contact_property_inquiries')
-        .select(JOURNEY_ENQUIRY_SELECT)
-        .eq('account_id', accountId!)
-        .eq(mode === 'buyer' ? 'contact_id' : 'property_id', subjectId!);
-      if (error) throw error;
-      return journeyEnquiryEntries(
-        (data ?? []) as unknown as JourneyEnquiryRow[],
-        mode
+      const res = await fetch(
+        `/api/journey/enquiries?mode=${mode}&subjectId=${subjectId}`
       );
+      const body = (await res.json().catch(() => null)) as {
+        data?: JourneyEnquiryEntry[];
+        error?: string;
+      } | null;
+      if (!res.ok) throw new Error(body?.error ?? 'Request failed');
+      return body?.data ?? [];
     },
   });
   const entries = enquiriesQuery.data ?? [];

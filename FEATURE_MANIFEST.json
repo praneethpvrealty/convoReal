@@ -1494,13 +1494,18 @@
               "case": "[JRN-012]"
             },
             {
+              "file": "src/app/api/journey/enquiries/route.test.ts",
+              "case": "[JRN-012]"
+            },
+            {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[JRN-012]"
             }
           ],
           "guards": [
             "supabase/migrations/20260927090000_journey_overview_enquiries.sql",
-            "src/lib/journey/enquiries.ts"
+            "src/lib/journey/enquiries.ts",
+            "src/app/api/journey/enquiries/route.ts"
           ]
         }
       ]
