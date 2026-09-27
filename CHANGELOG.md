@@ -24,10 +24,13 @@ than a written entry. Newest first.
   live branches (a won branch survives completion) and marks their deals
   lost on the Board, so a search the agent has closed stops counting as
   open anywhere. Reopening reactivates exactly the branches the close
-  dropped and restores their deals. Pausing and archiving change nothing.
-  Deleting a deal drops its branch with "Deal deleted" on record instead
-  of leaving it live at Negotiation offering the deal again. **Migration
-  required:** `20260927030000_journey_close_and_deal_delete_sync.sql`.
+  dropped and restores their deals, and a branch that comes back to life
+  (its card moved off Lost on the Board, or reactivated on the Journey)
+  reopens a closed journey the same way. Pausing and archiving change
+  nothing. Deleting a deal drops its branch with "Deal deleted" on record
+  instead of leaving it live at Negotiation offering the deal again.
+  **Migration required:**
+  `20260927030000_journey_close_and_deal_delete_sync.sql`.
 
 #### 26 September 2026
 

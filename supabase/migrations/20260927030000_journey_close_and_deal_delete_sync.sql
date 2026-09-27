@@ -115,6 +115,19 @@ BEGIN
             WHEN 'buyer' THEN ji.contact_id = p_subject_id
             ELSE ji.property_id = p_subject_id
           END
+      AND EXISTS (
+        SELECT 1
+        FROM (
+          SELECT e.metadata
+          FROM journey_events e
+          WHERE e.item_id = ji.id AND e.event_type = 'dropped'
+          ORDER BY e.created_at DESC, e.id DESC
+          LIMIT 1
+        ) last_drop
+        WHERE (last_drop.metadata ->> 'journey_closed') = 'true'
+          AND (last_drop.metadata ->> 'mode') = p_mode
+          AND (last_drop.metadata ->> 'subject_id') = p_subject_id::text
+      )
     RETURNING ji.id AS item_id, ji.stage_id
   ),
   logged AS (
@@ -141,6 +154,13 @@ BEGIN
   RETURN v_count;
 END;
 $$;
+
+-- Trigger-only: both helpers run as the definer and take a tenant id,
+-- so no client role may call them over RPC.
+REVOKE EXECUTE ON FUNCTION journey_close_branches(UUID, TEXT, UUID, TEXT, BOOLEAN, UUID)
+  FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION journey_reopen_branches(UUID, TEXT, UUID, UUID)
+  FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION journey_overview_state_sync()
 RETURNS TRIGGER
@@ -223,3 +243,165 @@ DROP TRIGGER IF EXISTS journey_drop_on_deal_delete_trigger ON deals;
 CREATE TRIGGER journey_drop_on_deal_delete_trigger
   AFTER DELETE ON deals
   FOR EACH ROW EXECUTE FUNCTION journey_drop_on_deal_delete();
+
+-- A branch that comes back to life — its deal moved off Lost on the
+-- Board, or the branch reactivated on the Journey — reopens an
+-- overview that was closed as completed or not proceeding; that reopen
+-- restores the rest of what the close dropped through the trigger
+-- above. Otherwise the Board and the branch would be open while the
+-- Journey overview still hid them as closed.
+CREATE OR REPLACE FUNCTION journey_reopen_overview_for_item(
+  p_account_id UUID,
+  p_item_id UUID,
+  p_actor UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_contact UUID;
+  v_property UUID;
+BEGIN
+  SELECT contact_id, property_id INTO v_contact, v_property
+  FROM journey_items WHERE id = p_item_id AND account_id = p_account_id;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+  UPDATE journey_overview_states
+  SET lifecycle_status = 'active',
+      closure_reason = NULL,
+      closed_at = NULL,
+      updated_by = COALESCE(p_actor, updated_by)
+  WHERE account_id = p_account_id
+    AND lifecycle_status IN ('completed', 'not_proceeding')
+    AND ((mode = 'buyer' AND subject_id = v_contact)
+         OR (mode = 'property' AND subject_id = v_property));
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION journey_reopen_overview_for_item(UUID, UUID, UUID)
+  FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION sync_journey_item_stage_from_deal()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_js UUID;
+  v_from UUID;
+  v_from_status TEXT;
+  v_status TEXT;
+BEGIN
+  IF pg_trigger_depth() > 1 OR NEW.source_journey_item_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+  SELECT stage_id, status INTO v_from, v_from_status FROM journey_items
+    WHERE id = NEW.source_journey_item_id AND account_id = NEW.account_id;
+  IF NOT FOUND THEN
+    RETURN NEW;
+  END IF;
+  SELECT id INTO v_js FROM journey_stages
+    WHERE pipeline_stage_id = NEW.stage_id AND account_id = NEW.account_id;
+  IF v_js IS NULL THEN
+    v_js := v_from;
+  END IF;
+  v_status := CASE WHEN NEW.status = 'lost' THEN 'dropped' ELSE 'active' END;
+
+  IF v_from IS DISTINCT FROM v_js OR v_from_status IS DISTINCT FROM v_status THEN
+    UPDATE journey_items
+      SET stage_id = v_js,
+          status = v_status,
+          drop_reason = CASE WHEN v_status = 'dropped'
+                             THEN COALESCE(drop_reason, 'Deal marked lost')
+                             ELSE NULL END,
+          dropped_at = CASE WHEN v_status = 'dropped'
+                            THEN COALESCE(dropped_at, NOW())
+                            ELSE NULL END,
+          planned_stage_id = NULL,
+          planned_at = NULL
+      WHERE id = NEW.source_journey_item_id AND account_id = NEW.account_id;
+    INSERT INTO journey_events (account_id, item_id, event_type, from_stage_id, to_stage_id, created_by, metadata)
+      VALUES (
+        NEW.account_id,
+        NEW.source_journey_item_id,
+        CASE
+          WHEN v_status = 'dropped' AND v_from_status IS DISTINCT FROM 'dropped' THEN 'dropped'
+          WHEN v_status = 'active' AND v_from_status = 'dropped' THEN 'reactivated'
+          ELSE 'moved'
+        END,
+        v_from,
+        v_js,
+        auth.uid(),
+        jsonb_build_object('synced_from_deal', NEW.id, 'deal_status', NEW.status)
+      );
+    IF v_status = 'active' AND v_from_status = 'dropped' THEN
+      PERFORM journey_reopen_overview_for_item(NEW.account_id, NEW.source_journey_item_id, auth.uid());
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION sync_deal_stage_from_journey_item()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_ps UUID;
+  v_kind TEXT;
+  v_pipeline UUID;
+  v_lost_ps UUID;
+  v_status TEXT;
+BEGIN
+  IF pg_trigger_depth() > 1 THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.status = 'active' AND OLD.status = 'dropped' THEN
+    PERFORM journey_reopen_overview_for_item(NEW.account_id, NEW.id, auth.uid());
+  END IF;
+  SELECT js.pipeline_stage_id, js.stage_kind, ps.pipeline_id
+    INTO v_ps, v_kind, v_pipeline
+    FROM journey_stages js
+    JOIN pipeline_stages ps ON ps.id = js.pipeline_stage_id
+    WHERE js.id = NEW.stage_id;
+  IF v_ps IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.status = 'dropped' THEN
+    SELECT ps.id INTO v_lost_ps
+      FROM pipeline_stages ps
+      JOIN journey_stages js ON js.pipeline_stage_id = ps.id
+      WHERE ps.pipeline_id = v_pipeline
+        AND js.account_id = NEW.account_id
+        AND js.stage_kind = 'lost'
+      ORDER BY ps.position
+      LIMIT 1;
+    UPDATE deals
+      SET stage_id = COALESCE(v_lost_ps, stage_id),
+          status = 'lost'
+      WHERE source_journey_item_id = NEW.id
+        AND account_id = NEW.account_id
+        AND pipeline_id = v_pipeline
+        AND (status IS DISTINCT FROM 'lost'
+             OR stage_id IS DISTINCT FROM COALESCE(v_lost_ps, stage_id));
+    RETURN NEW;
+  END IF;
+
+  v_status := CASE v_kind WHEN 'won' THEN 'won' WHEN 'lost' THEN 'lost' ELSE 'open' END;
+  UPDATE deals
+    SET stage_id = v_ps,
+        status = v_status
+    WHERE source_journey_item_id = NEW.id
+      AND account_id = NEW.account_id
+      AND pipeline_id = v_pipeline
+      AND (stage_id IS DISTINCT FROM v_ps OR status IS DISTINCT FROM v_status);
+  RETURN NEW;
+END;
+$$;
