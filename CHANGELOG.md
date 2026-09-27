@@ -19,6 +19,18 @@ than a written entry. Newest first.
 
 #### 27 September 2026
 
+- **New agents start on the company showcase design.** A member's
+  personal showcase link used to open on Gallery until they picked
+  something, whatever the company had chosen. A personal design is now
+  optional: until an agent picks one, their link shows the company's
+  design and 3D setting, and the personal picker says so and offers
+  "Use the company design instead" to go back — on web (Settings →
+  Profile) and on mobile (More → Edit profile), which gains the personal
+  design picker. Agents who already picked a design keep it. **Migration
+  required:** `20260927094500_profile_showcase_inherits_company.sql`
+  drops the Gallery default so new members start unset, and clears a
+  member's personal design whenever they move to another account, so
+  someone accepting an invite follows their new company's design.
 - **Seller pages: one link with all of a seller's live listings.** From a
   contact record on web or mobile, an agent can turn on a seller page at
   `/seller/<link>` on the agency's showcase. It shows only that seller's

@@ -1,16 +1,77 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
-import { Banner, PrimaryButton, TextField } from '@/components/ui';
+import {
+  Banner,
+  PrimaryButton,
+  SectionLabel,
+  TextField,
+} from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
+import {
+  FOLLOW_COMPANY,
+  PERSONAL_SHOWCASE_DESIGNS,
+  followsCompanyDesign,
+  isAgencyDesign,
+  personalShowcaseChanged,
+  pickPersonalDesign,
+  resolveShowcasePresentation,
+  setPersonalThreeDimensional,
+  toPersonalShowcase,
+  type PersonalShowcase,
+  type ShowcaseStyle,
+} from '@/lib/personal-showcase';
+import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 
 /** Web parity: PATCH /api/account rejects names longer than 80 chars. */
 const MAX_ACCOUNT_NAME_LEN = 80;
 const MAX_FULL_NAME_LEN = 120;
+
+const CLASSIC_DESIGN_ICONS: Partial<
+  Record<ShowcaseStyle, keyof typeof Ionicons.glyphMap>
+> = {
+  spotlight: 'sparkles-outline',
+  editorial: 'book-outline',
+  gallery: 'grid-outline',
+  signature: 'person-outline',
+};
+
+interface ShowcaseDesignData {
+  personal: PersonalShowcase;
+  company: {
+    showcase_style: unknown;
+    showcase_3d_enabled: boolean | null;
+  } | null;
+}
+
+async function fetchShowcaseDesign(
+  userId: string,
+  accountId: string
+): Promise<ShowcaseDesignData> {
+  const [personal, company] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('showcase_style, showcase_3d_enabled')
+      .eq('user_id', userId)
+      .maybeSingle(),
+    supabase
+      .from('showcase_settings')
+      .select('showcase_style, showcase_3d_enabled')
+      .eq('account_id', accountId)
+      .maybeSingle(),
+  ]);
+  if (personal.error) throw personal.error;
+  return {
+    personal: toPersonalShowcase(personal.data),
+    company: company.data ?? null,
+  };
+}
 
 export function ProfileEditSheet({
   visible,
@@ -32,10 +93,32 @@ export function ProfileEditSheet({
   const [savedAccountName, setSavedAccountName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editedShowcase, setEditedShowcase] = useState<PersonalShowcase | null>(
+    null
+  );
+
+  const userId = session?.user.id;
+  const accountId = profile?.account_id;
+  const showcaseQuery = useQuery({
+    queryKey: ['personal-showcase-design', userId, accountId],
+    queryFn: () => fetchShowcaseDesign(userId as string, accountId as string),
+    enabled: visible && Boolean(userId && accountId),
+  });
+  const savedShowcase = showcaseQuery.data?.personal ?? null;
+  const showcase = editedShowcase ?? savedShowcase;
+  const company = resolveShowcasePresentation(showcaseQuery.data?.company);
+  const effective = resolveShowcasePresentation(showcaseQuery.data?.company, {
+    showcase_style: showcase?.style,
+    showcase_3d_enabled: showcase?.threeDimensional,
+  });
+  const companyLabel = PERSONAL_SHOWCASE_DESIGNS.find(
+    (design) => design.value === company.style
+  )?.label;
 
   useEffect(() => {
     if (!visible) return;
     setError(null);
+    setEditedShowcase(null);
     setFullName(profile?.full_name ?? '');
     if (!canRenameAccount) return;
     let cancelled = false;
@@ -52,7 +135,6 @@ export function ProfileEditSheet({
   }, [visible, profile?.full_name, canRenameAccount]);
 
   const save = async () => {
-    const userId = session?.user.id;
     if (!userId || !profile) return;
 
     const nextName = fullName.trim();
@@ -62,24 +144,46 @@ export function ProfileEditSheet({
     }
     const nextAccountName = accountName.trim();
     const renameAccount =
-      canRenameAccount && savedAccountName !== null && nextAccountName !== savedAccountName;
+      canRenameAccount &&
+      savedAccountName !== null &&
+      nextAccountName !== savedAccountName;
     if (renameAccount && !nextAccountName) {
       setError('Workspace name cannot be empty.');
       return;
     }
 
+    const renamed = nextName !== (profile.full_name ?? '');
+    const showcaseChanged =
+      savedShowcase !== null &&
+      editedShowcase !== null &&
+      personalShowcaseChanged(savedShowcase, editedShowcase);
+
     setSaving(true);
     setError(null);
     try {
-      if (nextName !== (profile.full_name ?? '')) {
+      if (renamed || showcaseChanged) {
         const { data: saved, error: updateError } = await supabase
           .from('profiles')
-          .update({ full_name: nextName })
+          .update({
+            ...(renamed ? { full_name: nextName } : {}),
+            ...(showcaseChanged && editedShowcase
+              ? {
+                  showcase_style: editedShowcase.style,
+                  showcase_3d_enabled: editedShowcase.threeDimensional,
+                }
+              : {}),
+          })
           .eq('user_id', userId)
           .select('user_id');
         if (updateError) throw new Error(updateError.message);
-        if (!saved?.length) throw new Error('Your profile could not be updated.');
-        setProfile({ ...profile, full_name: nextName });
+        if (!saved?.length)
+          throw new Error('Your profile could not be updated.');
+        if (renamed) setProfile({ ...profile, full_name: nextName });
+        if (showcaseChanged) {
+          await queryClient.invalidateQueries({
+            queryKey: ['personal-showcase-design', userId, accountId],
+          });
+        }
       }
       if (renameAccount) {
         await apiFetch('/api/account', {
@@ -105,7 +209,11 @@ export function ProfileEditSheet({
       <ScrollView
         style={sheetScrollArea}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.lg, paddingTop: spacing.sm }}
+        contentContainerStyle={{
+          paddingHorizontal: spacing.lg,
+          gap: spacing.lg,
+          paddingTop: spacing.sm,
+        }}
       >
         {error ? <Banner kind="error" text={error} /> : null}
         <TextField
@@ -125,13 +233,175 @@ export function ProfileEditSheet({
               icon="business-outline"
               value={accountName}
               onChangeText={setAccountName}
-              placeholder={savedAccountName === null ? 'Loading…' : 'Workspace name'}
+              placeholder={
+                savedAccountName === null ? 'Loading…' : 'Workspace name'
+              }
               maxLength={MAX_ACCOUNT_NAME_LEN}
               editable={!saving && savedAccountName !== null}
             />
-            <Text style={{ fontSize: 12, lineHeight: 17, color: colors.textFaint }}>
+            <Text
+              style={{ fontSize: 12, lineHeight: 17, color: colors.textFaint }}
+            >
               The workspace name is shared with your whole team.
             </Text>
+          </View>
+        ) : null}
+        {showcase ? (
+          <View style={{ gap: spacing.sm }}>
+            <SectionLabel text="Personal showcase design" />
+            <Text
+              style={{ fontSize: 12, lineHeight: 17, color: colors.textFaint }}
+            >
+              Choose how properties appear on your personal agent showcase link.
+            </Text>
+            {PERSONAL_SHOWCASE_DESIGNS.map((design) => {
+              const selected = effective.style === design.value;
+              const icon = CLASSIC_DESIGN_ICONS[design.value];
+              return (
+                <Pressable
+                  key={design.value}
+                  accessibilityRole="radio"
+                  accessibilityLabel={design.label}
+                  accessibilityState={{ checked: selected, disabled: saving }}
+                  disabled={saving}
+                  onPress={() =>
+                    setEditedShowcase(
+                      pickPersonalDesign(
+                        showcase,
+                        design.value,
+                        effective.threeDimensional
+                      )
+                    )
+                  }
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: 12,
+                    borderWidth: 1,
+                    borderRadius: radius.md,
+                    borderColor: selected ? colors.primary : colors.glassBorder,
+                    backgroundColor: colors.glass,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 8,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor:
+                        design.swatch?.background ?? colors.primarySoft,
+                    }}
+                  >
+                    {design.swatch ? (
+                      <View
+                        style={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: 5,
+                          backgroundColor: design.swatch.accent,
+                        }}
+                      />
+                    ) : icon ? (
+                      <Ionicons name={icon} size={18} color={colors.primary} />
+                    ) : null}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontWeight: '700' }}>
+                      {design.label}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        lineHeight: 17,
+                        color: colors.textMuted,
+                      }}
+                    >
+                      {design.detail}
+                    </Text>
+                  </View>
+                  {selected ? (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={colors.primary}
+                    />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+            {!isAgencyDesign(effective.style) ? (
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityLabel="3D property transitions"
+                accessibilityState={{
+                  checked: effective.threeDimensional,
+                  disabled: saving,
+                }}
+                disabled={saving}
+                onPress={() =>
+                  setEditedShowcase(
+                    setPersonalThreeDimensional(
+                      showcase,
+                      !effective.threeDimensional,
+                      effective.style
+                    )
+                  )
+                }
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: 12,
+                  borderWidth: 1,
+                  borderRadius: radius.md,
+                  borderColor: effective.threeDimensional
+                    ? colors.primary
+                    : colors.glassBorder,
+                  backgroundColor: colors.glass,
+                }}
+              >
+                <Ionicons
+                  name="cube-outline"
+                  size={18}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{ flex: 1, color: colors.text, fontWeight: '600' }}
+                >
+                  3D property transitions
+                </Text>
+                <Text style={{ color: colors.textMuted }}>
+                  {effective.threeDimensional ? 'On' : 'Off'}
+                </Text>
+              </Pressable>
+            ) : null}
+            {followsCompanyDesign(showcase) ? (
+              <Text
+                style={{
+                  fontSize: 12,
+                  lineHeight: 17,
+                  color: colors.textFaint,
+                }}
+              >
+                Following the company design
+                {companyLabel ? ` (${companyLabel})` : ''}. Pick a design above
+                to use your own.
+              </Text>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                disabled={saving}
+                onPress={() => setEditedShowcase(FOLLOW_COMPANY)}
+                style={{ paddingVertical: spacing.sm }}
+              >
+                <Text style={{ color: colors.primary, fontWeight: '600' }}>
+                  Use the company design instead
+                </Text>
+              </Pressable>
+            )}
           </View>
         ) : null}
         <PrimaryButton label="Save changes" onPress={save} busy={saving} />
