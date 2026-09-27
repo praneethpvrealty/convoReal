@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DenSellerPageCard } from '@/components/den-seller-page-card';
 import { EmptyState, FilterChip, Tag } from '@/components/ui';
 import { fetchDenBids, fetchDenDashboard, fetchDenMe } from '@/lib/den-api';
 import { storagePublicUrl } from '@/lib/storage-url';
@@ -98,6 +99,11 @@ export default function DenHomeScreen() {
           </Pressable>
         </Link>
       </View>
+
+      <DenSellerPageCard
+        pages={me.data?.seller_pages ?? []}
+        hasProperties={(me.data?.property_count ?? 0) > 0}
+      />
 
       {/* Offers entry */}
       <Link href="/(den)/den/bids" asChild>

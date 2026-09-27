@@ -2,10 +2,14 @@
 
 import { NextResponse } from "next/server";
 
-import { withDenAuth, resolveOwnerPropertyIds } from "@/lib/den/auth";
+import { withDenAuth, resolveOwnerPropertyIds, denAdmin } from "@/lib/den/auth";
+import { denSellerPages } from "@/lib/den/seller-pages";
 
 export const GET = withDenAuth(async (ctx) => {
-  const propertyIds = await resolveOwnerPropertyIds(ctx);
+  const [propertyIds, sellerPages] = await Promise.all([
+    resolveOwnerPropertyIds(ctx),
+    denSellerPages(denAdmin(), ctx.links),
+  ]);
   return NextResponse.json({
     den_user_id: ctx.denUserId,
     phone: ctx.phone,
@@ -19,5 +23,6 @@ export const GET = withDenAuth(async (ctx) => {
       agency_name: l.agencyName,
     })),
     property_count: propertyIds.length,
+    seller_pages: sellerPages,
   });
 });

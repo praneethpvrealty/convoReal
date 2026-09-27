@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { useDen } from "./den-provider";
+import { SellerPageCard } from "./seller-page-card";
 import { formatINR, DEAL_MODE_META } from "./format";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
@@ -134,6 +135,11 @@ export function DenDashboardContent() {
           </Link>
         </div>
       </div>
+
+      <SellerPageCard
+        pages={me?.seller_pages ?? []}
+        hasProperties={(me?.property_count ?? 0) > 0}
+      />
 
       {pendingOffers > 0 && (
         <Link
