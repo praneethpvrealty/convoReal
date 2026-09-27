@@ -54,12 +54,16 @@ import {
 } from '@/lib/journey-captured';
 import {
   CLOSED_JOURNEY_STATUS_LABELS,
+  DEFAULT_JOURNEY_SORT,
   JOURNEY_CLOSURE_REASONS,
+  JOURNEY_SORT_LABELS,
   focusBuckets,
   journeyRaceLabel,
+  sortJourneys,
   splitItemsAtStage,
   type ClosedJourneyStatus,
   type JourneyLifecycleStatus,
+  type JourneySort,
 } from '@/lib/journey-overview';
 import { openContactChat } from '@/lib/open-chat';
 import { contactPropertyShareUrl } from '@/lib/showcase-share';
@@ -67,6 +71,7 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type {
   JourneyItem,
+  JourneyOverviewEnquiry,
   JourneyOverviewGroup,
   JourneyOverviewState,
   JourneyStage,
@@ -87,6 +92,9 @@ interface JourneyGroup {
   captured: number;
   furthestStageIdx: number;
   lostStageId: string | null;
+  lastUpdated: string;
+  enquiryCount: number;
+  lastEnquiredAt: string | null;
   lifecycleStatus: JourneyLifecycleStatus;
   closureReason: string | null;
   archivedAt: string | null;
@@ -220,6 +228,7 @@ export function JourneyBody() {
   );
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<JourneySort>(DEFAULT_JOURNEY_SORT);
   const [focusedBucket, setFocusedBucket] = useState<string | null>(null);
   const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(
     () => new Set()
@@ -269,6 +278,19 @@ export function JourneyBody() {
     },
   });
 
+  const enquiriesQuery = useQuery({
+    queryKey: ['journey-overview-enquiries', accountId, mode],
+    enabled: Boolean(accountId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('journey_overview_enquiries', {
+        p_account_id: accountId!,
+        p_mode: mode,
+      });
+      if (error) throw error;
+      return (data ?? []) as JourneyOverviewEnquiry[];
+    },
+  });
+
   const statesQuery = useQuery({
     queryKey: ['journey-overview-states', mode],
     enabled: Boolean(accountId),
@@ -296,6 +318,7 @@ export function JourneyBody() {
     await Promise.all([
       stagesQuery.refetch(),
       summariesQuery.refetch(),
+      enquiriesQuery.refetch(),
       statesQuery.refetch(),
       queryClient.invalidateQueries({ queryKey: ['journey-branch-items'] }),
     ]);
@@ -327,9 +350,14 @@ export function JourneyBody() {
       ),
     [statesQuery.data]
   );
+  const enquiryBySubject = useMemo(
+    () =>
+      new Map((enquiriesQuery.data ?? []).map((row) => [row.subject_id, row])),
+    [enquiriesQuery.data]
+  );
 
   const groups = useMemo(() => {
-    return (summariesQuery.data ?? [])
+    const summaries = (summariesQuery.data ?? [])
       .filter((row) => {
         if (mode === 'buyer' && contactId) return row.subject_id === contactId;
         if (mode === 'property' && propertyId)
@@ -338,6 +366,7 @@ export function JourneyBody() {
       })
       .map((row): JourneyGroup => {
         const state = stateBySubject.get(row.subject_id);
+        const enquiry = enquiryBySubject.get(row.subject_id);
         return {
           subjectId: row.subject_id,
           contact:
@@ -361,6 +390,9 @@ export function JourneyBody() {
           captured: Number(row.captured_count),
           furthestStageIdx: stageIndexById.get(row.furthest_stage_id) ?? -1,
           lostStageId: row.lost_stage_id ?? null,
+          lastUpdated: row.last_updated,
+          enquiryCount: Number(enquiry?.enquiry_count ?? 0),
+          lastEnquiredAt: enquiry?.last_enquired_at ?? null,
           lifecycleStatus: state?.lifecycle_status ?? 'active',
           closureReason: state?.closure_reason ?? null,
           archivedAt: state?.archived_at ?? null,
@@ -369,17 +401,15 @@ export function JourneyBody() {
             state?.sort_order ??
             Number.MAX_SAFE_INTEGER,
         };
-      })
-      .sort(
-        (left, right) =>
-          left.sortOrder - right.sortOrder ||
-          right.furthestStageIdx - left.furthestStageIdx
-      );
+      });
+    return sortJourneys(summaries, sort);
   }, [
     contactId,
+    enquiryBySubject,
     mode,
     orderOverrides,
     propertyId,
+    sort,
     stageIndexById,
     stateBySubject,
     summariesQuery.data,
@@ -1005,6 +1035,41 @@ export function JourneyBody() {
         ) : null}
       </View>
 
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.sortChips}
+      >
+        {(Object.keys(JOURNEY_SORT_LABELS) as JourneySort[]).map((option) => {
+          const selected = sort === option;
+          return (
+            <Pressable
+              key={option}
+              onPress={() => setSort(option)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              style={[
+                styles.sortChip,
+                {
+                  backgroundColor: selected ? colors.glass : 'transparent',
+                  borderColor: selected ? colors.primary : colors.glassBorder,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontFamily: f.bold,
+                  color: selected ? colors.primary : colors.textMuted,
+                }}
+              >
+                {JOURNEY_SORT_LABELS[option]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
       {!isLoading && buckets.length === 0 ? (
         <EmptyState
           icon="map-outline"
@@ -1178,6 +1243,7 @@ export function JourneyBody() {
                       stageById={stageById}
                       mode={mode}
                       canEdit={canEdit}
+                      canDrag={sort === 'manual'}
                       stageInHeader={view === 'active'}
                       index={index}
                       count={bucket.groups.length}
@@ -1711,6 +1777,7 @@ function DraggableJourneyCard({
   stageById,
   mode,
   canEdit,
+  canDrag,
   stageInHeader,
   index,
   count,
@@ -1731,6 +1798,7 @@ function DraggableJourneyCard({
   stageById: Map<string, JourneyStage>;
   mode: JourneyMode;
   canEdit: boolean;
+  canDrag: boolean;
   stageInHeader: boolean;
   index: number;
   count: number;
@@ -1911,7 +1979,7 @@ function DraggableJourneyCard({
       ]}
     >
       <View style={styles.cardHeader}>
-        {canEdit ? (
+        {canEdit && canDrag ? (
           <GestureDetector gesture={gesture}>
             <Animated.View style={styles.dragHandle}>
               <Ionicons
@@ -2143,6 +2211,15 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   tabs: { flexDirection: 'row', gap: spacing.xs },
+  sortChips: { flexDirection: 'row', gap: spacing.xs },
+  sortChip: {
+    minHeight: 32,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   tab: {
     flex: 1,
     minHeight: 38,

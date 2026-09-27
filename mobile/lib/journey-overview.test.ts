@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_JOURNEY_SORT,
   focusBuckets,
   journeyRaceLabel,
+  sortJourneys,
   splitItemsAtStage,
 } from './journey-overview';
 
@@ -59,5 +61,52 @@ describe('splitItemsAtStage', () => {
       atStage: [rows[2]],
       elsewhere: [rows[0], rows[1]],
     });
+  });
+});
+
+describe('sortJourneys', () => {
+  const j = (
+    id: string,
+    enquiryCount: number,
+    lastEnquiredAt: string | null,
+    lastUpdated = '2026-01-01',
+    sortOrder = Number.MAX_SAFE_INTEGER
+  ) => ({
+    id,
+    furthestStageIdx: 0,
+    lastUpdated,
+    enquiryCount,
+    lastEnquiredAt,
+    sortOrder,
+  });
+
+  const input = [
+    j('once-old', 1, '2026-01-01', '2026-01-09', 0),
+    j('none-fresh', 0, null, '2026-01-10'),
+    j('thrice', 3, '2026-01-02'),
+    j('once-new', 1, '2026-01-05'),
+  ];
+
+  it('[JRN-012] defaults to the most enquired first, newest enquiry breaking ties', () => {
+    expect(DEFAULT_JOURNEY_SORT).toBe('enquiries');
+    expect(sortJourneys(input, 'enquiries').map((x) => x.id)).toEqual([
+      'thrice',
+      'once-new',
+      'once-old',
+      'none-fresh',
+    ]);
+  });
+
+  it('[JRN-012] can lead with the most recent enquiry instead', () => {
+    expect(sortJourneys(input, 'enquired').map((x) => x.id)).toEqual([
+      'once-new',
+      'thrice',
+      'once-old',
+      'none-fresh',
+    ]);
+  });
+
+  it('[JRN-003] keeps the saved manual order when chosen', () => {
+    expect(sortJourneys(input, 'manual')[0].id).toBe('once-old');
   });
 });

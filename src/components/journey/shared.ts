@@ -100,9 +100,14 @@ export const JOURNEY_PRIORITY_ORDER: JourneyPriority[] = [
   'low',
 ];
 
-export type JourneySort = 'manual' | 'priority' | 'recent' | 'stage';
+export type JourneySort =
+  'enquiries' | 'enquired' | 'manual' | 'priority' | 'recent' | 'stage';
+
+export const DEFAULT_JOURNEY_SORT: JourneySort = 'enquiries';
 
 export const JOURNEY_SORT_LABELS: Record<JourneySort, string> = {
+  enquiries: 'Most enquired',
+  enquired: 'Recently enquired',
   manual: 'Manual order',
   priority: 'Priority',
   recent: 'Recent activity',
@@ -119,6 +124,8 @@ export interface RankableJourney {
   priority: JourneyPriority | null;
   furthestStageIdx: number;
   lastUpdated: string;
+  enquiryCount: number;
+  lastEnquiredAt: string | null;
   sortOrder?: number;
 }
 
@@ -138,7 +145,12 @@ export function sortJourneys<T extends RankableJourney>(
     (b.sortOrder ?? Number.MAX_SAFE_INTEGER);
   const byStage = (a: T, b: T) => b.furthestStageIdx - a.furthestStageIdx;
   const byRecent = (a: T, b: T) => b.lastUpdated.localeCompare(a.lastUpdated);
+  const byEnquiries = (a: T, b: T) => b.enquiryCount - a.enquiryCount;
+  const byEnquired = (a: T, b: T) =>
+    (b.lastEnquiredAt ?? '').localeCompare(a.lastEnquiredAt ?? '');
   const chain: Record<JourneySort, ((a: T, b: T) => number)[]> = {
+    enquiries: [byEnquiries, byEnquired, byRecent, byStage],
+    enquired: [byEnquired, byEnquiries, byRecent, byStage],
     manual: [byManual, byPriority, byStage, byRecent],
     priority: [byPriority, byStage, byRecent],
     stage: [byStage, byPriority, byRecent],

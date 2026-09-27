@@ -67,3 +67,47 @@ export function focusBuckets<T extends { key: string }>(
   const focused = buckets.filter((bucket) => bucket.key === focusedKey);
   return focused.length ? focused : buckets;
 }
+
+export type JourneySort = 'enquiries' | 'enquired' | 'manual' | 'stage';
+
+export const DEFAULT_JOURNEY_SORT: JourneySort = 'enquiries';
+
+export const JOURNEY_SORT_LABELS: Record<JourneySort, string> = {
+  enquiries: 'Most enquired',
+  enquired: 'Recently enquired',
+  manual: 'Manual order',
+  stage: 'Furthest stage',
+};
+
+export interface RankableJourney {
+  furthestStageIdx: number;
+  lastUpdated: string;
+  enquiryCount: number;
+  lastEnquiredAt: string | null;
+  sortOrder: number;
+}
+
+export function sortJourneys<T extends RankableJourney>(
+  journeys: T[],
+  sort: JourneySort
+): T[] {
+  const byManual = (a: T, b: T) => a.sortOrder - b.sortOrder;
+  const byStage = (a: T, b: T) => b.furthestStageIdx - a.furthestStageIdx;
+  const byRecent = (a: T, b: T) => b.lastUpdated.localeCompare(a.lastUpdated);
+  const byEnquiries = (a: T, b: T) => b.enquiryCount - a.enquiryCount;
+  const byEnquired = (a: T, b: T) =>
+    (b.lastEnquiredAt ?? '').localeCompare(a.lastEnquiredAt ?? '');
+  const chain: Record<JourneySort, ((a: T, b: T) => number)[]> = {
+    enquiries: [byEnquiries, byEnquired, byRecent, byStage],
+    enquired: [byEnquired, byEnquiries, byRecent, byStage],
+    manual: [byManual, byStage, byRecent],
+    stage: [byStage, byRecent],
+  };
+  return [...journeys].sort((a, b) => {
+    for (const compare of chain[sort]) {
+      const result = compare(a, b);
+      if (result !== 0) return result;
+    }
+    return 0;
+  });
+}
