@@ -247,6 +247,10 @@ describe('journey close and reopen', () => {
       'utf8'
     );
     expect(section).toContain("fetch('/api/journey/status'");
+    expect(section).toContain(
+      "committed: json?.code === 'LISTING_SYNC_FAILED'"
+    );
+    expect(section.match(/if \(!committed\) return;/g)).toHaveLength(2);
     expect(section).not.toMatch(/status: 'dropped',\s*drop_reason: reason/);
   });
 });

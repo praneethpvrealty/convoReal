@@ -442,26 +442,32 @@ export function JourneySection({
     itemId: string,
     action: 'drop' | 'reactivate',
     reason?: string
-  ): Promise<string | null> => {
+  ): Promise<{ committed: boolean; error: string | null }> => {
     const res = await fetch('/api/journey/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item_id: itemId, action, reason }),
     });
-    if (res.ok) return null;
+    if (res.ok) return { committed: true, error: null };
     const json = (await res.json().catch(() => null)) as {
       error?: string;
+      code?: string;
     } | null;
-    return json?.error ?? 'that item is no longer there';
+    return {
+      committed: json?.code === 'LISTING_SYNC_FAILED',
+      error: json?.error ?? 'that item is no longer there',
+    };
   };
 
   const handleDrop = useCallback(
     async (item: JourneyItem, reason: string) => {
-      const error = await setBranchStatus(item.id, 'drop', reason);
-      if (error) {
-        toast.error(`Failed to drop: ${error}`);
-        return;
-      }
+      const { committed, error } = await setBranchStatus(
+        item.id,
+        'drop',
+        reason
+      );
+      if (error) toast.error(committed ? error : `Failed to drop: ${error}`);
+      if (!committed) return;
       await logEvent(item.id, 'dropped', item.stage_id, item.stage_id, reason);
       await refresh();
     },
@@ -470,11 +476,11 @@ export function JourneySection({
 
   const handleReactivate = useCallback(
     async (item: JourneyItem) => {
-      const error = await setBranchStatus(item.id, 'reactivate');
+      const { committed, error } = await setBranchStatus(item.id, 'reactivate');
       if (error) {
-        toast.error(`Failed to reactivate: ${error}`);
-        return;
+        toast.error(committed ? error : `Failed to reactivate: ${error}`);
       }
+      if (!committed) return;
       await logEvent(item.id, 'reactivated', item.stage_id, item.stage_id);
       await refresh();
     },
