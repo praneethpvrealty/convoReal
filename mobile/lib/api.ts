@@ -1,3 +1,5 @@
+import type { JourneyEnquiryEntry } from '@shared/lib/journey/enquiries';
+
 import {
   attachmentRejection,
   attachmentUploadTimeoutMs,
@@ -392,7 +394,8 @@ export function logPersonalWhatsAppJourneySend(args: {
 /** Remove journey branches and the deals opened from them; the app
  *  never deletes journey_items itself. */
 export function removeJourneyItems(
-  input: { itemIds: string[] } | { mode: 'buyer' | 'property'; subjectId: string }
+  input:
+    { itemIds: string[] } | { mode: 'buyer' | 'property'; subjectId: string }
 ) {
   return apiFetch<{
     data: { items: number; deals: number; failed_deals?: string[] };
@@ -411,6 +414,15 @@ export function updateJourneyOverview(body: Record<string, unknown>) {
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+export function loadJourneyEnquiries(
+  mode: 'buyer' | 'property',
+  subjectId: string
+) {
+  return apiFetch<{ data: JourneyEnquiryEntry[] }>(
+    `/api/journey/enquiries?mode=${mode}&subjectId=${subjectId}`
+  );
 }
 
 export function loadJourneyOverview(mode: 'buyer' | 'property') {

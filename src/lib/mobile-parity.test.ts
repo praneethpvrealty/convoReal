@@ -760,6 +760,18 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
         .slice(source.indexOf('export function journeyEnquiryLabel'))
         .split('export function journeyRaceLabel')[0];
     expect(labelBody(helpers)).toEqual(labelBody(webShared));
+    expect(mobileSource('lib/api.ts')).toContain(
+      '`/api/journey/enquiries?mode=${mode}&subjectId=${subjectId}`'
+    );
+    expect(webSource('components/journey/enquiries-dialog.tsx')).toContain(
+      '`/api/journey/enquiries?mode=${mode}&subjectId=${subjectId}`'
+    );
+    expect(screen).toContain(
+      'loadJourneyEnquiries(mode, enquiryGroup!.subjectId)'
+    );
+    expect(screen).toContain('onPress={onEnquiries}');
+    expect(screen).not.toContain("from '@shared/lib/journey/enquiries'");
+    expect(helpers).not.toContain('journeyEnquiryEntries');
     expect(screen).toContain(
       'const enquiryLabel = journeyEnquiryLabel(group.enquiryCount);'
     );

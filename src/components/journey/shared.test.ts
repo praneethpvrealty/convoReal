@@ -429,6 +429,8 @@ describe('journeyRaceLabel', () => {
     );
     expect(source).toContain('{journeyEnquiryLabel(group.enquiryCount)}');
     expect(source).toContain('title={enquiredLabel(group)}');
+    expect(source).toContain('onClick={onEnquiries}');
+    expect(source).toContain('<EnquiriesDialog');
   });
 
   it('[JRN-007] counts what is still in the race and says so plainly at zero', () => {

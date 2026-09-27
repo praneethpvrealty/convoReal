@@ -86,6 +86,7 @@ import type {
   Property,
 } from '@/types';
 import { CloseJourneyDialog } from './close-journey-dialog';
+import { EnquiriesDialog } from './enquiries-dialog';
 import { JourneySection } from './journey-section';
 import { NewJourneyDialog } from './new-journey-dialog';
 import {
@@ -257,6 +258,7 @@ export function JourneyOverview({
   const [fullscreenId, setFullscreenId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [enquiriesId, setEnquiriesId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -726,6 +728,9 @@ export function JourneyOverview({
   );
   const closingGroup = groups.find((group) => group.subjectId === closingId);
   const removingGroup = groups.find((group) => group.subjectId === removingId);
+  const enquiriesGroup = groups.find(
+    (group) => group.subjectId === enquiriesId
+  );
 
   useEffect(() => {
     if (!fullscreenGroup) return;
@@ -944,6 +949,7 @@ export function JourneyOverview({
             onCloseJourney={setClosingId}
             onLifecycle={mutateLifecycle}
             onHide={setHidden}
+            onEnquiries={setEnquiriesId}
             onFullscreen={setFullscreenId}
             onItemsChanged={loadGroups}
             onReorder={reorderBucket}
@@ -1048,6 +1054,12 @@ export function JourneyOverview({
         onOpenChange={(open) => !open && setClosingId(null)}
         onSubmit={closeJourney}
       />
+      <EnquiriesDialog
+        mode={mode}
+        subjectId={enquiriesId}
+        title={enquiriesGroup ? titleOf(enquiriesGroup, mode) : ''}
+        onOpenChange={(open) => !open && setEnquiriesId(null)}
+      />
     </div>
   );
 }
@@ -1071,6 +1083,7 @@ function JourneyBucketSection({
   onCloseJourney,
   onLifecycle,
   onHide,
+  onEnquiries,
   onFullscreen,
   onItemsChanged,
   onReorder,
@@ -1096,6 +1109,7 @@ function JourneyBucketSection({
     action: 'reopen' | 'archive' | 'restore'
   ) => void;
   onHide: (id: string, hidden: boolean) => void;
+  onEnquiries: (id: string) => void;
   onFullscreen: (id: string) => void;
   onItemsChanged: () => void;
   onReorder: (groups: JourneyGroup[], activeId: string, overId: string) => void;
@@ -1230,6 +1244,7 @@ function JourneyBucketSection({
                   onCloseJourney={() => onCloseJourney(group.subjectId)}
                   onLifecycle={(action) => onLifecycle(group, action)}
                   onHide={() => onHide(group.subjectId, true)}
+                  onEnquiries={() => onEnquiries(group.subjectId)}
                   onFullscreen={() => onFullscreen(group.subjectId)}
                   onItemsChanged={onItemsChanged}
                 />
@@ -1257,6 +1272,7 @@ function SortableJourneyRow({
   onCloseJourney,
   onLifecycle,
   onHide,
+  onEnquiries,
   onFullscreen,
   onItemsChanged,
 }: {
@@ -1274,6 +1290,7 @@ function SortableJourneyRow({
   onCloseJourney: () => void;
   onLifecycle: (action: 'reopen' | 'archive' | 'restore') => void;
   onHide: () => void;
+  onEnquiries: () => void;
   onFullscreen: () => void;
   onItemsChanged: () => void;
 }) {
@@ -1347,15 +1364,6 @@ function SortableJourneyRow({
               {mode === 'buyer' && group.contact?.name && (
                 <NameTagBadge tag={group.contact.name_tag} />
               )}
-              {journeyEnquiryLabel(group.enquiryCount) && (
-                <span
-                  title={enquiredLabel(group)}
-                  className="bg-primary/10 text-primary inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold"
-                >
-                  <MessageSquare className="h-3 w-3" />
-                  {journeyEnquiryLabel(group.enquiryCount)}
-                </span>
-              )}
             </span>
             <span className="block truncate text-xs text-slate-400">
               {subtitleOf(group, mode)}
@@ -1363,6 +1371,19 @@ function SortableJourneyRow({
             </span>
           </span>
         </button>
+
+        {journeyEnquiryLabel(group.enquiryCount) && (
+          <button
+            type="button"
+            onClick={onEnquiries}
+            title={enquiredLabel(group)}
+            aria-label={`Show ${journeyEnquiryLabel(group.enquiryCount)} for ${titleOf(group, mode)}`}
+            className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold"
+          >
+            <MessageSquare className="h-3 w-3" />
+            {journeyEnquiryLabel(group.enquiryCount)}
+          </button>
+        )}
 
         <div className="flex shrink-0 items-center gap-1.5">
           <span

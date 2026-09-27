@@ -1508,7 +1508,7 @@
         },
         {
           "id": "JRN-012",
-          "rule": "Journeys inside each group are ordered by most enquired by default — the buyer's or listing's enquiry count, the newest enquiry breaking ties — and can instead be ordered by the most recent enquiry, manual order, or furthest stage on both web and mobile (web also offers priority and recent activity). Journeys with no enquiry follow, most recently touched first. Drag handles appear only under manual order. Every journey row with enquiries shows the same count label on web and mobile (\"1 enquiry\", \"N enquiries\"), with the latest enquiry's date on hover or to screen readers; a journey with none shows no label.",
+          "rule": "Journeys inside each group are ordered by most enquired by default — the buyer's or listing's enquiry count, the newest enquiry breaking ties — and can instead be ordered by the most recent enquiry, manual order, or furthest stage on both web and mobile (web also offers priority and recent activity). Journeys with no enquiry follow, most recently touched first. Drag handles appear only under manual order. Every journey row with enquiries shows the same count label on web and mobile (\"1 enquiry\", \"N enquiries\"), with the latest enquiry's date on hover or to screen readers; a journey with none shows no label. Tapping the label lists the enquiries newest first — the enquired properties on a buyer journey, the enquiring buyers on a property journey — each with its source and date, opening that property or contact.",
           "tests": [
             {
               "file": "src/components/journey/shared.test.ts",
@@ -1519,12 +1519,22 @@
               "case": "[JRN-012]"
             },
             {
+              "file": "src/lib/journey/enquiries.test.ts",
+              "case": "[JRN-012]"
+            },
+            {
+              "file": "src/app/api/journey/enquiries/route.test.ts",
+              "case": "[JRN-012]"
+            },
+            {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[JRN-012]"
             }
           ],
           "guards": [
-            "supabase/migrations/20260927090000_journey_overview_enquiries.sql"
+            "supabase/migrations/20260927090000_journey_overview_enquiries.sql",
+            "src/lib/journey/enquiries.ts",
+            "src/app/api/journey/enquiries/route.ts"
           ]
         }
       ]
