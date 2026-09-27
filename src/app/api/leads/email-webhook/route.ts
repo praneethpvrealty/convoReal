@@ -906,9 +906,8 @@ export async function POST(request: Request) {
       // recorded. Inserting every fuzzy match (score >= 2) tagged contacts
       // with type-only near-misses across the whole inventory.
       if (matchedPropertyIds.length > 0) {
-        await supabase
-          .from('contact_property_inquiries')
-          .upsert(
+        await Promise.all([
+          supabase.from('contact_property_inquiries').upsert(
             {
               account_id: accountId,
               contact_id: existingContact.id,
@@ -916,7 +915,18 @@ export async function POST(request: Request) {
               inquiry_source: parsed.source,
             },
             { onConflict: 'contact_id,property_id' }
-          );
+          ),
+          supabase.from('listing_feedback').upsert(
+            {
+              account_id: accountId,
+              contact_id: existingContact.id,
+              property_id: matchedPropertyIds[0],
+              verdict: 'interested',
+              reason: null,
+            },
+            { onConflict: 'contact_id,property_id' }
+          ),
+        ]);
       }
 
       // Auto-assign tags based on property interests and budget
