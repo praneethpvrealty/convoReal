@@ -150,6 +150,7 @@ import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialo
 import { PropertyInterestFollowUpDialog } from '@/components/contacts/property-interest-follow-up-dialog';
 import { PortalInviteDialog } from '@/components/contacts/portal-invite-dialog';
 import { PortfolioInviteDialog } from '@/components/contacts/portfolio-invite-dialog';
+import { SellerPageDialog } from '@/components/contacts/seller-page-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 
@@ -211,6 +212,7 @@ export function ContactDetailView({
   const [shareListingsOpen, setShareListingsOpen] = useState(false);
   const [portalInviteOpen, setPortalInviteOpen] = useState(false);
   const [portfolioInviteOpen, setPortfolioInviteOpen] = useState(false);
+  const [sellerPageOpen, setSellerPageOpen] = useState(false);
   const collectsBuyerRequirements =
     contact?.classification === 'Buyer' ||
     contact?.classification === 'Owner & Buyer';
@@ -1968,6 +1970,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       >
                         <KeyRound className="size-3 text-emerald-400" />
                         Portfolio Invite
+                      </button>
+                    )}
+                    {canEditContacts && contact.classification !== 'Agent' && (
+                      <button
+                        onClick={() => setSellerPageOpen(true)}
+                        className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
+                        title="A shareable page of this seller's live listings on your showcase"
+                      >
+                        <Globe className="size-3 text-emerald-400" />
+                        Seller Page
                       </button>
                     )}
                     <button
@@ -4063,6 +4075,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   fetchNotes();
                   onUpdated();
                 }}
+              />
+            )}
+            {canEditContacts &&
+              contactId &&
+              contact &&
+              contact.classification !== 'Agent' && (
+              <SellerPageDialog
+                open={sellerPageOpen}
+                onOpenChange={setSellerPageOpen}
+                contactId={contactId}
+                contactName={contact.name || ''}
+                contactPhone={contact.phone ?? null}
               />
             )}
             {/* Move to Engine WhatsApp Dialog */}
