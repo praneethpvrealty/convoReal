@@ -35,6 +35,7 @@ import {
   addJourneyStageNote,
   loadJourneyOverview,
   logPersonalWhatsAppJourneySend,
+  removeJourneyItems,
   updateJourneyOverview,
 } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
@@ -787,13 +788,12 @@ export function JourneyBody() {
 
   function removeCaptured(item: JourneyItem) {
     void runTrayAction('Could not remove', async () => {
-      const { data: removed, error } = await supabase
-        .from('journey_items')
-        .delete()
-        .eq('id', item.id)
-        .select('id');
-      if (error) throw error;
-      if (!removed?.length) throw new Error('that item is no longer there');
+      const res = await removeJourneyItems({ itemIds: [item.id] });
+      if (res.data.failed_deals?.length) {
+        throw new Error(
+          'the branch was removed but its deal could not be deleted'
+        );
+      }
     });
   }
 

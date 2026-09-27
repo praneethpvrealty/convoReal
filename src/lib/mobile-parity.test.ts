@@ -619,7 +619,8 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).not.toContain('.update({ hidden: false })');
     expect(screen).not.toContain("from('journey_events')");
     expect(screen).toContain('label={`Show all ${capturedItems.length}`}');
-    expect(screen).toContain('.delete()');
+    expect(screen).toContain('removeJourneyItems({ itemIds: [item.id] })');
+    expect(screen).not.toContain(".from('journey_items')\n        .delete()");
     expect(screen).toContain('accessibilityLabel="Remove from journey"');
     expect(screen).toContain('{canEdit && confirming ? (');
     expect(screen).toContain('{canEdit && !confirming ? (');
@@ -641,6 +642,23 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     );
     expect(recordShares).toContain("fetch('/api/properties/share-log'");
     expect(recordShares).not.toContain("from('property_shares')");
+  });
+
+  it('[JRN-011] removes a branch and the deal opened from it through one route on web and mobile', () => {
+    const mobileApi = mobileSource('lib/api.ts');
+    const webRemove = webSource('lib/journey/remove.ts');
+    const section = webSource('components/journey/journey-section.tsx');
+    const overview = webSource('components/journey/journey-overview.tsx');
+    expect(mobileApi).toContain("'/api/journey/remove'");
+    expect(webRemove).toContain("fetch('/api/journey/remove'");
+    expect(section).toContain('removeJourneyItems({ itemIds: [item.id] })');
+    expect(overview).toContain(
+      'removeJourneyItems({ mode, subjectId: group.subjectId })'
+    );
+    for (const source of [section, overview, screen]) {
+      expect(source).not.toMatch(/from\('journey_items'\)\s*\.delete\(\)/);
+    }
+    expect(overview).toContain('Remove journey and deals');
   });
 
   it('[JRN-006] focuses one stage from its own control, searches within it, and collapses from the header', () => {
