@@ -20,6 +20,7 @@ import {
   dealStatusForStage,
   propertyStatusForPipelineStage,
 } from '@/lib/pipelines/stage-semantics';
+import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { JourneyStageKind } from '@/types';
 
@@ -274,15 +275,15 @@ export async function convertJourneyItemToDeal(
 
   const propertyStatus = propertyStatusForPipelineStage(stage.name);
   if (propertyStatus && propertyStatus !== 'Available') {
-    const { data: synced } = await ctx.supabase
-      .from('properties')
-      .update({ status: propertyStatus })
-      .eq('id', item.property_id)
-      .eq('account_id', ctx.accountId)
-      .select('id');
+    const synced = await setListingStatusFromDeal(
+      ctx.supabase,
+      ctx.accountId,
+      item.property_id,
+      propertyStatus
+    );
     // The deal is already open; a listing that did not follow is a
     // line in the log, not a failed conversion.
-    if (!synced?.length) {
+    if (!synced) {
       console.warn(
         '[convert-to-deal] Property status not synced:',
         item.property_id

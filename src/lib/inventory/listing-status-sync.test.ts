@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const scheduled: Array<() => Promise<unknown> | unknown> = [];
@@ -14,56 +16,27 @@ vi.mock('@/lib/whatsapp/sold-notification', () => ({
 }));
 
 import { notifyBuyersOfPropertyStatus } from '@/lib/whatsapp/sold-notification';
+import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
 import {
   listingReopened,
+  listingsWithJourneyDeals,
   setListingStatusFromDeal,
-  statusHeldByDeals,
 } from './listing-status-sync';
 
 const notify = vi.mocked(notifyBuyersOfPropertyStatus);
 
-function fakeDb(
-  previous: string | null,
-  updated = true,
-  deals: Array<{ status: string; stage: { name: string } | null }> = [],
-  dealsError: { message: string } | null = null
-) {
-  const filters: Array<[string, unknown]> = [];
-  const writes: unknown[] = [];
-  let table = '';
-  const builder = {
-    select: () => builder,
-    in: () => builder,
-    update: (payload: unknown) => {
-      writes.push(payload);
-      return builder;
-    },
-    eq: (column: string, value: unknown) => {
-      filters.push([column, value]);
-      return builder;
-    },
-    maybeSingle: () =>
-      Promise.resolve({
-        data: previous === null ? null : { status: previous },
-      }),
-    then: (resolve: (v: { data: unknown; error?: unknown }) => unknown) =>
-      Promise.resolve(
-        table === 'deals'
-          ? { data: dealsError ? null : deals, error: dealsError }
-          : { data: updated ? [{ id: 'p1' }] : [] }
-      ).then(resolve),
-  };
-  return {
-    db: {
-      from: (name: string) => {
-        table = name;
-        return builder;
-      },
-    } as unknown as SupabaseClient,
-    filters,
-    writes,
-  };
+function rpcDb(result: { data: unknown; error: { message: string } | null }) {
+  const rpc = vi.fn().mockResolvedValue(result);
+  return { db: { rpc } as unknown as SupabaseClient, rpc };
 }
+
+const migration = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260927080000_listing_status_from_deals.sql'
+  ),
+  'utf8'
+);
 
 describe('listingReopened', () => {
   it('[PRP-014] fires only when a listing comes back to Available', () => {
@@ -83,100 +56,129 @@ describe('setListingStatusFromDeal', () => {
     notify.mockClear();
   });
 
-  it('[PRP-014] tells enquirers when a pipeline move frees an under-contract listing', async () => {
-    const { db, filters } = fakeDb('Under Contract');
-    expect(await setListingStatusFromDeal(db, 'acc-1', 'p1', 'Available')).toBe(
-      true
-    );
-    expect(filters).toContainEqual(['account_id', 'acc-1']);
+  it('[PRP-014] syncs through the locking database function, scoped to the account', async () => {
+    const { db, rpc } = rpcDb({
+      data: [{ previous_status: 'Available', new_status: 'Under Contract' }],
+      error: null,
+    });
+    expect(
+      await setListingStatusFromDeal(db, 'acc-1', 'p1', 'Under Contract')
+    ).toBe(true);
+    expect(rpc).toHaveBeenCalledWith('sync_listing_status_from_deals', {
+      p_account_id: 'acc-1',
+      p_property_id: 'p1',
+      p_requested: 'Under Contract',
+    });
+    expect(scheduled).toHaveLength(0);
+  });
+
+  it('[PRP-014] tells enquirers when the synced listing comes back to Available', async () => {
+    const { db } = rpcDb({
+      data: [{ previous_status: 'Under Contract', new_status: 'Available' }],
+      error: null,
+    });
+    await setListingStatusFromDeal(db, 'acc-1', 'p1', 'Available');
     expect(scheduled).toHaveLength(1);
     await scheduled[0]();
     expect(notify).toHaveBeenCalledWith('acc-1', 'p1', 'Available');
   });
 
-  it('stays quiet when the listing was already available or goes under contract', async () => {
-    await setListingStatusFromDeal(
-      fakeDb('Available').db,
-      'acc-1',
-      'p1',
-      'Available'
-    );
-    await setListingStatusFromDeal(
-      fakeDb('Available').db,
-      'acc-1',
-      'p1',
-      'Under Contract'
-    );
-    expect(scheduled).toHaveLength(0);
-  });
-
-  it('[PRP-014] keeps a listing another deal still holds, and tells nobody it is available', async () => {
-    const { db, writes } = fakeDb('Under Contract', true, [
-      { status: 'open', stage: { name: 'Negotiation' } },
-    ]);
-    expect(await setListingStatusFromDeal(db, 'acc-1', 'p1', 'Available')).toBe(
-      true
-    );
-    expect(writes).toEqual([{ status: 'Under Contract' }]);
-    expect(scheduled).toHaveLength(0);
-  });
-
-  it('never lets a deal move overwrite a listing another deal has won', async () => {
-    const { db, writes } = fakeDb('Sold', true, [
-      { status: 'won', stage: { name: 'Registered' } },
-      { status: 'open', stage: { name: 'Negotiation' } },
-    ]);
-    await setListingStatusFromDeal(db, 'acc-1', 'p1', 'Under Contract');
-    expect(writes).toEqual([{ status: 'Sold' }]);
-  });
-
-  it('[PRP-014] writes nothing and tells nobody when the holding deals cannot be read', async () => {
-    const { db, writes } = fakeDb('Under Contract', true, [], {
-      message: 'timeout',
+  it('[PRP-014] tells nobody when another deal still holds the listing', async () => {
+    const { db } = rpcDb({
+      data: [
+        { previous_status: 'Under Contract', new_status: 'Under Contract' },
+      ],
+      error: null,
     });
-    expect(await setListingStatusFromDeal(db, 'acc-1', 'p1', 'Available')).toBe(
-      false
-    );
-    expect(writes).toEqual([]);
+    await setListingStatusFromDeal(db, 'acc-1', 'p1', 'Available');
     expect(scheduled).toHaveLength(0);
   });
 
-  it('reports a listing the update did not reach, and notifies nobody', async () => {
+  it('[PRP-014] reports a failed sync and tells nobody', async () => {
+    const failed = rpcDb({ data: null, error: { message: 'timeout' } });
     expect(
-      await setListingStatusFromDeal(
-        fakeDb('Under Contract', false).db,
-        'acc-1',
-        'p1',
-        'Available'
-      )
+      await setListingStatusFromDeal(failed.db, 'acc-1', 'p1', 'Available')
+    ).toBe(false);
+    const missing = rpcDb({ data: [], error: null });
+    expect(
+      await setListingStatusFromDeal(missing.db, 'acc-1', 'p1', 'Available')
     ).toBe(false);
     expect(scheduled).toHaveLength(0);
   });
 });
 
-describe('statusHeldByDeals', () => {
-  it('returns the strongest status the remaining deals hold', () => {
-    expect(statusHeldByDeals([])).toBeNull();
+describe('listingsWithJourneyDeals', () => {
+  it('returns every listing with a deal on the journey, or null when it cannot tell', async () => {
+    const found = rpcDb({ data: ['p1', 'p2'], error: null });
     expect(
-      statusHeldByDeals([{ status: 'open', stage: { name: 'New Lead' } }])
+      await listingsWithJourneyDeals(found.db, 'acc-1', 'buyer', 'c1')
+    ).toEqual(['p1', 'p2']);
+    expect(found.rpc).toHaveBeenCalledWith('journey_deal_listings', {
+      p_account_id: 'acc-1',
+      p_mode: 'buyer',
+      p_subject_id: 'c1',
+    });
+    const failed = rpcDb({ data: null, error: { message: 'timeout' } });
+    expect(
+      await listingsWithJourneyDeals(failed.db, 'acc-1', 'buyer', 'c1')
     ).toBeNull();
+  });
+});
+
+describe('sync_listing_status_from_deals', () => {
+  function sqlPattern(expression: RegExp): RegExp {
+    const match = migration.match(expression);
+    expect(match, String(expression)).not.toBeNull();
+    return new RegExp(match![1]);
+  }
+
+  it('[PRP-014] reads the stages exactly as propertyStatusForPipelineStage does', () => {
+    const lost = sqlPattern(/LIKE '%(\w+)%' THEN 0/);
+    const sold = sqlPattern(/~ '(\([^']+\))' THEN 2/);
+    const underContract = sqlPattern(/~ '(\([^']+\))' THEN 1/);
+    const fromSql = (name: string) => {
+      const n = name.trim().toLowerCase();
+      if (lost.test(n)) return 'Available';
+      if (sold.test(n)) return 'Sold';
+      if (underContract.test(n)) return 'Under Contract';
+      return null;
+    };
+    for (const stage of [
+      'New Lead',
+      'Site Visit',
+      'Negotiation',
+      'Token Paid',
+      'Due Diligence',
+      'Agreement / Contract',
+      'Registered',
+      'Won',
+      'Brokerage Pending',
+      'Brokerage Paid',
+      'Lost',
+      'Closed Lost',
+    ]) {
+      const ts = propertyStatusForPipelineStage(stage);
+      expect(fromSql(stage), stage).toBe(ts === 'Available' ? 'Available' : ts);
+    }
+  });
+
+  it('locks the listing and keeps the strongest status its deals hold', () => {
+    expect(migration).toContain('FOR UPDATE;');
+    expect(migration).toContain("WHEN d.status = 'won' THEN 2");
+    expect(migration).toContain("AND d.status IN ('open', 'won')");
+    expect(migration).toContain(
+      "WHEN v_held = 2 OR p_requested = 'Sold' THEN 'Sold'"
+    );
     expect(
-      statusHeldByDeals([{ status: 'open', stage: [{ name: 'Token Paid' }] }])
-    ).toBe('Under Contract');
-    expect(
-      statusHeldByDeals([
-        { status: 'open', stage: { name: 'Negotiation' } },
-        { status: 'won', stage: null },
-      ])
-    ).toBe('Sold');
+      migration.match(/is_account_member\(p_account_id, 'agent'\)/g)
+    ).toHaveLength(2);
   });
 });
 
 describe('journey close and reopen', () => {
-  it('[PRP-014] re-syncs every listing with a deal on the journey after its deals are closed or restored', async () => {
-    const { readFileSync } = await import('node:fs');
+  it('[PRP-014] re-syncs every listing with a deal on the journey, and says so when it cannot', () => {
     const route = readFileSync(
-      new URL('../../app/api/journey/overview/route.ts', import.meta.url),
+      join(process.cwd(), 'src/app/api/journey/overview/route.ts'),
       'utf8'
     );
     expect(route).toContain(
@@ -188,5 +190,17 @@ describe('journey close and reopen', () => {
     expect(route).toMatch(
       /setListingStatusFromDeal\(\s*supabase,\s*accountId,\s*propertyId,\s*'Available'\s*\)/
     );
+    expect(route).toContain("code: 'LISTING_SYNC_FAILED'");
+  });
+
+  it('routes a journey-to-deal conversion through the same sync', () => {
+    const convert = readFileSync(
+      join(process.cwd(), 'src/lib/deals/convert-journey-item.ts'),
+      'utf8'
+    );
+    expect(convert).toMatch(
+      /setListingStatusFromDeal\(\s*ctx\.supabase,\s*ctx\.accountId,\s*item\.property_id,\s*propertyStatus\s*\)/
+    );
+    expect(convert).not.toContain('.update({ status: propertyStatus })');
   });
 });

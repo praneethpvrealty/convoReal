@@ -287,6 +287,13 @@ export async function notifyBuyersOfPropertyStatus(
       .eq('property_id', propertyId)
       .eq('verdict', 'rejected'),
   ]);
+  if (rejectedRes.error) {
+    console.error(
+      '[sold-notification] Closed enquiries could not be read; no update sent:',
+      rejectedRes.error.message
+    );
+    return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
+  }
   const closedEnquiries = new Set(
     ((rejectedRes.data ?? []) as { contact_id: string }[]).map(
       (r) => r.contact_id

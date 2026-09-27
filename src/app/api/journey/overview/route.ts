@@ -104,12 +104,24 @@ export async function POST(request: Request) {
         mutation.mode,
         mutation.subjectId
       );
-      for (const propertyId of listings) {
-        await setListingStatusFromDeal(
-          supabase,
-          accountId,
-          propertyId,
-          'Available'
+      let synced = listings !== null;
+      for (const propertyId of listings ?? []) {
+        synced =
+          (await setListingStatusFromDeal(
+            supabase,
+            accountId,
+            propertyId,
+            'Available'
+          )) && synced;
+      }
+      if (!synced) {
+        return NextResponse.json(
+          {
+            error:
+              'The journey was updated, but the status of its listings could not be updated. Check them in Inventory.',
+            code: 'LISTING_SYNC_FAILED',
+          },
+          { status: 500 }
         );
       }
     }

@@ -31,8 +31,12 @@ than a written entry. Newest first.
   reopening or deleting a deal on the pipeline puts its listing back to
   Available, and that now tells everyone who enquired about it or was sent
   it, just as editing the listing's status does. Before, only an edit on the
-  listing itself sent the update. Closing or reopening a journey now keeps
-  the listings of its deals in step too. A listing always takes the strongest
+  listing itself sent the update. Closing or reopening a journey, and
+  converting a journey branch to a deal, now keep the listings of their deals
+  in step too, and the sync runs in the database under a lock so two deal
+  changes at once cannot leave a stale status. **Migration:**
+  `20260927080000_listing_status_from_deals.sql` (additive: two new
+  functions). A listing always takes the strongest
   status its open and won deals hold, so one deal can no longer release or
   overwrite a listing another deal holds, and no status update goes to anyone
   who closed their enquiry on the listing.
