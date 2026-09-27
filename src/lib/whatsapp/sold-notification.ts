@@ -147,6 +147,22 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]): st
   });
 }
 
+async function listingStillHasStatus(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  propertyId: string,
+  status: BuyerVisiblePropertyStatus
+): Promise<boolean> {
+  const { data, error } = await db
+    .from('properties')
+    .select('id')
+    .eq('id', propertyId)
+    .eq('account_id', accountId)
+    .eq('status', status)
+    .maybeSingle();
+  return !error && !!data;
+}
+
 export function usableStatusUpdateTemplate<
   T extends { status?: string | null; category?: string | null },
 >(template: T): T | null {
@@ -295,10 +311,15 @@ export async function notifyBuyersOfPropertyStatus(
       .eq('property_id', propertyId)
       .eq('verdict', 'rejected'),
   ]);
-  if (rejectedRes.error) {
+  const lookupError =
+    interestedRes.error ??
+    inquiriesRes.error ??
+    sharesRes.error ??
+    rejectedRes.error;
+  if (lookupError) {
     console.error(
-      '[sold-notification] Closed enquiries could not be read; no update sent:',
-      rejectedRes.error.message
+      '[sold-notification] Audience could not be read; no update sent:',
+      lookupError.message
     );
     return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
   }
@@ -363,6 +384,12 @@ export async function notifyBuyersOfPropertyStatus(
   let skipped = 0;
 
   for (const contactId of audience) {
+    if (!(await listingStillHasStatus(db, accountId, propertyId, status))) {
+      console.warn(
+        `[property-status-notification] ${propertyId} is no longer ${status}; remaining updates not sent`
+      );
+      break;
+    }
     const open = await isSessionOpen(db, accountId, contactId);
 
     if (open) {

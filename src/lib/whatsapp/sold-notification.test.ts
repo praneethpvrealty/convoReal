@@ -93,6 +93,33 @@ describe('dedupeAudience', () => {
     expect(source).toContain('property.owner_contact_id as string | null,\n    closedEnquiries');
   });
 
+  it('[PRP-014] sends nothing when any audience source cannot be read', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(
+      new URL('./sold-notification.ts', import.meta.url),
+      'utf8'
+    );
+    expect(source).toMatch(
+      /interestedRes\.error \?\?\s*inquiriesRes\.error \?\?\s*sharesRes\.error \?\?\s*rejectedRes\.error/
+    );
+  });
+
+  it('[PRP-014] re-checks the listing before every send and stops once it has moved on', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(
+      new URL('./sold-notification.ts', import.meta.url),
+      'utf8'
+    );
+    const loop = source.indexOf('for (const contactId of audience) {');
+    const recheck = source.indexOf(
+      'if (!(await listingStillHasStatus(db, accountId, propertyId, status))) {'
+    );
+    const firstSend = source.indexOf('sendWhatsAppMessageAndPersist(', loop);
+    expect(loop).toBeGreaterThan(-1);
+    expect(recheck).toBeGreaterThan(loop);
+    expect(recheck).toBeLessThan(firstSend);
+  });
+
   it('handles empty sources and null owner', () => {
     expect(dedupeAudience([[], []], null)).toEqual([]);
     expect(dedupeAudience([['a']], null)).toEqual(['a']);

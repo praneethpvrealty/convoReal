@@ -36,7 +36,8 @@ than a written entry. Newest first.
   in step too, and the sync runs in the database under a lock so two deal
   changes at once cannot leave a stale status. **Migration:**
   `20260927080000_listing_status_from_deals.sql` (additive: two new
-  functions). A listing always takes the strongest
+  functions) and `20260927083000_listing_status_functions_search_path.sql`
+  (pins their search path; apply after the first). A listing always takes the strongest
   status its open and won deals hold, so one deal can no longer release or
   overwrite a listing another deal holds, and no status update goes to anyone
   who closed their enquiry on the listing. Outside WhatsApp's 24-hour window

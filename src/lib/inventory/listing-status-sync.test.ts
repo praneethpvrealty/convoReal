@@ -33,7 +33,7 @@ function rpcDb(result: { data: unknown; error: { message: string } | null }) {
 const migration = readFileSync(
   join(
     process.cwd(),
-    'supabase/migrations/20260927080000_listing_status_from_deals.sql'
+    'supabase/migrations/20260927083000_listing_status_functions_search_path.sql'
   ),
   'utf8'
 );
@@ -164,6 +164,8 @@ describe('sync_listing_status_from_deals', () => {
 
   it('locks the listing and keeps the strongest status its deals hold', () => {
     expect(migration).toContain('FOR UPDATE;');
+    expect(migration.match(/SET search_path = public, pg_temp\n/g)).toHaveLength(2);
+    expect(migration).not.toMatch(/SET search_path = public\n/);
     expect(migration).toContain("WHEN d.status = 'won' THEN 2");
     expect(migration).toContain("AND d.status IN ('open', 'won')");
     expect(migration).toContain(
