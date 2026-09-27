@@ -17,6 +17,13 @@ vi.mock('@/lib/notifications/create', () => ({
   createNotification: (...args: unknown[]) => createNotification(...args),
 }));
 
+const setListingStatusFromDeal = vi.fn().mockResolvedValue(true);
+
+vi.mock('@/lib/inventory/listing-status-sync', () => ({
+  setListingStatusFromDeal: (...args: unknown[]) =>
+    setListingStatusFromDeal(...args),
+}));
+
 const {
   ENQUIRY_REVIEW_KEEP_ID,
   buildEnquiryReviewBody,
@@ -59,6 +66,7 @@ function stubDb(results: Record<string, unknown[]>) {
       'insert',
       'order',
       'limit',
+      'not',
     ]) {
       chain[m] = handler(m);
     }
@@ -164,6 +172,28 @@ describe('loadOpenEnquiries', () => {
 });
 
 describe('closePropertyEnquiry', () => {
+  it('[PRP-014] re-syncs the listing of a deal on the closed branch', async () => {
+    setListingStatusFromDeal.mockClear();
+    const { db } = stubDb({
+      journey_items: [{ id: 'item-1', stage_id: 'stage-a' }],
+      deals: [[{ property_id: P1 }]],
+    });
+
+    await closePropertyEnquiry({
+      db,
+      accountId: 'acct-1',
+      contact: { id: 'c1', name: 'Vasudha Rao' },
+      property: { id: P1, title: 'Renovated 4BHK Villa', property_code: null },
+    });
+
+    expect(setListingStatusFromDeal).toHaveBeenCalledWith(
+      db,
+      'acct-1',
+      P1,
+      'Available'
+    );
+  });
+
   it('[INB-010] rejects the listing, drops its journey branch and notes it, leaving the contact alone', async () => {
     const { db, calls } = stubDb({
       journey_items: [{ id: 'item-1', stage_id: 'stage-a' }],

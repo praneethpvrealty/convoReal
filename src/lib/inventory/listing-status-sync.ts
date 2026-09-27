@@ -40,7 +40,7 @@ export async function setListingStatusFromDeal(
   if (!row) return false;
 
   if (listingReopened(row.previous_status, row.new_status)) {
-    after(() =>
+    const notify = () =>
       notifyBuyersOfPropertyStatus(accountId, propertyId, 'Available').then(
         () => undefined,
         (err) =>
@@ -48,8 +48,12 @@ export async function setListingStatusFromDeal(
             '[listing-status-sync] Available-again notification failed:',
             err
           )
-      )
-    );
+      );
+    try {
+      after(notify);
+    } catch {
+      void notify();
+    }
   }
   return true;
 }

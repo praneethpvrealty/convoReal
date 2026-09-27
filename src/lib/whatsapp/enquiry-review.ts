@@ -16,6 +16,7 @@ import { JOURNEY_CHECKIN_KEEP_BUTTON } from '@/lib/whatsapp/journey-checkin-temp
 import { createNotification } from '@/lib/notifications/create';
 import { leadFirstName } from '@/lib/contacts/lead-placeholder';
 import { PAST_ENQUIRY_STAGE_KINDS } from '@/components/journey/shared';
+import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 
 export const ENQUIRY_REVIEW_ID_PREFIX = 'enqrev_';
 export const ENQUIRY_REVIEW_KEEP_ID = `${ENQUIRY_REVIEW_ID_PREFIX}keep`;
@@ -134,6 +135,32 @@ export async function closePropertyEnquiry(args: {
       to_stage_id: row.stage_id,
       reason,
     });
+    const { data: deals } = await db
+      .from('deals')
+      .select('property_id')
+      .eq('account_id', accountId)
+      .eq('source_journey_item_id', row.id)
+      .not('property_id', 'is', null);
+    const propertyIds = new Set(
+      ((deals ?? []) as { property_id: string | null }[])
+        .map((deal) => deal.property_id)
+        .filter((id): id is string => !!id)
+    );
+    for (const propertyId of propertyIds) {
+      if (
+        !(await setListingStatusFromDeal(
+          db,
+          accountId,
+          propertyId,
+          'Available'
+        ))
+      ) {
+        console.warn(
+          '[enquiry-review] Listing not re-synced after a WhatsApp close:',
+          propertyId
+        );
+      }
+    }
   }
 
   const name = leadFirstName(contact.name) || 'The lead';

@@ -4,9 +4,13 @@ import { join } from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const scheduled: Array<() => Promise<unknown> | unknown> = [];
+let outsideRequest = false;
 
 vi.mock('next/server', () => ({
   after: (task: () => Promise<unknown> | unknown) => {
+    if (outsideRequest) {
+      throw new Error('`after` was called outside a request scope');
+    }
     scheduled.push(task);
   },
 }));
@@ -80,6 +84,22 @@ describe('setListingStatusFromDeal', () => {
     await setListingStatusFromDeal(db, 'acc-1', 'p1', 'Available');
     expect(scheduled).toHaveLength(1);
     await scheduled[0]();
+    expect(notify).toHaveBeenCalledWith('acc-1', 'p1', 'Available');
+  });
+
+  it('[PRP-014] still tells enquirers when the sync runs outside a request, as in the queue worker', async () => {
+    const { db } = rpcDb({
+      data: [{ previous_status: 'Under Contract', new_status: 'Available' }],
+      error: null,
+    });
+    outsideRequest = true;
+    try {
+      await setListingStatusFromDeal(db, 'acc-1', 'p1', 'Available');
+    } finally {
+      outsideRequest = false;
+    }
+    await Promise.resolve();
+    expect(scheduled).toHaveLength(0);
     expect(notify).toHaveBeenCalledWith('acc-1', 'p1', 'Available');
   });
 
@@ -175,6 +195,12 @@ describe('sync_listing_status_from_deals', () => {
     expect(
       migration.match(/is_account_member\(p_account_id, 'agent'\)/g)
     ).toHaveLength(2);
+    expect(
+      migration.match(
+        /IF auth\.role\(\) IS DISTINCT FROM 'service_role'\n\s+AND NOT is_account_member\(p_account_id, 'agent'\) THEN/g
+      )
+    ).toHaveLength(2);
+    expect(migration.match(/TO authenticated, service_role;/g)).toHaveLength(2);
   });
 });
 

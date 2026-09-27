@@ -13,6 +13,12 @@
 -- what the request would, and a stale request that arrives last can no
 -- longer overwrite a newer deal state.
 --
+-- Server jobs call the sync too: a WhatsApp closing-card advance, a
+-- scheduler-captured site visit and a WhatsApp enquiry close run on the
+-- service-role client, which has no auth.uid() and so fails the
+-- membership check. The service role is let through explicitly, and
+-- every query in both bodies stays scoped to p_account_id.
+--
 -- Held until merge: CREATE OR REPLACE on functions that already exist.
 
 CREATE OR REPLACE FUNCTION sync_listing_status_from_deals(
@@ -30,7 +36,8 @@ DECLARE
   v_held INTEGER;
   v_target TEXT;
 BEGIN
-  IF NOT is_account_member(p_account_id, 'agent') THEN
+  IF auth.role() IS DISTINCT FROM 'service_role'
+     AND NOT is_account_member(p_account_id, 'agent') THEN
     RAISE EXCEPTION 'not an agent on this account' USING ERRCODE = '42501';
   END IF;
   IF p_requested NOT IN ('Available', 'Under Contract', 'Sold') THEN
@@ -78,7 +85,7 @@ $$;
 
 REVOKE ALL ON FUNCTION sync_listing_status_from_deals(UUID, UUID, TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION sync_listing_status_from_deals(UUID, UUID, TEXT) FROM anon;
-GRANT EXECUTE ON FUNCTION sync_listing_status_from_deals(UUID, UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION sync_listing_status_from_deals(UUID, UUID, TEXT) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION journey_deal_listings(
   p_account_id UUID,
@@ -92,7 +99,8 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 BEGIN
-  IF NOT is_account_member(p_account_id, 'agent') THEN
+  IF auth.role() IS DISTINCT FROM 'service_role'
+     AND NOT is_account_member(p_account_id, 'agent') THEN
     RAISE EXCEPTION 'not an agent on this account' USING ERRCODE = '42501';
   END IF;
   IF p_mode NOT IN ('buyer', 'property') THEN
@@ -116,4 +124,4 @@ $$;
 
 REVOKE ALL ON FUNCTION journey_deal_listings(UUID, TEXT, UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION journey_deal_listings(UUID, TEXT, UUID) FROM anon;
-GRANT EXECUTE ON FUNCTION journey_deal_listings(UUID, TEXT, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION journey_deal_listings(UUID, TEXT, UUID) TO authenticated, service_role;
