@@ -18,7 +18,7 @@ import {
 // shows. Web and mobile both come through here, never deleting
 // journey_items themselves, so a removal cannot leave the deal behind.
 
-const MAX_ITEMS = 500;
+const MAX_ITEMS = 100;
 
 type RemoveInput =
   | { kind: 'items'; itemIds: string[] }
@@ -80,42 +80,48 @@ export async function POST(request: Request) {
     }
     const input = parsed.value;
 
-    let itemsQuery = ctx.supabase
-      .from('journey_items')
-      .select('id')
-      .eq('account_id', ctx.accountId);
-    itemsQuery =
+    const subjectColumn =
+      input.kind === 'subject' && input.mode === 'buyer'
+        ? 'contact_id'
+        : 'property_id';
+
+    const dealsQuery =
       input.kind === 'items'
-        ? itemsQuery.in('id', input.itemIds)
-        : itemsQuery.eq(
-            input.mode === 'buyer' ? 'contact_id' : 'property_id',
-            input.subjectId
-          );
-    const { data: items, error: itemsErr } = await itemsQuery;
-    if (itemsErr) throw itemsErr;
-    const itemIds = (items ?? []).map((row) => row.id as string);
-    if (itemIds.length === 0) {
+        ? ctx.supabase
+            .from('deals')
+            .select('id')
+            .eq('account_id', ctx.accountId)
+            .in('source_journey_item_id', input.itemIds)
+        : ctx.supabase
+            .from('deals')
+            .select('id, branch:journey_items!source_journey_item_id!inner(id)')
+            .eq('account_id', ctx.accountId)
+            .eq(`branch.${subjectColumn}`, input.subjectId);
+    const { data: deals, error: dealsErr } = await dealsQuery;
+    if (dealsErr) throw dealsErr;
+    const dealIds = (deals ?? []).map((row) => row.id as string);
+
+    const { data: removed, error: removeErr } =
+      input.kind === 'items'
+        ? await ctx.supabase
+            .from('journey_items')
+            .delete()
+            .eq('account_id', ctx.accountId)
+            .in('id', input.itemIds)
+            .select('id')
+        : await ctx.supabase
+            .from('journey_items')
+            .delete()
+            .eq('account_id', ctx.accountId)
+            .eq(subjectColumn, input.subjectId)
+            .select('id');
+    if (removeErr) throw removeErr;
+    if (!removed?.length) {
       return NextResponse.json(
         { error: 'Nothing was removed — reload and try again.' },
         { status: 404 }
       );
     }
-
-    const { data: deals, error: dealsErr } = await ctx.supabase
-      .from('deals')
-      .select('id')
-      .eq('account_id', ctx.accountId)
-      .in('source_journey_item_id', itemIds);
-    if (dealsErr) throw dealsErr;
-    const dealIds = (deals ?? []).map((row) => row.id as string);
-
-    const { data: removed, error: removeErr } = await ctx.supabase
-      .from('journey_items')
-      .delete()
-      .eq('account_id', ctx.accountId)
-      .in('id', itemIds)
-      .select('id');
-    if (removeErr) throw removeErr;
 
     const failed: string[] = [];
     for (const dealId of dealIds) {
@@ -125,7 +131,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       data: {
-        items: (removed ?? []).length,
+        items: removed.length,
         deals: dealIds.length - failed.length,
         ...(failed.length > 0 ? { failed_deals: failed } : {}),
       },

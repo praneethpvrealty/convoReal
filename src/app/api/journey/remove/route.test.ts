@@ -6,6 +6,8 @@ let rows: {
 };
 let deletedItems: string[][];
 let deletedDeals: string[];
+let inCalls: number;
+let selects: string[];
 let deleteResult:
   { ok: true } | { ok: false; status: 404 | 500; error: string };
 let readOnly: boolean;
@@ -18,9 +20,13 @@ function ctxDb() {
         ids: [],
       };
       const builder: Record<string, (...args: unknown[]) => unknown> = {
-        select: () => builder,
+        select: (columns: unknown) => {
+          selects.push(String(columns));
+          return builder;
+        },
         eq: () => builder,
         in: (_col: unknown, ids: unknown) => {
+          inCalls += 1;
           state.ids = ids as string[];
           return builder;
         },
@@ -84,6 +90,8 @@ beforeEach(() => {
   rows = { journey_items: [{ id: 'item-1' }], deals: [{ id: 'deal-1' }] };
   deletedItems = [];
   deletedDeals = [];
+  inCalls = 0;
+  selects = [];
   deleteResult = { ok: true };
   readOnly = false;
 });
@@ -99,15 +107,19 @@ describe('[JRN-011] POST /api/journey/remove', () => {
     expect(deletedDeals).toEqual(['deal-1']);
   });
 
-  it('removes a whole journey by subject', async () => {
+  it('removes a whole journey by its subject without sending branch ids in a URL', async () => {
     rows = {
       journey_items: [{ id: 'item-1' }, { id: 'item-2' }],
-      deals: [],
+      deals: [{ id: 'deal-1' }],
     };
     const res = await POST(request({ mode: 'buyer', subject_id: 'contact-1' }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: { items: 2, deals: 0 } });
-    expect(deletedDeals).toEqual([]);
+    expect(await res.json()).toEqual({ data: { items: 2, deals: 1 } });
+    expect(deletedDeals).toEqual(['deal-1']);
+    expect(inCalls).toBe(0);
+    expect(selects).toContain(
+      'id, branch:journey_items!source_journey_item_id!inner(id)'
+    );
   });
 
   it('reports a deal it could not delete instead of hiding it', async () => {

@@ -659,6 +659,11 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
       expect(source).not.toMatch(/from\('journey_items'\)\s*\.delete\(\)/);
     }
     expect(overview).toContain('Remove journey and deals');
+    expect(screen).toContain('onRemoveItem={askRemoveItem}');
+    expect(screen).toContain("label: 'Remove branch and deal'");
+    expect(screen).toContain("label: 'Remove journey and deals'");
+    expect(screen).toContain('{ mode, subjectId: group.subjectId }');
+    expect(screen.match(/removeJourneyAction\(group\)/g)).toHaveLength(3);
   });
 
   it('[JRN-006] focuses one stage from its own control, searches within it, and collapses from the header', () => {

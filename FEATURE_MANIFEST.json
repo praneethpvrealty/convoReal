@@ -1447,6 +1447,10 @@
               "case": "[JRN-011]"
             },
             {
+              "file": "src/lib/deals/delete-deal.test.ts",
+              "case": "[JRN-011]"
+            },
+            {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[JRN-011]"
             }

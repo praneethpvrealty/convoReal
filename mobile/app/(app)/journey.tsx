@@ -605,6 +605,82 @@ export function JourneyBody() {
     }
   }
 
+  async function removeItems(
+    input: Parameters<typeof removeJourneyItems>[0],
+    failure: string
+  ) {
+    close();
+    try {
+      const res = await removeJourneyItems(input);
+      if (res.data.failed_deals?.length) {
+        haptic.warn();
+        show({
+          title: failure,
+          message:
+            'The journey was removed, but a deal opened from it could not be deleted — delete it from Records.',
+        });
+      } else {
+        haptic.success();
+      }
+      await Promise.all([
+        summariesQuery.refetch(),
+        statesQuery.refetch(),
+        queryClient.invalidateQueries({ queryKey: ['journey-branch-items'] }),
+        queryClient.invalidateQueries({ queryKey: ['transaction-index'] }),
+      ]);
+    } catch (error) {
+      haptic.warn();
+      show({
+        title: failure,
+        message: error instanceof Error ? error.message : 'Please try again.',
+      });
+    }
+  }
+
+  function askRemoveItem(item: JourneyItem) {
+    if (!canEdit) return;
+    show({
+      title: 'Remove this branch?',
+      message: 'Deletes this branch, its history and any deal opened from it.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Remove branch and deal',
+          variant: 'destructive',
+          onPress: () =>
+            void removeItems({ itemIds: [item.id] }, 'Could not remove'),
+        },
+      ],
+    });
+  }
+
+  function askRemoveJourney(group: JourneyGroup) {
+    if (!canEdit) return;
+    show({
+      title: `Remove ${groupTitle(group, mode)}'s journey?`,
+      message:
+        'Deletes every branch, its history and any deals opened from them. Closing or archiving keeps them.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Remove journey and deals',
+          variant: 'destructive',
+          onPress: () =>
+            void removeItems(
+              { mode, subjectId: group.subjectId },
+              'Could not remove journey'
+            ),
+        },
+      ],
+    });
+  }
+
+  const removeJourneyAction = (group: JourneyGroup) => ({
+    label: 'Remove journey',
+    variant: 'destructive' as const,
+    onPress: () => askRemoveJourney(group),
+  });
+
   function showGroupActions(group: JourneyGroup) {
     if (group.archivedAt) {
       show({
@@ -615,6 +691,7 @@ export function JourneyBody() {
             variant: 'primary',
             onPress: () => void mutateGroup(group, 'restore'),
           },
+          removeJourneyAction(group),
           { label: 'Cancel', variant: 'muted', onPress: close },
         ],
       });
@@ -634,6 +711,7 @@ export function JourneyBody() {
             label: 'Archive',
             onPress: () => void mutateGroup(group, 'archive'),
           },
+          removeJourneyAction(group),
           { label: 'Cancel', variant: 'muted', onPress: close },
         ],
       });
@@ -669,6 +747,7 @@ export function JourneyBody() {
           label: 'Archive',
           onPress: () => void mutateGroup(group, 'archive'),
         },
+        removeJourneyAction(group),
         { label: 'Cancel', variant: 'muted', onPress: close },
       ],
     });
@@ -1118,6 +1197,7 @@ export function JourneyBody() {
                       onCheckIn={askCheckIn}
                       onMoveItem={(item) => canEdit && setMoveTarget(item)}
                       onConvert={askConvert}
+                      onRemoveItem={askRemoveItem}
                       onAddNote={(item, stage) => {
                         setNoteTarget({ item, stage });
                         setNoteText('');
@@ -1642,6 +1722,7 @@ function DraggableJourneyCard({
   onCheckIn,
   onMoveItem,
   onConvert,
+  onRemoveItem,
   onAddNote,
 }: {
   group: JourneyGroup;
@@ -1661,6 +1742,7 @@ function DraggableJourneyCard({
   onCheckIn: (item: JourneyItem, stageLabel: string | undefined) => void;
   onMoveItem: (item: JourneyItem) => void;
   onConvert: (item: JourneyItem) => void;
+  onRemoveItem: (item: JourneyItem) => void;
   onAddNote: (item: JourneyItem, stage: JourneyStage) => void;
 }) {
   const { colors, fonts: f } = useTheme();
@@ -1805,6 +1887,15 @@ function DraggableJourneyCard({
               size={17}
               color={colors.textMuted}
             />
+          </Pressable>
+        ) : null}
+        {canEdit ? (
+          <Pressable
+            onPress={() => onRemoveItem(item)}
+            accessibilityLabel="Remove branch and its deal"
+            hitSlop={8}
+          >
+            <Ionicons name="trash-outline" size={17} color={colors.danger} />
           </Pressable>
         ) : null}
       </View>

@@ -17,12 +17,20 @@ export async function deleteDealWithCleanup(
   ctx: { supabase: SupabaseClient; accountId: string },
   dealId: string
 ): Promise<DeleteDealResult> {
-  const { data: deal } = await ctx.supabase
+  const { data: deal, error: dealErr } = await ctx.supabase
     .from('deals')
     .select('property_id')
     .eq('id', dealId)
     .eq('account_id', ctx.accountId)
     .maybeSingle();
+  if (dealErr) {
+    console.error('[deals/delete] Deal lookup:', dealErr);
+    return {
+      ok: false,
+      status: 500,
+      error: 'Could not read this deal, so it was not deleted. Try again.',
+    };
+  }
   if (!deal) {
     return { ok: false, status: 404, error: 'Deal not found' };
   }
