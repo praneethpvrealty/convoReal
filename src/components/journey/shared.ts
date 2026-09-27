@@ -257,6 +257,11 @@ export function sortItemsForRows(
   });
 }
 
+export function journeyEnquiryLabel(count: number): string | null {
+  if (count <= 0) return null;
+  return count === 1 ? '1 enquiry' : `${count} enquiries`;
+}
+
 export function journeyRaceLabel(active: number): string {
   return active > 0 ? `${active} in the race` : 'Nothing in the race';
 }

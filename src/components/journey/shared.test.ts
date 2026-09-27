@@ -8,6 +8,7 @@ import {
   DEFAULT_JOURNEY_SORT,
   JOURNEY_SORT_LABELS,
   focusBuckets,
+  journeyEnquiryLabel,
   journeyRaceLabel,
   planEtaLabel,
   plannedIndexOf,
@@ -418,6 +419,18 @@ describe('focusBuckets', () => {
 });
 
 describe('journeyRaceLabel', () => {
+  it('[JRN-012] labels the enquiry count and hides it when there is none', () => {
+    expect(journeyEnquiryLabel(0)).toBeNull();
+    expect(journeyEnquiryLabel(1)).toBe('1 enquiry');
+    expect(journeyEnquiryLabel(19)).toBe('19 enquiries');
+    const source = readFileSync(
+      join(process.cwd(), 'src/components/journey/journey-overview.tsx'),
+      'utf8'
+    );
+    expect(source).toContain('{journeyEnquiryLabel(group.enquiryCount)}');
+    expect(source).toContain('title={enquiredLabel(group)}');
+  });
+
   it('[JRN-007] counts what is still in the race and says so plainly at zero', () => {
     expect(journeyRaceLabel(3)).toBe('3 in the race');
     expect(journeyRaceLabel(1)).toBe('1 in the race');

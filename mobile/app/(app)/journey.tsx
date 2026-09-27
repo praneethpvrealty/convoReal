@@ -58,6 +58,7 @@ import {
   JOURNEY_CLOSURE_REASONS,
   JOURNEY_SORT_LABELS,
   focusBuckets,
+  journeyEnquiryLabel,
   journeyRaceLabel,
   sortJourneys,
   splitItemsAtStage,
@@ -1841,6 +1842,7 @@ function DraggableJourneyCard({
     group.lifecycleStatus === 'active'
       ? null
       : CLOSED_JOURNEY_STATUS_LABELS[group.lifecycleStatus];
+  const enquiryLabel = journeyEnquiryLabel(group.enquiryCount);
   const statusLabel = stageInHeader
     ? journeyRaceLabel(group.active)
     : [stage?.name, lifecycleLabel].filter(Boolean).join(' · ');
@@ -2011,6 +2013,34 @@ function DraggableJourneyCard({
                 {groupSubtitle(group, mode)}
                 {group.closureReason ? ` · ${group.closureReason}` : ''}
               </Text>
+              {enquiryLabel ? (
+                <View
+                  accessible
+                  accessibilityLabel={`${enquiryLabel}, last on ${auditDate(group.lastEnquiredAt)}`}
+                  style={[
+                    styles.capturedChip,
+                    {
+                      borderColor: `${colors.primary}66`,
+                      backgroundColor: `${colors.primary}14`,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="chatbubble-ellipses-outline"
+                    size={11}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 10.5,
+                      fontFamily: f.bold,
+                      color: colors.primary,
+                    }}
+                  >
+                    {enquiryLabel}
+                  </Text>
+                </View>
+              ) : null}
               {group.captured ? (
                 <Pressable
                   onPress={onCaptured}
