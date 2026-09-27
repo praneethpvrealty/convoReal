@@ -26,16 +26,15 @@ const send = vi.mocked(sendWhatsAppMessageAndPersist);
 function fakeDb(tables: Record<string, unknown>) {
   return {
     from: (table: string) => {
+      const value = tables[table];
+      const row = typeof value === 'function' ? value() : value;
       const builder = {
         select: () => builder,
         eq: () => builder,
         in: () => builder,
-        maybeSingle: () =>
-          Promise.resolve({ data: tables[table] ?? null, error: null }),
+        maybeSingle: () => Promise.resolve({ data: row ?? null, error: null }),
         then: (resolve: (v: { data: unknown; error: null }) => unknown) =>
-          Promise.resolve({ data: tables[table] ?? null, error: null }).then(
-            resolve
-          ),
+          Promise.resolve({ data: row ?? null, error: null }).then(resolve),
       };
       return builder;
     },
@@ -302,6 +301,44 @@ describe('sendUnavailableListingReply', () => {
       'listing_availability_notice'
     );
     expect(send.mock.calls[1][0].templateLanguage).toBe('en');
+  });
+
+  it('[PRP-014] re-reads the listing before the fallback, so a listing sold meanwhile gets no update promise', async () => {
+    send
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true });
+    const reads = [property, { ...property, status: 'Sold' }];
+    const supabase = fakeDb({
+      properties: () => reads.shift(),
+      message_templates: [
+        notice,
+        { ...notice, name: 'listing_availability_notice' },
+      ],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'template'
+    );
+    expect(send.mock.calls[1][0].templateName).toBe('listing_status_notice');
+  });
+
+  it('sends no fallback when the listing became available meanwhile', async () => {
+    send.mockResolvedValueOnce({
+      success: false,
+      error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+    });
+    const reads = [property, { ...property, status: 'Available' }];
+    const supabase = fakeDb({
+      properties: () => reads.shift(),
+      message_templates: [notice],
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'available'
+    );
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('reports a closed window with no approved notice instead of failing silently', async () => {

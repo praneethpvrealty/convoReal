@@ -93,7 +93,21 @@ export async function sendUnavailableListingReply({
     return 'failed';
   }
 
-  const canBecomeAvailable = (property as Property).status !== 'Sold';
+  const { data: current } = await supabase
+    .from('properties')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('id', propertyId)
+    .maybeSingle();
+  const listing = current as Property | null;
+  if (
+    !listing ||
+    !unavailableListingReply(leadName, listing.title, listing.status)
+  ) {
+    return 'available';
+  }
+
+  const canBecomeAvailable = listing.status !== 'Sold';
   const [{ data: rows }, language, { data: account }] = await Promise.all([
     supabase
       .from('message_templates')
@@ -132,7 +146,7 @@ export async function sendUnavailableListingReply({
     );
   if (!template) {
     console.warn(
-      `[lead-webhook] No approved listing status notice template — contact ${contactId} was not told the listing is ${(property as Property).status}`
+      `[lead-webhook] No approved listing status notice template — contact ${contactId} was not told the listing is ${listing.status}`
     );
     return 'no_template';
   }
@@ -141,16 +155,11 @@ export async function sendUnavailableListingReply({
   const params: string[] = availabilityTemplate
     ? buildListingAvailabilityParams(
         leadName,
-        property as Property,
+        listing,
         brandName,
         languageForMetaCode(template.language || 'en') ?? 'en'
       )
-    : enquiryNoticeSendParams(
-        template.name,
-        leadName,
-        property as Property,
-        brandName
-      );
+    : enquiryNoticeSendParams(template.name, leadName, listing, brandName);
   const templateResult = await sendWhatsAppMessageAndPersist({
     ...base,
     kind: 'template',

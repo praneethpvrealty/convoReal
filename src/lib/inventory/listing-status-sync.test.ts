@@ -217,4 +217,15 @@ describe('journey close and reopen', () => {
     );
     expect(remove).not.toContain(".update({ status: 'Available' })");
   });
+
+  it("[PRP-014] syncs an edited deal's listing through the same sync", () => {
+    const route = readFileSync(
+      join(process.cwd(), 'src/app/api/deals/[id]/route.ts'),
+      'utf8'
+    );
+    expect(route).toMatch(
+      /setListingStatusFromDeal\(\s*ctx\.supabase,\s*ctx\.accountId,\s*effectivePropertyId,\s*propertyStatus\s*\)/
+    );
+    expect(route).not.toContain('.update({ status: propertyStatus })');
+  });
 });

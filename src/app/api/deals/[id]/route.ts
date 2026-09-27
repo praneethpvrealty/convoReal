@@ -15,6 +15,7 @@ import {
 } from '@/lib/deals/stage-move';
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
 import { deleteDealWithCleanup } from '@/lib/deals/delete-deal';
+import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -150,14 +151,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (effectivePropertyId && typeof stage_name === 'string') {
       const propertyStatus =
         propertyStatusForPipelineStage(stage_name) ?? 'Available';
-      const { data: synced } = await ctx.supabase
-        .from('properties')
-        .update({ status: propertyStatus })
-        .eq('id', effectivePropertyId)
-        .select('id');
+      const synced = await setListingStatusFromDeal(
+        ctx.supabase,
+        ctx.accountId,
+        effectivePropertyId,
+        propertyStatus
+      );
       // The deal is already saved; a listing that did not follow is
       // worth a line in the log, not a failed request.
-      if (!synced?.length) {
+      if (!synced) {
         console.warn(
           '[PUT /api/deals/[id]] Property status not synced:',
           effectivePropertyId
