@@ -228,6 +228,21 @@ describe('sendUnavailableListingReply', () => {
     expect(send.mock.calls[1][0].templateParams).toHaveLength(3);
   });
 
+  it('never falls back to a status notice Meta filed as Marketing', async () => {
+    send.mockResolvedValueOnce({
+      success: false,
+      error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+    });
+    const supabase = fakeDb({
+      properties: property,
+      message_templates: [{ ...notice, category: 'MARKETING' }],
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'no_template'
+    );
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it('reports a closed window with no approved notice instead of failing silently', async () => {
     send.mockResolvedValueOnce({
       success: false,

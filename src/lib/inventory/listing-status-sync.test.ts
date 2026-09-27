@@ -201,7 +201,7 @@ describe('journey close and reopen', () => {
       'utf8'
     );
     expect(convert).toMatch(
-      /setListingStatusFromDeal\(\s*ctx\.supabase,\s*ctx\.accountId,\s*item\.property_id,\s*propertyStatus\s*\)/
+      /setListingStatusFromDeal\(\s*ctx\.supabase,\s*ctx\.accountId,\s*item\.property_id,\s*propertyStatusForPipelineStage\(stage\.name\) \?\? 'Available'\s*\)/
     );
     expect(convert).not.toContain('.update({ status: propertyStatus })');
   });

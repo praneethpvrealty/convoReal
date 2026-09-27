@@ -112,7 +112,7 @@ describe('dedupeAudience', () => {
     );
     const loop = source.indexOf('for (const contactId of audience) {');
     const recheck = source.indexOf(
-      'if (!(await listingStillHasStatus(db, accountId, propertyId, status))) {'
+      'await listingStillHasStatus(db, accountId, propertyId, status)'
     );
     const firstSend = source.indexOf('sendWhatsAppMessageAndPersist(', loop);
     expect(loop).toBeGreaterThan(-1);
@@ -134,6 +134,29 @@ describe('dedupeAudience', () => {
     expect(closed).toBeGreaterThan(loop);
     expect(closed).toBeLessThan(firstSend);
     expect(source).toMatch(/return !!error \|\| !!data;/);
+  });
+
+  it('[PRP-014] stops an available-again run while a deal still holds the listing', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(
+      new URL('./sold-notification.ts', import.meta.url),
+      'utf8'
+    );
+    expect(source).toMatch(
+      /status === 'Available' &&\s*\(await dealsStillHoldListing\(db, accountId, propertyId\)\)/
+    );
+    expect(source).toContain('if (error) return true;');
+  });
+
+  it('uses any approved Utility variant of the status template, not only the newest row', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(
+      new URL('./sold-notification.ts', import.meta.url),
+      'utf8'
+    );
+    expect(source).toMatch(
+      /\.find\(\s*\(row\) => usableStatusUpdateTemplate\(row\) !== null\s*\)/
+    );
   });
 
   it('handles empty sources and null owner', () => {

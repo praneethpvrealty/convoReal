@@ -115,7 +115,12 @@ export async function sendUnavailableListingReply({
     ? pickListingAvailabilityTemplate(candidates)
     : null;
   const template =
-    availabilityTemplate ?? pickEnquiryNoticeTemplate(candidates);
+    availabilityTemplate ??
+    pickEnquiryNoticeTemplate(
+      candidates.filter(
+        (row) => (row.category ?? '').toUpperCase() === 'UTILITY'
+      )
+    );
   if (!template) {
     console.warn(
       `[lead-webhook] No approved listing status notice template — contact ${contactId} was not told the listing is ${(property as Property).status}`

@@ -29,6 +29,7 @@ import {
   buildSoldUpdateParams,
 } from '@/lib/whatsapp/sold-update-template';
 import type { MessageTemplate } from '@/types';
+import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
 
 export const SOLD_PRICE_BUTTON_PREFIX = 'sold_price:';
 export const SOLD_SIMILAR_BUTTON_PREFIX = 'sold_similar:';
@@ -164,6 +165,31 @@ async function closedEnquiryOnListing(
   return !!error || !!data;
 }
 
+async function dealsStillHoldListing(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  propertyId: string
+): Promise<boolean> {
+  const { data, error } = await db
+    .from('deals')
+    .select('status, stage:pipeline_stages(name)')
+    .eq('account_id', accountId)
+    .eq('property_id', propertyId)
+    .in('status', ['open', 'won']);
+  if (error) return true;
+  return (
+    (data ?? []) as {
+      status: string | null;
+      stage: { name?: string | null } | { name?: string | null }[] | null;
+    }[]
+  ).some((deal) => {
+    if (deal.status === 'won') return true;
+    const stage = Array.isArray(deal.stage) ? deal.stage[0] : deal.stage;
+    const held = stage?.name ? propertyStatusForPipelineStage(stage.name) : null;
+    return held === 'Under Contract' || held === 'Sold';
+  });
+}
+
 async function listingStillHasStatus(
   db: ReturnType<typeof supabaseAdmin>,
   accountId: string,
@@ -205,17 +231,19 @@ async function ensureStatusUpdateTemplate(
       ? SOLD_UPDATE_TEMPLATE_NAME
       : PROPERTY_STATUS_UPDATE_TEMPLATE_NAME;
 
-  const { data: latestRow } = await db
+  const { data: rows } = await db
     .from('message_templates')
     .select('*')
     .eq('account_id', accountId)
     .eq('name', templateName)
-    .order('last_submitted_at', { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
+    .order('last_submitted_at', { ascending: false, nullsFirst: false });
 
-  if (latestRow) {
-    return usableStatusUpdateTemplate(latestRow as unknown as MessageTemplate);
+  if (rows && rows.length > 0) {
+    return (
+      (rows as unknown as MessageTemplate[]).find(
+        (row) => usableStatusUpdateTemplate(row) !== null
+      ) ?? null
+    );
   }
 
   try {
@@ -401,7 +429,11 @@ export async function notifyBuyersOfPropertyStatus(
   let skipped = 0;
 
   for (const contactId of audience) {
-    if (!(await listingStillHasStatus(db, accountId, propertyId, status))) {
+    if (
+      !(await listingStillHasStatus(db, accountId, propertyId, status)) ||
+      (status === 'Available' &&
+        (await dealsStillHoldListing(db, accountId, propertyId)))
+    ) {
       console.warn(
         `[property-status-notification] ${propertyId} is no longer ${status}; remaining updates not sent`
       );

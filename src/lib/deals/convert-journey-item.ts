@@ -273,22 +273,19 @@ export async function convertJourneyItemToDeal(
     );
   }
 
-  const propertyStatus = propertyStatusForPipelineStage(stage.name);
-  if (propertyStatus && propertyStatus !== 'Available') {
-    const synced = await setListingStatusFromDeal(
-      ctx.supabase,
-      ctx.accountId,
-      item.property_id,
-      propertyStatus
+  const synced = await setListingStatusFromDeal(
+    ctx.supabase,
+    ctx.accountId,
+    item.property_id,
+    propertyStatusForPipelineStage(stage.name) ?? 'Available'
+  );
+  // The deal is already open; a listing that did not follow is a line in
+  // the log, not a failed conversion.
+  if (!synced) {
+    console.warn(
+      '[convert-to-deal] Property status not synced:',
+      item.property_id
     );
-    // The deal is already open; a listing that did not follow is a
-    // line in the log, not a failed conversion.
-    if (!synced) {
-      console.warn(
-        '[convert-to-deal] Property status not synced:',
-        item.property_id
-      );
-    }
   }
 
   return { ok: true, status: 201, id: deal.id, existing: false };
