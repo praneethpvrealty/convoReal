@@ -152,6 +152,7 @@ interface ShowcaseViewProps {
   /** Share-grant token (?g=…), already verified server-side. Doubles as
    *  the credential the guarded-photo proxy checks on every fetch. */
   shareGrantToken?: string;
+  sellerPageSlug?: string;
   /** Destination landing pages override the hero copy. */
   hero?: { title: string; highlight: string; subtitle: string; badges?: string[] };
   /** Project facts (builder, amenities, gallery) — set only on
@@ -205,6 +206,7 @@ export function ShowcaseView({
   visitorRef,
   shareId,
   shareGrantToken,
+  sellerPageSlug,
   hero,
   projectInfo,
   initialTheme,
@@ -248,7 +250,12 @@ export function ShowcaseView({
   // Mirror of selectedProperty?.id for the mount-only listeners below.
   const selectedPropertyIdRef = useRef<string | null>(null);
   useEffect(() => {
-    trackerRef.current = createShowcaseTracker(accountId, visitorRef, shareId);
+    trackerRef.current = createShowcaseTracker(
+      accountId,
+      visitorRef,
+      shareId,
+      sellerPageSlug
+    );
     trackerRef.current.track('open');
     const tracker = trackerRef.current;
 
@@ -794,6 +801,7 @@ export function ShowcaseView({
           propertyCode: property.property_code,
           accountId,
           referrerContactId: property.agent_details?.id || referrerContactId,
+          sellerPage: sellerPageSlug,
           sessionKey: getShowcaseSessionKey(),
         }),
       });
@@ -887,6 +895,7 @@ export function ShowcaseView({
           notes: reqNotes.trim() || undefined,
           accountId,
           referrerContactId,
+          sellerPage: sellerPageSlug,
         }),
       });
 
@@ -1509,6 +1518,7 @@ export function ShowcaseView({
           propertyCode: selectedProperty.property_code,
           accountId,
           referrerContactId: selectedProperty.agent_details?.id || referrerContactId,
+          sellerPage: sellerPageSlug,
           sessionKey: getShowcaseSessionKey(),
         }),
       });
@@ -1737,6 +1747,17 @@ export function ShowcaseView({
           </div>
         </div>
       </header>
+
+      {sellerPageSlug && (
+        <div
+          data-showcase-seller-banner
+          className="z-10 w-full border-b border-slate-900/60 bg-slate-950/40"
+        >
+          <p className="mx-auto max-w-7xl px-4 py-2.5 text-xs font-bold tracking-wide text-slate-400 sm:px-6 lg:px-8">
+            A curated collection · {siteName}
+          </p>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="showcase-main flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 z-10">
@@ -2319,9 +2340,15 @@ export function ShowcaseView({
         ) : filteredProperties.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-20 border border-dashed border-slate-900 rounded-3xl bg-slate-900/10">
             <Building className="size-16 text-slate-750 opacity-40 mb-3 animate-pulse" />
-            <h3 className="text-lg font-bold text-white mb-1">No matching properties found</h3>
+            <h3 className="text-lg font-bold text-white mb-1">
+              {sellerPageSlug && properties.length === 0
+                ? 'No listings live right now'
+                : 'No matching properties found'}
+            </h3>
             <p className="text-slate-400 max-w-sm text-sm">
-              We couldn&apos;t find any published properties matching your criteria. Try adjusting filters or search phrase.
+              {sellerPageSlug && properties.length === 0
+                ? `Share your requirements and ${siteName} will reach out when a match comes up.`
+                : "We couldn't find any published properties matching your criteria. Try adjusting filters or search phrase."}
             </p>
           </div>
         ) : (
@@ -2706,6 +2733,7 @@ export function ShowcaseView({
           properties={shortlist.selected}
           accountId={accountId}
           referrerContactId={referrerContactId}
+          sellerPage={sellerPageSlug}
           name={visitorName}
           phone={visitorPhone}
           email={visitorEmail}
@@ -3956,6 +3984,7 @@ export function ShowcaseView({
           whatsappLink={catalogWhatsAppLink}
           showcaseUrl={showcaseUrl}
           referrerContactId={referrerContactId}
+          sellerPage={sellerPageSlug}
           onSelectProperty={openPropertyModal}
           onWhatsAppClick={() => trackPixelEvent('Contact', { contact_method: 'whatsapp_assistant' })}
           onAccountClick={() => trackPixelEvent('CompleteRegistration', { content_name: 'Buyer Den account' })}

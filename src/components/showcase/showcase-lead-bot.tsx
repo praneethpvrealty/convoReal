@@ -38,6 +38,7 @@ interface ShowcaseLeadBotProps {
   whatsappLink?: string;
   showcaseUrl?: string;
   referrerContactId?: string;
+  sellerPage?: string;
   onSelectProperty: (property: Property) => void;
   onWhatsAppClick?: () => void;
   /** Fired when the visitor takes up the free buyer account. */
@@ -77,6 +78,7 @@ export function ShowcaseLeadBot({
   whatsappLink,
   showcaseUrl,
   referrerContactId,
+  sellerPage,
   onSelectProperty,
   onWhatsAppClick,
   onAccountClick,
@@ -260,6 +262,7 @@ export function ShowcaseLeadBot({
           notes,
           accountId,
           referrerContactId,
+          sellerPage,
           // The number step says the agent will send matching listings
           // to this WhatsApp number — answering it is the opt-in.
           alertsConsent: true,
@@ -267,7 +270,7 @@ export function ShowcaseLeadBot({
       });
       if (!res.ok) throw new Error('requirements submission failed');
     },
-    [accountId, referrerContactId]
+    [accountId, referrerContactId, sellerPage]
   );
 
   const submitEngineProspect = useCallback(
