@@ -162,14 +162,45 @@ describe('dedupeAudience', () => {
       'utf8'
     );
     expect(source).toMatch(
-      /status === 'Available' &&\s*\(await dealsStillHoldListing\(db, accountId, propertyId, stageIds\)\)/
+      /status === 'Available' &&\s*\(await dealsStillHoldListing\(db, accountId, propertyId\)\)/
     );
-    expect(source).toContain('!stageIds ||');
-    expect(source).toContain('.limit(1);');
-    expect(source).not.toContain(
-      "select('status, stage:pipeline_stages(name)')"
-    );
-    expect(source).toContain('if (error) return true;');
+    expect(source).toContain('if (won.error || open.error) return true;');
+    expect(source).toContain(".not('stage.name', 'ilike', '*lost*')");
+    expect(source).toContain("{ referencedTable: 'stage' }");
+    expect(source).not.toMatch(/stage_id\.in\./);
+  });
+
+  it('[PRP-014] holds a listing on exactly the stages propertyStatusForPipelineStage does', async () => {
+    const { HOLDING_STAGE_KEYWORDS } = await import('./sold-notification');
+    const { propertyStatusForPipelineStage } =
+      await import('@/lib/pipelines/stage-semantics');
+    const heldByKeyword = (name: string) => {
+      const n = name.trim().toLowerCase();
+      return (
+        !n.includes('lost') &&
+        HOLDING_STAGE_KEYWORDS.some((word) => n.includes(word))
+      );
+    };
+    for (const stage of [
+      'New Lead',
+      'Site Visit',
+      'Negotiation',
+      'Token Paid',
+      'Due Diligence',
+      'Agreement / Contract',
+      'Registered',
+      'Won',
+      'Brokerage Pending',
+      'Brokerage Paid',
+      'Lost',
+      'Closed Lost',
+      'Won but Lost',
+    ]) {
+      const held = propertyStatusForPipelineStage(stage);
+      expect(heldByKeyword(stage), stage).toBe(
+        held === 'Under Contract' || held === 'Sold'
+      );
+    }
   });
 
   it('uses any approved Utility variant of the status template, not only the newest row', async () => {

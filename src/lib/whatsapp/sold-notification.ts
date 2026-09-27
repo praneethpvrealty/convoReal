@@ -29,7 +29,6 @@ import {
   buildSoldUpdateParams,
 } from '@/lib/whatsapp/sold-update-template';
 import type { MessageTemplate } from '@/types';
-import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
 
 export const SOLD_PRICE_BUTTON_PREFIX = 'sold_price:';
 export const SOLD_SIMILAR_BUTTON_PREFIX = 'sold_similar:';
@@ -169,44 +168,46 @@ async function closedEnquiryOnListing(
   return !!error || !!data;
 }
 
-async function holdingStageIds(
-  db: ReturnType<typeof supabaseAdmin>,
-  accountId: string
-): Promise<string[] | null> {
-  const { data, error } = await db
-    .from('pipeline_stages')
-    .select('id, name, pipeline:pipelines!inner(account_id)')
-    .eq('pipeline.account_id', accountId);
-  if (error) return null;
-  return ((data ?? []) as { id: string; name: string | null }[])
-    .filter((stage) => {
-      const held = stage.name
-        ? propertyStatusForPipelineStage(stage.name)
-        : null;
-      return held === 'Under Contract' || held === 'Sold';
-    })
-    .map((stage) => stage.id);
-}
+export const HOLDING_STAGE_KEYWORDS = [
+  'won',
+  'registered',
+  'brokerage',
+  'negotiation',
+  'token',
+  'due diligence',
+  'contract',
+] as const;
 
 async function dealsStillHoldListing(
   db: ReturnType<typeof supabaseAdmin>,
   accountId: string,
-  propertyId: string,
-  stageIds: string[]
+  propertyId: string
 ): Promise<boolean> {
-  const { data, error } = await db
-    .from('deals')
-    .select('id')
-    .eq('account_id', accountId)
-    .eq('property_id', propertyId)
-    .or(
-      stageIds.length > 0
-        ? `status.eq.won,and(status.eq.open,stage_id.in.(${stageIds.join(',')}))`
-        : 'status.eq.won'
-    )
-    .limit(1);
-  if (error) return true;
-  return (data ?? []).length > 0;
+  const [won, open] = await Promise.all([
+    db
+      .from('deals')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('property_id', propertyId)
+      .eq('status', 'won')
+      .limit(1),
+    db
+      .from('deals')
+      .select('id, stage:pipeline_stages!inner(name)')
+      .eq('account_id', accountId)
+      .eq('property_id', propertyId)
+      .eq('status', 'open')
+      .not('stage.name', 'ilike', '*lost*')
+      .or(
+        HOLDING_STAGE_KEYWORDS.map((word) => `name.ilike."*${word}*"`).join(
+          ','
+        ),
+        { referencedTable: 'stage' }
+      )
+      .limit(1),
+  ]);
+  if (won.error || open.error) return true;
+  return (won.data ?? []).length > 0 || (open.data ?? []).length > 0;
 }
 
 async function listingStillHasStatus(
@@ -477,15 +478,11 @@ export async function notifyBuyersOfPropertyStatus(
   let viaTemplate = 0;
   let skipped = 0;
 
-  const stageIds =
-    status === 'Available' ? await holdingStageIds(db, accountId) : [];
-
   for (const contactId of audience) {
     if (
-      !stageIds ||
       !(await listingStillHasStatus(db, accountId, propertyId, status)) ||
       (status === 'Available' &&
-        (await dealsStillHoldListing(db, accountId, propertyId, stageIds)))
+        (await dealsStillHoldListing(db, accountId, propertyId)))
     ) {
       console.warn(
         `[property-status-notification] ${propertyId} is no longer ${status}; remaining updates not sent`
