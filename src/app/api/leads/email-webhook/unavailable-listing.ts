@@ -9,8 +9,8 @@ import {
   ENQUIRY_NOTICE_TEMPLATE_NAMES,
 } from '@/lib/whatsapp/enquiry-notice-template';
 import {
-  accountDefaultLanguage,
   narrowToLanguage,
+  resolveSendLanguage,
 } from '@/lib/whatsapp/template-language';
 import type { MessageTemplate, Property } from '@/types';
 
@@ -94,7 +94,7 @@ export async function sendUnavailableListingReply({
       .eq('account_id', accountId)
       .in('name', ENQUIRY_NOTICE_TEMPLATE_NAMES)
       .eq('status', 'APPROVED'),
-    accountDefaultLanguage(supabase, accountId),
+    resolveSendLanguage(supabase, accountId, contactId),
     supabase.from('accounts').select('name').eq('id', accountId).maybeSingle(),
   ]);
   const template = pickEnquiryNoticeTemplate(

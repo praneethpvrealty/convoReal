@@ -9,10 +9,11 @@ vi.mock('@/lib/whatsapp/template-language', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('@/lib/whatsapp/template-language')
   >()),
-  accountDefaultLanguage: vi.fn().mockResolvedValue('en'),
+  resolveSendLanguage: vi.fn().mockResolvedValue('en'),
 }));
 
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { resolveSendLanguage } from '@/lib/whatsapp/template-language';
 import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from '@/lib/whatsapp/customer-window';
 import {
   enquiryNoticeSendParams,
@@ -118,6 +119,33 @@ describe('sendUnavailableListingReply', () => {
       '2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase, JP Nagar 4th Phase, Bangalore',
     ]);
     expect(call.text).toContain('update from Aryavarta Ventures');
+    expect(resolveSendLanguage).toHaveBeenCalledWith(
+      supabase,
+      'acc-1',
+      'contact-1'
+    );
+  });
+
+  it('[CLG-001] sends the notice in the contact preferred language when one is approved', async () => {
+    vi.mocked(resolveSendLanguage).mockResolvedValueOnce('hi');
+    send
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true });
+    const supabase = fakeDb({
+      properties: property,
+      message_templates: [
+        notice,
+        { ...notice, language: 'hi', body_text: 'नमस्ते {{1}}' },
+      ],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'template'
+    );
+    expect(send.mock.calls[1][0].templateLanguage).toBe('hi');
   });
 
   it('reports a closed window with no approved notice instead of failing silently', async () => {

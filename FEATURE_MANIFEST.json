@@ -2018,6 +2018,10 @@
             {
               "file": "src/lib/whatsapp/template-language.test.ts",
               "case": "[CLG-001]"
+            },
+            {
+              "file": "src/app/api/leads/email-webhook/unavailable-listing.test.ts",
+              "case": "[CLG-001]"
             }
           ],
           "guards": ["supabase/migrations/246_language_preferences.sql"]
