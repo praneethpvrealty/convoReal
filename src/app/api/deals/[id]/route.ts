@@ -104,6 +104,29 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updateData.brokerage_amount = brokerage_amount;
     if (typeof dealStatus === 'string') updateData.status = dealStatus;
 
+    let previousPropertyId: string | null = null;
+    if (property_id !== undefined) {
+      const { data: previous, error: previousErr } = await ctx.supabase
+        .from('deals')
+        .select('property_id')
+        .eq('id', dealId)
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+      if (previousErr) {
+        console.error('[PUT /api/deals/[id]] Deal lookup:', previousErr);
+        return NextResponse.json(
+          {
+            error:
+              'Could not read this deal, so it was not updated. Try again.',
+          },
+          { status: 500 }
+        );
+      }
+      previousPropertyId =
+        (previous as { property_id: string | null } | null)?.property_id ??
+        null;
+    }
+
     const { data: updated, error: updateErr } = await ctx.supabase
       .from('deals')
       .update(updateData)
@@ -163,6 +186,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         console.warn(
           '[PUT /api/deals/[id]] Property status not synced:',
           effectivePropertyId
+        );
+      }
+    }
+
+    if (previousPropertyId && previousPropertyId !== updateData.property_id) {
+      const released = await setListingStatusFromDeal(
+        ctx.supabase,
+        ctx.accountId,
+        previousPropertyId,
+        'Available'
+      );
+      if (!released) {
+        console.warn(
+          '[PUT /api/deals/[id]] Previous property not re-synced:',
+          previousPropertyId
         );
       }
     }

@@ -227,5 +227,8 @@ describe('journey close and reopen', () => {
       /setListingStatusFromDeal\(\s*ctx\.supabase,\s*ctx\.accountId,\s*effectivePropertyId,\s*propertyStatus\s*\)/
     );
     expect(route).not.toContain('.update({ status: propertyStatus })');
+    expect(route).toMatch(
+      /previousPropertyId && previousPropertyId !== updateData\.property_id\) \{\s*const released = await setListingStatusFromDeal\(\s*ctx\.supabase,\s*ctx\.accountId,\s*previousPropertyId,\s*'Available'\s*\)/
+    );
   });
 });
