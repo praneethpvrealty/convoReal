@@ -148,6 +148,60 @@ describe('sendUnavailableListingReply', () => {
     expect(send.mock.calls[1][0].templateLanguage).toBe('hi');
   });
 
+  it('[PRP-014] prefers the availability notice, with its status line, once it is approved', async () => {
+    send
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true });
+    const supabase = fakeDb({
+      properties: property,
+      message_templates: [
+        notice,
+        {
+          ...notice,
+          name: 'listing_availability_notice',
+          body_text: 'Hi {{1}} from {{2}}: {{3}} is {{4}}',
+        },
+      ],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'template'
+    );
+    const call = send.mock.calls[1][0];
+    expect(call.templateName).toBe('listing_availability_notice');
+    expect(call.templateParams).toEqual([
+      'Sandeep',
+      'Aryavarta Ventures',
+      '2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase, JP Nagar 4th Phase, Bangalore',
+      'Under contract',
+    ]);
+    expect(call.text).toContain('is Under contract');
+  });
+
+  it('[PRP-014] keeps a sold listing on the status notice, which promises no update', async () => {
+    send
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true });
+    const supabase = fakeDb({
+      properties: { ...property, status: 'Sold' },
+      message_templates: [
+        { ...notice, name: 'listing_availability_notice' },
+        notice,
+      ],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'template'
+    );
+    expect(send.mock.calls[1][0].templateName).toBe('listing_status_notice');
+  });
+
   it('reports a closed window with no approved notice instead of failing silently', async () => {
     send.mockResolvedValueOnce({
       success: false,

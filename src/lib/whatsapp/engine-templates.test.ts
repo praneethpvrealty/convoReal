@@ -19,6 +19,7 @@ describe('missingEngineTemplates', () => {
       'location_owner_decision',
       'property_selection_update',
       'listing_status_notice',
+      'listing_availability_notice',
       'enquiry_checkin_notice',
       'enquiry_timeline_notice',
       'property_enquiry_reminder',

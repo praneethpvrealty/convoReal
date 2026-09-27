@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 27 September 2026
 
+- **A WhatsApp template that promises an update on an unavailable listing.**
+  New engine template `listing_availability_notice` (Utility, all seven
+  languages), submitted from Settings → Templates. It tells a portal lead
+  outside WhatsApp's 24-hour window that the listing they enquired about is
+  under contract, off the market or not listed right now, names that status,
+  promises an update if it becomes available again, and asks for their
+  requirements and budget. Until Meta approves it, and always for a Sold
+  listing, those leads keep getting the listing status notice.
 - **Enquiries on an unavailable listing get an honest, kind answer.** A
   buyer who enquires on WhatsApp about a listing that is Under Contract, Off
   Market, Archived or Sold now hears an apology and its status instead of

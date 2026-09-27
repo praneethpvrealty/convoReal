@@ -58,6 +58,8 @@ const TEMPLATE_LABELS: Record<EngineTemplateKey, string> = {
   inventory_update: 'Inventory update — a refreshed catalogue snapshot',
   enquiry_followup: 'Enquiry status — the listing they asked about is gone',
   enquiry_notice: 'Enquiry notice — the same, naming the listing',
+  listing_availability:
+    'Listing availability — the listing is not available right now; we will update you if it frees up',
   journey_checkin: 'Enquiry check-in — is this still under consideration?',
   journey_timeline: 'Enquiry timeline — when should we check back with you?',
   journey_followup_reminder:
@@ -114,6 +116,12 @@ const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
   ],
   enquiry_followup: ['lead first name', 'brokerage name'],
   enquiry_notice: ['lead first name', 'brokerage name', 'listing title'],
+  listing_availability: [
+    'lead first name',
+    'brokerage name',
+    'listing title',
+    'listing status, e.g. Under contract',
+  ],
   journey_checkin: ['lead first name', 'brokerage name', 'listing title'],
   journey_timeline: ['lead first name', 'brokerage name', 'listing title'],
   journey_followup_reminder: [
@@ -152,6 +160,7 @@ const REPLY_BUTTONS: Record<EngineTemplateKey, TemplateButtonAction[]> = {
   inventory_update: ['inventory_full_list', 'site_visit', 'browse_showcase'],
   enquiry_followup: ['update_preferences', 'close_enquiry'],
   enquiry_notice: ['update_preferences', 'close_enquiry'],
+  listing_availability: ['update_preferences', 'close_enquiry'],
   journey_checkin: ['still_considering', 'close_enquiry', 'view_full_details'],
   journey_timeline: ['timeline_today', 'timeline_2_days', 'timeline_unsure'],
   journey_followup_reminder: [

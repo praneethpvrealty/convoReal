@@ -9,9 +9,15 @@ import {
   ENQUIRY_NOTICE_TEMPLATE_NAMES,
 } from '@/lib/whatsapp/enquiry-notice-template';
 import {
+  buildListingAvailabilityParams,
+  LISTING_AVAILABILITY_TEMPLATE_NAME,
+  pickListingAvailabilityTemplate,
+} from '@/lib/whatsapp/listing-availability-template';
+import {
   narrowToLanguage,
   resolveSendLanguage,
 } from '@/lib/whatsapp/template-language';
+import { languageForMetaCode } from '@/lib/languages';
 import type { MessageTemplate, Property } from '@/types';
 
 export type UnavailableListingOutcome =
@@ -87,19 +93,29 @@ export async function sendUnavailableListingReply({
     return 'failed';
   }
 
+  const canBecomeAvailable = (property as Property).status !== 'Sold';
   const [{ data: rows }, language, { data: account }] = await Promise.all([
     supabase
       .from('message_templates')
       .select('*')
       .eq('account_id', accountId)
-      .in('name', ENQUIRY_NOTICE_TEMPLATE_NAMES)
+      .in('name', [
+        ...(canBecomeAvailable ? [LISTING_AVAILABILITY_TEMPLATE_NAME] : []),
+        ...ENQUIRY_NOTICE_TEMPLATE_NAMES,
+      ])
       .eq('status', 'APPROVED'),
     resolveSendLanguage(supabase, accountId, contactId),
     supabase.from('accounts').select('name').eq('id', accountId).maybeSingle(),
   ]);
-  const template = pickEnquiryNoticeTemplate(
-    narrowToLanguage((rows ?? []) as MessageTemplate[], language)
+  const candidates = narrowToLanguage(
+    (rows ?? []) as MessageTemplate[],
+    language
   );
+  const availabilityTemplate = canBecomeAvailable
+    ? pickListingAvailabilityTemplate(candidates)
+    : null;
+  const template =
+    availabilityTemplate ?? pickEnquiryNoticeTemplate(candidates);
   if (!template) {
     console.warn(
       `[lead-webhook] No approved listing status notice template — contact ${contactId} was not told the listing is ${(property as Property).status}`
@@ -107,12 +123,20 @@ export async function sendUnavailableListingReply({
     return 'no_template';
   }
 
-  const params = enquiryNoticeSendParams(
-    template.name,
-    leadName,
-    property as Property,
-    (account as { name?: string | null } | null)?.name ?? null
-  );
+  const brandName = (account as { name?: string | null } | null)?.name ?? null;
+  const params: string[] = availabilityTemplate
+    ? buildListingAvailabilityParams(
+        leadName,
+        property as Property,
+        brandName,
+        languageForMetaCode(template.language || 'en') ?? 'en'
+      )
+    : enquiryNoticeSendParams(
+        template.name,
+        leadName,
+        property as Property,
+        brandName
+      );
   const templateResult = await sendWhatsAppMessageAndPersist({
     ...base,
     kind: 'template',
