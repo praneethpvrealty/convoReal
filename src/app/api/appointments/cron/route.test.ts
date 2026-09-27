@@ -104,6 +104,41 @@ describe('appointments cron', () => {
     expect(await res.json()).toEqual({ error: 'boom' })
   })
 
+  it('lets every other pass finish before returning, even when one rejects', async () => {
+    // A pass that claims a row (appointment_reminder_log, agent_digest_log,
+    // …) before sending must be allowed to finish that send even if a
+    // sibling pass fails — otherwise Vercel can freeze the invocation with
+    // the claim made but nothing actually sent. Promise.all would settle
+    // the response as soon as dailyDigests rejects, without waiting for
+    // the still-pending slow pass; allSettled must wait for it.
+    dailyDigests.mockRejectedValue(new Error('boom'))
+    let resolveSlowPass!: () => void
+    todoReminders.mockImplementation(
+      () => new Promise<void>((resolve) => { resolveSlowPass = resolve })
+    )
+
+    let responseSettled = false
+    const resPromise = GET(
+      new Request(url, { headers: { authorization: 'Bearer top-secret' } })
+    ).then((res) => {
+      responseSettled = true
+      return res
+    })
+
+    // Flush microtasks so dailyDigests' rejection has every chance to
+    // propagate through the route before we check.
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+
+    expect(responseSettled).toBe(false)
+
+    resolveSlowPass()
+    const res = await resPromise
+
+    expect(responseSettled).toBe(true)
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: 'boom' })
+  })
+
   it('fails closed (503) when no secret is configured', async () => {
     delete process.env.CRON_SECRET
     const res = await GET(new Request(url))

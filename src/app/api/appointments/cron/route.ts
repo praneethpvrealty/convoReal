@@ -40,7 +40,11 @@ export async function GET(request: Request) {
   try {
     // Independent reminder/notification sweeps — none reads another's
     // result, so they run concurrently rather than one after another.
-    await Promise.all([
+    // allSettled (not all) so a rejection in one doesn't return before
+    // the rest finish: each sweep claims a row (appointment_reminder_log,
+    // agent_digest_log, …) before sending, and an early return here could
+    // let Vercel freeze the invocation with those claims made but unsent.
+    const results = await Promise.allSettled([
       checkAndSendAppointmentReminders(),
       sendAgentEventReminders(),
       sendDailyScheduleDigests(),
@@ -50,6 +54,10 @@ export async function GET(request: Request) {
       deliverRealtimeBuyerAlertsForConnectedAccounts(supabaseAdmin()),
       sendPortalExpiryReminders(),
     ])
+    const failed = results.find(
+      (r): r is PromiseRejectedResult => r.status === 'rejected'
+    )
+    if (failed) throw failed.reason
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[Appointments Cron] Check failed:', error)
