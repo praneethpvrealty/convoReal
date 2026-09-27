@@ -1253,5 +1253,8 @@ describe('[PRP-014] a repeat portal enquiry reopens a closed one', () => {
     expect(source).toMatch(
       /from\('listing_feedback'\)\.upsert\(\s*\{\s*account_id: accountId,\s*contact_id: existingContact\.id,\s*property_id: matchedPropertyIds\[0\],\s*verdict: 'interested',/
     );
+    expect(source).toContain(
+      'const reopenError = reopened.find((result) => result.error)?.error;'
+    );
   });
 });

@@ -231,4 +231,22 @@ describe('journey close and reopen', () => {
       /previousPropertyId && previousPropertyId !== updateData\.property_id\) \{\s*const released = await setListingStatusFromDeal\(\s*ctx\.supabase,\s*ctx\.accountId,\s*previousPropertyId,\s*'Available'\s*\)/
     );
   });
+
+  it("[PRP-014] re-syncs a branch's listings when it is dropped or reactivated", () => {
+    const route = readFileSync(
+      join(process.cwd(), 'src/app/api/journey/status/route.ts'),
+      'utf8'
+    );
+    expect(route).toContain(".eq('source_journey_item_id', itemId)");
+    expect(route).toMatch(
+      /setListingStatusFromDeal\(\s*ctx\.supabase,\s*ctx\.accountId,\s*propertyId,\s*'Available'\s*\)/
+    );
+    expect(route).toContain("code: 'LISTING_SYNC_FAILED'");
+    const section = readFileSync(
+      join(process.cwd(), 'src/components/journey/journey-section.tsx'),
+      'utf8'
+    );
+    expect(section).toContain("fetch('/api/journey/status'");
+    expect(section).not.toMatch(/status: 'dropped',\s*drop_reason: reason/);
+  });
 });

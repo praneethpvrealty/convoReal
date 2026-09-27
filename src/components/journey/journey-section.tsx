@@ -438,46 +438,47 @@ export function JourneySection({
     [moveItem]
   );
 
+  const setBranchStatus = async (
+    itemId: string,
+    action: 'drop' | 'reactivate',
+    reason?: string
+  ): Promise<string | null> => {
+    const res = await fetch('/api/journey/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_id: itemId, action, reason }),
+    });
+    if (res.ok) return null;
+    const json = (await res.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    return json?.error ?? 'that item is no longer there';
+  };
+
   const handleDrop = useCallback(
     async (item: JourneyItem, reason: string) => {
-      const { data: updated, error } = await supabase
-        .from('journey_items')
-        .update({
-          status: 'dropped',
-          drop_reason: reason,
-          dropped_at: new Date().toISOString(),
-        })
-        .eq('id', item.id)
-        .select('id');
-      if (error || !updated?.length) {
-        toast.error(
-          `Failed to drop: ${error?.message ?? 'that item is no longer there'}`
-        );
+      const error = await setBranchStatus(item.id, 'drop', reason);
+      if (error) {
+        toast.error(`Failed to drop: ${error}`);
         return;
       }
       await logEvent(item.id, 'dropped', item.stage_id, item.stage_id, reason);
       await refresh();
     },
-    [supabase, logEvent, refresh]
+    [logEvent, refresh]
   );
 
   const handleReactivate = useCallback(
     async (item: JourneyItem) => {
-      const { data: updated, error } = await supabase
-        .from('journey_items')
-        .update({ status: 'active', drop_reason: null, dropped_at: null })
-        .eq('id', item.id)
-        .select('id');
-      if (error || !updated?.length) {
-        toast.error(
-          `Failed to reactivate: ${error?.message ?? 'that item is no longer there'}`
-        );
+      const error = await setBranchStatus(item.id, 'reactivate');
+      if (error) {
+        toast.error(`Failed to reactivate: ${error}`);
         return;
       }
       await logEvent(item.id, 'reactivated', item.stage_id, item.stage_id);
       await refresh();
     },
-    [supabase, logEvent, refresh]
+    [logEvent, refresh]
   );
 
   const handleRemove = useCallback(

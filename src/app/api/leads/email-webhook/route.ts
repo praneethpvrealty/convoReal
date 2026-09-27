@@ -906,7 +906,7 @@ export async function POST(request: Request) {
       // recorded. Inserting every fuzzy match (score >= 2) tagged contacts
       // with type-only near-misses across the whole inventory.
       if (matchedPropertyIds.length > 0) {
-        await Promise.all([
+        const reopened = await Promise.all([
           supabase.from('contact_property_inquiries').upsert(
             {
               account_id: accountId,
@@ -927,6 +927,17 @@ export async function POST(request: Request) {
             { onConflict: 'contact_id,property_id' }
           ),
         ]);
+        const reopenError = reopened.find((result) => result.error)?.error;
+        if (reopenError) {
+          console.error(
+            '[lead-webhook] Enquiry not recorded for existing contact:',
+            reopenError.message
+          );
+          return NextResponse.json(
+            { error: reopenError.message },
+            { status: 500 }
+          );
+        }
       }
 
       // Auto-assign tags based on property interests and budget
