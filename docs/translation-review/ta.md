@@ -13,7 +13,7 @@ Write your correction in the last column / block. Leave it blank if the current 
 
 ---
 
-## Buttons (22)
+## Buttons (23)
 
 The tappable options underneath a message.
 
@@ -40,11 +40,12 @@ The tappable options underneath a message.
 | 19 | View full details | முழு விவரம் காண்க | 17/25 | |
 | 20 | View location | இடத்தைக் காண்க | 14/25 | |
 | 21 | Browse showcase | பட்டியலைக் காண்க | 16/25 | |
-| 22 | Noted, thanks | சரி, நன்றி | 10/25 | |
+| 22 | Sign in to Portfolio | Portfolio உள்நுழைவு | 19/25 | |
+| 23 | Noted, thanks | சரி, நன்றி | 10/25 | |
 
 ---
 
-## Messages (18)
+## Messages (20)
 
 ### 1. Number change notice — the brokerage now messages from a different WhatsApp number
 
@@ -94,7 +95,33 @@ The tappable options underneath a message.
 
 ---
 
-### 3. Requirement review — verify the property search recorded for an enquiry
+### 3. Portfolio access — a buyer or owner is sent their Portfolio sign-in link
+
+*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name
+
+**English**
+
+> Hi {{1}}, this is an account notice from {{2}}.
+>
+> Your Portfolio is now active and linked to this WhatsApp number. It shows the records kept for you: properties matched to your requirement and your shortlist as a buyer, or enquiries, site visits and bids on your property as an owner.
+>
+> To sign in, tap the button below and enter the one-time code sent to this number.
+
+**தமிழ் — current**
+
+> வணக்கம் {{1}}, இது {{2}} அனுப்பும் கணக்கு அறிவிப்பு.
+>
+> உங்கள் Portfolio இப்போது செயலில் உள்ளது, இந்த WhatsApp எண்ணுடன் இணைக்கப்பட்டுள்ளது. உங்களுக்காக வைக்கப்பட்ட பதிவுகள் இதில் தெரியும்: வாங்குபவராக உங்கள் தேவைக்குப் பொருந்தும் சொத்துகள் மற்றும் உங்கள் ஷார்ட்லிஸ்ட், அல்லது உரிமையாளராக உங்கள் சொத்தின் மீதான விசாரணைகள், தள வருகைகள் மற்றும் ஏலங்கள்.
+>
+> உள்நுழைய கீழே உள்ள பொத்தானை அழுத்தி, இந்த எண்ணுக்கு அனுப்பப்பட்ட ஒருமுறை குறியீட்டை உள்ளிடவும்.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 4. Requirement review — verify the property search recorded for an enquiry
 
 *Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name
 
@@ -116,7 +143,7 @@ The tappable options underneath a message.
 
 ---
 
-### 4. Property details — sent when a buyer asks about a listing
+### 5. Property details — sent when a buyer asks about a listing
 
 *Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality
 
@@ -146,7 +173,7 @@ The tappable options underneath a message.
 
 ---
 
-### 5. Property photos — the same, led by a photo
+### 6. Property photos — the same, led by a photo
 
 *Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality · `{{6}}` = Google Maps link
 
@@ -178,7 +205,7 @@ The tappable options underneath a message.
 
 ---
 
-### 6. Location reveal — approved request for an exact address
+### 7. Location reveal — approved request for an exact address
 
 *Placeholders:* `{{1}}` = requester first name · `{{2}}` = listing title
 
@@ -210,7 +237,7 @@ The tappable options underneath a message.
 
 ---
 
-### 7. Listing access approved — approved request to view the full listing
+### 8. Listing access approved — approved request to view the full listing
 
 *Placeholders:* `{{1}}` = requester first name · `{{2}}` = listing title · `{{3}}` = listing specs
 
@@ -240,7 +267,7 @@ The tappable options underneath a message.
 
 ---
 
-### 8. Location consent request — a co-broker decides whether a protected request can advance
+### 9. Location consent request — a co-broker decides whether a protected request can advance
 
 *Placeholders:* `{{1}}` = co-broker first name · `{{2}}` = listing title · `{{3}}` = masked requester identity
 
@@ -270,7 +297,7 @@ The tappable options underneath a message.
 
 ---
 
-### 9. Location owner decision — the listing side approves or rejects protected access
+### 10. Location owner decision — the listing side approves or rejects protected access
 
 *Placeholders:* `{{1}}` = request type · `{{2}}` = listing title and code · `{{3}}` = requester identity or masked identity · `{{4}}` = access being requested
 
@@ -300,7 +327,7 @@ The tappable options underneath a message.
 
 ---
 
-### 10. Inventory update — a refreshed catalogue snapshot
+### 11. Inventory update — a refreshed catalogue snapshot
 
 *Placeholders:* `{{1}}` = contact first name · `{{2}}` = residential summary · `{{3}}` = commercial summary · `{{4}}` = farm & land summary
 
@@ -334,7 +361,7 @@ The tappable options underneath a message.
 
 ---
 
-### 11. Enquiry status — the listing they asked about is gone
+### 12. Enquiry status — the listing they asked about is gone
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name
 
@@ -360,7 +387,7 @@ The tappable options underneath a message.
 
 ---
 
-### 12. Enquiry notice — the same, naming the listing
+### 13. Enquiry notice — the same, naming the listing
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
@@ -390,7 +417,39 @@ The tappable options underneath a message.
 
 ---
 
-### 13. Enquiry check-in — is this still under consideration?
+### 14. Listing availability — the listing is not available right now; we will update you if it frees up
+
+*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = listing status, e.g. Under contract
+
+**English**
+
+> Hi {{1}}, this is a status update on your property enquiry with {{2}}:
+>
+> Property: {{3}}
+> Status: {{4}}
+>
+> We are sorry, the listing you enquired about is not available right now. If it becomes available again, we will update you here.
+>
+> To keep your enquiry open, update your requirement below or reply with your requirements and budget. To end it, choose "Close my enquiry" and no further updates will be sent.
+
+**தமிழ் — current**
+
+> வணக்கம் {{1}}, உங்கள் சொத்து விசாரணையின் நிலை {{2}} சார்பாக:
+>
+> சொத்து: {{3}}
+> நிலை: {{4}}
+>
+> மன்னிக்கவும், நீங்கள் விசாரித்த சொத்து இப்போது கிடைக்கவில்லை. இது மீண்டும் கிடைத்தால், இங்கேயே உங்களுக்குத் தெரிவிப்போம்.
+>
+> விசாரணையைத் தொடர கீழே உங்கள் தேவையைப் புதுப்பிக்கவும் அல்லது உங்கள் தேவைகளையும் பட்ஜெட்டையும் பதிலளிக்கவும். முடிக்க "விசாரணையை மூடு" தேர்ந்தெடுக்கவும், பின் எந்த புதுப்பிப்பும் அனுப்பப்படாது.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 15. Enquiry check-in — is this still under consideration?
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
@@ -420,7 +479,7 @@ The tappable options underneath a message.
 
 ---
 
-### 14. Enquiry timeline — when should we check back with you?
+### 16. Enquiry timeline — when should we check back with you?
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
@@ -450,7 +509,7 @@ The tappable options underneath a message.
 
 ---
 
-### 15. Enquiry follow-up reminder — confirm or move the scheduled follow-up date
+### 17. Enquiry follow-up reminder — confirm or move the scheduled follow-up date
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = scheduled follow-up date
 
@@ -478,7 +537,7 @@ The tappable options underneath a message.
 
 ---
 
-### 16. Purchase progress — where does the paperwork stand on a deal already at legal?
+### 18. Purchase progress — where does the paperwork stand on a deal already at legal?
 
 *Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = property being bought · `{{4}}` = stage the purchase is recorded at
 
@@ -506,7 +565,7 @@ The tappable options underneath a message.
 
 ---
 
-### 17. Audio announcement — a voice-note update, delivered as a playable video
+### 19. Audio announcement — a voice-note update, delivered as a playable video
 
 *Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name
 
@@ -528,7 +587,7 @@ The tappable options underneath a message.
 
 ---
 
-### 18. Post-call options — after a qualification call, offer the matching listings
+### 20. Post-call options — after a qualification call, offer the matching listings
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = stated requirement (budget / areas)
 

@@ -19,6 +19,29 @@ than a written entry. Newest first.
 
 #### 27 September 2026
 
+- **A WhatsApp template that promises an update on an unavailable listing.**
+  New engine template `listing_availability_notice` (Utility, all seven
+  languages), submitted from Settings → Templates. It tells a portal lead
+  outside WhatsApp's 24-hour window that the listing they enquired about is
+  under contract, off the market or not listed right now, names that status,
+  promises an update if it becomes available again, and asks for their
+  requirements and budget. Until Meta approves it as Utility, and always for
+  a Sold listing, those leads keep getting the listing status notice.
+- **"We'll update you" is now kept when a deal falls through.** Losing,
+  reopening or deleting a deal on the pipeline puts its listing back to
+  Available, and that now tells everyone who enquired about it or was sent
+  it, just as editing the listing's status does. Before, only an edit on the
+  listing itself sent the update. Closing or reopening a journey, and
+  converting a journey branch to a deal, now keep the listings of their deals
+  in step too, and the sync runs in the database under a lock so two deal
+  changes at once cannot leave a stale status. **Migration:**
+  `20260927080000_listing_status_from_deals.sql` (additive: two new
+  functions) and `20260927083000_listing_status_functions_search_path.sql`
+  (pins their search path; apply after the first). A listing always takes the strongest
+  status its open and won deals hold, so one deal can no longer release or
+  overwrite a listing another deal holds, and no status update goes to anyone
+  who closed their enquiry on the listing. Outside WhatsApp's 24-hour window
+  a status update is sent only on a Utility template, never a Marketing one.
 - **Removing a journey branch removes its deal.** Remove a branch from
   the Journey, or a whole journey from the overview, on web or mobile,
   and any deal opened from it is deleted from the Board and Records the

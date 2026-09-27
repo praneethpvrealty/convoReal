@@ -56,7 +56,8 @@ const STATUS_DETAILS: Record<BuyerVisiblePropertyStatus, string> = {
     'This property is now under contract. It may become available again if the transaction does not proceed.',
   Sold: 'This property is no longer available — it has been sold.',
   Archived: 'This listing has been archived and is no longer active.',
-  'Off Market': 'This property has been taken off the market and is not currently available.',
+  'Off Market':
+    'This property has been taken off the market and is not currently available.',
 };
 
 export function shouldNotifyBuyersOfPropertyStatus(
@@ -100,9 +101,10 @@ export function buildSoldPriceReply(
  *  duplicates and the property's own owner. */
 export function dedupeAudience(
   lists: string[][],
-  excludeContactId?: string | null
+  excludeContactId?: string | null,
+  closedEnquiries: ReadonlySet<string> = new Set()
 ): string[] {
-  const seen = new Set<string>();
+  const seen = new Set<string>(closedEnquiries);
   const audience: string[] = [];
   for (const list of lists) {
     for (const id of list) {
@@ -139,11 +141,95 @@ async function isSessionOpen(
   return (count ?? 0) > 0;
 }
 
-function resolveTemplateBodyText(bodyTemplateText: string, params: string[]): string {
+function resolveTemplateBodyText(
+  bodyTemplateText: string,
+  params: string[]
+): string {
   return bodyTemplateText.replace(/\{\{(\d+)\}\}/g, (match, numberStr) => {
     const idx = parseInt(numberStr) - 1;
     return idx >= 0 && idx < params.length ? params[idx] : match;
   });
+}
+
+async function closedEnquiryOnListing(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  propertyId: string,
+  contactId: string
+): Promise<boolean> {
+  const { data, error } = await db
+    .from('listing_feedback')
+    .select('contact_id')
+    .eq('account_id', accountId)
+    .eq('property_id', propertyId)
+    .eq('contact_id', contactId)
+    .eq('verdict', 'rejected')
+    .maybeSingle();
+  return !!error || !!data;
+}
+
+export const HOLDING_STAGE_KEYWORDS = [
+  'won',
+  'registered',
+  'brokerage',
+  'negotiation',
+  'token',
+  'due diligence',
+  'contract',
+] as const;
+
+async function dealsStillHoldListing(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  propertyId: string
+): Promise<boolean> {
+  const { data, error } = await db
+    .from('properties')
+    .select(
+      'id, won:deals(id), open:deals(id, stage:pipeline_stages!inner(name))'
+    )
+    .eq('account_id', accountId)
+    .eq('id', propertyId)
+    .eq('won.account_id', accountId)
+    .eq('won.status', 'won')
+    .limit(1, { referencedTable: 'won' })
+    .eq('open.account_id', accountId)
+    .eq('open.status', 'open')
+    .not('open.stage.name', 'ilike', '*lost*')
+    .or(
+      HOLDING_STAGE_KEYWORDS.map((word) => `name.ilike."*${word}*"`).join(','),
+      { referencedTable: 'open.stage' }
+    )
+    .limit(1, { referencedTable: 'open' })
+    .maybeSingle();
+  if (error || !data) return true;
+  const row = data as { won: unknown[] | null; open: unknown[] | null };
+  return (row.won ?? []).length > 0 || (row.open ?? []).length > 0;
+}
+
+async function listingStillHasStatus(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  propertyId: string,
+  status: BuyerVisiblePropertyStatus
+): Promise<boolean> {
+  const { data, error } = await db
+    .from('properties')
+    .select('id')
+    .eq('id', propertyId)
+    .eq('account_id', accountId)
+    .eq('status', status)
+    .maybeSingle();
+  return !error && !!data;
+}
+
+export function usableStatusUpdateTemplate<
+  T extends { status?: string | null; category?: string | null },
+>(template: T): T | null {
+  return template.status === 'APPROVED' &&
+    (template.category ?? '').toUpperCase() === 'UTILITY'
+    ? template
+    : null;
 }
 
 /**
@@ -162,18 +248,19 @@ async function ensureStatusUpdateTemplate(
       ? SOLD_UPDATE_TEMPLATE_NAME
       : PROPERTY_STATUS_UPDATE_TEMPLATE_NAME;
 
-  const { data: latestRow } = await db
+  const { data: rows } = await db
     .from('message_templates')
     .select('*')
     .eq('account_id', accountId)
     .eq('name', templateName)
-    .order('last_submitted_at', { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
+    .order('last_submitted_at', { ascending: false, nullsFirst: false });
 
-  if (latestRow) {
-    const template = latestRow as unknown as MessageTemplate;
-    return template.status === 'APPROVED' ? template : null;
+  if (rows && rows.length > 0) {
+    return (
+      (rows as unknown as MessageTemplate[]).find(
+        (row) => usableStatusUpdateTemplate(row) !== null
+      ) ?? null
+    );
   }
 
   try {
@@ -182,7 +269,11 @@ async function ensureStatusUpdateTemplate(
       .select('*')
       .eq('account_id', accountId)
       .maybeSingle();
-    if (!config?.waba_id || !config.access_token || config.integration_type === 'sandbox') {
+    if (
+      !config?.waba_id ||
+      !config.access_token ||
+      config.integration_type === 'sandbox'
+    ) {
       return null;
     }
 
@@ -223,7 +314,10 @@ async function ensureStatusUpdateTemplate(
       `[property-status-notification] auto-submitted ${templateName} template for account ${accountId} (status ${meta.status})`
     );
   } catch (err) {
-    console.error('[property-status-notification] template auto-submit failed:', err);
+    console.error(
+      '[property-status-notification] template auto-submit failed:',
+      err
+    );
   }
   // Freshly submitted templates are PENDING — usable on a later update.
   return null;
@@ -250,7 +344,12 @@ export async function notifyBuyersOfPropertyStatus(
   accountId: string,
   propertyId: string,
   status: BuyerVisiblePropertyStatus
-): Promise<{ notified: number; viaTemplate: number; skipped: number; audience: number }> {
+): Promise<{
+  notified: number;
+  viaTemplate: number;
+  skipped: number;
+  audience: number;
+}> {
   const db = supabaseAdmin();
 
   const { data: property } = await db
@@ -261,36 +360,67 @@ export async function notifyBuyersOfPropertyStatus(
     .eq('status', status)
     .maybeSingle();
 
-  if (!property) return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
+  if (!property)
+    return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
 
-  const [interestedRes, inquiriesRes, sharesRes] = await Promise.all([
-    db
-      .from('contacts')
-      .select('id')
-      .eq('account_id', accountId)
-      .eq('last_inquired_property_id', propertyId),
-    db
-      .from('contact_property_inquiries')
-      .select('contact_id')
-      .eq('account_id', accountId)
-      .eq('property_id', propertyId),
-    db
-      .from('property_shares')
-      .select('contact_id')
-      .eq('account_id', accountId)
-      .eq('property_id', propertyId),
-  ]);
+  const [interestedRes, inquiriesRes, sharesRes, rejectedRes] =
+    await Promise.all([
+      db
+        .from('contacts')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('last_inquired_property_id', propertyId),
+      db
+        .from('contact_property_inquiries')
+        .select('contact_id')
+        .eq('account_id', accountId)
+        .eq('property_id', propertyId),
+      db
+        .from('property_shares')
+        .select('contact_id')
+        .eq('account_id', accountId)
+        .eq('property_id', propertyId),
+      db
+        .from('listing_feedback')
+        .select('contact_id')
+        .eq('account_id', accountId)
+        .eq('property_id', propertyId)
+        .eq('verdict', 'rejected'),
+    ]);
+  const lookupError =
+    interestedRes.error ??
+    inquiriesRes.error ??
+    sharesRes.error ??
+    rejectedRes.error;
+  if (lookupError) {
+    console.error(
+      '[sold-notification] Audience could not be read; no update sent:',
+      lookupError.message
+    );
+    return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
+  }
+  const closedEnquiries = new Set(
+    ((rejectedRes.data ?? []) as { contact_id: string }[]).map(
+      (r) => r.contact_id
+    )
+  );
 
   const audience = dedupeAudience(
     [
       ((interestedRes.data ?? []) as { id: string }[]).map((r) => r.id),
-      ((inquiriesRes.data ?? []) as { contact_id: string }[]).map((r) => r.contact_id),
-      ((sharesRes.data ?? []) as { contact_id: string }[]).map((r) => r.contact_id),
+      ((inquiriesRes.data ?? []) as { contact_id: string }[]).map(
+        (r) => r.contact_id
+      ),
+      ((sharesRes.data ?? []) as { contact_id: string }[]).map(
+        (r) => r.contact_id
+      ),
     ],
-    property.owner_contact_id as string | null
+    property.owner_contact_id as string | null,
+    closedEnquiries
   );
 
-  if (audience.length === 0) return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
+  if (audience.length === 0)
+    return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
 
   const template = await ensureStatusUpdateTemplate(accountId, status);
 
@@ -325,16 +455,41 @@ export async function notifyBuyersOfPropertyStatus(
   const buttons =
     status === 'Sold'
       ? [
-          { id: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`, title: 'Check sold price' },
-          { id: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`, title: 'Find similar' },
+          {
+            id: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`,
+            title: 'Check sold price',
+          },
+          {
+            id: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`,
+            title: 'Find similar',
+          },
         ]
-      : [{ id: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`, title: 'Find similar' }];
+      : [
+          {
+            id: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`,
+            title: 'Find similar',
+          },
+        ];
 
   let notified = 0;
   let viaTemplate = 0;
   let skipped = 0;
 
   for (const contactId of audience) {
+    if (
+      !(await listingStillHasStatus(db, accountId, propertyId, status)) ||
+      (status === 'Available' &&
+        (await dealsStillHoldListing(db, accountId, propertyId)))
+    ) {
+      console.warn(
+        `[property-status-notification] ${propertyId} is no longer ${status}; remaining updates not sent`
+      );
+      break;
+    }
+    if (await closedEnquiryOnListing(db, accountId, propertyId, contactId)) {
+      skipped++;
+      continue;
+    }
     const open = await isSessionOpen(db, accountId, contactId);
 
     if (open) {
@@ -362,11 +517,18 @@ export async function notifyBuyersOfPropertyStatus(
     );
     const localised =
       pickTemplateForLanguage(
-        (statusVariants ?? []) as MessageTemplate[],
+        ((statusVariants ?? []) as MessageTemplate[]).filter(
+          (variant) => usableStatusUpdateTemplate(variant) !== null
+        ),
         language
       ) ?? template;
     if (isLanguageFallback(localised, language)) {
-      warnLanguageFallback('property-status-notification', accountId, language, localised);
+      warnLanguageFallback(
+        'property-status-notification',
+        accountId,
+        language,
+        localised
+      );
     }
 
     const bodyParams = truncateParametersToBudget(
@@ -416,6 +578,9 @@ export async function notifyBuyersOfPropertyStatus(
   return { notified, viaTemplate, skipped, audience: audience.length };
 }
 
-export function notifyBuyersOfSoldProperty(accountId: string, propertyId: string) {
+export function notifyBuyersOfSoldProperty(
+  accountId: string,
+  propertyId: string
+) {
   return notifyBuyersOfPropertyStatus(accountId, propertyId, 'Sold');
 }

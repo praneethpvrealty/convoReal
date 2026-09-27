@@ -46,6 +46,10 @@ import {
   ENQUIRY_NOTICE_TEMPLATE_NAME,
 } from './enquiry-notice-template';
 import {
+  buildListingAvailabilityTemplatePayload,
+  LISTING_AVAILABILITY_TEMPLATE_NAME,
+} from './listing-availability-template';
+import {
   buildJourneyCheckinTemplatePayload,
   JOURNEY_CHECKIN_TEMPLATE_NAME,
 } from './journey-checkin-template';
@@ -182,6 +186,15 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       'The property-anchored version of the enquiry status notice — names the listing the lead enquired about, so the message is specific rather than a form letter. Used for leads whose enquired property is known.',
     build: (_origin, language) => buildEnquiryNoticeTemplatePayload(language),
+  },
+  {
+    name: LISTING_AVAILABILITY_TEMPLATE_NAME,
+    copyKey: 'listing_availability',
+    label: 'Listing availability',
+    whyItMatters:
+      'Tells a portal lead whose enquired listing is under contract, off the market or no longer listed that it is not available right now, that we will update them if it becomes available again, and asks for their requirements and budget. Without it, those leads get the enquiry notice, which says the listing is gone for good.',
+    build: (_origin, language) =>
+      buildListingAvailabilityTemplatePayload(language),
   },
   {
     name: JOURNEY_CHECKIN_TEMPLATE_NAME,

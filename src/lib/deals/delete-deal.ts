@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { DEAL_DOCUMENT_BUCKET } from '@/lib/invoices/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 
 export type DeleteDealResult =
   { ok: true } | { ok: false; status: 404 | 500; error: string };
@@ -87,12 +88,13 @@ export async function deleteDealWithCleanup(
   }
 
   if (deal.property_id) {
-    const { data: released } = await ctx.supabase
-      .from('properties')
-      .update({ status: 'Available' })
-      .eq('id', deal.property_id)
-      .select('id');
-    if (!released?.length) {
+    const released = await setListingStatusFromDeal(
+      ctx.supabase,
+      ctx.accountId,
+      deal.property_id,
+      'Available'
+    );
+    if (!released) {
       console.warn('[deals/delete] Property not released:', deal.property_id);
     }
   }

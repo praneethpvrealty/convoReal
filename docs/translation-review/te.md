@@ -13,7 +13,7 @@ Write your correction in the last column / block. Leave it blank if the current 
 
 ---
 
-## Buttons (22)
+## Buttons (23)
 
 The tappable options underneath a message.
 
@@ -40,11 +40,12 @@ The tappable options underneath a message.
 | 19 | View full details | పూర్తి వివరాలు చూడు | 19/25 | |
 | 20 | View location | స్థానం చూడండి | 13/25 | |
 | 21 | Browse showcase | కేటలాగ్ చూడండి | 14/25 | |
-| 22 | Noted, thanks | సరే, ధన్యవాదాలు | 15/25 | |
+| 22 | Sign in to Portfolio | Portfolio సైన్ ఇన్ | 18/25 | |
+| 23 | Noted, thanks | సరే, ధన్యవాదాలు | 15/25 | |
 
 ---
 
-## Messages (18)
+## Messages (20)
 
 ### 1. Number change notice — the brokerage now messages from a different WhatsApp number
 
@@ -94,7 +95,33 @@ The tappable options underneath a message.
 
 ---
 
-### 3. Requirement review — verify the property search recorded for an enquiry
+### 3. Portfolio access — a buyer or owner is sent their Portfolio sign-in link
+
+*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name
+
+**English**
+
+> Hi {{1}}, this is an account notice from {{2}}.
+>
+> Your Portfolio is now active and linked to this WhatsApp number. It shows the records kept for you: properties matched to your requirement and your shortlist as a buyer, or enquiries, site visits and bids on your property as an owner.
+>
+> To sign in, tap the button below and enter the one-time code sent to this number.
+
+**తెలుగు — current**
+
+> నమస్కారం {{1}}, ఇది {{2}} తరఫున ఖాతా సమాచారం.
+>
+> మీ Portfolio ఇప్పుడు సక్రియంగా ఉంది మరియు ఈ WhatsApp నంబర్‌కు లింక్ అయింది. మీ కోసం ఉంచిన రికార్డులు ఇందులో కనిపిస్తాయి: కొనుగోలుదారుగా మీ అవసరానికి సరిపోయే ఆస్తులు మరియు మీ షార్ట్‌లిస్ట్, లేదా యజమానిగా మీ ఆస్తిపై వచ్చిన విచారణలు, సైట్ సందర్శనలు మరియు బిడ్‌లు.
+>
+> సైన్ ఇన్ చేయడానికి కింది బటన్ నొక్కి, ఈ నంబర్‌కు పంపిన వన్-టైమ్ కోడ్ నమోదు చేయండి.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 4. Requirement review — verify the property search recorded for an enquiry
 
 *Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name
 
@@ -116,7 +143,7 @@ The tappable options underneath a message.
 
 ---
 
-### 4. Property details — sent when a buyer asks about a listing
+### 5. Property details — sent when a buyer asks about a listing
 
 *Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality
 
@@ -146,7 +173,7 @@ The tappable options underneath a message.
 
 ---
 
-### 5. Property photos — the same, led by a photo
+### 6. Property photos — the same, led by a photo
 
 *Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality · `{{6}}` = Google Maps link
 
@@ -178,7 +205,7 @@ The tappable options underneath a message.
 
 ---
 
-### 6. Location reveal — approved request for an exact address
+### 7. Location reveal — approved request for an exact address
 
 *Placeholders:* `{{1}}` = requester first name · `{{2}}` = listing title
 
@@ -210,7 +237,7 @@ The tappable options underneath a message.
 
 ---
 
-### 7. Listing access approved — approved request to view the full listing
+### 8. Listing access approved — approved request to view the full listing
 
 *Placeholders:* `{{1}}` = requester first name · `{{2}}` = listing title · `{{3}}` = listing specs
 
@@ -240,7 +267,7 @@ The tappable options underneath a message.
 
 ---
 
-### 8. Location consent request — a co-broker decides whether a protected request can advance
+### 9. Location consent request — a co-broker decides whether a protected request can advance
 
 *Placeholders:* `{{1}}` = co-broker first name · `{{2}}` = listing title · `{{3}}` = masked requester identity
 
@@ -270,7 +297,7 @@ The tappable options underneath a message.
 
 ---
 
-### 9. Location owner decision — the listing side approves or rejects protected access
+### 10. Location owner decision — the listing side approves or rejects protected access
 
 *Placeholders:* `{{1}}` = request type · `{{2}}` = listing title and code · `{{3}}` = requester identity or masked identity · `{{4}}` = access being requested
 
@@ -300,7 +327,7 @@ The tappable options underneath a message.
 
 ---
 
-### 10. Inventory update — a refreshed catalogue snapshot
+### 11. Inventory update — a refreshed catalogue snapshot
 
 *Placeholders:* `{{1}}` = contact first name · `{{2}}` = residential summary · `{{3}}` = commercial summary · `{{4}}` = farm & land summary
 
@@ -334,7 +361,7 @@ The tappable options underneath a message.
 
 ---
 
-### 11. Enquiry status — the listing they asked about is gone
+### 12. Enquiry status — the listing they asked about is gone
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name
 
@@ -360,7 +387,7 @@ The tappable options underneath a message.
 
 ---
 
-### 12. Enquiry notice — the same, naming the listing
+### 13. Enquiry notice — the same, naming the listing
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
@@ -390,7 +417,39 @@ The tappable options underneath a message.
 
 ---
 
-### 13. Enquiry check-in — is this still under consideration?
+### 14. Listing availability — the listing is not available right now; we will update you if it frees up
+
+*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = listing status, e.g. Under contract
+
+**English**
+
+> Hi {{1}}, this is a status update on your property enquiry with {{2}}:
+>
+> Property: {{3}}
+> Status: {{4}}
+>
+> We are sorry, the listing you enquired about is not available right now. If it becomes available again, we will update you here.
+>
+> To keep your enquiry open, update your requirement below or reply with your requirements and budget. To end it, choose "Close my enquiry" and no further updates will be sent.
+
+**తెలుగు — current**
+
+> నమస్కారం {{1}}, మీ ఆస్తి విచారణ స్థితి {{2}} తరఫున:
+>
+> ఆస్తి: {{3}}
+> స్థితి: {{4}}
+>
+> క్షమించండి, మీరు విచారించిన ఆస్తి ఇప్పుడు అందుబాటులో లేదు. ఇది మళ్లీ అందుబాటులోకి వస్తే, మేము మీకు ఇక్కడే తెలియజేస్తాము.
+>
+> విచారణ కొనసాగించడానికి కింద మీ అవసరాన్ని నవీకరించండి లేదా మీ అవసరాలు మరియు బడ్జెట్‌ను బదులివ్వండి. ముగించడానికి "విచారణ మూసివేయి" ఎంచుకోండి, తర్వాత ఎటువంటి అప్‌డేట్ రాదు.
+
+**Your correction** *(leave blank if the above is fine)*
+
+>
+
+---
+
+### 15. Enquiry check-in — is this still under consideration?
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
@@ -420,7 +479,7 @@ The tappable options underneath a message.
 
 ---
 
-### 14. Enquiry timeline — when should we check back with you?
+### 16. Enquiry timeline — when should we check back with you?
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
@@ -450,7 +509,7 @@ The tappable options underneath a message.
 
 ---
 
-### 15. Enquiry follow-up reminder — confirm or move the scheduled follow-up date
+### 17. Enquiry follow-up reminder — confirm or move the scheduled follow-up date
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = scheduled follow-up date
 
@@ -478,7 +537,7 @@ The tappable options underneath a message.
 
 ---
 
-### 16. Purchase progress — where does the paperwork stand on a deal already at legal?
+### 18. Purchase progress — where does the paperwork stand on a deal already at legal?
 
 *Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = property being bought · `{{4}}` = stage the purchase is recorded at
 
@@ -506,7 +565,7 @@ The tappable options underneath a message.
 
 ---
 
-### 17. Audio announcement — a voice-note update, delivered as a playable video
+### 19. Audio announcement — a voice-note update, delivered as a playable video
 
 *Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name
 
@@ -528,7 +587,7 @@ The tappable options underneath a message.
 
 ---
 
-### 18. Post-call options — after a qualification call, offer the matching listings
+### 20. Post-call options — after a qualification call, offer the matching listings
 
 *Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = stated requirement (budget / areas)
 

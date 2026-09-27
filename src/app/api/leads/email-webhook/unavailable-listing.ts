@@ -9,9 +9,15 @@ import {
   ENQUIRY_NOTICE_TEMPLATE_NAMES,
 } from '@/lib/whatsapp/enquiry-notice-template';
 import {
+  buildListingAvailabilityParams,
+  LISTING_AVAILABILITY_TEMPLATE_NAME,
+  pickListingAvailabilityTemplate,
+} from '@/lib/whatsapp/listing-availability-template';
+import {
   narrowToLanguage,
   resolveSendLanguage,
 } from '@/lib/whatsapp/template-language';
+import { languageForMetaCode } from '@/lib/languages';
 import type { MessageTemplate, Property } from '@/types';
 
 export type UnavailableListingOutcome =
@@ -87,32 +93,79 @@ export async function sendUnavailableListingReply({
     return 'failed';
   }
 
+  const { data: current, error: currentError } = await supabase
+    .from('properties')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('id', propertyId)
+    .maybeSingle();
+  if (currentError) {
+    console.error(
+      `[lead-webhook] Listing not re-read before the status notice for contact ${contactId}: ${currentError.message}`
+    );
+    return 'failed';
+  }
+  const listing = current as Property | null;
+  if (
+    !listing ||
+    !unavailableListingReply(leadName, listing.title, listing.status)
+  ) {
+    return 'available';
+  }
+
+  const canBecomeAvailable = listing.status !== 'Sold';
   const [{ data: rows }, language, { data: account }] = await Promise.all([
     supabase
       .from('message_templates')
       .select('*')
       .eq('account_id', accountId)
-      .in('name', ENQUIRY_NOTICE_TEMPLATE_NAMES)
+      .in('name', [
+        ...(canBecomeAvailable ? [LISTING_AVAILABILITY_TEMPLATE_NAME] : []),
+        ...ENQUIRY_NOTICE_TEMPLATE_NAMES,
+      ])
       .eq('status', 'APPROVED'),
     resolveSendLanguage(supabase, accountId, contactId),
     supabase.from('accounts').select('name').eq('id', accountId).maybeSingle(),
   ]);
-  const template = pickEnquiryNoticeTemplate(
-    narrowToLanguage((rows ?? []) as MessageTemplate[], language)
-  );
+  const approved = (rows ?? []) as MessageTemplate[];
+  const inLanguage = (family: MessageTemplate[]) =>
+    narrowToLanguage(family, language, { preferUtility: true }).filter(
+      (row) => (row.category ?? '').toUpperCase() === 'UTILITY'
+    );
+  const availabilityTemplate = canBecomeAvailable
+    ? pickListingAvailabilityTemplate(
+        inLanguage(
+          approved.filter(
+            (row) => row.name === LISTING_AVAILABILITY_TEMPLATE_NAME
+          )
+        )
+      )
+    : null;
+  const template =
+    availabilityTemplate ??
+    pickEnquiryNoticeTemplate(
+      inLanguage(
+        approved.filter(
+          (row) => row.name !== LISTING_AVAILABILITY_TEMPLATE_NAME
+        )
+      )
+    );
   if (!template) {
     console.warn(
-      `[lead-webhook] No approved listing status notice template — contact ${contactId} was not told the listing is ${(property as Property).status}`
+      `[lead-webhook] No approved listing status notice template — contact ${contactId} was not told the listing is ${listing.status}`
     );
     return 'no_template';
   }
 
-  const params = enquiryNoticeSendParams(
-    template.name,
-    leadName,
-    property as Property,
-    (account as { name?: string | null } | null)?.name ?? null
-  );
+  const brandName = (account as { name?: string | null } | null)?.name ?? null;
+  const params: string[] = availabilityTemplate
+    ? buildListingAvailabilityParams(
+        leadName,
+        listing,
+        brandName,
+        languageForMetaCode(template.language || 'en') ?? 'en'
+      )
+    : enquiryNoticeSendParams(template.name, leadName, listing, brandName);
   const templateResult = await sendWhatsAppMessageAndPersist({
     ...base,
     kind: 'template',

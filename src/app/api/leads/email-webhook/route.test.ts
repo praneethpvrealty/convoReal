@@ -1245,3 +1245,16 @@ Content-Transfer-Encoding: quoted-printable
     });
   });
 });
+
+describe('[PRP-014] a repeat portal enquiry reopens a closed one', () => {
+  it('marks the listing interested again for an existing contact', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('./route.ts', import.meta.url), 'utf8');
+    expect(source).toMatch(
+      /from\('listing_feedback'\)\.upsert\(\s*\{\s*account_id: accountId,\s*contact_id: existingContact\.id,\s*property_id: matchedPropertyIds\[0\],\s*verdict: 'interested',/
+    );
+    expect(source).toContain(
+      'const reopenError = reopened.find((result) => result.error)?.error;'
+    );
+  });
+});

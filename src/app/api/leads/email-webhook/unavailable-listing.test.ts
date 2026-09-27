@@ -26,16 +26,20 @@ const send = vi.mocked(sendWhatsAppMessageAndPersist);
 function fakeDb(tables: Record<string, unknown>) {
   return {
     from: (table: string) => {
+      const value = tables[table];
+      const row = typeof value === 'function' ? value() : value;
       const builder = {
         select: () => builder,
         eq: () => builder,
         in: () => builder,
         maybeSingle: () =>
-          Promise.resolve({ data: tables[table] ?? null, error: null }),
-        then: (resolve: (v: { data: unknown; error: null }) => unknown) =>
-          Promise.resolve({ data: tables[table] ?? null, error: null }).then(
-            resolve
+          Promise.resolve(
+            row instanceof Error
+              ? { data: null, error: { message: row.message } }
+              : { data: row ?? null, error: null }
           ),
+        then: (resolve: (v: { data: unknown; error: null }) => unknown) =>
+          Promise.resolve({ data: row ?? null, error: null }).then(resolve),
       };
       return builder;
     },
@@ -146,6 +150,218 @@ describe('sendUnavailableListingReply', () => {
       'template'
     );
     expect(send.mock.calls[1][0].templateLanguage).toBe('hi');
+  });
+
+  it('[PRP-014] prefers the availability notice, with its status line, once it is approved', async () => {
+    send
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true });
+    const supabase = fakeDb({
+      properties: property,
+      message_templates: [
+        notice,
+        {
+          ...notice,
+          name: 'listing_availability_notice',
+          body_text: 'Hi {{1}} from {{2}}: {{3}} is {{4}}',
+        },
+      ],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'template'
+    );
+    const call = send.mock.calls[1][0];
+    expect(call.templateName).toBe('listing_availability_notice');
+    expect(call.templateParams).toEqual([
+      'Sandeep',
+      'Aryavarta Ventures',
+      '2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase, JP Nagar 4th Phase, Bangalore',
+      'Under contract',
+    ]);
+    expect(call.text).toContain('is Under contract');
+  });
+
+  it('[PRP-014] keeps a sold listing on the status notice, which promises no update', async () => {
+    send
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true });
+    const supabase = fakeDb({
+      properties: { ...property, status: 'Sold' },
+      message_templates: [
+        { ...notice, name: 'listing_availability_notice' },
+        notice,
+      ],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'template'
+    );
+    expect(send.mock.calls[1][0].templateName).toBe('listing_status_notice');
+  });
+
+  it('[PRP-014] falls back to the Utility status notice when Meta filed the availability notice as Marketing', async () => {
+    send
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true });
+    const supabase = fakeDb({
+      properties: property,
+      message_templates: [
+        {
+          ...notice,
+          name: 'listing_availability_notice',
+          category: 'MARKETING',
+        },
+        notice,
+      ],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'template'
+    );
+    expect(send.mock.calls[1][0].templateName).toBe('listing_status_notice');
+    expect(send.mock.calls[1][0].templateParams).toHaveLength(3);
+  });
+
+  it('never falls back to a status notice Meta filed as Marketing', async () => {
+    send.mockResolvedValueOnce({
+      success: false,
+      error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+    });
+    const supabase = fakeDb({
+      properties: property,
+      message_templates: [{ ...notice, category: 'MARKETING' }],
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'no_template'
+    );
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('[PRP-014] prefers a Utility variant in another language over a Marketing one in the contact language', async () => {
+    vi.mocked(resolveSendLanguage).mockResolvedValueOnce('kn');
+    send
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true });
+    const supabase = fakeDb({
+      properties: property,
+      message_templates: [
+        {
+          ...notice,
+          name: 'listing_availability_notice',
+          language: 'kn',
+          category: 'MARKETING',
+        },
+        { ...notice, name: 'listing_availability_notice' },
+      ],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'template'
+    );
+    expect(send.mock.calls[1][0].templateName).toBe(
+      'listing_availability_notice'
+    );
+    expect(send.mock.calls[1][0].templateLanguage).toBe('en');
+  });
+
+  it('[PRP-014] picks a Utility availability notice in any language before the status notice in the contact language', async () => {
+    vi.mocked(resolveSendLanguage).mockResolvedValueOnce('kn');
+    send
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true });
+    const supabase = fakeDb({
+      properties: property,
+      message_templates: [
+        { ...notice, language: 'kn' },
+        {
+          ...notice,
+          name: 'listing_availability_notice',
+          language: 'kn',
+          category: 'MARKETING',
+        },
+        { ...notice, name: 'listing_availability_notice' },
+      ],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'template'
+    );
+    expect(send.mock.calls[1][0].templateName).toBe(
+      'listing_availability_notice'
+    );
+    expect(send.mock.calls[1][0].templateLanguage).toBe('en');
+  });
+
+  it('[PRP-014] re-reads the listing before the fallback, so a listing sold meanwhile gets no update promise', async () => {
+    send
+      .mockResolvedValueOnce({
+        success: false,
+        error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+      })
+      .mockResolvedValueOnce({ success: true });
+    const reads = [property, { ...property, status: 'Sold' }];
+    const supabase = fakeDb({
+      properties: () => reads.shift(),
+      message_templates: [
+        notice,
+        { ...notice, name: 'listing_availability_notice' },
+      ],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'template'
+    );
+    expect(send.mock.calls[1][0].templateName).toBe('listing_status_notice');
+  });
+
+  it('reports a failed re-read as a failure, not as an available listing', async () => {
+    send.mockResolvedValueOnce({
+      success: false,
+      error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+    });
+    const reads: unknown[] = [property, new Error('timeout')];
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const supabase = fakeDb({
+      properties: () => reads.shift(),
+      message_templates: [notice],
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'failed'
+    );
+    expect(send).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+  it('sends no fallback when the listing became available meanwhile', async () => {
+    send.mockResolvedValueOnce({
+      success: false,
+      error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+    });
+    const reads = [property, { ...property, status: 'Available' }];
+    const supabase = fakeDb({
+      properties: () => reads.shift(),
+      message_templates: [notice],
+    });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'available'
+    );
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('reports a closed window with no approved notice instead of failing silently', async () => {

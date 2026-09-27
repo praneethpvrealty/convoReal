@@ -15,6 +15,7 @@ import {
 } from '@/lib/deals/stage-move';
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
 import { deleteDealWithCleanup } from '@/lib/deals/delete-deal';
+import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -103,14 +104,62 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updateData.brokerage_amount = brokerage_amount;
     if (typeof dealStatus === 'string') updateData.status = dealStatus;
 
-    const { data: updated, error: updateErr } = await ctx.supabase
-      .from('deals')
-      .update(updateData)
-      .eq('id', dealId)
-      .select('id');
+    let previousPropertyId: string | null = null;
+    if (property_id !== undefined) {
+      const { data: previous, error: previousErr } = await ctx.supabase
+        .from('deals')
+        .select('property_id')
+        .eq('id', dealId)
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+      if (previousErr) {
+        console.error('[PUT /api/deals/[id]] Deal lookup:', previousErr);
+        return NextResponse.json(
+          {
+            error:
+              'Could not read this deal, so it was not updated. Try again.',
+          },
+          { status: 500 }
+        );
+      }
+      if (!previous) {
+        return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+      }
+      previousPropertyId =
+        (previous as { property_id: string | null }).property_id ?? null;
+    }
+
+    const { data: updated, error: updateErr } = await (property_id === undefined
+      ? ctx.supabase
+          .from('deals')
+          .update(updateData)
+          .eq('id', dealId)
+          .select('id')
+      : previousPropertyId
+        ? ctx.supabase
+            .from('deals')
+            .update(updateData)
+            .eq('id', dealId)
+            .eq('property_id', previousPropertyId)
+            .select('id')
+        : ctx.supabase
+            .from('deals')
+            .update(updateData)
+            .eq('id', dealId)
+            .is('property_id', null)
+            .select('id'));
 
     if (!updateErr && !updated?.length) {
-      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+      return property_id !== undefined
+        ? NextResponse.json(
+            {
+              error:
+                'This deal was changed by someone else while you were editing it. Reload it and try again.',
+              code: 'DEAL_CHANGED',
+            },
+            { status: 409 }
+          )
+        : NextResponse.json({ error: 'Deal not found' }, { status: 404 });
     }
 
     if (updateErr) {
@@ -150,17 +199,33 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (effectivePropertyId && typeof stage_name === 'string') {
       const propertyStatus =
         propertyStatusForPipelineStage(stage_name) ?? 'Available';
-      const { data: synced } = await ctx.supabase
-        .from('properties')
-        .update({ status: propertyStatus })
-        .eq('id', effectivePropertyId)
-        .select('id');
+      const synced = await setListingStatusFromDeal(
+        ctx.supabase,
+        ctx.accountId,
+        effectivePropertyId,
+        propertyStatus
+      );
       // The deal is already saved; a listing that did not follow is
       // worth a line in the log, not a failed request.
-      if (!synced?.length) {
+      if (!synced) {
         console.warn(
           '[PUT /api/deals/[id]] Property status not synced:',
           effectivePropertyId
+        );
+      }
+    }
+
+    if (previousPropertyId && previousPropertyId !== updateData.property_id) {
+      const released = await setListingStatusFromDeal(
+        ctx.supabase,
+        ctx.accountId,
+        previousPropertyId,
+        'Available'
+      );
+      if (!released) {
+        console.warn(
+          '[PUT /api/deals/[id]] Previous property not re-synced:',
+          previousPropertyId
         );
       }
     }

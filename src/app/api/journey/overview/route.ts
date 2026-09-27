@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import {
+  listingsWithJourneyDeals,
+  setListingStatusFromDeal,
+} from '@/lib/inventory/listing-status-sync';
+import {
   parseJourneyStateMutation,
   type JourneyOverviewMode,
   type JourneyStateMutation,
@@ -92,6 +96,35 @@ export async function POST(request: Request) {
         onConflict: 'account_id,mode,subject_id',
       });
     if (error) throw error;
+
+    if (mutation.action === 'close' || mutation.action === 'reopen') {
+      const listings = await listingsWithJourneyDeals(
+        supabase,
+        accountId,
+        mutation.mode,
+        mutation.subjectId
+      );
+      let synced = listings !== null;
+      for (const propertyId of listings ?? []) {
+        synced =
+          (await setListingStatusFromDeal(
+            supabase,
+            accountId,
+            propertyId,
+            'Available'
+          )) && synced;
+      }
+      if (!synced) {
+        return NextResponse.json(
+          {
+            error:
+              'The journey was updated, but the status of its listings could not be updated. Check them in Inventory.',
+            code: 'LISTING_SYNC_FAILED',
+          },
+          { status: 500 }
+        );
+      }
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('[journey/overview] failed', error);
