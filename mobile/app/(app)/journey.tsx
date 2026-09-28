@@ -237,7 +237,10 @@ export function JourneyBody() {
   );
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
-  const [enquirySource, setEnquirySource] = useRememberedJourneySource(mode);
+  const [enquirySource, setEnquirySource] = useRememberedJourneySource(
+    accountId,
+    mode
+  );
   const [sort, setSort] = useState<JourneySort>(DEFAULT_JOURNEY_SORT);
   const [focusedBucket, setFocusedBucket] = useState<string | null>(null);
   const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(

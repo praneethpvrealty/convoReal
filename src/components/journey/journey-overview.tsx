@@ -163,8 +163,8 @@ function readSort(key: string): JourneySort {
     : DEFAULT_JOURNEY_SORT;
 }
 
-function readEnquirySource(key: string): string | null {
-  if (typeof window === 'undefined') return null;
+function readEnquirySource(key: string | null): string | null {
+  if (!key || typeof window === 'undefined') return null;
   return normalizeJourneyEnquirySource(readStored(key));
 }
 
@@ -247,7 +247,9 @@ export function JourneyOverview({
   const hiddenKey = `journey_overview_hidden_${mode}`;
   const openKey = `journey_overview_open_${mode}`;
   const sortKey = `journey_overview_sort_${mode}`;
-  const sourceKey = `journey_overview_source_${mode}`;
+  const sourceKey = accountId
+    ? `journey_overview_source_${accountId}_${mode}`
+    : null;
   const collapsedKey = `journey_overview_collapsed_${mode}`;
   const [groups, setGroups] = useState<JourneyGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -283,10 +285,15 @@ export function JourneyOverview({
       setCollapsedIds(readIdSet(collapsedKey));
       setView('active');
       setQuery('');
-      setEnquirySource(readEnquirySource(sourceKey));
       setShowHidden(false);
     });
-  }, [collapsedKey, hiddenKey, mode, openKey, sortKey, sourceKey]);
+  }, [collapsedKey, hiddenKey, mode, openKey, sortKey]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setEnquirySource(readEnquirySource(sourceKey));
+    });
+  }, [sourceKey]);
 
   const stageParam = searchParams.get('stage');
   const focusedBucket =
@@ -322,6 +329,7 @@ export function JourneyOverview({
   const changeEnquirySource = useCallback(
     (next: string | null) => {
       setEnquirySource(next);
+      if (!sourceKey) return;
       if (next) writeStored(sourceKey, next);
       else removeStored(sourceKey);
     },

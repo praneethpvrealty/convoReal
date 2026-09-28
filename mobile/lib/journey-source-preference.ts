@@ -5,40 +5,45 @@ import { normalizeJourneyEnquirySource } from '@/lib/journey-overview';
 
 type JourneyMode = 'buyer' | 'property';
 
-const storageKey = (mode: JourneyMode) => `journey_overview_source_${mode}`;
+const storageKey = (accountId: string, mode: JourneyMode) =>
+  `journey_overview_source_${accountId}_${mode}`;
 
-export function useRememberedJourneySource(mode: JourneyMode) {
-  const [sources, setSources] = useState<
-    Partial<Record<JourneyMode, string | null>>
-  >({});
+export function useRememberedJourneySource(
+  accountId: string | null | undefined,
+  mode: JourneyMode
+) {
+  const key = accountId ? storageKey(accountId, mode) : null;
+  const [sources, setSources] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
+    if (!key) return;
     let cancelled = false;
-    AsyncStorage.getItem(storageKey(mode))
+    AsyncStorage.getItem(key)
       .then((stored) => {
         if (cancelled) return;
         setSources((current) =>
-          mode in current
+          key in current
             ? current
-            : { ...current, [mode]: normalizeJourneyEnquirySource(stored) }
+            : { ...current, [key]: normalizeJourneyEnquirySource(stored) }
         );
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [mode]);
+  }, [key]);
 
   const setSource = useCallback(
     (source: string | null) => {
-      setSources((current) => ({ ...current, [mode]: source }));
+      if (!key) return;
+      setSources((current) => ({ ...current, [key]: source }));
       (source
-        ? AsyncStorage.setItem(storageKey(mode), source)
-        : AsyncStorage.removeItem(storageKey(mode))
+        ? AsyncStorage.setItem(key, source)
+        : AsyncStorage.removeItem(key)
       ).catch(() => {});
     },
-    [mode]
+    [key]
   );
 
-  return [sources[mode] ?? null, setSource] as const;
+  return [key ? (sources[key] ?? null) : null, setSource] as const;
 }

@@ -782,7 +782,7 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
       );
     }
     expect(webOverview).toContain(
-      'const sourceKey = `journey_overview_source_${mode}`;'
+      '? `journey_overview_source_${accountId}_${mode}`'
     );
     expect(webOverview).toContain(
       'const [enquirySource, setEnquirySource] = useState<string | null>(null);'
@@ -793,12 +793,12 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(webOverview).toContain('if (next) writeStored(sourceKey, next);');
     expect(webOverview).toContain('else removeStored(sourceKey);');
     expect(screen).toContain(
-      'const [enquirySource, setEnquirySource] = useRememberedJourneySource(mode);'
+      'useRememberedJourneySource(\n    accountId,\n    mode\n  );'
     );
     expect(screen).not.toContain('setEnquirySource(null);');
     const preference = mobileSource('lib/journey-source-preference.ts');
     expect(preference).toContain(
-      'const storageKey = (mode: JourneyMode) => `journey_overview_source_${mode}`;'
+      '`journey_overview_source_${accountId}_${mode}`'
     );
     expect(preference).toContain('normalizeJourneyEnquirySource(stored)');
     expect(preference).not.toContain('zustand');
