@@ -313,7 +313,7 @@ convoReal/
 │   │   ├── backfill-property-coords.ts
 │   │   └── ...
 │   ├── types/                    # Shared TypeScript definitions (`src/types/index.ts`)
-│   └── proxy.ts                  # Auth-redirect helper (unit tested; not wired as Next.js middleware)
+│   └── proxy.ts                  # Next.js 16 proxy (formerly middleware): session refresh, auth redirects, /api/whatsapp gate
 ├── go-ingress/                   # Standalone Go webhook ingress
 │   ├── main.go                   # HMAC verify + Redis enqueue
 │   ├── main_test.go              # Go tests
@@ -590,15 +590,24 @@ Den and buyer users are `auth.users` rows with **no `profiles` row**, so every E
 
 That explicit scoping _is_ the security boundary for these routes — RLS is not doing it for you. Never return service-role results from a Den or buyer handler without filtering through the context. Both personas require WhatsApp phone verification before the context is considered complete.
 
-### 8.4 Auth gating (no Next.js middleware.ts)
+### 8.4 Auth gating and the proxy (`src/proxy.ts`)
 
-There is **no `middleware.ts`** in the project. Auth gating is handled by:
+Next.js 16 renamed the `middleware` file convention to `proxy`. **`src/proxy.ts` is live**: it exports `proxy` and `config`, the build lists it as `ƒ Proxy (Middleware)`, and it runs on the Node.js runtime before every request its matcher covers (everything except `_next/static`, `_next/image`, `favicon.ico` and image files). Do not add a `middleware.ts`; that convention is deprecated. Extend `src/proxy.ts` instead.
 
-- Server-side checks in each API route.
-- Client-side checks in layouts/components (e.g. `AuthProvider`, `DashboardShell`).
-- `src/proxy.ts` is an exported helper function that is unit tested, but it is **not wired as automatic Next.js middleware**.
+What it does, in order:
 
-If you add a `middleware.ts`, keep the same rules as `proxy.ts` — especially the exemption for `/api/whatsapp/flows/endpoint/[accountId]` (Meta calls it without a browser session, using its own HMAC + RSA/AES crypto).
+1. **Resolves the cookie session only when an auth cookie is present.** Cookieless requests (public pages, webhooks, mobile bearer calls) never touch GoTrue. `getUser()` is raced against a 4-second timeout, and a timeout or network error means auth is *unavailable*, which fails open rather than signing the user out.
+2. **Clears a dead refresh token** (`refresh_token_not_found` and similar) from every response it returns, then continues as signed out.
+3. **Redirects signed-in users away from** `/login`, `/signup` and `/forgot-password` to `/dashboard`, or to `/join/<token>` when an `invite` param is present.
+4. **Redirects signed-out users** from the dashboard paths in `protectedPaths` to `/login`, from `/den/*` to `/den/login`, and from `/buyer/*` to `/buyer/login`. It skips these redirects when auth was unavailable, and the client-side shells catch a genuinely signed-out user instead.
+5. **Returns 401 for `/api/whatsapp/*`** without a session, unless auth was unavailable, and except the inbound webhook, the Meta Flows data-exchange endpoint `/api/whatsapp/flows/endpoint/[accountId]` (Meta calls it with its own HMAC + RSA/AES crypto), and requests carrying a JWT-shaped `Authorization: Bearer` header (the mobile app).
+
+Rules for changing it:
+
+- **It is an early exit, never the security boundary.** Every API route still resolves the caller with `getCurrentAccount()` / `requireRole()`, Den and buyer routes with `withDenAuth()` / `withBuyerAuth()`, and RLS scopes the data. A matcher change or a moved route can silently drop proxy coverage, so never rely on it alone.
+- **Keep it off the network for public traffic.** Do not add database queries or per-request lookups here; public pages and webhooks must stay as fast as a cookieless pass-through.
+- **Keep the exemptions.** Removing the Flows endpoint, webhook or bearer-token exemptions breaks Meta Flows, inbound WhatsApp or the mobile app. `src/proxy.test.ts` covers each of them; extend it with any new rule.
+- **Do not use it to fix page status codes.** A missing public page gets its 404 from `notFound()` because no `loading.tsx` sits above it (PRP-022, `src/app/not-found-status.test.ts`). Keep it that way rather than adding slug lookups here.
 
 ---
 
