@@ -8,6 +8,7 @@ let openByContact: Record<string, Array<{ id: string; title: string }>> = {};
 let enquiryReadFails = false;
 let closeFails = false;
 let coolFails = false;
+let repointFails = false;
 let enquiryReadsBeforeFailure = 0;
 
 vi.mock('@/lib/whatsapp/enquiry-review', async (importOriginal) => {
@@ -92,8 +93,17 @@ function fakeDb(
               ? (properties.find((p) => p.id === id) ?? null)
               : null,
         }),
-        then: (resolve: (v: { data: unknown }) => void) => {
+        then: (resolve: (v: { data: unknown; error?: unknown }) => void) => {
           if (patch) updates.push({ patch, filters });
+          if (
+            repointFails &&
+            table === 'contacts' &&
+            patch &&
+            'last_inquired_property_id' in patch
+          ) {
+            resolve({ data: null, error: { message: 'timeout' } });
+            return;
+          }
           resolve({
             data:
               table === 'journey_items'
@@ -121,6 +131,7 @@ describe('[INB-021] markFollowUpCold', () => {
     enquiryReadFails = false;
     closeFails = false;
     coolFails = false;
+    repointFails = false;
     enquiryReadsBeforeFailure = 0;
   });
 
@@ -284,6 +295,20 @@ describe('[INB-021] markFollowUpCold', () => {
     });
 
     expect(outcome).toEqual({ scope: 'incomplete', property: null });
+  });
+
+  it('does not confirm the close when repointing the lead fails', async () => {
+    openByContact = { rohit: [PLOT, HOUSE] };
+    repointFails = true;
+    const { db } = fakeDb([PLOT, HOUSE]);
+
+    const outcome = await markFollowUpCold(db, {
+      accountId: 'acct-1',
+      partyIds: ['rohit'],
+      propertyId: PLOT.id,
+    });
+
+    expect(outcome).toEqual({ scope: 'incomplete', property: PLOT });
   });
 
   it('marks the lead cold when the card named no listing', async () => {

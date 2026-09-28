@@ -174,7 +174,7 @@ export function buildFollowUpActionSections(lead: FollowUpLead) {
           title: '⏰ Snooze 3 days',
           description: 'Bring this reminder back in 3 days',
         },
-        lead.propertyId
+        lead.propertyId && lead.propertyTitle
           ? {
               id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}:${lead.propertyId}`,
               title: '❄️ Mark cold',
@@ -905,12 +905,13 @@ export async function markFollowUpCold(
     stillOpen = await otherOpen().catch(() => before);
 
     if (stillOpen.length) {
-      await db
+      const { error: repointError } = await db
         .from('contacts')
         .update({ last_inquired_property_id: stillOpen[0].id, updated_at: now })
         .in('id', partyIds)
         .eq('account_id', accountId)
         .eq('last_inquired_property_id', property.id);
+      if (repointError) return { scope: 'incomplete', property };
       return { scope: 'property', property, stillOpen };
     }
   }
