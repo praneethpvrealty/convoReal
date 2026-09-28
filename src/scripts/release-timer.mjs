@@ -247,7 +247,31 @@ async function shipBranch({
     per_page: 100,
   });
   const mergedMembers = members.filter((pull) => pull.merged_at);
-  const openMembers = members.filter((pull) => pull.state === 'open');
+  let openMembers = members.filter((pull) => pull.state === 'open');
+  const createdAt = await branchCreatedAt(github, owner, repo, branch, tipSha);
+  const overdue = minutesSince(createdAt, now) >= 2 * RELEASE_WINDOW_MINUTES;
+  if (
+    overdue &&
+    openMembers.length > 0 &&
+    mergedMembers.length > 0 &&
+    !dryRun
+  ) {
+    const { data: mainHead } = await github.rest.repos.getBranch({
+      owner,
+      repo,
+      branch: 'main',
+    });
+    await carryOver(
+      github,
+      core,
+      owner,
+      repo,
+      branch,
+      openMembers,
+      mainHead.commit.sha
+    );
+    openMembers = [];
+  }
   const openPr = allPulls.find(
     (pull) =>
       pull.head.ref === branch &&
@@ -296,7 +320,7 @@ async function shipBranch({
   }
 
   const decision = decideRelease({
-    createdAt: await branchCreatedAt(github, owner, repo, branch, tipSha),
+    createdAt,
     mergedMembers,
     openMembers,
     releasePr,

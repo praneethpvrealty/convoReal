@@ -591,4 +591,43 @@ describe('run', () => {
     );
     expect(rest.pulls.merge).not.toHaveBeenCalled();
   });
+
+  it('moves overdue members as soon as the extension ends, even while CI runs', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [
+        member(1),
+        member(3, { state: 'open', merged_at: null }),
+        releasePr(),
+      ],
+      created: minutesAgo(2 * RELEASE_WINDOW_MINUTES),
+      checkRuns: [
+        { status: 'in_progress', conclusion: null, started_at: minutesAgo(2) },
+      ],
+    });
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch']
+    ).toEqual({ action: 'wait', reason: 'CI running' });
+    expect(rest.pulls.update).toHaveBeenCalledWith(
+      expect.objectContaining({ pull_number: 3, base: 'release/batch-next' })
+    );
+    expect(rest.pulls.merge).not.toHaveBeenCalled();
+  });
+
+  it('leaves open members in place during the extension', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [
+        member(1),
+        member(3, { state: 'open', merged_at: null }),
+        releasePr(),
+      ],
+      created: minutesAgo(2 * RELEASE_WINDOW_MINUTES - 1),
+      checkRuns: greenCi,
+    });
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch'].action
+    ).toBe('wait');
+    expect(rest.pulls.update).not.toHaveBeenCalled();
+  });
 });
