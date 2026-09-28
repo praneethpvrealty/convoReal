@@ -388,6 +388,22 @@ describe('[INB-021] markFollowUpCold', () => {
     );
     expect(sql).toContain("WHEN (NEW.status = 'active')");
     expect(sql).toContain('FROM PUBLIC, anon, authenticated');
+
+    const stages = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260928082716_mark_party_cold_lock_stages.sql'
+      ),
+      'utf8'
+    );
+    expect(stages).toContain('ORDER BY s.id\n  FOR SHARE;');
+    expect(stages.indexOf('FOR SHARE;')).toBeLessThan(
+      stages.indexOf('SELECT array_agg(DISTINCT ji.property_id)')
+    );
+    expect(stages).toContain(
+      'BEFORE INSERT OR UPDATE OF status, contact_id, stage_id ON journey_items'
+    );
+    expect(stages).toContain('FROM PUBLIC, anon, authenticated');
   });
 
   it('marks the lead cold when the card named no listing', async () => {
