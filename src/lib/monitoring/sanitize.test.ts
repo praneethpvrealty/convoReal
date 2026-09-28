@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ErrorEvent } from '@sentry/nextjs';
-import { sanitizeSentryEvent } from './sanitize';
+import { sanitizeSentryEvent, sentryDataCollection } from './sanitize';
 
 describe('sanitizeSentryEvent', () => {
   it('removes request, identity, and message secrets', () => {
@@ -35,5 +35,28 @@ describe('sanitizeSentryEvent', () => {
       operation: 'webhook',
       nested: { safeCount: 3 },
     });
+  });
+});
+
+describe('sentryDataCollection', () => {
+  it('opts out of every customer-data category Sentry 11 collects by default', () => {
+    expect(sentryDataCollection).toMatchObject({
+      userInfo: false,
+      cookies: false,
+      httpBodies: [],
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      graphQL: { document: false, variables: false },
+    });
+  });
+
+  it('drops network identity headers and query params', () => {
+    const deny = ['forwarded', '-ip', 'remote-', 'via', '-user'];
+    expect(sentryDataCollection.httpHeaders).toEqual({
+      request: { deny },
+      response: { deny },
+    });
+    expect(sentryDataCollection.urlQueryParams).toEqual({ deny });
   });
 });

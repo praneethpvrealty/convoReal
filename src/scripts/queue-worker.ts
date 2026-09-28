@@ -18,7 +18,10 @@ import {
 import { processReminderAudioJob } from '../lib/voice/reminder-audio-worker';
 import type { ReminderAudioJob } from '../lib/voice/reminder-audio';
 import { createShutdownGate } from '../lib/queue/graceful-shutdown';
-import { sanitizeSentryEvent } from '../lib/monitoring/sanitize';
+import {
+  sanitizeSentryEvent,
+  sentryDataCollection,
+} from '../lib/monitoring/sanitize';
 
 // Helper to manually load Next.js environment files
 function loadEnv() {
@@ -57,7 +60,7 @@ Sentry.init({
   enabled: Boolean(sentryDsn) && process.env.NODE_ENV !== 'test',
   environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV,
   release: process.env.SENTRY_RELEASE,
-  sendDefaultPii: false,
+  dataCollection: sentryDataCollection,
   tracesSampleRate: 0,
   beforeSend: sanitizeSentryEvent,
 });

@@ -1,5 +1,8 @@
 import * as Sentry from '@sentry/nextjs';
-import { sanitizeSentryEvent } from './src/lib/monitoring/sanitize';
+import {
+  sanitizeSentryEvent,
+  sentryDataCollection,
+} from './src/lib/monitoring/sanitize';
 
 const dsn = process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN;
 const environment =
@@ -12,7 +15,7 @@ Sentry.init({
   enabled: Boolean(dsn) && process.env.NODE_ENV !== 'test',
   environment,
   release: process.env.SENTRY_RELEASE ?? process.env.VERCEL_GIT_COMMIT_SHA,
-  sendDefaultPii: false,
+  dataCollection: sentryDataCollection,
   tracesSampleRate: environment === 'production' ? 0.1 : 0,
   beforeSend: sanitizeSentryEvent,
 });
