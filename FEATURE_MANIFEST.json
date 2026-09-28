@@ -175,6 +175,20 @@
           ]
         },
         {
+          "id": "INB-021",
+          "rule": "❄️ Mark cold on a follow-up radar card closes the enquiry on the listing the card named, not the lead: that listing is rejected and its journey branch dropped for every member of the party, and the lead stays HOT while any other enquiry (an active journey branch not at a closing or won stage) is still open, with the lead's last enquired listing moved onto one of those so the next card names it; the agent is told which enquiries are still tracked. Only when that listing was the last open enquiry, or the card named no listing, does the lead go COLD. A card whose listing can no longer be read (deleted, or the lookup failed), whose party's open enquiries cannot be read, or which was sent before cards named their listing, leaves the lead as it is and says so, rather than falling back to a lead-wide cold. A close whose feedback or journey write failed, or that left the carded branch active, keeps the lead's temperature and tells the agent the close did not finish and may be partial; a COLD update that fails or changes no lead, is never confirmed as done; when the close succeeded but moving the lead onto its remaining enquiry failed, the agent is told the listing was closed and the lead could not be moved. A card carries a listing in its Mark cold action only when it names that listing; a card whose listing exists but could not be named offers no Mark cold at all, so neither a hidden listing nor a lead-wide cold can come from it.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/follow-up-cold.test.ts",
+              "case": "[INB-021]"
+            },
+            {
+              "file": "src/lib/contacts/follow-up-nudges.test.ts",
+              "case": "[INB-021]"
+            }
+          ]
+        },
+        {
           "id": "INB-011",
           "rule": "A funnel keyword buried in a lead’s text question never restarts a flow that lead has already been through: once a listing has been sent to them, or they ask for a person, the matched flow is skipped and the question is answered from that listing instead. Asking for a person counts whether typed or tapped: a template quick reply whose label asks for a person (\"Talk to someone\", \"Call me back\") gets the same callback promise, agent notification, bridged relay and pending flag as a typed \"call me\". Any other quick-reply label is never read as a question. A tap is matched against flow keywords by its raw label, never the inbox's decorated rendering, so an exact-match flow keyed on a label opens on that tap. A flow they have never entered still opens on its own keyword, and a lead who has been sent nothing is still qualified by the funnel. Entry only — an active run still advances.",
           "tests": [
@@ -2036,6 +2050,23 @@
           ],
           "guards": [
             "supabase/migrations/20260924150000_transaction_index_expected_close.sql"
+          ]
+        },
+        {
+          "id": "TXW-023",
+          "rule": "Co-broking: a deal's brokerage fields stay what the brokerage collects, and each other broker it pays out of that commission is one row in deal_co_broker_payouts, written only through /api/deals/[id]/co-broking (with the deal's position: direct, buyer's side, seller's side or in the middle). A payout needs a broker and an amount, may name a broker stakeholder on the same deal, and once paid is corrected, never removed. deals.co_broker_payout_total is the trigger-kept sum, and every revenue figure (dashboard metrics, pipeline donut, team and lead-source analytics, the board, pipeline analytics and the deal card on web and mobile) counts the brokerage's own share: collected less payouts, floored at zero. Position, payouts and the total are internal only like the other financials (never /api/v1, a public route or a stakeholder link) and amounts never ride a timeline event. Collected, paid out, still to pay and your share are summed on the server and shown, not recomputed, on web and mobile.",
+          "tests": [
+            { "file": "src/lib/deals/co-broking.test.ts", "case": "[TXW-023]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-023]" },
+            {
+              "file": "mobile/lib/deal-co-broking.test.ts",
+              "case": "[TXW-023]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260928042711_deal_co_broking.sql",
+            "supabase/migrations/20260928054500_deal_co_broking_hardening.sql",
+            "supabase/migrations/20260928055000_co_broker_paid_within_amount.sql"
           ]
         },
         {

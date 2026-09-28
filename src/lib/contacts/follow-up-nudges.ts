@@ -13,7 +13,9 @@
 //                        template outside it.
 //   🤔 Still considering — keep the lead HOT and check again in a week.
 //   ⏰ Snooze 3 days    — the card comes back later.
-//   ❄️ Mark cold        — lead_temp = COLD; the radar drops them.
+//   ❄️ Mark cold        — closes the enquiry on the carded listing only.
+//                        The lead stays HOT while any other enquiry is
+//                        open; it goes COLD only when that was the last.
 //
 // follow_up_nudges (migration 272) is the per-lead state that keeps
 // this from becoming spam: never more than one card per lead per
@@ -53,11 +55,18 @@ import {
   narrowToLanguage,
   resolveSendLanguage,
 } from '@/lib/whatsapp/template-language';
+import {
+  closePropertyEnquiry,
+  enquiryLabel,
+  loadOpenEnquiries,
+  type OpenEnquiry,
+} from '@/lib/whatsapp/enquiry-review';
 
 export const FOLLOWUP_CHECKIN_PREFIX = 'fup_checkin:';
 export const FOLLOWUP_CONSIDERING_PREFIX = 'fup_considering:';
 export const FOLLOWUP_SNOOZE_PREFIX = 'fup_snooze:';
 export const FOLLOWUP_COLD_PREFIX = 'fup_cold:';
+export const FOLLOWUP_NO_LISTING = 'none';
 
 export const FOLLOWUP_SILENCE_HOURS = 48;
 export const FOLLOWUP_SNOOZE_DAYS = 3;
@@ -77,6 +86,11 @@ const DAY_MS = 24 * HOUR_MS;
 export interface FollowUpAction {
   action: 'checkin' | 'considering' | 'snooze' | 'cold';
   contactId: string;
+  /** The listing the card named. Only Mark cold carries it, so the cold
+   *  lands on that listing even if the lead enquires elsewhere before
+   *  the tap. Null when the card named no listing; absent on a card
+   *  sent before cards carried it. */
+  propertyId?: string | null;
 }
 
 export function parseFollowUpReply(
@@ -91,9 +105,14 @@ export function parseFollowUpReply(
   ] as const;
   for (const [prefix, action] of prefixes) {
     if (!id.startsWith(prefix)) continue;
-    const contactId = id.slice(prefix.length);
+    const [contactId, propertyId] = id.slice(prefix.length).split(':');
     if (!contactId) return null;
-    return { action, contactId };
+    if (propertyId === FOLLOWUP_NO_LISTING) {
+      return { action, contactId, propertyId: null };
+    }
+    return propertyId
+      ? { action, contactId, propertyId }
+      : { action, contactId };
   }
   return null;
 }
@@ -104,6 +123,7 @@ export interface FollowUpLead {
   phone: string;
   assignedAgentUserId: string | null;
   daysSilent: number;
+  propertyId?: string | null;
   propertyTitle: string | null;
   /** Set when this lead buys with others — a couple, or colleagues from
    *  one firm. The card names the party and the actions still operate on
@@ -154,11 +174,22 @@ export function buildFollowUpActionSections(lead: FollowUpLead) {
           title: '⏰ Snooze 3 days',
           description: 'Bring this reminder back in 3 days',
         },
-        {
-          id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}`,
-          title: '❄️ Mark cold',
-          description: 'Stop follow-up reminders for this lead',
-        },
+        ...(lead.propertyId && !lead.propertyTitle
+          ? []
+          : [
+              lead.propertyId
+                ? {
+                    id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}:${lead.propertyId}`,
+                    title: '❄️ Mark cold',
+                    description:
+                      'Not interested in this listing; keep tracking others',
+                  }
+                : {
+                    id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}:${FOLLOWUP_NO_LISTING}`,
+                    title: '❄️ Mark cold',
+                    description: 'Stop follow-up reminders for this lead',
+                  },
+            ]),
       ],
     },
   ];
@@ -426,6 +457,7 @@ export async function gatherFollowUpLeads(
       phone,
       assignedAgentUserId,
       daysSilent,
+      propertyId,
       propertyTitle,
       partyName,
       partyContactIds,
@@ -437,6 +469,7 @@ export async function gatherFollowUpLeads(
       phone,
       assignedAgentUserId,
       daysSilent,
+      propertyId,
       propertyTitle,
     })
   );
@@ -614,13 +647,23 @@ export async function handleFollowUpReply(
   }
 
   if (action.action === 'cold') {
-    // The whole party goes cold: they share one requirement, so leaving
-    // the spouse HOT would just re-card the same dead deal.
-    await admin
-      .from('contacts')
-      .update({ lead_temp: 'COLD', updated_at: new Date().toISOString() })
-      .in('id', partyIds)
-      .eq('account_id', accountId);
+    if (action.propertyId === undefined) {
+      await confirmToAgent(buildColdConfirmation(who, { scope: 'unresolved' }));
+      return true;
+    }
+    const outcome = await markFollowUpCold(admin, {
+      accountId,
+      partyIds,
+      propertyId: action.propertyId,
+    });
+    if (
+      outcome.scope === 'unresolved' ||
+      outcome.scope === 'incomplete' ||
+      outcome.scope === 'unmoved'
+    ) {
+      await confirmToAgent(buildColdConfirmation(who, outcome));
+      return true;
+    }
     await stampNudgeState(
       admin,
       accountId,
@@ -632,9 +675,7 @@ export async function handleFollowUpReply(
       },
       partyIds
     );
-    await confirmToAgent(
-      `❄️ Marked ${who} cold — the follow-up radar will leave them alone.`
-    );
+    await confirmToAgent(buildColdConfirmation(who, outcome));
     return true;
   }
 
@@ -771,6 +812,171 @@ export async function handleFollowUpReply(
     );
   }
   return true;
+}
+
+export const COLD_FROM_FOLLOWUP_REASON =
+  'Agent marked the lead cold on this listing from the follow-up card';
+
+export type FollowUpColdOutcome =
+  | { scope: 'unresolved' }
+  | { scope: 'incomplete'; property: OpenEnquiry['property'] | null }
+  | {
+      scope: 'unmoved';
+      property: OpenEnquiry['property'];
+      next: OpenEnquiry['property'];
+    }
+  | { scope: 'lead'; property: OpenEnquiry['property'] | null }
+  | {
+      scope: 'property';
+      property: OpenEnquiry['property'];
+      stillOpen: OpenEnquiry['property'][];
+    };
+
+/**
+ * Mark cold is about the listing the card named, not the buyer. The
+ * enquiry on that listing is closed for everyone buying together, and
+ * the lead stays HOT while any other enquiry is still open — so the
+ * radar keeps following them on those, naming the next one. Only when
+ * that listing was the last open enquiry, or the card named none, does
+ * the lead itself go COLD. A named listing that can no longer be read
+ * changes nothing, and neither does a failed read of the open
+ * enquiries: guessing lead-wide would drop every other enquiry. A close
+ * that left the branch active cannot be undone here, so the lead keeps
+ * its temperature and the agent is told the close did not finish.
+ */
+export async function markFollowUpCold(
+  db: SupabaseClient,
+  args: { accountId: string; partyIds: string[]; propertyId: string | null }
+): Promise<FollowUpColdOutcome> {
+  const { accountId, partyIds } = args;
+  const now = new Date().toISOString();
+
+  let property: OpenEnquiry['property'] | null = null;
+  if (args.propertyId) {
+    const { data, error } = await db
+      .from('properties')
+      .select('id, title, property_code')
+      .eq('id', args.propertyId)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    if (error || !data) return { scope: 'unresolved' };
+    property = data as OpenEnquiry['property'];
+  }
+
+  if (property) {
+    const otherOpen = async (): Promise<OpenEnquiry['property'][]> => {
+      const found: OpenEnquiry['property'][] = [];
+      for (const id of partyIds) {
+        const open = await loadOpenEnquiries(db, accountId, id, {
+          strict: true,
+          excludePropertyId: property.id,
+        });
+        for (const { property: p } of open) {
+          if (!found.some((f) => f.id === p.id)) found.push(p);
+        }
+      }
+      return found;
+    };
+
+    let stillOpen: OpenEnquiry['property'][];
+    try {
+      stillOpen = await otherOpen();
+    } catch {
+      return { scope: 'unresolved' };
+    }
+
+    const label = enquiryLabel(property);
+    let closedAll = true;
+    for (const id of partyIds) {
+      const closed = await closePropertyEnquiry({
+        db,
+        accountId,
+        contact: { id },
+        property,
+        reason: COLD_FROM_FOLLOWUP_REASON,
+        note: `❄️ Marked cold on ${label} from the follow-up card.`,
+      });
+      if (!closed) closedAll = false;
+    }
+    if (!closedAll) return { scope: 'incomplete', property };
+
+    for (const id of partyIds) {
+      const { data: lingering, error: lingeringError } = await db
+        .from('journey_items')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_id', id)
+        .eq('property_id', property.id)
+        .eq('status', 'active')
+        .limit(1);
+      if (lingeringError || (lingering ?? []).length > 0) {
+        return { scope: 'incomplete', property };
+      }
+    }
+
+    const before = stillOpen;
+    stillOpen = await otherOpen().catch(() => before);
+
+    if (stillOpen.length) {
+      const { error: repointError } = await db
+        .from('contacts')
+        .update({ last_inquired_property_id: stillOpen[0].id, updated_at: now })
+        .in('id', partyIds)
+        .eq('account_id', accountId)
+        .eq('last_inquired_property_id', property.id);
+      if (repointError) {
+        return { scope: 'unmoved', property, next: stillOpen[0] };
+      }
+      return { scope: 'property', property, stillOpen };
+    }
+  }
+
+  const { data: cooled, error: coolError } = await db
+    .from('contacts')
+    .update({ lead_temp: 'COLD', updated_at: now })
+    .in('id', partyIds)
+    .eq('account_id', accountId)
+    .select('id');
+  if (coolError || (cooled ?? []).length === 0) {
+    return { scope: 'incomplete', property };
+  }
+  return { scope: 'lead', property };
+}
+
+const MAX_NAMED_OPEN_ENQUIRIES = 3;
+
+export function buildColdConfirmation(
+  who: string,
+  outcome: FollowUpColdOutcome
+): string {
+  if (outcome.scope === 'unmoved') {
+    return `⚠️ Closed ${enquiryLabel(outcome.property)} for ${who}, but the lead could not be moved onto ${enquiryLabel(outcome.next)}, so the next follow-up may still name the closed listing. Open the lead to update its enquiry by hand.`;
+  }
+  if (outcome.scope === 'incomplete') {
+    return outcome.property
+      ? `⚠️ ${who} was not marked cold — closing the enquiry on ${enquiryLabel(outcome.property)} did not finish, so it may be closed for only part of the party. Open the lead to check it and update it by hand.`
+      : `⚠️ ${who} was not marked cold — the update did not go through. Open the lead to update it by hand.`;
+  }
+  if (outcome.scope === 'unresolved') {
+    return `⚠️ ${who} was not marked cold — this card's enquiry could not be matched or closed. Open the lead to update it by hand.`;
+  }
+  if (outcome.scope === 'property') {
+    const named = outcome.stillOpen
+      .slice(0, MAX_NAMED_OPEN_ENQUIRIES)
+      .map((p) => `• ${enquiryLabel(p)}`);
+    const more = outcome.stillOpen.length - named.length;
+    const count = outcome.stillOpen.length;
+    return [
+      `❄️ Marked ${who} cold on ${enquiryLabel(outcome.property)} only.`,
+      `Still tracking ${count} other enquir${count === 1 ? 'y' : 'ies'}, so the lead stays hot:`,
+      ...named,
+      ...(more > 0 ? [`…and ${more} more`] : []),
+    ].join('\n');
+  }
+  if (outcome.property) {
+    return `❄️ Marked ${who} cold on ${enquiryLabel(outcome.property)}. That was their only open enquiry, so the follow-up radar will leave them alone.`;
+  }
+  return `❄️ Marked ${who} cold — the follow-up radar will leave them alone.`;
 }
 
 /** The closed-window path: the approved enquiry check-in template, the

@@ -3,6 +3,7 @@
 import type { Deal, PipelineStage } from '@/types';
 import { Calendar, Check, X } from 'lucide-react';
 import { formatCurrency } from '@/lib/currency-utils';
+import { netOfPayouts } from '@/lib/deals/co-broking';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { isBrokeragePaidStage } from '@/lib/pipelines/stage-semantics';
 
@@ -112,10 +113,13 @@ export function DealCard({
           <span className="text-[10px] font-medium text-slate-400">
             {brokeragePaid ? 'Brokerage received: ' : 'Fee: '}
             {formatCurrency(
-              deal.brokerage_amount !== null &&
-                deal.brokerage_amount !== undefined
-                ? Number(deal.brokerage_amount)
-                : Number(deal.value || 0) * 0.02,
+              netOfPayouts(
+                deal.brokerage_amount !== null &&
+                  deal.brokerage_amount !== undefined
+                  ? Number(deal.brokerage_amount)
+                  : Number(deal.value || 0) * 0.02,
+                deal.co_broker_payout_total
+              ),
               deal.currency || currency
             )}
           </span>

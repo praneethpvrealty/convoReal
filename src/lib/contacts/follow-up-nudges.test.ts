@@ -10,11 +10,13 @@ import {
   buildFollowUpCheckinText,
   buildClosedWindowFollowUpTemplateSend,
   gatherFollowUpLeads,
+  buildColdConfirmation,
   pickClosedWindowFollowUpTemplate,
   FOLLOWUP_CHECKIN_PREFIX,
   FOLLOWUP_CONSIDERING_PREFIX,
   FOLLOWUP_SNOOZE_PREFIX,
   FOLLOWUP_COLD_PREFIX,
+  FOLLOWUP_NO_LISTING,
   FOLLOWUP_MAX_PER_RUN,
 } from './follow-up-nudges';
 
@@ -24,6 +26,7 @@ import {
 // never become the spam that would get it muted.
 
 const CONTACT_ID = '0c90e85c-b699-45d3-b42b-772ad1357d14';
+const PROPERTY_ID = '1606a415-0ce2-4495-86fc-96024db0de78';
 
 describe('parseFollowUpReply', () => {
   it('round-trips the contact id out of each button', () => {
@@ -39,6 +42,31 @@ describe('parseFollowUpReply', () => {
     expect(
       parseFollowUpReply(`${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}`)?.action
     ).toBe('cold');
+  });
+
+  it('[INB-021] leaves an older card without a listing unresolved', () => {
+    expect(parseFollowUpReply(`${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}`)).toEqual({
+      action: 'cold',
+      contactId: CONTACT_ID,
+    });
+    const source = readFileSync(
+      join(process.cwd(), 'src/lib/contacts/follow-up-nudges.ts'),
+      'utf8'
+    );
+    expect(source).toContain('if (action.propertyId === undefined) {');
+    expect(source).not.toContain(
+      'action.propertyId ?? lead.last_inquired_property_id'
+    );
+  });
+
+  it('carries the carded listing on a Mark cold tap', () => {
+    expect(
+      parseFollowUpReply(`${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}:${PROPERTY_ID}`)
+    ).toEqual({
+      action: 'cold',
+      contactId: CONTACT_ID,
+      propertyId: PROPERTY_ID,
+    });
   });
 
   it('ignores every other button in the inbox', () => {
@@ -114,6 +142,109 @@ describe('buildFollowUpActionSections', () => {
       expect(row.title.length).toBeLessThanOrEqual(24);
       expect(row.description.length).toBeLessThanOrEqual(72);
     }
+  });
+});
+
+describe('[INB-021] Mark cold is scoped to the carded listing', () => {
+  const lead = {
+    contactId: CONTACT_ID,
+    name: 'Rohit',
+    phone: '+919900003357',
+    assignedAgentUserId: null,
+    daysSilent: 2,
+    propertyTitle: '60x90 Commercial Plot in JP Nagar, 5th Phase',
+  };
+
+  it('names the listing in the cold row id', () => {
+    const rows = buildFollowUpActionSections({
+      ...lead,
+      propertyId: PROPERTY_ID,
+    })[0].rows;
+    const cold = rows[3];
+    expect(cold.id).toBe(`${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}:${PROPERTY_ID}`);
+    expect(cold.id.length).toBeLessThanOrEqual(200);
+    expect(cold.description).toMatch(/this listing/);
+    expect(cold.description.length).toBeLessThanOrEqual(72);
+  });
+
+  it('offers no Mark cold on a card whose listing could not be named', () => {
+    const rows = buildFollowUpActionSections({
+      ...lead,
+      propertyId: PROPERTY_ID,
+      propertyTitle: null,
+    })[0].rows;
+    expect(rows).toHaveLength(3);
+    expect(rows.some((r) => r.id.startsWith(FOLLOWUP_COLD_PREFIX))).toBe(false);
+  });
+
+  it('falls back to a lead-wide cold when the card names no listing', () => {
+    const cold = buildFollowUpActionSections(lead)[0].rows[3];
+    expect(cold.id).toBe(
+      `${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}:${FOLLOWUP_NO_LISTING}`
+    );
+    expect(parseFollowUpReply(cold.id)).toEqual({
+      action: 'cold',
+      contactId: CONTACT_ID,
+      propertyId: null,
+    });
+  });
+
+  it('tells the agent which enquiries are still tracked', () => {
+    const text = buildColdConfirmation('Rohit', {
+      scope: 'property',
+      property: { id: 'p-1', title: 'JP Nagar Plot', property_code: null },
+      stillOpen: [
+        { id: 'p-2', title: 'Yelahanka House', property_code: 'YH-1' },
+      ],
+    });
+    expect(text).toContain('cold on JP Nagar Plot only');
+    expect(text).toContain('1 other enquiry');
+    expect(text).toContain('Yelahanka House (YH-1)');
+    expect(text).toContain('stays hot');
+  });
+
+  it('refuses rather than guessing when the carded listing is gone', () => {
+    const text = buildColdConfirmation('Rohit', { scope: 'unresolved' });
+    expect(text).toContain('Rohit was not marked cold');
+  });
+
+  it('[INB-021] says a close that did not finish may be partial', () => {
+    const text = buildColdConfirmation('Rohit', {
+      scope: 'incomplete',
+      property: { id: 'p1', title: 'JP Nagar Plot', property_code: null },
+    });
+    expect(text).toContain('Rohit was not marked cold');
+    expect(text).toContain('JP Nagar Plot did not finish');
+    expect(text).toContain('part of the party');
+  });
+
+  it('[INB-021] says a cold update that did not go through changed nothing', () => {
+    const text = buildColdConfirmation('Rohit', {
+      scope: 'incomplete',
+      property: null,
+    });
+    expect(text).toContain('Rohit was not marked cold');
+    expect(text).toContain('did not go through');
+  });
+
+  it('[INB-021] says the listing closed when only the move to the next enquiry failed', () => {
+    const text = buildColdConfirmation('Rohit', {
+      scope: 'unmoved',
+      property: { id: 'p1', title: 'JP Nagar Plot', property_code: null },
+      next: { id: 'p2', title: 'Yelahanka House', property_code: null },
+    });
+    expect(text).toContain('Closed JP Nagar Plot for Rohit');
+    expect(text).toContain('could not be moved onto Yelahanka House');
+    expect(text).not.toContain('did not finish');
+  });
+
+  it('says so when the listing was the last open enquiry', () => {
+    const text = buildColdConfirmation('Rohit', {
+      scope: 'lead',
+      property: { id: 'p-1', title: 'JP Nagar Plot', property_code: null },
+    });
+    expect(text).toContain('only open enquiry');
+    expect(text).toContain('leave them alone');
   });
 });
 
@@ -292,6 +423,7 @@ describe('gatherFollowUpLeads', () => {
     expect(leads).toHaveLength(1);
     expect(leads[0].daysSilent).toBe(6);
     expect(leads[0].propertyTitle).toBe('JP Nagar Plot');
+    expect(leads[0].propertyId).toBe('p-1');
   });
 
   it('holds back snoozed and recently-nudged leads', async () => {

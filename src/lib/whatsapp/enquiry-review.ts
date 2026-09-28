@@ -51,9 +51,10 @@ export function enquiryLabel(p: OpenEnquiry['property']): string {
 export async function loadOpenEnquiries(
   db: SupabaseClient,
   accountId: string,
-  contactId: string
+  contactId: string,
+  opts: { strict?: boolean; excludePropertyId?: string } = {}
 ): Promise<OpenEnquiry[]> {
-  const { data } = await db
+  const { data, error } = await db
     .from('journey_items')
     .select(
       'id, property:properties(id, title, property_code), stage:journey_stages!journey_items_stage_id_fkey(stage_kind)'
@@ -62,6 +63,7 @@ export async function loadOpenEnquiries(
     .eq('contact_id', contactId)
     .eq('status', 'active')
     .order('updated_at', { ascending: false });
+  if (error && opts.strict) throw new Error(error.message);
   type Stage = { stage_kind: string | null };
   const rows = (data ?? []) as Array<{
     id: string;
@@ -76,6 +78,7 @@ export async function loadOpenEnquiries(
       const property = one(row.property);
       const kind = one(row.stage)?.stage_kind ?? null;
       if (!property || (kind && past.includes(kind))) return [];
+      if (property.id === opts.excludePropertyId) return [];
       return [{ itemId: row.id, property }];
     })
     .slice(0, MAX_REVIEWED_ENQUIRIES);
@@ -93,12 +96,13 @@ export async function closePropertyEnquiry(args: {
   contact: { id: string; name?: string | null };
   property: OpenEnquiry['property'];
   reason?: string;
-}): Promise<void> {
+  note?: string;
+}): Promise<boolean> {
   const { db, accountId, contact, property } = args;
   const reason = args.reason ?? CLOSED_FROM_WHATSAPP_REASON;
   const now = new Date().toISOString();
 
-  await db.from('listing_feedback').upsert(
+  const { error: feedbackError } = await db.from('listing_feedback').upsert(
     {
       account_id: accountId,
       contact_id: contact.id,
@@ -108,7 +112,8 @@ export async function closePropertyEnquiry(args: {
     { onConflict: 'contact_id,property_id' }
   );
 
-  const { data: item } = await db
+  let dropped = true;
+  const { data: item, error: itemError } = await db
     .from('journey_items')
     .select('id, stage_id')
     .eq('account_id', accountId)
@@ -118,7 +123,7 @@ export async function closePropertyEnquiry(args: {
     .maybeSingle();
   if (item) {
     const row = item as { id: string; stage_id: string };
-    await db
+    const { error: dropError } = await db
       .from('journey_items')
       .update({
         status: 'dropped',
@@ -127,6 +132,7 @@ export async function closePropertyEnquiry(args: {
         updated_at: now,
       })
       .eq('id', row.id);
+    dropped = !dropError;
     await db.from('journey_events').insert({
       account_id: accountId,
       item_id: row.id,
@@ -175,8 +181,11 @@ export async function closePropertyEnquiry(args: {
     contact_id: contact.id,
     account_id: accountId,
     user_id: null,
-    note_text: `🚪 ${name} closed their enquiry on ${enquiryLabel(property)}`,
+    note_text:
+      args.note ??
+      `🚪 ${name} closed their enquiry on ${enquiryLabel(property)}`,
   });
+  return !feedbackError && !itemError && dropped;
 }
 
 export function buildEnquiryReviewBody(

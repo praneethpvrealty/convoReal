@@ -194,6 +194,29 @@ Migrations: `20260924140000_deal_payment_tranches.sql` and
 push) and `20260924140100_deal_deadlines_payment_tranches.sql`
 (`CREATE OR REPLACE` on a live function, held to merge).
 
+## Co-broking
+
+A brokerage often sits between a buyer's agent and a seller's agent: it
+collects the whole commission and pays each of them a share. The deal
+held one brokerage figure, so the dashboards counted the other brokers'
+money as revenue.
+
+| Decision                                                                                                                                                                                                                                                                                                         | Why                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`brokerage_amount` stays what the brokerage collects.** Each broker it pays is a row in `deal_co_broker_payouts`; `deals.co_broker_payout_total` is their sum, kept by trigger.                                                                                                                                | Every existing writer (the deal form, stage-move brokerage capture, web and mobile) computes `brokerage_amount` from the rate. Changing its meaning would have meant changing all of them; a subtraction at the readers changes none. |
+| **Net = collected − payouts, floored at zero, everywhere revenue is read.** `dashboard_metrics`, `dashboard_pipeline_donut`, `team_analytics`, `lead_source_analytics` (migration `20260928042712`, held to merge), the board, pipeline analytics and the deal card (`netOfPayouts`), and the mobile deals list. | A deal with no payouts reads exactly as before.                                                                                                                                                                                       |
+| **Position is recorded, not inferred.** `deals.deal_position`: direct, buyer's side, seller's side, in the middle.                                                                                                                                                                                               | Payouts say what is owed; position says why.                                                                                                                                                                                          |
+| **A payout is a broker and an amount.** Optionally a Broker stakeholder on the same deal, a side, and the share as a % of deal value (which prefills the amount; the amount is what is recorded). Paid is a date and optionally a part amount, like a tranche receipt.                                           | Record-keeping, not a commission engine.                                                                                                                                                                                              |
+| **Only the API writes payouts.** The table has a read policy only; the routes write through the service role after `requireWriteRole` (which refuses read-only members), so every write is parsed, rate-limited and on the timeline. Triggers still hold for any writer: a paid payout is corrected, never removed or marked unpaid; at most 20 per deal (locked count); a payout never moves deal or account; a linked stakeholder is a broker on the deal when linked; the amount is above zero. `deals.co_broker_payout_total` moves by each row's change, cannot be written directly, and its upkeep never moves the deal's `updated_at`. A payout goes with its deal on delete. | Same posture as tranches for the invariants, with the write path narrowed to the API because the total feeds every revenue figure. |
+| **Internal only.** `deal_position` and `co_broker_payout_total` are on `INTERNAL_ONLY_DEAL_FIELDS`; the table is never read by `/api/v1`, a public route or a stakeholder link; events name the broker, never the money.                                                                                         | TXW-004.                                                                                                                                                                                                                              |
+
+Routes: `GET/PATCH /api/deals/[id]/co-broking`,
+`POST /api/deals/[id]/co-broking/payouts`,
+`PATCH/DELETE /api/deals/[id]/co-broking/payouts/[payoutId]`.
+Surfaces: the Co-broking block under the payment schedule on the
+Overview tab, web and mobile; on web the header shows **Your share**
+in place of Half share once a payout exists.
+
 ## Records index: expected close
 
 `transaction_workspace_index` returns `expected_close_date` and

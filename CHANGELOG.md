@@ -19,6 +19,22 @@ than a written entry. Newest first.
 
 #### 28 September 2026
 
+- **Co-broking on deals.** When you sit between a buyer's agent and a
+  seller's agent, collect the commission and pay them their share, the
+  deal now records it. Overview → Co-broking (web and mobile): set your
+  position (direct, buyer's side, seller's side, in the middle), add each
+  broker you pay (pick them from the deal's Broker stakeholders or type a
+  name, with an optional % of the deal value), and mark each one paid
+  with a date and UTR. The deal's brokerage stays what you collect; the
+  dashboard, pipeline totals, deal cards, team and lead-source analytics
+  now count only your share (collected less payouts). Nothing changes for
+  a deal with no payouts. Internal only: never shown on a stakeholder
+  link, `/api/v1` or a public page. **Migration required:**
+  `20260928042711_deal_co_broking.sql`,
+  `20260928054500_deal_co_broking_hardening.sql` and
+  `20260928055000_co_broker_paid_within_amount.sql`. The dashboard
+  functions subtract payouts through
+  `20260928042712_co_broking_net_brokerage.sql`, shipped first in #1088.
 - **The active pipeline turns like a wheel.** On the Deals board the
   active stages now sit on a horizontal wheel: the focused stage faces
   you and its neighbours turn away on either side. Swipe or scroll to
@@ -27,6 +43,14 @@ than a written entry. Newest first.
   board opens on the first stage holding deals, and dragging a deal
   flattens the wheel so it drops where you see it. The mobile Deals
   board's stage strip is the same wheel.
+- **Mark cold on a follow-up card now applies to that listing only.**
+  Tapping ❄️ Mark cold used to set the whole lead COLD, so the radar
+  stopped following every other property they had enquired on. It now
+  closes the enquiry on the listing the card named (for everyone buying
+  together), keeps the lead HOT while any other enquiry is open, points
+  the next card at one of those, and tells the agent which enquiries
+  are still tracked. The lead goes COLD only when that listing was their
+  last open enquiry, or the card named none.
 - **Missing public pages now answer with a real 404.** An unknown or
   retired listing, project, farmland, article, service, city or seller
   URL showed the not-found page but sent HTTP 200, because the root
