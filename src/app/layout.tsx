@@ -14,6 +14,7 @@ import {
 } from "@/lib/themes";
 import { ThemedToaster } from "@/components/layout/themed-toaster";
 import { DeploymentCheck } from "@/components/deployment-check";
+import { PerformanceInsights } from "@/components/performance-insights";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -100,6 +101,7 @@ export default function RootLayout({
             <DeploymentCheck />
             {children}
             <Analytics />
+            {process.env.VERCEL_ENV === "production" && <PerformanceInsights />}
             <ThemedToaster />
           </QueryProvider>
         </ThemeProvider>
