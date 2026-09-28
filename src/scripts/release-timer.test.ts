@@ -153,6 +153,8 @@ function fakeGithub({
   mergeable = true,
   behindBy = 0,
   movedTip,
+  behindAtMerge = behindBy,
+  threadPages = [[]] as boolean[][],
 }: {
   pulls: Pull[];
   created?: string;
@@ -165,9 +167,12 @@ function fakeGithub({
   mergeable?: boolean | null;
   behindBy?: number;
   movedTip?: string;
+  behindAtMerge?: number;
+  threadPages?: boolean[][];
 }) {
   const listBranches = vi.fn();
   let releaseReads = 0;
+  let compares = 0;
   const pullsList = vi.fn(
     async ({ state, base }: { state: string; base: string }) => ({
       data: pulls.filter(
@@ -205,9 +210,10 @@ function fakeGithub({
       }),
       listActivities: vi.fn(async () => ({ data: [{ timestamp: created }] })),
       getCommit: vi.fn(),
-      compareCommitsWithBasehead: vi.fn(async () => ({
-        data: { behind_by: behindBy },
-      })),
+      compareCommitsWithBasehead: vi.fn(async () => {
+        compares += 1;
+        return { data: { behind_by: compares > 1 ? behindAtMerge : behindBy } };
+      }),
     },
     pulls: {
       list: pullsList,
@@ -248,9 +254,24 @@ function fakeGithub({
       deleteRef: vi.fn(async () => ({})),
     },
   };
-  const graphql = vi.fn(async () => ({
-    repository: { pullRequest: { reviewThreads: { nodes: [] } } },
-  }));
+  const graphql = vi.fn(
+    async (_query: string, { after }: { after: string | null }) => {
+      const page = after ? Number(after) : 0;
+      return {
+        repository: {
+          pullRequest: {
+            reviewThreads: {
+              nodes: threadPages[page].map((isResolved) => ({ isResolved })),
+              pageInfo: {
+                hasNextPage: page + 1 < threadPages.length,
+                endCursor: String(page + 1),
+              },
+            },
+          },
+        },
+      };
+    }
+  );
   return { github: { paginate, graphql, rest }, rest };
 }
 
@@ -502,6 +523,36 @@ describe('run', () => {
       (await run({ github, context, core, now: NOW }))['release/batch'].action
     ).toBe('hold');
     expect(rest.issues.createComment).toHaveBeenCalledTimes(1);
+    expect(rest.pulls.merge).not.toHaveBeenCalled();
+  });
+
+  it('does not merge when main moved after the release was tested', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      behindAtMerge: 1,
+    });
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch']
+    ).toEqual({
+      action: 'wait',
+      reason: 'main moved; the release is updated and re-tested first',
+    });
+    expect(rest.pulls.merge).not.toHaveBeenCalled();
+  });
+
+  it('counts unresolved review threads beyond the first page', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      threadPages: [Array(100).fill(true), [true, false]],
+    });
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch']
+    ).toEqual({ action: 'hold', reason: '1 unresolved review thread(s)' });
+    expect(github.graphql).toHaveBeenCalledTimes(2);
     expect(rest.pulls.merge).not.toHaveBeenCalled();
   });
 });

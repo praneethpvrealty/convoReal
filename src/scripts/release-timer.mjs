@@ -120,19 +120,27 @@ async function latestCiRun(github, owner, repo, sha) {
 }
 
 async function unresolvedThreadCount(github, owner, repo, number) {
-  const result = await github.graphql(
-    `query($owner: String!, $repo: String!, $number: Int!) {
-      repository(owner: $owner, name: $repo) {
-        pullRequest(number: $number) {
-          reviewThreads(first: 100) { nodes { isResolved } }
+  let unresolved = 0;
+  let after = null;
+  do {
+    const result = await github.graphql(
+      `query($owner: String!, $repo: String!, $number: Int!, $after: String) {
+        repository(owner: $owner, name: $repo) {
+          pullRequest(number: $number) {
+            reviewThreads(first: 100, after: $after) {
+              nodes { isResolved }
+              pageInfo { hasNextPage endCursor }
+            }
+          }
         }
-      }
-    }`,
-    { owner, repo, number }
-  );
-  return result.repository.pullRequest.reviewThreads.nodes.filter(
-    (thread) => !thread.isResolved
-  ).length;
+      }`,
+      { owner, repo, number, after }
+    );
+    const threads = result.repository.pullRequest.reviewThreads;
+    unresolved += threads.nodes.filter((thread) => !thread.isResolved).length;
+    after = threads.pageInfo.hasNextPage ? threads.pageInfo.endCursor : null;
+  } while (after);
+  return unresolved;
 }
 
 async function prComments(github, owner, repo, number) {
@@ -387,6 +395,20 @@ async function shipBranch({
     return {
       action: 'wait',
       reason: 'release head moved; it is re-tested first',
+    };
+  }
+  const {
+    data: { behind_by: behindNow },
+  } = await github.rest.repos.compareCommitsWithBasehead({
+    owner,
+    repo,
+    basehead: `main...${releasePr.headSha}`,
+    per_page: 1,
+  });
+  if (behindNow > 0) {
+    return {
+      action: 'wait',
+      reason: 'main moved; the release is updated and re-tested first',
     };
   }
 
