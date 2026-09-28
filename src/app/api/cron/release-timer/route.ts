@@ -1,16 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 
-/**
- * Starts the release-timer GitHub workflow. GitHub runs this repository's
- * scheduled workflows hours late, so Vercel Cron is the clock and the
- * workflow keeps the release logic. Registered in vercel.json (every 15
- * minutes). Auth: the same constant-time shared-secret check as the other
- * crons. Needs RELEASE_TIMER_GITHUB_TOKEN, a fine-grained token with
- * Actions read and write on this repository only, plus Vercel's
- * VERCEL_GIT_REPO_OWNER and VERCEL_GIT_REPO_SLUG system variables. Fails
- * closed (503) when any of them is missing.
- */
 export async function GET(request: Request) {
   const expected =
     process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET;
