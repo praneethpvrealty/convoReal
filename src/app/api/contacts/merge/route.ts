@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     const { data: sourceInqs } = await admin
       .from('contact_property_inquiries')
-      .select('property_id, account_id')
+      .select('property_id, account_id, inquiry_source, inquiry_date, notes, created_at')
       .eq('contact_id', sourceId);
 
     const targetPropIds = new Set((targetInqs || []).map((i) => i.property_id));
@@ -161,6 +161,10 @@ export async function POST(request: NextRequest) {
           contact_id: targetId,
           property_id: i.property_id,
           account_id: i.account_id || ctx.accountId,
+          inquiry_source: i.inquiry_source,
+          inquiry_date: i.inquiry_date,
+          notes: i.notes,
+          created_at: i.created_at,
         }))
       );
     }
