@@ -471,6 +471,8 @@ export function updateCoBrokerPayout(
     payee_name?: string;
     side?: PayoutSide | null;
     amount?: string;
+    share_percent?: string | null;
+    stakeholder_id?: string | null;
     paid_at?: string | null;
     paid_amount?: string | null;
     instrument_ref?: string | null;

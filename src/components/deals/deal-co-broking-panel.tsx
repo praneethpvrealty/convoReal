@@ -81,6 +81,8 @@ export function DealCoBrokingPanel({
   const [editName, setEditName] = useState('');
   const [editSide, setEditSide] = useState<PayoutSide | ''>('');
   const [editAmount, setEditAmount] = useState('');
+  const [editStakeholder, setEditStakeholder] = useState('');
+  const [editPercent, setEditPercent] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['deal-co-broking', dealId],
@@ -191,6 +193,8 @@ export function DealCoBrokingPanel({
     setEditName(p.payee_name);
     setEditSide(p.side ?? '');
     setEditAmount(String(p.amount));
+    setEditStakeholder(p.stakeholder_id ?? '');
+    setEditPercent(p.share_percent != null ? String(p.share_percent) : '');
     setPaidAt(p.paid_at ?? (markPaid ? todayDateKey() : ''));
     setPaidAmount(
       !markPaid && p.paid_amount != null ? String(p.paid_amount) : ''
@@ -212,6 +216,10 @@ export function DealCoBrokingPanel({
               payee_name: editName,
               side: editSide || null,
               amount: editAmount,
+              share_percent: editPercent === '' ? null : editPercent,
+              ...(editStakeholder !== (p.stakeholder_id ?? '')
+                ? { stakeholder_id: editStakeholder || null }
+                : {}),
               paid_at: paidAt || null,
               paid_amount: paidAmount === '' ? null : paidAmount,
               instrument_ref: instrument || null,
@@ -391,6 +399,39 @@ export function DealCoBrokingPanel({
                 </span>
               </p>
               <div className="sm:col-span-2">
+                <Label htmlFor="cb-edit-stakeholder">Linked stakeholder</Label>
+                <select
+                  id="cb-edit-stakeholder"
+                  className={selectClass}
+                  value={editStakeholder}
+                  onChange={(e) => {
+                    setEditStakeholder(e.target.value);
+                    const broker = data.brokers.find(
+                      (b) => b.id === e.target.value
+                    );
+                    if (broker) {
+                      setEditName(broker.name);
+                      if (broker.side === 'buyer' || broker.side === 'seller') {
+                        setEditSide(broker.side);
+                      }
+                    }
+                  }}
+                >
+                  <option value="">Not linked</option>
+                  {data.brokers.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                  {editStakeholder &&
+                    !data.brokers.some((b) => b.id === editStakeholder) && (
+                      <option value={editStakeholder}>
+                        {paidFor.payee_name} (no longer a broker)
+                      </option>
+                    )}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
                 <Label htmlFor="cb-edit-name">Broker</Label>
                 <Input
                   id="cb-edit-name"
@@ -413,6 +454,27 @@ export function DealCoBrokingPanel({
                   <option value="buyer">{SIDE_LABELS.buyer}</option>
                   <option value="seller">{SIDE_LABELS.seller}</option>
                 </select>
+              </div>
+              <div>
+                <Label htmlFor="cb-edit-percent">% of deal</Label>
+                <Input
+                  id="cb-edit-percent"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  inputMode="decimal"
+                  value={editPercent}
+                  onChange={(e) => {
+                    setEditPercent(e.target.value);
+                    const computed = payoutFromPercent(
+                      data.deal_value,
+                      e.target.value
+                    );
+                    if (computed > 0) setEditAmount(String(computed));
+                  }}
+                  className="border-slate-700 bg-slate-950"
+                />
               </div>
               <div>
                 <Label htmlFor="cb-edit-amount">Payout amount</Label>

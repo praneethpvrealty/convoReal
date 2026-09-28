@@ -3458,6 +3458,10 @@ describe('[TXW-023] co-broking ships on both surfaces through one route', () => 
     expect(mobileScreen).toContain('data.summary.net');
     expect(webPanel).toContain('data.summary.net');
     expect(mobileScreen).toContain('!profile.is_read_only');
+    for (const field of ['share_percent:', 'stakeholder_id:']) {
+      expect(mobileScreen).toContain(field);
+      expect(webPanel).toContain(field);
+    }
     for (const total of ['payouts', 'paid_out', 'to_pay']) {
       expect(mobileScreen).toContain(`data.summary.${total}`);
       expect(webPanel).toContain(`data.summary.${total}`);

@@ -8,6 +8,7 @@ import {
 import { brokerOnDeal } from '@/lib/deals/co-broking-server';
 import { parseEventSource, writeDealEvent } from '@/lib/deals/events';
 import { actorName, loadDealHead } from '@/lib/deals/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -52,7 +53,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    const { count } = await ctx.supabase
+    const { count } = await supabaseAdmin()
       .from('deal_co_broker_payouts')
       .select('id', { count: 'exact', head: true })
       .eq('deal_id', dealId)
@@ -66,7 +67,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    const { data, error } = await ctx.supabase
+    const { data, error } = await supabaseAdmin()
       .from('deal_co_broker_payouts')
       .insert({
         account_id: ctx.accountId,

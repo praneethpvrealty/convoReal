@@ -121,7 +121,10 @@ describe('[TXW-023] co-broking payouts', () => {
     expect(sql).not.toContain('SELECT SUM(p.amount)');
     expect(sql).toContain('A payout stays on its deal');
     expect(sql).toContain('CHECK (amount > 0)');
-    expect(sql).toContain('AND p.is_read_only IS NOT TRUE');
+    expect(sql).toContain(
+      'DROP POLICY IF EXISTS deal_co_broker_payouts_modify ON deal_co_broker_payouts;'
+    );
+    expect(sql).not.toMatch(/CREATE POLICY \S+ ON deal_co_broker_payouts FOR (ALL|INSERT|UPDATE|DELETE)/);
     expect(sql).toContain(
       'BEFORE INSERT OR UPDATE OF co_broker_payout_total ON deals'
     );

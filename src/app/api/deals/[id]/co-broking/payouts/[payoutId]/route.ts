@@ -5,6 +5,7 @@ import { parsePayoutPatch, patchClearsPayment } from '@/lib/deals/co-broking';
 import { brokerOnDeal } from '@/lib/deals/co-broking-server';
 import { parseEventSource, writeDealEvent } from '@/lib/deals/events';
 import { actorName, loadDealHead } from '@/lib/deals/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -49,7 +50,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       );
     }
 
-    const { data: before } = await ctx.supabase
+    const { data: before } = await supabaseAdmin()
       .from('deal_co_broker_payouts')
       .select('id, paid_at, paid_amount')
       .eq('id', payoutId)
@@ -70,10 +71,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       );
     }
 
-    const { data, error } = await ctx.supabase
+    const { data, error } = await supabaseAdmin()
       .from('deal_co_broker_payouts')
       .update(parsed.value)
       .eq('id', payoutId)
+      .eq('deal_id', dealId)
       .eq('account_id', ctx.accountId)
       .select('*')
       .single();
@@ -117,7 +119,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
     }
 
-    const { data: row } = await ctx.supabase
+    const { data: row } = await supabaseAdmin()
       .from('deal_co_broker_payouts')
       .select('id, payee_name, paid_at, paid_amount')
       .eq('id', payoutId)
@@ -138,10 +140,11 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       );
     }
 
-    const { data: removed, error } = await ctx.supabase
+    const { data: removed, error } = await supabaseAdmin()
       .from('deal_co_broker_payouts')
       .delete()
       .eq('id', payoutId)
+      .eq('deal_id', dealId)
       .eq('account_id', ctx.accountId)
       .select('id');
     if (error) {

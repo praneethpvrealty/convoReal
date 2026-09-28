@@ -1373,6 +1373,8 @@ function CoBrokingSection({
   const [editName, setEditName] = useState('');
   const [editSide, setEditSide] = useState<PayoutSide | null>(null);
   const [editAmount, setEditAmount] = useState('');
+  const [editStakeholder, setEditStakeholder] = useState<string | null>(null);
+  const [editPercent, setEditPercent] = useState('');
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['deal-co-broking', dealId],
@@ -1424,6 +1426,8 @@ function CoBrokingSection({
     setEditName(p.payee_name);
     setEditSide(p.side);
     setEditAmount(String(p.amount));
+    setEditStakeholder(p.stakeholder_id);
+    setEditPercent(p.share_percent != null ? String(p.share_percent) : '');
     setPaidAt(p.paid_at ?? '');
     setPaidAmount(p.paid_amount != null ? String(p.paid_amount) : '');
     setInstrument(p.instrument_ref ?? '');
@@ -1584,6 +1588,28 @@ function CoBrokingSection({
               <Text style={[styles.cardTitle, { color: colors.text }]}>
                 Payout to {paidFor.payee_name}
               </Text>
+              {data.brokers.length > 0 ? (
+                <View style={styles.chipRow}>
+                  {data.brokers.map((b) => (
+                    <FilterChip
+                      key={b.id}
+                      label={b.name}
+                      active={editStakeholder === b.id}
+                      onPress={() => {
+                        if (editStakeholder === b.id) {
+                          setEditStakeholder(null);
+                          return;
+                        }
+                        setEditStakeholder(b.id);
+                        setEditName(b.name);
+                        if (b.side === 'buyer' || b.side === 'seller') {
+                          setEditSide(b.side);
+                        }
+                      }}
+                    />
+                  ))}
+                </View>
+              ) : null}
               <TextField
                 label="Broker"
                 value={editName}
@@ -1599,6 +1625,16 @@ function CoBrokingSection({
                   />
                 ))}
               </View>
+              <TextField
+                label="% of deal value (optional)"
+                value={editPercent}
+                onChangeText={(v) => {
+                  setEditPercent(v);
+                  const computed = payoutFromPercent(data.deal_value, v);
+                  if (computed > 0) setEditAmount(String(computed));
+                }}
+                keyboardType="decimal-pad"
+              />
               <TextField
                 label="Payout amount"
                 value={editAmount}
@@ -1641,6 +1677,10 @@ function CoBrokingSection({
                       payee_name: editName,
                       side: editSide,
                       amount: editAmount,
+                      share_percent: editPercent === '' ? null : editPercent,
+                      ...(editStakeholder !== paidFor.stakeholder_id
+                        ? { stakeholder_id: editStakeholder }
+                        : {}),
                       paid_at: paidAt || null,
                       paid_amount: paidAmount === '' ? null : paidAmount,
                       instrument_ref: instrument || null,
