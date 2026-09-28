@@ -63,6 +63,7 @@ import {
   journeyEnquirySourceOptions,
   journeyRaceLabel,
   journeySourceChips,
+  journeyViewCounts,
   matchesJourneyEnquirySource,
   sortJourneys,
   splitItemsAtStage,
@@ -495,16 +496,8 @@ export function JourneyBody() {
   );
 
   const counts = useMemo(
-    () => ({
-      active: groups.filter(
-        (group) => !group.archivedAt && group.lifecycleStatus === 'active'
-      ).length,
-      closed: groups.filter(
-        (group) => !group.archivedAt && group.lifecycleStatus !== 'active'
-      ).length,
-      archived: groups.filter((group) => Boolean(group.archivedAt)).length,
-    }),
-    [groups]
+    () => journeyViewCounts(groups, enquirySource),
+    [enquirySource, groups]
   );
 
   const buckets = useMemo<JourneyBucket[]>(() => {

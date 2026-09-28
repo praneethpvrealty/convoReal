@@ -767,6 +767,7 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     for (const helper of [
       'export function journeyEnquirySourceOptions(',
       'export function matchesJourneyEnquirySource(',
+      'export function journeyViewCounts(',
     ]) {
       expect(labelBody(webShared)).toContain(helper);
     }
@@ -807,6 +808,11 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     ).toBe(1);
     expect(webOverview).toContain('{enquirySource && (');
     expect(screen).toContain('if (clear) {');
+    for (const source of [screen, webOverview]) {
+      expect(source).toContain(
+        '() => journeyViewCounts(groups, enquirySource),'
+      );
+    }
     expect(screen).toContain('ref={sourceChipsRef}');
     expect(screen).toContain(
       'sourceChipsRef.current?.scrollTo({ x: 0, animated: true });\n  }, [enquirySource, mode, view]);'
