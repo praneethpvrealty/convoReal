@@ -31,7 +31,8 @@ than a written entry. Newest first.
   a deal with no payouts. Internal only: never shown on a stakeholder
   link, `/api/v1` or a public page. **Migration required:**
   `20260928042711_deal_co_broking.sql` and
-  `20260928054500_deal_co_broking_hardening.sql`. The dashboard functions start
+  `20260928054500_deal_co_broking_hardening.sql` and
+  `20260928055000_co_broker_paid_within_amount.sql`. The dashboard functions start
   subtracting payouts with `20260928042712_co_broking_net_brokerage.sql`,
   shipped as its own release.
 - **Mark cold on a follow-up card now applies to that listing only.**

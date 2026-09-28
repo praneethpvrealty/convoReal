@@ -2032,7 +2032,8 @@
           ],
           "guards": [
             "supabase/migrations/20260928042711_deal_co_broking.sql",
-            "supabase/migrations/20260928054500_deal_co_broking_hardening.sql"
+            "supabase/migrations/20260928054500_deal_co_broking_hardening.sql",
+            "supabase/migrations/20260928055000_co_broker_paid_within_amount.sql"
           ]
         }
       ]

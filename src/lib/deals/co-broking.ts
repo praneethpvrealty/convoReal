@@ -168,6 +168,9 @@ export function parsePayoutInput(raw: unknown): ParseResult<PayoutInput> {
   if (rest.amount === undefined) {
     return { ok: false, error: 'Give the payout an amount' };
   }
+  if (paidExceedsAmount(rest.amount, rest.paid_amount ?? null)) {
+    return { ok: false, error: PAID_EXCEEDS_AMOUNT };
+  }
   return {
     ok: true,
     value: {
@@ -298,6 +301,17 @@ export function payoutStatus(
   if (paid >= p.amount && (p.paid_at || paid > 0)) return 'paid';
   if (paid > 0) return 'partial';
   return 'owed';
+}
+
+export const PAID_EXCEEDS_AMOUNT =
+  'The amount paid cannot be more than the payout';
+
+/** A recorded part payment above the payout is refused, never capped. */
+export function paidExceedsAmount(
+  amount: number,
+  paidAmount: number | null | undefined
+): boolean {
+  return paidAmount != null && paidAmount > amount;
 }
 
 /** A paid payout is corrected, never turned back into an unpaid one:

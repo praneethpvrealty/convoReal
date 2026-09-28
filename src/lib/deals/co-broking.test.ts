@@ -9,6 +9,8 @@ import {
   netOfPayouts,
   parseDealPosition,
   parsePayoutInput,
+  PAID_EXCEEDS_AMOUNT,
+  paidExceedsAmount,
   parsePayoutPatch,
   patchClearsPayment,
   payoutFromPercent,
@@ -72,6 +74,33 @@ describe('[TXW-023] co-broking payouts', () => {
     });
   });
 
+  it('refuses a part payment above the payout rather than capping it', () => {
+    expect(
+      parsePayoutInput({ payee_name: 'A', amount: 100, paid_amount: 150 })
+    ).toEqual({ ok: false, error: PAID_EXCEEDS_AMOUNT });
+    expect(paidExceedsAmount(100, 100)).toBe(false);
+    expect(paidExceedsAmount(100, null)).toBe(false);
+    expect(paidExceedsAmount(50, 60)).toBe(true);
+    const sql = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260928055000_co_broker_paid_within_amount.sql'
+      ),
+      'utf8'
+    );
+    expect(sql).toContain(
+      'CHECK (paid_amount IS NULL OR paid_amount <= amount)'
+    );
+    const route = readFileSync(
+      join(
+        process.cwd(),
+        'src/app/api/deals/[id]/co-broking/payouts/[payoutId]/route.ts'
+      ),
+      'utf8'
+    );
+    expect(route.match(/agent:dealCoBroking/g)?.length).toBe(2);
+  });
+
   it('returns only the fields a patch names', () => {
     expect(
       parsePayoutPatch({ paid_at: '2026-10-01', instrument_ref: ' UTR9 ' })
@@ -124,7 +153,9 @@ describe('[TXW-023] co-broking payouts', () => {
     expect(sql).toContain(
       'DROP POLICY IF EXISTS deal_co_broker_payouts_modify ON deal_co_broker_payouts;'
     );
-    expect(sql).not.toMatch(/CREATE POLICY \S+ ON deal_co_broker_payouts FOR (ALL|INSERT|UPDATE|DELETE)/);
+    expect(sql).not.toMatch(
+      /CREATE POLICY \S+ ON deal_co_broker_payouts FOR (ALL|INSERT|UPDATE|DELETE)/
+    );
     expect(sql).toContain(
       'BEFORE INSERT OR UPDATE OF co_broker_payout_total ON deals'
     );

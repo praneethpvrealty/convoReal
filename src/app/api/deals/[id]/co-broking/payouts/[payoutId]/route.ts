@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 
 import { requireWriteRole, toErrorResponse } from '@/lib/auth/account';
-import { parsePayoutPatch, patchClearsPayment } from '@/lib/deals/co-broking';
+import {
+  PAID_EXCEEDS_AMOUNT,
+  paidExceedsAmount,
+  parsePayoutPatch,
+  patchClearsPayment,
+} from '@/lib/deals/co-broking';
 import { brokerOnDeal } from '@/lib/deals/co-broking-server';
 import { parseEventSource, writeDealEvent } from '@/lib/deals/events';
 import { actorName, loadDealHead } from '@/lib/deals/server';
@@ -52,13 +57,25 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     const { data: before } = await supabaseAdmin()
       .from('deal_co_broker_payouts')
-      .select('id, paid_at, paid_amount')
+      .select('id, amount, paid_at, paid_amount')
       .eq('id', payoutId)
       .eq('deal_id', dealId)
       .eq('account_id', ctx.accountId)
       .maybeSingle();
     if (!before) {
       return NextResponse.json({ error: 'Payout not found' }, { status: 404 });
+    }
+    if (
+      paidExceedsAmount(
+        parsed.value.amount ?? Number(before.amount),
+        parsed.value.paid_amount !== undefined
+          ? parsed.value.paid_amount
+          : before.paid_amount == null
+            ? null
+            : Number(before.paid_amount)
+      )
+    ) {
+      return NextResponse.json({ error: PAID_EXCEEDS_AMOUNT }, { status: 400 });
     }
     if (patchClearsPayment(before, parsed.value)) {
       return NextResponse.json(
@@ -113,6 +130,12 @@ export async function DELETE(request: Request, { params }: RouteParams) {
   try {
     const ctx = await requireWriteRole('agent');
     const { id: dealId, payoutId } = await params;
+
+    const limit = await checkRateLimit(
+      `agent:dealCoBroking:${ctx.userId}`,
+      RATE_LIMITS.adminAction
+    );
+    if (!limit.success) return rateLimitResponse(limit);
 
     const deal = await loadDealHead(ctx, dealId);
     if (!deal) {
