@@ -2017,8 +2017,7 @@
             }
           ],
           "guards": [
-            "supabase/migrations/20260928042711_deal_co_broking.sql",
-            "supabase/migrations/20260928042712_co_broking_net_brokerage.sql"
+            "supabase/migrations/20260928042711_deal_co_broking.sql"
           ]
         }
       ]

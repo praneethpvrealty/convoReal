@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -129,27 +126,5 @@ describe('[TXW-023] co-broking payouts', () => {
   it('keeps the position and payout total internal only', () => {
     expect(INTERNAL_ONLY_DEAL_FIELDS).toContain('deal_position');
     expect(INTERNAL_ONLY_DEAL_FIELDS).toContain('co_broker_payout_total');
-  });
-
-  it('counts only the brokerage share in every dashboard function', () => {
-    const sql = readFileSync(
-      join(
-        process.cwd(),
-        'supabase/migrations/20260928042712_co_broking_net_brokerage.sql'
-      ),
-      'utf8'
-    );
-    for (const fn of [
-      'dashboard_metrics',
-      'dashboard_pipeline_donut',
-      'team_analytics',
-      'lead_source_analytics',
-    ]) {
-      expect(sql).toContain(`CREATE OR REPLACE FUNCTION public.${fn}(`);
-    }
-    const net =
-      'GREATEST(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) - COALESCE(d.co_broker_payout_total, 0), 0)';
-    expect(sql.split(net).length - 1).toBe(4);
-    expect(sql).not.toMatch(/SUM\(COALESCE\(d\.brokerage_amount/);
   });
 });

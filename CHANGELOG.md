@@ -30,8 +30,9 @@ than a written entry. Newest first.
   now count only your share (collected less payouts). Nothing changes for
   a deal with no payouts. Internal only: never shown on a stakeholder
   link, `/api/v1` or a public page. **Migration required:**
-  `20260928042711_deal_co_broking.sql` and
-  `20260928042712_co_broking_net_brokerage.sql`.
+  `20260928042711_deal_co_broking.sql`. The dashboard functions start
+  subtracting payouts with `20260928042712_co_broking_net_brokerage.sql`,
+  shipped as its own release.
 
 - **Missing public pages now answer with a real 404.** An unknown or
   retired listing, project, farmland, article, service, city or seller
