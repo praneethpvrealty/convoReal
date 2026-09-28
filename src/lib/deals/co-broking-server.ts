@@ -82,7 +82,7 @@ export async function loadCoBroking(
   };
 }
 
-export async function stakeholderOnDeal(
+export async function brokerOnDeal(
   ctx: Pick<AccountContext, 'supabase' | 'accountId'>,
   dealId: string,
   stakeholderId: string
@@ -93,6 +93,7 @@ export async function stakeholderOnDeal(
     .eq('id', stakeholderId)
     .eq('deal_id', dealId)
     .eq('account_id', ctx.accountId)
+    .eq('role', 'broker')
     .maybeSingle();
   return Boolean(data);
 }

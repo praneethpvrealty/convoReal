@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 
 import { requireWriteRole, toErrorResponse } from '@/lib/auth/account';
-import { parsePayoutPatch } from '@/lib/deals/co-broking';
-import { stakeholderOnDeal } from '@/lib/deals/co-broking-server';
+import { parsePayoutPatch, patchClearsPayment } from '@/lib/deals/co-broking';
+import { brokerOnDeal } from '@/lib/deals/co-broking-server';
 import { parseEventSource, writeDealEvent } from '@/lib/deals/events';
 import { actorName, loadDealHead } from '@/lib/deals/server';
 import {
@@ -41,23 +41,33 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     }
     if (
       parsed.value.stakeholder_id &&
-      !(await stakeholderOnDeal(ctx, dealId, parsed.value.stakeholder_id))
+      !(await brokerOnDeal(ctx, dealId, parsed.value.stakeholder_id))
     ) {
       return NextResponse.json(
-        { error: 'That stakeholder is not on this deal' },
+        { error: 'That stakeholder is not a broker on this deal' },
         { status: 400 }
       );
     }
 
     const { data: before } = await ctx.supabase
       .from('deal_co_broker_payouts')
-      .select('id, paid_at')
+      .select('id, paid_at, paid_amount')
       .eq('id', payoutId)
       .eq('deal_id', dealId)
       .eq('account_id', ctx.accountId)
       .maybeSingle();
     if (!before) {
       return NextResponse.json({ error: 'Payout not found' }, { status: 404 });
+    }
+    if (patchClearsPayment(before, parsed.value)) {
+      return NextResponse.json(
+        {
+          error:
+            'A paid payout cannot be marked unpaid. Correct the amount or date instead.',
+          code: 'PAYOUT_PAID',
+        },
+        { status: 409 }
+      );
     }
 
     const { data, error } = await ctx.supabase

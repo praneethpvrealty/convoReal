@@ -112,11 +112,13 @@ REVOKE ALL ON FUNCTION sync_deal_co_broker_payout_total() FROM PUBLIC, anon, aut
 
 -- The invariants, where a direct PostgREST write cannot skip them (the
 -- RLS policy lets any agent of the account write rows, as with
--- tranches): a paid payout is corrected, never removed; a deal holds
--- at most 20 payouts; a payout belongs to its deal's account (the sum
+-- tranches): a paid payout is corrected, never removed, and its
+-- payment is never cleared back to unpaid; a deal holds at most 20
+-- payouts, counted under a per-deal lock so concurrent inserts cannot
+-- both pass; a payout belongs to its deal's account (the sum
 -- is written back to the deal as the definer, so a payout aimed at
--- another account's deal must never land); a named stakeholder is on
--- the same deal. A payout goes with its deal when the deal is deleted.
+-- another account's deal must never land); a named stakeholder is a
+-- broker on the same deal. A payout goes with its deal when the deal is deleted.
 CREATE OR REPLACE FUNCTION deal_co_broker_payouts_guard()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -133,7 +135,14 @@ BEGIN
     END IF;
     RETURN OLD;
   END IF;
+  IF TG_OP = 'UPDATE'
+     AND (OLD.paid_at IS NOT NULL OR COALESCE(OLD.paid_amount, 0) > 0)
+     AND NEW.paid_at IS NULL AND COALESCE(NEW.paid_amount, 0) = 0 THEN
+    RAISE EXCEPTION 'A paid payout cannot be marked unpaid. Correct the amount or date instead'
+      USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
   IF TG_OP = 'INSERT' THEN
+    PERFORM pg_advisory_xact_lock(hashtextextended('deal_co_broker_payouts:' || NEW.deal_id::text, 0));
     SELECT COUNT(*) INTO existing
     FROM deal_co_broker_payouts p
     WHERE p.deal_id = NEW.deal_id;
@@ -152,8 +161,9 @@ BEGIN
   IF NEW.stakeholder_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM deal_stakeholders s
     WHERE s.id = NEW.stakeholder_id AND s.deal_id = NEW.deal_id
+      AND s.role = 'broker'
   ) THEN
-    RAISE EXCEPTION 'That stakeholder is not on this deal'
+    RAISE EXCEPTION 'That stakeholder is not a broker on this deal'
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
   RETURN NEW;
@@ -167,7 +177,7 @@ CREATE TRIGGER deal_co_broker_payouts_guard_delete
 
 DROP TRIGGER IF EXISTS deal_co_broker_payouts_guard_write ON deal_co_broker_payouts;
 CREATE TRIGGER deal_co_broker_payouts_guard_write
-  BEFORE INSERT OR UPDATE OF stakeholder_id, deal_id, account_id ON deal_co_broker_payouts
+  BEFORE INSERT OR UPDATE OF stakeholder_id, deal_id, account_id, paid_at, paid_amount ON deal_co_broker_payouts
   FOR EACH ROW EXECUTE FUNCTION deal_co_broker_payouts_guard();
 
 COMMENT ON TABLE deal_co_broker_payouts IS

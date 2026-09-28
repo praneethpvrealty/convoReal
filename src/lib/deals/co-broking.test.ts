@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -7,6 +10,7 @@ import {
   parseDealPosition,
   parsePayoutInput,
   parsePayoutPatch,
+  patchClearsPayment,
   payoutFromPercent,
   payoutPaid,
   payoutStatus,
@@ -71,6 +75,43 @@ describe('[TXW-023] co-broking payouts', () => {
       ok: true,
       value: { paid_at: '2026-10-01', instrument_ref: 'UTR9' },
     });
+  });
+
+  it('never turns a paid payout back into an unpaid one', () => {
+    const paid = { paid_at: '2026-10-01', paid_amount: null };
+    expect(patchClearsPayment(paid, { paid_at: null })).toBe(true);
+    expect(
+      patchClearsPayment(
+        { paid_at: null, paid_amount: 100 },
+        { paid_amount: null }
+      )
+    ).toBe(true);
+    expect(patchClearsPayment(paid, { paid_at: '2026-10-02' })).toBe(false);
+    expect(patchClearsPayment(paid, { paid_at: null, paid_amount: 50 })).toBe(
+      false
+    );
+    expect(
+      patchClearsPayment(
+        { paid_at: null, paid_amount: null },
+        { paid_at: null }
+      )
+    ).toBe(false);
+  });
+
+  it('guards the payout invariants in the database too', () => {
+    const sql = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260928042711_deal_co_broking.sql'
+      ),
+      'utf8'
+    );
+    expect(sql).toContain('A paid payout cannot be marked unpaid');
+    expect(sql).toContain('pg_advisory_xact_lock(');
+    expect(sql).toContain("AND s.role = 'broker'");
+    expect(sql).toContain(
+      'BEFORE INSERT OR UPDATE OF stakeholder_id, deal_id, account_id, paid_at, paid_amount'
+    );
   });
 
   it('turns a share of the deal value into rupees', () => {

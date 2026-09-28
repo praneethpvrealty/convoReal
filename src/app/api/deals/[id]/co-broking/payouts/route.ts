@@ -5,7 +5,7 @@ import {
   CO_BROKER_PAYOUT_MAX_PER_DEAL,
   parsePayoutInput,
 } from '@/lib/deals/co-broking';
-import { stakeholderOnDeal } from '@/lib/deals/co-broking-server';
+import { brokerOnDeal } from '@/lib/deals/co-broking-server';
 import { parseEventSource, writeDealEvent } from '@/lib/deals/events';
 import { actorName, loadDealHead } from '@/lib/deals/server';
 import {
@@ -44,10 +44,10 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
     if (
       parsed.value.stakeholder_id &&
-      !(await stakeholderOnDeal(ctx, dealId, parsed.value.stakeholder_id))
+      !(await brokerOnDeal(ctx, dealId, parsed.value.stakeholder_id))
     ) {
       return NextResponse.json(
-        { error: 'That stakeholder is not on this deal' },
+        { error: 'That stakeholder is not a broker on this deal' },
         { status: 400 }
       );
     }

@@ -297,6 +297,21 @@ export function payoutStatus(
   return 'owed';
 }
 
+/** A paid payout is corrected, never turned back into an unpaid one:
+ *  true when the patch would leave a paid row with no payment at all. */
+export function patchClearsPayment(
+  before: Pick<DealCoBrokerPayout, 'paid_at' | 'paid_amount'>,
+  patch: Pick<PayoutPatch, 'paid_at' | 'paid_amount'>
+): boolean {
+  const wasPaid =
+    Boolean(before.paid_at) || Number(before.paid_amount ?? 0) > 0;
+  if (!wasPaid) return false;
+  const paidAt = patch.paid_at === undefined ? before.paid_at : patch.paid_at;
+  const paidAmount =
+    patch.paid_amount === undefined ? before.paid_amount : patch.paid_amount;
+  return !paidAt && Number(paidAmount ?? 0) === 0;
+}
+
 /** The brokerage's own share of what it collects. Floored at zero, as
  *  the dashboard functions floor it. */
 export function netOfPayouts(
