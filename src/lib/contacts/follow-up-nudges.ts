@@ -884,16 +884,18 @@ export async function markFollowUpCold(
       });
     }
 
-    const { data: lingering, error: lingeringError } = await db
-      .from('journey_items')
-      .select('id')
-      .eq('account_id', accountId)
-      .in('contact_id', partyIds)
-      .eq('property_id', property.id)
-      .eq('status', 'active')
-      .limit(1);
-    if (lingeringError || (lingering ?? []).length > 0) {
-      return { scope: 'incomplete', property };
+    for (const id of partyIds) {
+      const { data: lingering, error: lingeringError } = await db
+        .from('journey_items')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_id', id)
+        .eq('property_id', property.id)
+        .eq('status', 'active')
+        .limit(1);
+      if (lingeringError || (lingering ?? []).length > 0) {
+        return { scope: 'incomplete', property };
+      }
     }
 
     const before = stillOpen;

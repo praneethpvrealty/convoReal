@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const closed: Array<{ contactId: string; propertyId: string }> = [];
@@ -233,6 +236,12 @@ describe('[INB-021] markFollowUpCold', () => {
     });
 
     expect(outcome).toEqual({ scope: 'incomplete', property: PLOT });
+    expect(
+      readFileSync(
+        join(process.cwd(), 'src/lib/contacts/follow-up-nudges.ts'),
+        'utf8'
+      )
+    ).not.toContain(".in('contact_id', partyIds)");
     expect(updates).toHaveLength(0);
   });
 
