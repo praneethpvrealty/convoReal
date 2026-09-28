@@ -2004,6 +2004,17 @@
           "guards": [
             "supabase/migrations/20260924150000_transaction_index_expected_close.sql"
           ]
+        },
+        {
+          "id": "TXW-024",
+          "rule": "Every dashboard revenue function (dashboard_metrics, dashboard_pipeline_donut, team_analytics, lead_source_analytics) counts the brokerage's own share of a deal: its brokerage, or the 2% fallback, less deals.co_broker_payout_total (the trigger-kept sum of what it pays co-brokers), floored at zero, keeping each function's is_account_member guard and SECURITY DEFINER. A deal with no payouts reads exactly as before.",
+          "tests": [
+            { "file": "src/lib/migrations/co-broking-net-brokerage.test.ts", "case": "[TXW-024]" }
+          ],
+          "guards": [
+            "supabase/migrations/20260928042711_deal_co_broking.sql",
+            "supabase/migrations/20260928042712_co_broking_net_brokerage.sql"
+          ]
         }
       ]
     },

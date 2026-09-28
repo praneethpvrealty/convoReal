@@ -11,7 +11,7 @@ const sql = readFileSync(
   'utf8'
 );
 
-describe('[TXW-023] dashboard functions count the brokerage share', () => {
+describe('[TXW-024] dashboard functions count the brokerage share', () => {
   it('replaces every function that sums brokerage', () => {
     for (const fn of [
       'dashboard_metrics',

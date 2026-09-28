@@ -13,7 +13,8 @@
 -- A deal with no payouts reads exactly as before.
 --
 -- NOT additive: CREATE OR REPLACE against four live functions. Held
--- until the PR is green and merged. Bodies are the production
+-- until the PR is green and merged. Ships before the co-broking UI so
+-- no payout can ever reach the board without reaching the dashboards. Bodies are the production
 -- definitions with that one expression changed.
 -- ============================================================
 
