@@ -809,7 +809,7 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('if (clear) {');
     expect(screen).toContain('ref={sourceChipsRef}');
     expect(screen).toContain(
-      'sourceChipsRef.current?.scrollTo({ x: 0, animated: true });\n  }, [enquirySource, mode]);'
+      'sourceChipsRef.current?.scrollTo({ x: 0, animated: true });\n  }, [enquirySource, mode, view]);'
     );
     const preference = mobileSource('lib/journey-source-preference.ts');
     expect(preference).toContain(

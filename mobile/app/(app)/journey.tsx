@@ -245,7 +245,7 @@ export function JourneyBody() {
   const sourceChipsRef = useRef<ScrollView>(null);
   useEffect(() => {
     sourceChipsRef.current?.scrollTo({ x: 0, animated: true });
-  }, [enquirySource, mode]);
+  }, [enquirySource, mode, view]);
   const [sort, setSort] = useState<JourneySort>(DEFAULT_JOURNEY_SORT);
   const [focusedBucket, setFocusedBucket] = useState<string | null>(null);
   const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(
