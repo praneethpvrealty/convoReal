@@ -69,6 +69,7 @@ import {
   type JourneyLifecycleStatus,
   type JourneySort,
 } from '@/lib/journey-overview';
+import { useRememberedJourneySource } from '@/lib/journey-source-preference';
 import { openContactChat } from '@/lib/open-chat';
 import { contactPropertyShareUrl } from '@/lib/showcase-share';
 import { supabase } from '@/lib/supabase';
@@ -236,7 +237,10 @@ export function JourneyBody() {
   );
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
-  const [enquirySource, setEnquirySource] = useState<string | null>(null);
+  const [enquirySource, setEnquirySource] = useRememberedJourneySource(
+    accountId,
+    mode
+  );
   const [sort, setSort] = useState<JourneySort>(DEFAULT_JOURNEY_SORT);
   const [focusedBucket, setFocusedBucket] = useState<string | null>(null);
   const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(
@@ -977,7 +981,6 @@ export function JourneyBody() {
                 setMode(value);
                 setView('active');
                 setQuery('');
-                setEnquirySource(null);
                 setOrderOverrides(new Map());
                 setOpenGroups(new Set());
                 setFocusedBucket(null);
