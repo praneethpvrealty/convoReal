@@ -16,6 +16,8 @@ export type PortalKey = '99acres' | 'magicbricks' | 'housing';
 export interface PortalMeta {
   key: PortalKey;
   label: string;
+  /** The contact_property_inquiries.inquiry_source this portal's leads carry. */
+  enquirySource: string;
   /** Deep link to the portal's "post property" entry point. */
   postUrl: string;
   /** Portal form limits — titles/descriptions get clamped to these. */
@@ -30,6 +32,7 @@ export const PORTALS: Record<PortalKey, PortalMeta> = {
   '99acres': {
     key: '99acres',
     label: '99acres',
+    enquirySource: '99acres',
     postUrl: 'https://www.99acres.com/postproperty/',
     maxTitle: 70,
     maxDescription: 5000,
@@ -39,6 +42,7 @@ export const PORTALS: Record<PortalKey, PortalMeta> = {
   magicbricks: {
     key: 'magicbricks',
     label: 'MagicBricks',
+    enquirySource: 'Magic Bricks',
     postUrl: 'https://post.magicbricks.com/',
     maxTitle: 100,
     maxDescription: 3000,
@@ -48,6 +52,7 @@ export const PORTALS: Record<PortalKey, PortalMeta> = {
   housing: {
     key: 'housing',
     label: 'Housing.com',
+    enquirySource: 'Housing',
     postUrl: 'https://housing.com/sell',
     maxTitle: 100,
     maxDescription: 5000,

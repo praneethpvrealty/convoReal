@@ -1256,6 +1256,25 @@
           ]
         },
         {
+          "id": "PRP-023",
+          "rule": "An enquiry carries one source name per portal (\"Magic Bricks\", \"Housing\", \"99acres\") whether the lead arrived by email or an agent mapped its portal ad, and unmapping an ad removes only the enquiries that mapping created, never one the lead email recorded.",
+          "tests": [
+            {
+              "file": "src/lib/migrations/enquiry-source-spellings.test.ts",
+              "case": "enquiry sources use one spelling per portal"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/portal-link/route.test.ts",
+              "case": "maps the ad and tags every lead waiting on it"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260928022000_enquiry_via_portal_link.sql",
+            "supabase/migrations/20260928022100_enquiry_source_spellings.sql",
+            "src/lib/portals/post-kit.ts"
+          ]
+        },
+        {
           "id": "PRP-024",
           "rule": "Merging two contacts keeps each carried-over enquiry's source, date and notes, so a merged buyer still shows which portal or channel every enquiry came from and when.",
           "tests": [
