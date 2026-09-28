@@ -15,6 +15,7 @@ import {
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { Confetti, EnterRow } from '@/components/motion';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
+import { StageWheel } from '@/components/stage-wheel';
 import {
   Avatar,
   ConversationSkeleton,
@@ -48,6 +49,7 @@ import {
   pipelineOutcomeForStage,
   type PipelineOutcome,
 } from '@/lib/stage-semantics';
+import { initialWheelStageIndex } from '@/lib/stage-wheel';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
@@ -202,9 +204,16 @@ export default function DealsScreen() {
       ),
     [stages, outcomeView]
   );
+  const visibleStageCounts = useMemo(
+    () =>
+      visibleStages.map(
+        (stage) => (deals ?? []).filter((d) => d.stage_id === stage.id).length
+      ),
+    [visibleStages, deals]
+  );
   const activeStage =
     visibleStages.find((stage) => stage.id === stageId)?.id ??
-    visibleStages[0]?.id ??
+    visibleStages[initialWheelStageIndex(visibleStageCounts)]?.id ??
     null;
   const stageDeals = useMemo(
     () => (deals ?? []).filter((d) => d.stage_id === activeStage),
@@ -400,29 +409,17 @@ export default function DealsScreen() {
         </View>
       ) : null}
 
-      {/* Stage strip — the mobile take on kanban columns. */}
-      {segment === 'board' ? (
-        <View style={styles.filtersRow}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filters}
-          >
-            {visibleStages.map((s) => {
-              const count = (deals ?? []).filter(
-                (d) => d.stage_id === s.id
-              ).length;
-              return (
-                <FilterChip
-                  key={s.id}
-                  label={`${s.name}${count ? ` (${count})` : ''}`}
-                  active={s.id === activeStage}
-                  onPress={() => setStageId(s.id)}
-                />
-              );
-            })}
-          </ScrollView>
-        </View>
+      {segment === 'board' && visibleStages.length > 0 ? (
+        <StageWheel
+          stages={visibleStages.map((s, index) => ({
+            id: s.id,
+            name: s.name,
+            color: s.color ?? colors.primary,
+            count: visibleStageCounts[index],
+          }))}
+          activeId={activeStage}
+          onSelect={setStageId}
+        />
       ) : null}
 
       {segment === 'board' && stageDeals.length > 0 ? (
@@ -944,12 +941,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-  },
-  filtersRow: { height: 52, justifyContent: 'center' },
-  filters: {
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    alignItems: 'center',
   },
   stageSummary: {
     fontSize: 12.5,
