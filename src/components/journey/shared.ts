@@ -334,7 +334,7 @@ export function journeyEnquirySourceOptions(
 export function normalizeJourneyEnquirySource(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const source = value.trim();
-  return source && source.length <= 200 ? source : null;
+  return source || null;
 }
 
 export function matchesJourneyEnquirySource(

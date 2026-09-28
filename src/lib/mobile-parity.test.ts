@@ -789,11 +789,16 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     );
     expect(webOverview).toContain('if (next) writeStored(sourceKey, next);');
     expect(webOverview).toContain('else removeStored(sourceKey);');
-    expect(screen).toContain('(s) => s.sources[mode] ?? null');
-    expect(screen).not.toContain('setEnquirySource(null);');
-    expect(mobileSource('lib/journey-filter-store.ts')).toContain(
-      "name: 'journey-filters'"
+    expect(screen).toContain(
+      'const [enquirySource, setEnquirySource] = useRememberedJourneySource(mode);'
     );
+    expect(screen).not.toContain('setEnquirySource(null);');
+    const preference = mobileSource('lib/journey-source-preference.ts');
+    expect(preference).toContain(
+      'const storageKey = (mode: JourneyMode) => `journey_overview_source_${mode}`;'
+    );
+    expect(preference).toContain('normalizeJourneyEnquirySource(stored)');
+    expect(preference).not.toContain('zustand');
     expect(mobileSource('lib/api.ts')).toContain(
       '`/api/journey/enquiries?mode=${mode}&subjectId=${subjectId}`'
     );

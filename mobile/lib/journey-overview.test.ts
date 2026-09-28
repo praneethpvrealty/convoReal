@@ -7,7 +7,6 @@ import {
   journeyEnquirySourceOptions,
   matchesJourneyEnquirySource,
   normalizeJourneyEnquirySource,
-  normalizeJourneyEnquirySources,
   journeyRaceLabel,
   sortJourneys,
   splitItemsAtStage,
@@ -205,23 +204,8 @@ describe('journey enquiry source filter', () => {
     expect(normalizeJourneyEnquirySource('   ')).toBeNull();
     expect(normalizeJourneyEnquirySource(null)).toBeNull();
     expect(normalizeJourneyEnquirySource(42)).toBeNull();
-    expect(normalizeJourneyEnquirySource('x'.repeat(201))).toBeNull();
-  });
-});
-
-describe('remembered journey enquiry sources', () => {
-  it('[JRN-012] keeps one usable source per journey tab from the stored blob', () => {
-    expect(
-      normalizeJourneyEnquirySources({
-        buyer: 'Housing',
-        property: '  ',
-        other: 'Manual',
-      })
-    ).toEqual({ buyer: 'Housing' });
-    expect(normalizeJourneyEnquirySources(null)).toEqual({});
-    expect(normalizeJourneyEnquirySources('Housing')).toEqual({});
-    expect(
-      normalizeJourneyEnquirySources({ buyer: 7, property: 'Magic Bricks' })
-    ).toEqual({ property: 'Magic Bricks' });
+    expect(normalizeJourneyEnquirySource('x'.repeat(300))).toBe(
+      'x'.repeat(300)
+    );
   });
 });

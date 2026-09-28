@@ -53,7 +53,6 @@ import {
   capturedItemSubtitle,
   capturedItemTitle,
 } from '@/lib/journey-captured';
-import { useJourneyFilters } from '@/lib/journey-filter-store';
 import {
   CLOSED_JOURNEY_STATUS_LABELS,
   DEFAULT_JOURNEY_SORT,
@@ -70,6 +69,7 @@ import {
   type JourneyLifecycleStatus,
   type JourneySort,
 } from '@/lib/journey-overview';
+import { useRememberedJourneySource } from '@/lib/journey-source-preference';
 import { openContactChat } from '@/lib/open-chat';
 import { contactPropertyShareUrl } from '@/lib/showcase-share';
 import { supabase } from '@/lib/supabase';
@@ -237,9 +237,7 @@ export function JourneyBody() {
   );
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
-  const enquirySource = useJourneyFilters((s) => s.sources[mode] ?? null);
-  const setSource = useJourneyFilters((s) => s.setSource);
-  const setEnquirySource = (source: string | null) => setSource(mode, source);
+  const [enquirySource, setEnquirySource] = useRememberedJourneySource(mode);
   const [sort, setSort] = useState<JourneySort>(DEFAULT_JOURNEY_SORT);
   const [focusedBucket, setFocusedBucket] = useState<string | null>(null);
   const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(

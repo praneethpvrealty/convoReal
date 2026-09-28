@@ -613,6 +613,8 @@ describe('journey enquiry source filter', () => {
     expect(normalizeJourneyEnquirySource('   ')).toBeNull();
     expect(normalizeJourneyEnquirySource(null)).toBeNull();
     expect(normalizeJourneyEnquirySource(42)).toBeNull();
-    expect(normalizeJourneyEnquirySource('x'.repeat(201))).toBeNull();
+    expect(normalizeJourneyEnquirySource('x'.repeat(300))).toBe(
+      'x'.repeat(300)
+    );
   });
 });
