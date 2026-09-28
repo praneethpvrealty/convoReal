@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Linking,
   Pressable,
@@ -62,6 +62,8 @@ import {
   journeyEnquiryLabel,
   journeyEnquirySourceOptions,
   journeyRaceLabel,
+  journeySourceChips,
+  journeyViewCounts,
   matchesJourneyEnquirySource,
   sortJourneys,
   splitItemsAtStage,
@@ -69,6 +71,7 @@ import {
   type JourneyLifecycleStatus,
   type JourneySort,
 } from '@/lib/journey-overview';
+import { useRememberedJourneySource } from '@/lib/journey-source-preference';
 import { openContactChat } from '@/lib/open-chat';
 import { contactPropertyShareUrl } from '@/lib/showcase-share';
 import { supabase } from '@/lib/supabase';
@@ -236,7 +239,14 @@ export function JourneyBody() {
   );
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
-  const [enquirySource, setEnquirySource] = useState<string | null>(null);
+  const [enquirySource, setEnquirySource] = useRememberedJourneySource(
+    accountId,
+    mode
+  );
+  const sourceChipsRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    sourceChipsRef.current?.scrollTo({ x: 0, animated: true });
+  }, [enquirySource, mode, view]);
   const [sort, setSort] = useState<JourneySort>(DEFAULT_JOURNEY_SORT);
   const [focusedBucket, setFocusedBucket] = useState<string | null>(null);
   const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(
@@ -486,16 +496,8 @@ export function JourneyBody() {
   );
 
   const counts = useMemo(
-    () => ({
-      active: groups.filter(
-        (group) => !group.archivedAt && group.lifecycleStatus === 'active'
-      ).length,
-      closed: groups.filter(
-        (group) => !group.archivedAt && group.lifecycleStatus !== 'active'
-      ).length,
-      archived: groups.filter((group) => Boolean(group.archivedAt)).length,
-    }),
-    [groups]
+    () => journeyViewCounts(groups, enquirySource),
+    [enquirySource, groups]
   );
 
   const buckets = useMemo<JourneyBucket[]>(() => {
@@ -977,7 +979,6 @@ export function JourneyBody() {
                 setMode(value);
                 setView('active');
                 setQuery('');
-                setEnquirySource(null);
                 setOrderOverrides(new Map());
                 setOpenGroups(new Set());
                 setFocusedBucket(null);
@@ -1111,47 +1112,77 @@ export function JourneyBody() {
 
       {sourceOptions.length > 0 ? (
         <ScrollView
+          ref={sourceChipsRef}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.sortChips}
         >
-          {[
-            { source: null, label: 'All sources' },
-            ...sourceOptions.map((option) => ({
-              source: option.source,
-              label: `${option.source} ${option.count}`,
-            })),
-          ].map(({ source, label }) => {
-            const selected = enquirySource === source;
-            return (
-              <Pressable
-                key={source ?? 'all'}
-                onPress={() => setEnquirySource(source)}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={
-                  source ? `Enquiry source ${label}` : 'All enquiry sources'
-                }
-                style={[
-                  styles.sortChip,
-                  {
-                    backgroundColor: selected ? colors.glass : 'transparent',
-                    borderColor: selected ? colors.primary : colors.glassBorder,
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontFamily: f.bold,
-                    color: selected ? colors.primary : colors.textMuted,
-                  }}
+          {journeySourceChips(sourceOptions, enquirySource).map(
+            ({ source, label, clear }) => {
+              if (clear) {
+                return (
+                  <Pressable
+                    key="clear"
+                    onPress={() => setEnquirySource(null)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear source filter"
+                    style={[
+                      styles.sortChip,
+                      {
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                        backgroundColor: `${colors.primary}14`,
+                        borderColor: colors.primary,
+                      },
+                    ]}
+                  >
+                    <Ionicons name="close" size={13} color={colors.primary} />
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontFamily: f.bold,
+                        color: colors.primary,
+                      }}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              }
+              const selected = enquirySource === source;
+              return (
+                <Pressable
+                  key={source ?? 'all'}
+                  onPress={() => setEnquirySource(source)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={
+                    source ? `Enquiry source ${label}` : 'All enquiry sources'
+                  }
+                  style={[
+                    styles.sortChip,
+                    {
+                      backgroundColor: selected ? colors.glass : 'transparent',
+                      borderColor: selected
+                        ? colors.primary
+                        : colors.glassBorder,
+                    },
+                  ]}
                 >
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontFamily: f.bold,
+                      color: selected ? colors.primary : colors.textMuted,
+                    }}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            }
+          )}
         </ScrollView>
       ) : null}
 

@@ -331,11 +331,35 @@ export function journeyEnquirySourceOptions(
     .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source));
 }
 
+export function normalizeJourneyEnquirySource(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const source = value.trim();
+  return source || null;
+}
+
 export function matchesJourneyEnquirySource(
   group: { enquirySources: string[] },
   source: string | null
 ): boolean {
   return !source || group.enquirySources.includes(source);
+}
+
+export function journeyViewCounts(
+  groups: {
+    archivedAt: string | null;
+    lifecycleStatus: string;
+    enquirySources: string[];
+  }[],
+  source: string | null
+): { active: number; closed: number; archived: number } {
+  const counts = { active: 0, closed: 0, archived: 0 };
+  for (const group of groups) {
+    if (!matchesJourneyEnquirySource(group, source)) continue;
+    if (group.archivedAt) counts.archived += 1;
+    else if (group.lifecycleStatus === 'active') counts.active += 1;
+    else counts.closed += 1;
+  }
+  return counts;
 }
 
 export function journeyRaceLabel(active: number): string {

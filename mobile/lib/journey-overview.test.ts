@@ -5,7 +5,10 @@ import {
   focusBuckets,
   journeyEnquiryLabel,
   journeyEnquirySourceOptions,
+  journeyViewCounts,
+  journeySourceChips,
   matchesJourneyEnquirySource,
+  normalizeJourneyEnquirySource,
   journeyRaceLabel,
   sortJourneys,
   splitItemsAtStage,
@@ -196,5 +199,93 @@ describe('journey enquiry source filter', () => {
     expect(
       groups.filter((group) => matchesJourneyEnquirySource(group, null))
     ).toHaveLength(4);
+  });
+  it('[JRN-012] restores only a usable remembered source', () => {
+    expect(normalizeJourneyEnquirySource(' Housing ')).toBe('Housing');
+    expect(normalizeJourneyEnquirySource('')).toBeNull();
+    expect(normalizeJourneyEnquirySource('   ')).toBeNull();
+    expect(normalizeJourneyEnquirySource(null)).toBeNull();
+    expect(normalizeJourneyEnquirySource(42)).toBeNull();
+    expect(normalizeJourneyEnquirySource('x'.repeat(300))).toBe(
+      'x'.repeat(300)
+    );
+  });
+});
+
+describe('journeySourceChips', () => {
+  const options = [
+    { source: 'Housing', count: 98 },
+    { source: 'Magic Bricks', count: 34 },
+    { source: 'Manual', count: 14 },
+  ];
+
+  it('[JRN-012] leads with the remembered source, then Clear, so both show without scrolling', () => {
+    const chips = journeySourceChips(options, 'Manual');
+    expect(chips.map((chip) => chip.label)).toEqual([
+      'Manual 14',
+      'Clear',
+      'All sources',
+      'Housing 98',
+      'Magic Bricks 34',
+    ]);
+    expect(chips[1]).toEqual({ source: null, label: 'Clear', clear: true });
+  });
+
+  it('[JRN-012] still offers Clear for a remembered source no longer offered', () => {
+    expect(
+      journeySourceChips(options, 'Gone').map((chip) => chip.label)
+    ).toEqual([
+      'Clear',
+      'All sources',
+      'Housing 98',
+      'Magic Bricks 34',
+      'Manual 14',
+    ]);
+  });
+
+  it('[JRN-012] starts with All sources when no source is chosen', () => {
+    expect(journeySourceChips(options, null).map((chip) => chip.label)).toEqual(
+      ['All sources', 'Housing 98', 'Magic Bricks 34', 'Manual 14']
+    );
+    expect(journeySourceChips([], null)).toEqual([
+      { source: null, label: 'All sources' },
+    ]);
+  });
+});
+
+describe('journeyViewCounts', () => {
+  const g = (
+    lifecycleStatus: string,
+    archivedAt: string | null,
+    enquirySources: string[]
+  ) => ({ lifecycleStatus, archivedAt, enquirySources });
+  const groups = [
+    g('active', null, ['Housing']),
+    g('active', null, ['Magic Bricks']),
+    g('active', null, []),
+    g('won', null, ['Housing']),
+    g('lost', null, ['Manual']),
+    g('active', '2026-09-01', ['Housing']),
+  ];
+
+  it('[JRN-012] counts every journey per view when no source is chosen', () => {
+    expect(journeyViewCounts(groups, null)).toEqual({
+      active: 3,
+      closed: 2,
+      archived: 1,
+    });
+  });
+
+  it('[JRN-012] counts only journeys from the chosen source in each view', () => {
+    expect(journeyViewCounts(groups, 'Housing')).toEqual({
+      active: 1,
+      closed: 1,
+      archived: 1,
+    });
+    expect(journeyViewCounts(groups, 'Gone')).toEqual({
+      active: 0,
+      closed: 0,
+      archived: 0,
+    });
   });
 });

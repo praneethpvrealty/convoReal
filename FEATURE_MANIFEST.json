@@ -1153,10 +1153,14 @@
         },
         {
           "id": "PRP-015",
-          "rule": "Moving a listing's deal into a negotiation, token, due diligence or contract stage marks the listing Under Contract on web and mobile; a won, registered or brokerage stage marks it Sold, a lost stage returns it to Available, and an earlier stage sets it back to Available.",
+          "rule": "Every pipeline stage stores what it means (open, committed, won, brokerage pending, brokerage paid or lost), inferred from its name only when it is created without one, and renaming a stage never changes its meaning. Moving a listing's deal into a committed stage (on the standard pipeline: deal confirmed or legal done) marks the listing Under Contract on web and mobile; a won or brokerage stage marks it Sold, a lost stage returns it to Available, and an open stage (enquiry through the owner's-meeting negotiation) sets it back to Available. The app, the mobile app and the database read the same stored type, and infer a missing one from the same words. Changing a stage's type re-syncs the deals on it and the listings they hold.",
           "tests": [
             {
               "file": "src/lib/pipelines/stage-semantics.test.ts",
+              "case": "[PRP-015]"
+            },
+            {
+              "file": "src/lib/pipelines/stage-type-sql.test.ts",
               "case": "[PRP-015]"
             },
             {
@@ -1565,7 +1569,7 @@
         },
         {
           "id": "JRN-012",
-          "rule": "Journeys inside each group are ordered by most enquired by default — the buyer's or listing's enquiry count, the newest enquiry breaking ties — and can instead be ordered by the most recent enquiry, manual order, or furthest stage on both web and mobile (web also offers priority and recent activity). Journeys with no enquiry follow, most recently touched first. Drag handles appear only under manual order. Every journey row with enquiries shows the same count label on web and mobile with the latest enquiry's source and date (\"3 enquiries · Housing · 12 Sep\"): the source is the newest enquiry that has one, followed by \"+N\" when the enquiries came from N other sources, and the year is added only when it is not the current one; a journey with none shows no label. Journeys can be filtered by enquiry source on web and mobile: the filter offers every source the journeys in view have, each with how many journeys have it, most common first, keeps a journey when any of its enquiries came from the chosen source, keeps a chosen source offered while no journey in view has it, and resets when switching between buyer and property journeys. Tapping the label lists the enquiries newest first — the enquired properties on a buyer journey, the enquiring buyers on a property journey — each with its source and date, opening that property or contact.",
+          "rule": "Journeys inside each group are ordered by most enquired by default — the buyer's or listing's enquiry count, the newest enquiry breaking ties — and can instead be ordered by the most recent enquiry, manual order, or furthest stage on both web and mobile (web also offers priority and recent activity). Journeys with no enquiry follow, most recently touched first. Drag handles appear only under manual order. Every journey row with enquiries shows the same count label on web and mobile with the latest enquiry's source and date (\"3 enquiries · Housing · 12 Sep\"): the source is the newest enquiry that has one, followed by \"+N\" when the enquiries came from N other sources, and the year is added only when it is not the current one; a journey with none shows no label. Journeys can be filtered by enquiry source on web and mobile: the filter offers every source the journeys in view have, each with how many journeys have it, most common first, keeps a journey when any of its enquiries came from the chosen source, keeps a chosen source offered while no journey in view has it, shows a clear button beside the filter while a source is chosen that returns to all sources, counts only journeys from the chosen source in the Active, Closed and Archived view tabs (the totals return when the filter is cleared), shows the chosen source first on the mobile chip row, followed by the clear chip, and scrolls that row back to its start whenever the chosen source, the buyer/property tab or the active/closed/archived view changes, so a chosen or remembered filter is always visible without scrolling, and remembers the chosen source across visits on the same browser or device, separately for each account and for buyer and property journeys, so another account signed in on that device never inherits it; a stored value that is blank or not text is ignored. Tapping the label lists the enquiries newest first — the enquired properties on a buyer journey, the enquiring buyers on a property journey — each with its source and date, opening that property or contact.",
           "tests": [
             {
               "file": "src/components/journey/shared.test.ts",
@@ -1989,7 +1993,7 @@
         },
         {
           "id": "TXW-018",
-          "rule": "Journey stages are mirrors of the account's default pipeline stages (one journey stage per pipeline stage, same name, colour and order, kind derived from the stage name by the same words in SQL and TypeScript); there is one stage editor, the pipeline's, and a pipeline stage cannot be deleted while journey items sit on or plan for its mirror; a converted deal and its journey item stay on the same stage whichever side moved, with the journey keeping the move in its history; every journey move — web, mobile and the WhatsApp closing card — runs through one move function, and onto a mirrored stage it runs the same stage-move logic as the board (brokerage capture, closing record, property status) while a deal on another pipeline keeps its own stage; and moving a journey item into a closing or won stage opens its closing record on that very stage.",
+          "rule": "Journey stages are mirrors of the account's default pipeline stages (one journey stage per pipeline stage, same name, colour and order, kind derived from the stage's stored type in SQL and TypeScript); there is one stage editor, the pipeline's, and a pipeline stage cannot be deleted while journey items sit on or plan for its mirror; a converted deal and its journey item stay on the same stage whichever side moved, with the journey keeping the move in its history; every journey move — web, mobile and the WhatsApp closing card — runs through one move function, and onto a mirrored stage it runs the same stage-move logic as the board (brokerage capture, closing record, property status) while a deal on another pipeline keeps its own stage; and moving a journey item into a closing or won stage opens its closing record on that very stage.",
           "tests": [
             {
               "file": "src/lib/pipelines/stage-semantics.test.ts",
@@ -2008,7 +2012,8 @@
             "supabase/migrations/20260919120000_journey_stages_mirror_pipeline.sql",
             "supabase/migrations/20260919120050_journey_deal_sync_same_pipeline.sql",
             "supabase/migrations/20260919120100_journey_stages_backfill.sql",
-            "supabase/migrations/20260919120200_pipeline_stage_delete_guard.sql"
+            "supabase/migrations/20260919120200_pipeline_stage_delete_guard.sql",
+            "supabase/migrations/20260928094000_pipeline_stages_by_type.sql"
           ]
         },
         {
@@ -2085,6 +2090,18 @@
             "supabase/migrations/20260928042711_deal_co_broking.sql",
             "supabase/migrations/20260928042712_co_broking_net_brokerage.sql",
             "supabase/migrations/20260928054500_deal_co_broking_hardening.sql"
+          ]
+        },
+        {
+          "id": "TXW-025",
+          "rule": "Marking a deal lost asks why, on web (board drag, deal form, workspace header) and mobile (move sheet, deal screen, edit form): one of Price disagreement, Terms disagreement, Owner backed out, Buyer backed out, Legal or document issue, Financing fell through, Bought elsewhere or Other, with a note that Other requires. The deal routes refuse a lost status without a reason (unless the deal was already lost) and any unlisted reason, the reason and note show on the lost deal's card, a deal marked lost carries its reason to its journey branch's drop reason and a journey branch dropped with a reason carries it to its deal, and reopening a deal clears both.",
+          "tests": [
+            { "file": "src/lib/pipelines/lost-reasons.test.ts", "case": "[TXW-025]" }
+          ],
+          "guards": [
+            "supabase/migrations/20260928093100_deal_lost_reason.sql",
+            "supabase/migrations/20260928094000_pipeline_stages_by_type.sql",
+            "supabase/migrations/20260928095000_resync_stage_deals.sql"
           ]
         }
       ]

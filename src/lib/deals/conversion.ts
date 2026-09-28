@@ -40,7 +40,7 @@ export function defaultStageForConversion(
   journeyStageKind: JourneyStageKind
 ): ConversionStage | null {
   const ordered = [...stages]
-    .filter((s) => pipelineOutcomeForStage(s.name) === 'active')
+    .filter((s) => pipelineOutcomeForStage(s) === 'active')
     .sort((a, b) => a.position - b.position);
   if (ordered.length === 0) return null;
   if (journeyStageKind === 'closing' || journeyStageKind === 'won') {
@@ -74,7 +74,7 @@ export function conversionStageForItem(
   const mirrored = mirroredStageId
     ? (stages.find((s) => s.id === mirroredStageId) ?? null)
     : null;
-  if (mirrored && pipelineOutcomeForStage(mirrored.name) === 'active') {
+  if (mirrored && pipelineOutcomeForStage(mirrored) === 'active') {
     return mirrored;
   }
   return defaultStageForConversion(stages, journeyStageKind);

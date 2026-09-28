@@ -34,7 +34,12 @@ describe('milestoneProgress', () => {
       milestoneProgress([
         { status: 'completed', position: 0, title: 'A', target_date: null },
         { status: 'skipped', position: 1, title: 'B', target_date: null },
-        { status: 'in_progress', position: 3, title: 'D', target_date: '2026-10-01' },
+        {
+          status: 'in_progress',
+          position: 3,
+          title: 'D',
+          target_date: '2026-10-01',
+        },
         { status: 'pending', position: 2, title: 'C', target_date: null },
       ])
     ).toEqual({
@@ -73,7 +78,10 @@ describe('parseMilestonePatch', () => {
       ok: false,
       error: 'target_date must be YYYY-MM-DD',
     });
-    expect(parseMilestonePatch({})).toEqual({ ok: false, error: 'Nothing to update' });
+    expect(parseMilestonePatch({})).toEqual({
+      ok: false,
+      error: 'Nothing to update',
+    });
     expect(parseMilestonePatch({ title: '' })).toEqual({
       ok: false,
       error: 'Title must be 1–120 characters',

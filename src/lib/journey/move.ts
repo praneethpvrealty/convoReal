@@ -94,7 +94,7 @@ export async function moveJourneyItem(
     supabase
       .from('journey_stages')
       .select(
-        'id, name, stage_kind, pipeline_stage_id, pipeline_stage:pipeline_stages(id, pipeline_id)'
+        'id, name, stage_kind, pipeline_stage_id, pipeline_stage:pipeline_stages(id, pipeline_id, stage_type)'
       )
       .eq('id', input.stageId)
       .eq('account_id', accountId)
@@ -112,6 +112,10 @@ export async function moveJourneyItem(
     pipeline_stage: one(targetRow.pipeline_stage),
   };
   const property = one(item.property);
+  const targetStage = {
+    name: target.name,
+    stage_type: target.pipeline_stage?.stage_type ?? null,
+  };
 
   const { data: deal } = await supabase
     .from('deals')
@@ -135,7 +139,7 @@ export async function moveJourneyItem(
     (dealFollows || dealOpens) &&
     input.requireBrokerage &&
     !input.brokerage &&
-    needsBrokerageCapture(deal ?? { brokerage_amount: null }, target.name)
+    needsBrokerageCapture(deal ?? { brokerage_amount: null }, targetStage)
   ) {
     return {
       ok: false,
@@ -161,7 +165,7 @@ export async function moveJourneyItem(
     dealFollows && deal && target.pipeline_stage_id
       ? {
           dealId: deal.id,
-          status: dealStatusForStage(target.name),
+          status: dealStatusForStage(targetStage),
           targetStageId: target.pipeline_stage_id,
           stageName: target.name,
           propertyId: deal.property_id ?? item.property_id,
