@@ -34,7 +34,7 @@ jobs:
           sparse-checkout: src/scripts/release-timer.mjs
           sparse-checkout-cone-mode: false
 
-      - uses: actions/github-script@v8
+      - uses: actions/github-script@v9
         env:
           DRY_RUN: ${{ inputs.dry_run }}
         with:

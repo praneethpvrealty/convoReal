@@ -41,7 +41,7 @@ jobs:
           sparse-checkout: src/scripts/branch-cleanup.mjs
           sparse-checkout-cone-mode: false
 
-      - uses: actions/github-script@v8
+      - uses: actions/github-script@v9
         env:
           ONLY_BRANCH: ${{ github.event.pull_request.head.ref }}
           DRY_RUN: ${{ inputs.dry_run }}
