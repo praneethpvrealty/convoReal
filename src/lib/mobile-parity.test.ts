@@ -785,6 +785,9 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
       'const sourceKey = `journey_overview_source_${mode}`;'
     );
     expect(webOverview).toContain(
+      'const [enquirySource, setEnquirySource] = useState<string | null>(null);'
+    );
+    expect(webOverview).toContain(
       'setEnquirySource(readEnquirySource(sourceKey));'
     );
     expect(webOverview).toContain('if (next) writeStored(sourceKey, next);');

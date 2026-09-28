@@ -264,9 +264,7 @@ export function JourneyOverview({
   );
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
-  const [enquirySource, setEnquirySource] = useState<string | null>(() =>
-    readEnquirySource(sourceKey)
-  );
+  const [enquirySource, setEnquirySource] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
   const [toolbarHeight, setToolbarHeight] = useState(0);
   const toolbarRef = useRef<HTMLDivElement>(null);
