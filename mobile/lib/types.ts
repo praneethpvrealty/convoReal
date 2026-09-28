@@ -174,6 +174,9 @@ export interface Profile {
   /** App display language (migration 247) — set from the web header
    *  toggle; the helper UI renders in it. */
   active_ui_language?: string | null;
+  /** Read-only member (migration 082): an agent who may view but never
+   *  write; the API's requireWriteRole refuses them. */
+  is_read_only?: boolean | null;
 }
 
 // ------------------------------------------------------------------

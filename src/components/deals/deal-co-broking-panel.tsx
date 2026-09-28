@@ -192,7 +192,9 @@ export function DealCoBrokingPanel({
     setEditSide(p.side ?? '');
     setEditAmount(String(p.amount));
     setPaidAt(p.paid_at ?? (markPaid ? todayDateKey() : ''));
-    setPaidAmount(p.paid_amount != null ? String(p.paid_amount) : '');
+    setPaidAmount(
+      !markPaid && p.paid_amount != null ? String(p.paid_amount) : ''
+    );
     setInstrument(p.instrument_ref ?? '');
   }
 

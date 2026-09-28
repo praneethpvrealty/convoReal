@@ -121,6 +121,9 @@ describe('[TXW-023] co-broking payouts', () => {
       'BEFORE INSERT OR UPDATE OF co_broker_payout_total ON deals'
     );
     expect(sql).toContain('NEW.updated_at := OLD.updated_at;');
+    expect(sql).toContain(
+      "(TG_OP = 'INSERT' OR NEW.stakeholder_id IS DISTINCT FROM OLD.stakeholder_id)"
+    );
     expect(sql).toContain("AND s.role = 'broker'");
     expect(sql).toContain(
       'BEFORE INSERT OR UPDATE OF stakeholder_id, deal_id, account_id, paid_at, paid_amount'

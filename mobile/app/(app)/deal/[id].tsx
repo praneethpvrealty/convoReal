@@ -204,7 +204,9 @@ export default function DealWorkspaceScreen() {
   const dealId = typeof id === 'string' ? id : '';
   const { colors } = useTheme();
   const profile = useAuthStore((s) => s.profile);
-  const canEdit = Boolean(profile && profile.account_role !== 'viewer');
+  const canEdit = Boolean(
+    profile && profile.account_role !== 'viewer' && !profile.is_read_only
+  );
   const [tab, setTab] = useState<DealWorkspaceTab>('overview');
   const [pickingStage, setPickingStage] = useState(false);
   const [movingStage, setMovingStage] = useState(false);
@@ -1612,7 +1614,10 @@ function CoBrokingSection({
                 <FilterChip
                   label="Paid today"
                   active={false}
-                  onPress={() => setPaidAt(localDateKey())}
+                  onPress={() => {
+                    setPaidAt(localDateKey());
+                    setPaidAmount('');
+                  }}
                 />
               ) : null}
               <TextField
