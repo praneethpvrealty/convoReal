@@ -348,6 +348,8 @@ Used by `chatbot-engine.ts` to store half-parsed details from conversations whil
 #### 21. `deals`
 Engine sale opportunities.
 - `id`, `account_id`, `contact_id`, `stage_id`, `title`, `amount` (NUMERIC), `brokerage_percent` / `brokerage_amount`, `brokerage_paid_at`, `property_id` (UUID, FK -> `properties`).
+- Co-broking (migration `20260928042711`): `deal_position` (`direct` / `buyer_side` / `seller_side` / `intermediary`) and `co_broker_payout_total` (trigger-kept sum of payouts). `brokerage_amount` is what the brokerage collects; its own share is `brokerage_amount - co_broker_payout_total`, which every dashboard function counts.
+- `deal_co_broker_payouts`: one row per broker the brokerage pays — `payee_name`, optional `stakeholder_id` (→ `deal_stakeholders`, same deal), `side`, `share_percent`, `amount`, `paid_at`, `paid_amount`, `instrument_ref`, `notes`, `position`. Guards: a paid payout is never removed, at most 20 per deal, account must match the deal's. Internal only.
 
 #### 22. Journey Mind Map (migrations 131 + 138)
 Per-(contact × property) funnel tracking behind the `/journey` canvas — records where every shared property/interested contact stands and where the dropped ones fell off.

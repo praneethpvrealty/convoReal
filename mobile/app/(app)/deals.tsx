@@ -28,6 +28,7 @@ import { contactFullName } from '@/lib/contact-name';
 import {
   expectedCloseLabel,
   isClosingRecord,
+  netOfPayouts,
   RECORDS_SORTS,
   sortIndexRows,
   transactionSubtitle,
@@ -86,11 +87,19 @@ function brokeragePreview(
 }
 
 function dealBrokerage(deal: Deal): number {
-  if (deal.brokerage_amount != null) return Number(deal.brokerage_amount);
+  if (deal.brokerage_amount != null) {
+    return netOfPayouts(
+      Number(deal.brokerage_amount),
+      deal.co_broker_payout_total
+    );
+  }
   const value = Number(deal.brokerage_value ?? 0);
   if (value <= 0) return 0;
-  if (deal.brokerage_type === 'fixed') return value;
-  return (Number(deal.value ?? 0) * value) / 100;
+  const collected =
+    deal.brokerage_type === 'fixed'
+      ? value
+      : (Number(deal.value ?? 0) * value) / 100;
+  return netOfPayouts(collected, deal.co_broker_payout_total);
 }
 
 export default function DealsScreen() {

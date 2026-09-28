@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getCurrencyIcon, formatCurrency } from "@/lib/currency-utils";
+import { netOfPayouts } from "@/lib/deals/co-broking";
 
 interface PipelineAnalyticsProps {
   stages: PipelineStage[];
@@ -54,9 +55,12 @@ export function PipelineAnalytics({ stages, deals, currency = "INR" }: PipelineA
 
     const totalCount = active.length;
     const totalValue = active.reduce((sum, d) => {
-      const brokAmt = d.brokerage_amount !== null && d.brokerage_amount !== undefined
-        ? Number(d.brokerage_amount)
-        : (Number(d.value || 0) * 0.02);
+      const brokAmt = netOfPayouts(
+        d.brokerage_amount !== null && d.brokerage_amount !== undefined
+          ? Number(d.brokerage_amount)
+          : Number(d.value || 0) * 0.02,
+        d.co_broker_payout_total
+      );
       return sum + brokAmt;
     }, 0);
     const avgValue = totalCount > 0 ? totalValue / totalCount : 0;
@@ -66,9 +70,12 @@ export function PipelineAnalytics({ stages, deals, currency = "INR" }: PipelineA
       const stage = stageById.get(d.stage_id);
       if (!stage) return sum;
       const prob = computeStageProbability(stage, sortedStages);
-      const brokAmt = d.brokerage_amount !== null && d.brokerage_amount !== undefined
-        ? Number(d.brokerage_amount)
-        : (Number(d.value || 0) * 0.02);
+      const brokAmt = netOfPayouts(
+        d.brokerage_amount !== null && d.brokerage_amount !== undefined
+          ? Number(d.brokerage_amount)
+          : Number(d.value || 0) * 0.02,
+        d.co_broker_payout_total
+      );
       return sum + brokAmt * prob;
     }, 0);
 

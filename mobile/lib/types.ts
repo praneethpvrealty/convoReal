@@ -234,6 +234,7 @@ export interface Deal {
   brokerage_value?: number | null;
   brokerage_amount?: number | null;
   brokerage_paid_at?: string | null;
+  co_broker_payout_total?: number | null;
   source_journey_item_id?: string | null;
   contact?: Contact | null;
   property?: Property | null;

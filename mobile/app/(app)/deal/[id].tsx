@@ -69,6 +69,15 @@ import {
   trancheStatus,
   TRANCHE_LABEL_SUGGESTIONS,
   TRANCHE_STATUS_LABELS,
+  DEAL_POSITIONS,
+  DEAL_POSITION_LABELS,
+  PAYOUT_SIDE_LABELS,
+  PAYOUT_STATUS_LABELS,
+  payoutFromPercent,
+  payoutPaid,
+  payoutStatus,
+  type DealCoBrokerPayoutRow,
+  type PayoutSide,
   type BundleCandidate,
   type DealPaymentTrancheRow,
   type DealDocumentCategory,
@@ -99,12 +108,14 @@ import {
   addDealStakeholder,
   addDealTask,
   addDealTranche,
+  addCoBrokerPayout,
   addStandardMilestones,
   createDealGroup,
   createDealShareLink,
   createInvoice,
   deleteDealDocument,
   deleteDealTranche,
+  deleteCoBrokerPayout,
   extractDocument,
   fetchDealDocumentUrl,
   fetchDealDocuments,
@@ -116,6 +127,8 @@ import {
   fetchDealStakeholders,
   fetchDealTasks,
   fetchDealTranches,
+  fetchDealCoBroking,
+  setDealPosition,
   fetchDealUpdates,
   fetchInvoices,
   moveDealStage,
@@ -133,6 +146,7 @@ import {
   updateDealFinancials,
   updateDealMilestone,
   updateDealTranche,
+  updateCoBrokerPayout,
   uploadDealDocument,
 } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
@@ -1038,6 +1052,7 @@ function FinancialsForm({
         />
       ) : null}
       <TranchesSection dealId={dealId} canEdit={canEdit} />
+      <CoBrokingSection dealId={dealId} canEdit={canEdit} />
       <AppDialog {...dialog.dialogProps} />
     </ScrollView>
   );
@@ -1321,6 +1336,361 @@ function TranchesSection({
                     setLabel('');
                     setAmount('');
                     setDueDate('');
+                  })
+                }
+              />
+            </>
+          ) : null}
+        </>
+      )}
+      <AppDialog {...dialog.dialogProps} />
+    </View>
+  );
+}
+
+function CoBrokingSection({
+  dealId,
+  canEdit,
+}: {
+  dealId: string;
+  canEdit: boolean;
+}) {
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const dialog = useAppDialog();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [payee, setPayee] = useState<string | null>(null);
+  const [payeeName, setPayeeName] = useState('');
+  const [side, setSide] = useState<PayoutSide | null>(null);
+  const [percent, setPercent] = useState('');
+  const [amount, setAmount] = useState('');
+  const [paidFor, setPaidFor] = useState<DealCoBrokerPayoutRow | null>(null);
+  const [paidAt, setPaidAt] = useState('');
+  const [paidAmount, setPaidAmount] = useState('');
+  const [instrument, setInstrument] = useState('');
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['deal-co-broking', dealId],
+    queryFn: () => fetchDealCoBroking(dealId),
+    enabled: Boolean(dealId),
+  });
+
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['deal-co-broking', dealId] }),
+      queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+      queryClient.invalidateQueries({ queryKey: ['deal-head', dealId] }),
+      queryClient.invalidateQueries({ queryKey: ['deals'] }),
+    ]);
+
+  async function run(key: string, action: () => Promise<unknown>) {
+    setBusy(key);
+    try {
+      await action();
+      await refresh();
+      void haptic.success();
+    } catch (err) {
+      dialog.show({
+        title: 'That did not work',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function pickPayee(id: string | null) {
+    setPayee(id);
+    const broker = data?.brokers.find((b) => b.id === id);
+    setPayeeName(broker?.name ?? '');
+    if (broker && (broker.side === 'buyer' || broker.side === 'seller')) {
+      setSide(broker.side);
+    }
+  }
+
+  function changePercent(value: string) {
+    setPercent(value);
+    const computed = payoutFromPercent(data?.deal_value, value);
+    if (computed > 0) setAmount(String(computed));
+  }
+
+  function openPaid(p: DealCoBrokerPayoutRow) {
+    setPaidFor(p);
+    setPaidAt(p.paid_at ?? localDateKey());
+    setPaidAmount(p.paid_amount != null ? String(p.paid_amount) : '');
+    setInstrument(p.instrument_ref ?? '');
+  }
+
+  function confirmRemove(p: DealCoBrokerPayoutRow) {
+    dialog.show({
+      title: `Remove the payout to ${p.payee_name}?`,
+      message: 'Only a payout with nothing paid can be removed.',
+      actions: [
+        {
+          label: 'Remove',
+          onPress: () => {
+            dialog.close();
+            void run(p.id, () => deleteCoBrokerPayout(dealId, p.id));
+          },
+        },
+        { label: 'Cancel', variant: 'muted' as const, onPress: dialog.close },
+      ],
+    });
+  }
+
+  const name = payeeName.trim();
+
+  return (
+    <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+      <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+        Co-broking
+      </Text>
+      {isLoading ? (
+        <Loading />
+      ) : isError || !data ? (
+        <View style={{ gap: spacing.sm }}>
+          <Text style={{ fontSize: 13, color: colors.textMuted }}>
+            Co-broking could not be loaded.
+          </Text>
+          <PrimaryButton label="Try again" onPress={() => void refetch()} />
+        </View>
+      ) : (
+        <>
+          <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+            Your position on this deal
+          </Text>
+          <View style={styles.chipRow}>
+            {DEAL_POSITIONS.map((p) => (
+              <FilterChip
+                key={p}
+                label={DEAL_POSITION_LABELS[p].split(' — ')[0]}
+                active={data.position === p}
+                onPress={() =>
+                  canEdit &&
+                  void run('position', () =>
+                    setDealPosition(dealId, data.position === p ? null : p)
+                  )
+                }
+              />
+            ))}
+          </View>
+          {data.position ? (
+            <Text style={{ fontSize: 12, color: colors.textMuted }}>
+              {DEAL_POSITION_LABELS[data.position]}
+            </Text>
+          ) : null}
+          {data.payouts.length > 0 ? (
+            <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+              {data.summary.collected !== null
+                ? `Collected ${formatInr(data.summary.collected)} · `
+                : ''}
+              Co-brokers {formatInr(data.summary.payouts)} · Still to pay{' '}
+              {formatInr(data.summary.to_pay)}
+              {data.summary.net !== null ? (
+                <>
+                  {' · Your share '}
+                  <Text style={{ fontFamily: fonts.bold, color: colors.text }}>
+                    {formatInr(data.summary.net)}
+                  </Text>
+                </>
+              ) : null}
+            </Text>
+          ) : (
+            <Text style={{ fontSize: 13, color: colors.textMuted }}>
+              No co-brokers. If you collect the commission and pay the
+              buyer&apos;s or seller&apos;s agent a share, add each one here.
+              Your totals then count only your share.
+            </Text>
+          )}
+          {data.payouts.map((p) => {
+            const status = payoutStatus(p);
+            const paid = payoutPaid(p);
+            const tint =
+              status === 'paid'
+                ? colors.success
+                : status === 'partial'
+                  ? colors.warning
+                  : colors.textMuted;
+            return (
+              <Pressable
+                key={p.id}
+                disabled={!canEdit || busy === p.id}
+                onPress={() => openPaid(p)}
+                onLongPress={() =>
+                  canEdit &&
+                  !p.paid_at &&
+                  !(p.paid_amount ?? 0) &&
+                  confirmRemove(p)
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`${p.payee_name}, ${PAYOUT_STATUS_LABELS[status]}`}
+                style={[
+                  styles.card,
+                  styles.row,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={
+                    status === 'paid' ? 'checkmark-circle' : 'people-outline'
+                  }
+                  size={22}
+                  color={tint}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>
+                    {p.payee_name} · {formatInr(p.amount)}
+                  </Text>
+                  <Text style={[styles.cardMeta, { color: tint }]}>
+                    {PAYOUT_STATUS_LABELS[status]}
+                    {p.side ? ` · ${PAYOUT_SIDE_LABELS[p.side]}` : ''}
+                    {p.share_percent != null
+                      ? ` · ${p.share_percent}% of the deal`
+                      : ''}
+                    {p.paid_at
+                      ? ` · paid ${p.paid_at}${
+                          paid < p.amount ? ` (${formatInr(paid)})` : ''
+                        }`
+                      : ''}
+                    {p.instrument_ref ? ` · ${p.instrument_ref}` : ''}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+          {canEdit && paidFor ? (
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  gap: spacing.sm,
+                },
+              ]}
+            >
+              <Text style={[styles.cardTitle, { color: colors.text }]}>
+                Payment to {paidFor.payee_name} · {formatInr(paidFor.amount)}
+              </Text>
+              <TextField
+                label="Paid on (YYYY-MM-DD)"
+                value={paidAt}
+                onChangeText={setPaidAt}
+              />
+              <TextField
+                label="Amount paid (blank = full)"
+                value={paidAmount}
+                onChangeText={setPaidAmount}
+                keyboardType="decimal-pad"
+              />
+              <TextField
+                label="Instrument / UTR"
+                value={instrument}
+                onChangeText={setInstrument}
+              />
+              <PrimaryButton
+                label="Save payment"
+                busy={busy === paidFor.id}
+                onPress={() =>
+                  void run(paidFor.id, async () => {
+                    await updateCoBrokerPayout(dealId, paidFor.id, {
+                      paid_at: paidAt || null,
+                      paid_amount: paidAmount === '' ? null : paidAmount,
+                      instrument_ref: instrument || null,
+                    });
+                    setPaidFor(null);
+                  })
+                }
+              />
+              <Pressable
+                onPress={() => setPaidFor(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel payment"
+              >
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: colors.textMuted,
+                    textAlign: 'center',
+                  }}
+                >
+                  Cancel
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {canEdit ? (
+            <>
+              {data.brokers.length > 0 ? (
+                <View style={styles.chipRow}>
+                  {data.brokers.map((b) => (
+                    <FilterChip
+                      key={b.id}
+                      label={b.name}
+                      active={payee === b.id}
+                      onPress={() => pickPayee(payee === b.id ? null : b.id)}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                  Add the other agents under Stakeholders with the role Broker,
+                  and they appear here to pick.
+                </Text>
+              )}
+              <TextField
+                label="Pay to"
+                placeholder="Broker or firm name"
+                value={payeeName}
+                onChangeText={(v) => {
+                  setPayee(null);
+                  setPayeeName(v);
+                }}
+              />
+              <View style={styles.chipRow}>
+                {(['buyer', 'seller'] as const).map((s) => (
+                  <FilterChip
+                    key={s}
+                    label={PAYOUT_SIDE_LABELS[s]}
+                    active={side === s}
+                    onPress={() => setSide(side === s ? null : s)}
+                  />
+                ))}
+              </View>
+              <TextField
+                label="% of deal value (optional)"
+                placeholder="0.5"
+                value={percent}
+                onChangeText={changePercent}
+                keyboardType="decimal-pad"
+              />
+              <TextField
+                label="Amount"
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="decimal-pad"
+              />
+              <PrimaryButton
+                label="Add co-broker payout"
+                busy={busy === 'add'}
+                disabled={!name || !amount}
+                onPress={() =>
+                  void run('add', async () => {
+                    await addCoBrokerPayout(dealId, {
+                      payee_name: name,
+                      stakeholder_id: payee,
+                      side,
+                      share_percent: percent || null,
+                      amount,
+                    });
+                    setPayee(null);
+                    setPayeeName('');
+                    setSide(null);
+                    setPercent('');
+                    setAmount('');
                   })
                 }
               />

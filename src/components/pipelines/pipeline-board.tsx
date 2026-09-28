@@ -19,6 +19,7 @@ import { DealCard } from './deal-card';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { formatCurrency } from '@/lib/currency-utils';
+import { netOfPayouts } from '@/lib/deals/co-broking';
 import {
   isBrokeragePaidStage,
   pipelineOutcomeForStage,
@@ -127,15 +128,18 @@ export function PipelineBoard({
               <div className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:snap-none">
                 {outcomeStages.map((stage) => {
                   const stageDeals = dealsByStage.get(stage.id) ?? [];
-                  const totalValue = stageDeals.reduce((sum, deal) => {
-                    if (
-                      deal.brokerage_amount !== null &&
-                      deal.brokerage_amount !== undefined
-                    ) {
-                      return sum + Number(deal.brokerage_amount);
-                    }
-                    return sum + Number(deal.value || 0) * 0.02;
-                  }, 0);
+                  const totalValue = stageDeals.reduce(
+                    (sum, deal) =>
+                      sum +
+                      netOfPayouts(
+                        deal.brokerage_amount !== null &&
+                          deal.brokerage_amount !== undefined
+                          ? Number(deal.brokerage_amount)
+                          : Number(deal.value || 0) * 0.02,
+                        deal.co_broker_payout_total
+                      ),
+                    0
+                  );
                   return (
                     <StageColumn
                       key={stage.id}

@@ -139,6 +139,10 @@ import {
   TRANCHE_LABEL_SUGGESTIONS,
   TRANCHE_STATUS_LABELS,
 } from '@/lib/deals/tranches';
+import {
+  DEAL_POSITION_LABELS,
+  PAYOUT_STATUS_LABELS,
+} from '@/lib/deals/co-broking';
 import { RECORDS_SORTS } from '@/lib/deals/index-row';
 import {
   DIGEST_PAUSE_COMMAND,
@@ -3407,6 +3411,54 @@ describe('[TXW-021] the payment schedule ships on both surfaces through one rout
     expect(mobileVocab).not.toMatch(/scheduled\s*[-+]\s*received/);
     expect(mobileScreen).toContain('data.summary.outstanding');
     expect(webPanel).toContain('data.summary.outstanding');
+  });
+});
+
+describe('[TXW-023] co-broking ships on both surfaces through one route', () => {
+  const mobileVocab = mobileSource('lib/deal-workspace.ts');
+  const mobileApi = mobileSource('lib/deal-workspace-api.ts');
+  const mobileScreen = mobileSource('app/(app)/deal/[id].tsx');
+  const mobileDeals = mobileSource('app/(app)/deals.tsx');
+  const webPanel = webSource('components/deals/deal-co-broking-panel.tsx');
+  const webFinancials = webSource('components/deals/deal-financials-panel.tsx');
+  const webBoard = webSource('components/pipelines/pipeline-board.tsx');
+
+  it('reads and writes co-broking through /api/deals/[id]/co-broking on both surfaces', () => {
+    expect(webPanel).toContain('`/api/deals/${dealId}/co-broking`');
+    expect(webPanel).toContain('`/api/deals/${dealId}/co-broking/payouts`');
+    expect(webPanel).toContain(
+      '`/api/deals/${dealId}/co-broking/payouts/${p.id}`'
+    );
+    expect(mobileApi).toContain('`/api/deals/${dealId}/co-broking`');
+    expect(mobileApi).toContain('`/api/deals/${dealId}/co-broking/payouts`');
+    expect(mobileApi).toContain(
+      '`/api/deals/${dealId}/co-broking/payouts/${payoutId}`'
+    );
+    expect(webFinancials).toContain('<DealCoBrokingPanel');
+    expect(mobileScreen).toContain(
+      '<CoBrokingSection dealId={dealId} canEdit={canEdit} />'
+    );
+  });
+
+  it('labels positions and payout states identically', () => {
+    for (const [key, label] of Object.entries(DEAL_POSITION_LABELS)) {
+      expect(mobileVocab, `mobile is missing the "${key}" position`).toContain(
+        `${key}: ${JSON.stringify(label).includes("'") ? JSON.stringify(label) : `'${label}'`}`
+      );
+    }
+    for (const [key, label] of Object.entries(PAYOUT_STATUS_LABELS)) {
+      expect(mobileVocab).toContain(`${key}: '${label}'`);
+    }
+  });
+
+  it('decides paid by the same rule, reads the server totals and counts the net share', () => {
+    expect(mobileVocab).toContain(
+      "if (paid >= p.amount && (p.paid_at || paid > 0)) return 'paid';"
+    );
+    expect(mobileScreen).toContain('data.summary.net');
+    expect(webPanel).toContain('data.summary.net');
+    expect(mobileDeals).toContain('netOfPayouts(');
+    expect(webBoard).toContain('netOfPayouts(');
   });
 });
 

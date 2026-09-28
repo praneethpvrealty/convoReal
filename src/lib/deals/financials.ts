@@ -65,6 +65,8 @@ export const INTERNAL_ONLY_DEAL_FIELDS: readonly string[] = [
   ...DEAL_FINANCIAL_FIELDS,
   'deal_room_id',
   'source_journey_item_id',
+  'deal_position',
+  'co_broker_payout_total',
 ];
 
 /** Hidden from every stakeholder audience (buyer, seller, advocate…).

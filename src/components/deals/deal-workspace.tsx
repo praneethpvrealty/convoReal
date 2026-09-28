@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
+import { netOfPayouts } from '@/lib/deals/co-broking';
 import { dealsHref } from '@/lib/deals/routes';
 import { formatIndianDigits } from '@/lib/invoices/pdf-text';
 import { brokerageAmount, type BrokerageType } from '@/lib/pipelines/brokerage';
@@ -63,6 +64,7 @@ interface DealSummary {
   brokerage_type: 'percentage' | 'fixed' | null;
   brokerage_value: number | null;
   brokerage_amount: number | null;
+  co_broker_payout_total: number | null;
   status: string;
   pipeline_id: string;
   stage_id: string;
@@ -119,7 +121,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          'id, title, value, currency, brokerage_type, brokerage_value, brokerage_amount, status, ' +
+          'id, title, value, currency, brokerage_type, brokerage_value, brokerage_amount, co_broker_payout_total, status, ' +
             'pipeline_id, stage_id, source_journey_item_id, deal_group_id, deal_room_id, ' +
             'contact:contacts(id, name, second_name), ' +
             'property:properties(id, title, unit_no), ' +
@@ -232,6 +234,8 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
       type: deal.brokerage_type,
       value: deal.brokerage_value,
     });
+
+  const coBrokerPayouts = Number(deal.co_broker_payout_total ?? 0);
 
   const contactName = [deal.contact?.name, deal.contact?.second_name]
     .filter(Boolean)
@@ -352,7 +356,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryTile label="Deal value" value={deal.value ?? 0} />
         <SummaryTile
-          label="Brokerage"
+          label={coBrokerPayouts > 0 ? 'Brokerage collected' : 'Brokerage'}
           value={totalBrokerage}
           hint={
             deal.brokerage_type === 'percentage' && deal.brokerage_value
@@ -360,11 +364,19 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
               : undefined
           }
         />
-        <SummaryTile
-          label="Half share"
-          value={Math.round(totalBrokerage / 2)}
-          hint="If both sides are billed"
-        />
+        {coBrokerPayouts > 0 ? (
+          <SummaryTile
+            label="Your share"
+            value={netOfPayouts(totalBrokerage, coBrokerPayouts)}
+            hint={`After Rs. ${formatIndianDigits(coBrokerPayouts, 0)} to co-brokers`}
+          />
+        ) : (
+          <SummaryTile
+            label="Half share"
+            value={Math.round(totalBrokerage / 2)}
+            hint="If both sides are billed"
+          />
+        )}
       </div>
 
       <div className="flex gap-2 overflow-x-auto border-b border-slate-800/80">

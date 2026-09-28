@@ -800,6 +800,10 @@ export interface Deal {
   tds_amount?: number | null;
   payment_instrument_refs?: string | null;
   brokerage_received_amount?: number | null;
+  /** Co-broking (migration 20260928042711). Internal only. */
+  deal_position?:
+    'direct' | 'buyer_side' | 'seller_side' | 'intermediary' | null;
+  co_broker_payout_total?: number | null;
 }
 
 // ── Journey Mind Map (migration 131) ────────────────────────

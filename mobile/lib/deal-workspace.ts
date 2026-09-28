@@ -462,6 +462,122 @@ export function trancheStatus(
   return 'scheduled';
 }
 
+// --- Co-broking — mirrored from src/lib/deals/co-broking.ts -------------
+
+export type DealPosition =
+  'direct' | 'buyer_side' | 'seller_side' | 'intermediary';
+
+export const DEAL_POSITIONS: readonly DealPosition[] = [
+  'direct',
+  'buyer_side',
+  'seller_side',
+  'intermediary',
+];
+
+/** Mirrored from src/lib/deals/co-broking.ts — see the header. */
+export const DEAL_POSITION_LABELS: Record<DealPosition, string> = {
+  direct: 'Direct — both sides are mine',
+  buyer_side: "Buyer's side — co-broking with the seller's agent",
+  seller_side: "Seller's side — co-broking with the buyer's agent",
+  intermediary: "In the middle — between the buyer's and seller's agents",
+};
+
+export type PayoutSide = 'buyer' | 'seller';
+
+export type PayoutStatus = 'paid' | 'partial' | 'owed';
+
+export const PAYOUT_STATUS_LABELS: Record<PayoutStatus, string> = {
+  paid: 'Paid',
+  partial: 'Part paid',
+  owed: 'To pay',
+};
+
+export const PAYOUT_SIDE_LABELS: Record<PayoutSide, string> = {
+  buyer: "Buyer's agent",
+  seller: "Seller's agent",
+};
+
+export interface DealCoBrokerPayoutRow {
+  id: string;
+  account_id: string;
+  deal_id: string;
+  stakeholder_id: string | null;
+  payee_name: string;
+  side: PayoutSide | null;
+  share_percent: number | null;
+  amount: number;
+  paid_at: string | null;
+  paid_amount: number | null;
+  instrument_ref: string | null;
+  notes: string | null;
+  position: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoBrokingSummary {
+  collected: number | null;
+  payouts: number;
+  paid_out: number;
+  to_pay: number;
+  net: number | null;
+}
+
+export interface CoBrokingBroker {
+  id: string;
+  name: string;
+  side: 'buyer' | 'seller' | 'internal';
+}
+
+export interface CoBrokingView {
+  position: DealPosition | null;
+  deal_value: number | null;
+  payouts: DealCoBrokerPayoutRow[];
+  summary: CoBrokingSummary;
+  brokers: CoBrokingBroker[];
+}
+
+/** Mirrored from src/lib/deals/co-broking.ts. The totals come from the
+ *  server; these only decide a row's label and prefill an amount. */
+export function payoutPaid(
+  p: Pick<DealCoBrokerPayoutRow, 'amount' | 'paid_at' | 'paid_amount'>
+): number {
+  if (p.paid_amount !== null && p.paid_amount !== undefined) {
+    return Math.min(p.paid_amount, p.amount);
+  }
+  return p.paid_at ? p.amount : 0;
+}
+
+export function payoutStatus(
+  p: Pick<DealCoBrokerPayoutRow, 'amount' | 'paid_at' | 'paid_amount'>
+): PayoutStatus {
+  const paid = payoutPaid(p);
+  if (paid >= p.amount && (p.paid_at || paid > 0)) return 'paid';
+  if (paid > 0) return 'partial';
+  return 'owed';
+}
+
+export function payoutFromPercent(
+  dealValue: number | null | undefined,
+  percent: number | string | null | undefined
+): number {
+  const value = Number(dealValue ?? 0);
+  const pct = typeof percent === 'string' ? Number(percent) : (percent ?? 0);
+  if (!Number.isFinite(value) || !Number.isFinite(pct) || pct <= 0) return 0;
+  return Math.round(((value * pct) / 100) * 100) / 100;
+}
+
+export function netOfPayouts(
+  collected: number,
+  payoutTotal: number | null | undefined
+): number {
+  return Math.max(
+    0,
+    Math.round((collected - Number(payoutTotal ?? 0)) * 100) / 100
+  );
+}
+
 // --- Bundles — mirrored from src/lib/deals/bundles.ts -------------------
 
 export const BUNDLE_MIN_DEALS = 2;

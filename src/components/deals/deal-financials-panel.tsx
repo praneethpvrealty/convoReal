@@ -18,6 +18,7 @@ import {
 } from '@/lib/deals/financials';
 import { formatIndianDigits } from '@/lib/invoices/pdf-text';
 
+import { DealCoBrokingPanel } from './deal-co-broking-panel';
 import { DealTranchesPanel } from './deal-tranches-panel';
 
 interface FinancialsResponse extends DealFinancials {
@@ -94,6 +95,7 @@ export function DealFinancialsPanel({
         data={data}
       />
       <DealTranchesPanel dealId={dealId} canEdit={canEdit} />
+      <DealCoBrokingPanel dealId={dealId} canEdit={canEdit} />
     </div>
   );
 }
