@@ -1959,7 +1959,10 @@ function DraggableJourneyCard({
     group.lifecycleStatus === 'active'
       ? null
       : CLOSED_JOURNEY_STATUS_LABELS[group.lifecycleStatus];
-  const enquiryLabel = journeyEnquiryLabel(group.enquiryCount);
+  const enquiryLabel = journeyEnquiryLabel(
+    group.enquiryCount,
+    group.lastEnquiredAt
+  );
   const statusLabel = stageInHeader
     ? journeyRaceLabel(group.active)
     : [stage?.name, lifecycleLabel].filter(Boolean).join(' · ');
@@ -2135,7 +2138,7 @@ function DraggableJourneyCard({
                   onPress={onEnquiries}
                   hitSlop={6}
                   accessibilityRole="button"
-                  accessibilityLabel={`${enquiryLabel}, last on ${auditDate(group.lastEnquiredAt)}`}
+                  accessibilityLabel={`Show ${enquiryLabel}`}
                   style={[
                     styles.capturedChip,
                     {

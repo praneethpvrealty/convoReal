@@ -35,9 +35,33 @@ export const JOURNEY_CLOSURE_REASONS: Record<
   ],
 };
 
-export function journeyEnquiryLabel(count: number): string | null {
+export function journeyEnquiryLabel(
+  count: number,
+  lastEnquiredAt: string | null = null,
+  now: Date = new Date()
+): string | null {
   if (count <= 0) return null;
-  return count === 1 ? '1 enquiry' : `${count} enquiries`;
+  const countLabel = count === 1 ? '1 enquiry' : `${count} enquiries`;
+  const date = lastEnquiredAt ? new Date(lastEnquiredAt) : null;
+  if (!date || Number.isNaN(date.getTime())) return countLabel;
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  const day = `${date.getDate()} ${months[date.getMonth()]}`;
+  return date.getFullYear() === now.getFullYear()
+    ? `${countLabel} · ${day}`
+    : `${countLabel} · ${day} ${date.getFullYear()}`;
 }
 
 export function journeyRaceLabel(active: number): string {
