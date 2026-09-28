@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS deal_co_broker_payouts (
   payee_name TEXT NOT NULL,
   side TEXT CHECK (side IN ('buyer', 'seller')),
   share_percent NUMERIC(6,3) CHECK (share_percent IS NULL OR (share_percent >= 0 AND share_percent <= 100)),
-  amount NUMERIC(14,2) NOT NULL CHECK (amount >= 0),
+  amount NUMERIC(14,2) NOT NULL CONSTRAINT deal_co_broker_payouts_amount_check CHECK (amount > 0),
   paid_at DATE,
   paid_amount NUMERIC(14,2) CHECK (paid_amount IS NULL OR paid_amount >= 0),
   instrument_ref TEXT,

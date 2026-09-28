@@ -229,6 +229,9 @@ export function parsePayoutPatch(raw: unknown): ParseResult<PayoutPatch> {
     if (r.value === null) {
       return { ok: false, error: 'Give the payout an amount' };
     }
+    if (r.value <= 0) {
+      return { ok: false, error: 'A payout must be more than zero' };
+    }
     patch.amount = r.value;
   }
   if (input.paid_amount !== undefined) {

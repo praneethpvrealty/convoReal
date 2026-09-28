@@ -62,6 +62,10 @@ describe('[TXW-023] co-broking payouts', () => {
       ok: false,
     });
     expect(parsePayoutPatch({ amount: -1 })).toMatchObject({ ok: false });
+    expect(parsePayoutPatch({ amount: 0 })).toEqual({
+      ok: false,
+      error: 'A payout must be more than zero',
+    });
     expect(parsePayoutPatch({})).toEqual({
       ok: false,
       error: 'Nothing to update',
@@ -116,6 +120,7 @@ describe('[TXW-023] co-broking payouts', () => {
     );
     expect(sql).not.toContain('SELECT SUM(p.amount)');
     expect(sql).toContain('A payout stays on its deal');
+    expect(sql).toContain('CHECK (amount > 0)');
     expect(sql).toContain('AND p.is_read_only IS NOT TRUE');
     expect(sql).toContain(
       'BEFORE INSERT OR UPDATE OF co_broker_payout_total ON deals'
