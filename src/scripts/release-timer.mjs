@@ -249,7 +249,10 @@ async function shipBranch({
   const mergedMembers = members.filter((pull) => pull.merged_at);
   const openMembers = members.filter((pull) => pull.state === 'open');
   const openPr = allPulls.find(
-    (pull) => pull.head.ref === branch && pull.base.ref === 'main'
+    (pull) =>
+      pull.head.ref === branch &&
+      pull.head.repo?.full_name === `${owner}/${repo}` &&
+      pull.base.ref === 'main'
   );
   const releasePr = openPr
     ? {
@@ -317,6 +320,31 @@ async function shipBranch({
       body: releaseBody(branch, mergedMembers),
     });
     core.notice(`opened release PR #${created.number} for ${branch}`);
+    const {
+      data: { behind_by: behindAtOpen },
+    } = await github.rest.repos.compareCommitsWithBasehead({
+      owner,
+      repo,
+      basehead: `main...${tipSha}`,
+      per_page: 1,
+    });
+    if (behindAtOpen > 0) {
+      try {
+        await github.rest.pulls.updateBranch({
+          owner,
+          repo,
+          pull_number: created.number,
+          expected_head_sha: tipSha,
+        });
+        core.notice(`merged main into ${branch}; CI runs on the new head next`);
+      } catch (error) {
+        if (error.status !== 422) throw error;
+        core.warning(
+          `${branch}: main cannot be merged in cleanly; held next run`
+        );
+      }
+      return decision;
+    }
     await github.rest.actions.createWorkflowDispatch({
       owner,
       repo,

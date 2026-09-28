@@ -137,7 +137,7 @@ interface Pull {
   state: 'open' | 'closed';
   merged_at?: string | null;
   base: { ref: string };
-  head: { ref: string; sha?: string };
+  head: { ref: string; sha?: string; repo?: { full_name: string } };
   created_at?: string;
 }
 
@@ -295,7 +295,7 @@ const releasePr = (created = minutesAgo(REVIEW_SETTLE_MINUTES)): Pull => ({
   number: 50,
   state: 'open',
   base: { ref: 'main' },
-  head: { ref: 'release/batch', sha: 'tip' },
+  head: { ref: 'release/batch', sha: 'tip', repo: { full_name: 'owner/repo' } },
   created_at: created,
 });
 const greenCi = [
@@ -553,6 +553,42 @@ describe('run', () => {
       (await run({ github, context, core, now: NOW }))['release/batch']
     ).toEqual({ action: 'hold', reason: '1 unresolved review thread(s)' });
     expect(github.graphql).toHaveBeenCalledTimes(2);
+    expect(rest.pulls.merge).not.toHaveBeenCalled();
+  });
+
+  it('brings a stale release up to date instead of testing it when opening the PR', async () => {
+    const { github, rest } = fakeGithub({ pulls: [member(1)], behindBy: 2 });
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch'].action
+    ).toBe('open-pr');
+    expect(rest.pulls.updateBranch).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      pull_number: 50,
+      expected_head_sha: 'tip',
+    });
+    expect(rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+  });
+
+  it('ignores a fork PR from a branch named like the release', async () => {
+    const fork: Pull = {
+      ...releasePr(),
+      number: 77,
+      head: {
+        ref: 'release/batch',
+        sha: 'fork',
+        repo: { full_name: 'someone/fork' },
+      },
+    };
+    const { github, rest } = fakeGithub({ pulls: [member(1), fork] });
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch'].action
+    ).toBe('open-pr');
+    expect(rest.pulls.create).toHaveBeenCalledWith(
+      expect.objectContaining({ head: 'release/batch', base: 'main' })
+    );
     expect(rest.pulls.merge).not.toHaveBeenCalled();
   });
 });
