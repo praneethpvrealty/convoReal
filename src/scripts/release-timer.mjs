@@ -216,7 +216,7 @@ async function carryOver(
       owner,
       repo,
       issue_number: pull.number,
-      body: `\`${branch}\` shipped without this pull request after its time limit, so it now targets \`${next}\`. Merge \`${next}\` into this branch before the next push; its diff may show changes that already shipped until then.`,
+      body: `\`${branch}\` passed its time limit and is frozen for release without this pull request, so it now targets \`${next}\`. Merge \`${next}\` into this branch before the next push; until then its diff may show changes from the earlier release.`,
     });
   }
   core.notice(`moved ${openMembers.length} open member(s) to ${next}`);
@@ -475,7 +475,10 @@ async function shipBranch({
       commit_title: `Release ${branch.replace(RELEASE_BRANCH, '')} (#${releasePr.number})`,
     }));
   } catch (error) {
-    if (error.status !== 405 && error.status !== 409) throw error;
+    if (error.status === 405) {
+      return hold(`GitHub refused the merge: ${error.message}`);
+    }
+    if (error.status !== 409) throw error;
     return {
       action: 'wait',
       reason: 'release head moved; it is re-tested first',

@@ -630,4 +630,47 @@ describe('run', () => {
     ).toBe('wait');
     expect(rest.pulls.update).not.toHaveBeenCalled();
   });
+
+  it('holds with a comment when GitHub refuses the merge outright', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+    });
+    rest.pulls.merge.mockRejectedValueOnce(
+      Object.assign(new Error('Required review is missing'), { status: 405 })
+    );
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch']
+    ).toEqual({
+      action: 'hold',
+      reason: 'GitHub refused the merge: Required review is missing',
+    });
+    expect(rest.issues.createComment).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells a moved member its release is frozen, not shipped', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [
+        member(1),
+        member(3, { state: 'open', merged_at: null }),
+        releasePr(),
+      ],
+      created: minutesAgo(2 * RELEASE_WINDOW_MINUTES),
+      checkRuns: [
+        { status: 'in_progress', conclusion: null, started_at: minutesAgo(2) },
+      ],
+    });
+
+    await run({ github, context, core, now: NOW });
+
+    const [[comment]] = rest.issues.createComment.mock.calls as unknown as [
+      [{ issue_number: number; body: string }],
+    ];
+    expect(comment.issue_number).toBe(3);
+    expect(comment.body).toContain(
+      'frozen for release without this pull request'
+    );
+    expect(comment.body).not.toContain('shipped');
+  });
 });
