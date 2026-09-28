@@ -780,8 +780,43 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
       expect(source).toContain(
         'matchesJourneyEnquirySource(group, enquirySource)'
       );
-      expect(source).toContain('setEnquirySource(null);');
     }
+    expect(webOverview).toContain(
+      '? `journey_overview_source_${accountId}_${mode}`'
+    );
+    expect(webOverview).toContain(
+      'const [enquirySource, setEnquirySource] = useState<string | null>(null);'
+    );
+    expect(webOverview).toContain(
+      'setEnquirySource(readEnquirySource(sourceKey));'
+    );
+    expect(webOverview).toContain('if (next) writeStored(sourceKey, next);');
+    expect(webOverview).toContain('else removeStored(sourceKey);');
+    expect(screen).toContain(
+      'useRememberedJourneySource(\n    accountId,\n    mode\n  );'
+    );
+    expect(screen).not.toContain('setEnquirySource(null);');
+    expect(webOverview).toContain('aria-label="Clear source filter"');
+    expect(screen).toContain('accessibilityLabel="Clear source filter"');
+    expect(screen).toContain(
+      'journeySourceChips(sourceOptions, enquirySource)'
+    );
+    expect(screen).toContain('({ source, label, clear }) => {');
+    expect(
+      (screen.match(/accessibilityLabel="Clear source filter"/g) ?? []).length
+    ).toBe(1);
+    expect(webOverview).toContain('{enquirySource && (');
+    expect(screen).toContain('if (clear) {');
+    expect(screen).toContain('ref={sourceChipsRef}');
+    expect(screen).toContain(
+      'sourceChipsRef.current?.scrollTo({ x: 0, animated: true });\n  }, [enquirySource, mode, view]);'
+    );
+    const preference = mobileSource('lib/journey-source-preference.ts');
+    expect(preference).toContain(
+      '`journey_overview_source_${accountId}_${mode}`'
+    );
+    expect(preference).toContain('normalizeJourneyEnquirySource(stored)');
+    expect(preference).not.toContain('zustand');
     expect(mobileSource('lib/api.ts')).toContain(
       '`/api/journey/enquiries?mode=${mode}&subjectId=${subjectId}`'
     );

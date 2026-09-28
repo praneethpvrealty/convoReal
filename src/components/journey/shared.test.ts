@@ -11,6 +11,7 @@ import {
   journeyEnquiryLabel,
   journeyEnquirySourceOptions,
   matchesJourneyEnquirySource,
+  normalizeJourneyEnquirySource,
   journeyRaceLabel,
   planEtaLabel,
   plannedIndexOf,
@@ -605,5 +606,15 @@ describe('journey enquiry source filter', () => {
     expect(
       groups.filter((group) => matchesJourneyEnquirySource(group, null))
     ).toHaveLength(4);
+  });
+  it('[JRN-012] restores only a usable remembered source', () => {
+    expect(normalizeJourneyEnquirySource(' Housing ')).toBe('Housing');
+    expect(normalizeJourneyEnquirySource('')).toBeNull();
+    expect(normalizeJourneyEnquirySource('   ')).toBeNull();
+    expect(normalizeJourneyEnquirySource(null)).toBeNull();
+    expect(normalizeJourneyEnquirySource(42)).toBeNull();
+    expect(normalizeJourneyEnquirySource('x'.repeat(300))).toBe(
+      'x'.repeat(300)
+    );
   });
 });

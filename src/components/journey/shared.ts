@@ -331,6 +331,12 @@ export function journeyEnquirySourceOptions(
     .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source));
 }
 
+export function normalizeJourneyEnquirySource(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const source = value.trim();
+  return source || null;
+}
+
 export function matchesJourneyEnquirySource(
   group: { enquirySources: string[] },
   source: string | null

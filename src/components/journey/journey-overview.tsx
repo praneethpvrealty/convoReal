@@ -74,7 +74,7 @@ import {
 } from '@/lib/journey/overview-state';
 import { dealsHref } from '@/lib/deals/routes';
 import { replaceUrl } from '@/lib/navigation';
-import { readStored, writeStored } from '@/lib/safe-storage';
+import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 import { removeJourneyItems } from '@/lib/journey/remove';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -100,6 +100,7 @@ import {
   journeyRaceLabel,
   matchesJourneyEnquirySource,
   navigateJourney,
+  normalizeJourneyEnquirySource,
   sortJourneys,
   type JourneyMode,
   type JourneyPriority,
@@ -160,6 +161,11 @@ function readSort(key: string): JourneySort {
   return stored && stored in JOURNEY_SORT_LABELS
     ? (stored as JourneySort)
     : DEFAULT_JOURNEY_SORT;
+}
+
+function readEnquirySource(key: string | null): string | null {
+  if (!key || typeof window === 'undefined') return null;
+  return normalizeJourneyEnquirySource(readStored(key));
 }
 
 function titleOf(group: JourneyGroup, mode: JourneyMode) {
@@ -241,6 +247,9 @@ export function JourneyOverview({
   const hiddenKey = `journey_overview_hidden_${mode}`;
   const openKey = `journey_overview_open_${mode}`;
   const sortKey = `journey_overview_sort_${mode}`;
+  const sourceKey = accountId
+    ? `journey_overview_source_${accountId}_${mode}`
+    : null;
   const collapsedKey = `journey_overview_collapsed_${mode}`;
   const [groups, setGroups] = useState<JourneyGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -276,10 +285,15 @@ export function JourneyOverview({
       setCollapsedIds(readIdSet(collapsedKey));
       setView('active');
       setQuery('');
-      setEnquirySource(null);
       setShowHidden(false);
     });
   }, [collapsedKey, hiddenKey, mode, openKey, sortKey]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setEnquirySource(readEnquirySource(sourceKey));
+    });
+  }, [sourceKey]);
 
   const stageParam = searchParams.get('stage');
   const focusedBucket =
@@ -310,6 +324,16 @@ export function JourneyOverview({
       } catch {}
     },
     [sortKey]
+  );
+
+  const changeEnquirySource = useCallback(
+    (next: string | null) => {
+      setEnquirySource(next);
+      if (!sourceKey) return;
+      if (next) writeStored(sourceKey, next);
+      else removeStored(sourceKey);
+    },
+    [sourceKey]
   );
 
   const loadGroups = useCallback(async () => {
@@ -890,13 +914,13 @@ export function JourneyOverview({
                 align="end"
                 className="border-slate-700 bg-slate-900"
               >
-                <DropdownMenuItem onClick={() => setEnquirySource(null)}>
+                <DropdownMenuItem onClick={() => changeEnquirySource(null)}>
                   All sources
                 </DropdownMenuItem>
                 {sourceOptions.map((option) => (
                   <DropdownMenuItem
                     key={option.source}
-                    onClick={() => setEnquirySource(option.source)}
+                    onClick={() => changeEnquirySource(option.source)}
                   >
                     <span className="flex-1 truncate">{option.source}</span>
                     <span className="ml-3 text-slate-500 tabular-nums">
@@ -906,6 +930,17 @@ export function JourneyOverview({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+          )}
+          {enquirySource && (
+            <button
+              type="button"
+              onClick={() => changeEnquirySource(null)}
+              aria-label="Clear source filter"
+              title="Clear source filter"
+              className="border-primary/60 bg-primary/10 text-primary hover:bg-primary/20 inline-flex shrink-0 items-center self-stretch rounded-md border px-1.5 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800">
