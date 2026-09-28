@@ -380,6 +380,9 @@ describe('[INB-021] markFollowUpCold', () => {
     );
     expect(sql).toContain('ORDER BY c.id\n  FOR UPDATE;');
     expect(sql).toContain('FOR KEY SHARE');
+    expect(sql).toMatch(
+      /journey_item_lock_contact\(\)\nRETURNS trigger\nLANGUAGE plpgsql\nSECURITY DEFINER/
+    );
     expect(sql).toContain(
       'BEFORE INSERT OR UPDATE OF status, contact_id ON journey_items'
     );

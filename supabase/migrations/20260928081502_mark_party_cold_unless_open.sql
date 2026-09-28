@@ -17,6 +17,9 @@
 -- lands first is seen and keeps the lead hot, and one that lands after
 -- finds the lead already cold.
 --
+-- The trigger function is SECURITY DEFINER so the lock is taken whatever
+-- the writer's row-level security would let it see.
+--
 -- The past-enquiry stage kinds are passed in by the caller, which reads
 -- them from PAST_ENQUIRY_STAGE_KINDS, so the rule lives in one place.
 --
@@ -73,6 +76,7 @@ GRANT EXECUTE ON FUNCTION public.mark_party_cold_unless_open(uuid, uuid[], text[
 CREATE OR REPLACE FUNCTION public.journey_item_lock_contact()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
