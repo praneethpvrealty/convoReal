@@ -127,7 +127,11 @@ REVOKE ALL ON FUNCTION sync_deal_co_broker_payout_total() FROM PUBLIC, anon, aut
 -- The total is derived, never written. An agent may update their deals
 -- directly (RLS allows it), so a write that did not come from the
 -- payout trigger above (trigger depth 1 or less) keeps the stored total
--- and a new deal starts at zero.
+-- and a new deal starts at zero. A write that did come from it keeps
+-- the deal's updated_at: team and lead-source analytics date a win by
+-- it, so a payout edit must not move an old win into this period. The
+-- trigger is named to fire after set_updated_at (BEFORE triggers run in
+-- name order).
 CREATE OR REPLACE FUNCTION protect_deal_co_broker_payout_total()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -140,13 +144,16 @@ BEGIN
     ELSE
       NEW.co_broker_payout_total := OLD.co_broker_payout_total;
     END IF;
+  ELSIF TG_OP = 'UPDATE' THEN
+    NEW.updated_at := OLD.updated_at;
   END IF;
   RETURN NEW;
 END;
 $$;
 
 DROP TRIGGER IF EXISTS protect_deal_co_broker_payout_total_trigger ON deals;
-CREATE TRIGGER protect_deal_co_broker_payout_total_trigger
+DROP TRIGGER IF EXISTS trg_deal_co_broker_payout_total ON deals;
+CREATE TRIGGER trg_deal_co_broker_payout_total
   BEFORE INSERT OR UPDATE OF co_broker_payout_total ON deals
   FOR EACH ROW EXECUTE FUNCTION protect_deal_co_broker_payout_total();
 

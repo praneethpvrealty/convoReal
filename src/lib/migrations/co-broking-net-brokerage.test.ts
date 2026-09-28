@@ -30,7 +30,7 @@ describe('[TXW-024] dashboard functions count the brokerage share', () => {
 
   it('subtracts co-broker payouts, floored at zero, in each of them', () => {
     const net =
-      'GREATEST(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) - COALESCE(d.co_broker_payout_total, 0), 0)';
+      'CASE WHEN COALESCE(d.co_broker_payout_total, 0) = 0 THEN COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) ELSE GREATEST(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) - d.co_broker_payout_total, 0) END';
     expect(sql.split(net).length - 1).toBe(4);
     expect(sql).not.toMatch(/SUM\(COALESCE\(d\.brokerage_amount/);
   });
@@ -45,6 +45,9 @@ describe('[TXW-024] dashboard functions count the brokerage share', () => {
       'BEFORE INSERT OR UPDATE OF co_broker_payout_total ON deals'
     );
     expect(schema).toContain('IF pg_trigger_depth() <= 1 THEN');
+    expect(schema).toContain('NEW.updated_at := OLD.updated_at;');
+    expect(schema).toContain('CREATE TRIGGER trg_deal_co_broker_payout_total');
+    expect('trg_deal_co_broker_payout_total' > 'set_updated_at').toBe(true);
     expect(schema).toContain(
       'A payout stays on its deal. Remove it and add it to the other deal instead'
     );

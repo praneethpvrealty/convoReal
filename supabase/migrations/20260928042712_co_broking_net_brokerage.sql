@@ -6,11 +6,14 @@
 -- pays the other brokers out of it (20260928042711). Every function
 -- that summed brokerage summed what was collected, so a deal paying a
 -- buyer's agent and a seller's agent reported their money as revenue.
--- Each now subtracts `deals.co_broker_payout_total`, floored at zero:
+-- Each now subtracts `deals.co_broker_payout_total`, floored at zero,
+-- only when the deal has payouts:
 --
---   GREATEST(COALESCE(brokerage_amount, value * 0.02) - co_broker_payout_total, 0)
+--   CASE WHEN co_broker_payout_total = 0 THEN brokerage
+--        ELSE GREATEST(brokerage - co_broker_payout_total, 0) END
 --
--- A deal with no payouts reads exactly as before.
+-- where brokerage is COALESCE(brokerage_amount, value * 0.02). A deal
+-- with no payouts reads exactly as before, negative brokerage included.
 --
 -- NOT additive: CREATE OR REPLACE against four live functions. Held
 -- until the PR is green and merged. Ships before the co-broking UI so
@@ -62,7 +65,7 @@ AS $function$
       WHERE d.account_id = p_account_id AND d.status = 'open'),
     -- The brokerage's own share: brokerage when set, else the 2%
     -- fallback, less what is paid to co-brokers.
-    (SELECT COALESCE(SUM(GREATEST(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) - COALESCE(d.co_broker_payout_total, 0), 0)), 0)
+    (SELECT COALESCE(SUM(CASE WHEN COALESCE(d.co_broker_payout_total, 0) = 0 THEN COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) ELSE GREATEST(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) - d.co_broker_payout_total, 0) END), 0)
        FROM deals d
       WHERE d.account_id = p_account_id AND d.status = 'open'),
 
@@ -93,7 +96,7 @@ AS $function$
     s.name,
     COALESCE(NULLIF(s.color, ''), '#64748b'),
     count(d.id),
-    COALESCE(SUM(GREATEST(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) - COALESCE(d.co_broker_payout_total, 0), 0)), 0)
+    COALESCE(SUM(CASE WHEN COALESCE(d.co_broker_payout_total, 0) = 0 THEN COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) ELSE GREATEST(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) - d.co_broker_payout_total, 0) END), 0)
   FROM pipeline_stages s
   -- pipeline_stages carries no account_id of its own; it is scoped
   -- through its parent pipeline (migration 001 + 017).
@@ -182,7 +185,7 @@ convs AS (
 ),
 dl AS (
   SELECT d.user_id AS uid, count(*) AS deals_won,
-         COALESCE(SUM(GREATEST(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) - COALESCE(d.co_broker_payout_total, 0), 0)), 0) AS deals_won_value
+         COALESCE(SUM(CASE WHEN COALESCE(d.co_broker_payout_total, 0) = 0 THEN COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) ELSE GREATEST(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) - d.co_broker_payout_total, 0) END), 0) AS deals_won_value
   FROM deals d
   WHERE d.account_id = p_account_id
     AND d.status = 'won'
@@ -293,7 +296,7 @@ AS $function$
   won AS (
     SELECT cs.source,
            count(*) AS deals_won,
-           COALESCE(SUM(GREATEST(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) - COALESCE(d.co_broker_payout_total, 0), 0)), 0) AS won_value
+           COALESCE(SUM(CASE WHEN COALESCE(d.co_broker_payout_total, 0) = 0 THEN COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) ELSE GREATEST(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) - d.co_broker_payout_total, 0) END), 0) AS won_value
     FROM deals d
     JOIN contact_sources cs ON cs.id = d.contact_id
     WHERE d.account_id = p_account_id
