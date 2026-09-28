@@ -174,18 +174,22 @@ export function buildFollowUpActionSections(lead: FollowUpLead) {
           title: '⏰ Snooze 3 days',
           description: 'Bring this reminder back in 3 days',
         },
-        lead.propertyId && lead.propertyTitle
-          ? {
-              id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}:${lead.propertyId}`,
-              title: '❄️ Mark cold',
-              description:
-                'Not interested in this listing; keep tracking others',
-            }
-          : {
-              id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}:${FOLLOWUP_NO_LISTING}`,
-              title: '❄️ Mark cold',
-              description: 'Stop follow-up reminders for this lead',
-            },
+        ...(lead.propertyId && !lead.propertyTitle
+          ? []
+          : [
+              lead.propertyId
+                ? {
+                    id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}:${lead.propertyId}`,
+                    title: '❄️ Mark cold',
+                    description:
+                      'Not interested in this listing; keep tracking others',
+                  }
+                : {
+                    id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}:${FOLLOWUP_NO_LISTING}`,
+                    title: '❄️ Mark cold',
+                    description: 'Stop follow-up reminders for this lead',
+                  },
+            ]),
       ],
     },
   ];

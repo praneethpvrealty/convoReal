@@ -167,15 +167,14 @@ describe('[INB-021] Mark cold is scoped to the carded listing', () => {
     expect(cold.description.length).toBeLessThanOrEqual(72);
   });
 
-  it('keeps a listing the card could not name out of the cold row id', () => {
-    const cold = buildFollowUpActionSections({
+  it('offers no Mark cold on a card whose listing could not be named', () => {
+    const rows = buildFollowUpActionSections({
       ...lead,
       propertyId: PROPERTY_ID,
       propertyTitle: null,
-    })[0].rows[3];
-    expect(cold.id).toBe(
-      `${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}:${FOLLOWUP_NO_LISTING}`
-    );
+    })[0].rows;
+    expect(rows).toHaveLength(3);
+    expect(rows.some((r) => r.id.startsWith(FOLLOWUP_COLD_PREFIX))).toBe(false);
   });
 
   it('falls back to a lead-wide cold when the card names no listing', () => {
