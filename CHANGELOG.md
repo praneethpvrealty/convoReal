@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 28 September 2026
 
+- **Generic Sales Pipelines moved to the standard stages.** Pipelines still on
+  New Lead / Qualified / Proposal Sent / Negotiation / Won now carry the same
+  nine "done → next" stages, including Closed Lost, with any deals kept on
+  their stage (a Won deal lands on Registered → Brokerage and stays won).
+  **Migration required:** `20260928123000_generic_pipelines_to_standard_stages.sql`.
 - **Pipeline stages now read as "what's done → what's next".** The standard
   pipeline is now Enquiry → Shortlist, Shortlisted → Visit, Finalised →
   Owner's meeting, Owner's meeting → Negotiation, Deal confirmed → Due

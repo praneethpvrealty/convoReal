@@ -10,6 +10,9 @@ const migration = (name: string) =>
 
 const typeMigration = migration('20260928093000_pipeline_stage_type.sql');
 const byTypeMigration = migration('20260928094000_pipeline_stages_by_type.sql');
+const genericMigration = migration(
+  '20260928123000_generic_pipelines_to_standard_stages.sql'
+);
 const webSemantics = readFileSync(
   join(process.cwd(), 'src/lib/pipelines/stage-semantics.ts'),
   'utf8'
@@ -47,6 +50,28 @@ describe('[PRP-015] stage type is inferred and read the same way everywhere', ()
         `'${sqlName}', '${stage.color}', ${stage.position}, '${stage.stage_type}')`
       );
     }
+  });
+
+  it('moves the generic Sales Pipeline onto the same default stages', () => {
+    const renamed = [
+      "'Enquiry → Shortlist'",
+      "'Shortlisted → Visit'",
+      "'Finalised → Owner''s meeting'",
+      "'Owner''s meeting → Negotiation'",
+      "'Registered → Brokerage'",
+    ];
+    for (const name of renamed) expect(genericMigration).toContain(name);
+    const byPosition = new Map(SPEC_DEFAULT_STAGES.map((s) => [s.position, s]));
+    for (const position of [4, 5, 7, 8]) {
+      const stage = byPosition.get(position)!;
+      expect(genericMigration).toContain(
+        `(p.id, '${stage.name}', '${stage.color}', ${position}, '${stage.stage_type}')`
+      );
+    }
+    expect(genericMigration).toContain(
+      "ARRAY['open', 'open', 'open', 'open', 'brokerage_pending']"
+    );
+    expect(genericMigration).toContain('ARRAY[0, 1, 2, 3, 6]');
   });
 
   it('reads listing status, brokerage paid and the journey kind from the type', () => {
