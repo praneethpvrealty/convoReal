@@ -3457,6 +3457,10 @@ describe('[TXW-023] co-broking ships on both surfaces through one route', () => 
     );
     expect(mobileScreen).toContain('data.summary.net');
     expect(webPanel).toContain('data.summary.net');
+    for (const total of ['payouts', 'paid_out', 'to_pay']) {
+      expect(mobileScreen).toContain(`data.summary.${total}`);
+      expect(webPanel).toContain(`data.summary.${total}`);
+    }
     expect(mobileDeals).toContain('netOfPayouts(');
     expect(webBoard).toContain('netOfPayouts(');
   });

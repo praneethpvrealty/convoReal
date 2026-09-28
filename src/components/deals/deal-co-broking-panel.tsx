@@ -247,8 +247,8 @@ export function DealCoBrokingPanel({
           <p className="text-[11px] text-slate-400">
             {data.summary.collected !== null &&
               `Collected ${rs(data.summary.collected)} · `}
-            Co-brokers {rs(data.summary.payouts)} · Still to pay{' '}
-            {rs(data.summary.to_pay)}
+            Co-brokers {rs(data.summary.payouts)} · Paid out{' '}
+            {rs(data.summary.paid_out)} · Still to pay {rs(data.summary.to_pay)}
             {data.summary.net !== null && (
               <>
                 {' '}

@@ -1490,7 +1490,8 @@ function CoBrokingSection({
               {data.summary.collected !== null
                 ? `Collected ${formatInr(data.summary.collected)} · `
                 : ''}
-              Co-brokers {formatInr(data.summary.payouts)} · Still to pay{' '}
+              Co-brokers {formatInr(data.summary.payouts)} · Paid out{' '}
+              {formatInr(data.summary.paid_out)} · Still to pay{' '}
               {formatInr(data.summary.to_pay)}
               {data.summary.net !== null ? (
                 <>

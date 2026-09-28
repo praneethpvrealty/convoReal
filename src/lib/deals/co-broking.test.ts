@@ -116,6 +116,7 @@ describe('[TXW-023] co-broking payouts', () => {
     );
     expect(sql).not.toContain('SELECT SUM(p.amount)');
     expect(sql).toContain('A payout stays on its deal');
+    expect(sql).toContain('AND p.is_read_only IS NOT TRUE');
     expect(sql).toContain(
       'BEFORE INSERT OR UPDATE OF co_broker_payout_total ON deals'
     );
