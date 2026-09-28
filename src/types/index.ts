@@ -737,6 +737,7 @@ export interface MessageTemplate {
 export interface Pipeline {
   id: string;
   user_id: string;
+  account_id?: string;
   name: string;
   created_at: string;
 }
@@ -747,6 +748,7 @@ export interface PipelineStage {
   name: string;
   position: number;
   color: string;
+  stage_type?: string | null;
   created_at: string;
 }
 
@@ -804,6 +806,8 @@ export interface Deal {
   deal_position?:
     'direct' | 'buyer_side' | 'seller_side' | 'intermediary' | null;
   co_broker_payout_total?: number | null;
+  lost_reason?: string | null;
+  lost_note?: string | null;
 }
 
 // ── Journey Mind Map (migration 131) ────────────────────────

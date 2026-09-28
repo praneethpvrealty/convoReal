@@ -15,6 +15,7 @@ import {
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { Confetti, EnterRow } from '@/components/motion';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
+import { LostReasonSheet } from '@/components/lost-reason-sheet';
 import { StageWheel } from '@/components/stage-wheel';
 import {
   Avatar,
@@ -46,10 +47,12 @@ import {
   dealStatusForStage,
   isBrokeragePaidStage,
   isBrokeragePendingStage,
+  isLostStage,
   needsBrokerageCapture,
   pipelineOutcomeForStage,
   type PipelineOutcome,
 } from '@/lib/stage-semantics';
+import { lostReasonLabel, type LostReasonInput } from '@/lib/lost-reasons';
 import { initialWheelStageIndex } from '@/lib/stage-wheel';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
@@ -111,6 +114,10 @@ export default function DealsScreen() {
   const [outcomeView, setOutcomeView] = useState<PipelineOutcome>('active');
   const [movingDeal, setMovingDeal] = useState<Deal | null>(null);
   const [celebrating, setCelebrating] = useState(false);
+  const [lostPrompt, setLostPrompt] = useState<{
+    deal: Deal;
+    stage: PipelineStage;
+  } | null>(null);
   const [brokeragePrompt, setBrokeragePrompt] = useState<{
     deal: Deal;
     stage: PipelineStage;
@@ -201,7 +208,7 @@ export default function DealsScreen() {
     };
     for (const deal of deals ?? []) {
       const stage = stageById.get(deal.stage_id);
-      if (stage) counts[pipelineOutcomeForStage(stage.name)] += 1;
+      if (stage) counts[pipelineOutcomeForStage(stage)] += 1;
     }
     return counts;
   }, [deals, stageById]);
@@ -209,7 +216,7 @@ export default function DealsScreen() {
   const visibleStages = useMemo(
     () =>
       (stages ?? []).filter(
-        (stage) => pipelineOutcomeForStage(stage.name) === outcomeView
+        (stage) => pipelineOutcomeForStage(stage) === outcomeView
       ),
     [stages, outcomeView]
   );
@@ -257,15 +264,21 @@ export default function DealsScreen() {
     brokerage?: {
       brokerage_type: 'percentage' | 'fixed';
       brokerage_value: number;
-    }
+    },
+    lost?: LostReasonInput
   ) {
     setMovingDeal(null);
     setBrokeragePrompt(null);
+    setLostPrompt(null);
+    if (!lost && isLostStage(stage)) {
+      setLostPrompt({ deal, stage });
+      return;
+    }
     if (
       !brokerage &&
       needsBrokerageCapture(
         { brokerage_amount: deal.brokerage_amount ?? null },
-        stage.name
+        stage
       )
     ) {
       setBrokerageType('percentage');
@@ -273,7 +286,7 @@ export default function DealsScreen() {
       setBrokeragePrompt({ deal, stage });
       return;
     }
-    if (isBrokeragePaidStage(stage.name)) {
+    if (isBrokeragePaidStage(stage)) {
       haptic.success();
       setCelebrating(true);
     } else {
@@ -281,11 +294,12 @@ export default function DealsScreen() {
     }
     try {
       await moveDealStage(deal.id, {
-        status: dealStatusForStage(stage.name),
+        status: dealStatusForStage(stage),
         target_stage_id: stage.id,
         property_id: deal.property_id ?? null,
         current_stage_name: stage.name,
         ...brokerage,
+        ...lost,
       });
     } catch (err) {
       haptic.warn();
@@ -297,7 +311,7 @@ export default function DealsScreen() {
       });
       return;
     }
-    setOutcomeView(pipelineOutcomeForStage(stage.name));
+    setOutcomeView(pipelineOutcomeForStage(stage));
     setStageId(stage.id);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['deals', activePipeline] }),
@@ -310,13 +324,13 @@ export default function DealsScreen() {
       (a, b) => a.position - b.position
     );
     const target =
-      orderedStages.find((stage) => isBrokeragePendingStage(stage.name)) ??
+      orderedStages.find((stage) => isBrokeragePendingStage(stage)) ??
       [...orderedStages]
         .reverse()
         .find(
           (stage) =>
-            pipelineOutcomeForStage(stage.name) === 'successful' &&
-            !isBrokeragePaidStage(stage.name)
+            pipelineOutcomeForStage(stage) === 'successful' &&
+            !isBrokeragePaidStage(stage)
         );
     if (!target) {
       show({
@@ -448,7 +462,7 @@ export default function DealsScreen() {
       {segment === 'board' && stageDeals.length > 0 ? (
         <Text style={[styles.stageSummary, { color: colors.textMuted }]}>
           {stageDeals.length} deal{stageDeals.length === 1 ? '' : 's'} ·{' '}
-          {selectedStage && isBrokeragePaidStage(selectedStage.name)
+          {selectedStage && isBrokeragePaidStage(selectedStage)
             ? `Brokerage received ${formatInr(stageBrokerage)}`
             : formatInr(stageValue)}
         </Text>
@@ -506,6 +520,15 @@ export default function DealsScreen() {
       )}
 
       {celebrating ? <Confetti onDone={() => setCelebrating(false)} /> : null}
+
+      <LostReasonSheet
+        dealTitle={lostPrompt?.deal.title ?? null}
+        onClose={() => setLostPrompt(null)}
+        onConfirm={(lost) =>
+          lostPrompt &&
+          void moveDeal(lostPrompt.deal, lostPrompt.stage, undefined, lost)
+        }
+      />
 
       <BottomSheet
         visible={brokeragePrompt !== null}
@@ -800,7 +823,7 @@ function DealCard({
 }) {
   const { colors, fonts: f } = useTheme();
   const contactName = deal.contact?.name || deal.contact?.phone;
-  const brokeragePaid = stage ? isBrokeragePaidStage(stage.name) : false;
+  const brokeragePaid = stage ? isBrokeragePaidStage(stage) : false;
   const indexRow = dealIndexRow(deal);
   const headline = transactionTitle(indexRow);
   const subtitle = transactionSubtitle(indexRow);
@@ -858,6 +881,18 @@ function DealCard({
             </Text>
           </Pressable>
         </Link>
+      ) : null}
+
+      {deal.status === 'lost' && lostReasonLabel(deal) ? (
+        <View style={styles.receiptRow}>
+          <Ionicons name="close-circle" size={15} color={colors.danger} />
+          <Text
+            style={{ flex: 1, fontSize: 12.5, color: colors.danger }}
+            numberOfLines={2}
+          >
+            {lostReasonLabel(deal)}
+          </Text>
+        </View>
       ) : null}
 
       {brokeragePaid ? (
