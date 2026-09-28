@@ -60,7 +60,9 @@ import {
   JOURNEY_SORT_LABELS,
   focusBuckets,
   journeyEnquiryLabel,
+  journeyEnquirySourceOptions,
   journeyRaceLabel,
+  matchesJourneyEnquirySource,
   sortJourneys,
   splitItemsAtStage,
   type ClosedJourneyStatus,
@@ -99,6 +101,7 @@ interface JourneyGroup {
   lastEnquiredAt: string | null;
   lastEnquirySource: string | null;
   enquirySourceCount: number;
+  enquirySources: string[];
   lifecycleStatus: JourneyLifecycleStatus;
   closureReason: string | null;
   archivedAt: string | null;
@@ -233,6 +236,7 @@ export function JourneyBody() {
   );
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
+  const [enquirySource, setEnquirySource] = useState<string | null>(null);
   const [sort, setSort] = useState<JourneySort>(DEFAULT_JOURNEY_SORT);
   const [focusedBucket, setFocusedBucket] = useState<string | null>(null);
   const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(
@@ -412,6 +416,7 @@ export function JourneyBody() {
           lastEnquiredAt: enquiry?.last_enquired_at ?? null,
           lastEnquirySource: enquiry?.last_enquiry_source ?? null,
           enquirySourceCount: Number(enquiry?.enquiry_source_count ?? 0),
+          enquirySources: enquiry?.enquiry_sources ?? [],
           lifecycleStatus: state?.lifecycle_status ?? 'active',
           closureReason: state?.closure_reason ?? null,
           archivedAt: state?.archived_at ?? null,
@@ -455,7 +460,7 @@ export function JourneyBody() {
     });
   }, [groups, mode, query]);
 
-  const viewGroups = useMemo(
+  const inView = useMemo(
     () =>
       searchedGroups.filter((group) => {
         if (view === 'archived') return Boolean(group.archivedAt);
@@ -465,6 +470,19 @@ export function JourneyBody() {
           : group.lifecycleStatus === 'active';
       }),
     [searchedGroups, view]
+  );
+
+  const sourceOptions = useMemo(
+    () => journeyEnquirySourceOptions(inView, enquirySource),
+    [enquirySource, inView]
+  );
+
+  const viewGroups = useMemo(
+    () =>
+      inView.filter((group) =>
+        matchesJourneyEnquirySource(group, enquirySource)
+      ),
+    [enquirySource, inView]
   );
 
   const counts = useMemo(
@@ -959,6 +977,7 @@ export function JourneyBody() {
                 setMode(value);
                 setView('active');
                 setQuery('');
+                setEnquirySource(null);
                 setOrderOverrides(new Map());
                 setOpenGroups(new Set());
                 setFocusedBucket(null);
@@ -1090,18 +1109,70 @@ export function JourneyBody() {
         })}
       </ScrollView>
 
+      {sourceOptions.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.sortChips}
+        >
+          {[
+            { source: null, label: 'All sources' },
+            ...sourceOptions.map((option) => ({
+              source: option.source,
+              label: `${option.source} ${option.count}`,
+            })),
+          ].map(({ source, label }) => {
+            const selected = enquirySource === source;
+            return (
+              <Pressable
+                key={source ?? 'all'}
+                onPress={() => setEnquirySource(source)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={
+                  source ? `Enquiry source ${label}` : 'All enquiry sources'
+                }
+                style={[
+                  styles.sortChip,
+                  {
+                    backgroundColor: selected ? colors.glass : 'transparent',
+                    borderColor: selected ? colors.primary : colors.glassBorder,
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontFamily: f.bold,
+                    color: selected ? colors.primary : colors.textMuted,
+                  }}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
+
       {!isLoading && buckets.length === 0 ? (
         <EmptyState
           icon="map-outline"
-          title={query ? 'No matching journeys' : `No ${view} journeys`}
+          title={
+            query || enquirySource
+              ? 'No matching journeys'
+              : `No ${view} journeys`
+          }
           subtitle={
-            query
-              ? mode === 'buyer'
-                ? 'Try another name or mobile number.'
-                : 'Try another property, code or location.'
-              : view === 'active'
-                ? 'Journeys are captured when you share properties over WhatsApp.'
-                : 'Closed and archived journeys stay available here for later reference.'
+            enquirySource && !query
+              ? `No ${view} journeys have an enquiry from ${enquirySource}.`
+              : query
+                ? mode === 'buyer'
+                  ? 'Try another name or mobile number.'
+                  : 'Try another property, code or location.'
+                : view === 'active'
+                  ? 'Journeys are captured when you share properties over WhatsApp.'
+                  : 'Closed and archived journeys stay available here for later reference.'
           }
         />
       ) : (

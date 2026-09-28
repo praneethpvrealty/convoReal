@@ -96,7 +96,9 @@ import {
   JOURNEY_SORT_LABELS,
   focusBuckets,
   journeyEnquiryLabel,
+  journeyEnquirySourceOptions,
   journeyRaceLabel,
+  matchesJourneyEnquirySource,
   navigateJourney,
   sortJourneys,
   type JourneyMode,
@@ -120,6 +122,7 @@ interface JourneyGroup {
   lastEnquiredAt: string | null;
   lastEnquirySource: string | null;
   enquirySourceCount: number;
+  enquirySources: string[];
   priority: JourneyPriority | null;
   lifecycleStatus: JourneyLifecycleStatus;
   closureReason: string | null;
@@ -254,6 +257,7 @@ export function JourneyOverview({
   );
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
+  const [enquirySource, setEnquirySource] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
   const [toolbarHeight, setToolbarHeight] = useState(0);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -272,6 +276,7 @@ export function JourneyOverview({
       setCollapsedIds(readIdSet(collapsedKey));
       setView('active');
       setQuery('');
+      setEnquirySource(null);
       setShowHidden(false);
     });
   }, [collapsedKey, hiddenKey, mode, openKey, sortKey]);
@@ -420,6 +425,7 @@ export function JourneyOverview({
           enquirySourceCount: Number(
             enquiries.get(row.subject_id)?.enquiry_source_count ?? 0
           ),
+          enquirySources: enquiries.get(row.subject_id)?.enquiry_sources ?? [],
           priority: priorities.get(row.subject_id) ?? null,
           lifecycleStatus: state?.lifecycle_status ?? 'active',
           closureReason: state?.closure_reason ?? null,
@@ -454,17 +460,34 @@ export function JourneyOverview({
     [groups, mode, query]
   );
 
-  const viewGroups = useMemo(() => {
-    const filtered = searched.filter((group) => {
-      if (view === 'archived') return Boolean(group.archivedAt);
-      if (group.archivedAt) return false;
-      if (view === 'closed') return group.lifecycleStatus !== 'active';
-      return (
-        group.lifecycleStatus === 'active' && !hiddenIds.has(group.subjectId)
-      );
-    });
-    return sortJourneys(filtered, sort);
-  }, [hiddenIds, searched, sort, view]);
+  const inView = useMemo(
+    () =>
+      searched.filter((group) => {
+        if (view === 'archived') return Boolean(group.archivedAt);
+        if (group.archivedAt) return false;
+        if (view === 'closed') return group.lifecycleStatus !== 'active';
+        return (
+          group.lifecycleStatus === 'active' && !hiddenIds.has(group.subjectId)
+        );
+      }),
+    [hiddenIds, searched, view]
+  );
+
+  const sourceOptions = useMemo(
+    () => journeyEnquirySourceOptions(inView, enquirySource),
+    [enquirySource, inView]
+  );
+
+  const viewGroups = useMemo(
+    () =>
+      sortJourneys(
+        inView.filter((group) =>
+          matchesJourneyEnquirySource(group, enquirySource)
+        ),
+        sort
+      ),
+    [enquirySource, inView, sort]
+  );
 
   const hiddenGroups = useMemo(
     () =>
@@ -847,6 +870,43 @@ export function JourneyOverview({
               </button>
             )}
           </div>
+          {sourceOptions.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                aria-label="Filter by enquiry source"
+                className={cn(
+                  'inline-flex max-w-44 shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors',
+                  enquirySource
+                    ? 'border-primary/60 bg-primary/10 text-primary'
+                    : 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
+                )}
+              >
+                <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                <span className="hidden truncate sm:inline">
+                  {enquirySource ?? 'All sources'}
+                </span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="border-slate-700 bg-slate-900"
+              >
+                <DropdownMenuItem onClick={() => setEnquirySource(null)}>
+                  All sources
+                </DropdownMenuItem>
+                {sourceOptions.map((option) => (
+                  <DropdownMenuItem
+                    key={option.source}
+                    onClick={() => setEnquirySource(option.source)}
+                  >
+                    <span className="flex-1 truncate">{option.source}</span>
+                    <span className="ml-3 text-slate-500 tabular-nums">
+                      {option.count}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800">
               <ArrowDownWideNarrow className="h-3.5 w-3.5" />
@@ -967,8 +1027,8 @@ export function JourneyOverview({
 
       {viewGroups.length === 0 && !focusActive && (
         <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-6 py-10 text-center text-sm text-slate-400">
-          {query
-            ? 'No journeys match this search.'
+          {query || enquirySource
+            ? 'No journeys match these filters.'
             : view === 'active'
               ? 'No active journeys.'
               : view === 'closed'
