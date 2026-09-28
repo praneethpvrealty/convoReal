@@ -798,6 +798,9 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).not.toContain('setEnquirySource(null);');
     expect(webOverview).toContain('aria-label="Clear source filter"');
     expect(screen).toContain('accessibilityLabel="Clear source filter"');
+    expect(screen).toContain(
+      'journeySourceChips(sourceOptions, enquirySource)'
+    );
     for (const source of [screen, webOverview]) {
       expect(source).toMatch(/\{enquirySource \? \(|\{enquirySource && \(/);
     }

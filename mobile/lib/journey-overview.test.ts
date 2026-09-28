@@ -5,6 +5,7 @@ import {
   focusBuckets,
   journeyEnquiryLabel,
   journeyEnquirySourceOptions,
+  journeySourceChips,
   matchesJourneyEnquirySource,
   normalizeJourneyEnquirySource,
   journeyRaceLabel,
@@ -207,5 +208,28 @@ describe('journey enquiry source filter', () => {
     expect(normalizeJourneyEnquirySource('x'.repeat(300))).toBe(
       'x'.repeat(300)
     );
+  });
+});
+
+describe('journeySourceChips', () => {
+  const options = [
+    { source: 'Housing', count: 98 },
+    { source: 'Magic Bricks', count: 34 },
+    { source: 'Manual', count: 14 },
+  ];
+
+  it('[JRN-012] leads with the remembered source so it shows without scrolling', () => {
+    expect(
+      journeySourceChips(options, 'Manual').map((chip) => chip.label)
+    ).toEqual(['Manual 14', 'All sources', 'Housing 98', 'Magic Bricks 34']);
+  });
+
+  it('[JRN-012] starts with All sources when no source is chosen', () => {
+    expect(journeySourceChips(options, null).map((chip) => chip.label)).toEqual(
+      ['All sources', 'Housing 98', 'Magic Bricks 34', 'Manual 14']
+    );
+    expect(journeySourceChips([], null)).toEqual([
+      { source: null, label: 'All sources' },
+    ]);
   });
 });

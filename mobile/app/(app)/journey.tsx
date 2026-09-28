@@ -62,6 +62,7 @@ import {
   journeyEnquiryLabel,
   journeyEnquirySourceOptions,
   journeyRaceLabel,
+  journeySourceChips,
   matchesJourneyEnquirySource,
   sortJourneys,
   splitItemsAtStage,
@@ -1146,43 +1147,41 @@ export function JourneyBody() {
               </Text>
             </Pressable>
           ) : null}
-          {[
-            { source: null, label: 'All sources' },
-            ...sourceOptions.map((option) => ({
-              source: option.source,
-              label: `${option.source} ${option.count}`,
-            })),
-          ].map(({ source, label }) => {
-            const selected = enquirySource === source;
-            return (
-              <Pressable
-                key={source ?? 'all'}
-                onPress={() => setEnquirySource(source)}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={
-                  source ? `Enquiry source ${label}` : 'All enquiry sources'
-                }
-                style={[
-                  styles.sortChip,
-                  {
-                    backgroundColor: selected ? colors.glass : 'transparent',
-                    borderColor: selected ? colors.primary : colors.glassBorder,
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontFamily: f.bold,
-                    color: selected ? colors.primary : colors.textMuted,
-                  }}
+          {journeySourceChips(sourceOptions, enquirySource).map(
+            ({ source, label }) => {
+              const selected = enquirySource === source;
+              return (
+                <Pressable
+                  key={source ?? 'all'}
+                  onPress={() => setEnquirySource(source)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={
+                    source ? `Enquiry source ${label}` : 'All enquiry sources'
+                  }
+                  style={[
+                    styles.sortChip,
+                    {
+                      backgroundColor: selected ? colors.glass : 'transparent',
+                      borderColor: selected
+                        ? colors.primary
+                        : colors.glassBorder,
+                    },
+                  ]}
                 >
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontFamily: f.bold,
+                      color: selected ? colors.primary : colors.textMuted,
+                    }}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            }
+          )}
         </ScrollView>
       ) : null}
 
