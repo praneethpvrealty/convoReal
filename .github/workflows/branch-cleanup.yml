@@ -1,0 +1,56 @@
+name: Branch cleanup
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    # 02:47 IST (21:17 UTC)
+    - cron: '17 21 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List what would be deleted without deleting it
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: branch-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Delete finished agent/ and release/ branches
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.merged &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       (startsWith(github.event.pull_request.head.ref, 'agent/') ||
+        startsWith(github.event.pull_request.head.ref, 'release/')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: src/scripts/branch-cleanup.mjs
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/github-script@v8
+        env:
+          ONLY_BRANCH: ${{ github.event.pull_request.head.ref }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        with:
+          script: |
+            const { run } = await import(`${process.env.GITHUB_WORKSPACE}/src/scripts/branch-cleanup.mjs`);
+            await run({
+              github,
+              context,
+              core,
+              only: process.env.ONLY_BRANCH || null,
+              dryRun: process.env.DRY_RUN === 'true',
+            });
