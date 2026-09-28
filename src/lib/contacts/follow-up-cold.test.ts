@@ -9,6 +9,8 @@ let enquiryReadFails = false;
 let closeFails = false;
 let coolFails = false;
 let repointFails = false;
+let enquiryOpensDuringCold: { id: string; title: string } | null = null;
+let rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
 let enquiryReadsBeforeFailure = 0;
 
 vi.mock('@/lib/whatsapp/enquiry-review', async (importOriginal) => {
@@ -66,6 +68,23 @@ function fakeDb(
 ) {
   const updates: Update[] = [];
   const db = {
+    async rpc(name: string, args: Record<string, unknown>) {
+      rpcCalls.push({ name, args });
+      if (coolFails) return { data: null, error: { message: 'timeout' } };
+      if (enquiryOpensDuringCold) {
+        const ids = args.p_contact_ids as string[];
+        openByContact[ids[0]] = [
+          ...(openByContact[ids[0]] ?? []),
+          enquiryOpensDuringCold,
+        ];
+        return {
+          data: { cooled: 0, open_property_ids: [enquiryOpensDuringCold.id] },
+          error: null,
+        };
+      }
+      updates.push({ patch: { lead_temp: 'COLD' }, filters: [`rpc ${name}`] });
+      return { data: { cooled: 1, open_property_ids: [] }, error: null };
+    },
     from(table: string) {
       const filters: string[] = [];
       let patch: Record<string, unknown> | null = null;
@@ -132,6 +151,8 @@ describe('[INB-021] markFollowUpCold', () => {
     closeFails = false;
     coolFails = false;
     repointFails = false;
+    enquiryOpensDuringCold = null;
+    rpcCalls = [];
     enquiryReadsBeforeFailure = 0;
   });
 
@@ -310,6 +331,79 @@ describe('[INB-021] markFollowUpCold', () => {
 
     expect(closed).toEqual([{ contactId: 'rohit', propertyId: PLOT.id }]);
     expect(outcome).toEqual({ scope: 'unmoved', property: PLOT, next: HOUSE });
+  });
+
+  it('decides and cools in one locked database step', async () => {
+    openByContact = { rohit: [PLOT] };
+    const { db } = fakeDb([PLOT]);
+
+    await markFollowUpCold(db, {
+      accountId: 'acct-1',
+      partyIds: ['rohit'],
+      propertyId: PLOT.id,
+    });
+
+    expect(rpcCalls).toEqual([
+      {
+        name: 'mark_party_cold_unless_open',
+        args: {
+          p_account_id: 'acct-1',
+          p_contact_ids: ['rohit'],
+          p_past_stage_kinds: ['closing', 'won'],
+        },
+      },
+    ]);
+  });
+
+  it('keeps the lead hot when an enquiry opens just before the cold lands', async () => {
+    openByContact = { rohit: [PLOT] };
+    enquiryOpensDuringCold = HOUSE;
+    const { db, updates } = fakeDb([PLOT, HOUSE]);
+
+    const outcome = await markFollowUpCold(db, {
+      accountId: 'acct-1',
+      partyIds: ['rohit'],
+      propertyId: PLOT.id,
+    });
+
+    expect(outcome).toMatchObject({ scope: 'property', stillOpen: [HOUSE] });
+    expect(updates.some((u) => 'lead_temp' in u.patch)).toBe(false);
+  });
+
+  it('locks the contact rows in the migration and in every branch writer', () => {
+    const sql = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260928081502_mark_party_cold_unless_open.sql'
+      ),
+      'utf8'
+    );
+    expect(sql).toContain('ORDER BY c.id\n  FOR UPDATE;');
+    expect(sql).toContain('FOR KEY SHARE');
+    expect(sql).toMatch(
+      /journey_item_lock_contact\(\)\nRETURNS trigger\nLANGUAGE plpgsql\nSECURITY DEFINER/
+    );
+    expect(sql).toContain(
+      'BEFORE INSERT OR UPDATE OF status, contact_id ON journey_items'
+    );
+    expect(sql).toContain("WHEN (NEW.status = 'active')");
+    expect(sql).toContain('FROM PUBLIC, anon, authenticated');
+
+    const stages = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260928082716_mark_party_cold_lock_stages.sql'
+      ),
+      'utf8'
+    );
+    expect(stages).toContain('ORDER BY s.id\n  FOR SHARE;');
+    expect(stages.indexOf('FOR SHARE;')).toBeLessThan(
+      stages.indexOf('SELECT array_agg(DISTINCT ji.property_id)')
+    );
+    expect(stages).toContain(
+      'BEFORE INSERT OR UPDATE OF status, contact_id, stage_id ON journey_items'
+    );
+    expect(stages).toContain('FROM PUBLIC, anon, authenticated');
   });
 
   it('marks the lead cold when the card named no listing', async () => {

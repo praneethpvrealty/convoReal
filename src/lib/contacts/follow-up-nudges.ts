@@ -39,6 +39,7 @@ import {
   partyLastTouch,
 } from '@/lib/contacts/parties';
 import { loadPastEnquiryContacts } from '@/lib/journey/past-enquiry';
+import { PAST_ENQUIRY_STAGE_KINDS } from '@/components/journey/shared';
 import { describeEnquiredProperty } from '@/lib/whatsapp/enquiry-notice-template';
 import {
   buildJourneyCheckinParams,
@@ -840,7 +841,10 @@ export type FollowUpColdOutcome =
  * that listing was the last open enquiry, or the card named none, does
  * the lead itself go COLD. A named listing that can no longer be read
  * changes nothing, and neither does a failed read of the open
- * enquiries: guessing lead-wide would drop every other enquiry. A close
+ * enquiries: guessing lead-wide would drop every other enquiry. The
+ * last check for an open enquiry and the COLD update run as one locked
+ * step in the database, so an enquiry arriving meanwhile keeps the lead
+ * hot. A close
  * that left the branch active cannot be undone here, so the lead keeps
  * its temperature and the agent is told the close did not finish.
  */
@@ -917,18 +921,32 @@ export async function markFollowUpCold(
     const before = stillOpen;
     stillOpen = await otherOpen().catch(() => before);
 
-    if (stillOpen.length) {
-      const { error: repointError } = await db
-        .from('contacts')
-        .update({ last_inquired_property_id: stillOpen[0].id, updated_at: now })
-        .in('id', partyIds)
-        .eq('account_id', accountId)
-        .eq('last_inquired_property_id', property.id);
-      if (repointError) {
-        return { scope: 'unmoved', property, next: stillOpen[0] };
-      }
-      return { scope: 'property', property, stillOpen };
+    if (!stillOpen.length) {
+      const { data, error: coolError } = await db.rpc(
+        'mark_party_cold_unless_open',
+        {
+          p_account_id: accountId,
+          p_contact_ids: partyIds,
+          p_past_stage_kinds: PAST_ENQUIRY_STAGE_KINDS,
+        }
+      );
+      const cooled = data as { cooled: number } | null;
+      if (coolError || !cooled) return { scope: 'incomplete', property };
+      if (cooled.cooled > 0) return { scope: 'lead', property };
+      stillOpen = await otherOpen().catch(() => []);
+      if (!stillOpen.length) return { scope: 'incomplete', property };
     }
+
+    const { error: repointError } = await db
+      .from('contacts')
+      .update({ last_inquired_property_id: stillOpen[0].id, updated_at: now })
+      .in('id', partyIds)
+      .eq('account_id', accountId)
+      .eq('last_inquired_property_id', property.id);
+    if (repointError) {
+      return { scope: 'unmoved', property, next: stillOpen[0] };
+    }
+    return { scope: 'property', property, stillOpen };
   }
 
   const { data: cooled, error: coolError } = await db

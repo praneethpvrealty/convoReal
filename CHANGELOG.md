@@ -19,6 +19,13 @@ than a written entry. Newest first.
 
 #### 28 September 2026
 
+- **Mark cold can no longer race a new enquiry.** Tapping ❄️ Mark cold on
+  a follow-up card checks for another open enquiry and marks the lead COLD
+  in one locked database step. An enquiry that arrives in the same moment
+  now keeps the lead hot and is named as still tracked, instead of the
+  lead going cold with a live enquiry. **Migrations required:**
+  `20260928081502_mark_party_cold_unless_open.sql`, then
+  `20260928082716_mark_party_cold_lock_stages.sql`.
 - **Co-broking on deals.** When you sit between a buyer's agent and a
   seller's agent, collect the commission and pay them their share, the
   deal now records it. Overview → Co-broking (web and mobile): set your
