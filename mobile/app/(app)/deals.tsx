@@ -211,9 +211,23 @@ export default function DealsScreen() {
       ),
     [visibleStages, deals]
   );
+  const openingKey = `${activePipeline}:${outcomeView}`;
+  const [openingStage, setOpeningStage] = useState<{
+    key: string;
+    id: string;
+  } | null>(null);
+  if (deals && visibleStages.length > 0 && openingStage?.key !== openingKey) {
+    setOpeningStage({
+      key: openingKey,
+      id: visibleStages[initialWheelStageIndex(visibleStageCounts)].id,
+    });
+  }
+  const openedStageId =
+    openingStage?.key === openingKey ? openingStage.id : null;
   const activeStage =
     visibleStages.find((stage) => stage.id === stageId)?.id ??
-    visibleStages[initialWheelStageIndex(visibleStageCounts)]?.id ??
+    visibleStages.find((stage) => stage.id === openedStageId)?.id ??
+    visibleStages[0]?.id ??
     null;
   const stageDeals = useMemo(
     () => (deals ?? []).filter((d) => d.stage_id === activeStage),

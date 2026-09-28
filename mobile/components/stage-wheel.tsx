@@ -11,6 +11,7 @@ import {
 import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -75,6 +76,12 @@ export function StageWheel({
     }
   }
 
+  function settleWithoutMomentum(
+    event: NativeSyntheticEvent<NativeScrollEvent>
+  ) {
+    if (Math.abs(event.nativeEvent.velocity?.x ?? 0) < 0.05) settle(event);
+  }
+
   function turn(step: number) {
     const stage = stages[wrapStageIndex(activeIndex + step, stages.length)];
     if (!stage) return;
@@ -104,6 +111,7 @@ export function StageWheel({
             decelerationRate="fast"
             scrollEventThrottle={16}
             onScroll={onScroll}
+            onScrollEndDrag={settleWithoutMomentum}
             onMomentumScrollEnd={settle}
             contentOffset={{ x: activeIndex * ITEM_WIDTH, y: 0 }}
             contentContainerStyle={{ paddingHorizontal: inset }}
@@ -162,7 +170,9 @@ function WheelFace({
   onPress: () => void;
 }) {
   const { fonts: f } = useTheme();
+  const reducedMotion = useReducedMotion();
   const motion = useAnimatedStyle(() => {
+    if (reducedMotion) return { opacity: 1, transform: [] };
     const m = stageWheelMotion(
       (index * ITEM_WIDTH - scrollX.value) / ITEM_WIDTH
     );
