@@ -165,8 +165,9 @@ CREATE TRIGGER trg_deal_co_broker_payout_total
 -- payouts, counted under a per-deal lock so concurrent inserts cannot
 -- both pass; a payout belongs to its deal's account (the sum
 -- is written back to the deal as the definer, so a payout aimed at
--- another account's deal must never land); a named stakeholder is a
--- broker on the same deal. A payout goes with its deal when the deal is deleted.
+-- another account's deal must never land); a stakeholder named on a
+-- payout is a broker on the same deal when it is named (a later role
+-- change leaves the payout's history alone and never blocks paying it). A payout goes with its deal when the deal is deleted.
 CREATE OR REPLACE FUNCTION deal_co_broker_payouts_guard()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -212,7 +213,9 @@ BEGIN
     RAISE EXCEPTION 'The payout and its deal belong to different accounts'
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
-  IF NEW.stakeholder_id IS NOT NULL AND NOT EXISTS (
+  IF NEW.stakeholder_id IS NOT NULL
+     AND (TG_OP = 'INSERT' OR NEW.stakeholder_id IS DISTINCT FROM OLD.stakeholder_id)
+     AND NOT EXISTS (
     SELECT 1 FROM deal_stakeholders s
     WHERE s.id = NEW.stakeholder_id AND s.deal_id = NEW.deal_id
       AND s.role = 'broker'
