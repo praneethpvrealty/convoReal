@@ -28,11 +28,15 @@ describe('[PRP-024] a merged contact keeps where its enquiries came from', () =>
     expect(sql).toContain(
       "m.created_at BETWEEN cpi.created_at AND cpi.created_at + INTERVAL '10 seconds'"
     );
-    expect(sql).toContain('l.matched_property_id = merged.property_id');
+    expect(sql).toContain('e.matched_property_id = merged.property_id');
     expect(sql).toContain(
-      'AND ppl.portal_listing_id = l.lead_portal_listing_id'
+      'AND ppl.portal_listing_id = e.lead_portal_listing_id'
     );
     expect(sql).toContain('AND cpi.inquiry_source IS NULL;');
     expect(sql).not.toContain("source_snapshot->>'source'");
+    expect(sql).toContain(
+      "WHEN sender_domain LIKE '%magicbricks.com' THEN 'magicbricks'"
+    );
+    expect(sql).not.toContain('CASE l.lead_portal');
   });
 });

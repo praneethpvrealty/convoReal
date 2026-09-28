@@ -12,38 +12,56 @@ WITH merged AS (
   WHERE cpi.inquiry_source IS NULL
   ORDER BY cpi.id, m.created_at
 ),
+lead_emails AS (
+  SELECT
+    l.account_id,
+    l.created_at,
+    l.matched_property_id,
+    l.lead_portal_listing_id,
+    right(regexp_replace(coalesce(l.extracted_phone, ''), '\D', '', 'g'), 10) AS phone,
+    CASE
+      WHEN sender_domain LIKE '%magicbricks.com' THEN 'magicbricks'
+      WHEN sender_domain LIKE '%housing-mailer.com'
+        OR sender_domain LIKE '%housing.com' THEN 'housing'
+      WHEN sender_domain LIKE '%99acres.com' THEN '99acres'
+    END AS portal
+  FROM public.email_sync_logs l,
+    LATERAL (
+      SELECT lower(split_part(split_part(l.sender, '@', 2), '>', 1)) AS sender_domain
+    ) d
+),
 evidence AS (
   SELECT DISTINCT ON (merged.id)
     merged.id,
-    CASE l.lead_portal
+    CASE e.portal
       WHEN 'magicbricks' THEN 'Magic Bricks'
       WHEN 'housing' THEN 'Housing'
       WHEN '99acres' THEN '99acres'
     END AS source
   FROM merged
-  JOIN public.email_sync_logs l
-    ON l.account_id = merged.account_id
+  JOIN lead_emails e
+    ON e.account_id = merged.account_id
    AND length(merged.phone) = 10
-   AND right(regexp_replace(coalesce(l.extracted_phone, ''), '\D', '', 'g'), 10) = merged.phone
-  WHERE l.lead_portal IN ('magicbricks', 'housing', '99acres')
+   AND e.phone = merged.phone
+  WHERE e.portal IS NOT NULL
     AND (
-      l.matched_property_id = merged.property_id
+      e.matched_property_id = merged.property_id
       OR EXISTS (
         SELECT 1 FROM public.property_portal_listings ppl
         WHERE ppl.account_id = merged.account_id
           AND ppl.property_id = merged.property_id
-          AND ppl.portal = l.lead_portal
-          AND ppl.portal_listing_id = l.lead_portal_listing_id
+          AND ppl.portal = e.portal
+          AND ppl.portal_listing_id = e.lead_portal_listing_id
       )
       OR EXISTS (
         SELECT 1 FROM public.property_portal_listing_aliases ppla
         WHERE ppla.account_id = merged.account_id
           AND ppla.property_id = merged.property_id
-          AND ppla.portal = l.lead_portal
-          AND ppla.portal_listing_id = l.lead_portal_listing_id
+          AND ppla.portal = e.portal
+          AND ppla.portal_listing_id = e.lead_portal_listing_id
       )
     )
-  ORDER BY merged.id, l.created_at DESC
+  ORDER BY merged.id, e.created_at DESC
 )
 UPDATE public.contact_property_inquiries cpi
   SET inquiry_source = evidence.source
