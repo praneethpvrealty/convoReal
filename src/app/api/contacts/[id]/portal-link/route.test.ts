@@ -180,6 +180,33 @@ describe('POST /api/contacts/[id]/portal-link', () => {
     );
   });
 
+  it('removes the enquiries it just wrote when the leads cannot be moved', async () => {
+    queues['contacts'] = [
+      { data: HOUSING_LEAD },
+      { data: [{ id: 'c-1' }] },
+      { data: null, error: { message: 'contacts update failed' } },
+    ];
+    queues['properties'] = [
+      { data: { id: 'p-1', title: 'Koramangala 4 BHK' } },
+    ];
+    queues['property_portal_listings'] = [
+      { data: null },
+      { data: null },
+      { data: null },
+    ];
+    queues['property_portal_listing_aliases'] = [{ data: null }];
+    queues['contact_property_inquiries'] = [
+      { data: [{ id: 'inq-new' }] },
+      { data: null },
+    ];
+
+    const res = await POST(makeRequest({ propertyId: 'p-1' }) as never, {
+      params,
+    });
+    expect(res.status).toBe(500);
+    expect(deletes).toContainEqual({ table: 'contact_property_inquiries' });
+  });
+
   it('refuses to point one ad at a second listing', async () => {
     queues['contacts'] = [{ data: HOUSING_LEAD }];
     queues['properties'] = [{ data: { id: 'p-2', title: 'HSR Bungalow' } }];

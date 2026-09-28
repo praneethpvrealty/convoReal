@@ -211,7 +211,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       new Set([contactId, ...(siblings ?? []).map((c) => c.id)])
     );
 
-    const { error: inquiryErr } = await ctx.supabase
+    const { data: insertedInquiries, error: inquiryErr } = await ctx.supabase
       .from('contact_property_inquiries')
       .upsert(
         contactIds.map((id) => ({
@@ -222,7 +222,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           via_portal_link: true,
         })),
         { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
-      );
+      )
+      .select('id');
     if (inquiryErr) {
       return NextResponse.json({ error: inquiryErr.message }, { status: 500 });
     }
@@ -237,6 +238,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .eq('account_id', ctx.accountId)
       .select('id');
     if (retagErr) {
+      const insertedIds = (insertedInquiries ?? []).map((row) => row.id);
+      if (insertedIds.length > 0) {
+        await ctx.supabase
+          .from('contact_property_inquiries')
+          .delete()
+          .eq('account_id', ctx.accountId)
+          .in('id', insertedIds)
+          .select('id');
+      }
       return NextResponse.json({ error: retagErr.message }, { status: 500 });
     }
 
