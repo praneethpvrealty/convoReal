@@ -1268,6 +1268,39 @@
               "case": "[PRP-022]"
             }
           ]
+        },
+        {
+          "id": "PRP-023",
+          "rule": "An enquiry carries one source name per portal (\"Magic Bricks\", \"Housing\", \"99acres\") whether the lead arrived by email or an agent mapped its portal ad, and unmapping an ad removes only the enquiries that mapping created, never one the lead email recorded.",
+          "tests": [
+            {
+              "file": "src/lib/migrations/enquiry-source-spellings.test.ts",
+              "case": "enquiry sources use one spelling per portal"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/portal-link/route.test.ts",
+              "case": "maps the ad and tags every lead waiting on it"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260928022000_enquiry_via_portal_link.sql",
+            "supabase/migrations/20260928022100_enquiry_source_spellings.sql",
+            "src/lib/portals/post-kit.ts"
+          ]
+        },
+        {
+          "id": "PRP-024",
+          "rule": "Merging two contacts keeps each carried-over enquiry's source, date and notes, so a merged buyer still shows which portal or channel every enquiry came from and when.",
+          "tests": [
+            {
+              "file": "src/lib/migrations/merged-enquiry-sources.test.ts",
+              "case": "[PRP-024]"
+            }
+          ],
+          "guards": [
+            "src/app/api/contacts/merge/route.ts",
+            "supabase/migrations/20260928050000_merged_enquiry_sources.sql"
+          ]
         }
       ]
     },
@@ -2034,6 +2067,18 @@
             "supabase/migrations/20260928042711_deal_co_broking.sql",
             "supabase/migrations/20260928054500_deal_co_broking_hardening.sql",
             "supabase/migrations/20260928055000_co_broker_paid_within_amount.sql"
+          ]
+        },
+        {
+          "id": "TXW-024",
+          "rule": "Every dashboard revenue function (dashboard_metrics, dashboard_pipeline_donut, team_analytics, lead_source_analytics) counts the brokerage's own share of a deal: its brokerage, or the 2% fallback, less deals.co_broker_payout_total (the trigger-kept sum of what it pays co-brokers, which no client can write and whose upkeep never moves the deal's updated_at), floored at zero only when there are payouts, keeping each function's is_account_member guard and SECURITY DEFINER. A deal with no payouts reads exactly as before.",
+          "tests": [
+            { "file": "src/lib/migrations/co-broking-net-brokerage.test.ts", "case": "[TXW-024]" }
+          ],
+          "guards": [
+            "supabase/migrations/20260928042711_deal_co_broking.sql",
+            "supabase/migrations/20260928042712_co_broking_net_brokerage.sql",
+            "supabase/migrations/20260928054500_deal_co_broking_hardening.sql"
           ]
         }
       ]

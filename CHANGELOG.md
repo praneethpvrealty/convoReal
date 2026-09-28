@@ -30,11 +30,19 @@ than a written entry. Newest first.
   now count only your share (collected less payouts). Nothing changes for
   a deal with no payouts. Internal only: never shown on a stakeholder
   link, `/api/v1` or a public page. **Migration required:**
-  `20260928042711_deal_co_broking.sql` and
+  `20260928042711_deal_co_broking.sql`,
   `20260928054500_deal_co_broking_hardening.sql` and
-  `20260928055000_co_broker_paid_within_amount.sql`. The dashboard functions start
-  subtracting payouts with `20260928042712_co_broking_net_brokerage.sql`,
-  shipped as its own release.
+  `20260928055000_co_broker_paid_within_amount.sql`. The dashboard
+  functions subtract payouts through
+  `20260928042712_co_broking_net_brokerage.sql`, shipped first in #1088.
+- **The active pipeline turns like a wheel.** On the Deals board the
+  active stages now sit on a horizontal wheel: the focused stage faces
+  you and its neighbours turn away on either side. Swipe or scroll to
+  turn it, tap a stage in the dial above to bring it to the centre, or
+  use the arrows, which wrap from the last stage back to the first. The
+  board opens on the first stage holding deals, and dragging a deal
+  flattens the wheel so it drops where you see it. The mobile Deals
+  board's stage strip is the same wheel.
 - **Mark cold on a follow-up card now applies to that listing only.**
   Tapping ❄️ Mark cold used to set the whole lead COLD, so the radar
   stopped following every other property they had enquired on. It now

@@ -1,0 +1,78 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+const schema = readFileSync(
+  join(process.cwd(), 'supabase/migrations/20260928042711_deal_co_broking.sql'),
+  'utf8'
+);
+
+const sql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260928042712_co_broking_net_brokerage.sql'
+  ),
+  'utf8'
+);
+
+describe('[TXW-024] dashboard functions count the brokerage share', () => {
+  it('replaces every function that sums brokerage', () => {
+    for (const fn of [
+      'dashboard_metrics',
+      'dashboard_pipeline_donut',
+      'team_analytics',
+      'lead_source_analytics',
+    ]) {
+      expect(sql).toContain(`CREATE OR REPLACE FUNCTION public.${fn}(`);
+    }
+  });
+
+  it('subtracts co-broker payouts, floored at zero, in each of them', () => {
+    const net =
+      'CASE WHEN COALESCE(d.co_broker_payout_total, 0) = 0 THEN COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) ELSE GREATEST(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02) - d.co_broker_payout_total, 0) END';
+    expect(sql.split(net).length - 1).toBe(4);
+    expect(sql).not.toMatch(/SUM\(COALESCE\(d\.brokerage_amount/);
+  });
+
+  it('keeps every guard of the live bodies', () => {
+    expect(sql.match(/is_account_member\(p_account_id\)/g)?.length).toBe(4);
+    expect(sql.match(/SECURITY DEFINER/g)?.length).toBe(4);
+  });
+
+  it('trusts a payout total no client can write or skew', () => {
+    expect(schema).toContain(
+      'BEFORE INSERT OR UPDATE OF co_broker_payout_total ON deals'
+    );
+    expect(schema).toContain('IF pg_trigger_depth() <= 1 THEN');
+    expect(schema).toContain('NEW.updated_at := OLD.updated_at;');
+    expect(schema).toContain('CREATE TRIGGER trg_deal_co_broker_payout_total');
+    expect('trg_deal_co_broker_payout_total' > 'set_updated_at').toBe(true);
+    expect(schema).toContain(
+      'A payout stays on its deal. Remove it and add it to the other deal instead'
+    );
+  });
+
+  it('restates every post-application guard for a database that ran the first version', () => {
+    const hardening = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260928054500_deal_co_broking_hardening.sql'
+      ),
+      'utf8'
+    );
+    for (const piece of [
+      'DROP POLICY IF EXISTS deal_co_broker_payouts_modify ON deal_co_broker_payouts;',
+      'CHECK (amount > 0)',
+      'SET co_broker_payout_total = co_broker_payout_total + NEW.amount',
+      'NEW.updated_at := OLD.updated_at;',
+      'CREATE TRIGGER trg_deal_co_broker_payout_total',
+      'A payout stays on its deal',
+      'A paid payout cannot be marked unpaid',
+      "AND s.role = 'broker'",
+    ]) {
+      expect(hardening, piece).toContain(piece);
+      expect(schema, piece).toContain(piece);
+    }
+  });
+});

@@ -16,10 +16,12 @@ import {
 } from '@dnd-kit/core';
 import type { Deal, PipelineStage } from '@/types';
 import { DealCard } from './deal-card';
+import { StageWheel } from './stage-wheel';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { formatCurrency } from '@/lib/currency-utils';
 import { netOfPayouts } from '@/lib/deals/co-broking';
+import { cn } from '@/lib/utils';
 import {
   isBrokeragePaidStage,
   pipelineOutcomeForStage,
@@ -117,6 +119,33 @@ export function PipelineBoard({
             (stage) => pipelineOutcomeForStage(stage.name) === outcome
           );
           if (outcomeStages.length === 0) return null;
+          const renderStage = (stage: PipelineStage, layout: StageLayout) => {
+            const stageDeals = dealsByStage.get(stage.id) ?? [];
+            const totalValue = stageDeals.reduce(
+              (sum, deal) =>
+                sum +
+                netOfPayouts(
+                  deal.brokerage_amount !== null &&
+                    deal.brokerage_amount !== undefined
+                    ? Number(deal.brokerage_amount)
+                    : Number(deal.value || 0) * 0.02,
+                  deal.co_broker_payout_total
+                ),
+              0
+            );
+            return (
+              <StageColumn
+                key={stage.id}
+                stage={stage}
+                deals={stageDeals}
+                totalValue={totalValue}
+                onAddDeal={onAddDeal}
+                onEditDeal={onEditDeal}
+                currency={currency}
+                layout={layout}
+              />
+            );
+          };
           return (
             <section key={outcome} aria-label={label}>
               <div className="mb-2 flex items-center gap-3">
@@ -125,34 +154,20 @@ export function PipelineBoard({
                 </h2>
                 <div className="h-px flex-1 bg-slate-800" />
               </div>
-              <div className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:snap-none">
-                {outcomeStages.map((stage) => {
-                  const stageDeals = dealsByStage.get(stage.id) ?? [];
-                  const totalValue = stageDeals.reduce(
-                    (sum, deal) =>
-                      sum +
-                      netOfPayouts(
-                        deal.brokerage_amount !== null &&
-                          deal.brokerage_amount !== undefined
-                          ? Number(deal.brokerage_amount)
-                          : Number(deal.value || 0) * 0.02,
-                        deal.co_broker_payout_total
-                      ),
-                    0
-                  );
-                  return (
-                    <StageColumn
-                      key={stage.id}
-                      stage={stage}
-                      deals={stageDeals}
-                      totalValue={totalValue}
-                      onAddDeal={onAddDeal}
-                      onEditDeal={onEditDeal}
-                      currency={currency}
-                    />
-                  );
-                })}
-              </div>
+              {outcome === 'active' ? (
+                <StageWheel
+                  stages={outcomeStages}
+                  dealCounts={outcomeStages.map(
+                    (stage) => dealsByStage.get(stage.id)?.length ?? 0
+                  )}
+                  dragging={activeDealId !== null}
+                  renderStage={(stage) => renderStage(stage, 'wheel')}
+                />
+              ) : (
+                <div className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:snap-none">
+                  {outcomeStages.map((stage) => renderStage(stage, 'row'))}
+                </div>
+              )}
             </section>
           );
         })}
@@ -197,6 +212,8 @@ export function PipelineBoard({
   );
 }
 
+type StageLayout = 'row' | 'wheel';
+
 function StageColumn({
   stage,
   deals,
@@ -204,6 +221,7 @@ function StageColumn({
   onAddDeal,
   onEditDeal,
   currency,
+  layout,
 }: {
   stage: PipelineStage;
   deals: Deal[];
@@ -211,6 +229,7 @@ function StageColumn({
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
   currency: string;
+  layout: StageLayout;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
@@ -221,7 +240,14 @@ function StageColumn({
     // restore the flex-1 share-the-row behavior. The droppable ref is
     // on the inner messages region below — intentionally NOT here, so
     // a drag over the column header doesn't highlight the whole column.
-    <div className="flex w-[85vw] max-w-[320px] min-w-[260px] shrink-0 snap-start flex-col rounded-xl border border-slate-800 bg-slate-900/60 p-4 lg:w-auto lg:max-w-none lg:flex-1 lg:shrink lg:basis-[260px] lg:snap-none">
+    <div
+      className={cn(
+        'flex flex-col rounded-xl border border-slate-800 bg-slate-900/60 p-4',
+        layout === 'wheel'
+          ? 'w-full'
+          : 'w-[85vw] max-w-[320px] min-w-[260px] shrink-0 snap-start lg:w-auto lg:max-w-none lg:flex-1 lg:shrink lg:basis-[260px] lg:snap-none'
+      )}
+    >
       {/* 3px colored top border — sits above the column's padding */}
       <div
         className="-mx-4 -mt-4 h-[3px] rounded-t-xl"

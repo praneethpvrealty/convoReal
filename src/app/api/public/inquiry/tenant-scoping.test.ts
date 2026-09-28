@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 type Row = Record<string, unknown>;
 let fixtures: Record<string, Row[]>;
 let inserts: Record<string, Row[]>;
+let updates: Record<string, { row: Row; filters: Row; values: unknown[] }[]>;
 
 function makeAdmin() {
   return {
@@ -29,8 +30,15 @@ function makeAdmin() {
           mode = 'insert';
           return b;
         },
-        update: () => {
+        update: (row: Row) => {
           mode = 'update';
+          (updates[table] ||= []).push({
+            row,
+            filters,
+            get values() {
+              return included?.values ?? [];
+            },
+          });
           return b;
         },
         eq: (c: string, v: unknown) => {
@@ -124,6 +132,7 @@ beforeEach(() => {
     conversations: [],
   };
   inserts = {};
+  updates = {};
 });
 
 describe('POST /api/public/inquiry — cross-tenant user_id scoping', () => {
@@ -199,6 +208,10 @@ describe('showcase shortlist enquiries', () => {
     ).toEqual(IDS);
     for (const table of ['contact_notes', 'todos', 'messages'])
       expect(inserts[table]).toHaveLength(1);
+    const cleared = updates.contact_property_inquiries?.[0];
+    expect(cleared?.row).toEqual({ via_portal_link: false });
+    expect(cleared?.filters).toMatchObject({ via_portal_link: true });
+    expect(cleared?.values).toEqual(IDS);
     for (const id of IDS) {
       expect(inserts.contact_notes[0].note_text).toContain(id);
       expect(inserts.messages[0].content_text).toContain(id);
