@@ -109,9 +109,36 @@ CREATE TRIGGER sync_deal_co_broker_payout_total_trigger
 
 REVOKE ALL ON FUNCTION sync_deal_co_broker_payout_total() FROM PUBLIC, anon, authenticated;
 
+-- The total is derived, never written. An agent may update their deals
+-- directly (RLS allows it), so a write that did not come from the
+-- payout trigger above (trigger depth 1 or less) keeps the stored total
+-- and a new deal starts at zero.
+CREATE OR REPLACE FUNCTION protect_deal_co_broker_payout_total()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF pg_trigger_depth() <= 1 THEN
+    IF TG_OP = 'INSERT' THEN
+      NEW.co_broker_payout_total := 0;
+    ELSE
+      NEW.co_broker_payout_total := OLD.co_broker_payout_total;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS protect_deal_co_broker_payout_total_trigger ON deals;
+CREATE TRIGGER protect_deal_co_broker_payout_total_trigger
+  BEFORE INSERT OR UPDATE OF co_broker_payout_total ON deals
+  FOR EACH ROW EXECUTE FUNCTION protect_deal_co_broker_payout_total();
+
 -- The invariants, where a direct PostgREST write cannot skip them (the
 -- RLS policy lets any agent of the account write rows, as with
--- tranches): a paid payout is corrected, never removed, and its
+-- tranches): a payout never moves to another deal or account; a paid
+-- payout is corrected, never removed, and its
 -- payment is never cleared back to unpaid; a deal holds at most 20
 -- payouts, counted under a per-deal lock so concurrent inserts cannot
 -- both pass; a payout belongs to its deal's account (the sum
@@ -133,6 +160,12 @@ BEGIN
         USING ERRCODE = 'integrity_constraint_violation';
     END IF;
     RETURN OLD;
+  END IF;
+  IF TG_OP = 'UPDATE'
+     AND (NEW.deal_id IS DISTINCT FROM OLD.deal_id
+          OR NEW.account_id IS DISTINCT FROM OLD.account_id) THEN
+    RAISE EXCEPTION 'A payout stays on its deal. Remove it and add it to the other deal instead'
+      USING ERRCODE = 'integrity_constraint_violation';
   END IF;
   IF TG_OP = 'UPDATE'
      AND (OLD.paid_at IS NOT NULL OR COALESCE(OLD.paid_amount, 0) > 0)

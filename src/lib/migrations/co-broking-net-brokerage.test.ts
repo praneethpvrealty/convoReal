@@ -3,6 +3,11 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+const schema = readFileSync(
+  join(process.cwd(), 'supabase/migrations/20260928042711_deal_co_broking.sql'),
+  'utf8'
+);
+
 const sql = readFileSync(
   join(
     process.cwd(),
@@ -33,5 +38,15 @@ describe('[TXW-024] dashboard functions count the brokerage share', () => {
   it('keeps every guard of the live bodies', () => {
     expect(sql.match(/is_account_member\(p_account_id\)/g)?.length).toBe(4);
     expect(sql.match(/SECURITY DEFINER/g)?.length).toBe(4);
+  });
+
+  it('trusts a payout total no client can write or skew', () => {
+    expect(schema).toContain(
+      'BEFORE INSERT OR UPDATE OF co_broker_payout_total ON deals'
+    );
+    expect(schema).toContain('IF pg_trigger_depth() <= 1 THEN');
+    expect(schema).toContain(
+      'A payout stays on its deal. Remove it and add it to the other deal instead'
+    );
   });
 });
