@@ -99,6 +99,9 @@ export function DealCoBrokingPanel({
       queryClient.invalidateQueries({ queryKey: ['deal-co-broking', dealId] }),
       queryClient.invalidateQueries({ queryKey: ['deal-workspace', dealId] }),
       queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      queryClient.invalidateQueries({ queryKey: ['team-analytics'] }),
+      queryClient.invalidateQueries({ queryKey: ['lead-sources'] }),
     ]);
 
   async function run(

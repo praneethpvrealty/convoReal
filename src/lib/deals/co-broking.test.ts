@@ -89,8 +89,13 @@ describe('[TXW-023] co-broking payouts', () => {
       'utf8'
     );
     expect(sql).toContain(
-      'CHECK (paid_amount IS NULL OR paid_amount <= amount)'
+      'CHECK (paid_amount IS NULL OR (paid_amount > 0 AND paid_amount <= amount))'
     );
+    expect(parsePayoutPatch({ paid_amount: 0 })).toMatchObject({ ok: false });
+    expect(parsePayoutPatch({ paid_amount: null })).toEqual({
+      ok: true,
+      value: { paid_amount: null },
+    });
     const route = readFileSync(
       join(
         process.cwd(),

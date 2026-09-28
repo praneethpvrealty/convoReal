@@ -240,6 +240,12 @@ export function parsePayoutPatch(raw: unknown): ParseResult<PayoutPatch> {
   if (input.paid_amount !== undefined) {
     const r = money(input.paid_amount, 'Paid amount');
     if (!r.ok) return r;
+    if (r.value === 0) {
+      return {
+        ok: false,
+        error: 'Enter the amount paid, or leave it blank for the full amount',
+      };
+    }
     patch.paid_amount = r.value;
   }
   if (input.paid_at !== undefined) {
