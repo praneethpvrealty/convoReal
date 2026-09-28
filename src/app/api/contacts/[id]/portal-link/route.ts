@@ -245,6 +245,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           .delete()
           .eq('account_id', ctx.accountId)
           .in('id', insertedIds)
+          .eq('via_portal_link', true)
           .select('id');
       }
       return NextResponse.json({ error: retagErr.message }, { status: 500 });
