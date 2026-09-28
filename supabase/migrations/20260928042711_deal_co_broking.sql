@@ -75,30 +75,29 @@ DROP TRIGGER IF EXISTS set_updated_at ON deal_co_broker_payouts;
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON deal_co_broker_payouts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- The sum on the deal. SECURITY DEFINER because the writer is an agent
--- whose own deal UPDATE rights are not what decides the total: the
--- payout rows are.
+-- The sum on the deal, moved by each row's change rather than re-summed,
+-- so two concurrent edits on one deal cannot store a stale total: an
+-- UPDATE of the deal row re-reads its latest committed total under the
+-- row lock. SECURITY DEFINER because the writer is an agent whose own
+-- deal UPDATE rights are not what decides the total: the payout rows
+-- are.
 CREATE OR REPLACE FUNCTION sync_deal_co_broker_payout_total()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-DECLARE
-  target UUID;
 BEGIN
-  FOR target IN
-    SELECT DISTINCT d FROM unnest(ARRAY[
-      CASE WHEN TG_OP <> 'INSERT' THEN OLD.deal_id END,
-      CASE WHEN TG_OP <> 'DELETE' THEN NEW.deal_id END
-    ]) AS d WHERE d IS NOT NULL
-  LOOP
+  IF TG_OP IN ('UPDATE', 'DELETE') THEN
     UPDATE deals
-       SET co_broker_payout_total = COALESCE((
-         SELECT SUM(p.amount) FROM deal_co_broker_payouts p WHERE p.deal_id = target
-       ), 0)
-     WHERE id = target;
-  END LOOP;
+       SET co_broker_payout_total = co_broker_payout_total - OLD.amount
+     WHERE id = OLD.deal_id;
+  END IF;
+  IF TG_OP IN ('INSERT', 'UPDATE') THEN
+    UPDATE deals
+       SET co_broker_payout_total = co_broker_payout_total + NEW.amount
+     WHERE id = NEW.deal_id;
+  END IF;
   RETURN NULL;
 END;
 $$;

@@ -1368,6 +1368,9 @@ function CoBrokingSection({
   const [paidAt, setPaidAt] = useState('');
   const [paidAmount, setPaidAmount] = useState('');
   const [instrument, setInstrument] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editSide, setEditSide] = useState<PayoutSide | null>(null);
+  const [editAmount, setEditAmount] = useState('');
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['deal-co-broking', dealId],
@@ -1416,7 +1419,10 @@ function CoBrokingSection({
 
   function openPaid(p: DealCoBrokerPayoutRow) {
     setPaidFor(p);
-    setPaidAt(p.paid_at ?? localDateKey());
+    setEditName(p.payee_name);
+    setEditSide(p.side);
+    setEditAmount(String(p.amount));
+    setPaidAt(p.paid_at ?? '');
     setPaidAmount(p.paid_amount != null ? String(p.paid_amount) : '');
     setInstrument(p.instrument_ref ?? '');
   }
@@ -1573,13 +1579,41 @@ function CoBrokingSection({
               ]}
             >
               <Text style={[styles.cardTitle, { color: colors.text }]}>
-                Payment to {paidFor.payee_name} · {formatInr(paidFor.amount)}
+                Payout to {paidFor.payee_name}
               </Text>
               <TextField
-                label="Paid on (YYYY-MM-DD)"
+                label="Broker"
+                value={editName}
+                onChangeText={setEditName}
+              />
+              <View style={styles.chipRow}>
+                {(['buyer', 'seller'] as const).map((s) => (
+                  <FilterChip
+                    key={s}
+                    label={PAYOUT_SIDE_LABELS[s]}
+                    active={editSide === s}
+                    onPress={() => setEditSide(editSide === s ? null : s)}
+                  />
+                ))}
+              </View>
+              <TextField
+                label="Payout amount"
+                value={editAmount}
+                onChangeText={setEditAmount}
+                keyboardType="decimal-pad"
+              />
+              <TextField
+                label="Paid on (YYYY-MM-DD, blank = not yet)"
                 value={paidAt}
                 onChangeText={setPaidAt}
               />
+              {!paidAt ? (
+                <FilterChip
+                  label="Paid today"
+                  active={false}
+                  onPress={() => setPaidAt(localDateKey())}
+                />
+              ) : null}
               <TextField
                 label="Amount paid (blank = full)"
                 value={paidAmount}
@@ -1592,11 +1626,15 @@ function CoBrokingSection({
                 onChangeText={setInstrument}
               />
               <PrimaryButton
-                label="Save payment"
+                label="Save payout"
                 busy={busy === paidFor.id}
+                disabled={!editName.trim() || !editAmount}
                 onPress={() =>
                   void run(paidFor.id, async () => {
                     await updateCoBrokerPayout(dealId, paidFor.id, {
+                      payee_name: editName,
+                      side: editSide,
+                      amount: editAmount,
                       paid_at: paidAt || null,
                       paid_amount: paidAmount === '' ? null : paidAmount,
                       instrument_ref: instrument || null,
@@ -1608,7 +1646,7 @@ function CoBrokingSection({
               <Pressable
                 onPress={() => setPaidFor(null)}
                 accessibilityRole="button"
-                accessibilityLabel="Cancel payment"
+                accessibilityLabel="Cancel payout edit"
               >
                 <Text
                   style={{

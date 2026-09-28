@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Check, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -78,6 +78,9 @@ export function DealCoBrokingPanel({
   const [paidAt, setPaidAt] = useState('');
   const [paidAmount, setPaidAmount] = useState('');
   const [instrument, setInstrument] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editSide, setEditSide] = useState<PayoutSide | ''>('');
+  const [editAmount, setEditAmount] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['deal-co-broking', dealId],
@@ -183,9 +186,12 @@ export function DealCoBrokingPanel({
     );
   }
 
-  function openPaid(p: DealCoBrokerPayout) {
+  function openPayout(p: DealCoBrokerPayout, markPaid: boolean) {
     setPaidFor(p);
-    setPaidAt(p.paid_at ?? todayDateKey());
+    setEditName(p.payee_name);
+    setEditSide(p.side ?? '');
+    setEditAmount(String(p.amount));
+    setPaidAt(p.paid_at ?? (markPaid ? todayDateKey() : ''));
     setPaidAmount(p.paid_amount != null ? String(p.paid_amount) : '');
     setInstrument(p.instrument_ref ?? '');
   }
@@ -201,17 +207,20 @@ export function DealCoBrokingPanel({
           {
             method: 'PATCH',
             body: JSON.stringify({
+              payee_name: editName,
+              side: editSide || null,
+              amount: editAmount,
               paid_at: paidAt || null,
               paid_amount: paidAmount === '' ? null : paidAmount,
               instrument_ref: instrument || null,
               source: 'web',
             }),
           },
-          'Could not record the payment'
+          'Could not save the payout'
         );
         setPaidFor(null);
       },
-      'Payment recorded.'
+      'Payout saved.'
     );
   }
 
@@ -328,20 +337,28 @@ export function DealCoBrokingPanel({
                     </span>
                     {canEdit && (
                       <span className="flex shrink-0 items-center gap-1">
+                        {status !== 'paid' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={busyId === p.id}
+                            onClick={() => openPayout(p, true)}
+                            className="h-7 px-2 text-[11px]"
+                            title="Record the payment"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            Paid
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
                           disabled={busyId === p.id}
-                          onClick={() => openPaid(p)}
+                          onClick={() => openPayout(p, false)}
                           className="h-7 px-2 text-[11px]"
-                          title={
-                            p.paid_at
-                              ? 'Edit the payment'
-                              : 'Record the payment'
-                          }
+                          title="Correct this payout"
                         >
-                          <Check className="h-3.5 w-3.5" />
-                          {p.paid_at ? 'Payment' : 'Paid'}
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         {!p.paid_at && !(p.paid_amount ?? 0) && (
                           <Button
@@ -366,12 +383,47 @@ export function DealCoBrokingPanel({
           {canEdit && paidFor && (
             <div className="mt-3 grid gap-3 rounded-lg border border-slate-700 bg-slate-950 p-3 sm:grid-cols-4">
               <p className="text-xs text-slate-300 sm:col-span-4">
-                Payment to{' '}
+                Payout to{' '}
                 <span className="font-semibold text-white">
                   {paidFor.payee_name}
-                </span>{' '}
-                ({rs(paidFor.amount)})
+                </span>
               </p>
+              <div className="sm:col-span-2">
+                <Label htmlFor="cb-edit-name">Broker</Label>
+                <Input
+                  id="cb-edit-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="border-slate-700 bg-slate-950"
+                />
+              </div>
+              <div>
+                <Label htmlFor="cb-edit-side">Side</Label>
+                <select
+                  id="cb-edit-side"
+                  className={selectClass}
+                  value={editSide}
+                  onChange={(e) =>
+                    setEditSide(e.target.value as PayoutSide | '')
+                  }
+                >
+                  <option value="">—</option>
+                  <option value="buyer">{SIDE_LABELS.buyer}</option>
+                  <option value="seller">{SIDE_LABELS.seller}</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="cb-edit-amount">Payout amount</Label>
+                <Input
+                  id="cb-edit-amount"
+                  type="number"
+                  min={0}
+                  inputMode="decimal"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                  className="border-slate-700 bg-slate-950"
+                />
+              </div>
               <div>
                 <Label htmlFor="cb-paid-at">Paid on</Label>
                 <Input
@@ -383,7 +435,7 @@ export function DealCoBrokingPanel({
                 />
               </div>
               <div>
-                <Label htmlFor="cb-paid-amount">Amount (blank = full)</Label>
+                <Label htmlFor="cb-paid-amount">Paid (blank = full)</Label>
                 <Input
                   id="cb-paid-amount"
                   type="number"
@@ -406,7 +458,9 @@ export function DealCoBrokingPanel({
               <div className="flex items-end gap-2">
                 <Button
                   size="sm"
-                  disabled={busyId === paidFor.id}
+                  disabled={
+                    busyId === paidFor.id || !editName.trim() || !editAmount
+                  }
                   onClick={savePaid}
                 >
                   Save

@@ -108,6 +108,13 @@ describe('[TXW-023] co-broking payouts', () => {
     );
     expect(sql).toContain('A paid payout cannot be marked unpaid');
     expect(sql).toContain('pg_advisory_xact_lock(');
+    expect(sql).toContain(
+      'SET co_broker_payout_total = co_broker_payout_total + NEW.amount'
+    );
+    expect(sql).toContain(
+      'SET co_broker_payout_total = co_broker_payout_total - OLD.amount'
+    );
+    expect(sql).not.toContain('SELECT SUM(p.amount)');
     expect(sql).toContain("AND s.role = 'broker'");
     expect(sql).toContain(
       'BEFORE INSERT OR UPDATE OF stakeholder_id, deal_id, account_id, paid_at, paid_amount'

@@ -468,6 +468,9 @@ export function updateCoBrokerPayout(
   dealId: string,
   payoutId: string,
   patch: {
+    payee_name?: string;
+    side?: PayoutSide | null;
+    amount?: string;
     paid_at?: string | null;
     paid_amount?: string | null;
     instrument_ref?: string | null;
