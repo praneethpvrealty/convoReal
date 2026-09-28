@@ -52,7 +52,7 @@ export async function loadOpenEnquiries(
   db: SupabaseClient,
   accountId: string,
   contactId: string,
-  opts: { strict?: boolean } = {}
+  opts: { strict?: boolean; excludePropertyId?: string } = {}
 ): Promise<OpenEnquiry[]> {
   const { data, error } = await db
     .from('journey_items')
@@ -78,6 +78,7 @@ export async function loadOpenEnquiries(
       const property = one(row.property);
       const kind = one(row.stage)?.stage_kind ?? null;
       if (!property || (kind && past.includes(kind))) return [];
+      if (property.id === opts.excludePropertyId) return [];
       return [{ itemId: row.id, property }];
     })
     .slice(0, MAX_REVIEWED_ENQUIRIES);

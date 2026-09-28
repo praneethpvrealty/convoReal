@@ -839,18 +839,23 @@ export async function markFollowUpCold(
   }
 
   if (property) {
-    const stillOpen: OpenEnquiry['property'][] = [];
-    try {
+    const otherOpen = async (): Promise<OpenEnquiry['property'][]> => {
+      const found: OpenEnquiry['property'][] = [];
       for (const id of partyIds) {
         const open = await loadOpenEnquiries(db, accountId, id, {
           strict: true,
+          excludePropertyId: property.id,
         });
         for (const { property: p } of open) {
-          if (p.id !== property.id && !stillOpen.some((s) => s.id === p.id)) {
-            stillOpen.push(p);
-          }
+          if (!found.some((f) => f.id === p.id)) found.push(p);
         }
       }
+      return found;
+    };
+
+    let stillOpen: OpenEnquiry['property'][];
+    try {
+      stillOpen = await otherOpen();
     } catch {
       return { scope: 'unresolved' };
     }
@@ -866,6 +871,9 @@ export async function markFollowUpCold(
         note: `❄️ Marked cold on ${label} from the follow-up card.`,
       });
     }
+
+    const before = stillOpen;
+    stillOpen = await otherOpen().catch(() => before);
 
     if (stillOpen.length) {
       await db

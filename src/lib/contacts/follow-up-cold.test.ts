@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const closed: Array<{ contactId: string; propertyId: string }> = [];
 let openByContact: Record<string, Array<{ id: string; title: string }>> = {};
 let enquiryReadFails = false;
+let enquiryReadsBeforeFailure = 0;
 
 vi.mock('@/lib/whatsapp/enquiry-review', async (importOriginal) => {
   const actual =
@@ -22,12 +23,16 @@ vi.mock('@/lib/whatsapp/enquiry-review', async (importOriginal) => {
         _db: unknown,
         _accountId: string,
         contactId: string,
-        opts: { strict?: boolean } = {}
+        opts: { strict?: boolean; excludePropertyId?: string } = {}
       ) => {
-        if (enquiryReadFails && opts.strict) throw new Error('timeout');
+        if (enquiryReadFails && opts.strict) {
+          if (enquiryReadsBeforeFailure === 0) throw new Error('timeout');
+          enquiryReadsBeforeFailure -= 1;
+        }
         return (openByContact[contactId] ?? [])
           .filter(
             (p) =>
+              p.id !== opts.excludePropertyId &&
               !closed.some(
                 (c) => c.contactId === contactId && c.propertyId === p.id
               )
@@ -98,6 +103,7 @@ describe('[INB-021] markFollowUpCold', () => {
     closed.length = 0;
     openByContact = {};
     enquiryReadFails = false;
+    enquiryReadsBeforeFailure = 0;
   });
 
   it('closes only the carded listing and keeps the lead hot on the rest', async () => {
@@ -195,6 +201,23 @@ describe('[INB-021] markFollowUpCold', () => {
     expect(outcome).toEqual({ scope: 'unresolved' });
     expect(closed).toHaveLength(0);
     expect(updates).toHaveLength(0);
+  });
+
+  it('keeps the lead hot on the earlier read when the re-read after the close fails', async () => {
+    openByContact = { rohit: [PLOT, HOUSE] };
+    enquiryReadFails = true;
+    enquiryReadsBeforeFailure = 1;
+    const { db, updates } = fakeDb([PLOT, HOUSE]);
+
+    const outcome = await markFollowUpCold(db, {
+      accountId: 'acct-1',
+      partyIds: ['rohit'],
+      propertyId: PLOT.id,
+    });
+
+    expect(closed).toEqual([{ contactId: 'rohit', propertyId: PLOT.id }]);
+    expect(outcome).toMatchObject({ scope: 'property', stillOpen: [HOUSE] });
+    expect(updates.some((u) => 'lead_temp' in u.patch)).toBe(false);
   });
 
   it('marks the lead cold when the card named no listing', async () => {
