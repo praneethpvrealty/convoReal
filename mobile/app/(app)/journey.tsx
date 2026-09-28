@@ -97,6 +97,8 @@ interface JourneyGroup {
   lastUpdated: string;
   enquiryCount: number;
   lastEnquiredAt: string | null;
+  lastEnquirySource: string | null;
+  enquirySourceCount: number;
   lifecycleStatus: JourneyLifecycleStatus;
   closureReason: string | null;
   archivedAt: string | null;
@@ -408,6 +410,8 @@ export function JourneyBody() {
           lastUpdated: row.last_updated,
           enquiryCount: Number(enquiry?.enquiry_count ?? 0),
           lastEnquiredAt: enquiry?.last_enquired_at ?? null,
+          lastEnquirySource: enquiry?.last_enquiry_source ?? null,
+          enquirySourceCount: Number(enquiry?.enquiry_source_count ?? 0),
           lifecycleStatus: state?.lifecycle_status ?? 'active',
           closureReason: state?.closure_reason ?? null,
           archivedAt: state?.archived_at ?? null,
@@ -1959,10 +1963,7 @@ function DraggableJourneyCard({
     group.lifecycleStatus === 'active'
       ? null
       : CLOSED_JOURNEY_STATUS_LABELS[group.lifecycleStatus];
-  const enquiryLabel = journeyEnquiryLabel(
-    group.enquiryCount,
-    group.lastEnquiredAt
-  );
+  const enquiryLabel = journeyEnquiryLabel(group);
   const statusLabel = stageInHeader
     ? journeyRaceLabel(group.active)
     : [stage?.name, lifecycleLabel].filter(Boolean).join(' · ');
@@ -2142,6 +2143,7 @@ function DraggableJourneyCard({
                   style={[
                     styles.capturedChip,
                     {
+                      flexShrink: 1,
                       borderColor: `${colors.primary}66`,
                       backgroundColor: `${colors.primary}14`,
                     },
@@ -2153,7 +2155,9 @@ function DraggableJourneyCard({
                     color={colors.primary}
                   />
                   <Text
+                    numberOfLines={1}
                     style={{
+                      flexShrink: 1,
                       fontSize: 10.5,
                       fontFamily: f.bold,
                       color: colors.primary,

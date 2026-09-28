@@ -764,6 +764,10 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
         .slice(source.indexOf('export function journeyEnquiryLabel'))
         .split('export function journeyRaceLabel')[0];
     expect(labelBody(helpers)).toEqual(labelBody(webShared));
+    for (const source of [screen, webOverview]) {
+      expect(source).toContain('last_enquiry_source ?? null');
+      expect(source).toContain('enquiry_source_count ?? 0');
+    }
     expect(mobileSource('lib/api.ts')).toContain(
       '`/api/journey/enquiries?mode=${mode}&subjectId=${subjectId}`'
     );
@@ -777,11 +781,9 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).not.toContain("from '@shared/lib/journey/enquiries'");
     expect(helpers).not.toContain('journeyEnquiryEntries');
     expect(screen).toContain(
-      'const enquiryLabel = journeyEnquiryLabel(\n    group.enquiryCount,\n    group.lastEnquiredAt\n  );'
+      'const enquiryLabel = journeyEnquiryLabel(group);'
     );
-    expect(webOverview).toContain(
-      '{journeyEnquiryLabel(group.enquiryCount, group.lastEnquiredAt)}'
-    );
+    expect(webOverview).toContain('{journeyEnquiryLabel(group)}');
     expect(screen).toContain('return sortJourneys(summaries, sort);');
     expect(screen).toContain('{canEdit && canDrag ? (');
   });

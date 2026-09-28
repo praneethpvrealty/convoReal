@@ -35,33 +35,57 @@ export const JOURNEY_CLOSURE_REASONS: Record<
   ],
 };
 
+export interface JourneyEnquirySummary {
+  enquiryCount: number;
+  lastEnquiredAt: string | null;
+  lastEnquirySource: string | null;
+  enquirySourceCount: number;
+}
+
 export function journeyEnquiryLabel(
-  count: number,
-  lastEnquiredAt: string | null = null,
+  {
+    enquiryCount,
+    lastEnquiredAt,
+    lastEnquirySource,
+    enquirySourceCount,
+  }: JourneyEnquirySummary,
   now: Date = new Date()
 ): string | null {
-  if (count <= 0) return null;
-  const countLabel = count === 1 ? '1 enquiry' : `${count} enquiries`;
-  const date = lastEnquiredAt ? new Date(lastEnquiredAt) : null;
-  if (!date || Number.isNaN(date.getTime())) return countLabel;
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+  if (enquiryCount <= 0) return null;
+  const parts = [
+    enquiryCount === 1 ? '1 enquiry' : `${enquiryCount} enquiries`,
   ];
-  const day = `${date.getDate()} ${months[date.getMonth()]}`;
-  return date.getFullYear() === now.getFullYear()
-    ? `${countLabel} · ${day}`
-    : `${countLabel} · ${day} ${date.getFullYear()}`;
+  if (lastEnquirySource) {
+    parts.push(
+      enquirySourceCount > 1
+        ? `${lastEnquirySource} +${enquirySourceCount - 1}`
+        : lastEnquirySource
+    );
+  }
+  const date = lastEnquiredAt ? new Date(lastEnquiredAt) : null;
+  if (date && !Number.isNaN(date.getTime())) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    const day = `${date.getDate()} ${months[date.getMonth()]}`;
+    parts.push(
+      date.getFullYear() === now.getFullYear()
+        ? day
+        : `${day} ${date.getFullYear()}`
+    );
+  }
+  return parts.join(' · ');
 }
 
 export function journeyRaceLabel(active: number): string {
