@@ -172,7 +172,7 @@ Web (`src/`) and mobile (`mobile/`) are two surfaces of one product, not two pro
 
 | Layer             | Technology                                                      | Notes                                                                                     |
 | ----------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Runtime           | Node.js >= 22                                                   | `engines` in `package.json`; CI runs Node 22                                              |
+| Runtime           | Node.js >= 22.12                                                | `engines` in `package.json`; CI runs Node 22                                              |
 | App server        | Next.js 16.2.6 (App Router)                                     | `next.config.ts` at project root                                                          |
 | Language          | TypeScript ^6                                                   | `tsconfig.json` strict mode, `@/` alias                                                   |
 | React             | 19.2.4                                                          | Server components by default                                                              |
