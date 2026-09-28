@@ -66,6 +66,7 @@ export const FOLLOWUP_CHECKIN_PREFIX = 'fup_checkin:';
 export const FOLLOWUP_CONSIDERING_PREFIX = 'fup_considering:';
 export const FOLLOWUP_SNOOZE_PREFIX = 'fup_snooze:';
 export const FOLLOWUP_COLD_PREFIX = 'fup_cold:';
+export const FOLLOWUP_NO_LISTING = 'none';
 
 export const FOLLOWUP_SILENCE_HOURS = 48;
 export const FOLLOWUP_SNOOZE_DAYS = 3;
@@ -87,8 +88,9 @@ export interface FollowUpAction {
   contactId: string;
   /** The listing the card named. Only Mark cold carries it, so the cold
    *  lands on that listing even if the lead enquires elsewhere before
-   *  the tap. */
-  propertyId?: string;
+   *  the tap. Null when the card named no listing; absent on a card
+   *  sent before cards carried it. */
+  propertyId?: string | null;
 }
 
 export function parseFollowUpReply(
@@ -105,6 +107,9 @@ export function parseFollowUpReply(
     if (!id.startsWith(prefix)) continue;
     const [contactId, propertyId] = id.slice(prefix.length).split(':');
     if (!contactId) return null;
+    if (propertyId === FOLLOWUP_NO_LISTING) {
+      return { action, contactId, propertyId: null };
+    }
     return propertyId
       ? { action, contactId, propertyId }
       : { action, contactId };
@@ -177,7 +182,7 @@ export function buildFollowUpActionSections(lead: FollowUpLead) {
                 'Not interested in this listing; keep tracking others',
             }
           : {
-              id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}`,
+              id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}:${FOLLOWUP_NO_LISTING}`,
               title: '❄️ Mark cold',
               description: 'Stop follow-up reminders for this lead',
             },
@@ -638,12 +643,16 @@ export async function handleFollowUpReply(
   }
 
   if (action.action === 'cold') {
+    if (action.propertyId === undefined) {
+      await confirmToAgent(buildColdConfirmation(who, { scope: 'unresolved' }));
+      return true;
+    }
     const outcome = await markFollowUpCold(admin, {
       accountId,
       partyIds,
-      propertyId: action.propertyId ?? lead.last_inquired_property_id ?? null,
+      propertyId: action.propertyId,
     });
-    if (outcome.scope === 'unresolved') {
+    if (outcome.scope === 'unresolved' || outcome.scope === 'incomplete') {
       await confirmToAgent(buildColdConfirmation(who, outcome));
       return true;
     }
@@ -802,6 +811,7 @@ export const COLD_FROM_FOLLOWUP_REASON =
 
 export type FollowUpColdOutcome =
   | { scope: 'unresolved' }
+  | { scope: 'incomplete'; property: OpenEnquiry['property'] }
   | { scope: 'lead'; property: OpenEnquiry['property'] | null }
   | {
       scope: 'property';
@@ -817,7 +827,9 @@ export type FollowUpColdOutcome =
  * that listing was the last open enquiry, or the card named none, does
  * the lead itself go COLD. A named listing that can no longer be read
  * changes nothing, and neither does a failed read of the open
- * enquiries: guessing lead-wide would drop every other enquiry.
+ * enquiries: guessing lead-wide would drop every other enquiry. A close
+ * that left the branch active cannot be undone here, so the lead keeps
+ * its temperature and the agent is told the close did not finish.
  */
 export async function markFollowUpCold(
   db: SupabaseClient,
@@ -872,6 +884,20 @@ export async function markFollowUpCold(
       });
     }
 
+    for (const id of partyIds) {
+      const { data: lingering, error: lingeringError } = await db
+        .from('journey_items')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_id', id)
+        .eq('property_id', property.id)
+        .eq('status', 'active')
+        .limit(1);
+      if (lingeringError || (lingering ?? []).length > 0) {
+        return { scope: 'incomplete', property };
+      }
+    }
+
     const before = stillOpen;
     stillOpen = await otherOpen().catch(() => before);
 
@@ -900,8 +926,11 @@ export function buildColdConfirmation(
   who: string,
   outcome: FollowUpColdOutcome
 ): string {
+  if (outcome.scope === 'incomplete') {
+    return `⚠️ ${who} was not marked cold — closing the enquiry on ${enquiryLabel(outcome.property)} did not finish, so it may be closed for only part of the party. Open the lead to check it and update it by hand.`;
+  }
   if (outcome.scope === 'unresolved') {
-    return `⚠️ Nothing changed for ${who} — this card's enquiries could not be read, so no enquiry was closed. Open the lead to update it by hand.`;
+    return `⚠️ ${who} was not marked cold — this card's enquiry could not be matched or closed. Open the lead to update it by hand.`;
   }
   if (outcome.scope === 'property') {
     const named = outcome.stillOpen
