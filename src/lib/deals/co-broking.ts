@@ -312,13 +312,15 @@ export function patchClearsPayment(
   return !paidAt && Number(paidAmount ?? 0) === 0;
 }
 
-/** The brokerage's own share of what it collects. Floored at zero, as
- *  the dashboard functions floor it. */
+/** The brokerage's own share of what it collects. Floored at zero only
+ *  when there are payouts, as the dashboard functions floor it. */
 export function netOfPayouts(
   collected: number,
   payoutTotal: number | null | undefined
 ): number {
-  return Math.max(0, round2(collected - Number(payoutTotal ?? 0)));
+  const payouts = Number(payoutTotal ?? 0);
+  if (!payouts) return collected;
+  return Math.max(0, round2(collected - payouts));
 }
 
 export function summarizeCoBroking(

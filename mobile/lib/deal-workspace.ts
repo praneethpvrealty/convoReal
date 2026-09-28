@@ -572,10 +572,9 @@ export function netOfPayouts(
   collected: number,
   payoutTotal: number | null | undefined
 ): number {
-  return Math.max(
-    0,
-    Math.round((collected - Number(payoutTotal ?? 0)) * 100) / 100
-  );
+  const payouts = Number(payoutTotal ?? 0);
+  if (!payouts) return collected;
+  return Math.max(0, Math.round((collected - payouts) * 100) / 100);
 }
 
 // --- Bundles — mirrored from src/lib/deals/bundles.ts -------------------

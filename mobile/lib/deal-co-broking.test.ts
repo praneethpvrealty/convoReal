@@ -35,6 +35,7 @@ describe('[TXW-023] co-broking mirrors the web rule', () => {
     expect(payoutFromPercent(null, '1')).toBe(0);
     expect(netOfPayouts(18_00_000, 9_00_000)).toBe(9_00_000);
     expect(netOfPayouts(100, 250)).toBe(0);
+    expect(netOfPayouts(-500, 0)).toBe(-500);
     expect(netOfPayouts(6_00_000, undefined)).toBe(6_00_000);
   });
 

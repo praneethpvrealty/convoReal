@@ -120,6 +120,7 @@ describe('[TXW-023] co-broking payouts', () => {
     expect(sql).toContain(
       'BEFORE INSERT OR UPDATE OF co_broker_payout_total ON deals'
     );
+    expect(sql).toContain('NEW.updated_at := OLD.updated_at;');
     expect(sql).toContain("AND s.role = 'broker'");
     expect(sql).toContain(
       'BEFORE INSERT OR UPDATE OF stakeholder_id, deal_id, account_id, paid_at, paid_amount'
@@ -156,6 +157,7 @@ describe('[TXW-023] co-broking payouts', () => {
     });
     expect(summarizeCoBroking(null, []).net).toBeNull();
     expect(netOfPayouts(100, 250)).toBe(0);
+    expect(netOfPayouts(-500, 0)).toBe(-500);
     expect(netOfPayouts(600_000, null)).toBe(600_000);
   });
 
