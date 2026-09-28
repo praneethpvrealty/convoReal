@@ -5,6 +5,7 @@ import {
   focusBuckets,
   journeyEnquiryLabel,
   journeyEnquirySourceOptions,
+  journeyViewCounts,
   journeySourceChips,
   matchesJourneyEnquirySource,
   normalizeJourneyEnquirySource,
@@ -249,5 +250,42 @@ describe('journeySourceChips', () => {
     expect(journeySourceChips([], null)).toEqual([
       { source: null, label: 'All sources' },
     ]);
+  });
+});
+
+describe('journeyViewCounts', () => {
+  const g = (
+    lifecycleStatus: string,
+    archivedAt: string | null,
+    enquirySources: string[]
+  ) => ({ lifecycleStatus, archivedAt, enquirySources });
+  const groups = [
+    g('active', null, ['Housing']),
+    g('active', null, ['Magic Bricks']),
+    g('active', null, []),
+    g('won', null, ['Housing']),
+    g('lost', null, ['Manual']),
+    g('active', '2026-09-01', ['Housing']),
+  ];
+
+  it('[JRN-012] counts every journey per view when no source is chosen', () => {
+    expect(journeyViewCounts(groups, null)).toEqual({
+      active: 3,
+      closed: 2,
+      archived: 1,
+    });
+  });
+
+  it('[JRN-012] counts only journeys from the chosen source in each view', () => {
+    expect(journeyViewCounts(groups, 'Housing')).toEqual({
+      active: 1,
+      closed: 1,
+      archived: 1,
+    });
+    expect(journeyViewCounts(groups, 'Gone')).toEqual({
+      active: 0,
+      closed: 0,
+      archived: 0,
+    });
   });
 });

@@ -98,6 +98,7 @@ import {
   journeyEnquiryLabel,
   journeyEnquirySourceOptions,
   journeyRaceLabel,
+  journeyViewCounts,
   matchesJourneyEnquirySource,
   navigateJourney,
   normalizeJourneyEnquirySource,
@@ -467,16 +468,8 @@ export function JourneyOverview({
   }, [loadGroups]);
 
   const counts = useMemo(
-    () => ({
-      active: groups.filter(
-        (group) => !group.archivedAt && group.lifecycleStatus === 'active'
-      ).length,
-      closed: groups.filter(
-        (group) => !group.archivedAt && group.lifecycleStatus !== 'active'
-      ).length,
-      archived: groups.filter((group) => Boolean(group.archivedAt)).length,
-    }),
-    [groups]
+    () => journeyViewCounts(groups, enquirySource),
+    [enquirySource, groups]
   );
 
   const searched = useMemo(
