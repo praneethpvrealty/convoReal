@@ -297,7 +297,7 @@ describe('[INB-021] markFollowUpCold', () => {
     expect(outcome).toEqual({ scope: 'incomplete', property: null });
   });
 
-  it('does not confirm the close when repointing the lead fails', async () => {
+  it('says the listing closed but the lead was not moved when repointing fails', async () => {
     openByContact = { rohit: [PLOT, HOUSE] };
     repointFails = true;
     const { db } = fakeDb([PLOT, HOUSE]);
@@ -308,7 +308,8 @@ describe('[INB-021] markFollowUpCold', () => {
       propertyId: PLOT.id,
     });
 
-    expect(outcome).toEqual({ scope: 'incomplete', property: PLOT });
+    expect(closed).toEqual([{ contactId: 'rohit', propertyId: PLOT.id }]);
+    expect(outcome).toEqual({ scope: 'unmoved', property: PLOT, next: HOUSE });
   });
 
   it('marks the lead cold when the card named no listing', async () => {

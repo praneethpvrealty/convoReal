@@ -656,7 +656,11 @@ export async function handleFollowUpReply(
       partyIds,
       propertyId: action.propertyId,
     });
-    if (outcome.scope === 'unresolved' || outcome.scope === 'incomplete') {
+    if (
+      outcome.scope === 'unresolved' ||
+      outcome.scope === 'incomplete' ||
+      outcome.scope === 'unmoved'
+    ) {
       await confirmToAgent(buildColdConfirmation(who, outcome));
       return true;
     }
@@ -816,6 +820,11 @@ export const COLD_FROM_FOLLOWUP_REASON =
 export type FollowUpColdOutcome =
   | { scope: 'unresolved' }
   | { scope: 'incomplete'; property: OpenEnquiry['property'] | null }
+  | {
+      scope: 'unmoved';
+      property: OpenEnquiry['property'];
+      next: OpenEnquiry['property'];
+    }
   | { scope: 'lead'; property: OpenEnquiry['property'] | null }
   | {
       scope: 'property';
@@ -915,7 +924,9 @@ export async function markFollowUpCold(
         .in('id', partyIds)
         .eq('account_id', accountId)
         .eq('last_inquired_property_id', property.id);
-      if (repointError) return { scope: 'incomplete', property };
+      if (repointError) {
+        return { scope: 'unmoved', property, next: stillOpen[0] };
+      }
       return { scope: 'property', property, stillOpen };
     }
   }
@@ -938,6 +949,9 @@ export function buildColdConfirmation(
   who: string,
   outcome: FollowUpColdOutcome
 ): string {
+  if (outcome.scope === 'unmoved') {
+    return `⚠️ Closed ${enquiryLabel(outcome.property)} for ${who}, but the lead could not be moved onto ${enquiryLabel(outcome.next)}, so the next follow-up may still name the closed listing. Open the lead to update its enquiry by hand.`;
+  }
   if (outcome.scope === 'incomplete') {
     return outcome.property
       ? `⚠️ ${who} was not marked cold — closing the enquiry on ${enquiryLabel(outcome.property)} did not finish, so it may be closed for only part of the party. Open the lead to check it and update it by hand.`

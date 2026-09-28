@@ -227,6 +227,17 @@ describe('[INB-021] Mark cold is scoped to the carded listing', () => {
     expect(text).toContain('did not go through');
   });
 
+  it('[INB-021] says the listing closed when only the move to the next enquiry failed', () => {
+    const text = buildColdConfirmation('Rohit', {
+      scope: 'unmoved',
+      property: { id: 'p1', title: 'JP Nagar Plot', property_code: null },
+      next: { id: 'p2', title: 'Yelahanka House', property_code: null },
+    });
+    expect(text).toContain('Closed JP Nagar Plot for Rohit');
+    expect(text).toContain('could not be moved onto Yelahanka House');
+    expect(text).not.toContain('did not finish');
+  });
+
   it('says so when the listing was the last open enquiry', () => {
     const text = buildColdConfirmation('Rohit', {
       scope: 'lead',
