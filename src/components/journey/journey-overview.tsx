@@ -931,6 +931,17 @@ export function JourneyOverview({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          {enquirySource && (
+            <button
+              type="button"
+              onClick={() => changeEnquirySource(null)}
+              aria-label="Clear source filter"
+              title="Clear source filter"
+              className="border-primary/60 bg-primary/10 text-primary hover:bg-primary/20 inline-flex shrink-0 items-center self-stretch rounded-md border px-1.5 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800">
               <ArrowDownWideNarrow className="h-3.5 w-3.5" />

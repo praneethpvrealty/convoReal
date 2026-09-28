@@ -796,6 +796,11 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
       'useRememberedJourneySource(\n    accountId,\n    mode\n  );'
     );
     expect(screen).not.toContain('setEnquirySource(null);');
+    expect(webOverview).toContain('aria-label="Clear source filter"');
+    expect(screen).toContain('accessibilityLabel="Clear source filter"');
+    for (const source of [screen, webOverview]) {
+      expect(source).toMatch(/\{enquirySource \? \(|\{enquirySource && \(/);
+    }
     const preference = mobileSource('lib/journey-source-preference.ts');
     expect(preference).toContain(
       '`journey_overview_source_${accountId}_${mode}`'
