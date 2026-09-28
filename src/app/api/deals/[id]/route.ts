@@ -11,9 +11,11 @@ import { actorName } from '@/lib/deals/server';
 import {
   applyDealStageMove,
   parseBrokerageCapture,
+  resolveStage,
   type DealStatus,
 } from '@/lib/deals/stage-move';
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
+import { parseLostReason } from '@/lib/pipelines/lost-reasons';
 import { deleteDealWithCleanup } from '@/lib/deals/delete-deal';
 import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 
@@ -103,6 +105,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (typeof brokerage_amount === 'number')
       updateData.brokerage_amount = brokerage_amount;
     if (typeof dealStatus === 'string') updateData.status = dealStatus;
+    const lost = parseLostReason(body);
+    if (!lost.ok) {
+      return NextResponse.json({ error: lost.error }, { status: 400 });
+    }
+    if (dealStatus === 'lost' && lost.value) {
+      updateData.lost_reason = lost.value.lost_reason;
+      updateData.lost_note = lost.value.lost_note;
+    }
 
     let previousPropertyId: string | null = null;
     if (property_id !== undefined) {
@@ -170,12 +180,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    if (typeof stage_id === 'string' && typeof stage_name === 'string') {
+    const movedStage =
+      typeof stage_id === 'string'
+        ? await resolveStage(
+            ctx.supabase,
+            stage_id,
+            typeof stage_name === 'string' ? stage_name : null
+          )
+        : null;
+    if (movedStage) {
       const record = await ensureClosingRecord({
         db: ctx.supabase,
         accountId: ctx.accountId,
         dealId,
-        stageName: stage_name,
+        stage: movedStage,
         actorId: ctx.userId,
         actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
         source: parseEventSource(body.source),
@@ -196,9 +214,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       typeof property_id === 'string' && property_id.trim()
         ? property_id.trim()
         : null;
-    if (effectivePropertyId && typeof stage_name === 'string') {
+    if (effectivePropertyId && movedStage) {
       const propertyStatus =
-        propertyStatusForPipelineStage(stage_name) ?? 'Available';
+        propertyStatusForPipelineStage(movedStage) ?? 'Available';
       const synced = await setListingStatusFromDeal(
         ctx.supabase,
         ctx.accountId,
@@ -272,6 +290,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!brokerage.ok) {
       return NextResponse.json({ error: brokerage.error }, { status: 400 });
     }
+    const lost = parseLostReason(body);
+    if (!lost.ok) {
+      return NextResponse.json({ error: lost.error }, { status: 400 });
+    }
 
     const moved = await applyDealStageMove(ctx, {
       dealId,
@@ -287,6 +309,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           ? property_id.trim()
           : null,
       brokerage: brokerage.value,
+      lost: lost.value,
       source: parseEventSource(body.source),
     });
     if (!moved.ok) {

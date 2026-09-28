@@ -7,6 +7,8 @@ import {
 } from '@/lib/rate-limit';
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
 import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
+import { resolveStage } from '@/lib/deals/stage-move';
+import { parseLostReason } from '@/lib/pipelines/lost-reasons';
 
 // POST /api/deals — create a deal and atomically sync the linked property's status.
 // Replaces the multi-step client-side writes in deal-form.tsx.
@@ -68,6 +70,10 @@ export async function POST(request: Request) {
       );
     }
 
+    const lost = parseLostReason(body);
+    if (!lost.ok) {
+      return NextResponse.json({ error: lost.error }, { status: 400 });
+    }
     const insertData = {
       user_id: ctx.userId,
       account_id: ctx.accountId,
@@ -101,6 +107,7 @@ export async function POST(request: Request) {
       brokerage_amount:
         typeof brokerage_amount === 'number' ? brokerage_amount : null,
       status: typeof dealStatus === 'string' ? dealStatus : 'open',
+      ...(dealStatus === 'lost' && lost.value ? lost.value : {}),
     };
 
     const { data: created, error: insertErr } = await ctx.supabase
@@ -118,9 +125,14 @@ export async function POST(request: Request) {
     }
 
     // Sync property status based on stage
-    if (insertData.property_id && typeof stage_name === 'string') {
+    const createdStage = await resolveStage(
+      ctx.supabase,
+      stage_id.trim(),
+      typeof stage_name === 'string' ? stage_name : null
+    );
+    if (insertData.property_id && createdStage) {
       const propertyStatus =
-        propertyStatusForPipelineStage(stage_name) ?? 'Available';
+        propertyStatusForPipelineStage(createdStage) ?? 'Available';
       const synced = await setListingStatusFromDeal(
         ctx.supabase,
         ctx.accountId,

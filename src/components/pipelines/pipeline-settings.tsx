@@ -35,6 +35,20 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  STAGE_TYPES,
+  STAGE_TYPE_LABELS,
+  inferStageType,
+  stageTypeOf,
+  type StageType,
+} from "@/lib/pipelines/stage-semantics";
 
 const STAGE_COLORS = [
   "#3b82f6",
@@ -74,6 +88,7 @@ export function PipelineSettings({
   const [localStages, setLocalStages] = useState<PipelineStage[]>(stages);
   const [newStageName, setNewStageName] = useState("");
   const [newStageColor, setNewStageColor] = useState(STAGE_COLORS[0]);
+  const [newStageType, setNewStageType] = useState<StageType | null>(null);
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -114,6 +129,7 @@ export function PipelineSettings({
       name: s.name,
       color: s.color,
       position: i,
+      stage_type: stageTypeOf(s),
     }));
 
     const [renameRes, stagesRes] = await Promise.all([
@@ -130,6 +146,12 @@ export function PipelineSettings({
     if (renameRes.error || stagesRes.error || !renameRes.data?.length) {
       toast.error("Failed to save pipeline");
       return;
+    }
+    if (pipeline.account_id) {
+      await supabase.rpc("sync_journey_stages_from_pipeline", {
+        p_account_id: pipeline.account_id,
+        p_pipeline_id: null,
+      });
     }
 
     onOpenChange(false);
@@ -148,6 +170,7 @@ export function PipelineSettings({
         name: trimmed,
         color: newStageColor,
         position: localStages.length,
+        stage_type: newStageType ?? inferStageType(trimmed),
       })
       .select()
       .single();
@@ -157,6 +180,7 @@ export function PipelineSettings({
     }
     setLocalStages([...localStages, data as PipelineStage]);
     setNewStageName("");
+    setNewStageType(null);
     setNewStageColor(STAGE_COLORS[(localStages.length + 1) % STAGE_COLORS.length]);
   }
 
@@ -297,6 +321,14 @@ export function PipelineSettings({
                             updated[index] = { ...updated[index], color: v };
                             setLocalStages(updated);
                           }}
+                          onTypeChange={(v) => {
+                            const updated = [...localStages];
+                            updated[index] = {
+                              ...updated[index],
+                              stage_type: v,
+                            };
+                            setLocalStages(updated);
+                          }}
                           onRemove={() => handleRemoveStage(stage.id)}
                           colors={STAGE_COLORS}
                         />
@@ -331,6 +363,10 @@ export function PipelineSettings({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleAddStage();
                     }}
+                  />
+                  <StageTypeSelect
+                    value={newStageType ?? inferStageType(newStageName)}
+                    onChange={setNewStageType}
                   />
                   <Button
                     variant="outline"
@@ -389,12 +425,14 @@ function SortableStageRow({
   stage,
   onNameChange,
   onColorChange,
+  onTypeChange,
   onRemove,
   colors,
 }: {
   stage: PipelineStage;
   onNameChange: (v: string) => void;
   onColorChange: (v: string) => void;
+  onTypeChange: (v: StageType) => void;
   onRemove: () => void;
   colors: string[];
 }) {
@@ -411,7 +449,7 @@ function SortableStageRow({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 p-2"
+      className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 p-2"
     >
       <button
         type="button"
@@ -436,7 +474,43 @@ function SortableStageRow({
       >
         <Trash2 className="h-3 w-3" />
       </Button>
+      <div className="basis-full pl-6">
+        <StageTypeSelect value={stageTypeOf(stage)} onChange={onTypeChange} />
+      </div>
     </div>
+  );
+}
+
+function StageTypeSelect({
+  value,
+  onChange,
+}: {
+  value: StageType;
+  onChange: (v: StageType) => void;
+}) {
+  return (
+    <Select
+      items={STAGE_TYPE_LABELS}
+      value={value}
+      onValueChange={(v) => {
+        if (v) onChange(v as StageType);
+      }}
+    >
+      <SelectTrigger
+        size="sm"
+        aria-label="What this stage means"
+        className="border-slate-700 bg-slate-900 text-xs text-slate-300"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {STAGE_TYPES.map((type) => (
+          <SelectItem key={type} value={type}>
+            {STAGE_TYPE_LABELS[type]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 

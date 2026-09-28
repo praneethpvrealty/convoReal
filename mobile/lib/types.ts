@@ -216,6 +216,7 @@ export interface PipelineStage {
   name: string;
   position: number;
   color?: string | null;
+  stage_type?: string | null;
 }
 
 export interface Deal {
@@ -243,6 +244,8 @@ export interface Deal {
   property?: Property | null;
   /** PostgREST aggregate: `milestones:deal_milestones(count)`. */
   milestones?: Array<{ count: number }> | null;
+  lost_reason?: string | null;
+  lost_note?: string | null;
 }
 
 // ------------------------------------------------------------------

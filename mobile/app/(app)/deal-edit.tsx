@@ -36,7 +36,13 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Deal, PipelineStage } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 import { contactHandle, hasPhone } from '@/lib/reachability';
-import { dealStatusForStage } from '@/lib/stage-semantics';
+import { dealStatusForStage, isLostStage } from '@/lib/stage-semantics';
+import {
+  isLostReason,
+  lostReasonNeedsNote,
+  type LostReason,
+} from '@/lib/lost-reasons';
+import { LostReasonPicker } from '@/components/lost-reason-sheet';
 
 /**
  * Web parity: the deal form (deal-form.tsx). Creating posts to
@@ -145,6 +151,10 @@ function DealForm({
   );
   const [showActualDatePicker, setShowActualDatePicker] = useState(false);
   const [notes, setNotes] = useState(deal?.notes ?? '');
+  const [lostReason, setLostReason] = useState<LostReason | null>(
+    isLostReason(deal?.lost_reason) ? deal.lost_reason : null
+  );
+  const [lostNote, setLostNote] = useState(deal?.lost_note ?? '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -167,8 +177,12 @@ function DealForm({
   });
   const activeStageId = stageId ?? stages?.[0]?.id ?? null;
   const activeStage = (stages ?? []).find((s) => s.id === activeStageId);
+  const lostStageSelected = activeStage ? isLostStage(activeStage) : false;
+  const lostReasonMissing =
+    lostStageSelected &&
+    (!lostReason || (lostReasonNeedsNote(lostReason) && !lostNote.trim()));
   const isClosedStage = activeStage
-    ? dealStatusForStage(activeStage.name) !== 'open'
+    ? dealStatusForStage(activeStage) !== 'open'
     : false;
 
   const { data: contactOptions } = useQuery({
@@ -225,8 +239,11 @@ function DealForm({
               ? localDateString(actualCloseDate)
               : null,
           property_id: property?.id ?? null,
-          status: dealStatusForStage(selectedStage.name),
+          status: dealStatusForStage(selectedStage),
           stage_name: selectedStage.name,
+          ...(isLostStage(selectedStage) && lostReason
+            ? { lost_reason: lostReason, lost_note: lostNote.trim() || null }
+            : {}),
         }),
       });
       haptic.success();
@@ -436,13 +453,22 @@ function DealForm({
                 setStageId(s.id);
                 // Moving a deal to a closing stage almost always means
                 // it closed today; the agent can still change it.
-                if (dealStatusForStage(s.name) !== 'open' && !actualCloseDate) {
+                if (dealStatusForStage(s) !== 'open' && !actualCloseDate) {
                   setActualCloseDate(new Date());
                 }
               }}
             />
           ))}
         </View>
+
+        {lostStageSelected ? (
+          <LostReasonPicker
+            reason={lostReason}
+            note={lostNote}
+            onReason={setLostReason}
+            onNote={setLostNote}
+          />
+        ) : null}
 
         <Pressable
           onPress={() => {
@@ -581,7 +607,13 @@ function DealForm({
           <PrimaryButton
             label={deal ? 'Save changes' : 'Create deal'}
             busy={saving}
-            disabled={!title.trim() || !contact || !activeStageId || deleting}
+            disabled={
+              !title.trim() ||
+              !contact ||
+              !activeStageId ||
+              deleting ||
+              lostReasonMissing
+            }
             onPress={save}
           />
         </View>

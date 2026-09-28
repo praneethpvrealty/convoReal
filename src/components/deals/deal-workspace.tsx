@@ -32,8 +32,11 @@ import { formatIndianDigits } from '@/lib/invoices/pdf-text';
 import { brokerageAmount, type BrokerageType } from '@/lib/pipelines/brokerage';
 import {
   dealStatusForStage,
+  isLostStage,
   needsBrokerageCapture,
 } from '@/lib/pipelines/stage-semantics';
+import type { LostReasonInput } from '@/lib/pipelines/lost-reasons';
+import { LostReasonDialog } from '@/components/pipelines/lost-reason-dialog';
 import { cn } from '@/lib/utils';
 
 import { DealBundleDialog } from './deal-bundle-dialog';
@@ -85,6 +88,7 @@ interface StageOption {
   id: string;
   name: string;
   position: number;
+  stage_type?: string | null;
 }
 
 /** Mirrored in mobile/app/(app)/deal/[id].tsx; guarded by mobile-parity.test.ts. */
@@ -105,6 +109,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
   const { accountId, isViewer, isReadOnly } = useAuth();
   const [tab, setTab] = useState<TabId>('overview');
   const [movingStage, setMovingStage] = useState(false);
+  const [lostPrompt, setLostPrompt] = useState<StageOption | null>(null);
   const [brokeragePrompt, setBrokeragePrompt] = useState<StageOption | null>(
     null
   );
@@ -142,7 +147,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
     queryFn: async (): Promise<StageOption[]> => {
       const { data, error } = await supabase
         .from('pipeline_stages')
-        .select('id, name, position')
+        .select('id, name, position, stage_type')
         .eq('pipeline_id', pipelineId!)
         .order('position');
       if (error) throw new Error(error.message);
@@ -155,10 +160,14 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
     if (!deal) return;
     const stage = stages.find((s) => s.id === stageId);
     if (!stage || stage.id === deal.stage_id) return;
-    if (needsBrokerageCapture(deal, stage.name)) {
+    if (needsBrokerageCapture(deal, stage)) {
       setBrokerageType('percentage');
       setBrokerageValue('');
       setBrokeragePrompt(stage);
+      return;
+    }
+    if (isLostStage(stage)) {
+      setLostPrompt(stage);
       return;
     }
     void moveToStage(stage);
@@ -166,21 +175,24 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
 
   async function moveToStage(
     stage: StageOption,
-    brokerage?: { brokerage_type: BrokerageType; brokerage_value: number }
+    brokerage?: { brokerage_type: BrokerageType; brokerage_value: number },
+    lost?: LostReasonInput
   ) {
     if (!deal) return;
     setBrokeragePrompt(null);
+    setLostPrompt(null);
     setMovingStage(true);
     try {
       const res = await fetch(`/api/deals/${deal.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: dealStatusForStage(stage.name),
+          status: dealStatusForStage(stage),
           target_stage_id: stage.id,
           property_id: deal.property?.id ?? null,
           current_stage_name: stage.name,
           ...brokerage,
+          ...lost,
         }),
       });
       if (!res.ok) {
@@ -430,6 +442,13 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
         <DealInvoicesPanel dealId={dealId} canEdit={canEdit} />
       )}
 
+      <LostReasonDialog
+        dealTitle={lostPrompt && deal ? deal.title : null}
+        onCancel={() => setLostPrompt(null)}
+        onConfirm={(lost) => {
+          if (lostPrompt) void moveToStage(lostPrompt, undefined, lost);
+        }}
+      />
       <Dialog
         open={brokeragePrompt !== null}
         onOpenChange={(open) => !open && setBrokeragePrompt(null)}
