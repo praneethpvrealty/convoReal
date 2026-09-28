@@ -17,6 +17,18 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 28 September 2026
+
+- **Missing public pages now answer with a real 404.** An unknown or
+  retired listing, project, farmland, article, service, city or seller
+  URL showed the not-found page but sent HTTP 200, because the root
+  loading skeleton started the response before the page could say the
+  URL did not exist. The skeleton now covers only the showcase home and
+  the signed-in app (login, dashboard, owner and buyer Portfolio), which
+  look exactly as before. Public content pages render in full before
+  they respond, so search engines and link checkers see 404 for a dead
+  link and 200 for a live one. No migration.
+
 #### 27 September 2026
 
 - **New agents start on the company showcase design.** A member's

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import RootPage, { generateMetadata as rootMetadata } from '@/app/page';
+import RootPage, { generateMetadata as rootMetadata } from '@/app/(showcase)/page';
 
 interface SellerPageProps {
   params: Promise<{ slug: string }>;

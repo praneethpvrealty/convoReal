@@ -246,7 +246,7 @@ describe('opensByDirectLink', () => {
   it('[PRP-017] gates every public entry point on it, previews without a grant', () => {
     const read = (path: string) =>
       readFileSync(join(process.cwd(), path), 'utf8');
-    const root = read('src/app/page.tsx');
+    const root = read('src/app/(showcase)/page.tsx');
     expect(root).toContain('!property || !opensByDirectLink(property, false)');
     expect(root).toContain(
       'opensByDirectLink(resolvedTarget, draftGrant !== null)'

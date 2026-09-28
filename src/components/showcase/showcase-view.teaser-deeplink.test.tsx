@@ -12,7 +12,7 @@
 // "Request full details", which reads as a dead link.
 //
 // The server now translates the code to the row's id before handing it
-// over (src/app/page.tsx). These tests pin both halves of why that is
+// over (src/app/(showcase)/page.tsx). These tests pin both halves of why that is
 // needed: the id opens the gate, the code cannot.
 // ============================================================
 
