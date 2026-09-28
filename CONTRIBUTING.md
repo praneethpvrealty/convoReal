@@ -51,8 +51,15 @@ logs will get to a fix fastest.
 
 ## Pull requests
 
-- Branch off the latest `main` (don't push to a merged branch — commits
-  end up orphaned).
+- For a routine batch, branch from the current `release/<batch-name>` tip and
+  target that release branch. Start a fresh release branch from `main` for each batch.
+- Keep each member PR focused, reviewed by Codex, and green in GitHub CI. Merge
+  reviewed members into the release branch, then open one combined release PR to
+  `main` and squash-merge it after green CI. Web changes build before this merge.
+- Vercel previews are disabled. Only `main` automatically deploys; do not manually
+  deploy feature or release branches. The mobile EAS channel named `preview` is separate.
+- High-risk changes listed in `AGENTS.md` ship separately from routine batches.
+- Do not reuse merged branches.
 - Run `npm run typecheck`, `npm run lint`, and `npm test` locally first.
 - Fill in the PR template, especially the **Test plan**.
 - One logical change per PR.

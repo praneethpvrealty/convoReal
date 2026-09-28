@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'release/**']
   merge_group:
   push:
     branches: [main]
@@ -140,21 +140,13 @@ jobs:
       - run: npm ci
       - run: npm test
 
-  # The production build is the slowest step and Vercel already builds every
-  # push, so it normally runs at merge time rather than on every commit in a
-  # PR — typecheck covers the type errors a build would surface.
-  #
-  # The exception is a PR that adds a route. Those get built here too, because
-  # the first real build of a new route would otherwise be the production
-  # deploy: PR #427 added two API routes, CI skipped the build, and the only
-  # thing standing between a broken route manifest and production was a local
-  # `npm run build` someone remembered to run.
   build:
     name: Build
     needs: changes
     if: >-
       needs.changes.outputs.web == 'true' &&
       (github.event_name != 'pull_request' ||
+      github.base_ref == 'main' ||
       needs.changes.outputs.newRoutes == 'true')
     runs-on: ubuntu-latest
     steps:

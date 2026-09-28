@@ -1,5 +1,11 @@
 {
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':!go-ingress' ':!docs' ':!Dockerfile.worker' ':!mobile' ':!mcp'",
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "main": true
+    }
+  },
+  "ignoreCommand": "if [ \"$VERCEL_ENV\" != \"production\" ] || [ \"$VERCEL_PROJECT_ID\" = \"prj_9OIeVsISS3jWRa4FBwUT7RDQ3pKU\" ]; then exit 0; fi; git diff --quiet HEAD^ HEAD -- . ':!go-ingress' ':!docs' ':!Dockerfile.worker' ':!mobile' ':!mcp'",
   "buildCommand": "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD) next build",
   "regions": ["bom1"],
   "crons": [
