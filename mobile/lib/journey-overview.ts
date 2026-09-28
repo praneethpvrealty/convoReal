@@ -122,6 +122,24 @@ export function matchesJourneyEnquirySource(
   return !source || group.enquirySources.includes(source);
 }
 
+export function journeyViewCounts(
+  groups: {
+    archivedAt: string | null;
+    lifecycleStatus: string;
+    enquirySources: string[];
+  }[],
+  source: string | null
+): { active: number; closed: number; archived: number } {
+  const counts = { active: 0, closed: 0, archived: 0 };
+  for (const group of groups) {
+    if (!matchesJourneyEnquirySource(group, source)) continue;
+    if (group.archivedAt) counts.archived += 1;
+    else if (group.lifecycleStatus === 'active') counts.active += 1;
+    else counts.closed += 1;
+  }
+  return counts;
+}
+
 export function journeyRaceLabel(active: number): string {
   return active > 0 ? `${active} in the race` : 'Nothing in the race';
 }
