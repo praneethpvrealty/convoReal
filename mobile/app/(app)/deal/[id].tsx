@@ -21,6 +21,7 @@ import {
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { InvoiceEditorSheet } from '@/components/invoice-editor-sheet';
+import { LostReasonSheet } from '@/components/lost-reason-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   EmptyState,
@@ -151,8 +152,10 @@ import {
 } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
 import { auditDate, auditDateTime, formatInr } from '@/lib/format';
+import type { LostReasonInput } from '@/lib/lost-reasons';
 import {
   dealStatusForStage,
+  isLostStage,
   needsBrokerageCapture,
 } from '@/lib/stage-semantics';
 import { supabase } from '@/lib/supabase';
@@ -210,6 +213,7 @@ export default function DealWorkspaceScreen() {
   const [tab, setTab] = useState<DealWorkspaceTab>('overview');
   const [pickingStage, setPickingStage] = useState(false);
   const [movingStage, setMovingStage] = useState(false);
+  const [lostPrompt, setLostPrompt] = useState<PipelineStage | null>(null);
   const [brokeragePrompt, setBrokeragePrompt] = useState<PipelineStage | null>(
     null
   );
@@ -256,10 +260,14 @@ export default function DealWorkspaceScreen() {
   function pickStage(stage: PipelineStage) {
     setPickingStage(false);
     if (!head || stage.id === head.stage_id) return;
-    if (needsBrokerageCapture(head, stage.name)) {
+    if (needsBrokerageCapture(head, stage)) {
       setBrokerageType('percentage');
       setBrokerageValue('');
       setBrokeragePrompt(stage);
+      return;
+    }
+    if (isLostStage(stage)) {
+      setLostPrompt(stage);
       return;
     }
     void moveToStage(stage);
@@ -270,18 +278,21 @@ export default function DealWorkspaceScreen() {
     brokerage?: {
       brokerage_type: 'percentage' | 'fixed';
       brokerage_value: number;
-    }
+    },
+    lost?: LostReasonInput
   ) {
     if (!head) return;
     setBrokeragePrompt(null);
+    setLostPrompt(null);
     setMovingStage(true);
     try {
       await moveDealStage(dealId, {
-        status: dealStatusForStage(stage.name),
+        status: dealStatusForStage(stage),
         target_stage_id: stage.id,
         property_id: head.property_id,
         current_stage_name: stage.name,
         ...brokerage,
+        ...lost,
       });
       haptic.success();
       await Promise.all([
@@ -462,6 +473,13 @@ export default function DealWorkspaceScreen() {
             ))}
         </ScrollView>
       </BottomSheet>
+      <LostReasonSheet
+        dealTitle={lostPrompt ? (head?.title ?? 'This deal') : null}
+        onClose={() => setLostPrompt(null)}
+        onConfirm={(lost) =>
+          lostPrompt && void moveToStage(lostPrompt, undefined, lost)
+        }
+      />
       <BottomSheet
         visible={brokeragePrompt !== null}
         onClose={() => setBrokeragePrompt(null)}

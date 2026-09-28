@@ -2687,7 +2687,7 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     const webSemantics = webSource('lib/pipelines/stage-semantics.ts');
     for (const source of [webSemantics, mobileSemantics]) {
       expect(source).toContain(
-        "shouldCaptureBrokerage(stageName) &&\n    dealStatusForStage(stageName) !== 'lost'"
+        "shouldCaptureBrokerage(stage) && dealStatusForStage(stage) !== 'lost'"
       );
     }
     const dealRoute = webSource('app/api/deals/[id]/route.ts');
@@ -2717,7 +2717,7 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     }
     expect(mobileApi).toContain('`/api/deals/${dealId}`');
     expect(webSource('app/api/deals/[id]/route.ts')).toContain(
-      "propertyStatusForPipelineStage(stage_name) ?? 'Available'"
+      "propertyStatusForPipelineStage(movedStage) ?? 'Available'"
     );
   });
 
@@ -2732,7 +2732,7 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
   it('pauses a workspace move for brokerage exactly as the board does', () => {
     const mobileSemantics = mobileSource('lib/stage-semantics.ts');
     expect(mobileSemantics).toContain(
-      'return deal.brokerage_amount === null && shouldCaptureBrokerage(stageName);'
+      'return deal.brokerage_amount === null && shouldCaptureBrokerage(stage);'
     );
     for (const source of [webWorkspace, mobileScreen, mobileList]) {
       expect(source).toContain('needsBrokerageCapture(');
@@ -2742,10 +2742,10 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
   });
 
   it('moves the pipeline stage from the workspace header through the deal PATCH', () => {
-    expect(webWorkspace).toContain('dealStatusForStage(stage.name)');
+    expect(webWorkspace).toContain('dealStatusForStage(stage)');
     expect(webWorkspace).toContain('target_stage_id: stage.id');
     expect(webWorkspace).toContain('current_stage_name: stage.name');
-    expect(mobileScreen).toContain('dealStatusForStage(stage.name)');
+    expect(mobileScreen).toContain('dealStatusForStage(stage)');
     expect(mobileScreen).toContain('target_stage_id: stage.id');
     expect(mobileScreen).toContain('current_stage_name: stage.name');
     expect(mobileApi).toContain('`/api/deals/${dealId}`');

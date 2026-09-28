@@ -40,9 +40,19 @@ import {
   dealStatusForStage,
   isBrokeragePaidStage,
   isBrokeragePendingStage,
+  isLostStage,
   pipelineOutcomeForStage,
   shouldCaptureBrokerage,
+  stageTypeOf,
 } from '@/lib/pipelines/stage-semantics';
+import { LostReasonDialog } from './lost-reason-dialog';
+import {
+  LOST_REASONS,
+  isLostReason,
+  lostReasonNeedsNote,
+  type LostReason,
+  type LostReasonInput,
+} from '@/lib/pipelines/lost-reasons';
 
 interface DealFormProps {
   open: boolean;
@@ -75,6 +85,9 @@ export function DealForm({
   const [expectedCloseDate, setExpectedCloseDate] = useState('');
   const [actualCloseDate, setActualCloseDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [lostReason, setLostReason] = useState<LostReason | null>(null);
+  const [lostNote, setLostNote] = useState('');
+  const [lostPromptOpen, setLostPromptOpen] = useState(false);
   const [propertyId, setPropertyId] = useState('');
   const [brokerageType, setBrokerageType] = useState<'percentage' | 'fixed'>(
     'percentage'
@@ -111,6 +124,8 @@ export function DealForm({
       setExpectedCloseDate(deal.expected_close_date ?? '');
       setActualCloseDate(deal.actual_close_date ?? '');
       setNotes(deal.notes ?? '');
+      setLostReason(isLostReason(deal.lost_reason) ? deal.lost_reason : null);
+      setLostNote(deal.lost_note ?? '');
       setPropertyId(deal.property_id ?? '');
       setBrokerageType(deal.brokerage_type || 'percentage');
       setBrokerageValue(
@@ -141,6 +156,8 @@ export function DealForm({
       setExpectedCloseDate('');
       setActualCloseDate('');
       setNotes('');
+      setLostReason(null);
+      setLostNote('');
       setPropertyId('');
       setBrokerageType('percentage');
       setBrokerageValue('');
@@ -203,7 +220,7 @@ export function DealForm({
 
     const selectedStage = stages.find((s) => s.id === stageId);
     const isNegotiationOrLater = selectedStage
-      ? shouldCaptureBrokerage(selectedStage.name)
+      ? shouldCaptureBrokerage(selectedStage)
       : false;
 
     const dealValue = parseFloat(value) || 0;
@@ -219,9 +236,17 @@ export function DealForm({
       : null;
 
     const dealStatus: DealStatus = selectedStage
-      ? dealStatusForStage(selectedStage.name)
+      ? dealStatusForStage(selectedStage)
       : deal?.status || 'open';
     const isClosed = dealStatus !== 'open';
+    if (
+      dealStatus === 'lost' &&
+      (!lostReason || (lostReasonNeedsNote(lostReason) && !lostNote.trim()))
+    ) {
+      toast.error('Pick why the deal was lost');
+      setSaving(false);
+      return;
+    }
 
     const payload = {
       title: title.trim(),
@@ -239,6 +264,9 @@ export function DealForm({
       brokerage_value: brokValue,
       brokerage_amount: brokerageAmt,
       status: dealStatus,
+      ...(dealStatus === 'lost'
+        ? { lost_reason: lostReason, lost_note: lostNote.trim() || null }
+        : {}),
       // Server uses this to atomically sync property status
       stage_name: selectedStage?.name ?? null,
     };
@@ -273,37 +301,43 @@ export function DealForm({
     onSaved();
   }
 
-  async function handleStatusChange(status: DealStatus) {
+  async function handleStatusChange(
+    status: DealStatus,
+    lost: LostReasonInput | null = null
+  ) {
     if (!deal) return;
+    if (status === 'lost' && !lost) {
+      setLostPromptOpen(true);
+      return;
+    }
     setStatusAction(status);
 
+    const byPosition = [...stages].sort((a, b) => a.position - b.position);
     let targetStageId = deal.stage_id;
     if (status === 'lost') {
-      const lostStage = stages.find((s) =>
-        s.name.toLowerCase().includes('lost')
-      );
+      const lostStage = byPosition.find((s) => isLostStage(s));
       if (lostStage) {
         targetStageId = lostStage.id;
       }
     } else if (status === 'won') {
-      const wonStage = stages.find((s) => s.name.toLowerCase().includes('won'));
+      const wonStage =
+        byPosition.find((s) => stageTypeOf(s) === 'won') ??
+        byPosition.find((s) => isBrokeragePendingStage(s));
       if (wonStage) {
         targetStageId = wonStage.id;
       }
     } else {
       const currentStage = stages.find((s) => s.id === deal.stage_id);
-      if (currentStage && isBrokeragePaidStage(currentStage.name)) {
-        const pendingStage = stages.find((s) =>
-          isBrokeragePendingStage(s.name)
-        );
+      if (currentStage && isBrokeragePaidStage(currentStage)) {
+        const pendingStage = stages.find((s) => isBrokeragePendingStage(s));
         if (pendingStage) targetStageId = pendingStage.id;
       } else if (
         currentStage &&
-        pipelineOutcomeForStage(currentStage.name) !== 'active'
+        pipelineOutcomeForStage(currentStage) !== 'active'
       ) {
         const lastActiveStage = [...stages]
           .sort((a, b) => b.position - a.position)
-          .find((stage) => pipelineOutcomeForStage(stage.name) === 'active');
+          .find((stage) => pipelineOutcomeForStage(stage) === 'active');
         if (lastActiveStage) targetStageId = lastActiveStage.id;
       }
     }
@@ -311,7 +345,7 @@ export function DealForm({
     const activePropId = deal.property_id || propertyId;
     const targetStage = stages.find((s) => s.id === (targetStageId || stageId));
     const effectiveStatus = targetStage
-      ? dealStatusForStage(targetStage.name)
+      ? dealStatusForStage(targetStage)
       : status;
 
     try {
@@ -323,6 +357,7 @@ export function DealForm({
           target_stage_id: targetStageId,
           property_id: activePropId || null,
           current_stage_name: targetStage?.name ?? null,
+          ...(lost ?? {}),
         }),
       });
 
@@ -406,10 +441,10 @@ export function DealForm({
 
   const selectedStage = stages.find((s) => s.id === stageId);
   const isNegotiationOrLater = selectedStage
-    ? shouldCaptureBrokerage(selectedStage.name)
+    ? shouldCaptureBrokerage(selectedStage)
     : false;
   const isClosedStage = selectedStage
-    ? dealStatusForStage(selectedStage.name) !== 'open'
+    ? dealStatusForStage(selectedStage) !== 'open'
     : false;
 
   return (
@@ -558,7 +593,7 @@ export function DealForm({
                   // it closed today; the agent can still change it.
                   if (
                     next &&
-                    dealStatusForStage(next.name) !== 'open' &&
+                    dealStatusForStage(next) !== 'open' &&
                     !actualCloseDate
                   ) {
                     setActualCloseDate(new Date().toLocaleDateString('en-CA'));
@@ -573,6 +608,40 @@ export function DealForm({
                 ))}
               </select>
             </div>
+
+            {selectedStage && isLostStage(selectedStage) && (
+              <div className="grid gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                <Label className="text-slate-300">Why was it lost?</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {LOST_REASONS.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      aria-pressed={lostReason === option}
+                      onClick={() => setLostReason(option)}
+                      className={
+                        lostReason === option
+                          ? 'rounded-full border border-red-400/60 bg-red-500/15 px-2.5 py-1 text-xs font-medium text-white'
+                          : 'rounded-full border border-slate-700 bg-slate-800/60 px-2.5 py-1 text-xs text-slate-300 hover:border-slate-600'
+                      }
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+                <Input
+                  value={lostNote}
+                  onChange={(e) => setLostNote(e.target.value)}
+                  maxLength={500}
+                  placeholder={
+                    lostReasonNeedsNote(lostReason)
+                      ? 'What happened?'
+                      : 'Note (optional)'
+                  }
+                  className="border-slate-700 bg-slate-800 text-sm text-white"
+                />
+              </div>
+            )}
 
             {isNegotiationOrLater && (
               <div className="grid grid-cols-2 gap-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
@@ -757,6 +826,14 @@ export function DealForm({
               ))}
           </div>
         </div>
+        <LostReasonDialog
+          dealTitle={lostPromptOpen && deal ? deal.title : null}
+          onCancel={() => setLostPromptOpen(false)}
+          onConfirm={(lost) => {
+            setLostPromptOpen(false);
+            void handleStatusChange('lost', lost);
+          }}
+        />
       </SheetContent>
     </Sheet>
   );

@@ -263,6 +263,8 @@ export function moveDealStage(
     current_stage_name: string;
     brokerage_type?: 'percentage' | 'fixed';
     brokerage_value?: number;
+    lost_reason?: string;
+    lost_note?: string | null;
   }
 ) {
   return apiFetch<{ id: string; status: string }>(`/api/deals/${dealId}`, {

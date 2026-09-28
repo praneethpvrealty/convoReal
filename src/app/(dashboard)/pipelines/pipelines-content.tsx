@@ -37,9 +37,12 @@ import { InfoHint } from '@/components/ui/info-hint';
 import { brokerageAmount } from '@/lib/pipelines/brokerage';
 import {
   dealStatusForStage,
+  isLostStage,
   shouldCaptureBrokerage,
 } from '@/lib/pipelines/stage-semantics';
 import { SPEC_DEFAULT_STAGES } from '@/lib/pipelines/default-stages';
+import type { LostReasonInput } from '@/lib/pipelines/lost-reasons';
+import { LostReasonDialog } from '@/components/pipelines/lost-reason-dialog';
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -127,6 +130,10 @@ export default function PipelinesPage() {
   }, [searchParams, hasAutoOpenedDeal, supabase]);
 
   // Brokerage prompt on drag/move state
+  const [lostPrompt, setLostPrompt] = useState<{
+    deal: Deal;
+    stageId: string;
+  } | null>(null);
   const [brokeragePromptDeal, setBrokeragePromptDeal] = useState<Deal | null>(
     null
   );
@@ -160,7 +167,7 @@ export default function PipelinesPage() {
         .order('position');
 
       const loaded = data ?? [];
-      const hasLost = loaded.some((s) => s.name.toLowerCase().includes('lost'));
+      const hasLost = loaded.some((s) => isLostStage(s));
       if (!hasLost && loaded.length > 0) {
         const maxPosition = loaded.reduce(
           (max, s) => Math.max(max, s.position),
@@ -173,6 +180,7 @@ export default function PipelinesPage() {
             name: 'Closed Lost',
             color: '#ef4444',
             position: maxPosition + 1,
+            stage_type: 'lost',
           })
           .select()
           .single();
@@ -223,6 +231,7 @@ export default function PipelinesPage() {
         name: s.name,
         color: s.color,
         position: s.position,
+        stage_type: s.stage_type,
       }));
       await supabase.from('pipeline_stages').insert(stagesPayload);
       await supabase.rpc('sync_journey_stages_from_pipeline', {
@@ -317,31 +326,29 @@ export default function PipelinesPage() {
     setDeals(await loadDeals(selectedPipelineId));
   }, [loadDeals, selectedPipelineId]);
 
-  const handleDealMoved = useCallback(
-    async (dealId: string, newStageId: string) => {
+  const persistDealMove = useCallback(
+    async (
+      dealId: string,
+      newStageId: string,
+      lost: LostReasonInput | null
+    ) => {
       const deal = deals.find((d) => d.id === dealId);
       const targetStage = stages.find((s) => s.id === newStageId);
-      const isNegotiationOrLater =
-        targetStage && shouldCaptureBrokerage(targetStage.name);
-
-      if (isNegotiationOrLater && deal && deal.brokerage_amount === null) {
-        // Pause and trigger modal
-        setBrokeragePromptDeal(deal);
-        setPendingStageId(newStageId);
-        setModalBrokerageType('percentage');
-        setModalBrokerageValue('');
-        return;
-      }
-
       const dealStatus: DealStatus = targetStage
-        ? dealStatusForStage(targetStage.name)
+        ? dealStatusForStage(targetStage)
         : 'open';
 
       // Optimistic update — board already animated; just persist.
       setDeals((prev) =>
         prev.map((d) =>
           d.id === dealId
-            ? { ...d, stage_id: newStageId, status: dealStatus }
+            ? {
+                ...d,
+                stage_id: newStageId,
+                status: dealStatus,
+                lost_reason: lost?.lost_reason ?? null,
+                lost_note: lost?.lost_note ?? null,
+              }
             : d
         )
       );
@@ -354,6 +361,7 @@ export default function PipelinesPage() {
           target_stage_id: newStageId,
           property_id: deal?.property_id ?? null,
           current_stage_name: targetStage?.name ?? null,
+          ...(lost ?? {}),
           source: 'web',
         }),
       }).catch(() => null);
@@ -371,6 +379,32 @@ export default function PipelinesPage() {
     [refreshDeals, deals, stages, queryClient]
   );
 
+  const handleDealMoved = useCallback(
+    async (dealId: string, newStageId: string) => {
+      const deal = deals.find((d) => d.id === dealId);
+      const targetStage = stages.find((s) => s.id === newStageId);
+      const isNegotiationOrLater =
+        targetStage && shouldCaptureBrokerage(targetStage);
+
+      if (isNegotiationOrLater && deal && deal.brokerage_amount === null) {
+        // Pause and trigger modal
+        setBrokeragePromptDeal(deal);
+        setPendingStageId(newStageId);
+        setModalBrokerageType('percentage');
+        setModalBrokerageValue('');
+        return;
+      }
+
+      if (targetStage && isLostStage(targetStage) && deal) {
+        setLostPrompt({ deal, stageId: newStageId });
+        return;
+      }
+
+      await persistDealMove(dealId, newStageId, null);
+    },
+    [deals, stages, persistDealMove]
+  );
+
   async function handleModalBrokerageSave() {
     if (!brokeragePromptDeal || !pendingStageId) return;
 
@@ -385,7 +419,7 @@ export default function PipelinesPage() {
 
     const targetStage = stages.find((s) => s.id === pendingStageId);
     const dealStatus: DealStatus = targetStage
-      ? dealStatusForStage(targetStage.name)
+      ? dealStatusForStage(targetStage)
       : 'open';
 
     // Optimistically update
@@ -537,6 +571,7 @@ export default function PipelinesPage() {
       name: s.name,
       color: s.color,
       position: s.position,
+      stage_type: s.stage_type,
     }));
     await supabase.from('pipeline_stages').insert(stagesPayload);
 
@@ -738,6 +773,16 @@ export default function PipelinesPage() {
       )}
 
       {/* Brokerage Prompt Dialog */}
+      <LostReasonDialog
+        dealTitle={lostPrompt?.deal.title ?? null}
+        onCancel={() => setLostPrompt(null)}
+        onConfirm={(lost) => {
+          const prompt = lostPrompt;
+          setLostPrompt(null);
+          if (prompt)
+            void persistDealMove(prompt.deal.id, prompt.stageId, lost);
+        }}
+      />
       <Dialog
         open={!!brokeragePromptDeal}
         onOpenChange={(open) => !open && handleModalBrokerageCancel()}
@@ -752,10 +797,10 @@ export default function PipelinesPage() {
             <p className="text-xs text-slate-400">
               This deal is entering{' '}
               <span className="text-primary font-semibold">
-                Negotiation/Token
-              </span>{' '}
-              or a later transaction-closing stage. Please specify the brokerage
-              rate or amount.
+                {stages.find((s) => s.id === pendingStageId)?.name ??
+                  'a closing stage'}
+              </span>
+              . Please specify the brokerage rate or amount.
             </p>
             {brokeragePromptDeal && (
               <div className="space-y-1 rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-xs">

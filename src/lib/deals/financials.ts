@@ -15,7 +15,8 @@
  * records token/advance directly.
  */
 
-export type TdsStatus = 'not_applicable' | 'expected' | 'deducted' | 'deposited';
+export type TdsStatus =
+  'not_applicable' | 'expected' | 'deducted' | 'deposited';
 
 export const TDS_STATUSES: readonly TdsStatus[] = [
   'not_applicable',
@@ -86,7 +87,9 @@ export const TOKEN_FIELDS = [
 export type TokenSource = 'deal' | 'token_safe';
 
 /** Where a deal's token money lives. Linkage decides, not the caller. */
-export function tokenSourceFor(deal: { deal_room_id: string | null }): TokenSource {
+export function tokenSourceFor(deal: {
+  deal_room_id: string | null;
+}): TokenSource {
   return deal.deal_room_id ? 'token_safe' : 'deal';
 }
 
@@ -111,7 +114,8 @@ type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 function money(v: unknown, label: string): ParseResult<number | null> {
-  if (v === null || v === '' || v === undefined) return { ok: true, value: null };
+  if (v === null || v === '' || v === undefined)
+    return { ok: true, value: null };
   const n = typeof v === 'string' ? Number(v) : v;
   if (typeof n !== 'number' || !Number.isFinite(n) || n < 0) {
     return { ok: false, error: `${label} must be a non-negative amount` };
@@ -122,9 +126,14 @@ function money(v: unknown, label: string): ParseResult<number | null> {
   return { ok: true, value: Math.round(n * 100) / 100 };
 }
 
-function text(v: unknown, label: string, max: number): ParseResult<string | null> {
+function text(
+  v: unknown,
+  label: string,
+  max: number
+): ParseResult<string | null> {
   if (v === null || v === undefined) return { ok: true, value: null };
-  if (typeof v !== 'string') return { ok: false, error: `${label} must be text` };
+  if (typeof v !== 'string')
+    return { ok: false, error: `${label} must be text` };
   const t = v.trim();
   if (t.length > max) {
     return { ok: false, error: `${label} must be ${max} characters or less` };
@@ -173,14 +182,18 @@ export function parseFinancialsPatch(
   if (input.token_received_at !== undefined) {
     const v = input.token_received_at;
     if (v === null || v === '') patch.token_received_at = null;
-    else if (typeof v === 'string' && DATE_ONLY.test(v)) patch.token_received_at = v;
+    else if (typeof v === 'string' && DATE_ONLY.test(v))
+      patch.token_received_at = v;
     else return { ok: false, error: 'token_received_at must be YYYY-MM-DD' };
   }
 
   if (input.tds_status !== undefined) {
     const v = input.tds_status;
     if (v === null || v === '') patch.tds_status = null;
-    else if (typeof v === 'string' && (TDS_STATUSES as readonly string[]).includes(v))
+    else if (
+      typeof v === 'string' &&
+      (TDS_STATUSES as readonly string[]).includes(v)
+    )
       patch.tds_status = v as TdsStatus;
     else return { ok: false, error: 'Unknown TDS status' };
   }
@@ -205,7 +218,10 @@ export function parseFinancialsPatch(
 /** The token figure the workspace shows, whichever table holds it. A
  *  Den-linked deal only counts a funded or released escrow as money in. */
 export function derivedToken(
-  deal: Pick<DealFinancials, 'token_amount' | 'token_received_at' | 'token_instrument_ref'> & {
+  deal: Pick<
+    DealFinancials,
+    'token_amount' | 'token_received_at' | 'token_instrument_ref'
+  > & {
     deal_room_id: string | null;
   },
   escrow: {
@@ -223,7 +239,13 @@ export function derivedToken(
 } {
   if (deal.deal_room_id) {
     if (!escrow) {
-      return { source: 'token_safe', amount: null, received_at: null, reference: null, status: null };
+      return {
+        source: 'token_safe',
+        amount: null,
+        received_at: null,
+        reference: null,
+        status: null,
+      };
     }
     const funded = escrow.status === 'funded' || escrow.status === 'released';
     return {
