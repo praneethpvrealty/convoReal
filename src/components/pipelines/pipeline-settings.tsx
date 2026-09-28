@@ -147,6 +147,20 @@ export function PipelineSettings({
       toast.error("Failed to save pipeline");
       return;
     }
+    const retyped = localStages.filter((local) => {
+      const before = stages.find((s) => s.id === local.id);
+      return before && stageTypeOf(before) !== stageTypeOf(local);
+    });
+    const resyncs = await Promise.all(
+      retyped.map((stage) =>
+        supabase.rpc("resync_pipeline_stage_deals", { p_stage_id: stage.id }),
+      ),
+    );
+    if (resyncs.some((r) => r.error)) {
+      toast.error(
+        "Stages saved, but deals on a retyped stage could not be updated",
+      );
+    }
     if (pipeline.account_id) {
       await supabase.rpc("sync_journey_stages_from_pipeline", {
         p_account_id: pipeline.account_id,

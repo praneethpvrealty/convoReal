@@ -1,6 +1,14 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
-import { LOST_REASONS, lostReasonLabel, parseLostReason } from './lost-reasons';
+import {
+  LOST_REASONS,
+  lostReasonLabel,
+  lostReasonMissing,
+  parseLostReason,
+} from './lost-reasons';
 
 describe('[TXW-025] lost reasons', () => {
   it('accepts a listed reason with an optional note', () => {
@@ -42,5 +50,28 @@ describe('[TXW-025] lost reasons', () => {
       lostReasonLabel({ lost_reason: 'Buyer backed out', lost_note: 'loan' })
     ).toBe('Buyer backed out: loan');
     expect(lostReasonLabel({ lost_reason: null })).toBeNull();
+  });
+});
+
+describe('[TXW-025] the mobile app offers exactly the reasons the server accepts', () => {
+  it('keeps the native copy identical to this module', () => {
+    const shared = (path: string) => {
+      const source = readFileSync(join(process.cwd(), path), 'utf8');
+      return source.slice(source.indexOf('export const LOST_REASONS'));
+    };
+    expect(shared('mobile/lib/lost-reasons.ts')).toBe(
+      shared('src/lib/pipelines/lost-reasons.ts')
+    );
+  });
+
+  it('requires a reason whenever a deal becomes lost', () => {
+    expect(lostReasonMissing('lost', null)).toBe(true);
+    expect(
+      lostReasonMissing('lost', {
+        lost_reason: 'Price disagreement',
+        lost_note: null,
+      })
+    ).toBe(false);
+    expect(lostReasonMissing('open', null)).toBe(false);
   });
 });

@@ -8,7 +8,11 @@ import {
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
 import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 import { resolveStage } from '@/lib/deals/stage-move';
-import { parseLostReason } from '@/lib/pipelines/lost-reasons';
+import {
+  LOST_REASON_REQUIRED_ERROR,
+  lostReasonMissing,
+  parseLostReason,
+} from '@/lib/pipelines/lost-reasons';
 
 // POST /api/deals — create a deal and atomically sync the linked property's status.
 // Replaces the multi-step client-side writes in deal-form.tsx.
@@ -73,6 +77,12 @@ export async function POST(request: Request) {
     const lost = parseLostReason(body);
     if (!lost.ok) {
       return NextResponse.json({ error: lost.error }, { status: 400 });
+    }
+    if (lostReasonMissing(dealStatus, lost.value)) {
+      return NextResponse.json(
+        { error: LOST_REASON_REQUIRED_ERROR, code: 'LOST_REASON_REQUIRED' },
+        { status: 400 }
+      );
     }
     const insertData = {
       user_id: ctx.userId,

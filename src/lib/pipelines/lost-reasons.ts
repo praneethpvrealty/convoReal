@@ -50,6 +50,16 @@ export function parseLostReason(
   return { ok: true, value: { lost_reason, lost_note: note } };
 }
 
+export const LOST_REASON_REQUIRED_ERROR =
+  "Marking a deal lost needs a 'lost_reason'";
+
+export function lostReasonMissing(
+  status: unknown,
+  lost: LostReasonInput | null
+): boolean {
+  return status === 'lost' && lost === null;
+}
+
 export function lostReasonLabel(deal: {
   lost_reason?: string | null;
   lost_note?: string | null;

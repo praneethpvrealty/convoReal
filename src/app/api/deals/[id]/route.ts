@@ -15,7 +15,11 @@ import {
   type DealStatus,
 } from '@/lib/deals/stage-move';
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
-import { parseLostReason } from '@/lib/pipelines/lost-reasons';
+import {
+  LOST_REASON_REQUIRED_ERROR,
+  lostReasonMissing,
+  parseLostReason,
+} from '@/lib/pipelines/lost-reasons';
 import { deleteDealWithCleanup } from '@/lib/deals/delete-deal';
 import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 
@@ -112,6 +116,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (dealStatus === 'lost' && lost.value) {
       updateData.lost_reason = lost.value.lost_reason;
       updateData.lost_note = lost.value.lost_note;
+    } else if (lostReasonMissing(dealStatus, lost.value)) {
+      const { data: current } = await ctx.supabase
+        .from('deals')
+        .select('status')
+        .eq('id', dealId)
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+      if (current?.status !== 'lost') {
+        return NextResponse.json(
+          { error: LOST_REASON_REQUIRED_ERROR, code: 'LOST_REASON_REQUIRED' },
+          { status: 400 }
+        );
+      }
     }
 
     let previousPropertyId: string | null = null;
@@ -293,6 +310,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const lost = parseLostReason(body);
     if (!lost.ok) {
       return NextResponse.json({ error: lost.error }, { status: 400 });
+    }
+    if (lostReasonMissing(status, lost.value)) {
+      return NextResponse.json(
+        { error: LOST_REASON_REQUIRED_ERROR, code: 'LOST_REASON_REQUIRED' },
+        { status: 400 }
+      );
     }
 
     const moved = await applyDealStageMove(ctx, {
