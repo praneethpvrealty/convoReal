@@ -160,6 +160,12 @@ describe('POST /api/contacts/[id]/portal-link', () => {
     // …and given the junction row the inventory side reads.
     expect(upserts[1].table).toBe('contact_property_inquiries');
     expect(upserts[1].row).toHaveLength(3);
+    expect(upserts[1].row).toContainEqual(
+      expect.objectContaining({
+        inquiry_source: 'Housing',
+        via_portal_link: true,
+      })
+    );
     // An interest that predates the mapping keeps its own source and
     // date, so unmapping can tell the two apart.
     expect(upsertOptions[1]).toMatchObject({ ignoreDuplicates: true });

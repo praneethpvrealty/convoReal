@@ -5,7 +5,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
-import { PORTAL_KEYS, type PortalKey } from '@/lib/portals/post-kit';
+import { PORTALS, PORTAL_KEYS, type PortalKey } from '@/lib/portals/post-kit';
 
 // POST /api/contacts/[id]/portal-link   { propertyId }
 //
@@ -231,7 +231,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           account_id: ctx.accountId,
           contact_id: c.id,
           property_id: propertyId,
-          inquiry_source: portal,
+          inquiry_source: PORTALS[portal].enquirySource,
+          via_portal_link: true,
         })),
         { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
       );
