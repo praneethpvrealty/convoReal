@@ -23,13 +23,14 @@ concurrency:
 
 jobs:
   cleanup:
-    name: Delete finished agent/ and release/ branches
+    name: Delete finished agent/, release/ and claude/ branches
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.merged &&
        github.event.pull_request.head.repo.full_name == github.repository &&
        (startsWith(github.event.pull_request.head.ref, 'agent/') ||
-        startsWith(github.event.pull_request.head.ref, 'release/')))
+        startsWith(github.event.pull_request.head.ref, 'release/') ||
+        startsWith(github.event.pull_request.head.ref, 'claude/')))
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

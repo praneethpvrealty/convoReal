@@ -28,11 +28,12 @@ const base = {
 };
 
 describe('isManagedBranch', () => {
-  it('manages only agent/ and release/ branches', () => {
+  it('manages only agent/, release/ and claude/ branches', () => {
     expect(isManagedBranch('agent/fix')).toBe(true);
     expect(isManagedBranch('release/batch')).toBe(true);
+    expect(isManagedBranch('claude/session')).toBe(true);
     expect(isManagedBranch('main')).toBe(false);
-    expect(isManagedBranch('claude/session')).toBe(false);
+    expect(isManagedBranch('dependabot/npm_and_yarn/vitest-5.0.0')).toBe(false);
     expect(isManagedBranch('my-agent/fix')).toBe(false);
   });
 });

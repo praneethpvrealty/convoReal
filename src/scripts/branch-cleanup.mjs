@@ -1,4 +1,4 @@
-const MANAGED_BRANCH = /^(agent|release)\//;
+const MANAGED_BRANCH = /^(agent|release|claude)\//;
 const DAY_MS = 86_400_000;
 
 export const CLOSED_GRACE_DAYS = 7;
@@ -23,7 +23,10 @@ export function decideBranch({
   now,
 }) {
   if (!isManagedBranch(name))
-    return { remove: false, reason: 'not an agent/ or release/ branch' };
+    return {
+      remove: false,
+      reason: 'not an agent/, release/ or claude/ branch',
+    };
   if (openAsHead) return { remove: false, reason: 'has an open pull request' };
   if (openAsBase)
     return { remove: false, reason: 'an open pull request targets it' };

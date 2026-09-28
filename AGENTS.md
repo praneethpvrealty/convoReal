@@ -37,7 +37,7 @@ Next.js 16 has breaking changes compared with older versions — APIs, file conv
 - Keep the `main` push and `merge_group` CI triggers. Do not weaken required checks. Vercel branch gating does not disable GitHub Actions or the mobile EAS channel named `preview`.
 - After the final merge, verify the deployed batch tip: `main` CI, Vercel production, affected Railway services, migrations, and mobile OTA targets as applicable. Smoke-test affected user flows and report anything unverified.
 - The agent owns batch selection, review, checks, merge order, and one combined deployment report. Do not merge member PRs separately into `main`.
-- Finished branches are deleted by `.github/workflows/branch-cleanup.yml`, not by hand. A merged PR's `agent/*` or `release/*` branch goes at once, unless an open PR still targets it; a nightly sweep removes a branch whose PR closed unmerged 7+ days ago, whose tip is already in `main`, or which has no PR and has been idle 14+ days. Each deletion logs the tip SHA for restoring. Other prefixes, including session branches, are never touched. Run it by hand with `workflow_dispatch` (`dry_run` to preview).
+- Finished branches are deleted by `.github/workflows/branch-cleanup.yml`, not by hand. A merged PR's `agent/*`, `release/*` or `claude/*` session branch goes at once, unless an open PR still targets it; a nightly sweep removes a branch whose PR closed unmerged 7+ days ago, whose tip is already in `main`, or which has no PR and has been idle 14+ days. Each deletion logs the tip SHA for restoring. Other prefixes (`main`, `dependabot/*`) are never touched. Run it by hand with `workflow_dispatch` (`dry_run` to preview).
 
 ---
 
