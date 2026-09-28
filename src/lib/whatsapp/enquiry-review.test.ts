@@ -139,6 +139,37 @@ describe('loadOpenEnquiries', () => {
     expect((await loadOpenEnquiries(manyDb, 'acct-1', 'c1')).length).toBe(9);
   });
 
+  it('[INB-021] leaves out an excluded listing before capping the list', async () => {
+    const many = Array.from({ length: 10 }, (_, i) => ({
+      id: `item-${i}`,
+      property: { id: `p-${i}`, title: `Listing ${i}` },
+    }));
+    const { db } = stubDb({ journey_items: [many] });
+
+    const open = await loadOpenEnquiries(db, 'acct-1', 'c1', {
+      excludePropertyId: 'p-0',
+    });
+
+    expect(open.map((e) => e.property.id)).toEqual(
+      many.slice(1).map((m) => m.property.id)
+    );
+  });
+
+  it('[INB-021] throws on a failed read only when the caller asks for it', async () => {
+    const chain: Record<string, unknown> = {};
+    for (const m of ['select', 'eq', 'order']) chain[m] = () => chain;
+    (chain as { then?: unknown }).then = (resolve: (v: unknown) => unknown) =>
+      Promise.resolve(
+        resolve({ data: null, error: { message: 'statement timeout' } })
+      );
+    const db = { from: () => chain } as never;
+
+    expect(await loadOpenEnquiries(db, 'acct-1', 'c1')).toEqual([]);
+    await expect(
+      loadOpenEnquiries(db, 'acct-1', 'c1', { strict: true })
+    ).rejects.toThrow('statement timeout');
+  });
+
   it('[INB-010] leaves deals at token, legal, registration or won off the list — they are not open enquiries', async () => {
     const { db } = stubDb({
       journey_items: [

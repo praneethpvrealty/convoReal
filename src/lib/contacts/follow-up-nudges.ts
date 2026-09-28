@@ -816,7 +816,8 @@ export type FollowUpColdOutcome =
  * radar keeps following them on those, naming the next one. Only when
  * that listing was the last open enquiry, or the card named none, does
  * the lead itself go COLD. A named listing that can no longer be read
- * changes nothing: guessing lead-wide would drop every other enquiry.
+ * changes nothing, and neither does a failed read of the open
+ * enquiries: guessing lead-wide would drop every other enquiry.
  */
 export async function markFollowUpCold(
   db: SupabaseClient,
@@ -838,6 +839,27 @@ export async function markFollowUpCold(
   }
 
   if (property) {
+    const otherOpen = async (): Promise<OpenEnquiry['property'][]> => {
+      const found: OpenEnquiry['property'][] = [];
+      for (const id of partyIds) {
+        const open = await loadOpenEnquiries(db, accountId, id, {
+          strict: true,
+          excludePropertyId: property.id,
+        });
+        for (const { property: p } of open) {
+          if (!found.some((f) => f.id === p.id)) found.push(p);
+        }
+      }
+      return found;
+    };
+
+    let stillOpen: OpenEnquiry['property'][];
+    try {
+      stillOpen = await otherOpen();
+    } catch {
+      return { scope: 'unresolved' };
+    }
+
     const label = enquiryLabel(property);
     for (const id of partyIds) {
       await closePropertyEnquiry({
@@ -850,17 +872,8 @@ export async function markFollowUpCold(
       });
     }
 
-    const stillOpen: OpenEnquiry['property'][] = [];
-    for (const id of partyIds) {
-      for (const open of await loadOpenEnquiries(db, accountId, id)) {
-        if (
-          open.property.id !== property.id &&
-          !stillOpen.some((p) => p.id === open.property.id)
-        ) {
-          stillOpen.push(open.property);
-        }
-      }
-    }
+    const before = stillOpen;
+    stillOpen = await otherOpen().catch(() => before);
 
     if (stillOpen.length) {
       await db
@@ -888,7 +901,7 @@ export function buildColdConfirmation(
   outcome: FollowUpColdOutcome
 ): string {
   if (outcome.scope === 'unresolved') {
-    return `⚠️ Nothing changed for ${who} — the listing on this card could not be found, so no enquiry was closed. Open the lead to update it by hand.`;
+    return `⚠️ Nothing changed for ${who} — this card's enquiries could not be read, so no enquiry was closed. Open the lead to update it by hand.`;
   }
   if (outcome.scope === 'property') {
     const named = outcome.stillOpen
