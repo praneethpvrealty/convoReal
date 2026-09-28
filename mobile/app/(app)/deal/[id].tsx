@@ -1588,8 +1588,21 @@ function CoBrokingSection({
               <Text style={[styles.cardTitle, { color: colors.text }]}>
                 Payout to {paidFor.payee_name}
               </Text>
-              {data.brokers.length > 0 ? (
+              {data.brokers.length > 0 || paidFor.stakeholder_id ? (
                 <View style={styles.chipRow}>
+                  <FilterChip
+                    label="Not linked"
+                    active={editStakeholder === null}
+                    onPress={() => setEditStakeholder(null)}
+                  />
+                  {paidFor.stakeholder_id &&
+                  !data.brokers.some((b) => b.id === paidFor.stakeholder_id) ? (
+                    <FilterChip
+                      label={`${paidFor.payee_name} (no longer a broker)`}
+                      active={editStakeholder === paidFor.stakeholder_id}
+                      onPress={() => setEditStakeholder(paidFor.stakeholder_id)}
+                    />
+                  ) : null}
                   {data.brokers.map((b) => (
                     <FilterChip
                       key={b.id}
