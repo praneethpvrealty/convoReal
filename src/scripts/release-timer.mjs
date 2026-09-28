@@ -15,6 +15,7 @@ export function decideRelease({
   mergedMembers,
   openMembers,
   releasePr,
+  behindMain,
   ci,
   unresolvedThreads,
   codexRunning,
@@ -41,6 +42,15 @@ export function decideRelease({
   }
 
   if (!releasePr) return { action: 'open-pr', reason: 'time limit reached' };
+  if (mergeable === false) {
+    return { action: 'hold', reason: 'merge conflict with main' };
+  }
+  if (behindMain > 0) {
+    return {
+      action: 'update-branch',
+      reason: `${behindMain} commit(s) behind main; CI must test the combined tree`,
+    };
+  }
   if (!ci) return { action: 'run-ci', reason: 'no CI run on the release head' };
   if (ci.status !== 'completed')
     return { action: 'wait', reason: 'CI running' };
@@ -52,9 +62,6 @@ export function decideRelease({
       action: 'hold',
       reason: `${unresolvedThreads} unresolved review thread(s)`,
     };
-  }
-  if (mergeable === false) {
-    return { action: 'hold', reason: 'merge conflict with main' };
   }
   if (codexRunning) return { action: 'wait', reason: 'Codex review running' };
   if (minutesSince(releasePr.createdAt, now) < REVIEW_SETTLE_MINUTES) {
@@ -238,8 +245,17 @@ async function shipBranch({
   let unresolvedThreads = 0;
   let codexRunning = false;
   let mergeable = null;
+  let behindMain = 0;
   let comments = [];
   if (releasePr) {
+    ({
+      data: { behind_by: behindMain },
+    } = await github.rest.repos.compareCommitsWithBasehead({
+      owner,
+      repo,
+      basehead: `main...${releasePr.headSha}`,
+      per_page: 1,
+    }));
     ci = await latestCiRun(github, owner, repo, releasePr.headSha);
     unresolvedThreads = await unresolvedThreadCount(
       github,
@@ -263,6 +279,7 @@ async function shipBranch({
     mergedMembers,
     openMembers,
     releasePr,
+    behindMain,
     ci,
     unresolvedThreads,
     codexRunning,
@@ -302,17 +319,35 @@ async function shipBranch({
     return decision;
   }
 
-  if (decision.action === 'hold') {
+  const hold = async (reason) => {
     const marker = `<!-- ${HOLD_MARKER}:${releasePr.headSha} -->`;
     if (!comments.some((comment) => comment.body?.includes(marker))) {
       await github.rest.issues.createComment({
         owner,
         repo,
         issue_number: releasePr.number,
-        body: `${marker}\nThe release timer is holding this release: ${decision.reason}. It merges automatically once that is fixed on a new push.`,
+        body: `${marker}\nThe release timer is holding this release: ${reason}. It merges automatically once that is fixed on a new push.`,
       });
     }
-    core.warning(`${branch} held: ${decision.reason}`);
+    core.warning(`${branch} held: ${reason}`);
+    return { action: 'hold', reason };
+  };
+
+  if (decision.action === 'hold') return hold(decision.reason);
+
+  if (decision.action === 'update-branch') {
+    try {
+      await github.rest.pulls.updateBranch({
+        owner,
+        repo,
+        pull_number: releasePr.number,
+        expected_head_sha: releasePr.headSha,
+      });
+    } catch (error) {
+      if (error.status !== 422) throw error;
+      return hold('main cannot be merged into the release branch cleanly');
+    }
+    core.notice(`merged main into ${branch}; CI runs on the new head next`);
     return decision;
   }
 
@@ -344,8 +379,12 @@ async function shipBranch({
   if (stillOpen.length > 0) {
     await carryOver(github, core, owner, repo, branch, stillOpen, merged.sha);
   }
-  await github.rest.git.deleteRef({ owner, repo, ref: `heads/${branch}` });
-  core.notice(`deleted ${branch} at ${releasePr.headSha}`);
+  await github.rest.actions.createWorkflowDispatch({
+    owner,
+    repo,
+    workflow_id: 'branch-cleanup.yml',
+    ref: 'main',
+  });
   return decision;
 }
 

@@ -20,6 +20,7 @@ const ready = {
     headSha: 'h',
   },
   ci: { status: 'completed', conclusion: 'success' },
+  behindMain: 0,
   unresolvedThreads: 0,
   codexRunning: false,
   mergeable: true as boolean | null,
@@ -105,6 +106,16 @@ describe('decideRelease', () => {
     expect(decideRelease({ ...ready, mergeable: null }).action).toBe('wait');
   });
 
+  it('brings a release that fell behind main up to date before testing it', () => {
+    expect(decideRelease({ ...ready, behindMain: 2 })).toEqual({
+      action: 'update-branch',
+      reason: '2 commit(s) behind main; CI must test the combined tree',
+    });
+    expect(
+      decideRelease({ ...ready, behindMain: 2, mergeable: false }).action
+    ).toBe('hold');
+  });
+
   it('merges once every gate passes', () => {
     expect(decideRelease(ready).action).toBe('merge');
   });
@@ -130,6 +141,7 @@ function fakeGithub({
   }[],
   queuedRuns = [] as { status: string; conclusion: string | null }[],
   mergeable = true,
+  behindBy = 0,
 }: {
   pulls: Pull[];
   created?: string;
@@ -140,6 +152,7 @@ function fakeGithub({
   }[];
   queuedRuns?: { status: string; conclusion: string | null }[];
   mergeable?: boolean | null;
+  behindBy?: number;
 }) {
   const listBranches = vi.fn();
   const pullsList = vi.fn(
@@ -173,6 +186,9 @@ function fakeGithub({
       getBranch: vi.fn(async () => ({ data: { commit: { sha: 'tip' } } })),
       listActivities: vi.fn(async () => ({ data: [{ timestamp: created }] })),
       getCommit: vi.fn(),
+      compareCommitsWithBasehead: vi.fn(async () => ({
+        data: { behind_by: behindBy },
+      })),
     },
     pulls: {
       list: pullsList,
@@ -180,6 +196,7 @@ function fakeGithub({
       create: vi.fn(async () => ({ data: { number: 50 } })),
       merge: vi.fn(async () => ({ data: { sha: 'merged' } })),
       update: vi.fn(async () => ({})),
+      updateBranch: vi.fn(async () => ({})),
     },
     checks: {
       listForRef: vi.fn(async () => ({ data: { check_runs: checkRuns } })),
@@ -188,7 +205,9 @@ function fakeGithub({
       listWorkflowRuns: vi.fn(async () => ({
         data: { workflow_runs: queuedRuns },
       })),
-      createWorkflowDispatch: vi.fn(async () => ({})),
+      createWorkflowDispatch: vi.fn(
+        async (params: { workflow_id: string; ref: string }) => ({ params })
+      ),
     },
     issues: { listComments, createComment: vi.fn(async () => ({})) },
     git: {
@@ -286,10 +305,12 @@ describe('run', () => {
       expect.objectContaining({ ref: 'main' })
     );
     expect(rest.git.createRef).not.toHaveBeenCalled();
-    expect(rest.git.deleteRef).toHaveBeenCalledWith({
+    expect(rest.git.deleteRef).not.toHaveBeenCalled();
+    expect(rest.actions.createWorkflowDispatch).toHaveBeenCalledWith({
       owner: 'owner',
       repo: 'repo',
-      ref: 'heads/release/batch',
+      workflow_id: 'branch-cleanup.yml',
+      ref: 'main',
     });
   });
 
@@ -319,8 +340,13 @@ describe('run', () => {
       base: 'release/batch-next',
     });
     const retargeted = rest.pulls.update.mock.invocationCallOrder[0];
-    const deleted = rest.git.deleteRef.mock.invocationCallOrder[0];
-    expect(retargeted).toBeLessThan(deleted);
+    const cleanup = rest.actions.createWorkflowDispatch.mock.calls.findIndex(
+      ([params]) => params.workflow_id === 'branch-cleanup.yml'
+    );
+    expect(cleanup).toBeGreaterThanOrEqual(0);
+    expect(retargeted).toBeLessThan(
+      rest.actions.createWorkflowDispatch.mock.invocationCallOrder[cleanup]
+    );
   });
 
   it('comments once when holding a release on failed CI', async () => {
@@ -353,7 +379,7 @@ describe('run', () => {
       ].action
     ).toBe('merge');
     expect(rest.pulls.merge).not.toHaveBeenCalled();
-    expect(rest.git.deleteRef).not.toHaveBeenCalled();
+    expect(rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
   });
 
   it('reuses a next release branch that already exists', async () => {
@@ -375,6 +401,42 @@ describe('run', () => {
     expect(rest.pulls.update).toHaveBeenCalledWith(
       expect.objectContaining({ pull_number: 3, base: 'release/batch-next' })
     );
-    expect(rest.git.deleteRef).toHaveBeenCalled();
+    expect(rest.pulls.merge).toHaveBeenCalled();
+  });
+
+  it('merges main into a release that fell behind instead of merging it', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      behindBy: 3,
+    });
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch'].action
+    ).toBe('update-branch');
+    expect(rest.pulls.updateBranch).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      pull_number: 50,
+      expected_head_sha: 'tip',
+    });
+    expect(rest.pulls.merge).not.toHaveBeenCalled();
+  });
+
+  it('holds when main cannot be merged into the release cleanly', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      behindBy: 3,
+    });
+    rest.pulls.updateBranch.mockRejectedValueOnce(
+      Object.assign(new Error('merge conflict'), { status: 422 })
+    );
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch'].action
+    ).toBe('hold');
+    expect(rest.issues.createComment).toHaveBeenCalledTimes(1);
+    expect(rest.pulls.merge).not.toHaveBeenCalled();
   });
 });
