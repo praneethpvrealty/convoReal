@@ -84,7 +84,7 @@ export function DealCoBrokingPanel({
   const [editStakeholder, setEditStakeholder] = useState('');
   const [editPercent, setEditPercent] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['deal-co-broking', dealId],
     queryFn: () =>
       call(
@@ -275,7 +275,14 @@ export function DealCoBrokingPanel({
         )}
       </div>
 
-      {isLoading || !data ? (
+      {isError && !data ? (
+        <div className="flex items-center gap-2 text-xs text-rose-400">
+          {error instanceof Error ? error.message : 'Could not load co-broking'}
+          <Button size="sm" variant="outline" onClick={() => refetch()}>
+            Try again
+          </Button>
+        </div>
+      ) : isLoading || !data ? (
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Loading co-broking…

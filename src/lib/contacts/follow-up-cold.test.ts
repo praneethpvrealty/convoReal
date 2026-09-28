@@ -53,7 +53,8 @@ type Update = { patch: Record<string, unknown>; filters: string[] };
 
 function fakeDb(
   properties: Array<{ id: string; title: string }>,
-  lookupError: { message: string } | null = null
+  lookupError: { message: string } | null = null,
+  lingering: Array<{ id: string }> = []
 ) {
   const updates: Update[] = [];
   const db = {
@@ -63,6 +64,7 @@ function fakeDb(
       let id: string | null = null;
       const chain = {
         select: () => chain,
+        limit: () => chain,
         update: (p: Record<string, unknown>) => {
           patch = p;
           return chain;
@@ -83,9 +85,9 @@ function fakeDb(
               ? (properties.find((p) => p.id === id) ?? null)
               : null,
         }),
-        then: (resolve: (v: { data: null }) => void) => {
+        then: (resolve: (v: { data: unknown }) => void) => {
           if (patch) updates.push({ patch, filters });
-          resolve({ data: null });
+          resolve({ data: table === 'journey_items' ? lingering : null });
         },
       };
       return chain;
@@ -218,6 +220,20 @@ describe('[INB-021] markFollowUpCold', () => {
     expect(closed).toEqual([{ contactId: 'rohit', propertyId: PLOT.id }]);
     expect(outcome).toMatchObject({ scope: 'property', stillOpen: [HOUSE] });
     expect(updates.some((u) => 'lead_temp' in u.patch)).toBe(false);
+  });
+
+  it('changes nothing lead-wide when the close left the branch active', async () => {
+    openByContact = { rohit: [PLOT] };
+    const { db, updates } = fakeDb([PLOT], null, [{ id: 'item-p-plot' }]);
+
+    const outcome = await markFollowUpCold(db, {
+      accountId: 'acct-1',
+      partyIds: ['rohit'],
+      propertyId: PLOT.id,
+    });
+
+    expect(outcome).toEqual({ scope: 'unresolved' });
+    expect(updates).toHaveLength(0);
   });
 
   it('marks the lead cold when the card named no listing', async () => {

@@ -16,6 +16,7 @@ import {
   FOLLOWUP_CONSIDERING_PREFIX,
   FOLLOWUP_SNOOZE_PREFIX,
   FOLLOWUP_COLD_PREFIX,
+  FOLLOWUP_NO_LISTING,
   FOLLOWUP_MAX_PER_RUN,
 } from './follow-up-nudges';
 
@@ -41,6 +42,21 @@ describe('parseFollowUpReply', () => {
     expect(
       parseFollowUpReply(`${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}`)?.action
     ).toBe('cold');
+  });
+
+  it('[INB-021] leaves an older card without a listing unresolved', () => {
+    expect(parseFollowUpReply(`${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}`)).toEqual({
+      action: 'cold',
+      contactId: CONTACT_ID,
+    });
+    const source = readFileSync(
+      join(process.cwd(), 'src/lib/contacts/follow-up-nudges.ts'),
+      'utf8'
+    );
+    expect(source).toContain('if (action.propertyId === undefined) {');
+    expect(source).not.toContain(
+      'action.propertyId ?? lead.last_inquired_property_id'
+    );
   });
 
   it('carries the carded listing on a Mark cold tap', () => {
@@ -153,7 +169,14 @@ describe('[INB-021] Mark cold is scoped to the carded listing', () => {
 
   it('falls back to a lead-wide cold when the card names no listing', () => {
     const cold = buildFollowUpActionSections(lead)[0].rows[3];
-    expect(cold.id).toBe(`${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}`);
+    expect(cold.id).toBe(
+      `${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}:${FOLLOWUP_NO_LISTING}`
+    );
+    expect(parseFollowUpReply(cold.id)).toEqual({
+      action: 'cold',
+      contactId: CONTACT_ID,
+      propertyId: null,
+    });
   });
 
   it('tells the agent which enquiries are still tracked', () => {
@@ -172,7 +195,7 @@ describe('[INB-021] Mark cold is scoped to the carded listing', () => {
 
   it('refuses rather than guessing when the carded listing is gone', () => {
     const text = buildColdConfirmation('Rohit', { scope: 'unresolved' });
-    expect(text).toContain('Nothing changed for Rohit');
+    expect(text).toContain('Rohit was not marked cold');
   });
 
   it('says so when the listing was the last open enquiry', () => {
