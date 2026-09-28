@@ -1,0 +1,188 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const closed: Array<{ contactId: string; propertyId: string }> = [];
+let openByContact: Record<string, Array<{ id: string; title: string }>> = {};
+
+vi.mock('@/lib/whatsapp/enquiry-review', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/whatsapp/enquiry-review')>();
+  return {
+    ...actual,
+    closePropertyEnquiry: vi.fn(
+      async (args: { contact: { id: string }; property: { id: string } }) => {
+        closed.push({
+          contactId: args.contact.id,
+          propertyId: args.property.id,
+        });
+      }
+    ),
+    loadOpenEnquiries: vi.fn(
+      async (_db: unknown, _accountId: string, contactId: string) =>
+        (openByContact[contactId] ?? [])
+          .filter(
+            (p) =>
+              !closed.some(
+                (c) => c.contactId === contactId && c.propertyId === p.id
+              )
+          )
+          .map((property) => ({ itemId: `item-${property.id}`, property }))
+    ),
+  };
+});
+
+import { markFollowUpCold } from './follow-up-nudges';
+
+// Rohit enquired on a JP Nagar plot and a Yelahanka house. The agent
+// tapped Mark cold on the JP Nagar card; that used to set the whole
+// contact COLD, and the radar stopped following the house too.
+
+type Update = { patch: Record<string, unknown>; filters: string[] };
+
+function fakeDb(
+  properties: Array<{ id: string; title: string }>,
+  lookupError: { message: string } | null = null
+) {
+  const updates: Update[] = [];
+  const db = {
+    from(table: string) {
+      const filters: string[] = [];
+      let patch: Record<string, unknown> | null = null;
+      let id: string | null = null;
+      const chain = {
+        select: () => chain,
+        update: (p: Record<string, unknown>) => {
+          patch = p;
+          return chain;
+        },
+        eq: (column: string, value: string) => {
+          if (column === 'id') id = value;
+          filters.push(`${column}=${value}`);
+          return chain;
+        },
+        in: (column: string, values: string[]) => {
+          filters.push(`${column} in ${values.join(',')}`);
+          return chain;
+        },
+        maybeSingle: async () => ({
+          error: table === 'properties' ? lookupError : null,
+          data:
+            table === 'properties'
+              ? (properties.find((p) => p.id === id) ?? null)
+              : null,
+        }),
+        then: (resolve: (v: { data: null }) => void) => {
+          if (patch) updates.push({ patch, filters });
+          resolve({ data: null });
+        },
+      };
+      return chain;
+    },
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return { db: db as any, updates };
+}
+
+const PLOT = { id: 'p-plot', title: 'JP Nagar Plot' };
+const HOUSE = { id: 'p-house', title: 'Yelahanka House' };
+
+describe('[INB-021] markFollowUpCold', () => {
+  beforeEach(() => {
+    closed.length = 0;
+    openByContact = {};
+  });
+
+  it('closes only the carded listing and keeps the lead hot on the rest', async () => {
+    openByContact = { rohit: [PLOT, HOUSE] };
+    const { db, updates } = fakeDb([PLOT, HOUSE]);
+
+    const outcome = await markFollowUpCold(db, {
+      accountId: 'acct-1',
+      partyIds: ['rohit'],
+      propertyId: PLOT.id,
+    });
+
+    expect(closed).toEqual([{ contactId: 'rohit', propertyId: PLOT.id }]);
+    expect(outcome).toMatchObject({ scope: 'property', stillOpen: [HOUSE] });
+    expect(updates.some((u) => 'lead_temp' in u.patch)).toBe(false);
+    expect(updates).toEqual([
+      expect.objectContaining({
+        patch: expect.objectContaining({ last_inquired_property_id: HOUSE.id }),
+        filters: expect.arrayContaining([
+          `last_inquired_property_id=${PLOT.id}`,
+          'account_id=acct-1',
+        ]),
+      }),
+    ]);
+  });
+
+  it('closes the listing for everyone buying together', async () => {
+    openByContact = { husband: [PLOT], wife: [PLOT, HOUSE] };
+    const { db } = fakeDb([PLOT, HOUSE]);
+
+    const outcome = await markFollowUpCold(db, {
+      accountId: 'acct-1',
+      partyIds: ['husband', 'wife'],
+      propertyId: PLOT.id,
+    });
+
+    expect(closed.map((c) => c.contactId)).toEqual(['husband', 'wife']);
+    expect(outcome).toMatchObject({ scope: 'property', stillOpen: [HOUSE] });
+  });
+
+  it('marks the lead cold once the carded listing was the last open enquiry', async () => {
+    openByContact = { rohit: [PLOT] };
+    const { db, updates } = fakeDb([PLOT]);
+
+    const outcome = await markFollowUpCold(db, {
+      accountId: 'acct-1',
+      partyIds: ['rohit'],
+      propertyId: PLOT.id,
+    });
+
+    expect(closed).toHaveLength(1);
+    expect(outcome).toMatchObject({ scope: 'lead', property: PLOT });
+    expect(updates).toEqual([
+      expect.objectContaining({
+        patch: expect.objectContaining({ lead_temp: 'COLD' }),
+      }),
+    ]);
+  });
+
+  it.each([
+    ['deleted', null],
+    ['unreadable', { message: 'timeout' }],
+  ])(
+    'changes nothing when the carded listing is %s',
+    async (_label, lookupError) => {
+      openByContact = { rohit: [PLOT, HOUSE] };
+      const { db, updates } = fakeDb(
+        lookupError ? [PLOT, HOUSE] : [HOUSE],
+        lookupError
+      );
+
+      const outcome = await markFollowUpCold(db, {
+        accountId: 'acct-1',
+        partyIds: ['rohit'],
+        propertyId: PLOT.id,
+      });
+
+      expect(outcome).toEqual({ scope: 'unresolved' });
+      expect(closed).toHaveLength(0);
+      expect(updates).toHaveLength(0);
+    }
+  );
+
+  it('marks the lead cold when the card named no listing', async () => {
+    const { db, updates } = fakeDb([]);
+
+    const outcome = await markFollowUpCold(db, {
+      accountId: 'acct-1',
+      partyIds: ['rohit'],
+      propertyId: null,
+    });
+
+    expect(closed).toHaveLength(0);
+    expect(outcome).toEqual({ scope: 'lead', property: null });
+    expect(updates[0].patch).toMatchObject({ lead_temp: 'COLD' });
+  });
+});
