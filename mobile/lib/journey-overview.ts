@@ -88,6 +88,34 @@ export function journeyEnquiryLabel(
   return parts.join(' · ');
 }
 
+export interface JourneyEnquirySourceOption {
+  source: string;
+  count: number;
+}
+
+export function journeyEnquirySourceOptions(
+  groups: { enquirySources: string[] }[],
+  selected: string | null = null
+): JourneyEnquirySourceOption[] {
+  const counts = new Map<string, number>();
+  for (const group of groups) {
+    for (const source of group.enquirySources) {
+      counts.set(source, (counts.get(source) ?? 0) + 1);
+    }
+  }
+  if (selected && !counts.has(selected)) counts.set(selected, 0);
+  return [...counts]
+    .map(([source, count]) => ({ source, count }))
+    .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source));
+}
+
+export function matchesJourneyEnquirySource(
+  group: { enquirySources: string[] },
+  source: string | null
+): boolean {
+  return !source || group.enquirySources.includes(source);
+}
+
 export function journeyRaceLabel(active: number): string {
   return active > 0 ? `${active} in the race` : 'Nothing in the race';
 }

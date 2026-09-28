@@ -9,6 +9,8 @@ import {
   JOURNEY_SORT_LABELS,
   focusBuckets,
   journeyEnquiryLabel,
+  journeyEnquirySourceOptions,
+  matchesJourneyEnquirySource,
   journeyRaceLabel,
   planEtaLabel,
   plannedIndexOf,
@@ -567,5 +569,41 @@ describe('splitItemsAtStage', () => {
       'focusStageId={showStage ? null : (bucketStage?.id ?? null)}'
     );
     expect(overview).toContain('bucketStage?.id === group.lostStageId');
+  });
+});
+
+describe('journey enquiry source filter', () => {
+  const g = (id: string, enquirySources: string[]) => ({ id, enquirySources });
+  const groups = [
+    g('a', ['Housing', 'Manual']),
+    g('b', ['Housing']),
+    g('c', ['Magic Bricks']),
+    g('d', []),
+  ];
+
+  it('[JRN-012] offers each source with how many journeys have it, most common first', () => {
+    expect(journeyEnquirySourceOptions(groups)).toEqual([
+      { source: 'Housing', count: 2 },
+      { source: 'Magic Bricks', count: 1 },
+      { source: 'Manual', count: 1 },
+    ]);
+    expect(journeyEnquirySourceOptions([])).toEqual([]);
+  });
+
+  it('[JRN-012] keeps a chosen source offered when no journey in view has it', () => {
+    expect(journeyEnquirySourceOptions([g('d', [])], '99acres')).toEqual([
+      { source: '99acres', count: 0 },
+    ]);
+  });
+
+  it('[JRN-012] keeps journeys with any enquiry from the chosen source', () => {
+    expect(
+      groups
+        .filter((group) => matchesJourneyEnquirySource(group, 'Housing'))
+        .map((group) => group.id)
+    ).toEqual(['a', 'b']);
+    expect(
+      groups.filter((group) => matchesJourneyEnquirySource(group, null))
+    ).toHaveLength(4);
   });
 });
