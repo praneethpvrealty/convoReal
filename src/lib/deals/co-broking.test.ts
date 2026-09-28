@@ -115,6 +115,10 @@ describe('[TXW-023] co-broking payouts', () => {
       'SET co_broker_payout_total = co_broker_payout_total - OLD.amount'
     );
     expect(sql).not.toContain('SELECT SUM(p.amount)');
+    expect(sql).toContain('A payout stays on its deal');
+    expect(sql).toContain(
+      'BEFORE INSERT OR UPDATE OF co_broker_payout_total ON deals'
+    );
     expect(sql).toContain("AND s.role = 'broker'");
     expect(sql).toContain(
       'BEFORE INSERT OR UPDATE OF stakeholder_id, deal_id, account_id, paid_at, paid_amount'
