@@ -1273,6 +1273,20 @@
             "supabase/migrations/20260928022100_enquiry_source_spellings.sql",
             "src/lib/portals/post-kit.ts"
           ]
+        },
+        {
+          "id": "PRP-024",
+          "rule": "Merging two contacts keeps each carried-over enquiry's source, date and notes, so a merged buyer still shows which portal or channel every enquiry came from and when.",
+          "tests": [
+            {
+              "file": "src/lib/migrations/merged-enquiry-sources.test.ts",
+              "case": "[PRP-024]"
+            }
+          ],
+          "guards": [
+            "src/app/api/contacts/merge/route.ts",
+            "supabase/migrations/20260928050000_merged_enquiry_sources.sql"
+          ]
         }
       ]
     },
