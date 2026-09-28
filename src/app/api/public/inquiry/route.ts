@@ -185,6 +185,14 @@ export async function POST(request: Request) {
         { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
       );
       if (inquiryError) throw inquiryError;
+      const { error: markerError } = await admin
+        .from('contact_property_inquiries')
+        .update({ via_portal_link: false })
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .in('property_id', shortlistProperties.map((property) => property.id))
+        .eq('via_portal_link', true);
+      if (markerError) throw markerError;
     }
 
     // Retroactive stitching: this visitor just revealed who they are, so

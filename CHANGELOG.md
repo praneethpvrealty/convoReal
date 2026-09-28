@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 28 September 2026
 
+- **The active pipeline turns like a wheel.** On the Deals board the
+  active stages now sit on a horizontal wheel: the focused stage faces
+  you and its neighbours turn away on either side. Swipe or scroll to
+  turn it, tap a stage in the dial above to bring it to the centre, or
+  use the arrows, which wrap from the last stage back to the first. The
+  board opens on the first stage holding deals, and dragging a deal
+  flattens the wheel so it drops where you see it. The mobile Deals
+  board's stage strip is the same wheel.
 - **Mark cold on a follow-up card now applies to that listing only.**
   Tapping ❄️ Mark cold used to set the whole lead COLD, so the radar
   stopped following every other property they had enquired on. It now

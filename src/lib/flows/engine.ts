@@ -763,6 +763,17 @@ async function recordListingInterest(
       // A failed write must not swallow the customer's reply — they
       // still get routed to an agent below.
       console.error("[flows] listing interest upsert failed:", error.message);
+    } else {
+      const { error: markerError } = await db
+        .from("contact_property_inquiries")
+        .update({ via_portal_link: false })
+        .eq("account_id", run.account_id)
+        .eq("contact_id", run.contact_id)
+        .eq("property_id", pick.id)
+        .eq("via_portal_link", true);
+      if (markerError) {
+        console.error("[flows] listing interest marker failed:", markerError.message);
+      }
     }
   }
 
