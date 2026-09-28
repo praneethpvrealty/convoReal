@@ -21,15 +21,18 @@ describe('[PRP-024] a merged contact keeps where its enquiries came from', () =>
     }
   });
 
-  it('fills a sourceless enquiry from the merge that wrote it', () => {
+  it('fills a merged enquiry only from a lead email for that same enquiry', () => {
     const sql = read(
       'supabase/migrations/20260928050000_merged_enquiry_sources.sql'
     );
-    expect(sql).toContain("NULLIF(m.source_snapshot->>'source', '') AS source");
     expect(sql).toContain(
       "m.created_at BETWEEN cpi.created_at AND cpi.created_at + INTERVAL '10 seconds'"
     );
-    expect(sql).toContain('WHERE cpi.inquiry_source IS NULL');
-    expect(sql).toContain('AND nearest_merge.source IS NOT NULL;');
+    expect(sql).toContain('l.matched_property_id = merged.property_id');
+    expect(sql).toContain(
+      'AND ppl.portal_listing_id = l.lead_portal_listing_id'
+    );
+    expect(sql).toContain('AND cpi.inquiry_source IS NULL;');
+    expect(sql).not.toContain("source_snapshot->>'source'");
   });
 });
