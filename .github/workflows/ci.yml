@@ -6,6 +6,9 @@ on:
   merge_group:
   push:
     branches: [main]
+  # The release timer opens and merges release PRs with GITHUB_TOKEN, whose
+  # events never start workflows, so it dispatches this run itself.
+  workflow_dispatch:
 
 # Cancel superseded PR runs; never cancel a merge-queue or main run, since
 # those are the ones that gate what actually lands.
