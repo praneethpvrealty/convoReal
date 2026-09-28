@@ -5,6 +5,7 @@ import {
   focusBuckets,
   journeyEnquiryLabel,
   journeyEnquirySourceOptions,
+  journeySourceChips,
   matchesJourneyEnquirySource,
   normalizeJourneyEnquirySource,
   journeyRaceLabel,
@@ -207,5 +208,46 @@ describe('journey enquiry source filter', () => {
     expect(normalizeJourneyEnquirySource('x'.repeat(300))).toBe(
       'x'.repeat(300)
     );
+  });
+});
+
+describe('journeySourceChips', () => {
+  const options = [
+    { source: 'Housing', count: 98 },
+    { source: 'Magic Bricks', count: 34 },
+    { source: 'Manual', count: 14 },
+  ];
+
+  it('[JRN-012] leads with the remembered source, then Clear, so both show without scrolling', () => {
+    const chips = journeySourceChips(options, 'Manual');
+    expect(chips.map((chip) => chip.label)).toEqual([
+      'Manual 14',
+      'Clear',
+      'All sources',
+      'Housing 98',
+      'Magic Bricks 34',
+    ]);
+    expect(chips[1]).toEqual({ source: null, label: 'Clear', clear: true });
+  });
+
+  it('[JRN-012] still offers Clear for a remembered source no longer offered', () => {
+    expect(
+      journeySourceChips(options, 'Gone').map((chip) => chip.label)
+    ).toEqual([
+      'Clear',
+      'All sources',
+      'Housing 98',
+      'Magic Bricks 34',
+      'Manual 14',
+    ]);
+  });
+
+  it('[JRN-012] starts with All sources when no source is chosen', () => {
+    expect(journeySourceChips(options, null).map((chip) => chip.label)).toEqual(
+      ['All sources', 'Housing 98', 'Magic Bricks 34', 'Manual 14']
+    );
+    expect(journeySourceChips([], null)).toEqual([
+      { source: null, label: 'All sources' },
+    ]);
   });
 });
