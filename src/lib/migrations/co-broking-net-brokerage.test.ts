@@ -52,4 +52,27 @@ describe('[TXW-024] dashboard functions count the brokerage share', () => {
       'A payout stays on its deal. Remove it and add it to the other deal instead'
     );
   });
+
+  it('restates every post-application guard for a database that ran the first version', () => {
+    const hardening = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260928054500_deal_co_broking_hardening.sql'
+      ),
+      'utf8'
+    );
+    for (const piece of [
+      'DROP POLICY IF EXISTS deal_co_broker_payouts_modify ON deal_co_broker_payouts;',
+      'CHECK (amount > 0)',
+      'SET co_broker_payout_total = co_broker_payout_total + NEW.amount',
+      'NEW.updated_at := OLD.updated_at;',
+      'CREATE TRIGGER trg_deal_co_broker_payout_total',
+      'A payout stays on its deal',
+      'A paid payout cannot be marked unpaid',
+      "AND s.role = 'broker'",
+    ]) {
+      expect(hardening, piece).toContain(piece);
+      expect(schema, piece).toContain(piece);
+    }
+  });
 });
