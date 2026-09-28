@@ -51,9 +51,10 @@ export function enquiryLabel(p: OpenEnquiry['property']): string {
 export async function loadOpenEnquiries(
   db: SupabaseClient,
   accountId: string,
-  contactId: string
+  contactId: string,
+  opts: { strict?: boolean } = {}
 ): Promise<OpenEnquiry[]> {
-  const { data } = await db
+  const { data, error } = await db
     .from('journey_items')
     .select(
       'id, property:properties(id, title, property_code), stage:journey_stages!journey_items_stage_id_fkey(stage_kind)'
@@ -62,6 +63,7 @@ export async function loadOpenEnquiries(
     .eq('contact_id', contactId)
     .eq('status', 'active')
     .order('updated_at', { ascending: false });
+  if (error && opts.strict) throw new Error(error.message);
   type Stage = { stage_kind: string | null };
   const rows = (data ?? []) as Array<{
     id: string;
