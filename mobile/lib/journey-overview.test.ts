@@ -218,10 +218,28 @@ describe('journeySourceChips', () => {
     { source: 'Manual', count: 14 },
   ];
 
-  it('[JRN-012] leads with the remembered source so it shows without scrolling', () => {
+  it('[JRN-012] leads with the remembered source, then Clear, so both show without scrolling', () => {
+    const chips = journeySourceChips(options, 'Manual');
+    expect(chips.map((chip) => chip.label)).toEqual([
+      'Manual 14',
+      'Clear',
+      'All sources',
+      'Housing 98',
+      'Magic Bricks 34',
+    ]);
+    expect(chips[1]).toEqual({ source: null, label: 'Clear', clear: true });
+  });
+
+  it('[JRN-012] still offers Clear for a remembered source no longer offered', () => {
     expect(
-      journeySourceChips(options, 'Manual').map((chip) => chip.label)
-    ).toEqual(['Manual 14', 'All sources', 'Housing 98', 'Magic Bricks 34']);
+      journeySourceChips(options, 'Gone').map((chip) => chip.label)
+    ).toEqual([
+      'Clear',
+      'All sources',
+      'Housing 98',
+      'Magic Bricks 34',
+      'Manual 14',
+    ]);
   });
 
   it('[JRN-012] starts with All sources when no source is chosen', () => {

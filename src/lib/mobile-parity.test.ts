@@ -801,9 +801,12 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain(
       'journeySourceChips(sourceOptions, enquirySource)'
     );
-    for (const source of [screen, webOverview]) {
-      expect(source).toMatch(/\{enquirySource \? \(|\{enquirySource && \(/);
-    }
+    expect(screen).toContain('({ source, label, clear }) => {');
+    expect(
+      (screen.match(/accessibilityLabel="Clear source filter"/g) ?? []).length
+    ).toBe(1);
+    expect(webOverview).toContain('{enquirySource && (');
+    expect(screen).toContain('if (clear) {');
     const preference = mobileSource('lib/journey-source-preference.ts');
     expect(preference).toContain(
       '`journey_overview_source_${accountId}_${mode}`'
