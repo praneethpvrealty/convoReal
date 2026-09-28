@@ -129,7 +129,7 @@ describe('buildFollowUpActionSections', () => {
   });
 });
 
-describe('Mark cold is scoped to the carded listing', () => {
+describe('[INB-021] Mark cold is scoped to the carded listing', () => {
   const lead = {
     contactId: CONTACT_ID,
     name: 'Rohit',
@@ -168,6 +168,11 @@ describe('Mark cold is scoped to the carded listing', () => {
     expect(text).toContain('1 other enquiry');
     expect(text).toContain('Yelahanka House (YH-1)');
     expect(text).toContain('stays hot');
+  });
+
+  it('refuses rather than guessing when the carded listing is gone', () => {
+    const text = buildColdConfirmation('Rohit', { scope: 'unresolved' });
+    expect(text).toContain('Nothing changed for Rohit');
   });
 
   it('says so when the listing was the last open enquiry', () => {

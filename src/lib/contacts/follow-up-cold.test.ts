@@ -38,7 +38,10 @@ import { markFollowUpCold } from './follow-up-nudges';
 
 type Update = { patch: Record<string, unknown>; filters: string[] };
 
-function fakeDb(properties: Array<{ id: string; title: string }>) {
+function fakeDb(
+  properties: Array<{ id: string; title: string }>,
+  lookupError: { message: string } | null = null
+) {
   const updates: Update[] = [];
   const db = {
     from(table: string) {
@@ -61,6 +64,7 @@ function fakeDb(properties: Array<{ id: string; title: string }>) {
           return chain;
         },
         maybeSingle: async () => ({
+          error: table === 'properties' ? lookupError : null,
           data:
             table === 'properties'
               ? (properties.find((p) => p.id === id) ?? null)
@@ -81,7 +85,7 @@ function fakeDb(properties: Array<{ id: string; title: string }>) {
 const PLOT = { id: 'p-plot', title: 'JP Nagar Plot' };
 const HOUSE = { id: 'p-house', title: 'Yelahanka House' };
 
-describe('markFollowUpCold', () => {
+describe('[INB-021] markFollowUpCold', () => {
   beforeEach(() => {
     closed.length = 0;
     openByContact = {};
@@ -143,6 +147,30 @@ describe('markFollowUpCold', () => {
       }),
     ]);
   });
+
+  it.each([
+    ['deleted', null],
+    ['unreadable', { message: 'timeout' }],
+  ])(
+    'changes nothing when the carded listing is %s',
+    async (_label, lookupError) => {
+      openByContact = { rohit: [PLOT, HOUSE] };
+      const { db, updates } = fakeDb(
+        lookupError ? [PLOT, HOUSE] : [HOUSE],
+        lookupError
+      );
+
+      const outcome = await markFollowUpCold(db, {
+        accountId: 'acct-1',
+        partyIds: ['rohit'],
+        propertyId: PLOT.id,
+      });
+
+      expect(outcome).toEqual({ scope: 'unresolved' });
+      expect(closed).toHaveLength(0);
+      expect(updates).toHaveLength(0);
+    }
+  );
 
   it('marks the lead cold when the card named no listing', async () => {
     const { db, updates } = fakeDb([]);

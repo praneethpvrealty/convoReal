@@ -643,6 +643,10 @@ export async function handleFollowUpReply(
       partyIds,
       propertyId: action.propertyId ?? lead.last_inquired_property_id ?? null,
     });
+    if (outcome.scope === 'unresolved') {
+      await confirmToAgent(buildColdConfirmation(who, outcome));
+      return true;
+    }
     await stampNudgeState(
       admin,
       accountId,
@@ -797,6 +801,7 @@ export const COLD_FROM_FOLLOWUP_REASON =
   'Agent marked the lead cold on this listing from the follow-up card';
 
 export type FollowUpColdOutcome =
+  | { scope: 'unresolved' }
   | { scope: 'lead'; property: OpenEnquiry['property'] | null }
   | {
       scope: 'property';
@@ -810,7 +815,8 @@ export type FollowUpColdOutcome =
  * the lead stays HOT while any other enquiry is still open — so the
  * radar keeps following them on those, naming the next one. Only when
  * that listing was the last open enquiry, or the card named none, does
- * the lead itself go COLD.
+ * the lead itself go COLD. A named listing that can no longer be read
+ * changes nothing: guessing lead-wide would drop every other enquiry.
  */
 export async function markFollowUpCold(
   db: SupabaseClient,
@@ -819,16 +825,17 @@ export async function markFollowUpCold(
   const { accountId, partyIds } = args;
   const now = new Date().toISOString();
 
-  const property = args.propertyId
-    ? ((
-        await db
-          .from('properties')
-          .select('id, title, property_code')
-          .eq('id', args.propertyId)
-          .eq('account_id', accountId)
-          .maybeSingle()
-      ).data as OpenEnquiry['property'] | null)
-    : null;
+  let property: OpenEnquiry['property'] | null = null;
+  if (args.propertyId) {
+    const { data, error } = await db
+      .from('properties')
+      .select('id, title, property_code')
+      .eq('id', args.propertyId)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    if (error || !data) return { scope: 'unresolved' };
+    property = data as OpenEnquiry['property'];
+  }
 
   if (property) {
     const label = enquiryLabel(property);
@@ -839,7 +846,7 @@ export async function markFollowUpCold(
         contact: { id },
         property,
         reason: COLD_FROM_FOLLOWUP_REASON,
-        note: `❄️ Marked cold on ${label} from the follow-up card. Other enquiries stay open.`,
+        note: `❄️ Marked cold on ${label} from the follow-up card.`,
       });
     }
 
@@ -880,6 +887,9 @@ export function buildColdConfirmation(
   who: string,
   outcome: FollowUpColdOutcome
 ): string {
+  if (outcome.scope === 'unresolved') {
+    return `⚠️ Nothing changed for ${who} — the listing on this card could not be found, so no enquiry was closed. Open the lead to update it by hand.`;
+  }
   if (outcome.scope === 'property') {
     const named = outcome.stillOpen
       .slice(0, MAX_NAMED_OPEN_ENQUIRIES)
