@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Linking,
   Pressable,
@@ -242,6 +242,10 @@ export function JourneyBody() {
     accountId,
     mode
   );
+  const sourceChipsRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    sourceChipsRef.current?.scrollTo({ x: 0, animated: true });
+  }, [enquirySource, mode]);
   const [sort, setSort] = useState<JourneySort>(DEFAULT_JOURNEY_SORT);
   const [focusedBucket, setFocusedBucket] = useState<string | null>(null);
   const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(
@@ -1115,6 +1119,7 @@ export function JourneyBody() {
 
       {sourceOptions.length > 0 ? (
         <ScrollView
+          ref={sourceChipsRef}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.sortChips}
