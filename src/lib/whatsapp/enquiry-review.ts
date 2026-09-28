@@ -93,6 +93,7 @@ export async function closePropertyEnquiry(args: {
   contact: { id: string; name?: string | null };
   property: OpenEnquiry['property'];
   reason?: string;
+  note?: string;
 }): Promise<void> {
   const { db, accountId, contact, property } = args;
   const reason = args.reason ?? CLOSED_FROM_WHATSAPP_REASON;
@@ -175,7 +176,9 @@ export async function closePropertyEnquiry(args: {
     contact_id: contact.id,
     account_id: accountId,
     user_id: null,
-    note_text: `🚪 ${name} closed their enquiry on ${enquiryLabel(property)}`,
+    note_text:
+      args.note ??
+      `🚪 ${name} closed their enquiry on ${enquiryLabel(property)}`,
   });
 }
 

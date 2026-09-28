@@ -33,7 +33,14 @@ than a written entry. Newest first.
   `20260928042711_deal_co_broking.sql`. The dashboard functions start
   subtracting payouts with `20260928042712_co_broking_net_brokerage.sql`,
   shipped as its own release.
-
+- **Mark cold on a follow-up card now applies to that listing only.**
+  Tapping ❄️ Mark cold used to set the whole lead COLD, so the radar
+  stopped following every other property they had enquired on. It now
+  closes the enquiry on the listing the card named (for everyone buying
+  together), keeps the lead HOT while any other enquiry is open, points
+  the next card at one of those, and tells the agent which enquiries
+  are still tracked. The lead goes COLD only when that listing was their
+  last open enquiry, or the card named none.
 - **Missing public pages now answer with a real 404.** An unknown or
   retired listing, project, farmland, article, service, city or seller
   URL showed the not-found page but sent HTTP 200, because the root
