@@ -6,6 +6,7 @@ import { formatCurrency } from '@/lib/currency-utils';
 import { netOfPayouts } from '@/lib/deals/co-broking';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { isBrokeragePaidStage } from '@/lib/pipelines/stage-semantics';
+import { lostReasonLabel } from '@/lib/pipelines/lost-reasons';
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', {
@@ -39,7 +40,7 @@ export function DealCard({
   const contactLabel =
     deal.contact?.name || deal.contact?.phone || 'No contact';
   const assigneeLabel = deal.assignee?.full_name || null;
-  const brokeragePaid = stage ? isBrokeragePaidStage(stage.name) : false;
+  const brokeragePaid = stage ? isBrokeragePaidStage(stage) : false;
 
   return (
     <button
@@ -131,6 +132,12 @@ export function DealCard({
           </span>
         )}
       </div>
+
+      {deal.status === 'lost' && lostReasonLabel(deal) && (
+        <p className="mt-1.5 line-clamp-2 text-[11px] text-red-300/80">
+          {lostReasonLabel(deal)}
+        </p>
+      )}
 
       {brokeragePaid && deal.brokerage_paid_at && (
         <p className="mt-1 text-[10px] text-slate-500">

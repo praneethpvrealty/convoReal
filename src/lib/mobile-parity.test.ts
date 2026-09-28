@@ -767,6 +767,7 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     for (const helper of [
       'export function journeyEnquirySourceOptions(',
       'export function matchesJourneyEnquirySource(',
+      'export function journeyViewCounts(',
     ]) {
       expect(labelBody(webShared)).toContain(helper);
     }
@@ -780,8 +781,48 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
       expect(source).toContain(
         'matchesJourneyEnquirySource(group, enquirySource)'
       );
-      expect(source).toContain('setEnquirySource(null);');
     }
+    expect(webOverview).toContain(
+      '? `journey_overview_source_${accountId}_${mode}`'
+    );
+    expect(webOverview).toContain(
+      'const [enquirySource, setEnquirySource] = useState<string | null>(null);'
+    );
+    expect(webOverview).toContain(
+      'setEnquirySource(readEnquirySource(sourceKey));'
+    );
+    expect(webOverview).toContain('if (next) writeStored(sourceKey, next);');
+    expect(webOverview).toContain('else removeStored(sourceKey);');
+    expect(screen).toContain(
+      'useRememberedJourneySource(\n    accountId,\n    mode\n  );'
+    );
+    expect(screen).not.toContain('setEnquirySource(null);');
+    expect(webOverview).toContain('aria-label="Clear source filter"');
+    expect(screen).toContain('accessibilityLabel="Clear source filter"');
+    expect(screen).toContain(
+      'journeySourceChips(sourceOptions, enquirySource)'
+    );
+    expect(screen).toContain('({ source, label, clear }) => {');
+    expect(
+      (screen.match(/accessibilityLabel="Clear source filter"/g) ?? []).length
+    ).toBe(1);
+    expect(webOverview).toContain('{enquirySource && (');
+    expect(screen).toContain('if (clear) {');
+    for (const source of [screen, webOverview]) {
+      expect(source).toContain(
+        '() => journeyViewCounts(groups, enquirySource),'
+      );
+    }
+    expect(screen).toContain('ref={sourceChipsRef}');
+    expect(screen).toContain(
+      'sourceChipsRef.current?.scrollTo({ x: 0, animated: true });\n  }, [enquirySource, mode, view]);'
+    );
+    const preference = mobileSource('lib/journey-source-preference.ts');
+    expect(preference).toContain(
+      '`journey_overview_source_${accountId}_${mode}`'
+    );
+    expect(preference).toContain('normalizeJourneyEnquirySource(stored)');
+    expect(preference).not.toContain('zustand');
     expect(mobileSource('lib/api.ts')).toContain(
       '`/api/journey/enquiries?mode=${mode}&subjectId=${subjectId}`'
     );
@@ -2646,7 +2687,7 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     const webSemantics = webSource('lib/pipelines/stage-semantics.ts');
     for (const source of [webSemantics, mobileSemantics]) {
       expect(source).toContain(
-        "shouldCaptureBrokerage(stageName) &&\n    dealStatusForStage(stageName) !== 'lost'"
+        "shouldCaptureBrokerage(stage) && dealStatusForStage(stage) !== 'lost'"
       );
     }
     const dealRoute = webSource('app/api/deals/[id]/route.ts');
@@ -2676,7 +2717,7 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     }
     expect(mobileApi).toContain('`/api/deals/${dealId}`');
     expect(webSource('app/api/deals/[id]/route.ts')).toContain(
-      "propertyStatusForPipelineStage(stage_name) ?? 'Available'"
+      "propertyStatusForPipelineStage(movedStage) ?? 'Available'"
     );
   });
 
@@ -2691,7 +2732,7 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
   it('pauses a workspace move for brokerage exactly as the board does', () => {
     const mobileSemantics = mobileSource('lib/stage-semantics.ts');
     expect(mobileSemantics).toContain(
-      'return deal.brokerage_amount === null && shouldCaptureBrokerage(stageName);'
+      'return deal.brokerage_amount === null && shouldCaptureBrokerage(stage);'
     );
     for (const source of [webWorkspace, mobileScreen, mobileList]) {
       expect(source).toContain('needsBrokerageCapture(');
@@ -2701,10 +2742,10 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
   });
 
   it('moves the pipeline stage from the workspace header through the deal PATCH', () => {
-    expect(webWorkspace).toContain('dealStatusForStage(stage.name)');
+    expect(webWorkspace).toContain('dealStatusForStage(stage)');
     expect(webWorkspace).toContain('target_stage_id: stage.id');
     expect(webWorkspace).toContain('current_stage_name: stage.name');
-    expect(mobileScreen).toContain('dealStatusForStage(stage.name)');
+    expect(mobileScreen).toContain('dealStatusForStage(stage)');
     expect(mobileScreen).toContain('target_stage_id: stage.id');
     expect(mobileScreen).toContain('current_stage_name: stage.name');
     expect(mobileApi).toContain('`/api/deals/${dealId}`');

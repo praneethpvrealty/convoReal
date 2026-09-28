@@ -4,8 +4,12 @@ import { ensureClosingRecord } from '@/lib/deals/closing-record';
 import type { DealEventSource } from '@/lib/deals/events';
 import { actorName } from '@/lib/deals/server';
 import { brokerageAmount, type BrokerageType } from '@/lib/pipelines/brokerage';
-import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
+import {
+  propertyStatusForPipelineStage,
+  type StageRef,
+} from '@/lib/pipelines/stage-semantics';
 import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
+import type { LostReasonInput } from '@/lib/pipelines/lost-reasons';
 
 export type DealStatus = 'open' | 'won' | 'lost';
 
@@ -59,11 +63,28 @@ export interface DealStageMoveInput {
   stageName: string | null;
   propertyId: string | null;
   brokerage: BrokerageCapture | null;
+  lost?: LostReasonInput | null;
   source: DealEventSource;
 }
 
 export type DealStageMoveResult =
   { ok: true } | { ok: false; status: number; error: string; code?: string };
+
+export async function resolveStage(
+  supabase: SupabaseClient,
+  stageId: string | null,
+  fallbackName: string | null
+): Promise<StageRef | null> {
+  if (stageId) {
+    const { data } = await supabase
+      .from('pipeline_stages')
+      .select('name, stage_type')
+      .eq('id', stageId)
+      .maybeSingle();
+    if (data) return data as StageRef;
+  }
+  return fallbackName ? { name: fallbackName } : null;
+}
 
 export type DealStageMoveContext = {
   supabase: SupabaseClient;
@@ -108,12 +129,15 @@ export async function prepareDealStageMove(
     }
   }
 
-  if (input.targetStageId && input.stageName) {
+  const stage = input.targetStageId
+    ? await resolveStage(supabase, input.targetStageId, input.stageName)
+    : null;
+  if (stage) {
     const record = await ensureClosingRecord({
       db: supabase,
       accountId,
       dealId: input.dealId,
-      stageName: input.stageName,
+      stage,
       actorId: userId,
       actorName: await actorName(supabase, accountId, userId),
       source: input.source,
@@ -133,11 +157,19 @@ export async function prepareDealStageMove(
 
 export async function syncPropertyStatus(
   ctx: Pick<DealStageMoveContext, 'supabase' | 'accountId'>,
-  input: Pick<DealStageMoveInput, 'propertyId' | 'stageName' | 'status'>
+  input: Pick<
+    DealStageMoveInput,
+    'propertyId' | 'stageName' | 'status' | 'targetStageId'
+  >
 ): Promise<void> {
   if (!input.propertyId) return;
-  const propertyStatus = input.stageName
-    ? (propertyStatusForPipelineStage(input.stageName) ?? 'Available')
+  const stage = await resolveStage(
+    ctx.supabase,
+    input.targetStageId,
+    input.stageName
+  );
+  const propertyStatus = stage
+    ? (propertyStatusForPipelineStage(stage) ?? 'Available')
     : input.status === 'won'
       ? 'Sold'
       : 'Available';
@@ -166,6 +198,10 @@ export async function applyDealStageMove(
 
   const updateData: Record<string, unknown> = { status: input.status };
   if (input.targetStageId) updateData.stage_id = input.targetStageId;
+  if (input.status === 'lost' && input.lost) {
+    updateData.lost_reason = input.lost.lost_reason;
+    updateData.lost_note = input.lost.lost_note;
+  }
   const { data: updated, error: updateErr } = await supabase
     .from('deals')
     .update(updateData)

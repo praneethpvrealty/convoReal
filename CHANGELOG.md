@@ -19,6 +19,30 @@ than a written entry. Newest first.
 
 #### 28 September 2026
 
+- **Generic Sales Pipelines moved to the standard stages.** Pipelines still on
+  New Lead / Qualified / Proposal Sent / Negotiation / Won now carry the same
+  nine "done → next" stages, including Closed Lost, with any deals kept on
+  their stage (a Won deal lands on Registered → Brokerage and stays won).
+  **Migration required:** `20260928123000_generic_pipelines_to_standard_stages.sql`.
+- **Pipeline stages now read as "what's done → what's next".** The standard
+  pipeline is now Enquiry → Shortlist, Shortlisted → Visit, Finalised →
+  Owner's meeting, Owner's meeting → Negotiation, Deal confirmed → Due
+  diligence, Legal done → Agreement/Registration, Registered → Brokerage,
+  Brokerage paid / Closed, and Closed Lost. Every account on the old
+  standard stages was moved over with its deals in place. A listing now
+  becomes Under Contract only once the deal is confirmed, not while the
+  price is still being negotiated. Each stage stores what it means (set in
+  Manage Pipeline), so renaming a stage no longer changes how the listing,
+  brokerage prompt or journey behaves. **Migration required:**
+  `20260928093000_pipeline_stage_type.sql`,
+  `20260928093100_deal_lost_reason.sql` and
+  `20260928094000_pipeline_stages_by_type.sql`, in that order.
+- **Marking a deal lost asks why.** Price or terms disagreement, owner or
+  buyer backed out, legal issue, financing, bought elsewhere or other, with
+  an optional note. The reason shows on the lost deal and its journey, on
+  web and mobile.
+- **The Successful section turns like a wheel too,** the same as the active
+  pipeline.
 - **Mark cold can no longer race a new enquiry.** Tapping ❄️ Mark cold on
   a follow-up card checks for another open enquiry and marks the lead COLD
   in one locked database step. An enquiry that arrives in the same moment

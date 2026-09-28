@@ -2,13 +2,16 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { writeDealEvent, type DealEventSource } from '@/lib/deals/events';
 import { standardMilestoneRows } from '@/lib/deals/milestones';
-import { startsClosingRecord } from '@/lib/pipelines/stage-semantics';
+import {
+  startsClosingRecord,
+  type StageRef,
+} from '@/lib/pipelines/stage-semantics';
 
 export async function ensureClosingRecord({
   db,
   accountId,
   dealId,
-  stageName,
+  stage,
   actorId,
   actorName,
   source,
@@ -16,12 +19,12 @@ export async function ensureClosingRecord({
   db: SupabaseClient;
   accountId: string;
   dealId: string;
-  stageName: string | null | undefined;
+  stage: StageRef | null | undefined;
   actorId: string | null;
   actorName: string | null;
   source: DealEventSource;
 }): Promise<{ seeded: number; error: string | null }> {
-  if (!stageName || !startsClosingRecord(stageName)) {
+  if (!stage || !startsClosingRecord(stage)) {
     return { seeded: 0, error: null };
   }
   const { count } = await db
@@ -38,11 +41,11 @@ export async function ensureClosingRecord({
     accountId,
     dealId,
     eventType: 'milestone_added',
-    title: `Added ${rows.length} standard milestones on reaching ${stageName}`,
+    title: `Added ${rows.length} standard milestones on reaching ${stage.name}`,
     actorId,
     actorName,
     source,
-    metadata: { template: 'standard', count: rows.length, stage: stageName },
+    metadata: { template: 'standard', count: rows.length, stage: stage.name },
   });
   return { seeded: rows.length, error: null };
 }

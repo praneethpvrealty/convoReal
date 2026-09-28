@@ -23,6 +23,7 @@ interface StageWheelProps {
   stages: PipelineStage[];
   dealCounts: number[];
   dragging: boolean;
+  label: string;
   renderStage: (stage: PipelineStage) => ReactNode;
 }
 
@@ -37,6 +38,7 @@ export function StageWheel({
   stages,
   dealCounts,
   dragging,
+  label,
   renderStage,
 }: StageWheelProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -176,7 +178,7 @@ export function StageWheel({
         <div
           ref={dialRef}
           role="tablist"
-          aria-label="Focus a stage"
+          aria-label={`Focus a stage in ${label}`}
           className="stage-wheel-dial relative flex min-w-0 flex-1 gap-1.5 overflow-x-auto"
         >
           {stages.map((stage, index) => {

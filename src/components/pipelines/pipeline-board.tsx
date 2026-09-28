@@ -116,7 +116,7 @@ export function PipelineBoard({
           ] as const satisfies ReadonlyArray<readonly [PipelineOutcome, string]>
         ).map(([outcome, label]) => {
           const outcomeStages = sortedStages.filter(
-            (stage) => pipelineOutcomeForStage(stage.name) === outcome
+            (stage) => pipelineOutcomeForStage(stage) === outcome
           );
           if (outcomeStages.length === 0) return null;
           const renderStage = (stage: PipelineStage, layout: StageLayout) => {
@@ -154,13 +154,14 @@ export function PipelineBoard({
                 </h2>
                 <div className="h-px flex-1 bg-slate-800" />
               </div>
-              {outcome === 'active' ? (
+              {outcome !== 'lost' ? (
                 <StageWheel
                   stages={outcomeStages}
                   dealCounts={outcomeStages.map(
                     (stage) => dealsByStage.get(stage.id)?.length ?? 0
                   )}
                   dragging={activeDealId !== null}
+                  label={label}
                   renderStage={(stage) => renderStage(stage, 'wheel')}
                 />
               ) : (
@@ -262,7 +263,7 @@ function StageColumn({
         </span>
       </div>
       <p className="text-xs text-slate-400">
-        {isBrokeragePaidStage(stage.name) ? 'Brokerage received · ' : ''}
+        {isBrokeragePaidStage(stage) ? 'Brokerage received · ' : ''}
         {formatCurrency(totalValue, currency)}
       </p>
 
@@ -291,7 +292,7 @@ function StageColumn({
         )}
       </div>
 
-      {!isBrokeragePaidStage(stage.name) && (
+      {!isBrokeragePaidStage(stage) && (
         <Button
           variant="ghost"
           size="sm"
@@ -319,7 +320,7 @@ function DraggableDealCard({
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: deal.id,
-    disabled: isBrokeragePaidStage(stage.name),
+    disabled: isBrokeragePaidStage(stage),
   });
 
   return (

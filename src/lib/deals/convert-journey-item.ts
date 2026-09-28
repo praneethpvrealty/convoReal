@@ -142,6 +142,7 @@ export async function convertJourneyItemToDeal(
         name: s.name,
         color: s.color,
         position: s.position,
+        stage_type: s.stage_type,
       }))
     );
     if (stagesError) {
@@ -163,7 +164,7 @@ export async function convertJourneyItemToDeal(
   const pipelineIdResolved: string = resolvedPipelineId;
   const { data: stages } = await ctx.supabase
     .from('pipeline_stages')
-    .select('id, name, position')
+    .select('id, name, position, stage_type')
     .eq('pipeline_id', pipelineIdResolved)
     .order('position');
   const stage = input.stageId
@@ -192,7 +193,7 @@ export async function convertJourneyItemToDeal(
       stageId: stage.id,
       title,
     }),
-    status: dealStatusForStage(stage.name),
+    status: dealStatusForStage(stage),
   };
   const insertRow = input.brokerage
     ? { ...row, ...brokerageColumns(row.value, input.brokerage) }
@@ -277,7 +278,7 @@ export async function convertJourneyItemToDeal(
     ctx.supabase,
     ctx.accountId,
     item.property_id,
-    propertyStatusForPipelineStage(stage.name) ?? 'Available'
+    propertyStatusForPipelineStage(stage) ?? 'Available'
   );
   // The deal is already open; a listing that did not follow is a line in
   // the log, not a failed conversion.
