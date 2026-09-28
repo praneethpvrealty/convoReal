@@ -773,9 +773,11 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).not.toContain("from '@shared/lib/journey/enquiries'");
     expect(helpers).not.toContain('journeyEnquiryEntries');
     expect(screen).toContain(
-      'const enquiryLabel = journeyEnquiryLabel(group.enquiryCount);'
+      'const enquiryLabel = journeyEnquiryLabel(\n    group.enquiryCount,\n    group.lastEnquiredAt\n  );'
     );
-    expect(webOverview).toContain('{journeyEnquiryLabel(group.enquiryCount)}');
+    expect(webOverview).toContain(
+      '{journeyEnquiryLabel(group.enquiryCount, group.lastEnquiredAt)}'
+    );
     expect(screen).toContain('return sortJourneys(summaries, sort);');
     expect(screen).toContain('{canEdit && canDrag ? (');
   });

@@ -118,4 +118,15 @@ describe('journeyEnquiryLabel', () => {
     expect(journeyEnquiryLabel(1)).toBe('1 enquiry');
     expect(journeyEnquiryLabel(19)).toBe('19 enquiries');
   });
+
+  it('[JRN-012] adds the last enquiry date, with the year only when it is not this year', () => {
+    const now = new Date('2026-09-28T12:00:00Z');
+    expect(journeyEnquiryLabel(3, '2026-09-12T12:00:00Z', now)).toBe(
+      '3 enquiries · 12 Sep'
+    );
+    expect(journeyEnquiryLabel(1, '2025-12-03T12:00:00Z', now)).toBe(
+      '1 enquiry · 3 Dec 2025'
+    );
+    expect(journeyEnquiryLabel(2, 'not a date', now)).toBe('2 enquiries');
+  });
 });

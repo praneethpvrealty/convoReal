@@ -1372,16 +1372,16 @@ function SortableJourneyRow({
           </span>
         </button>
 
-        {journeyEnquiryLabel(group.enquiryCount) && (
+        {journeyEnquiryLabel(group.enquiryCount, group.lastEnquiredAt) && (
           <button
             type="button"
             onClick={onEnquiries}
             title={enquiredLabel(group)}
-            aria-label={`Show ${journeyEnquiryLabel(group.enquiryCount)} for ${titleOf(group, mode)}`}
+            aria-label={`Show ${journeyEnquiryLabel(group.enquiryCount, group.lastEnquiredAt)} for ${titleOf(group, mode)}`}
             className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold"
           >
             <MessageSquare className="h-3 w-3" />
-            {journeyEnquiryLabel(group.enquiryCount)}
+            {journeyEnquiryLabel(group.enquiryCount, group.lastEnquiredAt)}
           </button>
         )}
 
