@@ -1,17 +1,29 @@
-UPDATE public.contact_property_inquiries cpi
-  SET via_portal_link = TRUE
-  FROM public.contacts c
-  WHERE c.id = cpi.contact_id
-    AND c.account_id = cpi.account_id
-    AND c.lead_portal IS NOT NULL
-    AND cpi.inquiry_source = c.lead_portal;
-
 UPDATE public.contact_property_inquiries
-  SET inquiry_source = CASE inquiry_source
-    WHEN 'magicbricks' THEN 'Magic Bricks'
-    WHEN 'housing' THEN 'Housing'
-  END
+  SET via_portal_link = TRUE,
+      inquiry_source = CASE inquiry_source
+        WHEN 'magicbricks' THEN 'Magic Bricks'
+        WHEN 'housing' THEN 'Housing'
+      END
   WHERE inquiry_source IN ('magicbricks', 'housing');
+
+CREATE OR REPLACE FUNCTION public.clear_enquiry_portal_link()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF OLD.via_portal_link AND NEW.via_portal_link THEN
+    NEW.via_portal_link := FALSE;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS clear_enquiry_portal_link ON public.contact_property_inquiries;
+CREATE TRIGGER clear_enquiry_portal_link
+  BEFORE UPDATE ON public.contact_property_inquiries
+  FOR EACH ROW
+  EXECUTE FUNCTION public.clear_enquiry_portal_link();
 
 CREATE OR REPLACE FUNCTION public.unmap_portal_ad(
   p_account_id UUID,

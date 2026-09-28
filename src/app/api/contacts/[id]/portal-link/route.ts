@@ -211,6 +211,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       new Set([contactId, ...(siblings ?? []).map((c) => c.id)])
     );
 
+    const { error: inquiryErr } = await ctx.supabase
+      .from('contact_property_inquiries')
+      .upsert(
+        contactIds.map((id) => ({
+          account_id: ctx.accountId,
+          contact_id: id,
+          property_id: propertyId,
+          inquiry_source: PORTALS[portal].enquirySource,
+          via_portal_link: true,
+        })),
+        { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
+      );
+    if (inquiryErr) {
+      return NextResponse.json({ error: inquiryErr.message }, { status: 500 });
+    }
+
     const { data: retagged, error: retagErr } = await ctx.supabase
       .from('contacts')
       .update({
@@ -222,22 +238,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .select('id');
     if (retagErr) {
       return NextResponse.json({ error: retagErr.message }, { status: 500 });
-    }
-
-    const { error: inquiryErr } = await ctx.supabase
-      .from('contact_property_inquiries')
-      .upsert(
-        (retagged ?? []).map((c) => ({
-          account_id: ctx.accountId,
-          contact_id: c.id,
-          property_id: propertyId,
-          inquiry_source: PORTALS[portal].enquirySource,
-          via_portal_link: true,
-        })),
-        { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
-      );
-    if (inquiryErr) {
-      return NextResponse.json({ error: inquiryErr.message }, { status: 500 });
     }
 
     return NextResponse.json({

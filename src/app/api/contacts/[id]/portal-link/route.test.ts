@@ -20,6 +20,7 @@ let upsertOptions: unknown[];
 let updates: Array<{ table: string; row: unknown }>;
 let deletes: Array<{ table: string }>;
 let rpcs: Array<{ fn: string; args: unknown }>;
+let writes: string[];
 
 function next(table: string): QueuedResponse {
   return (queues[table] ?? []).shift() ?? { data: null, error: null };
@@ -34,6 +35,7 @@ function makeDb() {
         in: () => builder,
         update: (row: unknown) => {
           updates.push({ table, row });
+          writes.push(`update:${table}`);
           return builder;
         },
         insert: (row: unknown) => {
@@ -47,6 +49,7 @@ function makeDb() {
         upsert: (row: unknown, options?: unknown) => {
           upserts.push({ table, row });
           upsertOptions.push(options);
+          writes.push(`upsert:${table}`);
           return builder;
         },
         maybeSingle: () => Promise.resolve(next(table)),
@@ -111,6 +114,7 @@ beforeEach(() => {
   updates = [];
   deletes = [];
   rpcs = [];
+  writes = [];
 });
 
 describe('POST /api/contacts/[id]/portal-link', () => {
@@ -169,6 +173,11 @@ describe('POST /api/contacts/[id]/portal-link', () => {
     // An interest that predates the mapping keeps its own source and
     // date, so unmapping can tell the two apart.
     expect(upsertOptions[1]).toMatchObject({ ignoreDuplicates: true });
+    // Written before the contacts move, so the interested-property
+    // trigger cannot claim the pair first as "Stated interest".
+    expect(writes.indexOf('upsert:contact_property_inquiries')).toBeLessThan(
+      writes.indexOf('update:contacts')
+    );
   });
 
   it('refuses to point one ad at a second listing', async () => {
