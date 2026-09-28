@@ -60,7 +60,7 @@ Settings → Showcase lets each account claim a subdomain, and the app then prom
 
 ### The setup: terminate the wildcard at Cloudflare, bridge with a Worker
 
-Cloudflare proxies wildcard records on every plan (since September 2022), and its Universal SSL certificate already covers one label under the apex. So the wildcard never reaches Vercel as a hostname at all — a Worker re-issues the request against `www` and pins the tenant label into the URL, where `src/app/page.tsx` picks it up as `?__tenant=`. In the URL, not a header, deliberately: the edge cache keys by URL, so tenants get separate cache entries instead of bleeding into each other under the `s-maxage` set by `next.config.ts`.
+Cloudflare proxies wildcard records on every plan (since September 2022), and its Universal SSL certificate already covers one label under the apex. So the wildcard never reaches Vercel as a hostname at all — a Worker re-issues the request against `www` and pins the tenant label into the URL, where `src/app/(showcase)/page.tsx` picks it up as `?__tenant=`. In the URL, not a header, deliberately: the edge cache keys by URL, so tenants get separate cache entries instead of bleeding into each other under the `s-maxage` set by `next.config.ts`.
 
 1. **DNS record** — `*.convoreal.com`:
    - Type: **CNAME**, Name: `*`, Content: `convoreal.com` (a placeholder — the Worker decides the real destination), Proxy status: **Proxied** (orange cloud). The proxy is required; a grey-cloud record would send browsers to Vercel directly, which cannot serve these hostnames.

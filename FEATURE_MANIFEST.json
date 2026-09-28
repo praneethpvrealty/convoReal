@@ -1244,6 +1244,16 @@
           "guards": [
             "supabase/migrations/20260927094500_profile_showcase_inherits_company.sql"
           ]
+        },
+        {
+          "id": "PRP-022",
+          "rule": "An unknown or retired public listing, project, farmland, article, service, city or seller URL answers with HTTP 404, not a 200 not-found page: no loading skeleton sits above a public page that calls notFound(), and only the showcase home and the signed-in app groups stream behind one.",
+          "tests": [
+            {
+              "file": "src/app/not-found-status.test.ts",
+              "case": "[PRP-022]"
+            }
+          ]
         }
       ]
     },
@@ -2811,7 +2821,7 @@
               "case": "[SLP-001]"
             },
             {
-              "file": "src/app/page.seller.test.tsx",
+              "file": "src/app/(showcase)/page.seller.test.tsx",
               "case": "[SLP-001]"
             }
           ]
@@ -2821,21 +2831,25 @@
           "rule": "Every call and WhatsApp prompt on a seller page uses the agency's own number, and the seller's contact id, name and phone never reach the page; the browser identifies the page only by its slug.",
           "tests": [
             {
-              "file": "src/app/page.seller.test.tsx",
+              "file": "src/app/(showcase)/page.seller.test.tsx",
               "case": "[SLP-002]"
             }
           ]
         },
         {
           "id": "SLP-003",
-          "rule": "Creating a new link or turning a seller page off makes the previous URL return 404 on the next request.",
+          "rule": "Creating a new link or turning a seller page off makes the previous URL answer with HTTP 404 on the next request.",
           "tests": [
             {
               "file": "src/lib/showcase/seller-page.test.ts",
               "case": "[SLP-003]"
             },
             {
-              "file": "src/app/page.seller.test.tsx",
+              "file": "src/app/(showcase)/page.seller.test.tsx",
+              "case": "[SLP-003]"
+            },
+            {
+              "file": "src/app/not-found-status.test.ts",
               "case": "[SLP-003]"
             },
             {
@@ -2846,10 +2860,14 @@
         },
         {
           "id": "SLP-004",
-          "rule": "A seller slug opened on a tenant host that belongs to a different account returns 404 rather than that account's catalogue.",
+          "rule": "A seller slug opened on a tenant host that belongs to a different account answers with HTTP 404 rather than that account's catalogue.",
           "tests": [
             {
-              "file": "src/app/page.seller.test.tsx",
+              "file": "src/app/(showcase)/page.seller.test.tsx",
+              "case": "[SLP-004]"
+            },
+            {
+              "file": "src/app/not-found-status.test.ts",
               "case": "[SLP-004]"
             }
           ]

@@ -10,7 +10,7 @@ A **seller page** is a shareable URL that shows one seller's live listings on th
 
 Customer-facing name: **Seller page** ("Your public page" inside Portfolio). Code identifiers: `seller_page_*`.
 
-It is not a seller website, not a microsite and not a second showcase. It is the existing public catalogue (`src/app/page.tsx`) rendered under a filter, the same way a `?property_id=` link renders it around one listing.
+It is not a seller website, not a microsite and not a second showcase. It is the existing public catalogue (`src/app/(showcase)/page.tsx`) rendered under a filter, the same way a `?property_id=` link renders it around one listing.
 
 ### 1.1 Why
 
@@ -59,7 +59,7 @@ The `ref` path stays exactly as it is: it serves referral partners and agent pro
   src/app/seller/[slug]/page.tsx   →  RootPage({ __seller: slug })
         │
         ▼
-  src/app/page.tsx (RootPage)
+  src/app/(showcase)/page.tsx (RootPage)
     1. resolveSellerPage(slug)  → { accountId, contactId }   or notFound()
     2. tenant label present and ≠ accountId                  → notFound()
     3. accountId := seller's account (a subdomain cannot override it)
@@ -79,7 +79,7 @@ The `ref` path stays exactly as it is: it serves referral partners and agent pro
 
 ### 3.1 Why the seller route delegates to the root page
 
-`src/app/page.tsx` owns subdomain and `__tenant` resolution, share grants, Pulse identity, style and Deal Floor presentation, Open Graph tags and the marketing-landing fallthrough. Next.js page files cannot export helpers, so `src/app/seller/[slug]/page.tsx` calls the root page's default export and `generateMetadata` with a whitelisted set of query params plus `__seller`, the same internal-param pattern the Cloudflare Worker uses with `?__tenant=`. `ref`, `mode` and `__tenant` are deliberately not forwarded.
+`src/app/(showcase)/page.tsx` owns subdomain and `__tenant` resolution, share grants, Pulse identity, style and Deal Floor presentation, Open Graph tags and the marketing-landing fallthrough. Next.js page files cannot export helpers, so `src/app/seller/[slug]/page.tsx` calls the root page's default export and `generateMetadata` with a whitelisted set of query params plus `__seller`, the same internal-param pattern the Cloudflare Worker uses with `?__tenant=`. `ref`, `mode` and `__tenant` are deliberately not forwarded.
 
 Client-side navigation in `showcase-view.tsx` rebuilds URLs from `window.location.href`, so the `/seller/<slug>` path survives filter and detail-view changes. Implementation must grep for any hard-coded `'/?…'` pushes and confirm none drop the path.
 
@@ -215,7 +215,7 @@ No new public API route. `RootPage` reads `__seller`; the events, inquiry and re
 | Area | Files |
 | --- | --- |
 | Migration | `supabase/migrations/<ts>_contact_seller_page_slug.sql`, `DATABASE_SCHEMA.md` |
-| Routing | `src/app/seller/[slug]/page.tsx`, `src/app/page.tsx` (`__seller` param, resolution branch, metadata `robots: noindex`) |
+| Routing | `src/app/seller/[slug]/page.tsx`, `src/app/(showcase)/page.tsx` (`__seller` param, resolution branch, metadata `robots: noindex`) |
 | Showcase | `src/lib/showcase/seller-page.ts`, `src/lib/showcase/public-data.ts`, `src/components/showcase/showcase-view.tsx` (header label, tracker field) |
 | Tracking | `src/app/api/public/showcase-events/route.ts`, `src/lib/pulse/*` (guest-via label), `src/lib/pulse/tracker.ts` |
 | Agency web | `src/app/api/contacts/[id]/seller-page/route.ts`, `src/components/contacts/seller-page-card.tsx`, contact detail mount point |

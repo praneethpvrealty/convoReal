@@ -247,7 +247,8 @@ convoReal/
 │   │   ├── verify-phone/         # Phone verification
 │   │   ├── profile-setup/        # Post-signup onboarding
 │   │   ├── .well-known/          # apple-app-site-association, assetlinks.json
-│   │   ├── page.tsx              # Landing / showcase page
+│   │   ├── (showcase)/           # Landing / showcase page and its loading skeleton
+│   │   ├── seller/[slug]/        # Public seller page (renders the showcase for one seller)
 │   │   ├── layout.tsx            # Root layout + theme boot script
 │   │   └── globals.css           # Tailwind v4 + theme tokens
 │   ├── components/               # React components by domain
