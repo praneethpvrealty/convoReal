@@ -780,8 +780,20 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
       expect(source).toContain(
         'matchesJourneyEnquirySource(group, enquirySource)'
       );
-      expect(source).toContain('setEnquirySource(null);');
     }
+    expect(webOverview).toContain(
+      'const sourceKey = `journey_overview_source_${mode}`;'
+    );
+    expect(webOverview).toContain(
+      'setEnquirySource(readEnquirySource(sourceKey));'
+    );
+    expect(webOverview).toContain('if (next) writeStored(sourceKey, next);');
+    expect(webOverview).toContain('else removeStored(sourceKey);');
+    expect(screen).toContain('(s) => s.sources[mode] ?? null');
+    expect(screen).not.toContain('setEnquirySource(null);');
+    expect(mobileSource('lib/journey-filter-store.ts')).toContain(
+      "name: 'journey-filters'"
+    );
     expect(mobileSource('lib/api.ts')).toContain(
       '`/api/journey/enquiries?mode=${mode}&subjectId=${subjectId}`'
     );

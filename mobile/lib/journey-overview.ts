@@ -109,6 +109,12 @@ export function journeyEnquirySourceOptions(
     .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source));
 }
 
+export function normalizeJourneyEnquirySource(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const source = value.trim();
+  return source && source.length <= 200 ? source : null;
+}
+
 export function matchesJourneyEnquirySource(
   group: { enquirySources: string[] },
   source: string | null
@@ -191,4 +197,20 @@ export function sortJourneys<T extends RankableJourney>(
     }
     return 0;
   });
+}
+
+export type JourneyFilterMode = 'buyer' | 'property';
+
+export function normalizeJourneyEnquirySources(
+  value: unknown
+): Partial<Record<JourneyFilterMode, string>> {
+  const sources: Partial<Record<JourneyFilterMode, string>> = {};
+  if (!value || typeof value !== 'object') return sources;
+  for (const mode of ['buyer', 'property'] as const) {
+    const source = normalizeJourneyEnquirySource(
+      (value as Record<string, unknown>)[mode]
+    );
+    if (source) sources[mode] = source;
+  }
+  return sources;
 }
