@@ -222,7 +222,7 @@ describe('[INB-021] markFollowUpCold', () => {
     expect(updates.some((u) => 'lead_temp' in u.patch)).toBe(false);
   });
 
-  it('changes nothing lead-wide when the close left the branch active', async () => {
+  it('keeps the lead temperature and reports an unfinished close', async () => {
     openByContact = { rohit: [PLOT] };
     const { db, updates } = fakeDb([PLOT], null, [{ id: 'item-p-plot' }]);
 
@@ -232,7 +232,7 @@ describe('[INB-021] markFollowUpCold', () => {
       propertyId: PLOT.id,
     });
 
-    expect(outcome).toEqual({ scope: 'unresolved' });
+    expect(outcome).toEqual({ scope: 'incomplete', property: PLOT });
     expect(updates).toHaveLength(0);
   });
 

@@ -652,7 +652,7 @@ export async function handleFollowUpReply(
       partyIds,
       propertyId: action.propertyId,
     });
-    if (outcome.scope === 'unresolved') {
+    if (outcome.scope === 'unresolved' || outcome.scope === 'incomplete') {
       await confirmToAgent(buildColdConfirmation(who, outcome));
       return true;
     }
@@ -811,6 +811,7 @@ export const COLD_FROM_FOLLOWUP_REASON =
 
 export type FollowUpColdOutcome =
   | { scope: 'unresolved' }
+  | { scope: 'incomplete'; property: OpenEnquiry['property'] }
   | { scope: 'lead'; property: OpenEnquiry['property'] | null }
   | {
       scope: 'property';
@@ -826,8 +827,9 @@ export type FollowUpColdOutcome =
  * that listing was the last open enquiry, or the card named none, does
  * the lead itself go COLD. A named listing that can no longer be read
  * changes nothing, and neither does a failed read of the open
- * enquiries or a close that left the branch active: guessing lead-wide
- * would drop every other enquiry.
+ * enquiries: guessing lead-wide would drop every other enquiry. A close
+ * that left the branch active cannot be undone here, so the lead keeps
+ * its temperature and the agent is told the close did not finish.
  */
 export async function markFollowUpCold(
   db: SupabaseClient,
@@ -891,7 +893,7 @@ export async function markFollowUpCold(
       .eq('status', 'active')
       .limit(1);
     if (lingeringError || (lingering ?? []).length > 0) {
-      return { scope: 'unresolved' };
+      return { scope: 'incomplete', property };
     }
 
     const before = stillOpen;
@@ -922,6 +924,9 @@ export function buildColdConfirmation(
   who: string,
   outcome: FollowUpColdOutcome
 ): string {
+  if (outcome.scope === 'incomplete') {
+    return `⚠️ ${who} was not marked cold — closing the enquiry on ${enquiryLabel(outcome.property)} did not finish, so it may be closed for only part of the party. Open the lead to check it and update it by hand.`;
+  }
   if (outcome.scope === 'unresolved') {
     return `⚠️ ${who} was not marked cold — this card's enquiry could not be matched or closed. Open the lead to update it by hand.`;
   }

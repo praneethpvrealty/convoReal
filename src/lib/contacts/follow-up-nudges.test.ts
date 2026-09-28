@@ -198,6 +198,16 @@ describe('[INB-021] Mark cold is scoped to the carded listing', () => {
     expect(text).toContain('Rohit was not marked cold');
   });
 
+  it('[INB-021] says a close that did not finish may be partial', () => {
+    const text = buildColdConfirmation('Rohit', {
+      scope: 'incomplete',
+      property: { id: 'p1', title: 'JP Nagar Plot', property_code: null },
+    });
+    expect(text).toContain('Rohit was not marked cold');
+    expect(text).toContain('JP Nagar Plot did not finish');
+    expect(text).toContain('part of the party');
+  });
+
   it('says so when the listing was the last open enquiry', () => {
     const text = buildColdConfirmation('Rohit', {
       scope: 'lead',
