@@ -940,6 +940,8 @@ export interface JourneyOverviewEnquiry {
   subject_id: string;
   enquiry_count: number;
   last_enquired_at: string | null;
+  last_enquiry_source: string | null;
+  enquiry_source_count: number;
 }
 
 export type BroadcastStatus =

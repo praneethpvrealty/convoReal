@@ -118,6 +118,8 @@ interface JourneyGroup {
   lastUpdated: string;
   enquiryCount: number;
   lastEnquiredAt: string | null;
+  lastEnquirySource: string | null;
+  enquirySourceCount: number;
   priority: JourneyPriority | null;
   lifecycleStatus: JourneyLifecycleStatus;
   closureReason: string | null;
@@ -181,7 +183,8 @@ function enquiredLabel(group: JourneyGroup) {
   if (!group.lastEnquiredAt) return '';
   const date = new Date(group.lastEnquiredAt);
   if (Number.isNaN(date.getTime())) return '';
-  return `Last enquired ${formatDistanceToNowStrict(date, { addSuffix: true })}`;
+  const via = group.lastEnquirySource ? ` via ${group.lastEnquirySource}` : '';
+  return `Last enquired${via} ${formatDistanceToNowStrict(date, { addSuffix: true })}`;
 }
 
 function pageHrefOf(group: JourneyGroup, mode: JourneyMode) {
@@ -412,6 +415,11 @@ export function JourneyOverview({
           ),
           lastEnquiredAt:
             enquiries.get(row.subject_id)?.last_enquired_at ?? null,
+          lastEnquirySource:
+            enquiries.get(row.subject_id)?.last_enquiry_source ?? null,
+          enquirySourceCount: Number(
+            enquiries.get(row.subject_id)?.enquiry_source_count ?? 0
+          ),
           priority: priorities.get(row.subject_id) ?? null,
           lifecycleStatus: state?.lifecycle_status ?? 'active',
           closureReason: state?.closure_reason ?? null,
@@ -1372,16 +1380,16 @@ function SortableJourneyRow({
           </span>
         </button>
 
-        {journeyEnquiryLabel(group.enquiryCount, group.lastEnquiredAt) && (
+        {journeyEnquiryLabel(group) && (
           <button
             type="button"
             onClick={onEnquiries}
             title={enquiredLabel(group)}
-            aria-label={`Show ${journeyEnquiryLabel(group.enquiryCount, group.lastEnquiredAt)} for ${titleOf(group, mode)}`}
-            className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold"
+            aria-label={`Show ${journeyEnquiryLabel(group)} for ${titleOf(group, mode)}`}
+            className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex max-w-64 shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold"
           >
-            <MessageSquare className="h-3 w-3" />
-            {journeyEnquiryLabel(group.enquiryCount, group.lastEnquiredAt)}
+            <MessageSquare className="h-3 w-3 shrink-0" />
+            <span className="truncate">{journeyEnquiryLabel(group)}</span>
           </button>
         )}
 

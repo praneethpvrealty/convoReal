@@ -113,20 +113,50 @@ describe('sortJourneys', () => {
 });
 
 describe('journeyEnquiryLabel', () => {
+  const enquiry = (
+    enquiryCount: number,
+    lastEnquiredAt: string | null = null,
+    lastEnquirySource: string | null = null,
+    enquirySourceCount = lastEnquirySource ? 1 : 0
+  ) => ({
+    enquiryCount,
+    lastEnquiredAt,
+    lastEnquirySource,
+    enquirySourceCount,
+  });
+
   it('[JRN-012] labels the enquiry count and hides it when there is none', () => {
-    expect(journeyEnquiryLabel(0)).toBeNull();
-    expect(journeyEnquiryLabel(1)).toBe('1 enquiry');
-    expect(journeyEnquiryLabel(19)).toBe('19 enquiries');
+    expect(journeyEnquiryLabel(enquiry(0))).toBeNull();
+    expect(journeyEnquiryLabel(enquiry(1))).toBe('1 enquiry');
+    expect(journeyEnquiryLabel(enquiry(19))).toBe('19 enquiries');
   });
 
   it('[JRN-012] adds the last enquiry date, with the year only when it is not this year', () => {
     const now = new Date('2026-09-28T12:00:00Z');
-    expect(journeyEnquiryLabel(3, '2026-09-12T12:00:00Z', now)).toBe(
+    expect(journeyEnquiryLabel(enquiry(3, '2026-09-12T12:00:00Z'), now)).toBe(
       '3 enquiries · 12 Sep'
     );
-    expect(journeyEnquiryLabel(1, '2025-12-03T12:00:00Z', now)).toBe(
+    expect(journeyEnquiryLabel(enquiry(1, '2025-12-03T12:00:00Z'), now)).toBe(
       '1 enquiry · 3 Dec 2025'
     );
-    expect(journeyEnquiryLabel(2, 'not a date', now)).toBe('2 enquiries');
+    expect(journeyEnquiryLabel(enquiry(2, 'not a date'), now)).toBe(
+      '2 enquiries'
+    );
+  });
+
+  it('[JRN-012] names the latest enquiry source, counting any others', () => {
+    const now = new Date('2026-09-28T12:00:00Z');
+    expect(
+      journeyEnquiryLabel(enquiry(3, '2026-09-12T12:00:00Z', 'Housing'), now)
+    ).toBe('3 enquiries · Housing · 12 Sep');
+    expect(
+      journeyEnquiryLabel(
+        enquiry(4, '2026-09-12T12:00:00Z', 'Magic Bricks', 3),
+        now
+      )
+    ).toBe('4 enquiries · Magic Bricks +2 · 12 Sep');
+    expect(journeyEnquiryLabel(enquiry(1, null, 'Manual'), now)).toBe(
+      '1 enquiry · Manual'
+    );
   });
 });
