@@ -65,6 +65,16 @@ describe('decideRelease', () => {
     ).toBe('merge');
   });
 
+  it('opens the release PR and runs CI at the first deadline while members are open', () => {
+    const openMembers = [{ number: 4 }];
+    expect(
+      decideRelease({ ...ready, openMembers, releasePr: null }).action
+    ).toBe('open-pr');
+    expect(decideRelease({ ...ready, openMembers, ci: null }).action).toBe(
+      'run-ci'
+    );
+  });
+
   it('opens the release PR, then starts CI', () => {
     expect(decideRelease({ ...ready, releasePr: null }).action).toBe('open-pr');
     expect(decideRelease({ ...ready, ci: null }).action).toBe('run-ci');
@@ -142,6 +152,7 @@ function fakeGithub({
   queuedRuns = [] as { status: string; conclusion: string | null }[],
   mergeable = true,
   behindBy = 0,
+  movedTip,
 }: {
   pulls: Pull[];
   created?: string;
@@ -153,8 +164,10 @@ function fakeGithub({
   queuedRuns?: { status: string; conclusion: string | null }[];
   mergeable?: boolean | null;
   behindBy?: number;
+  movedTip?: string;
 }) {
   const listBranches = vi.fn();
+  let releaseReads = 0;
   const pullsList = vi.fn(
     async ({ state, base }: { state: string; base: string }) => ({
       data: pulls.filter(
@@ -183,7 +196,13 @@ function fakeGithub({
   const rest = {
     repos: {
       listBranches,
-      getBranch: vi.fn(async () => ({ data: { commit: { sha: 'tip' } } })),
+      getBranch: vi.fn(async ({ branch }: { branch: string }) => {
+        if (branch === 'main')
+          return { data: { commit: { sha: 'main-head' } } };
+        releaseReads += 1;
+        const sha = movedTip && releaseReads > 1 ? movedTip : 'tip';
+        return { data: { commit: { sha } } };
+      }),
       listActivities: vi.fn(async () => ({ data: [{ timestamp: created }] })),
       getCommit: vi.fn(),
       compareCommitsWithBasehead: vi.fn(async () => ({
@@ -195,7 +214,21 @@ function fakeGithub({
       get: vi.fn(async () => ({ data: { mergeable } })),
       create: vi.fn(async () => ({ data: { number: 50 } })),
       merge: vi.fn(async () => ({ data: { sha: 'merged' } })),
-      update: vi.fn(async () => ({})),
+      update: vi.fn(
+        async ({
+          pull_number,
+          base,
+        }: {
+          pull_number: number;
+          base: string;
+        }) => {
+          const pull = pulls.find(
+            (candidate) => candidate.number === pull_number
+          );
+          if (pull) pull.base.ref = base;
+          return {};
+        }
+      ),
       updateBranch: vi.fn(async () => ({})),
     },
     checks: {
@@ -331,7 +364,7 @@ describe('run', () => {
       owner: 'owner',
       repo: 'repo',
       ref: 'refs/heads/release/batch-next',
-      sha: 'merged',
+      sha: 'main-head',
     });
     expect(rest.pulls.update).toHaveBeenCalledWith({
       owner: 'owner',
@@ -339,14 +372,46 @@ describe('run', () => {
       pull_number: 3,
       base: 'release/batch-next',
     });
-    const retargeted = rest.pulls.update.mock.invocationCallOrder[0];
-    const cleanup = rest.actions.createWorkflowDispatch.mock.calls.findIndex(
-      ([params]) => params.workflow_id === 'branch-cleanup.yml'
+    expect(rest.pulls.update).toHaveBeenCalledTimes(1);
+    expect(rest.pulls.update.mock.invocationCallOrder[0]).toBeLessThan(
+      rest.pulls.merge.mock.invocationCallOrder[0]
     );
-    expect(cleanup).toBeGreaterThanOrEqual(0);
-    expect(retargeted).toBeLessThan(
-      rest.actions.createWorkflowDispatch.mock.invocationCallOrder[cleanup]
+  });
+
+  it('does not merge when the release head moved while members were moved', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [
+        member(1),
+        member(3, { state: 'open', merged_at: null }),
+        releasePr(),
+      ],
+      created: minutesAgo(2 * RELEASE_WINDOW_MINUTES),
+      checkRuns: greenCi,
+      movedTip: 'member-3-merged',
+    });
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch']
+    ).toEqual({
+      action: 'wait',
+      reason: 'release head moved; it is re-tested first',
+    });
+    expect(rest.pulls.merge).not.toHaveBeenCalled();
+  });
+
+  it('treats a merge refused for a moved head as a wait', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+    });
+    rest.pulls.merge.mockRejectedValueOnce(
+      Object.assign(new Error('Head branch was modified'), { status: 409 })
     );
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch'].action
+    ).toBe('wait');
+    expect(rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
   });
 
   it('comments once when holding a release on failed CI', async () => {

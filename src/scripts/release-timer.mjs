@@ -33,14 +33,6 @@ export function decideRelease({
       reason: `batch window open; ships in ${RELEASE_WINDOW_MINUTES - age} min`,
     };
   }
-  if (openMembers.length > 0 && age < 2 * RELEASE_WINDOW_MINUTES) {
-    const numbers = openMembers.map((pull) => `#${pull.number}`).join(', ');
-    return {
-      action: 'wait',
-      reason: `waiting for ${numbers}; ships without them in ${2 * RELEASE_WINDOW_MINUTES - age} min`,
-    };
-  }
-
   if (!releasePr) return { action: 'open-pr', reason: 'time limit reached' };
   if (mergeable === false) {
     return { action: 'hold', reason: 'merge conflict with main' };
@@ -69,6 +61,13 @@ export function decideRelease({
   }
   if (mergeable !== true) {
     return { action: 'wait', reason: 'GitHub is still computing mergeability' };
+  }
+  if (openMembers.length > 0 && age < 2 * RELEASE_WINDOW_MINUTES) {
+    const numbers = openMembers.map((pull) => `#${pull.number}`).join(', ');
+    return {
+      action: 'wait',
+      reason: `waiting for ${numbers}; ships without them in ${2 * RELEASE_WINDOW_MINUTES - age} min`,
+    };
   }
   return {
     action: 'merge',
@@ -165,6 +164,17 @@ function releaseBody(branch, mergedMembers) {
     '',
     'The timer squash-merges this once CI is green, no review thread is unresolved and no Codex review is running.',
   ].join('\n');
+}
+
+async function openMembersOf(github, owner, repo, branch) {
+  const { data } = await github.rest.pulls.list({
+    owner,
+    repo,
+    state: 'open',
+    base: branch,
+    per_page: 100,
+  });
+  return data;
 }
 
 async function carryOver(
@@ -351,14 +361,52 @@ async function shipBranch({
     return decision;
   }
 
-  const { data: merged } = await github.rest.pulls.merge({
+  const openNow = await openMembersOf(github, owner, repo, branch);
+  if (openNow.length > 0) {
+    const { data: mainHead } = await github.rest.repos.getBranch({
+      owner,
+      repo,
+      branch: 'main',
+    });
+    await carryOver(
+      github,
+      core,
+      owner,
+      repo,
+      branch,
+      openNow,
+      mainHead.commit.sha
+    );
+  }
+  const { data: current } = await github.rest.repos.getBranch({
     owner,
     repo,
-    pull_number: releasePr.number,
-    merge_method: 'squash',
-    sha: releasePr.headSha,
-    commit_title: `Release ${branch.replace(RELEASE_BRANCH, '')} (#${releasePr.number})`,
+    branch,
   });
+  if (current.commit.sha !== releasePr.headSha) {
+    return {
+      action: 'wait',
+      reason: 'release head moved; it is re-tested first',
+    };
+  }
+
+  let merged;
+  try {
+    ({ data: merged } = await github.rest.pulls.merge({
+      owner,
+      repo,
+      pull_number: releasePr.number,
+      merge_method: 'squash',
+      sha: releasePr.headSha,
+      commit_title: `Release ${branch.replace(RELEASE_BRANCH, '')} (#${releasePr.number})`,
+    }));
+  } catch (error) {
+    if (error.status !== 405 && error.status !== 409) throw error;
+    return {
+      action: 'wait',
+      reason: 'release head moved; it is re-tested first',
+    };
+  }
   core.notice(`merged ${branch} into main as ${merged.sha}`);
   await github.rest.actions.createWorkflowDispatch({
     owner,
@@ -367,15 +415,7 @@ async function shipBranch({
     ref: 'main',
   });
 
-  const stillOpen = (
-    await github.rest.pulls.list({
-      owner,
-      repo,
-      state: 'open',
-      base: branch,
-      per_page: 100,
-    })
-  ).data;
+  const stillOpen = await openMembersOf(github, owner, repo, branch);
   if (stillOpen.length > 0) {
     await carryOver(github, core, owner, repo, branch, stillOpen, merged.sha);
   }
