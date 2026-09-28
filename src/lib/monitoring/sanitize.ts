@@ -1,4 +1,22 @@
-import type { ErrorEvent } from '@sentry/nextjs';
+import type { ErrorEvent, NodeOptions } from '@sentry/nextjs';
+
+const NETWORK_IDENTITY_KEYS = ['forwarded', '-ip', 'remote-', 'via', '-user'];
+
+export const sentryDataCollection: NonNullable<NodeOptions['dataCollection']> =
+  {
+    userInfo: false,
+    cookies: false,
+    httpHeaders: {
+      request: { deny: NETWORK_IDENTITY_KEYS },
+      response: { deny: NETWORK_IDENTITY_KEYS },
+    },
+    httpBodies: [],
+    urlQueryParams: { deny: NETWORK_IDENTITY_KEYS },
+    genAI: { inputs: false, outputs: false },
+    databaseQueryData: false,
+    queues: false,
+    graphQL: { document: false, variables: false },
+  };
 
 const SENSITIVE_KEY =
   /(?:authorization|cookie|token|secret|password|phone|email|message|body|payload|content|address|contact)/i;
@@ -75,8 +93,7 @@ export function sanitizeSentryEvent(event: ErrorEvent): ErrorEvent {
     if (breadcrumb.message)
       breadcrumb.message = redactSensitiveText(breadcrumb.message);
     breadcrumb.data = sanitizeValue(breadcrumb.data) as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
   });
   event.contexts = sanitizeValue(event.contexts) as ErrorEvent['contexts'];
   event.extra = sanitizeValue(event.extra) as ErrorEvent['extra'];
