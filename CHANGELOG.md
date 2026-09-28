@@ -19,6 +19,22 @@ than a written entry. Newest first.
 
 #### 28 September 2026
 
+- **Co-broking on deals.** When you sit between a buyer's agent and a
+  seller's agent, collect the commission and pay them their share, the
+  deal now records it. Overview → Co-broking (web and mobile): set your
+  position (direct, buyer's side, seller's side, in the middle), add each
+  broker you pay (pick them from the deal's Broker stakeholders or type a
+  name, with an optional % of the deal value), and mark each one paid
+  with a date and UTR. The deal's brokerage stays what you collect; the
+  dashboard, pipeline totals, deal cards, team and lead-source analytics
+  now count only your share (collected less payouts). Nothing changes for
+  a deal with no payouts. Internal only: never shown on a stakeholder
+  link, `/api/v1` or a public page. **Migration required:**
+  `20260928042711_deal_co_broking.sql`,
+  `20260928054500_deal_co_broking_hardening.sql` and
+  `20260928055000_co_broker_paid_within_amount.sql`. The dashboard
+  functions subtract payouts through
+  `20260928042712_co_broking_net_brokerage.sql`, shipped first in #1088.
 - **The active pipeline turns like a wheel.** On the Deals board the
   active stages now sit on a horizontal wheel: the focused stage faces
   you and its neighbours turn away on either side. Swipe or scroll to

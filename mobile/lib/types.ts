@@ -174,6 +174,9 @@ export interface Profile {
   /** App display language (migration 247) — set from the web header
    *  toggle; the helper UI renders in it. */
   active_ui_language?: string | null;
+  /** Read-only member (migration 082): an agent who may view but never
+   *  write; the API's requireWriteRole refuses them. */
+  is_read_only?: boolean | null;
 }
 
 // ------------------------------------------------------------------
@@ -234,6 +237,7 @@ export interface Deal {
   brokerage_value?: number | null;
   brokerage_amount?: number | null;
   brokerage_paid_at?: string | null;
+  co_broker_payout_total?: number | null;
   source_journey_item_id?: string | null;
   contact?: Contact | null;
   property?: Property | null;

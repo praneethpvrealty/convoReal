@@ -2053,6 +2053,23 @@
           ]
         },
         {
+          "id": "TXW-023",
+          "rule": "Co-broking: a deal's brokerage fields stay what the brokerage collects, and each other broker it pays out of that commission is one row in deal_co_broker_payouts, written only through /api/deals/[id]/co-broking (with the deal's position: direct, buyer's side, seller's side or in the middle). A payout needs a broker and an amount, may name a broker stakeholder on the same deal, and once paid is corrected, never removed. deals.co_broker_payout_total is the trigger-kept sum, and every revenue figure (dashboard metrics, pipeline donut, team and lead-source analytics, the board, pipeline analytics and the deal card on web and mobile) counts the brokerage's own share: collected less payouts, floored at zero. Position, payouts and the total are internal only like the other financials (never /api/v1, a public route or a stakeholder link) and amounts never ride a timeline event. Collected, paid out, still to pay and your share are summed on the server and shown, not recomputed, on web and mobile.",
+          "tests": [
+            { "file": "src/lib/deals/co-broking.test.ts", "case": "[TXW-023]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-023]" },
+            {
+              "file": "mobile/lib/deal-co-broking.test.ts",
+              "case": "[TXW-023]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260928042711_deal_co_broking.sql",
+            "supabase/migrations/20260928054500_deal_co_broking_hardening.sql",
+            "supabase/migrations/20260928055000_co_broker_paid_within_amount.sql"
+          ]
+        },
+        {
           "id": "TXW-024",
           "rule": "Every dashboard revenue function (dashboard_metrics, dashboard_pipeline_donut, team_analytics, lead_source_analytics) counts the brokerage's own share of a deal: its brokerage, or the 2% fallback, less deals.co_broker_payout_total (the trigger-kept sum of what it pays co-brokers, which no client can write and whose upkeep never moves the deal's updated_at), floored at zero only when there are payouts, keeping each function's is_account_member guard and SECURITY DEFINER. A deal with no payouts reads exactly as before.",
           "tests": [

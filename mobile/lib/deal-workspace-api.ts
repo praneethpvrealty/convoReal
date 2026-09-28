@@ -7,16 +7,15 @@
  * what makes it testable.
  */
 
-import {
-  apiFetch,
-  ApiError,
-  localFileSize,
-  putFileToSignedUrl,
-} from './api';
+import { apiFetch, ApiError, localFileSize, putFileToSignedUrl } from './api';
 import { attachmentUploadTimeoutMs } from './attachments';
 import { dealDocumentRejection } from './deal-workspace';
 import type {
   BundleDetail,
+  CoBrokingView,
+  DealCoBrokerPayoutRow,
+  DealPosition,
+  PayoutSide,
   DealPaymentTrancheRow,
   TrancheSchedule,
   DealDocumentCategory,
@@ -432,6 +431,62 @@ export function updateDealTranche(
 export function deleteDealTranche(dealId: string, trancheId: string) {
   return apiFetch<{ data: { id: string } }>(
     `/api/deals/${dealId}/tranches/${trancheId}`,
+    { method: 'DELETE', ...json({}) }
+  );
+}
+
+export function fetchDealCoBroking(dealId: string) {
+  return apiFetch<{ data: CoBrokingView }>(
+    `/api/deals/${dealId}/co-broking`
+  ).then((r) => r.data);
+}
+
+export function setDealPosition(dealId: string, position: DealPosition | null) {
+  return apiFetch<{ data: CoBrokingView }>(`/api/deals/${dealId}/co-broking`, {
+    method: 'PATCH',
+    ...json({ deal_position: position }),
+  }).then((r) => r.data);
+}
+
+export function addCoBrokerPayout(
+  dealId: string,
+  input: {
+    payee_name: string;
+    stakeholder_id: string | null;
+    side: PayoutSide | null;
+    share_percent: string | null;
+    amount: string;
+  }
+) {
+  return apiFetch<{ data: DealCoBrokerPayoutRow }>(
+    `/api/deals/${dealId}/co-broking/payouts`,
+    { method: 'POST', ...json(input) }
+  ).then((r) => r.data);
+}
+
+export function updateCoBrokerPayout(
+  dealId: string,
+  payoutId: string,
+  patch: {
+    payee_name?: string;
+    side?: PayoutSide | null;
+    amount?: string;
+    share_percent?: string | null;
+    stakeholder_id?: string | null;
+    paid_at?: string | null;
+    paid_amount?: string | null;
+    instrument_ref?: string | null;
+  }
+) {
+  return apiFetch<{ data: DealCoBrokerPayoutRow }>(
+    `/api/deals/${dealId}/co-broking/payouts/${payoutId}`,
+    { method: 'PATCH', ...json(patch) }
+  ).then((r) => r.data);
+}
+
+export function deleteCoBrokerPayout(dealId: string, payoutId: string) {
+  return apiFetch<{ data: { id: string } }>(
+    `/api/deals/${dealId}/co-broking/payouts/${payoutId}`,
     { method: 'DELETE', ...json({}) }
   );
 }
