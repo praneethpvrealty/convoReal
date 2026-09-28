@@ -208,6 +208,15 @@ describe('[INB-021] Mark cold is scoped to the carded listing', () => {
     expect(text).toContain('part of the party');
   });
 
+  it('[INB-021] says a cold update that did not go through changed nothing', () => {
+    const text = buildColdConfirmation('Rohit', {
+      scope: 'incomplete',
+      property: null,
+    });
+    expect(text).toContain('Rohit was not marked cold');
+    expect(text).toContain('did not go through');
+  });
+
   it('says so when the listing was the last open enquiry', () => {
     const text = buildColdConfirmation('Rohit', {
       scope: 'lead',

@@ -811,7 +811,7 @@ export const COLD_FROM_FOLLOWUP_REASON =
 
 export type FollowUpColdOutcome =
   | { scope: 'unresolved' }
-  | { scope: 'incomplete'; property: OpenEnquiry['property'] }
+  | { scope: 'incomplete'; property: OpenEnquiry['property'] | null }
   | { scope: 'lead'; property: OpenEnquiry['property'] | null }
   | {
       scope: 'property';
@@ -873,8 +873,9 @@ export async function markFollowUpCold(
     }
 
     const label = enquiryLabel(property);
+    let closedAll = true;
     for (const id of partyIds) {
-      await closePropertyEnquiry({
+      const closed = await closePropertyEnquiry({
         db,
         accountId,
         contact: { id },
@@ -882,7 +883,9 @@ export async function markFollowUpCold(
         reason: COLD_FROM_FOLLOWUP_REASON,
         note: `❄️ Marked cold on ${label} from the follow-up card.`,
       });
+      if (!closed) closedAll = false;
     }
+    if (!closedAll) return { scope: 'incomplete', property };
 
     for (const id of partyIds) {
       const { data: lingering, error: lingeringError } = await db
@@ -912,11 +915,15 @@ export async function markFollowUpCold(
     }
   }
 
-  await db
+  const { data: cooled, error: coolError } = await db
     .from('contacts')
     .update({ lead_temp: 'COLD', updated_at: now })
     .in('id', partyIds)
-    .eq('account_id', accountId);
+    .eq('account_id', accountId)
+    .select('id');
+  if (coolError || (cooled ?? []).length === 0) {
+    return { scope: 'incomplete', property };
+  }
   return { scope: 'lead', property };
 }
 
@@ -927,7 +934,9 @@ export function buildColdConfirmation(
   outcome: FollowUpColdOutcome
 ): string {
   if (outcome.scope === 'incomplete') {
-    return `⚠️ ${who} was not marked cold — closing the enquiry on ${enquiryLabel(outcome.property)} did not finish, so it may be closed for only part of the party. Open the lead to check it and update it by hand.`;
+    return outcome.property
+      ? `⚠️ ${who} was not marked cold — closing the enquiry on ${enquiryLabel(outcome.property)} did not finish, so it may be closed for only part of the party. Open the lead to check it and update it by hand.`
+      : `⚠️ ${who} was not marked cold — the update did not go through. Open the lead to update it by hand.`;
   }
   if (outcome.scope === 'unresolved') {
     return `⚠️ ${who} was not marked cold — this card's enquiry could not be matched or closed. Open the lead to update it by hand.`;

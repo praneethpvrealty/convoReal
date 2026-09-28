@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const closed: Array<{ contactId: string; propertyId: string }> = [];
 let openByContact: Record<string, Array<{ id: string; title: string }>> = {};
 let enquiryReadFails = false;
+let closeFails = false;
+let coolFails = false;
 let enquiryReadsBeforeFailure = 0;
 
 vi.mock('@/lib/whatsapp/enquiry-review', async (importOriginal) => {
@@ -15,10 +17,12 @@ vi.mock('@/lib/whatsapp/enquiry-review', async (importOriginal) => {
     ...actual,
     closePropertyEnquiry: vi.fn(
       async (args: { contact: { id: string }; property: { id: string } }) => {
+        if (closeFails) return false;
         closed.push({
           contactId: args.contact.id,
           propertyId: args.property.id,
         });
+        return true;
       }
     ),
     loadOpenEnquiries: vi.fn(
@@ -90,7 +94,14 @@ function fakeDb(
         }),
         then: (resolve: (v: { data: unknown }) => void) => {
           if (patch) updates.push({ patch, filters });
-          resolve({ data: table === 'journey_items' ? lingering : null });
+          resolve({
+            data:
+              table === 'journey_items'
+                ? lingering
+                : table === 'contacts' && patch && !coolFails
+                  ? [{ id: 'row' }]
+                  : null,
+          });
         },
       };
       return chain;
@@ -108,6 +119,8 @@ describe('[INB-021] markFollowUpCold', () => {
     closed.length = 0;
     openByContact = {};
     enquiryReadFails = false;
+    closeFails = false;
+    coolFails = false;
     enquiryReadsBeforeFailure = 0;
   });
 
@@ -243,6 +256,34 @@ describe('[INB-021] markFollowUpCold', () => {
       )
     ).not.toContain(".in('contact_id', partyIds)");
     expect(updates).toHaveLength(0);
+  });
+
+  it('reports an unfinished close when a party member could not be closed', async () => {
+    openByContact = { rohit: [PLOT] };
+    closeFails = true;
+    const { db, updates } = fakeDb([PLOT]);
+
+    const outcome = await markFollowUpCold(db, {
+      accountId: 'acct-1',
+      partyIds: ['rohit'],
+      propertyId: PLOT.id,
+    });
+
+    expect(outcome).toEqual({ scope: 'incomplete', property: PLOT });
+    expect(updates).toHaveLength(0);
+  });
+
+  it('does not confirm cold when the temperature update changes no lead', async () => {
+    coolFails = true;
+    const { db } = fakeDb([]);
+
+    const outcome = await markFollowUpCold(db, {
+      accountId: 'acct-1',
+      partyIds: ['rohit'],
+      propertyId: null,
+    });
+
+    expect(outcome).toEqual({ scope: 'incomplete', property: null });
   });
 
   it('marks the lead cold when the card named no listing', async () => {

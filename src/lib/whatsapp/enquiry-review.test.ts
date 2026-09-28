@@ -264,7 +264,7 @@ describe('closePropertyEnquiry', () => {
       journey_items: [{ id: 'item-1', stage_id: 'stage-a' }],
     });
 
-    await closePropertyEnquiry({
+    const closed = await closePropertyEnquiry({
       db,
       accountId: 'acct-1',
       contact: { id: 'c1', name: 'Vasudha Rao' },
@@ -274,6 +274,8 @@ describe('closePropertyEnquiry', () => {
         property_code: 'PROP-1559',
       },
     });
+
+    expect(closed).toBe(true);
 
     expect(
       calls.find((c) => c.table === 'listing_feedback' && c.method === 'upsert')
@@ -306,6 +308,36 @@ describe('closePropertyEnquiry', () => {
     });
     expect(calls.some((c) => c.table === 'contacts')).toBe(false);
   });
+
+  it.each(['listing_feedback', 'journey_items'])(
+    '[INB-021] reports a close as failed when the %s write fails',
+    async (failing) => {
+      const { db } = stubDb({
+        journey_items: [{ id: 'item-1', stage_id: 'stage-a' }],
+      });
+      const from = (db as { from: (t: string) => Record<string, unknown> })
+        .from;
+      (db as { from: unknown }).from = (table: string) => {
+        const chain = from(table);
+        if (table === failing) {
+          chain.then = (resolve: (v: unknown) => unknown) =>
+            Promise.resolve(
+              resolve({ data: null, error: { message: 'timeout' } })
+            );
+        }
+        return chain;
+      };
+
+      const closed = await closePropertyEnquiry({
+        db,
+        accountId: 'acct-1',
+        contact: { id: 'c1' },
+        property: { id: P1, title: 'Plot' },
+      });
+
+      expect(closed).toBe(false);
+    }
+  );
 
   it('files the rejection even when the pair was never on the journey', async () => {
     const { db, calls } = stubDb({ journey_items: [null] });
