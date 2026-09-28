@@ -64,27 +64,12 @@ CREATE POLICY deal_co_broker_payouts_select ON deal_co_broker_payouts FOR SELECT
   is_account_member(account_id)
 );
 
--- Read-only members are agents with is_read_only (migration 082), so
--- the role check alone would let them write; they are excluded as in
--- migration 205.
+-- No write policy: members read payouts, and only the routes under
+-- /api/deals/[id]/co-broking write them, through the service role after
+-- requireWriteRole (which also refuses read-only members), so every
+-- write is parsed, rate-limited and put on the timeline. The guards
+-- below still hold for any service-role writer.
 DROP POLICY IF EXISTS deal_co_broker_payouts_modify ON deal_co_broker_payouts;
-CREATE POLICY deal_co_broker_payouts_modify ON deal_co_broker_payouts FOR ALL USING (
-  is_account_member(account_id, 'agent')
-  AND EXISTS (
-    SELECT 1 FROM profiles p
-    WHERE p.user_id = (SELECT auth.uid())
-      AND p.account_id = deal_co_broker_payouts.account_id
-      AND p.is_read_only IS NOT TRUE
-  )
-) WITH CHECK (
-  is_account_member(account_id, 'agent')
-  AND EXISTS (
-    SELECT 1 FROM profiles p
-    WHERE p.user_id = (SELECT auth.uid())
-      AND p.account_id = deal_co_broker_payouts.account_id
-      AND p.is_read_only IS NOT TRUE
-  )
-);
 
 DROP TRIGGER IF EXISTS set_updated_at ON deal_co_broker_payouts;
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON deal_co_broker_payouts
