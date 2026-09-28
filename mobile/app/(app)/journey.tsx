@@ -1118,6 +1118,34 @@ export function JourneyBody() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.sortChips}
         >
+          {enquirySource ? (
+            <Pressable
+              onPress={() => setEnquirySource(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Clear source filter"
+              style={[
+                styles.sortChip,
+                {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: `${colors.primary}14`,
+                  borderColor: colors.primary,
+                },
+              ]}
+            >
+              <Ionicons name="close" size={13} color={colors.primary} />
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontFamily: f.bold,
+                  color: colors.primary,
+                }}
+              >
+                Clear
+              </Text>
+            </Pressable>
+          ) : null}
           {[
             { source: null, label: 'All sources' },
             ...sourceOptions.map((option) => ({
