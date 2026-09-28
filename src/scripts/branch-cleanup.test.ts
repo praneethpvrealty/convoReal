@@ -140,6 +140,8 @@ function fakeGithub({
   openPulls = [],
   closedPulls = {},
   status = 'diverged',
+  movedTo = {},
+  openedLater = [],
 }: {
   branches: { name: string; sha: string }[];
   openPulls?: { headRef: string; baseRef: string }[];
@@ -153,14 +155,27 @@ function fakeGithub({
     }[]
   >;
   status?: string;
+  movedTo?: Record<string, string>;
+  openedLater?: { headRef: string; baseRef: string }[];
 }) {
   const listBranches = vi.fn();
-  const list = vi.fn();
+  const list = vi.fn(
+    async ({ head, base }: { head?: string; base?: string }) => ({
+      data: openedLater.filter((pull) =>
+        head ? `owner:${pull.headRef}` === head : pull.baseRef === base
+      ),
+    })
+  );
   const deleteRef = vi.fn(async () => ({}));
   const getBranch = vi.fn(async ({ branch }: { branch: string }) => {
     const found = branches.find((candidate) => candidate.name === branch);
     if (!found) throw Object.assign(new Error('Not Found'), { status: 404 });
-    return { data: { name: found.name, commit: { sha: found.sha } } };
+    return {
+      data: {
+        name: found.name,
+        commit: { sha: movedTo[found.name] ?? found.sha },
+      },
+    };
   });
   const paginate = vi.fn(
     async (method: unknown, params: { state?: string; head?: string }) => {
@@ -279,5 +294,40 @@ describe('run', () => {
       await run({ github, context, core, only: 'agent/missing', now: NOW })
     ).toEqual([]);
     expect(deleteRef).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a branch that moved or gained an open pull request mid-sweep', async () => {
+    const merged = (sha: string) => [
+      { number: 11, sha, merged_at: daysAgo(0), closed_at: daysAgo(0) },
+    ];
+    const { github, deleteRef } = fakeGithub({
+      branches: [
+        { name: 'agent/pushed', sha: 'p' },
+        { name: 'agent/reopened', sha: 'r' },
+        { name: 'release/targeted', sha: 't' },
+        { name: 'agent/done', sha: 'd' },
+      ],
+      closedPulls: {
+        'agent/pushed': merged('p'),
+        'agent/reopened': merged('r'),
+        'release/targeted': merged('t'),
+        'agent/done': merged('d'),
+      },
+      movedTo: { 'agent/pushed': 'p2' },
+      openedLater: [
+        { headRef: 'agent/reopened', baseRef: 'main' },
+        { headRef: 'agent/new', baseRef: 'release/targeted' },
+      ],
+    });
+
+    expect(await run({ github, context, core, now: NOW })).toEqual([
+      'agent/done',
+    ]);
+    expect(deleteRef).toHaveBeenCalledTimes(1);
+    expect(deleteRef).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      ref: 'heads/agent/done',
+    });
   });
 });

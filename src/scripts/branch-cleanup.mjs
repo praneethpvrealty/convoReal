@@ -121,6 +121,28 @@ async function namedBranch(github, owner, repo, name) {
   }
 }
 
+async function stillUnchanged(github, owner, repo, name, tipSha) {
+  const [current] = await namedBranch(github, owner, repo, name);
+  if (!current || current.commit.sha !== tipSha) return false;
+  const [{ data: asHead }, { data: asBase }] = await Promise.all([
+    github.rest.pulls.list({
+      owner,
+      repo,
+      state: 'open',
+      head: `${owner}:${name}`,
+      per_page: 1,
+    }),
+    github.rest.pulls.list({
+      owner,
+      repo,
+      state: 'open',
+      base: name,
+      per_page: 1,
+    }),
+  ]);
+  return asHead.length === 0 && asBase.length === 0;
+}
+
 /**
  * @param {{ github: any, context: any, core: any, only?: string | null, dryRun?: boolean, now?: number }} options
  */
@@ -173,12 +195,24 @@ export async function run({
       core.info(`keep ${branch.name}: ${decision.reason}`);
       continue;
     }
-    if (!dryRun)
+    if (!dryRun) {
+      const unchanged = await stillUnchanged(
+        github,
+        owner,
+        repo,
+        branch.name,
+        tipSha
+      );
+      if (!unchanged) {
+        core.info(`keep ${branch.name}: changed while the sweep ran`);
+        continue;
+      }
       await github.rest.git.deleteRef({
         owner,
         repo,
         ref: `heads/${branch.name}`,
       });
+    }
     removed.push(branch.name);
     core.notice(
       `${dryRun ? 'would delete' : 'deleted'} ${branch.name} at ${tipSha}: ${decision.reason}`
