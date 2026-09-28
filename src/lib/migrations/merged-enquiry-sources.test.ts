@@ -38,5 +38,6 @@ describe('[PRP-024] a merged contact keeps where its enquiries came from', () =>
       "WHEN sender_domain LIKE '%magicbricks.com' THEN 'magicbricks'"
     );
     expect(sql).not.toContain('CASE l.lead_portal');
+    expect(sql).toContain('AND e.created_at <= merged.merged_at');
   });
 });

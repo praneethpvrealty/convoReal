@@ -3,6 +3,7 @@ WITH merged AS (
     cpi.id,
     cpi.account_id,
     cpi.property_id,
+    m.created_at AS merged_at,
     right(regexp_replace(coalesce(m.source_snapshot->>'phone', ''), '\D', '', 'g'), 10) AS phone
   FROM public.contact_property_inquiries cpi
   JOIN public.contact_merge_log m
@@ -43,6 +44,7 @@ evidence AS (
     ON e.account_id = merged.account_id
    AND length(merged.phone) = 10
    AND e.phone = merged.phone
+   AND e.created_at <= merged.merged_at
   WHERE e.portal IS NOT NULL
     AND (
       e.matched_property_id = merged.property_id
