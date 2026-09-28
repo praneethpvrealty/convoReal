@@ -17,24 +17,26 @@ Next.js 16 has breaking changes compared with older versions — APIs, file conv
 - Prefer the connected GitHub plugin for all GitHub reads and writes, including branches, commits, pull requests, reviews, merges, Actions, and deployment-status checks.
 - Do not ask the user to install or authenticate the GitHub CLI (`gh`) when the GitHub plugin can perform the operation.
 - Use local `git` or `gh` only when the plugin lacks the required capability, and explain that specific limitation before asking the user.
-- For every requested code change, implementation is not complete after local validation: commit the intended changes on an `agent/*` branch, open a ready-for-review pull request, wait for every required check to pass, and merge it into `main` once the PR is green. Do not stop at a local commit or draft PR unless the user explicitly asks not to publish, or an external permission/safety gate blocks the operation.
+- For every requested code change, implementation is not complete after local validation: commit the intended changes on an `agent/*` branch, open a ready-for-review pull request, wait for every required check to pass, and merge it into the active `release/*` branch once green for a routine batch, then merge one validated release PR into `main`; standalone changes may target `main` directly. Do not stop at a local commit or draft PR unless the user explicitly asks not to publish, or an external permission/safety gate blocks the operation.
 - Treat every request to implement, fix, build, or change the application as standing authorization to complete that release end to end: publish the scoped source changes to `praneethpvrealty/convoReal`, open and merge the ready PR after green CI, apply required migrations, and verify production. Do not ask the user for separate upload, PR, merge, migration, or deployment authorization each time. Pause only when the user explicitly requests local-only work or when an external permission/safety gate requires a new user decision.
 - **A pull request is always opened, and the change's migrations are always applied.** Neither step is an optional finishing touch, and neither is deferred to the user. Once the work is written and local validation passes (`npm run typecheck && npm run lint && npm test`, plus the mobile suite when `mobile/**` changed), open the ready-for-review pull request and apply every migration the change adds to the Supabase project. This holds even when a harness or session prompt says not to open a pull request unless explicitly asked — the implementation request itself is that request. The only exceptions are an explicit "local only" / "do not publish" instruction from the user in this conversation, or an external permission gate that refuses the operation; report either plainly rather than quietly stopping short.
 - Apply a migration as soon as the branch is pushed only when it is **purely additive** — an object that does not exist yet (a new table, a new function, `CREATE INDEX IF NOT EXISTS`, a nullable column). Nothing already in production changes behaviour, so the preview and the merged `main` both find the schema they expect and an abandoned PR leaves nothing behind.
-- Hold everything else until the PR is green and merged: drops, column type changes, data-rewriting backfills — and **`CREATE OR REPLACE` against a function that already exists**. That last one is not additive: it swaps a live body that production `main` starts using the moment it lands, before any check has passed, and it stays swapped even if the PR is never merged. Whether a `CREATE OR REPLACE` is additive depends on whether the object exists in production, not on the SQL keyword — check before deciding.
+- Hold everything else until the final production PR is green and merged into `main`, never when a member PR merges into `release/*`: drops, column type changes, data-rewriting backfills — and **`CREATE OR REPLACE` against a function that already exists**. That last one is not additive: it swaps a live body that production `main` starts using the moment it lands, before any check has passed, and it stays swapped even if the PR is never merged. Whether a `CREATE OR REPLACE` is additive depends on whether the object exists in production, not on the SQL keyword — check before deciding.
 - Say which of the two applied, and when.
 - If a required PR check fails, diagnose and fix the failure, push the correction, and wait for the replacement checks. Never merge a red or pending PR. After merging, verify the resulting `main` deployment and report any platform-specific limitation (for example, an unavailable iOS OTA target) explicitly.
 
-### Batched PR validation trains
+### Batched production releases
 
-- Manage compatible changes as validation trains of **three PRs by default**. Use up to four only when every PR is small, low-risk, independently reviewable, and unlikely to overlap.
-- Every PR must still contain its own focused regression coverage and pass its own required PR checks and Vercel preview. Batching never permits skipping, weakening, or sharing away per-PR CI.
-- Review the combined diff and affected workflows before merging the first PR. If cross-PR interactions are plausible, validate the combined heads on a temporary integration branch or consolidate the dependent changes into one PR.
-- Keep database migrations with ordering dependencies, authentication or authorization, billing or credit burn/refund, WhatsApp ingress/queue/template delivery, deployment configuration, and mobile OTA or store-release changes out of routine batches. Validate and ship these as standalone changes.
-- Merge a train sequentially only after every member is green. Update or rebase the remaining PRs when earlier merges cause conflicts or materially change shared code, and wait for replacement checks.
-- Stop the train at the first failure. Diagnose the responsible PR or interaction before merging anything else; do not let unrelated green status hide an ambiguous failure.
-- After the final merge, verify the deployed batch tip once as the source of truth: confirm the final `main` CI result, Vercel production, every affected Railway service, migrations, and mobile OTA target as applicable, then smoke-test every user flow changed by the train. Do not call the batch live while any required target is pending, failed, or unverified.
-- The agent owns train selection and end-to-end management. State which PRs belong to the train, manage checks and merge order without asking the user to repeat this policy, and report one combined validation and deployment result.
+- Vercel preview deployments are disabled at the user's request. Keep Codex code review and per-PR GitHub CI; do not run preview deploy commands or require a Vercel preview check.
+- Batch compatible changes in groups of **three focused PRs by default**, up to four only when small, low-risk, independently reviewable, and unlikely to overlap.
+- Create a fresh `release/<batch-name>` branch from current `main`. Create each `agent/*` feature branch from the latest release tip and target its PR at that release branch.
+- Each member needs its own focused regression coverage, Codex review, and green `CI` before merging. Release branches may not have GitHub branch protection, so the agent must explicitly verify these gates; never treat lack of enforcement as approval.
+- Merge members sequentially into the release branch. Update remaining branches after conflicts or material shared-code changes and wait for replacement checks. Stop on the first failure.
+- Review the combined diff and open one release PR from `release/*` to `main`. Require green combined CI, including the production build for web changes, and resolve review findings before squash-merging once. Member merges do not deploy; the final `main` merge produces one production deployment per connected, enabled project.
+- Keep every non-additive migration (including drops, type changes, data-rewriting backfills, and replacements of existing functions), migrations with ordering dependencies, authentication/authorization, billing or credit burn/refund, WhatsApp ingress/queue/template delivery, deployment configuration, and mobile OTA/store releases outside routine batches. Ship them as standalone reviewed PRs to `main` with green CI and a production build when web files change.
+- Keep the `main` push and `merge_group` CI triggers. Do not weaken required checks. Vercel branch gating does not disable GitHub Actions or the mobile EAS channel named `preview`.
+- After the final merge, verify the deployed batch tip: `main` CI, Vercel production, affected Railway services, migrations, and mobile OTA targets as applicable. Smoke-test affected user flows and report anything unverified.
+- The agent owns batch selection, review, checks, merge order, and one combined deployment report. Do not merge member PRs separately into `main`.
 
 ---
 
@@ -211,7 +213,7 @@ convoReal/
 ├── components.json               # shadcn/ui configuration
 ├── vercel.json                   # Build ignore rules + cron schedules
 ├── Dockerfile.worker             # Docker image for the queue worker
-├── .github/workflows/ci.yml      # Path-filtered lint/typecheck/test; build at merge time
+├── .github/workflows/ci.yml      # Path-filtered CI; web build before main merges
 ├── src/
 │   ├── app/                      # Next.js App Router pages + API routes
 │   │   ├── (auth)/               # Login, signup, forgot-password, reset-password
@@ -708,7 +710,7 @@ Meta Cloud API
 - **MCP server tests**: `mcp/src/**/*.test.ts`. Run with `cd mcp && npm test` (separate Vitest config and dependency tree, like mobile). They stand up a real HTTP server as `/api/v1` and drive the real MCP server through a real client, so nothing but the app itself is mocked.
 - **Go tests**: `cd go-ingress && go test`.
 - **Husky pre-commit**: runs `eslint` and `vitest related` over staged `src/**` TypeScript only (see `.husky/pre-commit`). The full suite is CI's job.
-- **CI**: `.github/workflows/ci.yml` runs on every PR, on `merge_group`, and on push to `main`; older runs for the same PR branch are cancelled, merge-queue and main runs are not.
+- **CI**: `.github/workflows/ci.yml` runs on PRs targeting `main` or `release/**`, on `merge_group`, and on push to `main`; older runs for the same PR branch are cancelled, merge-queue and main runs are not.
 - **`main` is gated by the "main protection" ruleset**: a pull request is required (0 approvals), `CI` must pass, force pushes and deletions are blocked. `CI` is the gate job, not a real check — require it and never the individual jobs, which skip legitimately.
 - **The `merge_group` trigger never fires today.** GitHub's merge queue needs an organization-owned repository and this one is user-owned, so the trigger is inert until that changes. `push: main` is therefore load-bearing, not redundant: do not remove it.
 - **A push to `main` is not a per-commit guarantee.** Main runs share one concurrency group and GitHub keeps at most one pending run in it, so a rapid second merge cancels the first commit's queued run before any job starts. The PR-level `CI` gate is what actually covers every change.
@@ -721,7 +723,10 @@ Meta Cloud API
 ### Vercel (primary web app)
 
 - `vercel.json` configures:
-  - `ignoreCommand` to skip builds when only `go-ingress/`, `docs/`, `Dockerfile.worker`, or `mobile/` change.
+  - `git.deploymentEnabled` allows automatic deployments only from `main`; feature and release branches do not deploy.
+  - `ignoreCommand` skips non-production builds and all future builds of the duplicate `work` project (`prj_9OIeVsISS3jWRa4FBwUT7RDQ3pKU`), then retains path-based skips for `go-ingress/`, `docs/`, `Dockerfile.worker`, `mobile/`, and `mcp/`.
+  - System environment variables must remain available to the ignore command. The repository command overrides the dashboard Ignored Build Step.
+  - Blocking builds leaves existing deployments and cron jobs running. Disconnect `work` from Git as the durable project-level control; do not delete/pause it or disable its crons until domains, callbacks, and scheduled-job ownership are verified.
   - `buildCommand`: `NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD) next build`
   - Cron schedules (see `vercel.json`).
 - `next.config.ts` sets:
