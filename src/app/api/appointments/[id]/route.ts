@@ -93,6 +93,10 @@ export async function PUT(
       start_time !== undefined &&
       new Date(existing.start_time).getTime() !== new Date(start_time).getTime()
     const reopened = status === 'scheduled' && existing.status !== 'scheduled'
+    // Only a start still ahead is worth reminding about: reopening
+    // yesterday's cancelled visit must not message its contacts.
+    const startsAhead =
+      new Date(start_time !== undefined ? start_time : existing.start_time).getTime() > Date.now()
     if (rescheduled) {
       // A reschedule also resolves any pending "Requesting reschedule"
       // flag (src/lib/whatsapp/webhook-handler.ts) — the client's ask
@@ -102,7 +106,7 @@ export async function PUT(
       // old time; the re-sent reminders will collect a fresh one.
       updatePayload.client_confirmed_at = null
     }
-    if (rescheduled || reopened) {
+    if ((rescheduled || reopened) && startsAhead) {
       updatePayload.reminder_morning_sent = false
       updatePayload.reminder_1h_sent = false
       // The flags alone re-arm nothing: each send first claims an

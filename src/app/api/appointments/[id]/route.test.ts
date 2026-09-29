@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  existing: { id: 'appt-1', user_id: 'u1', start_time: '2026-10-01T04:30:00.000Z', status: 'scheduled', contact_id: null, contact_ids: [] } as Record<string, unknown>,
+  existing: { id: 'appt-1', user_id: 'u1', start_time: '2999-10-01T04:30:00.000Z', status: 'scheduled', contact_id: null, contact_ids: [] } as Record<string, unknown>,
   updates: [] as Array<Record<string, unknown>>,
 }));
 
@@ -69,6 +69,15 @@ describe('PUT /api/appointments/[id]', () => {
     }
   });
 
+  it('[CAL-010] reopening an appointment that has already started re-arms nothing', async () => {
+    state.existing = { ...state.existing, status: 'cancelled', start_time: '2026-09-28T04:30:00.000Z' };
+    state.updates = [];
+    const res = await put({ status: 'scheduled' });
+    expect(res.status).toBe(200);
+    expect(state.updates[0]).toMatchObject({ status: 'scheduled' });
+    untouched(state.updates[0]);
+  });
+
   it('[CAL-010] closing an appointment, or re-sending scheduled, leaves the reminders alone', async () => {
     state.existing = { ...state.existing, status: 'scheduled' };
     for (const status of ['completed', 'cancelled', 'scheduled']) {
@@ -81,9 +90,9 @@ describe('PUT /api/appointments/[id]', () => {
   });
 
   it('moving an appointment to a new time re-arms its reminders the same way', async () => {
-    state.existing = { ...state.existing, status: 'scheduled' };
+    state.existing = { ...state.existing, status: 'scheduled', start_time: '2999-10-01T04:30:00.000Z' };
     state.updates = [];
-    const res = await put({ start_time: '2026-10-02T04:30:00.000Z' });
+    const res = await put({ start_time: '2999-10-02T04:30:00.000Z' });
     expect(res.status).toBe(200);
     expect(state.updates[0]).toMatchObject({
       reschedule_requested_at: null,
@@ -92,7 +101,7 @@ describe('PUT /api/appointments/[id]', () => {
     rearmed(state.updates[0]);
 
     state.updates = [];
-    await put({ start_time: '2026-10-01T04:30:00.000Z' });
+    await put({ start_time: '2999-10-01T04:30:00.000Z' });
     untouched(state.updates[0]);
   });
 });

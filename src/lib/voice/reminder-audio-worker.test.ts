@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-type Lookup = 'stands' | 'gone' | 'renewed' | 'rearmed' | 'error';
+type Lookup = 'stands' | 'gone' | 'renewed' | 'rearmed' | 'moved' | 'error';
 
 const state = vi.hoisted(() => ({
   lookups: [] as Lookup[],
@@ -44,7 +44,11 @@ vi.mock('@/lib/supabase/admin', () => ({
               created_at: answer === 'renewed' ? '2026-09-29T10:05:00.000+00:00' : QUEUED_AT,
               appointment: {
                 reminders_rearmed_at:
-                  answer === 'rearmed' ? '2026-09-29T10:02:00.000+00:00' : null,
+                  answer === 'rearmed'
+                    ? '2026-09-29T10:02:00.000+00:00'
+                    : answer === 'moved'
+                      ? '2026-09-29T09:59:00.000+00:00'
+                      : null,
               },
             },
             error: null,
@@ -133,6 +137,16 @@ describe('processReminderAudioJob', () => {
     await processReminderAudioJob(job);
     expect(state.burns).toBe(0);
     expect(state.sends).toBe(0);
+  });
+
+  it('[CAL-010] drops a note rendered from an appointment snapshot the re-arm has since replaced', async () => {
+    reset(['moved']);
+    await processReminderAudioJob({ ...job, rearmedAt: null });
+    expect(state.sends).toBe(0);
+
+    reset(['moved']);
+    await processReminderAudioJob({ ...job, rearmedAt: '2026-09-29T09:59:00.000Z' });
+    expect(state.sends).toBe(1);
   });
 
   it('[CAL-010] rechecks the claim before sending and drops a note superseded mid-way', async () => {

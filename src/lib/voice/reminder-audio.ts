@@ -27,6 +27,10 @@ export interface ReminderAudioJob {
    *  the old one is dropped rather than sent with the old time. */
   claimId?: string | null;
   claimedAt?: string | null;
+  /** The appointment's reminders_rearmed_at as the cron read it when it
+   *  rendered this note; a different value now means the note's time
+   *  is stale. */
+  rearmedAt?: string | null;
   /** Requeues so far after the claim could not be read. */
   attempts?: number;
   userId: string | null;

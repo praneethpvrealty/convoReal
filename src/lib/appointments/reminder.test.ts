@@ -10,6 +10,7 @@ const tables: Record<string, Row[]> = {
 };
 
 let claimSeq = 0;
+const hooks: { beforeClaim?: () => void } = {};
 
 // The one unique key the code relies on: a recipient is claimed once
 // per reminder (migration 127 / 196).
@@ -27,6 +28,7 @@ function makeBuilder(table: string) {
     if (!pending) return { data: null as Row | null, error: null as { code: string } | null };
     const rows = tables[table] || (tables[table] = []);
     if (pending.kind === 'insert') {
+      if (table === 'appointment_reminder_log') hooks.beforeClaim?.();
       if (
         table === 'appointment_reminder_log' &&
         rows.some((r) => claimKey(r) === claimKey(pending!.row))
@@ -83,6 +85,10 @@ function makeBuilder(table: string) {
       filters.push({ op: 'lt', col, val });
       return builder;
     },
+    is: (col: string, val: unknown) => {
+      filters.push({ op: 'is', col, val });
+      return builder;
+    },
     in: (col: string, val: unknown[]) => {
       filters.push({ op: 'in', col, val });
       return builder;
@@ -91,13 +97,16 @@ function makeBuilder(table: string) {
     // only need to exist for the real client's call shape to work.
     order: chain,
     limit: chain,
+    // Reads hand out copies, as the real client does: a sweep holds
+    // the row as it read it, not a live view of the table.
     maybeSingle: async () => {
       if (mode === 'write') return write();
-      return { data: matching()[0] ?? null, error: null };
+      const hit = matching()[0];
+      return { data: hit ? { ...hit } : null, error: null };
     },
     then: (resolve: (v: { data: Row[] | null; error: { code: string } | null }) => unknown) => {
       if (mode === 'write') return resolve({ data: null, error: write().error });
-      return resolve({ data: matching(), error: null });
+      return resolve({ data: matching().map((r) => ({ ...r })), error: null });
     },
   });
 
@@ -111,6 +120,7 @@ function makeBuilder(table: string) {
         if (op === 'lt') return String(v) < String(val);
         if (op === 'lte') return String(v) <= String(val);
         if (op === 'in') return (val as unknown[]).includes(v);
+        if (op === 'is') return val === null ? v == null : v === val;
         return true;
       })
     );
@@ -184,6 +194,7 @@ beforeEach(() => {
   ];
   tables.message_templates = [];
   tables.appointment_reminder_log = [];
+  hooks.beforeClaim = undefined;
 });
 
 describe('checkAndSendAppointmentReminders', () => {
@@ -239,6 +250,26 @@ describe('checkAndSendAppointmentReminders', () => {
     tables.appointments[0].reminder_1h_sent = false;
     await checkAndSendAppointmentReminders(NOW);
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+  });
+
+  it('[CAL-010] a re-arm landing mid-sweep releases the claim and leaves the flags for the next sweep', async () => {
+    tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
+    hooks.beforeClaim = () => {
+      tables.appointments[0].reminders_rearmed_at = new Date().toISOString();
+      tables.appointments[0].start_time = '2026-08-01T07:30:00Z';
+    };
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(tables.appointment_reminder_log).toHaveLength(0);
+    expect(tables.appointments[0]).toMatchObject({
+      reminder_morning_sent: false,
+      reminder_1h_sent: false,
+    });
+
+    hooks.beforeClaim = undefined;
+    await checkAndSendAppointmentReminders(new Date('2026-08-01T07:00:00Z'));
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(tables.appointments[0].reminder_1h_sent).toBe(true);
   });
 
   it('[CAL-010] honours a claim made after the re-arm', async () => {

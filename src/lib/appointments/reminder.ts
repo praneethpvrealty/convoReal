@@ -269,6 +269,23 @@ export interface ReminderClaim {
 
 type ReminderRecipient = { contact_id: string } | { liaison_id: string };
 
+function sameInstant(a: string | null | undefined, b: string | null | undefined) {
+  if (!a || !b) return !a && !b;
+  return new Date(a).getTime() === new Date(b).getTime();
+}
+
+/** The predicate that pins a write to the appointment as this sweep
+ *  read it: a re-arm that landed since (reminders_rearmed_at moved)
+ *  makes the sweep's rendered time stale, so its flag write must miss. */
+function asRead<T extends { is: (c: string, v: null) => T; eq: (c: string, v: string) => T }>(
+  query: T,
+  appt: ReminderAppointment
+): T {
+  return appt.reminders_rearmed_at
+    ? query.eq('reminders_rearmed_at', appt.reminders_rearmed_at)
+    : query.is('reminders_rearmed_at', null);
+}
+
 /**
  * Claims one recipient for one reminder in appointment_reminder_log.
  * Returns the claim to send under, null when an earlier tick already
@@ -301,9 +318,11 @@ async function claimReminder(
     .select('id, created_at')
     .maybeSingle();
   if (!claimErr) {
-    if (claim) return claim as ReminderClaim;
-    console.error('[Reminder Cron] claim insert returned no row');
-    return 'failed';
+    if (!claim) {
+      console.error('[Reminder Cron] claim insert returned no row');
+      return 'failed';
+    }
+    return holdUnlessRearmed(admin, appt, claim as ReminderClaim);
   }
   if (claimErr.code !== '23505') {
     console.error('[Reminder Cron] claim insert failed:', claimErr);
@@ -343,7 +362,37 @@ async function claimReminder(
     console.error('[Reminder Cron] claim takeover failed:', renewErr);
     return 'failed';
   }
-  return (renewed as ReminderClaim | null) ?? null;
+  if (!renewed) return null;
+  return holdUnlessRearmed(admin, appt, renewed as ReminderClaim);
+}
+
+/** A claim is only good for the appointment as this sweep read it. A
+ *  re-arm that landed between that read and the claim would have the
+ *  sweep send the old time under a claim newer than the re-arm, so the
+ *  claim is released again and the recipient retried by the next
+ *  sweep, which reads the appointment afresh. */
+async function holdUnlessRearmed(
+  admin: SupabaseClient,
+  appt: ReminderAppointment,
+  claim: ReminderClaim
+): Promise<ReminderClaim | 'failed'> {
+  const { data: current, error } = await admin
+    .from('appointments')
+    .select('reminders_rearmed_at')
+    .eq('id', appt.id)
+    .maybeSingle();
+  if (error) {
+    console.error('[Reminder Cron] re-arm check failed:', error);
+  }
+  if (
+    !error &&
+    current &&
+    sameInstant(current.reminders_rearmed_at, appt.reminders_rearmed_at)
+  ) {
+    return claim;
+  }
+  await admin.from('appointment_reminder_log').delete().eq('id', claim.id);
+  return 'failed';
 }
 
 /**
@@ -491,6 +540,7 @@ async function sendToAllRecipients(
         contactId: contact.id,
         claimId: claim.id,
         claimedAt: claim.created_at,
+        rearmedAt: appt.reminders_rearmed_at,
         userId: appt.user_id || null,
         reminderType,
         spokenText: reminderSpokenText({
@@ -814,10 +864,13 @@ export async function checkAndSendAppointmentReminders(
       if (contactsCovered && liaisonCovered) {
         // An event that got its 1h reminder no longer needs the
         // morning one — mark both so it drops out of the scan.
-        await admin
-          .from('appointments')
-          .update({ reminder_1h_sent: true, reminder_morning_sent: true })
-          .eq('id', appt.id);
+        await asRead(
+          admin
+            .from('appointments')
+            .update({ reminder_1h_sent: true, reminder_morning_sent: true })
+            .eq('id', appt.id),
+          appt
+        );
       }
     } else if (isDueMorning) {
       const contactsCovered = await sendToAllRecipients(
@@ -836,10 +889,13 @@ export async function checkAndSendAppointmentReminders(
         liaisonWaCache
       );
       if (contactsCovered && liaisonCovered) {
-        await admin
-          .from('appointments')
-          .update({ reminder_morning_sent: true })
-          .eq('id', appt.id);
+        await asRead(
+          admin
+            .from('appointments')
+            .update({ reminder_morning_sent: true })
+            .eq('id', appt.id),
+          appt
+        );
       }
     }
   }

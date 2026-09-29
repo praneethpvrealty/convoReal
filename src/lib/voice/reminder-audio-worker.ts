@@ -18,12 +18,13 @@ const CLAIM_LOOKUP_ATTEMPTS = 3;
 
 /**
  * Whether the claim this note was queued under still stands: the row
- * is there with the clock it was queued with, and the appointment has
- * not been re-armed since that clock. A re-arm (reopened or moved
- * through PUT /api/appointments/[id]) stamps reminders_rearmed_at at
- * once and the cron takes the claim over with a fresh clock on its
- * next sweep; either sign means the note's time is stale and a fresh
- * note is on its way. Throws when the database did not answer, so the
+ * is there with the clock it was queued with, and the appointment's
+ * reminders_rearmed_at is what the cron read when it rendered the
+ * note. A re-arm (reopened or moved through PUT /api/appointments/[id])
+ * stamps that column at once — whether before or after the sweep that
+ * queued the note — and the cron takes the claim over with a fresh
+ * clock on its next sweep; either sign means the note's time is stale
+ * and a fresh note is on its way. Throws when the database did not answer, so the
  * caller can requeue rather than drop.
  */
 async function claimStands(
@@ -45,8 +46,16 @@ async function claimStands(
   const appointment = (
     Array.isArray(data.appointment) ? data.appointment[0] : data.appointment
   ) as { reminders_rearmed_at: string | null } | null | undefined;
-  const rearmedAt = appointment?.reminders_rearmed_at;
+  const rearmedAt = appointment?.reminders_rearmed_at ?? null;
+  if (job.rearmedAt !== undefined) {
+    return sameInstant(rearmedAt, job.rearmedAt);
+  }
   return !rearmedAt || claimedAt >= new Date(rearmedAt).getTime();
+}
+
+function sameInstant(a: string | null, b: string | null) {
+  if (!a || !b) return !a && !b;
+  return new Date(a).getTime() === new Date(b).getTime();
 }
 
 /** The claim is checked before each send, since the appointment can
