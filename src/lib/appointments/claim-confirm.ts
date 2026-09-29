@@ -75,7 +75,9 @@ export async function stampClaimSent(
   // id is kept beside it so a reply to either still maps; released,
   // the claim is put back as a confirmed one, since the send it
   // covered did go out.
-  const kept = await keepPriorMessageId(admin, confirmation, 'id');
+  const kept = confirmation.waMessageId
+    ? await keepPriorMessageId(admin, confirmation, 'id')
+    : 'no-row';
   if (kept !== 'no-row') return kept;
   const recipient = confirmation.liaisonId
     ? { liaison_id: confirmation.liaisonId }
@@ -115,33 +117,30 @@ export async function stampClaimSent(
     );
     return 'failed';
   }
+  if (!confirmation.waMessageId) return 'gone';
   const keptOnNew = await keepPriorMessageId(admin, confirmation, 'recipient');
   return keptOnNew === 'no-row' ? 'failed' : keptOnNew;
 }
 
-/** Writes the earlier send's message id beside the current one on the
+/** Keeps the earlier send's message id beside the current one on the
  *  row that now covers the recipient — found by the claim's id, or by
- *  the recipient when the claim was re-made under a new id. */
+ *  the recipient when the claim was re-made under a new id — through
+ *  appointment_reminder_keep_prior_id, which appends so that late
+ *  confirmations of several sends all keep their ids. */
 async function keepPriorMessageId(
   admin: SupabaseClient,
   confirmation: ClaimConfirmation,
   by: 'id' | 'recipient'
 ): Promise<'gone' | 'failed' | 'no-row'> {
-  let query = admin
-    .from('appointment_reminder_log')
-    .update({ prior_wa_message_id: confirmation.waMessageId })
-    .eq('account_id', confirmation.accountId);
-  if (by === 'id') {
-    query = query.eq('id', confirmation.claimId);
-  } else {
-    query = query
-      .eq('appointment_id', confirmation.appointmentId)
-      .eq('reminder_type', confirmation.reminderType);
-    query = confirmation.liaisonId
-      ? query.eq('liaison_id', confirmation.liaisonId)
-      : query.eq('contact_id', confirmation.contactId!);
-  }
-  const { data, error } = await query.select('id').maybeSingle();
+  const { data, error } = await admin.rpc('appointment_reminder_keep_prior_id', {
+    p_account_id: confirmation.accountId,
+    p_claim_id: by === 'id' ? confirmation.claimId : null,
+    p_appointment_id: confirmation.appointmentId,
+    p_contact_id: confirmation.contactId,
+    p_liaison_id: confirmation.liaisonId,
+    p_reminder_type: confirmation.reminderType,
+    p_wa_message_id: confirmation.waMessageId,
+  });
   if (error) {
     console.error(
       `[Reminder] could not keep the earlier message id for claim ${confirmation.claimId}:`,

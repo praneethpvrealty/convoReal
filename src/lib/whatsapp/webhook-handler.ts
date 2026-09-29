@@ -1096,7 +1096,7 @@ async function handleReminderButtonReply(
       ({ data: log } = await admin
         .from('appointment_reminder_log')
         .select('appointment_id')
-        .eq('prior_wa_message_id', message.context.id)
+        .contains('prior_wa_message_ids', [message.context.id])
         .eq('account_id', accountId)
         .maybeSingle());
     }

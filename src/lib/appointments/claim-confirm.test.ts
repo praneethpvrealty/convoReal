@@ -5,12 +5,20 @@ const state = vi.hoisted(() => ({
   updates: 0,
   patches: [] as Array<Record<string, unknown>>,
   inserts: [] as Array<Record<string, unknown>>,
+  rpcs: [] as Array<[string, Record<string, unknown>]>,
   queued: [] as Array<{ attempts?: number }>,
   queueFails: false,
 }));
 
 vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
+    rpc: async (name: string, args: Record<string, unknown>) => {
+      state.rpcs.push([name, args]);
+      const result =
+        state.results.length > 1 ? state.results.shift()! : state.results[0];
+      if (result === 'failed') return { data: null, error: { message: 'timeout' } };
+      return { data: result === 'stamped', error: null };
+    },
     from: () => {
       const builder = {
         update: (patch: Record<string, unknown>) => {
@@ -78,6 +86,7 @@ function reset(results: Array<'stamped' | 'gone' | 'failed' | 'duplicate' | 'orp
   state.updates = 0;
   state.patches = [];
   state.inserts = [];
+  state.rpcs = [];
   state.queued = [];
   state.queueFails = false;
 }
@@ -88,9 +97,20 @@ describe('[CAL-010] confirming a reminder claim', () => {
     expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('stamped');
     reset(['gone', 'stamped']);
     expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('gone');
-    expect(state.patches).toEqual([
-      { sent_at: confirmation.sentAt, wa_message_id: 'wamid.1' },
-      { prior_wa_message_id: 'wamid.1' },
+    expect(state.patches).toEqual([{ sent_at: confirmation.sentAt, wa_message_id: 'wamid.1' }]);
+    expect(state.rpcs).toEqual([
+      [
+        'appointment_reminder_keep_prior_id',
+        {
+          p_account_id: 'acct-1',
+          p_claim_id: 'claim-1',
+          p_appointment_id: 'appt-1',
+          p_contact_id: 'contact-1',
+          p_liaison_id: null,
+          p_reminder_type: '1h',
+          p_wa_message_id: 'wamid.1',
+        },
+      ],
     ]);
     expect(state.inserts).toEqual([]);
   });
@@ -123,7 +143,7 @@ describe('[CAL-010] confirming a reminder claim', () => {
   it('keeps the earlier message id on a claim re-made under a new id while it was being put back', async () => {
     reset(['gone', 'gone', 'duplicate', 'stamped']);
     expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('gone');
-    expect(state.patches.at(-1)).toEqual({ prior_wa_message_id: 'wamid.1' });
+    expect(state.rpcs.at(-1)?.[1]).toMatchObject({ p_claim_id: null, p_wa_message_id: 'wamid.1' });
   });
 
   it('holds the confirmation in process for the caller\'s window when the queue refuses too', async () => {
