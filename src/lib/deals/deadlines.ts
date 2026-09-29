@@ -62,6 +62,11 @@ export interface DealDeadline {
   /** Negative when overdue, zero on the day. */
   daysLeft: number;
   urgency: DealDeadlineUrgency;
+  /** profiles.id the deal is assigned to, and the auth user who opened
+   *  it — the pair deadlinesForAgent reads, carried so a calendar
+   *  filtered to one member keeps that member's deal dates. */
+  assignedTo: string | null;
+  ownerUserId: string | null;
 }
 
 export interface DealDeadlineSummary {
@@ -143,6 +148,8 @@ export function toDealDeadline(
     dueDate: row.due_date,
     daysLeft,
     urgency: deadlineUrgency(daysLeft),
+    assignedTo: row.assigned_to,
+    ownerUserId: row.owner_user_id,
   };
 }
 
@@ -190,24 +197,70 @@ export function deadlinesForAgent<
   );
 }
 
+/** PostgREST answers one request with at most its max-rows setting
+ *  (1,000 on Supabase) and says nothing about the rest. Focus and Today
+ *  read two weeks and fit in one page; the calendar reads a year ahead
+ *  (CAL-008), so every read pages until a short page comes back. The
+ *  order is pinned on the request — PostgREST's own ORDER BY replaces
+ *  the function's — so pages never overlap or skip. Mirrored in
+ *  mobile/lib/deal-calendar.ts / the mobile calendar; guarded by
+ *  mobile-parity.test.ts. */
+export const DEAL_DEADLINE_PAGE_SIZE = 500;
+
+export const DEAL_DEADLINE_PAGE_ORDER = [
+  'due_date',
+  'deal_id',
+  'kind',
+  'milestone_id',
+] as const;
+
+interface DeadlinePage {
+  data: unknown;
+  error: { message: string } | null;
+}
+
+interface DeadlineQuery extends PromiseLike<DeadlinePage> {
+  order(column: string, options?: { ascending?: boolean }): DeadlineQuery;
+  range(from: number, to: number): DeadlineQuery;
+}
+
+async function loadDeadlinePages(
+  page: (from: number, to: number) => DeadlineQuery
+): Promise<DealDeadlineRow[]> {
+  const rows: DealDeadlineRow[] = [];
+  for (let from = 0; ; from += DEAL_DEADLINE_PAGE_SIZE) {
+    let query = page(from, from + DEAL_DEADLINE_PAGE_SIZE - 1);
+    for (const column of DEAL_DEADLINE_PAGE_ORDER) {
+      query = query.order(column, { ascending: true });
+    }
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as DealDeadlineRow[];
+    rows.push(...batch);
+    if (batch.length < DEAL_DEADLINE_PAGE_SIZE) return rows;
+  }
+}
+
 /** Member read, through the guarded function. Web Today calls this
  *  with the browser client; /api/focus with the caller's server
- *  client. */
+ *  client; the web calendar with the browser client and a year's
+ *  horizon. */
 export async function loadDealDeadlines(
   db: SupabaseClient,
   accountId: string,
   today: string,
   horizonDays: number = DEAL_DEADLINE_HORIZON_DAYS
 ): Promise<DealDeadline[]> {
-  const { data, error } = await db.rpc('deal_deadlines', {
-    target_account_id: accountId,
-    p_today: today,
-    p_horizon_days: horizonDays,
-  });
-  if (error) throw new Error(error.message);
-  return sortDeadlines(
-    ((data ?? []) as DealDeadlineRow[]).map((row) => toDealDeadline(row, today))
+  const rows = await loadDeadlinePages((from, to) =>
+    db
+      .rpc('deal_deadlines', {
+        target_account_id: accountId,
+        p_today: today,
+        p_horizon_days: horizonDays,
+      })
+      .range(from, to)
   );
+  return sortDeadlines(rows.map((row) => toDealDeadline(row, today)));
 }
 
 /** Service-role read for the digest, which has no auth.uid() and so
@@ -219,11 +272,13 @@ export async function loadDealDeadlineRowsForAccount(
   today: string,
   horizonDays: number
 ): Promise<DealDeadlineRow[]> {
-  const { data, error } = await admin.rpc('deal_deadlines_for_account', {
-    p_account_id: accountId,
-    p_today: today,
-    p_horizon_days: horizonDays,
-  });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as DealDeadlineRow[];
+  return loadDeadlinePages((from, to) =>
+    admin
+      .rpc('deal_deadlines_for_account', {
+        p_account_id: accountId,
+        p_today: today,
+        p_horizon_days: horizonDays,
+      })
+      .range(from, to)
+  );
 }

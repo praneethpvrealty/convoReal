@@ -37,6 +37,14 @@ import {
 } from '@/lib/whatsapp/media-kinds';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 import {
+  DEAL_DATE_HORIZON_DAYS,
+  DEAL_DATE_KIND_LABELS,
+} from '@/lib/calendar/deal-dates';
+import {
+  DEAL_DEADLINE_PAGE_ORDER,
+  DEAL_DEADLINE_PAGE_SIZE,
+} from '@/lib/deals/deadlines';
+import {
   PULSE_FEED_PAGE_SIZE,
   nextPulseFeedCursor,
   pulseFeedCursorFilter,
@@ -3488,6 +3496,8 @@ describe('[TXW-020] deal deadlines reach both surfaces from the Focus snapshot',
       'dueDate',
       'daysLeft',
       'urgency',
+      'assignedTo',
+      'ownerUserId',
     ]) {
       expect(mobileFocus, `mobile FocusDeadline lacks ${field}`).toMatch(
         new RegExp(`^  ${field}: `, 'm')
@@ -3508,6 +3518,92 @@ describe('[TXW-020] deal deadlines reach both surfaces from the Focus snapshot',
     expect(digest).not.toContain("from('deal_milestones')");
     expect(focusQueries).not.toContain("from('deal_milestones')");
     expect(webToday).not.toContain("from('deal_milestones')");
+  });
+});
+
+describe('[CAL-008] deal dates are pinned on both calendars through the one deadline rule', () => {
+  const mobileDealDates = mobileSource('lib/deal-calendar.ts');
+  const webCalendar = webSource('app/(dashboard)/calendar/page.tsx');
+  const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+  const mobileUpcoming = mobileSource('lib/calendar-upcoming.ts');
+
+  it('labels the three kinds identically and reads every open date on both', () => {
+    for (const [kind, label] of Object.entries(DEAL_DATE_KIND_LABELS)) {
+      expect(
+        mobileDealDates,
+        `mobile is missing the "${kind}" label`
+      ).toContain(`${kind}: '${label}'`);
+    }
+    expect(mobileDealDates).toContain(
+      `export const DEAL_DATE_HORIZON_DAYS = ${DEAL_DATE_HORIZON_DAYS.toLocaleString('en-US').replace(',', '_')};`
+    );
+    expect(webCalendar).toContain('DEAL_DATE_HORIZON_DAYS)');
+    expect(mobileCalendar).toContain('DEAL_DATE_HORIZON_DAYS)');
+    expect(mobileDealDates).toContain('a.dueDate.localeCompare(b.dueDate) ||');
+    for (const field of ['assignedTo', 'ownerUserId']) {
+      expect(mobileDealDates, `mobile DealDate lacks ${field}`).toMatch(
+        new RegExp(`^  ${field}: `, 'm')
+      );
+    }
+  });
+
+  it('both calendars read deal_deadlines and never query the milestone tables themselves', () => {
+    expect(webCalendar).toContain(
+      'loadDealDeadlines(supabase, accountId!, todayKey, DEAL_DATE_HORIZON_DAYS)'
+    );
+    expect(webCalendar).toContain('dealDatesInRange(');
+    expect(mobileCalendar).toContain("supabase.rpc('deal_deadlines', {");
+    expect(mobileCalendar).toContain('dealDatesInRange(');
+    expect(mobileDealDates).toContain(
+      `export const DEAL_DATE_PAGE_SIZE = ${DEAL_DEADLINE_PAGE_SIZE};`
+    );
+    expect(mobileDealDates).toContain(
+      `export const DEAL_DATE_PAGE_ORDER = [\n${DEAL_DEADLINE_PAGE_ORDER.map((c) => `  '${c}',`).join('\n')}\n] as const;`
+    );
+    expect(mobileCalendar).toContain('}, DEAL_DATE_PAGE_SIZE);');
+    expect(mobileCalendar).toContain(
+      'for (const column of DEAL_DATE_PAGE_ORDER) {'
+    );
+    for (const table of ['deal_milestones', 'deal_payment_tranches']) {
+      expect(webCalendar).not.toContain(`from('${table}')`);
+      expect(webCalendar).not.toContain(`from("${table}")`);
+      expect(mobileCalendar).not.toContain(`from('${table}')`);
+    }
+  });
+
+  it('pins each date on its day and opens the deal record on both surfaces', () => {
+    expect(webCalendar).toContain('href={dealDateHref(d.dealId)}');
+    expect(webCalendar).toContain('dealDateLocalDay(d.dueDate).toDateString()');
+    expect(mobileCalendar).toContain(
+      '<Link href={dealDateHref(dealDate.dealId)} asChild>'
+    );
+    expect(mobileCalendar).toContain('dayKey(dealDateLocalDay(d.dueDate))');
+    expect(mobileCalendar).toContain(
+      '<DealDateCard key={dealDateKey(d)} dealDate={d} />'
+    );
+    expect(mobileCalendar).toContain("if (state === 'active') rollDay();");
+    expect(mobileCalendar).toContain('useFocusEffect(');
+    expect(mobileCalendar).toContain(
+      'setInterval(() => rollDayRef.current(), 60_000)'
+    );
+    expect(webCalendar).toContain(
+      'const timer = setInterval(rollDay, 60_000);'
+    );
+    expect(webCalendar).toContain(
+      'if (localDateKey(currentDate) === todayKey) setCurrentDate(new Date());'
+    );
+    expect(webCalendar).toContain(
+      'const [todayKey, setTodayKey] = useState(() => todayDateKey());'
+    );
+    expect(mobileCalendar).toContain('label="Deal dates"');
+    expect(webCalendar).toContain('{DEAL_DATE_META.label}');
+    expect(mobileCalendar).toContain('void refetchDealDatesRef.current();');
+    expect(webCalendar).toContain(
+      'view === "team" && typeFilter === "deal" ? "all" : typeFilter;'
+    );
+    expect(mobileUpcoming).toContain(
+      "| { kind: 'deal'; dueAt: number; dealDate: D };"
+    );
   });
 });
 

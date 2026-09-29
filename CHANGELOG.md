@@ -17,6 +17,20 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 29 September 2026
+
+- **Deal dates are pinned on the Calendar.** A registration slot, an
+  agreement date, a payment tranche's due date or a deal's expected close
+  used to live only on the deal record and on Focus/Today. The calendar
+  now reads the same `deal_deadlines` rule (TXW-020) — every open date,
+  however far out, paged past the PostgREST row cap — and pins each on
+  its day — a teal **Deal dates** chip on the month
+  grid, an all-day row at the top of the day in the Week and Agenda views,
+  a card on the selected day and in Upcoming on mobile — labelled
+  Milestone, Payment due or Expected close and opening the deal. A
+  **Deal dates** filter chip shows them alone. The calendar never writes
+  or moves a deal date; change it on the record. CAL-008.
+
 #### 28 September 2026
 
 - **Generic Sales Pipelines moved to the standard stages.** Pipelines still on

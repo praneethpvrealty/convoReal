@@ -1,11 +1,27 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { CalendarEvent, TeamMember, eventTypeMeta, memberInitials, formatTimeShort } from "./event-types";
+import { deadlineLabel, type DealDeadline } from "@/lib/deals/deadlines";
+import {
+  DEAL_DATE_KIND_LABELS,
+  dealDateHref,
+  dealDateKey,
+  dealDateLocalDay,
+} from "@/lib/calendar/deal-dates";
+import {
+  CalendarEvent,
+  TeamMember,
+  DEAL_DATE_META,
+  eventTypeMeta,
+  memberInitials,
+  formatTimeShort,
+} from "./event-types";
 
 interface WeekViewProps {
   events: CalendarEvent[];
+  dealDates?: DealDeadline[];
   members: TeamMember[];
   selectedDate: Date;
   onEventClick: (event: CalendarEvent) => void;
@@ -14,7 +30,7 @@ interface WeekViewProps {
 
 /** Agenda-style week: seven columns of time-ordered event cards with
  *  assignee initials, so a whole week of visits/calls scans in one look. */
-export function WeekView({ events, members, selectedDate, onEventClick, onSlotClick }: WeekViewProps) {
+export function WeekView({ events, dealDates = [], members, selectedDate, onEventClick, onSlotClick }: WeekViewProps) {
   const weekDays = useMemo(() => {
     const start = new Date(selectedDate);
     start.setDate(start.getDate() - start.getDay());
@@ -38,6 +54,16 @@ export function WeekView({ events, members, selectedDate, onEventClick, onSlotCl
     return map;
   }, [events]);
 
+  const dealDatesByDay = useMemo(() => {
+    const map: Record<string, DealDeadline[]> = {};
+    for (const d of dealDates) {
+      const key = dealDateLocalDay(d.dueDate).toDateString();
+      if (!map[key]) map[key] = [];
+      map[key].push(d);
+    }
+    return map;
+  }, [dealDates]);
+
   const memberName = (ev: CalendarEvent) =>
     members.find((m) => m.user_id === (ev.assigned_to || ev.user_id))?.full_name;
 
@@ -47,6 +73,7 @@ export function WeekView({ events, members, selectedDate, onEventClick, onSlotCl
     <div className="grid flex-1 grid-cols-7 gap-px overflow-y-auto rounded-lg bg-slate-800/40 min-h-0">
       {weekDays.map((day) => {
         const dayEvents = eventsByDay[day.toDateString()] || [];
+        const dayDealDates = dealDatesByDay[day.toDateString()] || [];
         const isToday = day.toDateString() === todayStr;
         return (
           <div key={day.toISOString()} className="flex min-h-[300px] flex-col bg-slate-950">
@@ -70,6 +97,25 @@ export function WeekView({ events, members, selectedDate, onEventClick, onSlotCl
               </span>
             </button>
             <div className="flex-1 space-y-1 p-1.5">
+              {dayDealDates.map((d) => (
+                <Link
+                  key={dealDateKey(d)}
+                  href={dealDateHref(d.dealId)}
+                  title={`${DEAL_DATE_KIND_LABELS[d.kind]} · ${d.subject} · ${deadlineLabel(d.daysLeft)}`}
+                  className={cn(
+                    "block w-full rounded-md border px-1.5 py-1 text-left text-[10px] leading-snug transition-colors",
+                    DEAL_DATE_META.chip,
+                    d.urgency === "overdue" && "border-rose-500/50"
+                  )}
+                >
+                  <span className="flex items-center gap-1">
+                    <DEAL_DATE_META.icon className="h-2.5 w-2.5 shrink-0" />
+                    <span className="text-[9px] opacity-80">{DEAL_DATE_KIND_LABELS[d.kind]}</span>
+                  </span>
+                  <span className="mt-0.5 block truncate font-semibold">{d.title}</span>
+                  <span className="block truncate text-[9px] opacity-80">{d.subject}</span>
+                </Link>
+              ))}
               {dayEvents.map((ev) => {
                 const meta = eventTypeMeta(ev.event_type);
                 const assignee = memberName(ev);

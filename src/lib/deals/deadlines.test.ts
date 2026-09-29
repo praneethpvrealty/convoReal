@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEAL_DEADLINE_HORIZON_DAYS,
+  DEAL_DEADLINE_PAGE_ORDER,
+  DEAL_DEADLINE_PAGE_SIZE,
   DEAL_DEADLINE_REMINDER_DAYS,
   daysBetween,
   deadlineLabel,
   deadlineUrgency,
   deadlinesForAgent,
+  loadDealDeadlineRowsForAccount,
+  loadDealDeadlines,
   sortDeadlines,
   summarizeDeadlines,
   toDealDeadline,
@@ -156,5 +160,73 @@ describe('[TXW-020] deal deadlines', () => {
     expect(DEAL_DEADLINE_REMINDER_DAYS).toBeLessThan(
       DEAL_DEADLINE_HORIZON_DAYS
     );
+  });
+});
+
+describe('[CAL-008] deadline reads page past the PostgREST row cap', () => {
+  function fakeDb(pages: DealDeadlineRow[][]) {
+    const calls: { from: number; to: number; order: string[] }[] = [];
+    let call = 0;
+    const db = {
+      rpc: () => {
+        const current = { from: 0, to: 0, order: [] as string[] };
+        const query = {
+          order(column: string) {
+            current.order.push(column);
+            return query;
+          },
+          range(from: number, to: number) {
+            current.from = from;
+            current.to = to;
+            calls.push(current);
+            return query;
+          },
+          then(resolve: (value: { data: unknown; error: null }) => void) {
+            const data = pages[call] ?? [];
+            call += 1;
+            resolve({ data, error: null });
+          },
+        };
+        return query;
+      },
+    };
+    return { db, calls };
+  }
+
+  it('keeps asking for the next page until a short one comes back, in a pinned order', async () => {
+    const full = Array.from({ length: DEAL_DEADLINE_PAGE_SIZE }, (_, i) =>
+      row({ milestone_id: `m-${i}`, due_date: '2026-10-10' })
+    );
+    const tail = [row({ milestone_id: 'm-last', due_date: '2027-01-05' })];
+    const { db, calls } = fakeDb([full, tail]);
+
+    const items = await loadDealDeadlines(
+      db as unknown as Parameters<typeof loadDealDeadlines>[0],
+      'acc',
+      '2026-09-29',
+      365
+    );
+
+    expect(items).toHaveLength(DEAL_DEADLINE_PAGE_SIZE + 1);
+    expect(items[items.length - 1]?.milestoneId).toBe('m-last');
+    expect(calls.map((c) => [c.from, c.to])).toEqual([
+      [0, DEAL_DEADLINE_PAGE_SIZE - 1],
+      [DEAL_DEADLINE_PAGE_SIZE, DEAL_DEADLINE_PAGE_SIZE * 2 - 1],
+    ]);
+    for (const c of calls) {
+      expect(c.order).toEqual([...DEAL_DEADLINE_PAGE_ORDER]);
+    }
+  });
+
+  it('stops after one short page and returns raw rows for the digest', async () => {
+    const { db, calls } = fakeDb([[row({})]]);
+    const rows = await loadDealDeadlineRowsForAccount(
+      db as unknown as Parameters<typeof loadDealDeadlineRowsForAccount>[0],
+      'acc',
+      '2026-09-29',
+      3
+    );
+    expect(rows).toHaveLength(1);
+    expect(calls).toHaveLength(1);
   });
 });
