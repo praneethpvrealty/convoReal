@@ -27,6 +27,24 @@ export async function processReminderAudioJob(
   const admin = supabaseAdmin();
   const cost = AI_FEATURE_COSTS.reminder_audio;
 
+  // The claim this job was queued under may have been released since —
+  // the appointment reopened or moved (PUT /api/appointments/[id]) — in
+  // which case its rendered time is stale and the next cron sweep has
+  // queued, or will queue, a fresh note under a new claim. Send nothing.
+  if (job.claimId) {
+    const { data: claim } = await admin
+      .from('appointment_reminder_log')
+      .select('id')
+      .eq('id', job.claimId)
+      .maybeSingle();
+    if (!claim) {
+      console.log(
+        `[reminder-audio] Claim ${job.claimId} for appt ${job.appointmentId} was released — dropping the queued ${job.reminderType} note`
+      );
+      return;
+    }
+  }
+
   // One lookup serves both paths: the resolved language drives the
   // TTS voice, the row drives the template fallback variant.
   const { template: langTemplate, language } = await loadTemplateForContact(

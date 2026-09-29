@@ -21,6 +21,10 @@ export interface ReminderAudioJob {
   accountId: string;
   appointmentId: string;
   contactId: string;
+  /** The appointment_reminder_log row this send holds. Reopening or
+   *  rescheduling releases it, and a note queued for a released claim
+   *  is dropped rather than sent with the old time. */
+  claimId?: string | null;
   userId: string | null;
   reminderType: 'morning' | '1h';
   spokenText: string;

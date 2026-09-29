@@ -329,14 +329,16 @@ async function sendToAllRecipients(
   for (const contact of reachable) {
     // Claim this recipient. A unique-violation means an earlier tick
     // already delivered (or another cron instance owns it) — skip.
-    const { error: claimErr } = await admin
+    const { data: claim, error: claimErr } = await admin
       .from('appointment_reminder_log')
       .insert({
         account_id: appt.account_id,
         appointment_id: appt.id,
         contact_id: contact.id,
         reminder_type: reminderType,
-      });
+      })
+      .select('id')
+      .maybeSingle();
     if (claimErr) {
       if (claimErr.code !== '23505') {
         console.error('[Reminder Cron] claim insert failed:', claimErr);
@@ -408,6 +410,7 @@ async function sendToAllRecipients(
         accountId: appt.account_id,
         appointmentId: appt.id,
         contactId: contact.id,
+        claimId: claim?.id ?? null,
         userId: appt.user_id || null,
         reminderType,
         spokenText: reminderSpokenText({

@@ -133,16 +133,17 @@ export function SmartAddBar({ onConfirm }: SmartAddBarProps) {
   const handleConfirm = async () => {
     if (!preview || saving) return;
     const { draft, resolved } = preview;
+    const kind = draft.intent === "task" || !resolved?.start_time ? "todo" : "appointment";
     setSaving(true);
     try {
       await onConfirm({
-        kind: draft.intent === "task" || !resolved?.start_time ? "todo" : "appointment",
+        kind,
         title: draft.title,
         event_type: draft.event_type,
         start_time: resolved?.start_time || null,
         end_time: resolved?.end_time || null,
-        contact_id: resolved?.contact?.id || null,
-        property_id: resolved?.property?.id || null,
+        contact_id: kind === "todo" ? null : resolved?.contact?.id || null,
+        property_id: kind === "todo" ? null : resolved?.property?.id || null,
         assigned_to: resolved?.assignee?.user_id || null,
         location: draft.location,
         priority: draft.priority,
