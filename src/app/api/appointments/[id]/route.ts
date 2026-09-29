@@ -87,27 +87,39 @@ export async function PUT(
     // for its OLD time silently never reminds again after being
     // rescheduled, since reminder_morning_sent/reminder_1h_sent only
     // ever get set to true (src/lib/appointments/reminder.ts) and
-    // nothing else resets them.
-    if (start_time !== undefined) {
-      if (existing && new Date(existing.start_time).getTime() !== new Date(start_time).getTime()) {
-        updatePayload.reminder_morning_sent = false
-        updatePayload.reminder_1h_sent = false
-        // A reschedule also resolves any pending "Requesting reschedule"
-        // flag (src/lib/whatsapp/webhook-handler.ts) — the client's ask
-        // is addressed by definition once the time actually changes.
-        updatePayload.reschedule_requested_at = null
-        // And voids any earlier "Fine" confirmation — it was for the
-        // old time; the re-sent reminders will collect a fresh one.
-        updatePayload.client_confirmed_at = null
-      }
+    // nothing else resets them. Reopening a finished or cancelled
+    // appointment re-arms them the same way.
+    const rescheduled =
+      start_time !== undefined &&
+      new Date(existing.start_time).getTime() !== new Date(start_time).getTime()
+    const reopened = status === 'scheduled' && existing.status !== 'scheduled'
+    if (rescheduled) {
+      // A reschedule also resolves any pending "Requesting reschedule"
+      // flag (src/lib/whatsapp/webhook-handler.ts) — the client's ask
+      // is addressed by definition once the time actually changes.
+      updatePayload.reschedule_requested_at = null
+      // And voids any earlier "Fine" confirmation — it was for the
+      // old time; the re-sent reminders will collect a fresh one.
+      updatePayload.client_confirmed_at = null
     }
-
-    // Reopening a finished or cancelled appointment re-arms its
-    // reminders the same way: the ones that fired before it was closed
-    // would otherwise never fire again for the same time.
-    if (status === 'scheduled' && existing.status !== 'scheduled') {
+    if (rescheduled || reopened) {
       updatePayload.reminder_morning_sent = false
       updatePayload.reminder_1h_sent = false
+      // The flags alone re-arm nothing: each send first claims an
+      // (appointment, recipient, type) row in appointment_reminder_log,
+      // and a claim left from the earlier send would make the cron flip
+      // the flag straight back without sending. The claims for the two
+      // cron reminders go before the flags do; a manual send's claim,
+      // and the reply it maps, stay.
+      const { error: claimError } = await supabaseAdmin()
+        .from('appointment_reminder_log')
+        .delete()
+        .eq('account_id', accountId)
+        .eq('appointment_id', id)
+        .in('reminder_type', ['morning', '1h'])
+      if (claimError) {
+        return NextResponse.json({ error: claimError.message }, { status: 500 })
+      }
     }
 
     const { data: appointment, error } = await supabase
