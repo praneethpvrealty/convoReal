@@ -181,13 +181,14 @@ export default function CalendarScreen() {
     : params.eventId;
   const [month, setMonth] = useState(() => monthStart(today));
   const [selected, setSelected] = useState<Date>(today);
-  const rollDay = useCallback(() => {
+  const rollDay = useCallback((): boolean => {
     const current = { today, selected, month };
     const rolled = rollCalendarDay(current);
-    if (rolled === current) return;
+    if (rolled === current) return false;
     setToday(rolled.today);
     setSelected(rolled.selected);
     setMonth(rolled.month);
+    return true;
   }, [today, selected, month]);
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
@@ -221,12 +222,6 @@ export default function CalendarScreen() {
     queryFn: () => fetchDealDates(accountId!, todayKey, DEAL_DATE_HORIZON_DAYS),
     enabled: !!accountId,
   });
-  // The tab stays mounted while the agent works elsewhere: coming back
-  // rolls the day (an app kept foregrounded past midnight never fires
-  // AppState) and re-reads the deal dates, since a date changed on the
-  // deal screen invalidates the deal's own keys, not this one. The
-  // first focus is the mount, which the query itself covers; refs keep
-  // the callback stable so a tap on a day never re-runs it.
   const rollDayRef = useRef(rollDay);
   const refetchDealDatesRef = useRef(dealDatesQuery.refetch);
   useEffect(() => {
@@ -240,18 +235,18 @@ export default function CalendarScreen() {
         focusedBefore.current = true;
         return;
       }
-      rollDayRef.current();
-      void refetchDealDatesRef.current();
+      if (!rollDayRef.current()) void refetchDealDatesRef.current();
     }, [])
   );
   const [dealOnly, setDealOnly] = useState(false);
   const pull = usePullRefresh(() => {
-    rollDay();
+    const rolled = rollDay();
     return Promise.all([
       refetch(),
       todosQuery.refetch(),
-      upcomingAppointmentsQuery.refetch(),
-      dealDatesQuery.refetch(),
+      ...(rolled
+        ? []
+        : [upcomingAppointmentsQuery.refetch(), dealDatesQuery.refetch()]),
     ]);
   });
 
@@ -440,8 +435,6 @@ export default function CalendarScreen() {
           </Pressable>
         </View>
 
-        {/* Deal dates alone, or everything — the web calendar's Deal
-            dates chip (CAL-008). */}
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <FilterChip
             label="All"
