@@ -291,7 +291,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
           )}
           {contactName && (
             <Link
-              href={`/contacts?contact=${deal.contact?.id}`}
+              href={`/contacts?contactId=${deal.contact?.id}`}
               className="inline-flex items-center gap-1 hover:text-white"
             >
               <User className="h-3.5 w-3.5" />
@@ -300,7 +300,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
           )}
           {deal.property && (
             <Link
-              href={`/inventory?property=${deal.property.id}`}
+              href={`/inventory?propertyId=${deal.property.id}`}
               className="inline-flex items-center gap-1 hover:text-white"
             >
               <Building2 className="h-3.5 w-3.5" />
