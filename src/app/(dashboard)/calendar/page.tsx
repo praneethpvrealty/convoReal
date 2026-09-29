@@ -456,6 +456,8 @@ export default function CalendarPage() {
   }, [visibleDealDates]);
 
   // Tasks (CAL-010): every row pinned on the visible days, in date order.
+  // The Agenda view's rows are the Tasks rows themselves, so it carries
+  // no second list beneath it.
   const taskRows = useMemo(
     () =>
       view === "month" || view === "week"
@@ -1163,7 +1165,11 @@ export default function CalendarPage() {
               events={filteredAppointments}
               dealDates={visibleDealDates}
               members={members}
+              canEdit={canEdit}
+              busyKey={taskBusyKey}
               onEventClick={openEditApptModal}
+              onStatusChange={setAppointmentStatus}
+              onMilestoneDone={completeMilestone}
             />
           ) : (
             <>

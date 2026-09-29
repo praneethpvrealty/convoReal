@@ -3689,6 +3689,17 @@ describe('[CAL-010] appointment status changes are offered identically on both s
       'await openContactChat(todo.contact!, { draftText: draft.message });'
     );
   });
+
+  it('keeps a cancelled appointment listed on both surfaces and gives the Agenda the same rows', () => {
+    const mobileUpcoming = mobileSource('lib/calendar-upcoming.ts');
+    const webAgenda = webSource('components/calendar/agenda-view.tsx');
+    expect(mobileUpcoming).not.toContain("appointment.status === 'scheduled'");
+    expect(mobileCalendar).not.toContain(".eq('status', 'scheduled')");
+    expect(webAgenda).toContain('<AppointmentTaskRow');
+    expect(webAgenda).toContain('<DealDateTaskRow');
+    expect(webAgenda).toContain('onStatusChange={onStatusChange}');
+    expect(webAgenda).toContain('onDone={onMilestoneDone}');
+  });
 });
 
 describe('[TXW-021] the payment schedule ships on both surfaces through one route', () => {

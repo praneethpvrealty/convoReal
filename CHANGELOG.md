@@ -41,7 +41,8 @@ than a written entry. Newest first.
   a card on the selected day and in Upcoming on mobile — labelled
   Milestone, Payment due or Expected close and opening the deal. A
   **Deal dates** filter chip shows them alone. The calendar never writes
-  or moves a deal date; change it on the record. CAL-008.
+  or moves a deal date; change it on the record. Its one write is the
+  milestone tick in the Tasks list (CAL-010). CAL-008.
 
 #### 28 September 2026
 

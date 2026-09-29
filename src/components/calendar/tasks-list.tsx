@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, CheckCircle2, Clock, ExternalLink, Loader2, RotateCcw, XCircle } from "lucide-react";
+import { Check, CheckCircle2, Clock, ExternalLink, Home, Loader2, MapPin, RotateCcw, User, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { deadlineLabel, type DealDeadline } from "@/lib/deals/deadlines";
 import { DEAL_DATE_KIND_LABELS, dealDateHref, dealDateKey } from "@/lib/calendar/deal-dates";
@@ -20,6 +20,7 @@ import {
   memberInitials,
   formatTimeShort,
 } from "./event-types";
+import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 
 interface TasksListProps {
   rows: CalendarTaskRow<CalendarEvent, DealDeadline>[];
@@ -95,7 +96,7 @@ export function TasksList({
           <div className="space-y-1.5">
             {day.rows.map((row) =>
               row.kind === "deal" ? (
-                <DealDateRow
+                <DealDateTaskRow
                   key={dealDateKey(row.dealDate)}
                   dealDate={row.dealDate}
                   canEdit={canEdit}
@@ -103,7 +104,7 @@ export function TasksList({
                   onDone={onMilestoneDone}
                 />
               ) : (
-                <AppointmentRow
+                <AppointmentTaskRow
                   key={row.appointment.id}
                   event={row.appointment}
                   assignee={members.length > 1 ? memberFor(row.appointment) : undefined}
@@ -121,7 +122,10 @@ export function TasksList({
   );
 }
 
-function AppointmentRow({
+/** One appointment with its status and the actions that change it.
+ *  Shared by the Tasks list and the Agenda view so both offer the
+ *  same Done / Cancel / Reopen in place. */
+export function AppointmentTaskRow({
   event,
   assignee,
   canEdit,
@@ -158,9 +162,16 @@ function AppointmentRow({
         <span className={cn("block truncate text-xs font-semibold text-white", event.status === "cancelled" && "line-through")}>
           {event.title}
         </span>
-        <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-slate-500">
-          {event.contact?.name && <span className="truncate">{event.contact.name}</span>}
-          {event.property?.title && <span className="truncate">{event.property.title}</span>}
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
+          {event.contact?.name && (
+            <span className="inline-flex items-center gap-1"><User className="h-2.5 w-2.5" />{event.contact.name}<NameTagBadge tag={event.contact.name_tag} /></span>
+          )}
+          {event.property?.title && (
+            <span className="inline-flex items-center gap-1"><Home className="h-2.5 w-2.5" />{event.property.title}</span>
+          )}
+          {event.location && (
+            <span className="inline-flex items-center gap-1"><MapPin className="h-2.5 w-2.5" />{event.location}</span>
+          )}
           {assignee && <span>{memberInitials(assignee.full_name)}</span>}
         </span>
       </button>
@@ -200,7 +211,9 @@ function AppointmentRow({
   );
 }
 
-function DealDateRow({
+/** One deal date: opens the deal, and a milestone can be ticked done
+ *  through the deal route. Shared by the Tasks list and the Agenda view. */
+export function DealDateTaskRow({
   dealDate,
   canEdit,
   busy,

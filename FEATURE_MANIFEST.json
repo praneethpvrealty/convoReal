@@ -729,7 +729,7 @@
         },
         {
           "id": "CAL-008",
-          "rule": "Every dated commitment a deal carries — an open milestone's target date, an unpaid payment tranche's due date and the expected close date, exactly as the deal_deadlines rule decides them (TXW-020) — is pinned on the calendar on web and mobile on its date, labelled by kind (Milestone, Payment due, Expected close) apart from every event type, listed among upcoming items, showable alone through a Deal dates filter on both surfaces, and opens the deal record. The calendar never writes, moves or completes a deal date and never queries the milestone or tranche tables itself.",
+          "rule": "Every dated commitment a deal carries — an open milestone's target date, an unpaid payment tranche's due date and the expected close date, exactly as the deal_deadlines rule decides them (TXW-020) — is pinned on the calendar on web and mobile on its date, labelled by kind (Milestone, Payment due, Expected close) apart from every event type, listed among upcoming items, showable alone through a Deal dates filter on both surfaces, and opens the deal record. The calendar never writes or moves a deal date and never queries the milestone or tranche tables itself; the one write it offers is ticking a milestone done through the deal's own milestone route (CAL-010).",
           "tests": [
             {
               "file": "src/lib/calendar/deal-dates.test.ts",
@@ -764,7 +764,7 @@
         },
         {
           "id": "CAL-010",
-          "rule": "Everything pinned on the calendar's visible days — appointments and deal dates — is also listed as Tasks in date order (web beneath the calendar; mobile on the selected day and in Upcoming), where an appointment's status is changed in place with the same actions on both surfaces (Done and Cancel while scheduled, Reopen afterwards) and a cancelled appointment stays on its day struck through rather than disappearing. A milestone date can be ticked done there through PATCH /api/deals/[id]/milestones/[milestoneId], which never moves the deal's stage (TXW-003); other deal dates open the record.",
+          "rule": "Everything pinned on the calendar's visible days — appointments and deal dates — is also listed as Tasks in date order (web beneath the Month and Week views and as the Agenda rows themselves; mobile on the selected day and in Upcoming), where an appointment's status is changed in place with the same actions on both surfaces (Done and Cancel while scheduled, Reopen afterwards) and a cancelled appointment stays on its day struck through rather than disappearing. A milestone date can be ticked done there through PATCH /api/deals/[id]/milestones/[milestoneId], which never moves the deal's stage (TXW-003); other deal dates open the record.",
           "tests": [
             {
               "file": "src/lib/calendar/tasks-view.test.ts",
@@ -772,6 +772,10 @@
             },
             {
               "file": "mobile/lib/calendar-tasks.test.ts",
+              "case": "[CAL-010]"
+            },
+            {
+              "file": "mobile/lib/calendar-upcoming.test.ts",
               "case": "[CAL-010]"
             },
             {

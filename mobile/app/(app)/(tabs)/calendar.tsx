@@ -134,7 +134,6 @@ async function fetchUpcomingAppointments(now: Date): Promise<Appointment[]> {
       .select(
         '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
       )
-      .eq('status', 'scheduled')
       .gte('start_time', tomorrow.toISOString())
       .order('start_time', { ascending: true })
       .order('id', { ascending: true })
@@ -1296,8 +1295,8 @@ function AppointmentCard({
 }
 
 /** A deal's dated commitment on its day. Opens the deal record, where
- *  the date is changed or the milestone ticked — the calendar never
- *  acts on it (TXW-020). */
+ *  the date is changed (TXW-020); a milestone can also be ticked done
+ *  here through the deal's milestone route (CAL-010). */
 function DealDateCard({
   dealDate,
   showDate = false,

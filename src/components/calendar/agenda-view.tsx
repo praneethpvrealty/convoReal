@@ -1,31 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { ChevronDown, MapPin, User, Home, CheckCircle2, Clock } from "lucide-react";
-import { deadlineLabel, type DealDeadline } from "@/lib/deals/deadlines";
-import {
-  DEAL_DATE_KIND_LABELS,
-  dealDateHref,
-  dealDateKey,
-  dealDateLocalDay,
-} from "@/lib/calendar/deal-dates";
-import {
-  CalendarEvent,
-  TeamMember,
-  DEAL_DATE_META,
-  eventTypeMeta,
-  memberInitials,
-  formatTimeShort,
-} from "./event-types";
-import { NameTagBadge } from "@/components/contacts/name-tag-badge";
+import { ChevronDown } from "lucide-react";
+import type { DealDeadline } from "@/lib/deals/deadlines";
+import { dealDateKey, dealDateLocalDay } from "@/lib/calendar/deal-dates";
+import type { AppointmentStatus } from "@/lib/calendar/tasks-view";
+import { CalendarEvent, TeamMember } from "./event-types";
+import { AppointmentTaskRow, DealDateTaskRow } from "./tasks-list";
 
 interface AgendaViewProps {
   events: CalendarEvent[];
   dealDates?: DealDeadline[];
   members: TeamMember[];
+  canEdit: boolean;
+  busyKey: string | null;
   onEventClick: (event: CalendarEvent) => void;
+  onStatusChange: (event: CalendarEvent, status: AppointmentStatus) => void;
+  onMilestoneDone: (dealDate: DealDeadline) => void;
 }
 
 type AgendaItem =
@@ -44,8 +36,19 @@ function dayHeading(date: Date): string {
 
 /** One scrollable, chronological list of everything scheduled —
  *  grouped by day, upcoming first, with finished/past events tucked
- *  behind a toggle so the working list stays clean. */
-export function AgendaView({ events, dealDates = [], members, onEventClick }: AgendaViewProps) {
+ *  behind a toggle so the working list stays clean. Its rows are the
+ *  Tasks rows (CAL-010): the same Done / Cancel / Reopen and milestone
+ *  tick in place, so the Agenda is the Tasks list of every day. */
+export function AgendaView({
+  events,
+  dealDates = [],
+  members,
+  canEdit,
+  busyKey,
+  onEventClick,
+  onStatusChange,
+  onMilestoneDone,
+}: AgendaViewProps) {
   const [showPast, setShowPast] = useState(false);
 
   const { upcomingGroups, pastGroups } = useMemo(() => {
@@ -90,83 +93,26 @@ export function AgendaView({ events, dealDates = [], members, onEventClick }: Ag
 
   const memberFor = (ev: CalendarEvent) => members.find((m) => m.user_id === (ev.assigned_to || ev.user_id));
 
-  const renderDealRow = (d: DealDeadline) => (
-    <Link
-      key={dealDateKey(d)}
-      href={dealDateHref(d.dealId)}
-      className="flex w-full items-center gap-3 rounded-lg border border-slate-800/80 bg-slate-950/50 px-3 py-2 text-left transition-colors hover:border-slate-700 hover:bg-slate-950"
-    >
-      <span className="w-16 shrink-0 font-mono text-[11px] text-slate-500">All day</span>
-      <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold", DEAL_DATE_META.chip)}>
-        <DEAL_DATE_META.icon className="h-3 w-3" />
-        <span className="hidden sm:inline">{DEAL_DATE_KIND_LABELS[d.kind]}</span>
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-semibold text-white">{d.title}</span>
-        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
-          <span className="truncate">{d.subject}</span>
-          <span
-            className={cn(
-              "inline-flex items-center gap-1",
-              d.urgency === "overdue" ? "text-rose-400" : d.urgency === "today" ? "text-amber-300" : undefined
-            )}
-          >
-            <Clock className="h-2.5 w-2.5" />
-            {deadlineLabel(d.daysLeft)}
-          </span>
-        </span>
-      </span>
-    </Link>
-  );
-
   const renderItem = (item: AgendaItem) =>
-    item.kind === "deal" ? renderDealRow(item.dealDate) : renderRow(item.event);
-
-  const renderRow = (ev: CalendarEvent) => {
-    const meta = eventTypeMeta(ev.event_type);
-    const assignee = memberFor(ev);
-    return (
-      <button
-        key={ev.id}
-        onClick={() => onEventClick(ev)}
-        className={cn(
-          "flex w-full items-center gap-3 rounded-lg border border-slate-800/80 bg-slate-950/50 px-3 py-2 text-left transition-colors hover:border-slate-700 hover:bg-slate-950",
-          ev.status === "cancelled" && "opacity-50",
-          ev.status === "completed" && "opacity-60"
-        )}
-      >
-        <span className="w-16 shrink-0 font-mono text-[11px] text-slate-400">{formatTimeShort(ev.start_time)}</span>
-        <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold", meta.chip)}>
-          {ev.status === "completed" ? <CheckCircle2 className="h-3 w-3" /> : <meta.icon className="h-3 w-3" />}
-          <span className="hidden sm:inline">{meta.label}</span>
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className={cn("block truncate text-xs font-semibold text-white", ev.status === "cancelled" && "line-through")}>
-            {ev.title}
-          </span>
-          <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
-            {ev.contact?.name && (
-              <span className="inline-flex items-center gap-1"><User className="h-2.5 w-2.5" />{ev.contact.name}<NameTagBadge tag={ev.contact.name_tag} /></span>
-            )}
-            {ev.property?.title && (
-              <span className="inline-flex items-center gap-1"><Home className="h-2.5 w-2.5" />{ev.property.title}</span>
-            )}
-            {ev.location && (
-              <span className="inline-flex items-center gap-1"><MapPin className="h-2.5 w-2.5" />{ev.location}</span>
-            )}
-          </span>
-        </span>
-        {members.length > 1 && assignee && (
-          <span
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[9px] font-bold text-primary"
-            title={assignee.full_name}
-          >
-            {memberInitials(assignee.full_name)}
-          </span>
-        )}
-      </button>
+    item.kind === "deal" ? (
+      <DealDateTaskRow
+        key={dealDateKey(item.dealDate)}
+        dealDate={item.dealDate}
+        canEdit={canEdit}
+        busy={busyKey === dealDateKey(item.dealDate)}
+        onDone={onMilestoneDone}
+      />
+    ) : (
+      <AppointmentTaskRow
+        key={item.event.id}
+        event={item.event}
+        assignee={members.length > 1 ? memberFor(item.event) : undefined}
+        canEdit={canEdit}
+        busy={busyKey === item.event.id}
+        onOpen={onEventClick}
+        onStatusChange={onStatusChange}
+      />
     );
-  };
 
   return (
     <div className="flex-1 space-y-4 overflow-y-auto pr-1 min-h-0">
