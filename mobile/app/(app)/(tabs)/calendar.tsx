@@ -1138,7 +1138,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
         ) : null}
         {todo.contact ? (
           <Link href={`/(app)/contact/${todo.contact.id}`} asChild>
-            <Pressable accessibilityRole="link" accessibilityLabel="Open contact">
+            <Pressable onPress={cancelEdit} accessibilityRole="link" accessibilityLabel="Open contact">
               <DetailRow
                 icon="person-outline"
                 text={todo.contact.name || todo.contact.phone || 'Linked contact'}
@@ -1171,7 +1171,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
         ) : null}
         {todo.property ? (
           <Link href={`/(app)/property/${todo.property.id}`} asChild>
-            <Pressable accessibilityRole="link" accessibilityLabel="Open property">
+            <Pressable onPress={cancelEdit} accessibilityRole="link" accessibilityLabel="Open property">
               <DetailRow icon="home-outline" text={todo.property.title} accent />
             </Pressable>
           </Link>
@@ -1179,6 +1179,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
         {todo.deal_id ? (
           <Link href={dealDateHref(todo.deal_id)} asChild>
             <Pressable
+              onPress={cancelEdit}
               accessibilityRole="link"
               accessibilityLabel="Open the deal this task belongs to"
               style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
@@ -1570,25 +1571,24 @@ function AppointmentDetail({
     haptic.tap();
     setBusy(true);
     setError(null);
-    // Ask for the row back rather than firing and forgetting: a write
-    // that errored — or matched nothing — used to close this sheet as if
-    // it had worked, leaving the event still 'scheduled' in the Engine with
-    // its reminders (src/lib/calendar/agent-reminders.ts) queued to fire
-    // an hour before an event the agent believed was closed.
-    const { data, error: updateError } = await supabase
-      .from('appointments')
-      .update({ status })
-      .eq('id', appointment.id)
-      .select('id');
-    setBusy(false);
-
-    if (updateError || !data?.length) {
+    // The status changes through the same route as the web Tasks list,
+    // so reopening re-arms the reminders in one place; and the route
+    // answers with the row, so an update that failed or matched nothing
+    // keeps this sheet open instead of closing as if it had worked.
+    try {
+      await apiFetch<{ appointment: { id: string } }>(
+        `/api/appointments/${appointment.id}`,
+        { method: 'PUT', body: JSON.stringify({ status }) }
+      );
+    } catch {
+      setBusy(false);
       haptic.warn();
       setError(
         'Could not update this event. Check your connection and try again.'
       );
       return;
     }
+    setBusy(false);
 
     haptic.success();
     queryClient.invalidateQueries({ queryKey: ['appointments'] });

@@ -36,7 +36,7 @@ export async function PUT(
 
     const { data: existing, error: existingError } = await supabase
       .from('appointments')
-      .select('id, user_id, start_time, contact_id, contact_ids')
+      .select('id, user_id, start_time, status, contact_id, contact_ids')
       .eq('id', id)
       .eq('account_id', accountId)
       .maybeSingle()
@@ -100,6 +100,14 @@ export async function PUT(
         // old time; the re-sent reminders will collect a fresh one.
         updatePayload.client_confirmed_at = null
       }
+    }
+
+    // Reopening a finished or cancelled appointment re-arms its
+    // reminders the same way: the ones that fired before it was closed
+    // would otherwise never fire again for the same time.
+    if (status === 'scheduled' && existing.status !== 'scheduled') {
+      updatePayload.reminder_morning_sent = false
+      updatePayload.reminder_1h_sent = false
     }
 
     const { data: appointment, error } = await supabase

@@ -3674,6 +3674,12 @@ describe('[CAL-010] appointment status changes are offered identically on both s
       "canEdit && !editingDetails && appointment.status !== 'scheduled'"
     );
     expect(webTasksList).toContain('{canEdit && (');
+    expect(webCalendar).toContain('`/api/appointments/${appt.id}`');
+    expect(mobileCalendar).toContain('`/api/appointments/${appointment.id}`');
+    expect(mobileCalendar).toContain(
+      "{ method: 'PUT', body: JSON.stringify({ status }) }"
+    );
+    expect(mobileCalendar).not.toContain('.update({ status })');
   });
 
   it('ticks a milestone through the deal route on both surfaces and opens other deal dates', () => {
