@@ -32,6 +32,7 @@
 import { useEffect, useMemo } from "react";
 import {
   Background,
+  ControlButton,
   Controls,
   Handle,
   MiniMap,
@@ -50,6 +51,7 @@ import {
   Building2,
   CalendarClock,
   ChevronRight,
+  Expand,
   Home,
   MapPin,
   Phone,
@@ -481,6 +483,7 @@ export interface JourneyCanvasProps {
   /** Container height utility classes — the focused view fills the
    *  viewport, embedded overview sections use a fixed band. */
   heightClass?: string;
+  onExpand?: () => void;
 }
 
 export function JourneyCanvas(props: JourneyCanvasProps) {
@@ -508,6 +511,7 @@ function JourneyCanvasInner({
   capturedCount = 0,
   onOpenCaptured,
   heightClass = "h-[calc(100vh-220px)] min-h-[480px]",
+  onExpand,
 }: JourneyCanvasProps) {
   const reactFlow = useReactFlow();
   const { mode: themeMode } = useTheme();
@@ -736,7 +740,17 @@ function JourneyCanvasInner({
         <Controls
           className="!border-slate-700 !bg-slate-900 [&_button]:!border-slate-700 [&_button]:!bg-slate-900 [&_button:hover]:!bg-slate-800"
           showInteractive={false}
-        />
+        >
+          {onExpand && (
+            <ControlButton
+              onClick={onExpand}
+              title="Full screen"
+              aria-label="Open full screen"
+            >
+              <Expand />
+            </ControlButton>
+          )}
+        </Controls>
         {/* Minimap only earns its pixels on maps big enough to get
             lost in — small journeys fit one screen, and on phones it
             just fought the floating AI widget for the corner. Nodes

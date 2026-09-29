@@ -90,6 +90,7 @@ export interface JourneySectionProps {
   /** The group is the lost stage: dropped items lead instead of live
    *  ones. */
   focusDropped?: boolean;
+  onFullscreen?: () => void;
 }
 
 export function JourneySection({
@@ -104,6 +105,7 @@ export function JourneySection({
   onItemsChanged,
   focusStageId = null,
   focusDropped = false,
+  onFullscreen,
 }: JourneySectionProps) {
   const supabase = createClient();
   const { user, accountId } = useAuth();
@@ -832,6 +834,7 @@ export function JourneySection({
               ? 'h-[calc(100vh-260px)] min-h-[480px]'
               : 'h-[420px]'
         }
+        onExpand={variant === 'embedded' ? onFullscreen : undefined}
       />
 
       <JourneyItemSheet
