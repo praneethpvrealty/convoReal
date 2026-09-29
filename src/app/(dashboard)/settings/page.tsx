@@ -56,6 +56,7 @@ import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { MembersTab } from '@/components/settings/members-tab';
 import { TeamsTab } from '@/components/settings/teams-tab';
+import { JourneyCompartmentScopeCard } from '@/components/settings/journey-compartment-scope-card';
 import { RoutingRulesTab } from '@/components/settings/routing-rules-tab';
 import { ShowcaseSettingsPanel } from '@/components/settings/showcase-settings';
 import { AgencyServicesManager } from '@/components/settings/agency-services-manager';
@@ -700,8 +701,9 @@ export default function SettingsPage() {
           </TabsContent>
 
           {membersEnabled && (
-            <TabsContent value="members" className="mt-0">
+            <TabsContent value="members" className="mt-0 space-y-6">
               <MembersTab />
+              <JourneyCompartmentScopeCard />
             </TabsContent>
           )}
 

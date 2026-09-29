@@ -1636,6 +1636,41 @@
               "case": "[JRN-013]"
             }
           ]
+        },
+        {
+          "id": "JRN-014",
+          "rule": "Inside every active stage group on web and mobile, journeys are split into Focus, listed first, and Passive, folded behind a count that opens on request (and opens by itself while searching or when a moved journey lands in it); closed and archived views are not split. A journey nobody has sorted is Passive. Any agent moves a journey between the two from a one-tap control on its row or its actions menu; viewers see the split but cannot change it. The split is shared by the whole team by default; an account admin can switch it (Settings → Members on web, Edit profile on mobile) so every agent keeps their own Focus list instead, and each scope reads and writes only its own rows. The compartment is saved through /api/journey/compartments, which checks the journey belongs to the caller's account.",
+          "tests": [
+            {
+              "file": "src/lib/journey/compartments.test.ts",
+              "case": "[JRN-014]"
+            },
+            {
+              "file": "src/app/api/journey/compartments/route.test.ts",
+              "case": "[JRN-014]"
+            },
+            {
+              "file": "src/app/api/account/route.test.ts",
+              "case": "[JRN-014]"
+            },
+            {
+              "file": "src/components/journey/shared.test.ts",
+              "case": "[JRN-014]"
+            },
+            {
+              "file": "mobile/lib/journey-overview.test.ts",
+              "case": "[JRN-014]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-014]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260929050125_journey_compartments.sql",
+            "src/lib/journey/compartments.ts",
+            "src/app/api/journey/compartments/route.ts"
+          ]
         }
       ]
     },

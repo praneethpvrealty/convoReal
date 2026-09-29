@@ -60,6 +60,7 @@ interface AccountSummary {
   /** Outbound language default (migration 246). Absent on rows read
    *  before the column existed — callers narrow with toLanguageCode(). */
   default_language?: string;
+  journey_compartment_scope?: string;
 }
 
 interface AuthContextValue {
@@ -207,7 +208,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, ui_languages, active_ui_language, showcase_style, showcase_3d_enabled, account:accounts!inner(id, name, status, default_language)",
+          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, ui_languages, active_ui_language, showcase_style, showcase_3d_enabled, account:accounts!inner(id, name, status, default_language, journey_compartment_scope)",
         )
         .eq("user_id", userId)
         .maybeSingle();

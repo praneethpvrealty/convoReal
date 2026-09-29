@@ -777,6 +777,37 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     );
   });
 
+  it('[JRN-014] splits every stage into Focus and Passive on web and mobile', () => {
+    const helpers = mobileSource('lib/journey-overview.ts');
+    const webShared = webSource('components/journey/shared.ts');
+    const body = (source: string) => {
+      const start = source.indexOf(
+        'export function splitJourneysByCompartment'
+      );
+      return source.slice(start, source.indexOf('\n}\n', start) + 3);
+    };
+    expect(body(helpers)).toContain('focusIds.has(group.subjectId)');
+    expect(body(helpers)).toEqual(body(webShared));
+    const api = mobileSource('lib/api.ts');
+    expect(api).toContain('`/api/journey/compartments?mode=${mode}`');
+    expect(api).toContain("'/api/journey/compartments',");
+    expect(screen).toContain(
+      'splitJourneysByCompartment(bucket.groups, focusIds)'
+    );
+    expect(screen).toContain(
+      "label: inFocus ? 'Move to Passive' : 'Move to Focus'"
+    );
+    expect(screen).toContain(
+      '{passiveOpen ? renderCards(split.passive) : null}'
+    );
+    const sheet = mobileSource('components/profile-edit-sheet.tsx');
+    expect(sheet).toContain('journey_compartment_scope: scope');
+    const webCard = webSource(
+      'components/settings/journey-compartment-scope-card.tsx'
+    );
+    expect(webCard).toContain('journey_compartment_scope: scope');
+  });
+
   it('[JRN-012] orders journeys by the same enquiry totals on web and mobile', () => {
     const helpers = mobileSource('lib/journey-overview.ts');
     const webShared = webSource('components/journey/shared.ts');

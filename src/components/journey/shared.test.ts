@@ -20,6 +20,7 @@ import {
   sortItemsForRows,
   sortJourneys,
   splitItemsAtStage,
+  splitJourneysByCompartment,
   stageIndexOf,
   withFocusedItem,
   type JourneyPriority,
@@ -701,5 +702,37 @@ describe('focus after a stage move', () => {
       'setSpotlight({ subjectId: fullscreenGroup.subjectId, itemId })'
     );
     expect(section).toContain('setFocusItemId(spotlightItemId);');
+  });
+});
+
+describe('splitJourneysByCompartment', () => {
+  const groups = [{ subjectId: 'a' }, { subjectId: 'b' }, { subjectId: 'c' }];
+
+  it('[JRN-014] lists Focus journeys first and keeps the rest Passive, in order', () => {
+    expect(splitJourneysByCompartment(groups, new Set(['c', 'a']))).toEqual({
+      focus: [{ subjectId: 'a' }, { subjectId: 'c' }],
+      passive: [{ subjectId: 'b' }],
+    });
+    expect(splitJourneysByCompartment(groups, new Set())).toEqual({
+      focus: [],
+      passive: groups,
+    });
+  });
+
+  it('[JRN-014] splits each active stage group and moves journeys from the row', () => {
+    const overview = readFileSync(
+      join(process.cwd(), 'src/components/journey/journey-overview.tsx'),
+      'utf8'
+    );
+    expect(overview).toContain(
+      'splitJourneysByCompartment(bucket.groups, focusIds)'
+    );
+    expect(overview).toContain("compartments={view === 'active'}");
+    expect(overview).toContain(
+      'fetch(`/api/journey/compartments?mode=${mode}`)'
+    );
+    expect(overview).toContain("'Move to Passive'");
+    expect(overview).toContain("'Move to Focus'");
+    expect(overview).toContain('{passiveOpen && renderList(split.passive)}');
   });
 });
