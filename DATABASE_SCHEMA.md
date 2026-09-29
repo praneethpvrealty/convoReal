@@ -311,7 +311,9 @@ Calendar bookings and site viewings.
 #### 16b. `appointment_reminder_log` (migration 127)
 Per-recipient delivery claims for client appointment reminders — one row per `(appointment_id, contact_id, reminder_type)` (UNIQUE). The cron inserts a claim before each WhatsApp send and deletes it if the send fails, so partial failures retry only the missed recipients without duplicating the delivered ones.
 - `account_id` / `appointment_id` / `contact_id` (UUID FKs, CASCADE).
-- `reminder_type` (TEXT): CHECK `('morning', '1h')`.
+- `reminder_type` (TEXT): CHECK `('morning', '1h', 'manual')` (migration 290).
+- `wa_message_id` (TEXT, migration 141): the outbound reminder's WhatsApp id, so a button reply maps back to the appointment.
+- `rearmed_at` (TIMESTAMPTZ, migration 20260929110500): `appointments.reminders_rearmed_at` as the sweep that made the claim read it. A claim from another generation is superseded — the cron takes it over and sends again — however new its clock, so a sweep that read the appointment before a re-arm can never leave a claim that counts as coverage.
 
 #### 17. `todos`
 Tasks list with reference linkages.

@@ -265,6 +265,7 @@ export function formatReminderTime(iso: string): string {
 export interface ReminderClaim {
   id: string;
   created_at: string;
+  rearmed_at: string | null;
 }
 
 type ReminderRecipient = { contact_id: string } | { liaison_id: string };
@@ -274,16 +275,15 @@ function sameInstant(a: string | null | undefined, b: string | null | undefined)
   return new Date(a).getTime() === new Date(b).getTime();
 }
 
-/** The predicate that pins a write to the appointment as this sweep
- *  read it: a re-arm that landed since (reminders_rearmed_at moved)
- *  makes the sweep's rendered time stale, so its flag write must miss. */
-function asRead<T extends { is: (c: string, v: null) => T; eq: (c: string, v: string) => T }>(
-  query: T,
-  appt: ReminderAppointment
-): T {
-  return appt.reminders_rearmed_at
-    ? query.eq('reminders_rearmed_at', appt.reminders_rearmed_at)
-    : query.is('reminders_rearmed_at', null);
+/** Pins a write to one generation: the row's stamp column must still
+ *  hold the value the caller read (null included). On appointments a
+ *  re-arm that landed since makes the sweep's rendered time stale, so
+ *  its flag write must miss; on the reminder log it keeps two sweeps
+ *  from both taking over the same claim. */
+function inGeneration<
+  T extends { is: (c: string, v: null) => T; eq: (c: string, v: string) => T },
+>(query: T, column: string, value: string | null): T {
+  return value ? query.eq(column, value) : query.is(column, null);
 }
 
 /**
@@ -292,14 +292,16 @@ function asRead<T extends { is: (c: string, v: null) => T; eq: (c: string, v: st
  * covered the recipient, or 'failed' when the database did not answer
  * (retry on the next tick).
  *
- * A claim made before the appointment's last re-arm
- * (reminders_rearmed_at — reopened or moved through
- * PUT /api/appointments/[id]) recorded a reminder for the old time or
- * a closed event, so it is taken over rather than honoured: its clock
- * restarts and its reply mapping clears, in one conditional update so
- * two cron instances cannot both take it. A voice note still queued
- * under the old claim sees the restarted clock and drops
- * (src/lib/voice/reminder-audio-worker.ts).
+ * A claim records the appointment generation the claiming sweep read
+ * (rearmed_at = reminders_rearmed_at as read). A claim from another
+ * generation — made before a re-arm (reopened or moved through
+ * PUT /api/appointments/[id]), or by a sweep that had read the
+ * appointment before one — recorded a reminder for the old time or a
+ * closed event, so it is taken over rather than honoured: it moves to
+ * this generation, its clock restarts and its reply mapping clears, in
+ * one conditional update so two cron instances cannot both take it. A
+ * voice note still queued under the old claim sees the restarted clock
+ * and drops (src/lib/voice/reminder-audio-worker.ts).
  */
 async function claimReminder(
   admin: SupabaseClient,
@@ -314,8 +316,9 @@ async function claimReminder(
       appointment_id: appt.id,
       ...recipient,
       reminder_type: reminderType,
+      rearmed_at: appt.reminders_rearmed_at,
     })
-    .select('id, created_at')
+    .select('id, created_at, rearmed_at')
     .maybeSingle();
   if (!claimErr) {
     if (!claim) {
@@ -328,14 +331,12 @@ async function claimReminder(
     console.error('[Reminder Cron] claim insert failed:', claimErr);
     return 'failed';
   }
-  if (!appt.reminders_rearmed_at) return null;
-
   const recipientColumn = 'contact_id' in recipient ? 'contact_id' : 'liaison_id';
   const recipientId =
     'contact_id' in recipient ? recipient.contact_id : recipient.liaison_id;
   const { data: existing, error: readErr } = await admin
     .from('appointment_reminder_log')
-    .select('id, created_at')
+    .select('id, created_at, rearmed_at')
     .eq('appointment_id', appt.id)
     .eq(recipientColumn, recipientId)
     .eq('reminder_type', reminderType)
@@ -344,19 +345,22 @@ async function claimReminder(
     console.error('[Reminder Cron] claim lookup failed:', readErr);
     return 'failed';
   }
-  if (
-    !existing ||
-    new Date(existing.created_at).getTime() >=
-      new Date(appt.reminders_rearmed_at).getTime()
-  ) {
+  if (!existing || sameInstant(existing.rearmed_at, appt.reminders_rearmed_at)) {
     return null;
   }
-  const { data: renewed, error: renewErr } = await admin
-    .from('appointment_reminder_log')
-    .update({ created_at: new Date().toISOString(), wa_message_id: null })
-    .eq('id', existing.id)
-    .lt('created_at', appt.reminders_rearmed_at)
-    .select('id, created_at')
+  const { data: renewed, error: renewErr } = await inGeneration(
+    admin
+      .from('appointment_reminder_log')
+      .update({
+        created_at: new Date().toISOString(),
+        wa_message_id: null,
+        rearmed_at: appt.reminders_rearmed_at,
+      })
+      .eq('id', existing.id),
+    'rearmed_at',
+    existing.rearmed_at
+  )
+    .select('id, created_at, rearmed_at')
     .maybeSingle();
   if (renewErr) {
     console.error('[Reminder Cron] claim takeover failed:', renewErr);
@@ -885,12 +889,13 @@ export async function checkAndSendAppointmentReminders(
       if (contactsCovered && liaisonCovered) {
         // An event that got its 1h reminder no longer needs the
         // morning one — mark both so it drops out of the scan.
-        await asRead(
+        await inGeneration(
           admin
             .from('appointments')
             .update({ reminder_1h_sent: true, reminder_morning_sent: true })
             .eq('id', appt.id),
-          appt
+          'reminders_rearmed_at',
+          appt.reminders_rearmed_at
         );
       }
     } else if (isDueMorning) {
@@ -910,12 +915,13 @@ export async function checkAndSendAppointmentReminders(
         liaisonWaCache
       );
       if (contactsCovered && liaisonCovered) {
-        await asRead(
+        await inGeneration(
           admin
             .from('appointments')
             .update({ reminder_morning_sent: true })
             .eq('id', appt.id),
-          appt
+          'reminders_rearmed_at',
+          appt.reminders_rearmed_at
         );
       }
     }

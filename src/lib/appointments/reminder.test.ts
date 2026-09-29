@@ -169,7 +169,12 @@ function appointment(id: string, eventType: string, contactId: string): Row {
   };
 }
 
-function claim(contactId: string, reminderType: string, createdAt: string): Row {
+function claim(
+  contactId: string,
+  reminderType: string,
+  createdAt: string,
+  rearmedAt: string | null = null
+): Row {
   return {
     id: `claim-${contactId}-${reminderType}`,
     account_id: 'acc',
@@ -178,9 +183,12 @@ function claim(contactId: string, reminderType: string, createdAt: string): Row 
     liaison_id: null,
     reminder_type: reminderType,
     created_at: createdAt,
+    rearmed_at: rearmedAt,
     wa_message_id: 'wamid.old',
   };
 }
+
+const REARMED_AT = '2026-08-01T05:30:00.000Z';
 
 beforeEach(() => {
   sendWhatsAppMessageAndPersist.mockReset();
@@ -233,9 +241,9 @@ describe('checkAndSendAppointmentReminders', () => {
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
   });
 
-  it('[CAL-010] after a re-arm, takes over a claim made before it and sends again — once', async () => {
+  it('[CAL-010] after a re-arm, takes over a claim from the earlier generation and sends again — once', async () => {
     tables.appointments = [
-      { ...appointment('a-visit', 'site_visit', 'c-visit'), reminders_rearmed_at: '2026-08-01T05:30:00.000Z' },
+      { ...appointment('a-visit', 'site_visit', 'c-visit'), reminders_rearmed_at: REARMED_AT },
     ];
     tables.appointment_reminder_log = [
       claim('c-visit', 'morning', '2026-08-01T05:00:00.000Z'),
@@ -245,7 +253,8 @@ describe('checkAndSendAppointmentReminders', () => {
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
     const renewed = tables.appointment_reminder_log.filter((r) => r.wa_message_id === 'wamid.1');
     expect(renewed).toHaveLength(1);
-    expect(String(renewed[0].created_at) > '2026-08-01T05:30:00.000Z').toBe(true);
+    expect(renewed[0]).toMatchObject({ rearmed_at: REARMED_AT });
+    expect(String(renewed[0].created_at) > REARMED_AT).toBe(true);
     expect(tables.appointment_reminder_log).toHaveLength(2);
 
     tables.appointments[0].reminder_morning_sent = false;
@@ -293,13 +302,28 @@ describe('checkAndSendAppointmentReminders', () => {
     expect(tables.appointments[0].reminder_1h_sent).toBe(false);
   });
 
-  it('[CAL-010] honours a claim made after the re-arm', async () => {
+  it('[CAL-010] a claim a stale sweep made after the re-arm is taken over, not counted as coverage', async () => {
     tables.appointments = [
-      { ...appointment('a-visit', 'site_visit', 'c-visit'), reminders_rearmed_at: '2026-08-01T05:30:00.000Z' },
+      { ...appointment('a-visit', 'site_visit', 'c-visit'), reminders_rearmed_at: REARMED_AT },
     ];
     tables.appointment_reminder_log = [
       claim('c-visit', 'morning', '2026-08-01T05:45:00.000Z'),
       claim('c-visit', '1h', '2026-08-01T05:45:00.000Z'),
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(
+      tables.appointment_reminder_log.filter((r) => r.rearmed_at === REARMED_AT)
+    ).toHaveLength(1);
+  });
+
+  it('[CAL-010] honours a claim from the current generation', async () => {
+    tables.appointments = [
+      { ...appointment('a-visit', 'site_visit', 'c-visit'), reminders_rearmed_at: REARMED_AT },
+    ];
+    tables.appointment_reminder_log = [
+      claim('c-visit', 'morning', '2026-08-01T05:45:00.000Z', REARMED_AT),
+      claim('c-visit', '1h', '2026-08-01T05:45:00.000Z', REARMED_AT),
     ];
     await checkAndSendAppointmentReminders(NOW);
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
