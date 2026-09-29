@@ -33,6 +33,12 @@ vi.mock('@/lib/supabase/admin', () => ({
           if (mutation && column !== 'account_id') state.mutations.push([mutation, [...filters]]);
           return builder;
         },
+        is: (column: string, value: unknown) => {
+          filters.push([column, value]);
+          if (mutation) state.mutations.push([mutation, [...filters]]);
+          return builder;
+        },
+        then: (resolve: (v: { error: null }) => unknown) => resolve({ error: null }),
         maybeSingle: async () => {
           const answer =
             state.lookups.length > 1 ? state.lookups.shift()! : state.lookups[0];
@@ -174,11 +180,19 @@ describe('processReminderAudioJob', () => {
     expect(state.requeued).toEqual([{ ...job, attempts: 1 }]);
   });
 
-  it('sends anyway once the claim lookup has failed for the last attempt', async () => {
+  it('[CAL-010] hands the reminder back to the cron, unsent, once the claim lookup has failed for the last attempt', async () => {
     reset(['error']);
-    await processReminderAudioJob({ ...job, attempts: 2 });
+    await processReminderAudioJob({ ...job, attempts: 2, rearmedAt: null });
     expect(state.requeued).toEqual([]);
-    expect(state.sends).toBe(1);
+    expect(state.sends).toBe(0);
+    expect(state.mutations).toContainEqual([
+      'delete',
+      [['account_id', 'acct-1'], ['id', 'claim-1'], ['created_at', QUEUED_AT]],
+    ]);
+    expect(state.mutations).toContainEqual([
+      'update',
+      [['id', 'appt-1'], ['account_id', 'acct-1'], ['reminders_rearmed_at', null]],
+    ]);
   });
 
   it('treats a note queued before claims were recorded as standing', async () => {

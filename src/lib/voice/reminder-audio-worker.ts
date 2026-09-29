@@ -16,6 +16,51 @@ import {
 
 const CLAIM_LOOKUP_ATTEMPTS = 3;
 
+type ClaimQuery = {
+  eq: (column: string, value: string) => unknown;
+};
+
+/** Writes touch the claim as this note holds it — the account, the
+ *  row and the clock it was queued under — so a claim the cron has
+ *  since renewed for a fresh note is never overwritten or released. */
+function claimFilter<T extends ClaimQuery>(query: T, job: ReminderAudioJob) {
+  const own = query.eq('account_id', job.accountId) as T;
+  if (!job.claimId) {
+    return (
+      (own.eq('appointment_id', job.appointmentId) as T).eq(
+        'contact_id',
+        job.contactId
+      ) as T
+    ).eq('reminder_type', job.reminderType);
+  }
+  const byId = own.eq('id', job.claimId) as T;
+  return job.claimedAt ? byId.eq('created_at', job.claimedAt) : byId;
+}
+
+/** Hands the reminder back to the cron: the claim is released and the
+ *  appointment flag re-opened, pinned to the generation this note was
+ *  rendered from so a newer one is never touched. The next sweep then
+ *  reads the appointment afresh and sends the template itself. */
+async function handBackToCron(admin: SupabaseClient, job: ReminderAudioJob) {
+  await claimFilter(admin.from('appointment_reminder_log').delete(), job);
+  const reopen = admin
+    .from('appointments')
+    .update(
+      job.reminderType === '1h'
+        ? { reminder_1h_sent: false }
+        : { reminder_morning_sent: false }
+    )
+    .eq('id', job.appointmentId)
+    .eq('account_id', job.accountId);
+  if (job.rearmedAt === undefined) {
+    await reopen;
+    return;
+  }
+  await (job.rearmedAt
+    ? reopen.eq('reminders_rearmed_at', job.rearmedAt)
+    : reopen.is('reminders_rearmed_at', null));
+}
+
 /**
  * Whether the claim this note was queued under still stands: the row
  * is there with the clock it was queued with, and the appointment's
@@ -61,8 +106,10 @@ function sameInstant(a: string | null, b: string | null) {
 
 /** The claim is checked before each send, since the appointment can
  *  be reopened or moved while a note renders. A lookup the database
- *  did not answer requeues the job a few times rather than losing the
- *  reminder; after that it sends, a stale note being the lesser harm. */
+ *  did not answer requeues the job a few times; when it still cannot
+ *  be established that the note is current, the note is never sent —
+ *  the reminder goes back to the cron instead, which reads the
+ *  appointment afresh on its next sweep. */
 async function claimGate(
   admin: SupabaseClient,
   job: ReminderAudioJob
@@ -85,7 +132,15 @@ async function claimGate(
     ) {
       return 'requeued';
     }
-    return 'send';
+    try {
+      await handBackToCron(admin, job);
+    } catch (handBackErr) {
+      console.error(
+        `[reminder-audio] Could not hand the ${job.reminderType} reminder for appt ${job.appointmentId} back to the cron:`,
+        handBackErr instanceof Error ? handBackErr.message : handBackErr
+      );
+    }
+    return 'drop';
   }
 }
 
@@ -196,23 +251,6 @@ export async function processReminderAudioJob(
   }
 
   if ((await claimGate(admin, job)) !== 'send') return;
-  // Writes touch the claim as this note holds it — by id and by the
-  // clock it was queued under — so a claim the cron has since renewed
-  // for a fresh note is never overwritten or released from here.
-  const claimFilter = (query: {
-    eq: (column: string, value: string) => unknown;
-  }) => {
-    const own = query.eq('account_id', job.accountId) as typeof query;
-    if (!job.claimId) {
-      return (
-        (
-          own.eq('appointment_id', job.appointmentId) as typeof query
-        ).eq('contact_id', job.contactId) as typeof query
-      ).eq('reminder_type', job.reminderType);
-    }
-    const byId = own.eq('id', job.claimId) as typeof query;
-    return job.claimedAt ? byId.eq('created_at', job.claimedAt) : byId;
-  };
   const result = await sendWhatsAppMessageAndPersist({
     accountId: job.accountId,
     userId: job.userId,
@@ -233,7 +271,8 @@ export async function processReminderAudioJob(
       await claimFilter(
         admin
           .from('appointment_reminder_log')
-          .update({ wa_message_id: result.whatsappMessageId })
+          .update({ wa_message_id: result.whatsappMessageId }),
+        job
       );
     }
     return;
@@ -242,13 +281,5 @@ export async function processReminderAudioJob(
     `[reminder-audio] Template fallback failed for appt ${job.appointmentId}:`,
     result.error
   );
-  await claimFilter(admin.from('appointment_reminder_log').delete());
-  await admin
-    .from('appointments')
-    .update(
-      job.reminderType === '1h'
-        ? { reminder_1h_sent: false }
-        : { reminder_morning_sent: false }
-    )
-    .eq('id', job.appointmentId);
+  await handBackToCron(admin, job);
 }

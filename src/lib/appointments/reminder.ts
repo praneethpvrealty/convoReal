@@ -337,6 +337,7 @@ async function claimReminder(
   const { data: existing, error: readErr } = await admin
     .from('appointment_reminder_log')
     .select('id, created_at, rearmed_at')
+    .eq('account_id', appt.account_id)
     .eq('appointment_id', appt.id)
     .eq(recipientColumn, recipientId)
     .eq('reminder_type', reminderType)
@@ -355,6 +356,7 @@ async function claimReminder(
     .from('appointments')
     .select('reminders_rearmed_at')
     .eq('id', appt.id)
+    .eq('account_id', appt.account_id)
     .maybeSingle();
   if (currentErr || !current) {
     console.error('[Reminder Cron] generation check failed:', currentErr);
@@ -371,7 +373,8 @@ async function claimReminder(
         wa_message_id: null,
         rearmed_at: appt.reminders_rearmed_at,
       })
-      .eq('id', existing.id),
+      .eq('id', existing.id)
+      .eq('account_id', appt.account_id),
     'rearmed_at',
     existing.rearmed_at
   )
@@ -381,7 +384,12 @@ async function claimReminder(
     console.error('[Reminder Cron] claim takeover failed:', renewErr);
     return 'failed';
   }
-  return (renewed as ReminderClaim | null) ?? null;
+  // A takeover that matched nothing means the claim moved under us — a
+  // parallel sweep took it, or a stale note released it. Either way
+  // nothing is known to have been sent for this generation, so the
+  // recipient is left uncovered and the next sweep looks again.
+  if (!renewed) return 'failed';
+  return renewed as ReminderClaim;
 }
 
 /** Called immediately before each delivery: a claim is only good for
@@ -400,6 +408,7 @@ async function stillAsRead(
     .from('appointments')
     .select('reminders_rearmed_at')
     .eq('id', appt.id)
+    .eq('account_id', appt.account_id)
     .maybeSingle();
   if (error) {
     console.error('[Reminder Cron] re-arm check failed:', error);
@@ -411,7 +420,7 @@ async function stillAsRead(
   ) {
     return true;
   }
-  await releaseClaim(admin, claim);
+  await releaseClaim(admin, appt, claim);
   return false;
 }
 
@@ -419,10 +428,15 @@ async function stillAsRead(
  *  it was claimed under. A replacement sweep renews the same row with
  *  a fresh clock rather than making a new one, so a stale sweep letting
  *  go must not take the replacement's claim with it. */
-async function releaseClaim(admin: SupabaseClient, claim: ReminderClaim) {
+async function releaseClaim(
+  admin: SupabaseClient,
+  appt: ReminderAppointment,
+  claim: ReminderClaim
+) {
   await admin
     .from('appointment_reminder_log')
     .delete()
+    .eq('account_id', appt.account_id)
     .eq('id', claim.id)
     .eq('created_at', claim.created_at);
 }
@@ -651,6 +665,7 @@ async function sendToAllRecipients(
         await admin
           .from('appointment_reminder_log')
           .update({ wa_message_id: result.whatsappMessageId })
+          .eq('account_id', appt.account_id)
           .eq('id', claim.id)
           .eq('created_at', claim.created_at);
       }
@@ -661,7 +676,7 @@ async function sendToAllRecipients(
       );
       allCovered = false;
       // Release the claim so the next tick retries this recipient.
-      await releaseClaim(admin, claim);
+      await releaseClaim(admin, appt, claim);
     }
   }
   return allCovered;
@@ -783,7 +798,7 @@ async function sendLiaisonReminder(
       `[Reminder Cron] Failed ${reminderType} liaison reminder for appt ${appt.id}:`,
       err
     );
-    await releaseClaim(admin, claim);
+    await releaseClaim(admin, appt, claim);
     return false;
   }
 }
