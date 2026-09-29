@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -221,6 +221,18 @@ export default function CalendarScreen() {
     queryFn: () => fetchDealDates(accountId!, todayKey, DEAL_DATE_HORIZON_DAYS),
     enabled: !!accountId,
   });
+  // The tab stays mounted while the agent works elsewhere: coming back
+  // rolls the day (an app kept foregrounded past midnight never fires
+  // AppState) and re-reads the deal dates, since a date changed on the
+  // deal screen invalidates the deal's own keys, not this one.
+  const refetchDealDates = dealDatesQuery.refetch;
+  const dealDatesFetched = dealDatesQuery.isFetched;
+  useFocusEffect(
+    useCallback(() => {
+      rollDay();
+      if (dealDatesFetched) void refetchDealDates();
+    }, [rollDay, dealDatesFetched, refetchDealDates])
+  );
   const pull = usePullRefresh(() => {
     rollDay();
     return Promise.all([

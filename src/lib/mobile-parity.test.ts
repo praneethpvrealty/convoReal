@@ -3582,6 +3582,10 @@ describe('[CAL-008] deal dates are pinned on both calendars through the one dead
       '<DealDateCard key={dealDateKey(d)} dealDate={d} />'
     );
     expect(mobileCalendar).toContain("if (state === 'active') rollDay();");
+    expect(mobileCalendar).toContain('useFocusEffect(');
+    expect(mobileCalendar).toContain(
+      'if (dealDatesFetched) void refetchDealDates();'
+    );
     expect(webCalendar).toContain(
       'view === "team" && typeFilter === "deal" ? "all" : typeFilter;'
     );
