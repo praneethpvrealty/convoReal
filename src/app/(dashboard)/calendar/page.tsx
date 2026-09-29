@@ -18,6 +18,7 @@ import {
   X,
   CalendarDays,
   ListTodo,
+  MessageSquare,
   Pencil,
   Briefcase,
   ChevronDown,
@@ -135,7 +136,8 @@ type CalendarTypeFilter = EventTypeKey | "all" | "deal";
 export default function CalendarPage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
-  const { accountId, user } = useAuth();
+  const { accountId, user, isViewer, isReadOnly } = useAuth();
+  const canEdit = !isViewer && !isReadOnly;
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewMode>("month");
@@ -902,6 +904,36 @@ export default function CalendarPage() {
     }
   };
 
+  const openContactChat = async (contactId: string) => {
+    try {
+      const { data: existing, error } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("account_id", accountId)
+        .eq("contact_id", contactId)
+        .maybeSingle();
+      if (error) throw error;
+      if (existing) {
+        window.location.href = `/inbox?c=${existing.id}`;
+        return;
+      }
+      const { data: created, error: createError } = await supabase
+        .from("conversations")
+        .insert({
+          account_id: accountId,
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+          contact_id: contactId,
+        })
+        .select("id")
+        .single();
+      if (createError) throw createError;
+      window.location.href = `/inbox?c=${created.id}`;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(errorMessage || "Failed to open conversation");
+    }
+  };
+
   const toggleTodo = async (todo: Todo) => {
     try {
       const { data, error } = await supabase
@@ -1266,6 +1298,7 @@ export default function CalendarPage() {
                   <TasksList
                     rows={taskRows}
                     members={members}
+                    canEdit={canEdit}
                     busyKey={taskBusyKey}
                     onEventClick={openEditApptModal}
                     onStatusChange={setAppointmentStatus}
@@ -1428,6 +1461,16 @@ export default function CalendarPage() {
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {todo.contact_id && (
+                        <button
+                          onClick={() => openContactChat(todo.contact_id!)}
+                          className="text-slate-500 hover:text-emerald-400 transition-colors p-0.5"
+                          title={`Check with ${todo.contact?.name?.trim().split(/\s+/)[0] || "contact"} on WhatsApp`}
+                          aria-label="Open chat"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => openEditTodoModal(todo)}
                         className="text-slate-500 hover:text-white transition-colors p-0.5"

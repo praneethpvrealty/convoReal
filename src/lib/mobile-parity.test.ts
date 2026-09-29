@@ -3672,10 +3672,17 @@ describe('[CAL-010] appointment status changes are offered identically on both s
     );
     expect(mobileCalendar).toContain("status: 'completed',");
     expect(webTasksList).toContain(
-      'dealDate.kind === "milestone" && dealDate.milestoneId'
+      'canEdit && dealDate.kind === "milestone" && dealDate.milestoneId'
     );
     expect(mobileCalendar).toContain(
-      "dealDate.kind === 'milestone' && dealDate.milestoneId"
+      "canEdit && dealDate.kind === 'milestone' && dealDate.milestoneId"
+    );
+    expect(webCalendar).toContain('const canEdit = !isViewer && !isReadOnly;');
+    expect(webCalendar).toContain(
+      'onClick={() => openContactChat(todo.contact_id!)}'
+    );
+    expect(mobileCalendar).toContain(
+      'await openContactChat(todo.contact!, { draftText: draft.message });'
     );
   });
 });

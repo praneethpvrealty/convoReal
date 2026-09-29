@@ -24,6 +24,8 @@ import {
 interface TasksListProps {
   rows: CalendarTaskRow<CalendarEvent, DealDeadline>[];
   members: TeamMember[];
+  /** Viewers and read-only members see the list; only editors get the write actions. */
+  canEdit: boolean;
   /** Key of the row whose write is in flight (appointment id or deal date key). */
   busyKey: string | null;
   onEventClick: (event: CalendarEvent) => void;
@@ -62,6 +64,7 @@ const ACTION_ICON: Record<AppointmentStatus, typeof Check> = {
 export function TasksList({
   rows,
   members,
+  canEdit,
   busyKey,
   onEventClick,
   onStatusChange,
@@ -95,6 +98,7 @@ export function TasksList({
                 <DealDateRow
                   key={dealDateKey(row.dealDate)}
                   dealDate={row.dealDate}
+                  canEdit={canEdit}
                   busy={busyKey === dealDateKey(row.dealDate)}
                   onDone={onMilestoneDone}
                 />
@@ -103,6 +107,7 @@ export function TasksList({
                   key={row.appointment.id}
                   event={row.appointment}
                   assignee={members.length > 1 ? memberFor(row.appointment) : undefined}
+                  canEdit={canEdit}
                   busy={busyKey === row.appointment.id}
                   onOpen={onEventClick}
                   onStatusChange={onStatusChange}
@@ -119,12 +124,14 @@ export function TasksList({
 function AppointmentRow({
   event,
   assignee,
+  canEdit,
   busy,
   onOpen,
   onStatusChange,
 }: {
   event: CalendarEvent;
   assignee?: TeamMember;
+  canEdit: boolean;
   busy: boolean;
   onOpen: (event: CalendarEvent) => void;
   onStatusChange: (event: CalendarEvent, status: AppointmentStatus) => void;
@@ -157,9 +164,10 @@ function AppointmentRow({
           {assignee && <span>{memberInitials(assignee.full_name)}</span>}
         </span>
       </button>
-      <span className={cn("hidden shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase sm:inline", STATUS_PILL[event.status])}>
+      <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase", canEdit ? "hidden sm:inline" : "inline", STATUS_PILL[event.status])}>
         {APPOINTMENT_STATUS_LABELS[event.status]}
       </span>
+      {canEdit && (
       <span className="flex shrink-0 items-center gap-1">
         {busy ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
@@ -187,16 +195,19 @@ function AppointmentRow({
           })
         )}
       </span>
+      )}
     </div>
   );
 }
 
 function DealDateRow({
   dealDate,
+  canEdit,
   busy,
   onDone,
 }: {
   dealDate: DealDeadline;
+  canEdit: boolean;
   busy: boolean;
   onDone: (dealDate: DealDeadline) => void;
 }) {
@@ -225,7 +236,7 @@ function DealDateRow({
       <span className="flex shrink-0 items-center gap-1">
         {busy ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
-        ) : dealDate.kind === "milestone" && dealDate.milestoneId ? (
+        ) : canEdit && dealDate.kind === "milestone" && dealDate.milestoneId ? (
           <button
             type="button"
             onClick={() => onDone(dealDate)}
