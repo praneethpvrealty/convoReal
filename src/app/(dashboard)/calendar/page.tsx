@@ -406,11 +406,12 @@ export default function CalendarPage() {
   // The calendar never writes one; each chip opens the deal record.
   const [todayKey, setTodayKey] = useState(() => todayDateKey());
   useEffect(() => {
-    const rollDay = () =>
-      setTodayKey((current) => {
-        const next = todayDateKey();
-        return next === current ? current : next;
-      });
+    const rollDay = () => {
+      const next = todayDateKey();
+      if (next === todayKey) return;
+      setTodayKey(next);
+      if (localDateKey(currentDate) === todayKey) setCurrentDate(new Date());
+    };
     const timer = setInterval(rollDay, 60_000);
     const onVisible = () => {
       if (document.visibilityState === "visible") rollDay();
@@ -420,7 +421,7 @@ export default function CalendarPage() {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [todayKey, currentDate]);
   const visibleRange = useMemo(() => {
     if (view === "week") {
       const start = new Date(currentDate);
