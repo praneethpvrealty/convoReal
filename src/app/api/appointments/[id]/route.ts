@@ -110,6 +110,9 @@ export async function PUT(
       // old time; the re-sent reminders will collect a fresh one.
       updatePayload.client_confirmed_at = null
     }
+    if (reopened) {
+      updatePayload.archived_at = null
+    }
     if (closed) {
       // Done or Cancel: nothing changes for the sweep, which only reads
       // scheduled rows, but a reminder it already fetched or queued

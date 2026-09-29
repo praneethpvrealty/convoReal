@@ -274,6 +274,7 @@ export interface Appointment {
   agenda?: string | null;
   minutes?: string | null;
   outcome?: string | null;
+  archived_at?: string | null;
   contact?: Contact | null;
   property?: { id: string; title: string; location?: string | null } | null;
 }

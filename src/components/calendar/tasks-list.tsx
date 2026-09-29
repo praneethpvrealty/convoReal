@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Check, CheckCircle2, Clock, ExternalLink, Home, Loader2, MapPin, RotateCcw, User, XCircle } from "lucide-react";
+import { Archive, ArchiveRestore, Check, CheckCircle2, Clock, ExternalLink, Home, Loader2, MapPin, RotateCcw, User, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { deadlineLabel, type DealDeadline } from "@/lib/deals/deadlines";
 import { DEAL_DATE_KIND_LABELS, dealDateHref, dealDateKey } from "@/lib/calendar/deal-dates";
 import {
   APPOINTMENT_STATUS_LABELS,
   appointmentStatusActions,
+  canArchiveAppointment,
   groupCalendarTaskRows,
+  isArchivedAppointment,
   type AppointmentStatus,
   type CalendarTaskRow,
 } from "@/lib/calendar/tasks-view";
@@ -31,6 +33,7 @@ interface TasksListProps {
   busyKey: string | null;
   onEventClick: (event: CalendarEvent) => void;
   onStatusChange: (event: CalendarEvent, status: AppointmentStatus) => void;
+  onArchive: (event: CalendarEvent, archived: boolean) => void;
   onMilestoneDone: (dealDate: DealDeadline) => void;
 }
 
@@ -69,6 +72,7 @@ export function TasksList({
   busyKey,
   onEventClick,
   onStatusChange,
+  onArchive,
   onMilestoneDone,
 }: TasksListProps) {
   const days = groupCalendarTaskRows(rows);
@@ -112,6 +116,7 @@ export function TasksList({
                   busy={busyKey === row.appointment.id}
                   onOpen={onEventClick}
                   onStatusChange={onStatusChange}
+                  onArchive={onArchive}
                 />
               )
             )}
@@ -132,6 +137,7 @@ export function AppointmentTaskRow({
   busy,
   onOpen,
   onStatusChange,
+  onArchive,
 }: {
   event: CalendarEvent;
   assignee?: TeamMember;
@@ -139,13 +145,15 @@ export function AppointmentTaskRow({
   busy: boolean;
   onOpen: (event: CalendarEvent) => void;
   onStatusChange: (event: CalendarEvent, status: AppointmentStatus) => void;
+  onArchive: (event: CalendarEvent, archived: boolean) => void;
 }) {
   const meta = eventTypeMeta(event.event_type);
+  const archived = isArchivedAppointment(event);
   return (
     <div
       className={cn(
         "flex items-center gap-3 rounded-lg border border-slate-800/80 bg-slate-950/50 px-3 py-2",
-        event.status === "cancelled" && "opacity-60"
+        (event.status === "cancelled" || archived) && "opacity-60"
       )}
     >
       <span className="w-16 shrink-0 font-mono text-[11px] text-slate-400">{formatTimeShort(event.start_time)}</span>
@@ -173,6 +181,9 @@ export function AppointmentTaskRow({
             <span className="inline-flex items-center gap-1"><MapPin className="h-2.5 w-2.5" />{event.location}</span>
           )}
           {assignee && <span>{memberInitials(assignee.full_name)}</span>}
+          {archived && (
+            <span className="inline-flex items-center gap-1 text-slate-400"><Archive className="h-2.5 w-2.5" />Archived</span>
+          )}
         </span>
       </button>
       <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase", canEdit ? "hidden sm:inline" : "inline", STATUS_PILL[event.status])}>
@@ -183,7 +194,8 @@ export function AppointmentTaskRow({
         {busy ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
         ) : (
-          appointmentStatusActions(event.status).map((action) => {
+          <>
+          {appointmentStatusActions(event.status).map((action) => {
             const Icon = ACTION_ICON[action.status];
             return (
               <button
@@ -203,7 +215,20 @@ export function AppointmentTaskRow({
                 <span className="hidden md:inline">{action.label}</span>
               </button>
             );
-          })
+          })}
+          {canArchiveAppointment(event.status) && (
+            <button
+              type="button"
+              onClick={() => onArchive(event, !archived)}
+              title={archived ? "Unarchive — list it in Tasks again" : "Archive — hide it from Tasks; it stays on its day in the calendar"}
+              aria-label={`${archived ? "Unarchive" : "Archive"}: ${event.title}`}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-slate-800"
+            >
+              {archived ? <ArchiveRestore className="h-3 w-3" /> : <Archive className="h-3 w-3" />}
+              <span className="hidden md:inline">{archived ? "Unarchive" : "Archive"}</span>
+            </button>
+          )}
+          </>
         )}
       </span>
       )}

@@ -38,6 +38,53 @@ export function appointmentStatusActions(
   return [{ status: 'scheduled', label: 'Reopen' }];
 }
 
+export interface ArchivableAppointmentLike {
+  id: string;
+  status: AppointmentStatus;
+  archived_at?: string | null;
+}
+
+export const ARCHIVE_BATCH_LIMIT = 500;
+
+/** Only a finished event is archived: Done or Cancelled. A scheduled
+ *  one is still work to do and always stays listed. */
+export function canArchiveAppointment(status: AppointmentStatus): boolean {
+  return status !== 'scheduled';
+}
+
+/** Archived means hidden from the Tasks lists until shown. A reopened
+ *  event is never hidden, whichever writer reopened it. */
+export function isArchivedAppointment(
+  appointment: ArchivableAppointmentLike
+): boolean {
+  return !!appointment.archived_at && canArchiveAppointment(appointment.status);
+}
+
+/** The ids "Archive done" archives: every finished event not yet archived. */
+export function archivableAppointmentIds(
+  appointments: readonly ArchivableAppointmentLike[]
+): string[] {
+  return appointments
+    .filter((a) => canArchiveAppointment(a.status) && !isArchivedAppointment(a))
+    .map((a) => a.id)
+    .slice(0, ARCHIVE_BATCH_LIMIT);
+}
+
+export function withoutArchivedAppointments<
+  A extends ArchivableAppointmentLike,
+>(
+  appointments: readonly A[],
+  showArchived: boolean
+): { visible: A[]; archivedCount: number } {
+  const archivedCount = appointments.filter(isArchivedAppointment).length;
+  return {
+    visible: showArchived
+      ? [...appointments]
+      : appointments.filter((a) => !isArchivedAppointment(a)),
+    archivedCount,
+  };
+}
+
 export interface TaskAppointmentLike {
   id: string;
   start_time: string;
@@ -97,6 +144,58 @@ export function buildCalendarTaskRows<
     (a, b) =>
       a.at - b.at || (a.kind === b.kind ? 0 : a.kind === 'deal' ? -1 : 1)
   );
+}
+
+export type TaskSortMode = 'upcoming' | 'earliest' | 'latest';
+
+export const TASK_SORT_MODES: TaskSortMode[] = [
+  'upcoming',
+  'earliest',
+  'latest',
+];
+
+export const TASK_SORT_LABELS: Record<TaskSortMode, string> = {
+  upcoming: 'Upcoming first',
+  earliest: 'Earliest first',
+  latest: 'Latest first',
+};
+
+function localDayStamp(at: number): number {
+  const d = new Date(at);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/** Upcoming first: today leads, then the days ahead soonest first,
+ *  then past days most recent first; each day reads in clock order.
+ *  Earliest and Latest first order strictly by date and time. A row
+ *  that `leads` (a date-only deal date) comes first among equal times. */
+export function sortTasksByTime<T>(
+  items: readonly T[],
+  at: (item: T) => number,
+  mode: TaskSortMode,
+  now: Date,
+  leads: (item: T) => boolean = () => false
+): T[] {
+  const today = localDayStamp(now.getTime());
+  const rank = (t: number) => {
+    const day = localDayStamp(t);
+    return day === today ? 0 : day > today ? 1 : 2;
+  };
+  const inOrder = (a: T, b: T) =>
+    at(a) - at(b) || (leads(a) === leads(b) ? 0 : leads(a) ? -1 : 1);
+  return [...items].sort((a, b) => {
+    if (mode === 'earliest') return inOrder(a, b);
+    if (mode === 'latest') return inOrder(b, a);
+    const ra = rank(at(a));
+    const rb = rank(at(b));
+    if (ra !== rb) return ra - rb;
+    if (ra === 2) {
+      const da = localDayStamp(at(a));
+      const db = localDayStamp(at(b));
+      if (da !== db) return db - da;
+    }
+    return inOrder(a, b);
+  });
 }
 
 export function groupCalendarTaskRows<
