@@ -729,7 +729,7 @@
         },
         {
           "id": "CAL-008",
-          "rule": "Every dated commitment a deal carries — an open milestone's target date, an unpaid payment tranche's due date and the expected close date, exactly as the deal_deadlines rule decides them (TXW-020) — is pinned on the calendar on web and mobile on its date, labelled by kind (Milestone, Payment due, Expected close) apart from every event type, listed among upcoming items, and opens the deal record. The calendar never writes, moves or completes a deal date and never queries the milestone or tranche tables itself.",
+          "rule": "Every dated commitment a deal carries — an open milestone's target date, an unpaid payment tranche's due date and the expected close date, exactly as the deal_deadlines rule decides them (TXW-020) — is pinned on the calendar on web and mobile on its date, labelled by kind (Milestone, Payment due, Expected close) apart from every event type, listed among upcoming items, showable alone through a Deal dates filter on both surfaces, and opens the deal record. The calendar never writes, moves or completes a deal date and never queries the milestone or tranche tables itself.",
           "tests": [
             {
               "file": "src/lib/calendar/deal-dates.test.ts",

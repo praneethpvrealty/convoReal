@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -224,15 +224,27 @@ export default function CalendarScreen() {
   // The tab stays mounted while the agent works elsewhere: coming back
   // rolls the day (an app kept foregrounded past midnight never fires
   // AppState) and re-reads the deal dates, since a date changed on the
-  // deal screen invalidates the deal's own keys, not this one.
-  const refetchDealDates = dealDatesQuery.refetch;
-  const dealDatesFetched = dealDatesQuery.isFetched;
+  // deal screen invalidates the deal's own keys, not this one. The
+  // first focus is the mount, which the query itself covers; refs keep
+  // the callback stable so a tap on a day never re-runs it.
+  const rollDayRef = useRef(rollDay);
+  const refetchDealDatesRef = useRef(dealDatesQuery.refetch);
+  useEffect(() => {
+    rollDayRef.current = rollDay;
+    refetchDealDatesRef.current = dealDatesQuery.refetch;
+  }, [rollDay, dealDatesQuery.refetch]);
+  const focusedBefore = useRef(false);
   useFocusEffect(
     useCallback(() => {
-      rollDay();
-      if (dealDatesFetched) void refetchDealDates();
-    }, [rollDay, dealDatesFetched, refetchDealDates])
+      if (!focusedBefore.current) {
+        focusedBefore.current = true;
+        return;
+      }
+      rollDayRef.current();
+      void refetchDealDatesRef.current();
+    }, [])
   );
+  const [dealOnly, setDealOnly] = useState(false);
   const pull = usePullRefresh(() => {
     rollDay();
     return Promise.all([
@@ -285,18 +297,19 @@ export default function CalendarScreen() {
     return map;
   }, [dealDatesQuery.data, month, monthEndKey]);
 
-  const dayAppointments = byDay.get(dayKey(selected)) ?? [];
+  const dayAppointments = dealOnly ? [] : (byDay.get(dayKey(selected)) ?? []);
   const dayDealDates = dealDatesByDay.get(dayKey(selected)) ?? [];
   const upcomingItems = useMemo(
     () =>
       buildUpcomingCalendarItems(
-        upcomingAppointmentsQuery.data ?? [],
-        todosQuery.data ?? [],
+        dealOnly ? [] : (upcomingAppointmentsQuery.data ?? []),
+        dealOnly ? [] : (todosQuery.data ?? []),
         today,
         selected,
         dealDatesQuery.data ?? []
       ),
     [
+      dealOnly,
       upcomingAppointmentsQuery.data,
       todosQuery.data,
       today,
@@ -427,6 +440,27 @@ export default function CalendarScreen() {
           </Pressable>
         </View>
 
+        {/* Deal dates alone, or everything — the web calendar's Deal
+            dates chip (CAL-008). */}
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <FilterChip
+            label="All"
+            active={!dealOnly}
+            onPress={() => {
+              haptic.tap();
+              setDealOnly(false);
+            }}
+          />
+          <FilterChip
+            label="Deal dates"
+            active={dealOnly}
+            onPress={() => {
+              haptic.tap();
+              setDealOnly(true);
+            }}
+          />
+        </View>
+
         {/* Grid */}
         <View
           style={[
@@ -448,7 +482,7 @@ export default function CalendarScreen() {
             <View key={row} style={styles.weekRow}>
               {cells.slice(row * 7, row * 7 + 7).map((date, i) => {
                 if (!date) return <View key={i} style={styles.dayCell} />;
-                const appts = byDay.get(dayKey(date)) ?? [];
+                const appts = dealOnly ? [] : (byDay.get(dayKey(date)) ?? []);
                 const dealDots = (dealDatesByDay.get(dayKey(date)) ?? []).slice(
                   0,
                   Math.max(0, 3 - Math.min(appts.length, 3))
@@ -540,11 +574,19 @@ export default function CalendarScreen() {
             style={{ alignSelf: 'center', paddingVertical: 20 }}
           />
         ) : dayAppointments.length === 0 && dayDealDates.length === 0 ? (
-          <EmptyState
-            icon="calendar-outline"
-            title="Nothing on this day"
-            subtitle="Tap + to schedule a site visit, call or meeting. Attached contacts get automatic WhatsApp reminders."
-          />
+          dealOnly ? (
+            <EmptyState
+              icon="briefcase-outline"
+              title="No deal dates on this day"
+              subtitle="Milestone, payment and expected close dates from live deals are pinned here."
+            />
+          ) : (
+            <EmptyState
+              icon="calendar-outline"
+              title="Nothing on this day"
+              subtitle="Tap + to schedule a site visit, call or meeting. Attached contacts get automatic WhatsApp reminders."
+            />
+          )
         ) : (
           <>
             {dayDealDates.map((d) => (
