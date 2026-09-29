@@ -98,6 +98,7 @@ import {
   journeyEnquiryLabel,
   journeyEnquirySourceOptions,
   journeyRaceLabel,
+  journeyStageBucketKey,
   journeyViewCounts,
   matchesJourneyEnquirySource,
   navigateJourney,
@@ -273,6 +274,10 @@ export function JourneyOverview({
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [newJourneyOpen, setNewJourneyOpen] = useState(false);
   const [fullscreenId, setFullscreenId] = useState<string | null>(null);
+  const [spotlight, setSpotlight] = useState<{
+    subjectId: string;
+    itemId: string;
+  } | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [enquiriesId, setEnquiriesId] = useState<string | null>(null);
@@ -617,6 +622,49 @@ export function JourneyOverview({
     focusedBucket !== null &&
     visibleBuckets.length === 1 &&
     visibleBuckets[0].key === focusedBucket;
+
+  const spotlightGroup = spotlight
+    ? groups.find((group) => group.subjectId === spotlight.subjectId)
+    : undefined;
+  const spotlightKey =
+    view === 'active' && spotlightGroup
+      ? journeyStageBucketKey(spotlightGroup.furthestStageIdx, stages)
+      : null;
+
+  useEffect(() => {
+    if (!spotlight || !spotlightKey) return;
+    const { subjectId } = spotlight;
+    Promise.resolve().then(() => {
+      setOpenIds((current) => {
+        const next = new Set(current ?? effectiveOpen);
+        if (next.has(subjectId)) return current;
+        next.add(subjectId);
+        writeIdSet(openKey, next);
+        return next;
+      });
+      setCollapsedIds((current) => {
+        if (!current.has(spotlightKey)) return current;
+        const next = new Set(current);
+        next.delete(spotlightKey);
+        writeIdSet(collapsedKey, next);
+        return next;
+      });
+    });
+    if (focusedBucket && focusedBucket !== spotlightKey) {
+      setFocusedBucket(spotlightKey);
+    }
+    const scroll = setTimeout(() => {
+      document
+        .getElementById(`journey-row-${spotlightKey}-${subjectId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
+    const release = setTimeout(() => setSpotlight(null), 5000);
+    return () => {
+      clearTimeout(scroll);
+      clearTimeout(release);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spotlight, spotlightKey]);
 
   const setPriority = async (
     group: JourneyGroup,
@@ -1049,6 +1097,10 @@ export function JourneyOverview({
             onFullscreen={setFullscreenId}
             onItemsChanged={loadGroups}
             onReorder={reorderBucket}
+            spotlight={spotlight}
+            onItemMoved={(subjectId, itemId) =>
+              setSpotlight({ subjectId, itemId })
+            }
           />
         );
       })}
@@ -1183,6 +1235,8 @@ function JourneyBucketSection({
   onFullscreen,
   onItemsChanged,
   onReorder,
+  spotlight,
+  onItemMoved,
 }: {
   bucket: JourneyBucket;
   focused: boolean;
@@ -1209,6 +1263,8 @@ function JourneyBucketSection({
   onFullscreen: (id: string) => void;
   onItemsChanged: () => void;
   onReorder: (groups: JourneyGroup[], activeId: string, overId: string) => void;
+  spotlight: { subjectId: string; itemId: string } | null;
+  onItemMoved: (subjectId: string, itemId: string) => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -1343,6 +1399,13 @@ function JourneyBucketSection({
                   onEnquiries={() => onEnquiries(group.subjectId)}
                   onFullscreen={() => onFullscreen(group.subjectId)}
                   onItemsChanged={onItemsChanged}
+                  rowId={`journey-row-${bucket.key}-${group.subjectId}`}
+                  spotlightItemId={
+                    spotlight?.subjectId === group.subjectId
+                      ? spotlight.itemId
+                      : null
+                  }
+                  onItemMoved={(itemId) => onItemMoved(group.subjectId, itemId)}
                 />
               ))}
             </div>
@@ -1371,6 +1434,9 @@ function SortableJourneyRow({
   onEnquiries,
   onFullscreen,
   onItemsChanged,
+  rowId,
+  spotlightItemId,
+  onItemMoved,
 }: {
   group: JourneyGroup;
   bucketStage: JourneyStage | null;
@@ -1389,6 +1455,9 @@ function SortableJourneyRow({
   onEnquiries: () => void;
   onFullscreen: () => void;
   onItemsChanged: () => void;
+  rowId: string;
+  spotlightItemId: string | null;
+  onItemMoved: (itemId: string) => void;
 }) {
   const {
     attributes,
@@ -1413,12 +1482,13 @@ function SortableJourneyRow({
   return (
     <div
       ref={setNodeRef}
+      id={rowId}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0.55 : 1,
       }}
-      className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50"
+      className="scroll-mt-[calc(var(--journey-toolbar,0px)+56px)] overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50"
     >
       <div className="flex items-center gap-2 px-2.5 py-2">
         {canEdit && canDrag && (
@@ -1627,6 +1697,8 @@ function SortableJourneyRow({
             preloadedContact={group.contact}
             preloadedProperty={group.property}
             onItemsChanged={onItemsChanged}
+            spotlightItemId={spotlightItemId}
+            onItemMoved={onItemMoved}
             focusStageId={showStage ? null : (bucketStage?.id ?? null)}
             focusDropped={
               !showStage &&

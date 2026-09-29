@@ -14,12 +14,14 @@ import {
   matchesJourneyEnquirySource,
   normalizeJourneyEnquirySource,
   journeyRaceLabel,
+  journeyStageBucketKey,
   planEtaLabel,
   plannedIndexOf,
   sortItemsForRows,
   sortJourneys,
   splitItemsAtStage,
   stageIndexOf,
+  withFocusedItem,
   type JourneyPriority,
 } from './shared';
 
@@ -654,5 +656,46 @@ describe('journeyViewCounts', () => {
       closed: 0,
       archived: 0,
     });
+  });
+});
+
+describe('focus after a stage move', () => {
+  const atStage = [{ id: 'a' }, { id: 'b' }];
+  const elsewhere = [{ id: 'c' }, { id: 'd' }];
+
+  it('[JRN-013] keeps the moved item on the map when it leaves the fold', () => {
+    expect(withFocusedItem(atStage, elsewhere, 'd')).toEqual([
+      { id: 'a' },
+      { id: 'b' },
+      { id: 'd' },
+    ]);
+    expect(withFocusedItem(atStage, elsewhere, 'a')).toBe(atStage);
+    expect(withFocusedItem(atStage, elsewhere, null)).toBe(atStage);
+  });
+
+  it('[JRN-013] finds the stage group the moved journey now sits in', () => {
+    const stages = [stage('new', 0), stage('visit', 1)];
+    expect(journeyStageBucketKey(1, stages)).toBe('stage:visit');
+    expect(journeyStageBucketKey(-1, stages)).toBe('stage:unclassified');
+    expect(journeyStageBucketKey(5, stages)).toBe('stage:unclassified');
+  });
+
+  it('[JRN-013] centres the map on the fresh step and scrolls the overview to it', () => {
+    const read = (file: string) =>
+      readFileSync(join(process.cwd(), 'src/components/journey', file), 'utf8');
+    const canvas = read('journey-canvas.tsx');
+    const section = read('journey-section.tsx');
+    const overview = read('journey-overview.tsx');
+    expect(canvas).toContain('nodes: [{ id: focusNodeId }]');
+    expect(section).toContain('setFocusItemId(item.id);');
+    expect(section).toContain('onItemMoved?.(item.id);');
+    expect(section).toContain(
+      'withFocusedItem(atStage, elsewhere, focusItemId)'
+    );
+    expect(overview).toContain(
+      'journeyStageBucketKey(spotlightGroup.furthestStageIdx, stages)'
+    );
+    expect(overview).toContain('`journey-row-${spotlightKey}-${subjectId}`');
+    expect(overview).toContain('id={rowId}');
   });
 });

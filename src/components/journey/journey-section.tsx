@@ -64,7 +64,7 @@ import { JourneyItemSheet } from './journey-item-sheet';
 import { AddItemsDialog } from './add-items-dialog';
 import { CapturedTrayDialog } from './captured-tray-dialog';
 import { ContactNotesDialog } from './contact-notes-dialog';
-import { splitItemsAtStage, type JourneyMode } from './shared';
+import { splitItemsAtStage, withFocusedItem, type JourneyMode } from './shared';
 
 export interface JourneySectionProps {
   mode: JourneyMode;
@@ -91,6 +91,8 @@ export interface JourneySectionProps {
    *  ones. */
   focusDropped?: boolean;
   onFullscreen?: () => void;
+  spotlightItemId?: string | null;
+  onItemMoved?: (itemId: string) => void;
 }
 
 export function JourneySection({
@@ -106,6 +108,8 @@ export function JourneySection({
   focusStageId = null,
   focusDropped = false,
   onFullscreen,
+  spotlightItemId = null,
+  onItemMoved,
 }: JourneySectionProps) {
   const supabase = createClient();
   const { user, accountId } = useAuth();
@@ -127,6 +131,9 @@ export function JourneySection({
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesCount, setNotesCount] = useState(0);
   const [showElsewhere, setShowElsewhere] = useState(false);
+  const [focusItemId, setFocusItemId] = useState<string | null>(
+    spotlightItemId
+  );
   const [brokeragePrompt, setBrokeragePrompt] = useState<{
     item: JourneyItem;
     toStageId: string;
@@ -413,9 +420,11 @@ export function JourneySection({
         return false;
       }
       await refresh();
+      setFocusItemId(item.id);
+      onItemMoved?.(item.id);
       return true;
     },
-    [refresh]
+    [refresh, onItemMoved]
   );
 
   const handleAdvance = useCallback(
@@ -644,7 +653,13 @@ export function JourneySection({
     [focusDropped, focusStageId, visibleItems]
   );
   const focusStage = stages.find((stage) => stage.id === focusStageId);
-  const canvasItems = showElsewhere ? visibleItems : atStage;
+  const canvasItems = useMemo(
+    () =>
+      showElsewhere
+        ? visibleItems
+        : withFocusedItem(atStage, elsewhere, focusItemId),
+    [atStage, elsewhere, focusItemId, showElsewhere, visibleItems]
+  );
 
   const hasToolbar =
     capturedItems.length > 0 ||
@@ -820,6 +835,7 @@ export function JourneySection({
         currency={currency}
         canEdit={canEdit}
         selectedItemId={selectedItem?.id}
+        focusItemId={focusItemId}
         highlightStageId={focusStageId}
         highlightDropped={focusDropped}
         onSelectItem={setSelectedItem}

@@ -1618,6 +1618,16 @@
             "src/lib/journey/enquiries.ts",
             "src/app/api/journey/enquiries/route.ts"
           ]
+        },
+        {
+          "id": "JRN-013",
+          "rule": "After an item on a web journey map is advanced or moved to another stage, the map centres on that item's new step and highlights it, keeping it on the map even when it now rests outside the stage group's fold. In the overview the journey stays expanded, its new stage group opens (and becomes the single focused group when one stage was focused), and the list scrolls to the journey in that group, so the fresh step is in view. Mobile journeys have no map and move stages from the deal workspace, so this is web-only.",
+          "tests": [
+            {
+              "file": "src/components/journey/shared.test.ts",
+              "case": "[JRN-013]"
+            }
+          ]
         }
       ]
     },
