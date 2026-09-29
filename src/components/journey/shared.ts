@@ -394,3 +394,22 @@ export function focusBuckets<T extends { key: string }>(
   const focused = buckets.filter((bucket) => bucket.key === focusedKey);
   return focused.length ? focused : buckets;
 }
+
+export function withFocusedItem<T extends { id: string }>(
+  atStage: T[],
+  elsewhere: T[],
+  focusItemId: string | null
+): T[] {
+  const focused = focusItemId
+    ? elsewhere.find((item) => item.id === focusItemId)
+    : undefined;
+  return focused ? [...atStage, focused] : atStage;
+}
+
+export function journeyStageBucketKey(
+  furthestStageIdx: number,
+  stages: { id: string }[]
+): string {
+  const stage = furthestStageIdx >= 0 ? stages[furthestStageIdx] : undefined;
+  return stage ? `stage:${stage.id}` : 'stage:unclassified';
+}

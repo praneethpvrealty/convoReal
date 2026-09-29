@@ -29,7 +29,7 @@
  * pure presentation + hit-testing.
  */
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Background,
   ControlButton,
@@ -484,6 +484,7 @@ export interface JourneyCanvasProps {
    *  viewport, embedded overview sections use a fixed band. */
   heightClass?: string;
   onExpand?: () => void;
+  focusItemId?: string | null;
 }
 
 export function JourneyCanvas(props: JourneyCanvasProps) {
@@ -512,6 +513,7 @@ function JourneyCanvasInner({
   onOpenCaptured,
   heightClass = "h-[calc(100vh-220px)] min-h-[480px]",
   onExpand,
+  focusItemId = null,
 }: JourneyCanvasProps) {
   const reactFlow = useReactFlow();
   const { mode: themeMode } = useTheme();
@@ -600,7 +602,9 @@ function JourneyCanvasInner({
             y: isFrontier ? rowY : rowY + (CARD_H - CHIP_H) / 2,
           },
           draggable: false,
-          selected: isFrontier && selectedItemId === item.id,
+          selected:
+            isFrontier &&
+            (selectedItemId === item.id || focusItemId === item.id),
           data: {
             item,
             mode,
@@ -694,6 +698,7 @@ function JourneyCanvasInner({
     canEdit,
     onAdvance,
     selectedItemId,
+    focusItemId,
     highlightStageId,
     highlightDropped,
     palette,
@@ -702,12 +707,29 @@ function JourneyCanvasInner({
   // Re-frame when the journey's shape changes size (new subject, new
   // column unlocked, items added/removed) — not on every mutation.
   const shapeKey = `${mode}:${contact?.id ?? property?.id}:${items.length}:${nodes.length}`;
+  const focusItem = focusItemId
+    ? items.find((item) => item.id === focusItemId)
+    : undefined;
+  const focusNodeId = focusItem
+    ? `item-${focusItem.id}@${stageIndexOf(focusItem, stages)}`
+    : null;
+  const focusedNodeRef = useRef<string | null>(null);
   useEffect(() => {
     const t = setTimeout(() => {
+      if (focusNodeId && focusedNodeRef.current !== focusNodeId) {
+        focusedNodeRef.current = focusNodeId;
+        reactFlow.fitView({
+          nodes: [{ id: focusNodeId }],
+          padding: 1.2,
+          maxZoom: 1,
+          duration: 400,
+        });
+        return;
+      }
       reactFlow.fitView({ padding: 0.18, maxZoom: 1 });
     }, 50);
     return () => clearTimeout(t);
-  }, [shapeKey, reactFlow]);
+  }, [shapeKey, focusNodeId, reactFlow]);
 
   return (
     <div

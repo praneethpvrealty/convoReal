@@ -756,6 +756,27 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(webSection).toContain('more at other stages');
   });
 
+  it('[JRN-013] keeps a moved item in view in its new stage group on web and mobile', () => {
+    const helpers = mobileSource('lib/journey-overview.ts');
+    const webShared = webSource('components/journey/shared.ts');
+    const body = (source: string) => {
+      const start = source.indexOf('export function journeyStageBucketKey');
+      return source.slice(start, source.indexOf('\n}\n', start) + 3);
+    };
+    expect(body(helpers)).not.toBe('');
+    expect(body(helpers)).toEqual(body(webShared));
+    expect(screen).toContain(
+      'journeyStageBucketKey(movedGroup.furthestStageIdx, stages)'
+    );
+    expect(screen).toContain('itemId: item.id,');
+    expect(screen).toContain('scrollRef.current?.scrollTo({');
+    expect(screen).toContain('.filter((item) => item.id === focusItemId)');
+    const webOverview = webSource('components/journey/journey-overview.tsx');
+    expect(webOverview).toContain(
+      'journeyStageBucketKey(spotlightGroup.furthestStageIdx, stages)'
+    );
+  });
+
   it('[JRN-012] orders journeys by the same enquiry totals on web and mobile', () => {
     const helpers = mobileSource('lib/journey-overview.ts');
     const webShared = webSource('components/journey/shared.ts');
