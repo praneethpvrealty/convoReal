@@ -1386,7 +1386,7 @@
         },
         {
           "id": "JRN-004",
-          "rule": "Every mirrored pipeline stage can capture an append-only, account-scoped note before or after the stage is reached; the latest note stays visible in the stage rail and the complete history retains its stage snapshot, author and creation time through closure, archival and later stage deletion.",
+          "rule": "A journey item has one Notes box on web and mobile rather than a note button per stage. Saving a note records it, append-only and account-scoped, against the stage the item is at, and every note of the item is listed newest first at whatever stage the item reaches, each tagged with its date and time and its stage name in the stage colour, plus its author. The history keeps its stage snapshot, author and creation time through closure, archival and later stage deletion.",
           "tests": [
             {
               "file": "src/lib/journey/stage-notes.test.ts",

@@ -623,7 +623,9 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('.enabled(canEdit)');
     expect(screen).toContain('{canEdit ? (');
     expect(screen).toContain('{itemStage ? (');
-    expect(screen).toContain("{canEdit ? 'Add or view' : 'View'} notes");
+    expect(screen).toContain(
+      "accessibilityLabel={canEdit ? 'Add or view notes' : 'View notes'}"
+    );
   });
 
   it('[JRN-005] reviews captured shares in a tray with show, show all and remove', () => {
@@ -920,16 +922,19 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('{canEdit && canDrag ? (');
   });
 
-  it('[JRN-004] offers every stage while retaining the complete note history', () => {
-    expect(screen).toContain('Journey stage notes');
-    expect(screen).toContain('stages.map((stage)');
-    expect(screen).toContain('current ? { ...current, stage } : current');
-    expect(screen).toContain('const notesByStage = useMemo');
-    expect(screen).toContain('const latestNote = stageNotes[0]');
-    expect(screen).toContain('{latestNote.note}');
+  it('[JRN-004] saves one notes box against the current stage and lists every note across stages', () => {
+    expect(screen).toContain('title="Notes"');
+    expect(screen).not.toContain('Note stage');
+    expect(screen).toContain('onPress={() => onAddNote(item, itemStage)}');
+    expect(screen).toContain('stageId: noteTarget.stage.id,');
+    expect(screen).toContain(
+      'Saved with the date, time and {noteTarget.stage.name}'
+    );
+    expect(screen).toContain('{noteTimestamp(note.created_at)}');
+    expect(screen).toContain('{note.stage_name}');
     expect(screen).toContain('loadJourneyStageNotes(noteTarget!.item.id)');
     expect(screen).toContain('.range(from, from + JOURNEY_NOTE_PAGE_SIZE - 1)');
-    expect(screen).toContain('Complete journey history');
+    expect(screen).toContain('All notes');
     expect(screen).toContain('(notesQuery.data ?? []).map((note)');
   });
 });
