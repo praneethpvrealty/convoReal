@@ -1137,11 +1137,15 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
           </Pressable>
         ) : null}
         {todo.contact ? (
-          <DetailRow
-            icon="person-outline"
-            text={todo.contact.name || todo.contact.phone || 'Linked contact'}
-            accent
-          />
+          <Link href={`/(app)/contact/${todo.contact.id}`} asChild>
+            <Pressable accessibilityRole="link" accessibilityLabel="Open contact">
+              <DetailRow
+                icon="person-outline"
+                text={todo.contact.name || todo.contact.phone || 'Linked contact'}
+                accent
+              />
+            </Pressable>
+          </Link>
         ) : null}
         {!todo.completed && todo.contact ? (
           <Pressable
@@ -1166,7 +1170,11 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
           </Pressable>
         ) : null}
         {todo.property ? (
-          <DetailRow icon="home-outline" text={todo.property.title} accent />
+          <Link href={`/(app)/property/${todo.property.id}`} asChild>
+            <Pressable accessibilityRole="link" accessibilityLabel="Open property">
+              <DetailRow icon="home-outline" text={todo.property.title} accent />
+            </Pressable>
+          </Link>
         ) : null}
         {todo.deal_id ? (
           <Link href={dealDateHref(todo.deal_id)} asChild>

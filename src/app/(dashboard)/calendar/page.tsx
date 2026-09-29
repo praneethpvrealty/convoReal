@@ -21,6 +21,8 @@ import {
   MessageSquare,
   Pencil,
   Briefcase,
+  User,
+  Home,
   ChevronDown,
   Users,
   LayoutGrid,
@@ -1407,22 +1409,38 @@ export default function CalendarPage() {
                         {todo.title}
                       </p>
                       {(todo.due_date || todo.contact?.name || todo.property?.title) && (
-                        <p className="mt-0.5 text-[10px] text-slate-500 truncate">
-                          {[
-                            todo.due_date
-                              ? new Date(todo.due_date).toLocaleString("en-IN", {
-                                  day: "numeric",
-                                  month: "short",
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                  hour12: true,
-                                })
-                              : null,
-                            todo.contact?.name ?? null,
-                            todo.property?.title ?? null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500">
+                          {todo.due_date && (
+                            <span>
+                              {new Date(todo.due_date).toLocaleString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "numeric",
+                                minute: "2-digit",
+                                hour12: true,
+                              })}
+                            </span>
+                          )}
+                          {todo.contact_id && todo.contact?.name && (
+                            <Link
+                              href={`/contacts?contactId=${todo.contact_id}`}
+                              className="inline-flex max-w-full items-center gap-1 truncate transition-colors hover:text-white"
+                              title="Open contact"
+                            >
+                              <User className="h-2.5 w-2.5 shrink-0" />
+                              {todo.contact.name}
+                            </Link>
+                          )}
+                          {todo.property_id && todo.property?.title && (
+                            <Link
+                              href={`/inventory?propertyId=${todo.property_id}`}
+                              className="inline-flex max-w-full items-center gap-1 truncate transition-colors hover:text-white"
+                              title="Open property"
+                            >
+                              <Home className="h-2.5 w-2.5 shrink-0" />
+                              {todo.property.title}
+                            </Link>
+                          )}
                         </p>
                       )}
                       {todo.description && (

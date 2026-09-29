@@ -3632,6 +3632,18 @@ describe('[CAL-009] the to-do list is lightweight on both surfaces', () => {
     expect(mobileCalendar).toContain(
       '<Link href={dealDateHref(todo.deal_id)} asChild>'
     );
+    expect(webCalendar).toContain(
+      'href={`/contacts?contactId=${todo.contact_id}`}'
+    );
+    expect(webCalendar).toContain(
+      'href={`/inventory?propertyId=${todo.property_id}`}'
+    );
+    expect(mobileCalendar).toContain(
+      '<Link href={`/(app)/contact/${todo.contact.id}`} asChild>'
+    );
+    expect(mobileCalendar).toContain(
+      '<Link href={`/(app)/property/${todo.property.id}`} asChild>'
+    );
   });
 });
 

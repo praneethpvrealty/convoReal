@@ -754,7 +754,7 @@
         },
         {
           "id": "CAL-009",
-          "rule": "The To-Do list beside the calendar is a lightweight checklist of to-dos alone on web and mobile: appointments are never folded into it, and the quick-add takes a title, an optional due date and a priority without tagging contacts or properties. A to-do added from a deal's Tasks tab keeps its deal and links back to it; the calendar never sets that link.",
+          "rule": "The To-Do list beside the calendar is a lightweight checklist of to-dos alone on web and mobile: appointments are never folded into it, and the quick-add takes a title, an optional due date and a priority without tagging contacts or properties. A to-do added from a deal's Tasks tab keeps its deal and links back to it, and a contact or property a to-do already carries stays shown and opens the record on both surfaces; the calendar never sets those links.",
           "tests": [
             {
               "file": "src/lib/mobile-parity.test.ts",
