@@ -3658,6 +3658,10 @@ describe('[CAL-010] appointment status changes are offered identically on both s
     expect(mobileCalendar).toContain(
       'appointmentStatusActions(appointment.status).map('
     );
+    expect(mobileCalendar).toContain(
+      "canEdit && !editingDetails && appointment.status !== 'scheduled'"
+    );
+    expect(webTasksList).toContain('{canEdit && (');
   });
 
   it('ticks a milestone through the deal route on both surfaces and opens other deal dates', () => {

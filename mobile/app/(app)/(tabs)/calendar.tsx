@@ -1345,53 +1345,57 @@ function DealDateCard({
         : colors.textMuted;
 
   return (
-    <Link href={dealDateHref(dealDate.dealId)} asChild>
-      <Pressable
-        accessibilityRole="link"
-        accessibilityLabel={`${DEAL_DATE_KIND_LABELS[dealDate.kind]}: ${dealDate.title}, ${dealDate.subject}, ${deadlineLabel(dealDate.daysLeft)}`}
-        style={[
-          styles.card,
-          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-        ]}
-      >
-        <View style={[styles.typeBadge, { backgroundColor: colors.warningSoft }]}>
-          <Ionicons name="briefcase-outline" size={17} color={colors.warning} />
-        </View>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
-            {dealDate.title}
-          </Text>
-          <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
-            {showDate ? `${date} · ` : ''}
-            {DEAL_DATE_KIND_LABELS[dealDate.kind]} · {dealDate.subject}
-          </Text>
-          <Text
-            style={{ fontSize: 12.5, color: urgencyColor, fontFamily: f.semibold }}
-          >
-            {deadlineLabel(dealDate.daysLeft)}
-          </Text>
-          {error ? (
-            <Text style={{ fontSize: 11.5, color: colors.danger }}>{error}</Text>
-          ) : null}
-        </View>
-        {canEdit && dealDate.kind === 'milestone' && dealDate.milestoneId ? (
-          busy ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Pressable
-              onPress={markDone}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={`Done: ${dealDate.title}`}
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+      ]}
+    >
+      <Link href={dealDateHref(dealDate.dealId)} asChild>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`${DEAL_DATE_KIND_LABELS[dealDate.kind]}: ${dealDate.title}, ${dealDate.subject}, ${deadlineLabel(dealDate.daysLeft)}`}
+          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+        >
+          <View style={[styles.typeBadge, { backgroundColor: colors.warningSoft }]}>
+            <Ionicons name="briefcase-outline" size={17} color={colors.warning} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+              {dealDate.title}
+            </Text>
+            <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
+              {showDate ? `${date} · ` : ''}
+              {DEAL_DATE_KIND_LABELS[dealDate.kind]} · {dealDate.subject}
+            </Text>
+            <Text
+              style={{ fontSize: 12.5, color: urgencyColor, fontFamily: f.semibold }}
             >
-              <Ionicons name="checkmark-circle-outline" size={24} color={colors.success} />
-            </Pressable>
-          )
+              {deadlineLabel(dealDate.daysLeft)}
+            </Text>
+            {error ? (
+              <Text style={{ fontSize: 11.5, color: colors.danger }}>{error}</Text>
+            ) : null}
+          </View>
+        </Pressable>
+      </Link>
+      {canEdit && dealDate.kind === 'milestone' && dealDate.milestoneId ? (
+        busy ? (
+          <ActivityIndicator size="small" color={colors.primary} />
         ) : (
-          <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-        )}
-      </Pressable>
-    </Link>
+          <Pressable
+            onPress={markDone}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Done: ${dealDate.title}`}
+          >
+            <Ionicons name="checkmark-circle-outline" size={24} color={colors.success} />
+          </Pressable>
+        )
+      ) : (
+        <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+      )}
+    </View>
   );
 }
 
@@ -1417,6 +1421,10 @@ function AppointmentDetail({
   onClose: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
+  const profile = useAuthStore((s) => s.profile);
+  const canEdit = Boolean(
+    profile && profile.account_role !== 'viewer' && !profile.is_read_only
+  );
   const [rescheduling, setRescheduling] = useState(false);
   const [newStart, setNewStart] = useState<Date | null>(null);
   const [picker, setPicker] = useState<'date' | 'time' | null>(null);
@@ -2027,7 +2035,7 @@ function AppointmentDetail({
           <Text style={{ fontSize: 12.5, color: colors.danger }}>{error}</Text>
         ) : null}
 
-        {!editingDetails && appointment.status === 'scheduled' ? (
+        {canEdit && !editingDetails && appointment.status === 'scheduled' ? (
           rescheduling ? (
             <View style={{ gap: spacing.sm }}>
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -2151,7 +2159,7 @@ function AppointmentDetail({
             </View>
           )
         ) : null}
-        {!editingDetails && appointment.status !== 'scheduled' ? (
+        {canEdit && !editingDetails && appointment.status !== 'scheduled' ? (
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             {appointmentStatusActions(appointment.status).map((action) => (
               <SheetButton
