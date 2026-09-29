@@ -1,15 +1,3 @@
--- ============================================================
--- 20260929062349_add_journey_item_note.sql
--- Save a journey item note against the item's current stage in one
--- statement.
---
--- The item row is read FOR SHARE inside the INSERT … SELECT, so a
--- concurrent stage move either commits first (and the note takes the
--- new stage) or waits for the note, never tagging the note with a
--- stage the item has already left. SECURITY INVOKER keeps the
--- journey_stage_notes insert policy in force.
--- ============================================================
-
 CREATE OR REPLACE FUNCTION public.add_journey_item_note(
   p_account_id UUID,
   p_item_id UUID,
