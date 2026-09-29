@@ -1132,13 +1132,22 @@ async function handleReminderButtonReply(
           reschedule_requested_at: null,
         };
 
-    const { data: appt } = await admin
+    // The generation is a predicate of the write itself, so a re-arm
+    // landing between the check above and this update makes the
+    // update miss rather than land on the new generation.
+    const stampQuery = admin
       .from('appointments')
       .update(stamp)
       .eq('id', log.appointment_id)
+      .eq('account_id', accountId);
+    const { data: appt } = await (log.rearmed_at
+      ? stampQuery.eq('reminders_rearmed_at', log.rearmed_at)
+      : stampQuery.is('reminders_rearmed_at', null)
+    )
       .select('id, title, start_time, user_id, assigned_to')
       .maybeSingle();
-    // Reminder tap on a since-deleted appointment: still consumed.
+    // Reminder tap on a since-deleted or since-re-armed appointment:
+    // still consumed, nothing changed.
     if (!appt) return true;
 
     const formattedTime = new Date(appt.start_time).toLocaleString('en-IN', {

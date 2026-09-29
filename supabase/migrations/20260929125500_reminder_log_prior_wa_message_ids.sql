@@ -47,7 +47,9 @@ DROP FUNCTION IF EXISTS public.appointment_reminder_keep_prior_id(UUID, UUID, UU
 
 -- Returns 'kept' when the row covering the recipient is of the given
 -- generation and now carries the id, 'other' when it exists in another
--- generation (the alias is dropped), 'none' when there is no row.
+-- generation (the alias is dropped), 'none' when there is no row. The
+-- row is locked from the read to the write, so a release racing this
+-- call waits, and a write that hits nothing is reported as 'none'.
 CREATE OR REPLACE FUNCTION public.appointment_reminder_keep_prior_id(
   p_account_id UUID,
   p_claim_id UUID,
@@ -69,7 +71,8 @@ BEGIN
   IF p_claim_id IS NOT NULL THEN
     SELECT true, rearmed_at INTO v_found, v_row_rearmed_at
       FROM appointment_reminder_log
-     WHERE account_id = p_account_id AND id = p_claim_id;
+     WHERE account_id = p_account_id AND id = p_claim_id
+       FOR UPDATE;
   ELSE
     SELECT true, rearmed_at INTO v_found, v_row_rearmed_at
       FROM appointment_reminder_log
@@ -77,7 +80,8 @@ BEGIN
        AND appointment_id = p_appointment_id
        AND reminder_type = p_reminder_type
        AND ((p_liaison_id IS NOT NULL AND liaison_id = p_liaison_id)
-         OR (p_liaison_id IS NULL AND contact_id = p_contact_id));
+         OR (p_liaison_id IS NULL AND contact_id = p_contact_id))
+       FOR UPDATE;
   END IF;
   IF v_found IS NOT TRUE THEN
     RETURN 'none';
@@ -88,21 +92,28 @@ BEGIN
 
   IF p_claim_id IS NOT NULL THEN
     UPDATE appointment_reminder_log
-       SET prior_wa_message_ids = array_append(prior_wa_message_ids, p_wa_message_id)
+       SET prior_wa_message_ids = CASE
+             WHEN p_wa_message_id = ANY (prior_wa_message_ids) THEN prior_wa_message_ids
+             ELSE array_append(prior_wa_message_ids, p_wa_message_id)
+           END
      WHERE account_id = p_account_id
        AND id = p_claim_id
-       AND rearmed_at IS NOT DISTINCT FROM v_row_rearmed_at
-       AND NOT (p_wa_message_id = ANY (prior_wa_message_ids));
+       AND rearmed_at IS NOT DISTINCT FROM v_row_rearmed_at;
   ELSE
     UPDATE appointment_reminder_log
-       SET prior_wa_message_ids = array_append(prior_wa_message_ids, p_wa_message_id)
+       SET prior_wa_message_ids = CASE
+             WHEN p_wa_message_id = ANY (prior_wa_message_ids) THEN prior_wa_message_ids
+             ELSE array_append(prior_wa_message_ids, p_wa_message_id)
+           END
      WHERE account_id = p_account_id
        AND appointment_id = p_appointment_id
        AND reminder_type = p_reminder_type
        AND ((p_liaison_id IS NOT NULL AND liaison_id = p_liaison_id)
          OR (p_liaison_id IS NULL AND contact_id = p_contact_id))
-       AND rearmed_at IS NOT DISTINCT FROM v_row_rearmed_at
-       AND NOT (p_wa_message_id = ANY (prior_wa_message_ids));
+       AND rearmed_at IS NOT DISTINCT FROM v_row_rearmed_at;
+  END IF;
+  IF NOT FOUND THEN
+    RETURN 'none';
   END IF;
   RETURN 'kept';
 END;
