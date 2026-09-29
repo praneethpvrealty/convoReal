@@ -68,20 +68,40 @@ async function handBackToCron(
   return true;
 }
 
-/** A note that can neither be verified, handed back nor requeued is
- *  parked in the dead-letter list rather than lost; if even that
- *  fails, its payload is logged whole so it can be replayed by hand. */
-async function retainUnsent(job: ReminderAudioJob) {
-  if (await parkReminderAudioJob(job)) {
-    console.error(
-      `[reminder-audio] Parked the ${job.reminderType} reminder for appt ${job.appointmentId} in the dead-letter list`
-    );
-    return;
+/** How long a note that cannot yet be verified, handed back, requeued
+ *  or parked is held in the worker before its payload is logged whole:
+ *  the worker already popped it, so it is kept here until one store
+ *  confirms it. Exported so tests can shorten the wait. */
+export const RETAIN = { delayMs: 5_000, rounds: 24 };
+
+/** Keeps the note until its reminder is persisted somewhere: handed
+ *  back to the cron (the database confirmed it), requeued, or parked in
+ *  the dead-letter list. Every store is retried with a pause between
+ *  rounds — a database and a Redis outage at once is what this is for
+ *  — and only after the whole window does the payload go to the log,
+ *  whole, for replay by hand. */
+async function retainUntilPersisted(
+  admin: SupabaseClient,
+  job: ReminderAudioJob,
+  attempts: number
+): Promise<'drop' | 'requeued'> {
+  for (let round = 1; ; round++) {
+    if (await handBackToCron(admin, job).catch(() => false)) return 'drop';
+    if (await enqueueReminderAudioJob({ ...job, attempts })) return 'requeued';
+    if (await parkReminderAudioJob(job)) {
+      console.error(
+        `[reminder-audio] Parked the ${job.reminderType} reminder for appt ${job.appointmentId} in the dead-letter list`
+      );
+      return 'drop';
+    }
+    if (round >= RETAIN.rounds) break;
+    await new Promise((resolve) => setTimeout(resolve, RETAIN.delayMs));
   }
   console.error(
-    `[reminder-audio] Could not park the ${job.reminderType} reminder for appt ${job.appointmentId}; payload for replay:`,
+    `[reminder-audio] Could not persist the ${job.reminderType} reminder for appt ${job.appointmentId} anywhere; payload for replay:`,
     JSON.stringify(job)
   );
+  return 'drop';
 }
 
 /**
@@ -155,23 +175,10 @@ async function claimGate(
     ) {
       return 'requeued';
     }
-    // The note is never sent unverified. Until the hand-back is
-    // confirmed the job is kept — requeued past the retry cap, since
-    // dropping it here would leave the claim and flag saying the
-    // reminder was delivered.
-    let handedBack = false;
-    try {
-      handedBack = await handBackToCron(admin, job);
-    } catch (handBackErr) {
-      console.error(
-        `[reminder-audio] Hand-back threw for appt ${job.appointmentId}:`,
-        handBackErr instanceof Error ? handBackErr.message : handBackErr
-      );
-    }
-    if (handedBack) return 'drop';
-    if (await enqueueReminderAudioJob({ ...job, attempts })) return 'requeued';
-    await retainUnsent(job);
-    return 'drop';
+    // The note is never sent unverified, and never dropped either
+    // while the claim and flag would still say it was delivered: it is
+    // held until the cron has it back or a queue has it.
+    return retainUntilPersisted(admin, job, attempts);
   }
 }
 
@@ -312,5 +319,7 @@ export async function processReminderAudioJob(
     `[reminder-audio] Template fallback failed for appt ${job.appointmentId}:`,
     result.error
   );
-  if (!(await handBackToCron(admin, job))) await retainUnsent(job);
+  if (!(await handBackToCron(admin, job))) {
+    await retainUntilPersisted(admin, job, job.attempts ?? 0);
+  }
 }

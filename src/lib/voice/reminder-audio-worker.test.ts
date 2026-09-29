@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   rpcs: [] as Array<[string, Record<string, unknown>]>,
   parked: [] as Array<{ attempts?: number }>,
   enqueueFails: false,
+  parkFailures: 0,
 }));
 
 const QUEUED_AT = '2026-09-29T10:00:00.000+00:00';
@@ -108,12 +109,19 @@ vi.mock('./reminder-audio', async (importOriginal) => ({
     return true;
   },
   parkReminderAudioJob: async (job: { attempts?: number }) => {
+    if (state.parkFailures > 0) {
+      state.parkFailures -= 1;
+      return false;
+    }
     state.parked.push(job);
     return true;
   },
 }));
 
-import { processReminderAudioJob } from './reminder-audio-worker';
+import { processReminderAudioJob, RETAIN } from './reminder-audio-worker';
+
+RETAIN.delayMs = 0;
+RETAIN.rounds = 3;
 
 const job = {
   kind: 'reminder_audio' as const,
@@ -139,6 +147,7 @@ function reset(lookups: Lookup[]) {
   state.rpcs = [];
   state.parked = [];
   state.enqueueFails = false;
+  state.parkFailures = 0;
 }
 
 describe('processReminderAudioJob', () => {
@@ -228,6 +237,35 @@ describe('processReminderAudioJob', () => {
     expect(state.sends).toBe(0);
     expect(state.requeued).toEqual([]);
     expect(state.parked).toEqual([{ ...job, attempts: 2 }]);
+  });
+
+  it('[CAL-010] holds the job across rounds until one store confirms it', async () => {
+    reset(['error']);
+    state.mutationError = { message: 'timeout' };
+    state.enqueueFails = true;
+    state.parkFailures = 2;
+    await processReminderAudioJob({ ...job, attempts: 2 });
+    expect(state.sends).toBe(0);
+    expect(state.rpcs).toHaveLength(3);
+    expect(state.parked).toEqual([{ ...job, attempts: 2 }]);
+  });
+
+  it('logs the payload only once every store has refused it for the whole window', async () => {
+    reset(['error']);
+    state.mutationError = { message: 'timeout' };
+    state.enqueueFails = true;
+    state.parkFailures = 99;
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await processReminderAudioJob({ ...job, attempts: 2 });
+    expect(state.sends).toBe(0);
+    expect(state.rpcs).toHaveLength(RETAIN.rounds);
+    expect(state.parked).toEqual([]);
+    expect(
+      errors.mock.calls.some(
+        (call) => typeof call[1] === 'string' && call[1].includes('"appointmentId":"appt-1"')
+      )
+    ).toBe(true);
+    errors.mockRestore();
   });
 
   it('[CAL-010] keeps the job when the hand-back could not be confirmed', async () => {
