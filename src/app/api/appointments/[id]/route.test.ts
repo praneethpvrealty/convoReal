@@ -79,7 +79,7 @@ describe('PUT /api/appointments/[id]', () => {
       reminder_morning_sent: true,
       reminder_1h_sent: true,
     });
-    expect(state.updates[0]).not.toHaveProperty('reminders_rearmed_at');
+    expect(typeof state.updates[0].reminders_rearmed_at).toBe('string');
   });
 
   it('moving an appointment to a time already past marks its reminders covered', async () => {
@@ -91,7 +91,7 @@ describe('PUT /api/appointments/[id]', () => {
       reminder_morning_sent: true,
       reminder_1h_sent: true,
     });
-    expect(state.updates[0]).not.toHaveProperty('reminders_rearmed_at');
+    expect(typeof state.updates[0].reminders_rearmed_at).toBe('string');
   });
 
   it('[CAL-010] closing an appointment, or re-sending scheduled, leaves the reminders alone', async () => {

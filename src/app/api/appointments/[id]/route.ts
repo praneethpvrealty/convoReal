@@ -108,9 +108,12 @@ export async function PUT(
     }
     if ((rescheduled || reopened) && !startsAhead) {
       // A reminder that never went out for a visit now behind us must
-      // not go out on the next sweep either.
+      // not go out on the next sweep either, and one already queued or
+      // mid-sweep for the old time must not go out at all: the stamp
+      // supersedes it while the flags keep the sweep away.
       updatePayload.reminder_morning_sent = true
       updatePayload.reminder_1h_sent = true
+      updatePayload.reminders_rearmed_at = new Date().toISOString()
     }
     if ((rescheduled || reopened) && startsAhead) {
       updatePayload.reminder_morning_sent = false
