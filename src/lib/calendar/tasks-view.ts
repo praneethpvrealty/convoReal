@@ -46,28 +46,32 @@ export interface ArchivableAppointmentLike {
 
 export const ARCHIVE_BATCH_LIMIT = 500;
 
-/** Only a finished event is archived: Done or Cancelled. A scheduled
- *  one is still work to do and always stays listed. */
 export function canArchiveAppointment(status: AppointmentStatus): boolean {
   return status !== 'scheduled';
 }
 
-/** Archived means hidden from the Tasks lists until shown. A reopened
- *  event is never hidden, whichever writer reopened it. */
 export function isArchivedAppointment(
   appointment: ArchivableAppointmentLike
 ): boolean {
   return !!appointment.archived_at && canArchiveAppointment(appointment.status);
 }
 
-/** The ids "Archive done" archives: every finished event not yet archived. */
 export function archivableAppointmentIds(
   appointments: readonly ArchivableAppointmentLike[]
 ): string[] {
   return appointments
     .filter((a) => canArchiveAppointment(a.status) && !isArchivedAppointment(a))
-    .map((a) => a.id)
-    .slice(0, ARCHIVE_BATCH_LIMIT);
+    .map((a) => a.id);
+}
+
+export function chunkIds(
+  ids: readonly string[],
+  size: number = ARCHIVE_BATCH_LIMIT
+): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += size)
+    chunks.push(ids.slice(i, i + size));
+  return chunks;
 }
 
 export function withoutArchivedAppointments<
@@ -165,10 +169,6 @@ function localDayStamp(at: number): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
-/** Upcoming first: today leads, then the days ahead soonest first,
- *  then past days most recent first; each day reads in clock order.
- *  Earliest and Latest first order strictly by date and time. A row
- *  that `leads` (a date-only deal date) comes first among equal times. */
 export function sortTasksByTime<T>(
   items: readonly T[],
   at: (item: T) => number,

@@ -46,6 +46,7 @@ import {
   appointmentStatusActions,
   archivableAppointmentIds,
   canArchiveAppointment,
+  chunkIds,
   isArchivedAppointment,
   sortTasksByTime,
   TASK_SORT_LABELS,
@@ -341,22 +342,32 @@ export default function CalendarScreen() {
   const monthArchive = useMemo(
     () => ({
       archivableIds: archivableAppointmentIds(data ?? []),
-      archivedCount: (data ?? []).filter(isArchivedAppointment).length,
+      archivedCount: new Set(
+        [...(data ?? []), ...(upcomingAppointmentsQuery.data ?? [])]
+          .filter(isArchivedAppointment)
+          .map((a) => a.id)
+      ).size,
     }),
-    [data]
+    [data, upcomingAppointmentsQuery.data]
   );
   async function archiveMonthDone() {
     if (monthArchive.archivableIds.length === 0) return;
     haptic.tap();
     setArchiving(true);
     try {
-      await apiFetch<{ data: { ids: string[] } }>('/api/appointments/archive', {
-        method: 'POST',
-        body: JSON.stringify({ ids: monthArchive.archivableIds, archived: true }),
-      });
+      for (const chunk of chunkIds(monthArchive.archivableIds)) {
+        await apiFetch<{ data: { ids: string[] } }>(
+          '/api/appointments/archive',
+          {
+            method: 'POST',
+            body: JSON.stringify({ ids: chunk, archived: true }),
+          }
+        );
+      }
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
     } catch (err) {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
       haptic.warn();
       Alert.alert(
         'Could not archive',

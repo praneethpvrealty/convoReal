@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requireWriteRole, toErrorResponse } from '@/lib/auth/account';
 import { ARCHIVE_BATCH_LIMIT } from '@/lib/calendar/tasks-view';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -7,7 +7,7 @@ const CHUNK = 100;
 
 export async function POST(request: Request) {
   try {
-    const { supabase, accountId } = await requireRole('agent');
+    const { supabase, accountId } = await requireWriteRole('agent');
 
     const body = await request.json().catch(() => null);
     const archived = body?.archived;

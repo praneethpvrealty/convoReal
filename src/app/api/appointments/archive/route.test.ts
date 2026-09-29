@@ -6,55 +6,61 @@ const state = vi.hoisted(() => ({
     filters: Array<[string, string, unknown]>;
   }>,
   rows: [] as Array<{ id: string; status: string }>,
+  readOnly: false,
 }));
 
 vi.mock('@/lib/auth/account', () => ({
-  requireRole: async () => ({
-    accountId: 'acct-1',
-    supabase: {
-      from: () => {
-        const call = {
-          payload: {} as Record<string, unknown>,
-          filters: [] as Array<[string, string, unknown]>,
-        };
-        const builder = {
-          update: (payload: Record<string, unknown>) => {
-            call.payload = payload;
-            state.calls.push(call);
-            return builder;
-          },
-          eq: (column: string, value: unknown) => {
-            call.filters.push(['eq', column, value]);
-            return builder;
-          },
-          neq: (column: string, value: unknown) => {
-            call.filters.push(['neq', column, value]);
-            return builder;
-          },
-          in: (column: string, value: unknown) => {
-            call.filters.push(['in', column, value]);
-            return builder;
-          },
-          select: async () => {
-            const ids = call.filters.find(
-              ([op]) => op === 'in'
-            )?.[2] as string[];
-            const skipScheduled = call.filters.some(
-              ([op, column]) => op === 'neq' && column === 'status'
-            );
-            return {
-              data: state.rows
-                .filter((row) => ids.includes(row.id))
-                .filter((row) => !skipScheduled || row.status !== 'scheduled')
-                .map((row) => ({ id: row.id })),
-              error: null,
-            };
-          },
-        };
-        return builder;
+  requireWriteRole: async () => {
+    if (state.readOnly) {
+      throw new Error('Read-only members cannot make changes.');
+    }
+    return {
+      accountId: 'acct-1',
+      supabase: {
+        from: () => {
+          const call = {
+            payload: {} as Record<string, unknown>,
+            filters: [] as Array<[string, string, unknown]>,
+          };
+          const builder = {
+            update: (payload: Record<string, unknown>) => {
+              call.payload = payload;
+              state.calls.push(call);
+              return builder;
+            },
+            eq: (column: string, value: unknown) => {
+              call.filters.push(['eq', column, value]);
+              return builder;
+            },
+            neq: (column: string, value: unknown) => {
+              call.filters.push(['neq', column, value]);
+              return builder;
+            },
+            in: (column: string, value: unknown) => {
+              call.filters.push(['in', column, value]);
+              return builder;
+            },
+            select: async () => {
+              const ids = call.filters.find(
+                ([op]) => op === 'in'
+              )?.[2] as string[];
+              const skipScheduled = call.filters.some(
+                ([op, column]) => op === 'neq' && column === 'status'
+              );
+              return {
+                data: state.rows
+                  .filter((row) => ids.includes(row.id))
+                  .filter((row) => !skipScheduled || row.status !== 'scheduled')
+                  .map((row) => ({ id: row.id })),
+                error: null,
+              };
+            },
+          };
+          return builder;
+        },
       },
-    },
-  }),
+    };
+  },
   toErrorResponse: (err: unknown) =>
     Response.json({ error: String(err) }, { status: 403 }),
 }));
@@ -76,6 +82,7 @@ function post(body: unknown) {
 describe('POST /api/appointments/archive', () => {
   beforeEach(() => {
     state.calls = [];
+    state.readOnly = false;
     state.rows = [
       { id: id(1), status: 'completed' },
       { id: id(2), status: 'cancelled' },
@@ -132,6 +139,13 @@ describe('POST /api/appointments/archive', () => {
       )
     ).toEqual([100, 100, 50]);
     expect((await res.json()).data.ids).toHaveLength(250);
+  });
+
+  it('[CAL-011] refuses a read-only member without writing', async () => {
+    state.readOnly = true;
+    const res = await post({ ids: [id(1)], archived: true });
+    expect(res.status).toBe(403);
+    expect(state.calls).toHaveLength(0);
   });
 
   it('[CAL-011] rejects a malformed request without writing', async () => {

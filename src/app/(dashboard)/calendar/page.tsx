@@ -77,6 +77,7 @@ import {
 import {
   archivableAppointmentIds,
   buildCalendarTaskRows,
+  chunkIds,
   isArchivedAppointment,
   sortTasksByTime,
   TASK_SORT_LABELS,
@@ -514,19 +515,18 @@ export default function CalendarPage() {
   const archiveAppointments = async (ids: string[], archived: boolean, busyKey: string) => {
     if (ids.length === 0) return;
     setTaskBusyKey(busyKey);
+    const changed = new Map<string, string | null>();
     try {
-      const response = await fetch("/api/appointments/archive", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids, archived }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "Failed to update the events");
-      const changed = new Set<string>(result.data?.ids ?? []);
-      const archivedAt: string | null = result.data?.archived_at ?? null;
-      setAppointments((current) =>
-        current.map((item) => (changed.has(item.id) ? { ...item, archived_at: archivedAt } : item))
-      );
+      for (const chunk of chunkIds(ids)) {
+        const response = await fetch("/api/appointments/archive", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: chunk, archived }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Failed to update the events");
+        for (const id of (result.data?.ids ?? []) as string[]) changed.set(id, result.data?.archived_at ?? null);
+      }
       toast.success(
         archived
           ? `${changed.size === 1 ? "Archived" : `${changed.size} archived`} — hidden from Tasks, still on the calendar`
@@ -536,6 +536,11 @@ export default function CalendarPage() {
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || "Failed to update the events");
     } finally {
+      if (changed.size > 0) {
+        setAppointments((current) =>
+          current.map((item) => (changed.has(item.id) ? { ...item, archived_at: changed.get(item.id) ?? null } : item))
+        );
+      }
       setTaskBusyKey(null);
     }
   };

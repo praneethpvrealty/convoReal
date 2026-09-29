@@ -37,32 +37,35 @@ export interface ArchivableAppointmentLike {
   archived_at?: string | null;
 }
 
-/** Mirrored from src/lib/calendar/tasks-view.ts (ARCHIVE_BATCH_LIMIT). */
 export const ARCHIVE_BATCH_LIMIT = 500;
 
-/** Mirrored from src/lib/calendar/tasks-view.ts (canArchiveAppointment). */
 export function canArchiveAppointment(status: AppointmentStatus): boolean {
   return status !== 'scheduled';
 }
 
-/** Mirrored from src/lib/calendar/tasks-view.ts (isArchivedAppointment). */
 export function isArchivedAppointment(
   appointment: ArchivableAppointmentLike
 ): boolean {
   return !!appointment.archived_at && canArchiveAppointment(appointment.status);
 }
 
-/** Mirrored from src/lib/calendar/tasks-view.ts (archivableAppointmentIds). */
 export function archivableAppointmentIds(
   appointments: readonly ArchivableAppointmentLike[]
 ): string[] {
   return appointments
     .filter((a) => canArchiveAppointment(a.status) && !isArchivedAppointment(a))
-    .map((a) => a.id)
-    .slice(0, ARCHIVE_BATCH_LIMIT);
+    .map((a) => a.id);
 }
 
-/** Mirrored from src/lib/calendar/tasks-view.ts (withoutArchivedAppointments). */
+export function chunkIds(
+  ids: readonly string[],
+  size: number = ARCHIVE_BATCH_LIMIT
+): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) chunks.push(ids.slice(i, i + size));
+  return chunks;
+}
+
 export function withoutArchivedAppointments<
   A extends ArchivableAppointmentLike,
 >(
@@ -78,17 +81,14 @@ export function withoutArchivedAppointments<
   };
 }
 
-/** Mirrored from src/lib/calendar/tasks-view.ts (TaskSortMode). */
 export type TaskSortMode = 'upcoming' | 'earliest' | 'latest';
 
-/** Mirrored from src/lib/calendar/tasks-view.ts (TASK_SORT_MODES). */
 export const TASK_SORT_MODES: TaskSortMode[] = [
   'upcoming',
   'earliest',
   'latest',
 ];
 
-/** Mirrored from src/lib/calendar/tasks-view.ts (TASK_SORT_LABELS). */
 export const TASK_SORT_LABELS: Record<TaskSortMode, string> = {
   upcoming: 'Upcoming first',
   earliest: 'Earliest first',
@@ -100,11 +100,6 @@ function localDayStamp(at: number): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
-/** Mirrored from src/lib/calendar/tasks-view.ts (sortTasksByTime).
- *  Upcoming first: today leads, then the days ahead soonest first,
- *  then past days most recent first; each day reads in clock order.
- *  Earliest and Latest first order strictly by date and time. A row
- *  that `leads` (a date-only deal date) comes first among equal times. */
 export function sortTasksByTime<T>(
   items: readonly T[],
   at: (item: T) => number,

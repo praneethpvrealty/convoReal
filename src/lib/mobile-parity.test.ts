@@ -3747,10 +3747,12 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
     }
     expect(webCalendar).toContain('fetch("/api/appointments/archive", {');
     expect(
-      mobileCalendar.match(
-        /apiFetch<\{ data: \{ ids: string\[\] \} \}>\('\/api\/appointments\/archive'/g
-      )
+      mobileCalendar.match(/'\/api\/appointments\/archive'/g)
     ).toHaveLength(2);
+    expect(webCalendar).toContain('for (const chunk of chunkIds(ids)) {');
+    expect(mobileCalendar).toContain(
+      'for (const chunk of chunkIds(monthArchive.archivableIds)) {'
+    );
     expect(mobileCalendar).not.toContain('archived_at:');
   });
 
@@ -3763,7 +3765,7 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
       'archiveAppointments(archivableTaskIds, true, "archive-done")'
     );
     expect(mobileCalendar).toContain(
-      'body: JSON.stringify({ ids: monthArchive.archivableIds, archived: true }),'
+      '...(upcomingAppointmentsQuery.data ?? [])]'
     );
     expect(webCalendar).toContain('`Show archived (${archivedTaskCount})`');
     expect(webAgenda).toContain('`Show archived (${archivedCount})`');

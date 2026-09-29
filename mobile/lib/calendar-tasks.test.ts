@@ -6,6 +6,7 @@ import {
   appointmentStatusActions,
   archivableAppointmentIds,
   canArchiveAppointment,
+  chunkIds,
   isArchivedAppointment,
   sortTasksByTime,
   TASK_SORT_LABELS,
@@ -56,13 +57,17 @@ describe('[CAL-011] archiving done and cancelled events on mobile', () => {
     ]);
   });
 
-  it('offers every unarchived finished event to Archive done', () => {
+  it('offers every unarchived finished event to Archive done, in bounded requests', () => {
     expect(archivableAppointmentIds(finished)).toEqual(['a', 'e']);
     const many = Array.from({ length: ARCHIVE_BATCH_LIMIT + 5 }, (_, i) => ({
       id: String(i),
       status: 'completed' as const,
     }));
-    expect(archivableAppointmentIds(many)).toHaveLength(ARCHIVE_BATCH_LIMIT);
+    const ids = archivableAppointmentIds(many);
+    expect(ids).toHaveLength(ARCHIVE_BATCH_LIMIT + 5);
+    expect(chunkIds(ids).map((chunk) => chunk.length)).toEqual([ARCHIVE_BATCH_LIMIT, 5]);
+    expect(chunkIds(ids).flat()).toEqual(ids);
+    expect(chunkIds([])).toEqual([]);
   });
 
   it('hides archived events from the list until they are shown', () => {
