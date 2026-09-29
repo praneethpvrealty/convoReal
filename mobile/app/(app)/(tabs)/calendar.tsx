@@ -40,7 +40,9 @@ import {
   type DealDate,
   type DealDateRow,
 } from '@/lib/deal-calendar';
+import { updateDealMilestone } from '@/lib/deal-workspace-api';
 import { deadlineLabel } from '@/lib/focus';
+import { appointmentStatusActions } from '@/lib/calendar-tasks';
 import {
   buildUpcomingCalendarItems,
   loadEveryPage,
@@ -937,6 +939,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
       : null,
     todo.contact ? todo.contact.name || todo.contact.phone : null,
     todo.property?.title ?? null,
+    todo.deal_id ? 'Deal task' : null,
   ].filter(Boolean);
 
   return (
@@ -1166,6 +1169,20 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
         {todo.property ? (
           <DetailRow icon="home-outline" text={todo.property.title} accent />
         ) : null}
+        {todo.deal_id ? (
+          <Link href={dealDateHref(todo.deal_id)} asChild>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Open the deal this task belongs to"
+              style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+            >
+              <Ionicons name="briefcase-outline" size={16} color={colors.primary} />
+              <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
+                Open deal
+              </Text>
+            </Pressable>
+          </Link>
+        ) : null}
         {error ? (
           <Text style={{ fontSize: 12.5, color: colors.danger }}>{error}</Text>
         ) : null}
@@ -1289,6 +1306,32 @@ function DealDateCard({
   showDate?: boolean;
 }) {
   const { colors, fonts: f } = useTheme();
+  const profile = useAuthStore((s) => s.profile);
+  const canEdit = Boolean(
+    profile && profile.account_role !== 'viewer' && !profile.is_read_only
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function markDone() {
+    if (!dealDate.milestoneId) return;
+    haptic.tap();
+    setBusy(true);
+    setError(null);
+    try {
+      await updateDealMilestone(dealDate.dealId, dealDate.milestoneId, {
+        status: 'completed',
+      });
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['deal-dates'] });
+    } catch {
+      haptic.warn();
+      setError('Could not update this milestone. Check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const date = dealDateLocalDay(dealDate.dueDate).toLocaleDateString([], {
     weekday: 'short',
     day: 'numeric',
@@ -1327,8 +1370,26 @@ function DealDateCard({
           >
             {deadlineLabel(dealDate.daysLeft)}
           </Text>
+          {error ? (
+            <Text style={{ fontSize: 11.5, color: colors.danger }}>{error}</Text>
+          ) : null}
         </View>
-        <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+        {canEdit && dealDate.kind === 'milestone' && dealDate.milestoneId ? (
+          busy ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Pressable
+              onPress={markDone}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Done: ${dealDate.title}`}
+            >
+              <Ionicons name="checkmark-circle-outline" size={24} color={colors.success} />
+            </Pressable>
+          )
+        ) : (
+          <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+        )}
       </Pressable>
     </Link>
   );
@@ -2069,22 +2130,40 @@ function AppointmentDetail({
                 textColor={colors.primary}
                 onPress={() => setRescheduling(true)}
               />
-              <SheetButton
-                label="Complete"
-                color={colors.successSoft}
-                textColor={colors.success}
-                disabled={busy}
-                onPress={() => setStatus('completed')}
-              />
-              <SheetButton
-                label="Cancel it"
-                color={colors.dangerSoft}
-                textColor={colors.danger}
-                disabled={busy}
-                onPress={() => setStatus('cancelled')}
-              />
+              {appointmentStatusActions(appointment.status).map((action) => (
+                <SheetButton
+                  key={action.status}
+                  label={action.label}
+                  color={
+                    action.status === 'completed'
+                      ? colors.successSoft
+                      : colors.dangerSoft
+                  }
+                  textColor={
+                    action.status === 'completed'
+                      ? colors.success
+                      : colors.danger
+                  }
+                  disabled={busy}
+                  onPress={() => setStatus(action.status)}
+                />
+              ))}
             </View>
           )
+        ) : null}
+        {!editingDetails && appointment.status !== 'scheduled' ? (
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {appointmentStatusActions(appointment.status).map((action) => (
+              <SheetButton
+                key={action.status}
+                label={action.label}
+                color={colors.surface}
+                textColor={colors.textMuted}
+                disabled={busy}
+                onPress={() => setStatus(action.status)}
+              />
+            ))}
+          </View>
         ) : null}
       </ScrollView>
     </BottomSheet>
