@@ -19,6 +19,16 @@ than a written entry. Newest first.
 
 #### 29 September 2026
 
+- **Archive finished tasks, and sort Tasks by date and time.** A done or
+  cancelled event gets an **Archive** action in the Calendar's Tasks list,
+  the Agenda and the mobile event sheet, and **Archive done** clears every
+  finished event in view at once. Archived events leave the lists but stay
+  on their day in the calendar grid; **Show archived** brings them back and
+  **Unarchive** or **Reopen** lists them again. Tasks now sort **Upcoming
+  first** by default — today at the top, then the days ahead, then past
+  days — with **Earliest first** and **Latest first** as options, on web
+  and mobile. **Migration required:**
+  `20260929150000_appointments_archived_at.sql`.
 - **Tasks under the Calendar, and a lighter To-Do list.** A **Tasks**
   section beneath the month and week views lists everything pinned on the
   days in view — appointments with their status and deal dates — in date

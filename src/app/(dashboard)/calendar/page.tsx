@@ -30,6 +30,8 @@ import {
   List,
   AudioLines,
   RefreshCcw,
+  Archive,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CalendarLoader } from "@/components/ui/calendar-loader";
@@ -72,7 +74,18 @@ import {
   dealDatesInRange,
   localDateKey,
 } from "@/lib/calendar/deal-dates";
-import { buildCalendarTaskRows, type AppointmentStatus } from "@/lib/calendar/tasks-view";
+import {
+  archivableAppointmentIds,
+  buildCalendarTaskRows,
+  chunkIds,
+  isArchivedAppointment,
+  sortTasksByTime,
+  TASK_SORT_LABELS,
+  TASK_SORT_MODES,
+  withoutArchivedAppointments,
+  type AppointmentStatus,
+  type TaskSortMode,
+} from "@/lib/calendar/tasks-view";
 
 const EMPTY_EXTRAS: Record<EventFieldKey, string> = { agenda: "", minutes: "", outcome: "" };
 
@@ -194,6 +207,8 @@ export default function CalendarPage() {
 
   // Tasks list under the calendar (CAL-010)
   const [tasksOpen, setTasksOpen] = useState(true);
+  const [showArchivedTasks, setShowArchivedTasks] = useState(false);
+  const [taskSort, setTaskSort] = useState<TaskSortMode>("upcoming");
   const [taskBusyKey, setTaskBusyKey] = useState<string | null>(null);
 
   // Todo Modal/Edit state
@@ -460,13 +475,77 @@ export default function CalendarPage() {
   // Tasks (CAL-010): every row pinned on the visible days, in date order.
   // The Agenda view's rows are the Tasks rows themselves, so it carries
   // no second list beneath it.
-  const taskRows = useMemo(
+  const allTaskRows = useMemo(
     () =>
       view === "month" || view === "week"
         ? buildCalendarTaskRows(filteredAppointments, visibleDealDates, visibleRange.from, visibleRange.to)
         : [],
     [view, filteredAppointments, visibleDealDates, visibleRange]
   );
+  const taskAppointmentsInView = useMemo(
+    () => allTaskRows.flatMap((row) => (row.kind === "appointment" ? [row.appointment] : [])),
+    [allTaskRows]
+  );
+  const archivedTaskCount = useMemo(
+    () => taskAppointmentsInView.filter(isArchivedAppointment).length,
+    [taskAppointmentsInView]
+  );
+  const archivableTaskIds = useMemo(
+    () => archivableAppointmentIds(taskAppointmentsInView),
+    [taskAppointmentsInView]
+  );
+  const taskRows = useMemo(
+    () =>
+      sortTasksByTime(
+        showArchivedTasks
+          ? allTaskRows
+          : allTaskRows.filter((row) => row.kind !== "appointment" || !isArchivedAppointment(row.appointment)),
+        (row) => row.at,
+        taskSort,
+        new Date(),
+        (row) => row.kind === "deal"
+      ),
+    [allTaskRows, showArchivedTasks, taskSort]
+  );
+  const agendaAppointments = useMemo(
+    () => withoutArchivedAppointments(filteredAppointments, showArchivedTasks),
+    [filteredAppointments, showArchivedTasks]
+  );
+
+  const archiveAppointments = async (ids: string[], archived: boolean, busyKey: string) => {
+    if (ids.length === 0) return;
+    setTaskBusyKey(busyKey);
+    const changed = new Map<string, string | null>();
+    try {
+      for (const chunk of chunkIds(ids)) {
+        const response = await fetch("/api/appointments/archive", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: chunk, archived }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Failed to update the events");
+        for (const id of (result.data?.ids ?? []) as string[]) changed.set(id, result.data?.archived_at ?? null);
+      }
+      toast.success(
+        archived
+          ? `${changed.size === 1 ? "Archived" : `${changed.size} archived`} — hidden from Tasks, still on the calendar`
+          : "Unarchived — listed in Tasks again"
+      );
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(errorMessage || "Failed to update the events");
+    } finally {
+      if (changed.size > 0) {
+        setAppointments((current) =>
+          current.map((item) => (changed.has(item.id) ? { ...item, archived_at: changed.get(item.id) ?? null } : item))
+        );
+      }
+      setTaskBusyKey(null);
+    }
+  };
+  const archiveAppointment = (appt: CalendarEvent, archived: boolean) =>
+    archiveAppointments([appt.id], archived, appt.id);
 
   const setAppointmentStatus = async (appt: CalendarEvent, status: AppointmentStatus) => {
     setTaskBusyKey(appt.id);
@@ -479,7 +558,11 @@ export default function CalendarPage() {
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Failed to update the event");
       setAppointments((current) =>
-        current.map((item) => (item.id === appt.id ? { ...item, status } : item))
+        current.map((item) =>
+          item.id === appt.id
+            ? { ...item, status, ...(status === "scheduled" ? { archived_at: null } : {}) }
+            : item
+        )
       );
       toast.success(
         status === "completed"
@@ -1164,14 +1247,18 @@ export default function CalendarPage() {
             />
           ) : view === "agenda" ? (
             <AgendaView
-              events={filteredAppointments}
+              events={agendaAppointments.visible}
               dealDates={visibleDealDates}
               members={members}
               canEdit={canEdit}
               busyKey={taskBusyKey}
               onEventClick={openEditApptModal}
               onStatusChange={setAppointmentStatus}
+              onArchive={archiveAppointment}
               onMilestoneDone={completeMilestone}
+              archivedCount={agendaAppointments.archivedCount}
+              showArchived={showArchivedTasks}
+              onToggleArchived={() => setShowArchivedTasks((show) => !show)}
             />
           ) : (
             <>
@@ -1286,21 +1373,54 @@ export default function CalendarPage() {
           {/* Tasks pinned on the visible days (CAL-010) */}
           {!loading && (view === "month" || view === "week") && (
             <div className="mt-4 shrink-0 border-t border-slate-800 pt-3">
+              <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setTasksOpen((open) => !open)}
                 aria-expanded={tasksOpen}
-                className="flex w-full items-center gap-2 text-left"
+                className="flex flex-1 items-center gap-2 text-left"
               >
                 <ChevronDown className={cn("h-3.5 w-3.5 text-slate-500 transition-transform", !tasksOpen && "-rotate-90")} />
                 <h2 className="text-sm font-bold text-white flex items-center">
                   Tasks
-                  <InfoHint text="Everything pinned on the days you are looking at, in date order: appointments with their status, and deal dates. Mark an event done or cancelled here — a cancelled event stays on its day, struck through. A milestone date can be ticked done; it completes the milestone on the deal without moving its stage." />
+                  <InfoHint text="Everything pinned on the days you are looking at: appointments with their status, and deal dates. Upcoming first puts today at the top, then the days ahead, then past days; Earliest first and Latest first sort strictly by date and time. Mark an event done or cancelled here — a cancelled event stays on its day, struck through. Archive a done or cancelled event to hide it from this list; it stays on its day in the calendar. A milestone date can be ticked done; it completes the milestone on the deal without moving its stage." />
                 </h2>
                 <span className="text-[10px] font-semibold text-slate-500">
                   {taskRows.length} on {view === "week" ? "this week" : "this month"}
                 </span>
               </button>
+              <select
+                value={taskSort}
+                onChange={(e) => setTaskSort(e.target.value as TaskSortMode)}
+                aria-label="Sort tasks by date and time"
+                className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300"
+              >
+                {TASK_SORT_MODES.map((mode) => (
+                  <option key={mode} value={mode}>{TASK_SORT_LABELS[mode]}</option>
+                ))}
+              </select>
+              {canEdit && archivableTaskIds.length > 0 && (
+                <button
+                  type="button"
+                  disabled={taskBusyKey !== null}
+                  onClick={() => archiveAppointments(archivableTaskIds, true, "archive-done")}
+                  title="Hide every done or cancelled event on these days from Tasks; they stay on the calendar"
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {taskBusyKey === "archive-done" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
+                  Archive done ({archivableTaskIds.length})
+                </button>
+              )}
+              {archivedTaskCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowArchivedTasks((show) => !show)}
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold text-slate-500 transition-colors hover:text-white"
+                >
+                  {showArchivedTasks ? "Hide archived" : `Show archived (${archivedTaskCount})`}
+                </button>
+              )}
+              </div>
               {tasksOpen && (
                 <div className="mt-3 max-h-80 overflow-y-auto pr-1">
                   <TasksList
@@ -1310,6 +1430,7 @@ export default function CalendarPage() {
                     busyKey={taskBusyKey}
                     onEventClick={openEditApptModal}
                     onStatusChange={setAppointmentStatus}
+                    onArchive={archiveAppointment}
                     onMilestoneDone={completeMilestone}
                   />
                 </div>

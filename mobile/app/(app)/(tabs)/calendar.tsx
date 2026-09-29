@@ -42,7 +42,18 @@ import {
 } from '@/lib/deal-calendar';
 import { updateDealMilestone } from '@/lib/deal-workspace-api';
 import { deadlineLabel } from '@/lib/focus';
-import { appointmentStatusActions } from '@/lib/calendar-tasks';
+import {
+  appointmentStatusActions,
+  archivableAppointmentIds,
+  canArchiveAppointment,
+  chunkIds,
+  isArchivedAppointment,
+  sortTasksByTime,
+  TASK_SORT_LABELS,
+  TASK_SORT_MODES,
+  withoutArchivedAppointments,
+  type TaskSortMode,
+} from '@/lib/calendar-tasks';
 import {
   buildUpcomingCalendarItems,
   loadEveryPage,
@@ -244,6 +255,14 @@ export default function CalendarScreen() {
     }, [])
   );
   const [dealOnly, setDealOnly] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [taskSort, setTaskSort] = useState<TaskSortMode>('upcoming');
+  const [archiving, setArchiving] = useState(false);
+  const canEditTasks = useAuthStore((s) =>
+    Boolean(
+      s.profile && s.profile.account_role !== 'viewer' && !s.profile.is_read_only
+    )
+  );
   const pull = usePullRefresh(() => {
     const rolled = rollDay();
     return Promise.all([
@@ -297,19 +316,91 @@ export default function CalendarScreen() {
     return map;
   }, [dealDatesQuery.data, month, monthEndKey]);
 
-  const dayAppointments = dealOnly ? [] : (byDay.get(dayKey(selected)) ?? []);
+  const dayAppointments = withoutArchivedAppointments(
+    dealOnly ? [] : (byDay.get(dayKey(selected)) ?? []),
+    showArchived
+  ).visible;
   const dayDealDates = dealDatesByDay.get(dayKey(selected)) ?? [];
+  const dayItems = sortTasksByTime(
+    [
+      ...dayDealDates.map((dealDate) => ({
+        kind: 'deal' as const,
+        at: dealDateLocalDay(dealDate.dueDate).getTime(),
+        dealDate,
+      })),
+      ...dayAppointments.map((appointment) => ({
+        kind: 'appointment' as const,
+        at: new Date(appointment.start_time).getTime(),
+        appointment,
+      })),
+    ],
+    (item) => item.at,
+    taskSort,
+    today,
+    (item) => item.kind === 'deal'
+  );
+  const monthArchive = useMemo(
+    () => ({
+      archivableIds: archivableAppointmentIds(data ?? []),
+      archivedCount: new Set(
+        [...(data ?? []), ...(upcomingAppointmentsQuery.data ?? [])]
+          .filter(isArchivedAppointment)
+          .map((a) => a.id)
+      ).size,
+    }),
+    [data, upcomingAppointmentsQuery.data]
+  );
+  async function archiveMonthDone() {
+    if (monthArchive.archivableIds.length === 0) return;
+    haptic.tap();
+    setArchiving(true);
+    try {
+      for (const chunk of chunkIds(monthArchive.archivableIds)) {
+        await apiFetch<{ data: { ids: string[] } }>(
+          '/api/appointments/archive',
+          {
+            method: 'POST',
+            body: JSON.stringify({ ids: chunk, archived: true }),
+          }
+        );
+      }
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    } catch (err) {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      haptic.warn();
+      Alert.alert(
+        'Could not archive',
+        err instanceof ApiError
+          ? err.message
+          : 'Check your connection and try again.'
+      );
+    } finally {
+      setArchiving(false);
+    }
+  }
   const upcomingItems = useMemo(
     () =>
-      buildUpcomingCalendarItems(
-        dealOnly ? [] : (upcomingAppointmentsQuery.data ?? []),
-        dealOnly ? [] : (todosQuery.data ?? []),
+      sortTasksByTime(
+        buildUpcomingCalendarItems(
+          withoutArchivedAppointments(
+            dealOnly ? [] : (upcomingAppointmentsQuery.data ?? []),
+            showArchived
+          ).visible,
+          dealOnly ? [] : (todosQuery.data ?? []),
+          today,
+          selected,
+          dealDatesQuery.data ?? []
+        ),
+        (item) => item.dueAt,
+        taskSort,
         today,
-        selected,
-        dealDatesQuery.data ?? []
+        (item) => item.kind === 'deal'
       ),
     [
       dealOnly,
+      showArchived,
+      taskSort,
       upcomingAppointmentsQuery.data,
       todosQuery.data,
       today,
@@ -559,6 +650,53 @@ export default function CalendarScreen() {
           ))}
         </View>
 
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: spacing.sm }}
+        >
+          {TASK_SORT_MODES.map((mode) => (
+            <FilterChip
+              key={mode}
+              label={TASK_SORT_LABELS[mode]}
+              active={taskSort === mode}
+              onPress={() => {
+                haptic.tap();
+                setTaskSort(mode);
+              }}
+            />
+          ))}
+          {canEditTasks &&
+          !dealOnly &&
+          monthArchive.archivableIds.length > 0 ? (
+            <FilterChip
+              label={
+                archiving
+                  ? 'Archiving…'
+                  : `Archive done (${monthArchive.archivableIds.length})`
+              }
+              active={false}
+              onPress={() => {
+                if (!archiving) void archiveMonthDone();
+              }}
+            />
+          ) : null}
+          {!dealOnly && monthArchive.archivedCount > 0 ? (
+            <FilterChip
+              label={
+                showArchived
+                  ? 'Hide archived'
+                  : `Show archived (${monthArchive.archivedCount})`
+              }
+              active={showArchived}
+              onPress={() => {
+                haptic.tap();
+                setShowArchived((show) => !show);
+              }}
+            />
+          ) : null}
+        </ScrollView>
+
         {/* Selected-day agenda */}
         <Text style={[styles.dayLabel, { color: colors.textFaint }]}>
           {selected.toLocaleDateString([], {
@@ -586,18 +724,20 @@ export default function CalendarScreen() {
             />
           )
         ) : (
-          <>
-            {dayDealDates.map((d) => (
-              <DealDateCard key={dealDateKey(d)} dealDate={d} />
-            ))}
-            {dayAppointments.map((appt) => (
-              <AppointmentCard
-                key={appt.id}
-                appointment={appt}
-                onPress={() => setDetail(appt)}
+          dayItems.map((item) =>
+            item.kind === 'deal' ? (
+              <DealDateCard
+                key={dealDateKey(item.dealDate)}
+                dealDate={item.dealDate}
               />
-            ))}
-          </>
+            ) : (
+              <AppointmentCard
+                key={item.appointment.id}
+                appointment={item.appointment}
+                onPress={() => setDetail(item.appointment)}
+              />
+            )
+          )
         )}
 
         <Text style={[styles.dayLabel, { color: colors.textFaint }]}>Upcoming</Text>
@@ -1294,7 +1434,9 @@ function AppointmentCard({
                 : colors.danger,
           }}
         >
-          {appointment.status}
+          {isArchivedAppointment(appointment)
+            ? `${appointment.status} · archived`
+            : appointment.status}
         </Text>
       ) : (
         <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
@@ -1590,6 +1732,31 @@ function AppointmentDetail({
     }
     setBusy(false);
 
+    haptic.success();
+    queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    reset();
+    onClose();
+  }
+
+  async function setArchived(archived: boolean) {
+    if (!appointment) return;
+    haptic.tap();
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch<{ data: { ids: string[] } }>('/api/appointments/archive', {
+        method: 'POST',
+        body: JSON.stringify({ ids: [appointment.id], archived }),
+      });
+    } catch {
+      setBusy(false);
+      haptic.warn();
+      setError(
+        'Could not update this event. Check your connection and try again.'
+      );
+      return;
+    }
+    setBusy(false);
     haptic.success();
     queryClient.invalidateQueries({ queryKey: ['appointments'] });
     reset();
@@ -2178,6 +2345,17 @@ function AppointmentDetail({
                 onPress={() => setStatus(action.status)}
               />
             ))}
+            {canArchiveAppointment(appointment.status) ? (
+              <SheetButton
+                label={
+                  isArchivedAppointment(appointment) ? 'Unarchive' : 'Archive'
+                }
+                color={colors.surface}
+                textColor={colors.textMuted}
+                disabled={busy}
+                onPress={() => setArchived(!isArchivedAppointment(appointment))}
+              />
+            ) : null}
           </View>
         ) : null}
       </ScrollView>

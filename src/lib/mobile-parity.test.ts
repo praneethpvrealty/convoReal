@@ -46,7 +46,9 @@ import {
 } from '@/lib/deals/deadlines';
 import {
   APPOINTMENT_STATUS_LABELS,
+  ARCHIVE_BATCH_LIMIT as WEB_ARCHIVE_BATCH_LIMIT,
   appointmentStatusActions,
+  TASK_SORT_LABELS,
 } from '@/lib/calendar/tasks-view';
 import {
   PULSE_FEED_PAGE_SIZE,
@@ -3582,9 +3584,8 @@ describe('[CAL-008] deal dates are pinned on both calendars through the one dead
       '<Link href={dealDateHref(dealDate.dealId)} asChild>'
     );
     expect(mobileCalendar).toContain('dayKey(dealDateLocalDay(d.dueDate))');
-    expect(mobileCalendar).toContain(
-      '<DealDateCard key={dealDateKey(d)} dealDate={d} />'
-    );
+    expect(mobileCalendar).toContain('...dayDealDates.map((dealDate) => ({');
+    expect(mobileCalendar).toContain('key={dealDateKey(item.dealDate)}');
     expect(mobileCalendar).toContain("if (state === 'active') rollDay();");
     expect(mobileCalendar).toContain('useFocusEffect(');
     expect(mobileCalendar).toContain(
@@ -3724,6 +3725,79 @@ describe('[CAL-010] appointment status changes are offered identically on both s
     expect(webAgenda).toContain('<DealDateTaskRow');
     expect(webAgenda).toContain('onStatusChange={onStatusChange}');
     expect(webAgenda).toContain('onDone={onMilestoneDone}');
+  });
+});
+
+describe('[CAL-011] done and cancelled events are archived the same way on both surfaces', () => {
+  const mobileTasks = mobileSource('lib/calendar-tasks.ts');
+  const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+  const webTasksList = webSource('components/calendar/tasks-list.tsx');
+  const webAgenda = webSource('components/calendar/agenda-view.tsx');
+  const webCalendar = webSource('app/(dashboard)/calendar/page.tsx');
+
+  it('mirrors the archive rule and writes it through the archive route only', () => {
+    expect(mobileTasks).toContain(
+      `export const ARCHIVE_BATCH_LIMIT = ${WEB_ARCHIVE_BATCH_LIMIT};`
+    );
+    for (const source of [mobileTasks]) {
+      expect(source).toContain("return status !== 'scheduled';");
+      expect(source).toContain(
+        'return !!appointment.archived_at && canArchiveAppointment(appointment.status);'
+      );
+    }
+    expect(webCalendar).toContain('fetch("/api/appointments/archive", {');
+    expect(
+      mobileCalendar.match(/'\/api\/appointments\/archive'/g)
+    ).toHaveLength(2);
+    expect(webCalendar).toContain('for (const chunk of chunkIds(ids)) {');
+    expect(mobileCalendar).toContain(
+      'for (const chunk of chunkIds(monthArchive.archivableIds)) {'
+    );
+    expect(mobileCalendar).not.toContain('archived_at:');
+  });
+
+  it('offers Archive on a finished event, Archive done and Show archived on both surfaces', () => {
+    expect(webTasksList).toContain('canArchiveAppointment(event.status) && (');
+    expect(mobileCalendar).toContain(
+      'canArchiveAppointment(appointment.status) ? ('
+    );
+    expect(webCalendar).toContain(
+      'archiveAppointments(archivableTaskIds, true, "archive-done")'
+    );
+    expect(mobileCalendar).toContain(
+      '...(upcomingAppointmentsQuery.data ?? [])]'
+    );
+    expect(webCalendar).toContain('`Show archived (${archivedTaskCount})`');
+    expect(webAgenda).toContain('`Show archived (${archivedCount})`');
+    expect(mobileCalendar).toContain(
+      '`Show archived (${monthArchive.archivedCount})`'
+    );
+    expect(webCalendar).toContain(
+      'withoutArchivedAppointments(filteredAppointments, showArchivedTasks)'
+    );
+    expect(mobileCalendar).toContain('withoutArchivedAppointments(');
+  });
+});
+
+describe('[CAL-012] tasks are sorted by date and time the same way on both surfaces', () => {
+  const mobileTasks = mobileSource('lib/calendar-tasks.ts');
+  const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+  const webCalendar = webSource('app/(dashboard)/calendar/page.tsx');
+
+  it('mirrors the sort modes and defaults both lists to Upcoming first', () => {
+    for (const [mode, label] of Object.entries(TASK_SORT_LABELS)) {
+      expect(mobileTasks).toContain(`${mode}: '${label}'`);
+    }
+    expect(mobileTasks).toMatch(
+      /TASK_SORT_MODES: TaskSortMode\[\] = \[\s*'upcoming',\s*'earliest',\s*'latest',?\s*\]/
+    );
+    expect(mobileTasks).toContain(
+      'return day === today ? 0 : day > today ? 1 : 2;'
+    );
+    expect(webCalendar).toContain('useState<TaskSortMode>("upcoming")');
+    expect(mobileCalendar).toContain("useState<TaskSortMode>('upcoming')");
+    expect(webCalendar).toContain('sortTasksByTime(');
+    expect(mobileCalendar.match(/sortTasksByTime\(/g)).toHaveLength(2);
   });
 });
 
