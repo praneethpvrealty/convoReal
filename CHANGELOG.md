@@ -23,7 +23,8 @@ than a written entry. Newest first.
   section beneath the month and week views lists everything pinned on the
   days in view — appointments with their status and deal dates — in date
   order. An appointment is marked **Done** or **Cancelled** in place and
-  reopened later; a cancelled one stays on its day, struck through. A
+  reopened later — reopening re-arms its client reminders, as a
+  reschedule does; a cancelled one stays on its day, struck through. A
   milestone date is ticked **Done** from there through the deal's own
   milestone route (the stage never moves). Mobile offers the same
   Done / Cancel / Reopen in the event sheet and a tick on milestone rows.

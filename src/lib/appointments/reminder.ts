@@ -202,6 +202,7 @@ interface ReminderAppointment {
   contact_ids: string[] | null;
   reminder_morning_sent: boolean;
   reminder_1h_sent: boolean;
+  reminders_rearmed_at: string | null;
   remind_liaison: boolean;
   liaison_id: string | null;
   liaison: { id: string; name: string | null; phone: string | null } | null;
@@ -259,6 +260,90 @@ export function formatReminderTime(iso: string): string {
     minute: '2-digit',
     hour12: true,
   });
+}
+
+export interface ReminderClaim {
+  id: string;
+  created_at: string;
+}
+
+type ReminderRecipient = { contact_id: string } | { liaison_id: string };
+
+/**
+ * Claims one recipient for one reminder in appointment_reminder_log.
+ * Returns the claim to send under, null when an earlier tick already
+ * covered the recipient, or 'failed' when the database did not answer
+ * (retry on the next tick).
+ *
+ * A claim made before the appointment's last re-arm
+ * (reminders_rearmed_at — reopened or moved through
+ * PUT /api/appointments/[id]) recorded a reminder for the old time or
+ * a closed event, so it is taken over rather than honoured: its clock
+ * restarts and its reply mapping clears, in one conditional update so
+ * two cron instances cannot both take it. A voice note still queued
+ * under the old claim sees the restarted clock and drops
+ * (src/lib/voice/reminder-audio-worker.ts).
+ */
+async function claimReminder(
+  admin: SupabaseClient,
+  appt: ReminderAppointment,
+  recipient: ReminderRecipient,
+  reminderType: ReminderType
+): Promise<ReminderClaim | null | 'failed'> {
+  const { data: claim, error: claimErr } = await admin
+    .from('appointment_reminder_log')
+    .insert({
+      account_id: appt.account_id,
+      appointment_id: appt.id,
+      ...recipient,
+      reminder_type: reminderType,
+    })
+    .select('id, created_at')
+    .maybeSingle();
+  if (!claimErr) {
+    if (claim) return claim as ReminderClaim;
+    console.error('[Reminder Cron] claim insert returned no row');
+    return 'failed';
+  }
+  if (claimErr.code !== '23505') {
+    console.error('[Reminder Cron] claim insert failed:', claimErr);
+    return 'failed';
+  }
+  if (!appt.reminders_rearmed_at) return null;
+
+  const recipientColumn = 'contact_id' in recipient ? 'contact_id' : 'liaison_id';
+  const recipientId =
+    'contact_id' in recipient ? recipient.contact_id : recipient.liaison_id;
+  const { data: existing, error: readErr } = await admin
+    .from('appointment_reminder_log')
+    .select('id, created_at')
+    .eq('appointment_id', appt.id)
+    .eq(recipientColumn, recipientId)
+    .eq('reminder_type', reminderType)
+    .maybeSingle();
+  if (readErr) {
+    console.error('[Reminder Cron] claim lookup failed:', readErr);
+    return 'failed';
+  }
+  if (
+    !existing ||
+    new Date(existing.created_at).getTime() >=
+      new Date(appt.reminders_rearmed_at).getTime()
+  ) {
+    return null;
+  }
+  const { data: renewed, error: renewErr } = await admin
+    .from('appointment_reminder_log')
+    .update({ created_at: new Date().toISOString(), wa_message_id: null })
+    .eq('id', existing.id)
+    .lt('created_at', appt.reminders_rearmed_at)
+    .select('id, created_at')
+    .maybeSingle();
+  if (renewErr) {
+    console.error('[Reminder Cron] claim takeover failed:', renewErr);
+    return 'failed';
+  }
+  return (renewed as ReminderClaim | null) ?? null;
 }
 
 /**
@@ -327,25 +412,19 @@ async function sendToAllRecipients(
 
   let allCovered = true;
   for (const contact of reachable) {
-    // Claim this recipient. A unique-violation means an earlier tick
+    // Claim this recipient. An earlier tick's live claim means it
     // already delivered (or another cron instance owns it) — skip.
-    const { data: claim, error: claimErr } = await admin
-      .from('appointment_reminder_log')
-      .insert({
-        account_id: appt.account_id,
-        appointment_id: appt.id,
-        contact_id: contact.id,
-        reminder_type: reminderType,
-      })
-      .select('id')
-      .maybeSingle();
-    if (claimErr) {
-      if (claimErr.code !== '23505') {
-        console.error('[Reminder Cron] claim insert failed:', claimErr);
-        allCovered = false;
-      }
+    const claim = await claimReminder(
+      admin,
+      appt,
+      { contact_id: contact.id },
+      reminderType
+    );
+    if (claim === 'failed') {
+      allCovered = false;
       continue;
     }
+    if (!claim) continue;
 
     const clientName = contact.name || 'Client';
     const visitTitle =
@@ -410,7 +489,8 @@ async function sendToAllRecipients(
         accountId: appt.account_id,
         appointmentId: appt.id,
         contactId: contact.id,
-        claimId: claim?.id ?? null,
+        claimId: claim.id,
+        claimedAt: claim.created_at,
         userId: appt.user_id || null,
         reminderType,
         spokenText: reminderSpokenText({
@@ -477,9 +557,7 @@ async function sendToAllRecipients(
         await admin
           .from('appointment_reminder_log')
           .update({ wa_message_id: result.whatsappMessageId })
-          .eq('appointment_id', appt.id)
-          .eq('contact_id', contact.id)
-          .eq('reminder_type', reminderType);
+          .eq('id', claim.id);
       }
     } else {
       console.error(
@@ -491,9 +569,7 @@ async function sendToAllRecipients(
       await admin
         .from('appointment_reminder_log')
         .delete()
-        .eq('appointment_id', appt.id)
-        .eq('contact_id', contact.id)
-        .eq('reminder_type', reminderType);
+        .eq('id', claim.id);
     }
   }
   return allCovered;
@@ -576,21 +652,14 @@ async function sendLiaisonReminder(
     return true;
   }
 
-  const { error: claimErr } = await admin
-    .from('appointment_reminder_log')
-    .insert({
-      account_id: appt.account_id,
-      appointment_id: appt.id,
-      liaison_id: appt.liaison_id,
-      reminder_type: reminderType,
-    });
-  if (claimErr) {
-    if (claimErr.code !== '23505') {
-      console.error('[Reminder Cron] liaison claim insert failed:', claimErr);
-      return false;
-    }
-    return true; // already delivered on an earlier tick
-  }
+  const claim = await claimReminder(
+    admin,
+    appt,
+    { liaison_id: appt.liaison_id },
+    reminderType
+  );
+  if (claim === 'failed') return false;
+  if (!claim) return true; // already delivered on an earlier tick
 
   const templateName = isSiteVisit ? BASE_TEMPLATE_NAME : GENERIC_TEMPLATE_NAME;
   const visitTitle =
@@ -624,9 +693,7 @@ async function sendLiaisonReminder(
     await admin
       .from('appointment_reminder_log')
       .delete()
-      .eq('appointment_id', appt.id)
-      .eq('liaison_id', appt.liaison_id)
-      .eq('reminder_type', reminderType);
+      .eq('id', claim.id);
     return false;
   }
 }
@@ -650,7 +717,7 @@ export async function checkAndSendAppointmentReminders(
   const { data: appointments, error } = await admin
     .from('appointments')
     .select(
-      'id, account_id, user_id, title, start_time, location, agenda, event_type, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, remind_liaison, liaison_id, liaison:liaisons(id, name, phone), property:properties(id, title, type, location_privacy, location, sublocality, city, state), account:accounts(name, client_quiet_hours_enabled, client_quiet_hours_start, client_quiet_hours_end)'
+      'id, account_id, user_id, title, start_time, location, agenda, event_type, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, reminders_rearmed_at, remind_liaison, liaison_id, liaison:liaisons(id, name, phone), property:properties(id, title, type, location_privacy, location, sublocality, city, state), account:accounts(name, client_quiet_hours_enabled, client_quiet_hours_start, client_quiet_hours_end)'
     )
     .eq('status', 'scheduled')
     .neq('event_type', 'call')

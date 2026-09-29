@@ -6,8 +6,71 @@ import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { loadTemplateForContact } from '@/lib/whatsapp/template-language';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { synthesizeVoiceNoteOgg } from './announcement-worker';
-import { narrationLanguageFor, type ReminderAudioJob } from './reminder-audio';
+import {
+  enqueueReminderAudioJob,
+  narrationLanguageFor,
+  type ReminderAudioJob,
+} from './reminder-audio';
+
+const CLAIM_LOOKUP_ATTEMPTS = 3;
+
+/**
+ * Whether the claim this note was queued under still stands: the row
+ * is there with the clock it was queued with. A superseded claim — the
+ * appointment reopened or moved, and the cron took the claim over with
+ * a fresh clock (src/lib/appointments/reminder.ts) — means the note's
+ * time is stale and a fresh note is on its way. Throws when the
+ * database did not answer, so the caller can requeue rather than drop.
+ */
+async function claimStands(
+  admin: SupabaseClient,
+  job: ReminderAudioJob
+): Promise<boolean> {
+  if (!job.claimId) return true;
+  const { data, error } = await admin
+    .from('appointment_reminder_log')
+    .select('id, created_at')
+    .eq('id', job.claimId)
+    .maybeSingle();
+  if (error) throw new Error(`claim lookup failed: ${error.message}`);
+  if (!data) return false;
+  return (
+    !job.claimedAt ||
+    new Date(data.created_at).getTime() === new Date(job.claimedAt).getTime()
+  );
+}
+
+/** The claim is checked before each send, since the appointment can
+ *  be reopened or moved while a note renders. A lookup the database
+ *  did not answer requeues the job a few times rather than losing the
+ *  reminder; after that it sends, a stale note being the lesser harm. */
+async function claimGate(
+  admin: SupabaseClient,
+  job: ReminderAudioJob
+): Promise<'send' | 'drop' | 'requeued'> {
+  try {
+    if (await claimStands(admin, job)) return 'send';
+    console.log(
+      `[reminder-audio] Claim ${job.claimId} for appt ${job.appointmentId} was superseded — dropping the queued ${job.reminderType} note`
+    );
+    return 'drop';
+  } catch (err) {
+    const attempts = (job.attempts ?? 0) + 1;
+    console.error(
+      `[reminder-audio] Could not read claim ${job.claimId} for appt ${job.appointmentId} (attempt ${attempts}):`,
+      err instanceof Error ? err.message : err
+    );
+    if (
+      attempts < CLAIM_LOOKUP_ATTEMPTS &&
+      (await enqueueReminderAudioJob({ ...job, attempts }))
+    ) {
+      return 'requeued';
+    }
+    return 'send';
+  }
+}
 
 /**
  * Renders one reminder to a voice note and sends it — queued by the
@@ -27,23 +90,7 @@ export async function processReminderAudioJob(
   const admin = supabaseAdmin();
   const cost = AI_FEATURE_COSTS.reminder_audio;
 
-  // The claim this job was queued under may have been released since —
-  // the appointment reopened or moved (PUT /api/appointments/[id]) — in
-  // which case its rendered time is stale and the next cron sweep has
-  // queued, or will queue, a fresh note under a new claim. Send nothing.
-  if (job.claimId) {
-    const { data: claim } = await admin
-      .from('appointment_reminder_log')
-      .select('id')
-      .eq('id', job.claimId)
-      .maybeSingle();
-    if (!claim) {
-      console.log(
-        `[reminder-audio] Claim ${job.claimId} for appt ${job.appointmentId} was released — dropping the queued ${job.reminderType} note`
-      );
-      return;
-    }
-  }
+  if ((await claimGate(admin, job)) !== 'send') return;
 
   // One lookup serves both paths: the resolved language drives the
   // TTS voice, the row drives the template fallback variant.
@@ -95,6 +142,14 @@ export async function processReminderAudioJob(
   }
 
   if (audioUrl) {
+    if ((await claimGate(admin, job)) !== 'send') {
+      if (charged) {
+        await refundCredits(job.accountId, 'reminder_audio', cost, {
+          description: `reminder audio refund (${job.appointmentId}/${job.contactId}/${job.reminderType})`,
+        });
+      }
+      return;
+    }
     const sent = await sendWhatsAppMessageAndPersist({
       accountId: job.accountId,
       userId: job.userId,
@@ -123,6 +178,17 @@ export async function processReminderAudioJob(
     });
   }
 
+  if ((await claimGate(admin, job)) !== 'send') return;
+  const claimFilter = (query: {
+    eq: (column: string, value: string) => unknown;
+  }) =>
+    job.claimId
+      ? query.eq('id', job.claimId)
+      : (
+          (
+            query.eq('appointment_id', job.appointmentId) as typeof query
+          ).eq('contact_id', job.contactId) as typeof query
+        ).eq('reminder_type', job.reminderType);
   const result = await sendWhatsAppMessageAndPersist({
     accountId: job.accountId,
     userId: job.userId,
@@ -140,12 +206,11 @@ export async function processReminderAudioJob(
       `[reminder-audio] Fell back to template for appt ${job.appointmentId} contact ${job.contactId}`
     );
     if (result.whatsappMessageId) {
-      await admin
-        .from('appointment_reminder_log')
-        .update({ wa_message_id: result.whatsappMessageId })
-        .eq('appointment_id', job.appointmentId)
-        .eq('contact_id', job.contactId)
-        .eq('reminder_type', job.reminderType);
+      await claimFilter(
+        admin
+          .from('appointment_reminder_log')
+          .update({ wa_message_id: result.whatsappMessageId })
+      );
     }
     return;
   }
@@ -153,12 +218,7 @@ export async function processReminderAudioJob(
     `[reminder-audio] Template fallback failed for appt ${job.appointmentId}:`,
     result.error
   );
-  await admin
-    .from('appointment_reminder_log')
-    .delete()
-    .eq('appointment_id', job.appointmentId)
-    .eq('contact_id', job.contactId)
-    .eq('reminder_type', job.reminderType);
+  await claimFilter(admin.from('appointment_reminder_log').delete());
   await admin
     .from('appointments')
     .update(

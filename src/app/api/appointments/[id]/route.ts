@@ -108,18 +108,12 @@ export async function PUT(
       // The flags alone re-arm nothing: each send first claims an
       // (appointment, recipient, type) row in appointment_reminder_log,
       // and a claim left from the earlier send would make the cron flip
-      // the flag straight back without sending. The claims for the two
-      // cron reminders go before the flags do; a manual send's claim,
-      // and the reply it maps, stay.
-      const { error: claimError } = await supabaseAdmin()
-        .from('appointment_reminder_log')
-        .delete()
-        .eq('account_id', accountId)
-        .eq('appointment_id', id)
-        .in('reminder_type', ['morning', '1h'])
-      if (claimError) {
-        return NextResponse.json({ error: claimError.message }, { status: 500 })
-      }
+      // the flag straight back without sending. The re-arm instant goes
+      // in the same write as the flags, so it either lands with them or
+      // not at all; the cron takes over any claim made before it
+      // (src/lib/appointments/reminder.ts) and a voice note queued under
+      // such a claim is dropped (src/lib/voice/reminder-audio-worker.ts).
+      updatePayload.reminders_rearmed_at = new Date().toISOString()
     }
 
     const { data: appointment, error } = await supabase

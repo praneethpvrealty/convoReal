@@ -21,10 +21,14 @@ export interface ReminderAudioJob {
   accountId: string;
   appointmentId: string;
   contactId: string;
-  /** The appointment_reminder_log row this send holds. Reopening or
-   *  rescheduling releases it, and a note queued for a released claim
-   *  is dropped rather than sent with the old time. */
+  /** The appointment_reminder_log row this send holds, and its clock
+   *  when queued. Reopening or rescheduling supersedes the claim — the
+   *  cron takes it over with a fresh clock — and a note queued under
+   *  the old one is dropped rather than sent with the old time. */
   claimId?: string | null;
+  claimedAt?: string | null;
+  /** Requeues so far after the claim could not be read. */
+  attempts?: number;
   userId: string | null;
   reminderType: 'morning' | '1h';
   spokenText: string;
