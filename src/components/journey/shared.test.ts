@@ -734,7 +734,10 @@ describe('splitJourneysByCompartment', () => {
       "compartments={view === 'active' && compartmentsReady}"
     );
     expect(overview).toContain(
-      'fetch(`/api/journey/compartments?mode=${mode}`)'
+      'fetch(`/api/journey/compartments?mode=${mode}`).catch(() => null)'
+    );
+    expect(overview).toContain(
+      'const compartmentsLoaded = Boolean(compartmentsResponse?.ok);'
     );
     expect(overview).toContain("'Move to Passive'");
     expect(overview).toContain("'Move to Focus'");

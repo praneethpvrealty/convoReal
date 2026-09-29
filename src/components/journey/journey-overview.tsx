@@ -381,7 +381,7 @@ export function JourneyOverview({
           p_account_id: accountId,
           p_mode: mode,
         }),
-        fetch(`/api/journey/compartments?mode=${mode}`),
+        fetch(`/api/journey/compartments?mode=${mode}`).catch(() => null),
       ]);
     } catch (error) {
       toast.error(
@@ -414,15 +414,17 @@ export function JourneyOverview({
     }
 
     const compartmentsPayload = (await compartmentsResponse
-      .json()
+      ?.json()
       .catch(() => null)) as {
       data?: { focus?: string[] };
       error?: string;
     } | null;
-    setCompartmentsReady(compartmentsResponse.ok);
-    if (compartmentsResponse.ok) {
+    const compartmentsLoaded = Boolean(compartmentsResponse?.ok);
+    setCompartmentsReady(compartmentsLoaded);
+    if (compartmentsLoaded) {
       setFocusIds(new Set(compartmentsPayload?.data?.focus ?? []));
     } else {
+      setFocusIds(new Set());
       toast.error(
         compartmentsPayload?.error ?? 'Failed to load the Focus list'
       );
