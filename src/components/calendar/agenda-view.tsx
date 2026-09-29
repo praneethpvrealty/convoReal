@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { ChevronDown } from "lucide-react";
+import { Archive, ChevronDown } from "lucide-react";
 import type { DealDeadline } from "@/lib/deals/deadlines";
 import { dealDateKey, dealDateLocalDay } from "@/lib/calendar/deal-dates";
 import type { AppointmentStatus } from "@/lib/calendar/tasks-view";
@@ -17,7 +17,11 @@ interface AgendaViewProps {
   busyKey: string | null;
   onEventClick: (event: CalendarEvent) => void;
   onStatusChange: (event: CalendarEvent, status: AppointmentStatus) => void;
+  onArchive: (event: CalendarEvent, archived: boolean) => void;
   onMilestoneDone: (dealDate: DealDeadline) => void;
+  archivedCount: number;
+  showArchived: boolean;
+  onToggleArchived: () => void;
 }
 
 type AgendaItem =
@@ -47,7 +51,11 @@ export function AgendaView({
   busyKey,
   onEventClick,
   onStatusChange,
+  onArchive,
   onMilestoneDone,
+  archivedCount,
+  showArchived,
+  onToggleArchived,
 }: AgendaViewProps) {
   const [showPast, setShowPast] = useState(false);
 
@@ -111,6 +119,7 @@ export function AgendaView({
         busy={busyKey === item.event.id}
         onOpen={onEventClick}
         onStatusChange={onStatusChange}
+        onArchive={onArchive}
       />
     );
 
@@ -133,6 +142,17 @@ export function AgendaView({
           <div className="space-y-1.5">{group.items.map(renderItem)}</div>
         </div>
       ))}
+
+      {archivedCount > 0 && (
+        <button
+          type="button"
+          onClick={onToggleArchived}
+          className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-white transition-colors"
+        >
+          <Archive className="h-3.5 w-3.5" />
+          {showArchived ? "Hide archived" : `Show archived (${archivedCount})`}
+        </button>
+      )}
 
       {pastGroups.length > 0 && (
         <div className="border-t border-slate-800 pt-3">

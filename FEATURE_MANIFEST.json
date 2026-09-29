@@ -795,6 +795,53 @@
               "case": "[CAL-010]"
             }
           ]
+        },
+        {
+          "id": "CAL-011",
+          "rule": "A done or cancelled appointment can be archived and unarchived on web and mobile through POST /api/appointments/archive, which stamps appointments.archived_at for the caller's account only and never archives a scheduled event; Archive done archives every unarchived finished event in view (web: the Month or Week in view, mobile: the whole month shown, loaded in pages), sent in requests of up to 500 so none is left out, and the route refuses a read-only member. An archived event is hidden from the Tasks list, the Agenda and mobile's day and Upcoming lists until Show archived is on (offered on mobile whenever the month shown or Upcoming holds an archived event), and it stays on its day in the calendar grid. Reopening clears the stamp, and an event whose status is scheduled is never hidden whichever writer reopened it.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/tasks-view.test.ts",
+              "case": "[CAL-011]"
+            },
+            {
+              "file": "mobile/lib/calendar-tasks.test.ts",
+              "case": "[CAL-011]"
+            },
+            {
+              "file": "src/app/api/appointments/archive/route.test.ts",
+              "case": "[CAL-011]"
+            },
+            {
+              "file": "src/app/api/appointments/[id]/route.test.ts",
+              "case": "[CAL-011]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CAL-011]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260929150000_appointments_archived_at.sql"
+          ]
+        },
+        {
+          "id": "CAL-012",
+          "rule": "Tasks are sorted by date and time with the same three modes on web and mobile, Upcoming first by default: today's items lead, then the days ahead soonest first, then past days most recent first, each day in clock order with a date-only deal date leading its day. Earliest first and Latest first order strictly by date and time. The mode applies to the web Tasks list and to mobile's day and Upcoming lists.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/tasks-view.test.ts",
+              "case": "[CAL-012]"
+            },
+            {
+              "file": "mobile/lib/calendar-tasks.test.ts",
+              "case": "[CAL-012]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CAL-012]"
+            }
+          ]
         }
       ]
     },

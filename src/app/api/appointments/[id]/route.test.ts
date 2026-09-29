@@ -69,6 +69,17 @@ describe('PUT /api/appointments/[id]', () => {
     }
   });
 
+  it('[CAL-011] reopening an archived appointment lists it in Tasks again', async () => {
+    state.existing = { ...state.existing, status: 'completed', start_time: '2999-10-01T04:30:00.000Z' };
+    state.updates = [];
+    const res = await put({ status: 'scheduled' });
+    expect(res.status).toBe(200);
+    expect(state.updates[0]).toMatchObject({ status: 'scheduled', archived_at: null });
+    state.updates = [];
+    await put({ title: 'Renamed' });
+    expect(state.updates[0]).not.toHaveProperty('archived_at');
+  });
+
   it('[CAL-010] reopening an appointment that has already started marks its reminders covered instead', async () => {
     state.existing = { ...state.existing, status: 'cancelled', start_time: '2026-09-28T04:30:00.000Z' };
     state.updates = [];
