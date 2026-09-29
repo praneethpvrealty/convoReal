@@ -82,9 +82,29 @@ export function narrationLanguageFor(code: LanguageCode): NarrationLanguage {
   return NARRATION_FOR_LANGUAGE[code];
 }
 
+const REMINDER_AUDIO_QUEUE = 'listing-videos';
+/** Notes the worker could neither verify, hand back nor requeue wait
+ *  here rather than vanish; replay one with
+ *  `LMOVE listing-videos-dlq listing-videos LEFT RIGHT` once the
+ *  outage is over. */
+export const REMINDER_AUDIO_DLQ = 'listing-videos-dlq';
+
 /** False when Redis is unconfigured or unreachable — the caller sends
  *  the template instead, so a queue outage never drops a reminder. */
 export async function enqueueReminderAudioJob(
+  job: ReminderAudioJob
+): Promise<boolean> {
+  return pushReminderAudioJob(REMINDER_AUDIO_QUEUE, job);
+}
+
+export async function parkReminderAudioJob(
+  job: ReminderAudioJob
+): Promise<boolean> {
+  return pushReminderAudioJob(REMINDER_AUDIO_DLQ, job);
+}
+
+async function pushReminderAudioJob(
+  list: string,
   job: ReminderAudioJob
 ): Promise<boolean> {
   const redisUrl = process.env.REDIS_URL;
@@ -95,7 +115,7 @@ export async function enqueueReminderAudioJob(
   });
   try {
     await redis.connect();
-    await redis.rpush('listing-videos', JSON.stringify(job));
+    await redis.rpush(list, JSON.stringify(job));
     return true;
   } catch (err) {
     console.error('[reminder-audio] enqueue failed:', err);

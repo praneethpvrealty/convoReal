@@ -10,12 +10,19 @@ const state = vi.hoisted(() => ({
   requeued: [] as Array<{ attempts?: number }>,
   mutations: [] as Array<[string, Array<[string, unknown]>]>,
   mutationError: null as { message: string } | null,
+  rpcs: [] as Array<[string, Record<string, unknown>]>,
+  parked: [] as Array<{ attempts?: number }>,
+  enqueueFails: false,
 }));
 
 const QUEUED_AT = '2026-09-29T10:00:00.000+00:00';
 
 vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
+    rpc: async (name: string, args: Record<string, unknown>) => {
+      state.rpcs.push([name, args]);
+      return { data: null, error: state.mutationError };
+    },
     from: () => {
       const filters: Array<[string, unknown]> = [];
       let mutation: string | null = null;
@@ -96,7 +103,12 @@ vi.mock('./announcement-worker', () => ({
 vi.mock('./reminder-audio', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./reminder-audio')>()),
   enqueueReminderAudioJob: async (job: { attempts?: number }) => {
+    if (state.enqueueFails) return false;
     state.requeued.push(job);
+    return true;
+  },
+  parkReminderAudioJob: async (job: { attempts?: number }) => {
+    state.parked.push(job);
     return true;
   },
 }));
@@ -124,6 +136,9 @@ function reset(lookups: Lookup[]) {
   state.requeued = [];
   state.mutations = [];
   state.mutationError = null;
+  state.rpcs = [];
+  state.parked = [];
+  state.enqueueFails = false;
 }
 
 describe('processReminderAudioJob', () => {
@@ -188,14 +203,31 @@ describe('processReminderAudioJob', () => {
     await processReminderAudioJob({ ...job, attempts: 2, rearmedAt: null });
     expect(state.requeued).toEqual([]);
     expect(state.sends).toBe(0);
-    expect(state.mutations).toContainEqual([
-      'delete',
-      [['account_id', 'acct-1'], ['id', 'claim-1'], ['created_at', QUEUED_AT]],
+    expect(state.rpcs).toEqual([
+      [
+        'appointment_reminder_hand_back',
+        {
+          p_account_id: 'acct-1',
+          p_appointment_id: 'appt-1',
+          p_contact_id: 'contact-1',
+          p_reminder_type: '1h',
+          p_claim_id: 'claim-1',
+          p_claimed_at: QUEUED_AT,
+          p_rearmed_known: true,
+          p_rearmed_at: null,
+        },
+      ],
     ]);
-    expect(state.mutations).toContainEqual([
-      'update',
-      [['id', 'appt-1'], ['account_id', 'acct-1'], ['reminders_rearmed_at', null]],
-    ]);
+  });
+
+  it('[CAL-010] parks the job when it can neither hand back nor requeue', async () => {
+    reset(['error']);
+    state.mutationError = { message: 'timeout' };
+    state.enqueueFails = true;
+    await processReminderAudioJob({ ...job, attempts: 2 });
+    expect(state.sends).toBe(0);
+    expect(state.requeued).toEqual([]);
+    expect(state.parked).toEqual([{ ...job, attempts: 2 }]);
   });
 
   it('[CAL-010] keeps the job when the hand-back could not be confirmed', async () => {

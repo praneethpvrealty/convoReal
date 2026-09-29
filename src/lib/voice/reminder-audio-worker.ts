@@ -11,6 +11,7 @@ import { synthesizeVoiceNoteOgg } from './announcement-worker';
 import {
   enqueueReminderAudioJob,
   narrationLanguageFor,
+  parkReminderAudioJob,
   type ReminderAudioJob,
 } from './reminder-audio';
 
@@ -37,51 +38,50 @@ function claimFilter<T extends ClaimQuery>(query: T, job: ReminderAudioJob) {
   return job.claimedAt ? byId.eq('created_at', job.claimedAt) : byId;
 }
 
-/** Hands the reminder back to the cron: the claim is released and the
- *  appointment flag re-opened, pinned to the generation this note was
- *  rendered from so a newer one is never touched. The next sweep then
- *  reads the appointment afresh and sends the template itself. True
- *  only when both writes were confirmed; the client reports a failed
- *  write as a result, not a throw, so each is read. */
+/** Hands the reminder back to the cron in one transaction
+ *  (appointment_reminder_hand_back): the claim is released and the
+ *  appointment flag re-opened together, pinned to the generation this
+ *  note was rendered from so a newer one is never touched. The next
+ *  sweep then reads the appointment afresh and sends the template
+ *  itself. True only when the database confirmed it. */
 async function handBackToCron(
   admin: SupabaseClient,
   job: ReminderAudioJob
 ): Promise<boolean> {
-  const released = (await claimFilter(
-    admin.from('appointment_reminder_log').delete(),
-    job
-  )) as { error: { message: string } | null };
-  if (released.error) {
+  const { error } = await admin.rpc('appointment_reminder_hand_back', {
+    p_account_id: job.accountId,
+    p_appointment_id: job.appointmentId,
+    p_contact_id: job.contactId,
+    p_reminder_type: job.reminderType,
+    p_claim_id: job.claimId ?? null,
+    p_claimed_at: job.claimedAt ?? null,
+    p_rearmed_known: job.rearmedAt !== undefined,
+    p_rearmed_at: job.rearmedAt ?? null,
+  });
+  if (error) {
     console.error(
-      `[reminder-audio] Could not release claim ${job.claimId} for appt ${job.appointmentId}:`,
-      released.error.message
-    );
-    return false;
-  }
-  const reopen = admin
-    .from('appointments')
-    .update(
-      job.reminderType === '1h'
-        ? { reminder_1h_sent: false }
-        : { reminder_morning_sent: false }
-    )
-    .eq('id', job.appointmentId)
-    .eq('account_id', job.accountId);
-  const reopened = (await (job.rearmedAt === undefined
-    ? reopen
-    : job.rearmedAt
-      ? reopen.eq('reminders_rearmed_at', job.rearmedAt)
-      : reopen.is('reminders_rearmed_at', null))) as {
-    error: { message: string } | null;
-  };
-  if (reopened.error) {
-    console.error(
-      `[reminder-audio] Could not re-open the ${job.reminderType} reminder for appt ${job.appointmentId}:`,
-      reopened.error.message
+      `[reminder-audio] Could not hand the ${job.reminderType} reminder for appt ${job.appointmentId} back to the cron:`,
+      error.message
     );
     return false;
   }
   return true;
+}
+
+/** A note that can neither be verified, handed back nor requeued is
+ *  parked in the dead-letter list rather than lost; if even that
+ *  fails, its payload is logged whole so it can be replayed by hand. */
+async function retainUnsent(job: ReminderAudioJob) {
+  if (await parkReminderAudioJob(job)) {
+    console.error(
+      `[reminder-audio] Parked the ${job.reminderType} reminder for appt ${job.appointmentId} in the dead-letter list`
+    );
+    return;
+  }
+  console.error(
+    `[reminder-audio] Could not park the ${job.reminderType} reminder for appt ${job.appointmentId}; payload for replay:`,
+    JSON.stringify(job)
+  );
 }
 
 /**
@@ -170,9 +170,7 @@ async function claimGate(
     }
     if (handedBack) return 'drop';
     if (await enqueueReminderAudioJob({ ...job, attempts })) return 'requeued';
-    console.error(
-      `[reminder-audio] Could not hand the ${job.reminderType} reminder for appt ${job.appointmentId} back to the cron or requeue it`
-    );
+    await retainUnsent(job);
     return 'drop';
   }
 }
@@ -314,9 +312,5 @@ export async function processReminderAudioJob(
     `[reminder-audio] Template fallback failed for appt ${job.appointmentId}:`,
     result.error
   );
-  if (!(await handBackToCron(admin, job))) {
-    console.error(
-      `[reminder-audio] The ${job.reminderType} reminder for appt ${job.appointmentId} is still marked covered after a failed send`
-    );
-  }
+  if (!(await handBackToCron(admin, job))) await retainUnsent(job);
 }
