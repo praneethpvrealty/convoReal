@@ -691,6 +691,7 @@ describe('focus after a stage move', () => {
     const section = read('journey-section.tsx');
     const overview = read('journey-overview.tsx');
     expect(canvas).toContain('nodes: [{ id: focusNodeId }]');
+    expect(canvas).toContain('showFitView={!onExpand}');
     expect(section).toContain('setFocusItemId(item.id);');
     expect(section).toContain('onItemMoved?.(item.id);');
     expect(section).toContain(

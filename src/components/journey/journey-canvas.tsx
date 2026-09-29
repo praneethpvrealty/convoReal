@@ -762,6 +762,7 @@ function JourneyCanvasInner({
         <Controls
           className="!border-slate-700 !bg-slate-900 [&_button]:!border-slate-700 [&_button]:!bg-slate-900 [&_button:hover]:!bg-slate-800"
           showInteractive={false}
+          showFitView={!onExpand}
         >
           {onExpand && (
             <ControlButton
