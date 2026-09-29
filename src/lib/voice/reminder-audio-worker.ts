@@ -18,11 +18,13 @@ const CLAIM_LOOKUP_ATTEMPTS = 3;
 
 /**
  * Whether the claim this note was queued under still stands: the row
- * is there with the clock it was queued with. A superseded claim — the
- * appointment reopened or moved, and the cron took the claim over with
- * a fresh clock (src/lib/appointments/reminder.ts) — means the note's
- * time is stale and a fresh note is on its way. Throws when the
- * database did not answer, so the caller can requeue rather than drop.
+ * is there with the clock it was queued with, and the appointment has
+ * not been re-armed since that clock. A re-arm (reopened or moved
+ * through PUT /api/appointments/[id]) stamps reminders_rearmed_at at
+ * once and the cron takes the claim over with a fresh clock on its
+ * next sweep; either sign means the note's time is stale and a fresh
+ * note is on its way. Throws when the database did not answer, so the
+ * caller can requeue rather than drop.
  */
 async function claimStands(
   admin: SupabaseClient,
@@ -31,15 +33,20 @@ async function claimStands(
   if (!job.claimId) return true;
   const { data, error } = await admin
     .from('appointment_reminder_log')
-    .select('id, created_at')
+    .select('id, created_at, appointment:appointments(reminders_rearmed_at)')
     .eq('id', job.claimId)
     .maybeSingle();
   if (error) throw new Error(`claim lookup failed: ${error.message}`);
   if (!data) return false;
-  return (
-    !job.claimedAt ||
-    new Date(data.created_at).getTime() === new Date(job.claimedAt).getTime()
-  );
+  const claimedAt = new Date(data.created_at).getTime();
+  if (job.claimedAt && claimedAt !== new Date(job.claimedAt).getTime()) {
+    return false;
+  }
+  const appointment = (
+    Array.isArray(data.appointment) ? data.appointment[0] : data.appointment
+  ) as { reminders_rearmed_at: string | null } | null | undefined;
+  const rearmedAt = appointment?.reminders_rearmed_at;
+  return !rearmedAt || claimedAt >= new Date(rearmedAt).getTime();
 }
 
 /** The claim is checked before each send, since the appointment can

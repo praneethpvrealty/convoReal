@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-type Lookup = 'stands' | 'gone' | 'renewed' | 'error';
+type Lookup = 'stands' | 'gone' | 'renewed' | 'rearmed' | 'error';
 
 const state = vi.hoisted(() => ({
   lookups: [] as Lookup[],
@@ -42,6 +42,10 @@ vi.mock('@/lib/supabase/admin', () => ({
             data: {
               id: 'claim-1',
               created_at: answer === 'renewed' ? '2026-09-29T10:05:00.000+00:00' : QUEUED_AT,
+              appointment: {
+                reminders_rearmed_at:
+                  answer === 'rearmed' ? '2026-09-29T10:02:00.000+00:00' : null,
+              },
             },
             error: null,
           };
@@ -119,6 +123,13 @@ describe('processReminderAudioJob', () => {
 
   it('[CAL-010] drops a note whose claim the cron took over after a re-arm', async () => {
     reset(['renewed']);
+    await processReminderAudioJob(job);
+    expect(state.burns).toBe(0);
+    expect(state.sends).toBe(0);
+  });
+
+  it('[CAL-010] drops a note once the appointment is re-armed, before the cron has touched the claim', async () => {
+    reset(['rearmed']);
     await processReminderAudioJob(job);
     expect(state.burns).toBe(0);
     expect(state.sends).toBe(0);
