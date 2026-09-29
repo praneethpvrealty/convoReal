@@ -10,12 +10,21 @@ export interface UpcomingTodoLike {
   completed: boolean;
 }
 
+export interface UpcomingDealDateLike {
+  dealId: string;
+  milestoneId: string | null;
+  kind: 'milestone' | 'payment' | 'expected_close';
+  dueDate: string;
+}
+
 export type UpcomingCalendarItem<
   A extends UpcomingAppointmentLike,
   T extends UpcomingTodoLike,
+  D extends UpcomingDealDateLike = UpcomingDealDateLike,
 > =
   | { kind: 'appointment'; dueAt: number; appointment: A }
-  | { kind: 'todo'; dueAt: number; todo: T };
+  | { kind: 'todo'; dueAt: number; todo: T }
+  | { kind: 'deal'; dueAt: number; dealDate: D };
 
 export async function loadEveryPage<T>(
   loadPage: (from: number, to: number) => Promise<T[]>,
@@ -34,22 +43,32 @@ function localDayKey(date: Date): string {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
+function dateOnlyLocalTime(dueDate: string): number {
+  return new Date(
+    Number(dueDate.slice(0, 4)),
+    Number(dueDate.slice(5, 7)) - 1,
+    Number(dueDate.slice(8, 10))
+  ).getTime();
+}
+
 export function buildUpcomingCalendarItems<
   A extends UpcomingAppointmentLike,
   T extends UpcomingTodoLike,
+  D extends UpcomingDealDateLike = UpcomingDealDateLike,
 >(
   appointments: A[],
   todos: T[],
   now: Date,
-  selected: Date
-): UpcomingCalendarItem<A, T>[] {
+  selected: Date,
+  dealDates: D[] = []
+): UpcomingCalendarItem<A, T, D>[] {
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(0, 0, 0, 0);
   const threshold = tomorrow.getTime();
   const selectedKey = localDayKey(selected);
 
-  const appointmentItems: UpcomingCalendarItem<A, T>[] = appointments
+  const appointmentItems: UpcomingCalendarItem<A, T, D>[] = appointments
     .filter((appointment) => appointment.status === 'scheduled')
     .map((appointment) => ({
       kind: 'appointment' as const,
@@ -63,7 +82,7 @@ export function buildUpcomingCalendarItems<
         localDayKey(new Date(item.dueAt)) !== selectedKey
     );
 
-  const todoItems: UpcomingCalendarItem<A, T>[] = todos
+  const todoItems: UpcomingCalendarItem<A, T, D>[] = todos
     .filter((todo) => !todo.completed && todo.due_date)
     .map((todo) => ({
       kind: 'todo' as const,
@@ -77,5 +96,20 @@ export function buildUpcomingCalendarItems<
         localDayKey(new Date(item.dueAt)) !== selectedKey
     );
 
-  return [...appointmentItems, ...todoItems].sort((a, b) => a.dueAt - b.dueAt);
+  const dealItems: UpcomingCalendarItem<A, T, D>[] = dealDates
+    .map((dealDate) => ({
+      kind: 'deal' as const,
+      dueAt: dateOnlyLocalTime(dealDate.dueDate),
+      dealDate,
+    }))
+    .filter(
+      (item) =>
+        Number.isFinite(item.dueAt) &&
+        item.dueAt >= threshold &&
+        localDayKey(new Date(item.dueAt)) !== selectedKey
+    );
+
+  return [...appointmentItems, ...todoItems, ...dealItems].sort(
+    (a, b) => a.dueAt - b.dueAt
+  );
 }

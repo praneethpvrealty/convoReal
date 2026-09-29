@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,7 @@ import { AgendaView } from "@/components/calendar/agenda-view";
 import {
   CalendarEvent,
   TeamMember,
+  DEAL_DATE_META,
   EVENT_TYPES,
   EVENT_TYPE_KEYS,
   EventTypeKey,
@@ -56,6 +58,16 @@ import {
   memberInitials,
 } from "@/components/calendar/event-types";
 import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from "@/lib/copilot/actions";
+import { deadlineLabel, loadDealDeadlines, todayDateKey, type DealDeadline } from "@/lib/deals/deadlines";
+import {
+  DEAL_DATE_KIND_LABELS,
+  dealDateHorizonDays,
+  dealDateHref,
+  dealDateKey,
+  dealDateLocalDay,
+  dealDatesInRange,
+  localDateKey,
+} from "@/lib/calendar/deal-dates";
 
 const EMPTY_EXTRAS: Record<EventFieldKey, string> = { agenda: "", minutes: "", outcome: "" };
 
@@ -113,6 +125,9 @@ interface SimpleProperty {
 
 type ViewMode = "month" | "week" | "team" | "agenda";
 
+/** The event types plus the deal dates pinned alongside them (CAL-008). */
+type CalendarTypeFilter = EventTypeKey | "all" | "deal";
+
 export default function CalendarPage() {
   const supabase = createClient();
   const { accountId, user } = useAuth();
@@ -127,7 +142,7 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [typeFilter, setTypeFilter] = useState<EventTypeKey | "all">("all");
+  const [typeFilter, setTypeFilter] = useState<CalendarTypeFilter>("all");
   const [memberFilter, setMemberFilter] = useState<string>("all");
 
   const searchParams = useSearchParams();
@@ -329,6 +344,7 @@ export default function CalendarPage() {
   // View-level filters applied to every calendar surface.
   const filteredAppointments = useMemo(() => {
     return appointments.filter((appt) => {
+      if (typeFilter === "deal") return false;
       if (typeFilter !== "all" && (appt.event_type || "other") !== typeFilter) return false;
       if (memberFilter !== "all" && (appt.assigned_to || appt.user_id) !== memberFilter) return false;
       return true;
@@ -377,6 +393,54 @@ export default function CalendarPage() {
     });
     return map;
   }, [filteredAppointments]);
+
+  // Deal dates (CAL-008): the milestone target dates, unpaid payment
+  // tranches and expected close dates the deal_deadlines rule decides
+  // are live (TXW-020), read once a year ahead and pinned on their day.
+  // The calendar never writes one; each chip opens the deal record.
+  const todayKey = todayDateKey();
+  const visibleRange = useMemo(() => {
+    if (view === "week") {
+      const start = new Date(currentDate);
+      start.setDate(start.getDate() - start.getDay());
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      return { from: localDateKey(start), to: localDateKey(end) };
+    }
+    if (view === "agenda") {
+      const end = new Date();
+      end.setFullYear(end.getFullYear() + 1);
+      return { from: "1900-01-01", to: localDateKey(end) };
+    }
+    return {
+      from: localDateKey(calendarCells[0].date),
+      to: localDateKey(calendarCells[calendarCells.length - 1].date),
+    };
+  }, [view, currentDate, calendarCells]);
+  const dealHorizonDays = dealDateHorizonDays(todayKey, visibleRange.to);
+  const dealDatesQuery = useQuery({
+    queryKey: ["calendar-deal-dates", accountId, todayKey, dealHorizonDays],
+    queryFn: () => loadDealDeadlines(supabase, accountId!, todayKey, dealHorizonDays),
+    enabled: !!accountId,
+  });
+  const showDealDates =
+    view !== "team" && memberFilter === "all" && (typeFilter === "all" || typeFilter === "deal");
+  const visibleDealDates = useMemo(
+    () =>
+      showDealDates
+        ? dealDatesInRange(dealDatesQuery.data ?? [], visibleRange.from, visibleRange.to)
+        : [],
+    [showDealDates, dealDatesQuery.data, visibleRange]
+  );
+  const dealDatesByDate = useMemo(() => {
+    const map: Record<string, DealDeadline[]> = {};
+    for (const d of visibleDealDates) {
+      const dateStr = dealDateLocalDay(d.dueDate).toDateString();
+      if (!map[dateStr]) map[dateStr] = [];
+      map[dateStr].push(d);
+    }
+    return map;
+  }, [visibleDealDates]);
 
   // Date Nav handlers
   const handlePrev = () => {
@@ -1124,7 +1188,7 @@ export default function CalendarPage() {
               <CalendarIcon className="h-6 w-6 text-primary" />
               <h1 className="text-xl font-bold text-white sm:text-2xl flex items-center">
                 {headerLabel}
-                <InfoHint text="Navigate and schedule site visits, client appointments, or phone calls. Use the Team view to see every member's lane for the day." />
+                <InfoHint text="Navigate and schedule site visits, client appointments, or phone calls. Deal dates — registration, payments and expected close — are pinned from the deal record and open it. Use the Team view to see every member's lane for the day." />
               </h1>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -1215,6 +1279,16 @@ export default function CalendarPage() {
                 </button>
               );
             })}
+            <button
+              onClick={() => setTypeFilter(typeFilter === "deal" ? "all" : "deal")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
+                typeFilter === "deal" ? DEAL_DATE_META.chip : "border-slate-800 text-slate-500 hover:text-white"
+              )}
+            >
+              <span className={cn("h-1.5 w-1.5 rounded-full", DEAL_DATE_META.dot)} />
+              {DEAL_DATE_META.label}
+            </button>
             {members.length > 1 && (
               <select
                 value={memberFilter}
@@ -1249,6 +1323,7 @@ export default function CalendarPage() {
           ) : view === "week" ? (
             <WeekView
               events={filteredAppointments}
+              dealDates={visibleDealDates}
               members={members}
               selectedDate={currentDate}
               onEventClick={openEditApptModal}
@@ -1257,6 +1332,7 @@ export default function CalendarPage() {
           ) : view === "agenda" ? (
             <AgendaView
               events={filteredAppointments}
+              dealDates={visibleDealDates}
               members={members}
               onEventClick={openEditApptModal}
             />
@@ -1278,6 +1354,7 @@ export default function CalendarPage() {
                 {calendarCells.map((cell, idx) => {
                   const dateStr = cell.date.toDateString();
                   const cellAppts = appointmentsByDate[dateStr] || [];
+                  const cellDealDates = dealDatesByDate[dateStr] || [];
                   const isToday = new Date().toDateString() === dateStr;
 
                   return (
@@ -1345,6 +1422,22 @@ export default function CalendarPage() {
                             </div>
                           );
                         })}
+                        {cellDealDates.map((d) => (
+                          <Link
+                            key={dealDateKey(d)}
+                            href={dealDateHref(d.dealId)}
+                            onClick={(e) => e.stopPropagation()}
+                            title={`${DEAL_DATE_KIND_LABELS[d.kind]} · ${d.subject} · ${deadlineLabel(d.daysLeft)}`}
+                            className={cn(
+                              "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border leading-snug transition-colors",
+                              DEAL_DATE_META.chip,
+                              d.urgency === "overdue" && "border-rose-500/50"
+                            )}
+                          >
+                            <DEAL_DATE_META.icon className="h-2.5 w-2.5 shrink-0" />
+                            <span className="truncate flex-1">{d.title}</span>
+                          </Link>
+                        ))}
                       </div>
                     </div>
                   );

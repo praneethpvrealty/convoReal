@@ -5,6 +5,7 @@ import {
   FileText,
   Users,
   CircleDot,
+  Briefcase,
   type LucideIcon,
 } from "lucide-react";
 
@@ -66,6 +67,17 @@ export const EVENT_TYPES: Record<EventTypeKey, EventTypeMeta> = {
 };
 
 export const EVENT_TYPE_KEYS = Object.keys(EVENT_TYPES) as EventTypeKey[];
+
+/** A deal's dated commitment pinned on the calendar (CAL-008). Not an
+ *  event type: the row lives on the deal record and the chip links to
+ *  it. Styled apart from every event type so a registration date is
+ *  never mistaken for a booked meeting. */
+export const DEAL_DATE_META = {
+  label: "Deal dates",
+  icon: Briefcase,
+  chip: "bg-teal-500/10 border-teal-500/30 text-teal-300 hover:bg-teal-500/20",
+  dot: "bg-teal-400",
+} as const;
 
 export function eventTypeMeta(key?: string | null): EventTypeMeta {
   return EVENT_TYPES[(key as EventTypeKey) || "other"] || EVENT_TYPES.other;

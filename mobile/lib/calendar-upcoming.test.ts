@@ -27,14 +27,26 @@ describe('buildUpcomingCalendarItems', () => {
         },
       ],
       now,
-      now
+      now,
+      [
+        {
+          dealId: 'deal-1',
+          milestoneId: 'ms-1',
+          kind: 'milestone' as const,
+          dueDate: '2026-09-16',
+        },
+      ]
     );
 
     expect(
       items.map((item) =>
-        item.kind === 'appointment' ? item.appointment.id : item.todo.id
+        item.kind === 'appointment'
+          ? item.appointment.id
+          : item.kind === 'todo'
+            ? item.todo.id
+            : `${item.dealDate.dealId}:${item.dealDate.milestoneId}`
       )
-    ).toEqual(['todo-1', 'appointment-1', 'appointment-2']);
+    ).toEqual(['todo-1', 'appointment-1', 'deal-1:ms-1', 'appointment-2']);
   });
 
   it('[CAL-002] omits today, closed items, undated tasks, and the selected future day', () => {
@@ -76,7 +88,12 @@ describe('buildUpcomingCalendarItems', () => {
         },
       ],
       now,
-      selected
+      selected,
+      [
+        { dealId: 'd', milestoneId: null, kind: 'expected_close' as const, dueDate: '2026-09-14' },
+        { dealId: 'd', milestoneId: 'ms', kind: 'milestone' as const, dueDate: '2026-09-15' },
+        { dealId: 'd', milestoneId: 't', kind: 'payment' as const, dueDate: '2026-09-01' },
+      ]
     );
 
     expect(items).toHaveLength(1);

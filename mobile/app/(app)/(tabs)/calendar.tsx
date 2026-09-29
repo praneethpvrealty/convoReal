@@ -23,6 +23,21 @@ import { EmptyState, FilterChip } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import {
+  DEAL_DATE_KIND_LABELS,
+  dealDateHorizonDays,
+  dealDateHref,
+  dealDateKey,
+  dealDateLocalDay,
+  dealDatesInRange,
+  localDateKey,
+  sortDealDates,
+  toDealDate,
+  todayDateKey,
+  type DealDate,
+  type DealDateRow,
+} from '@/lib/deal-calendar';
+import { deadlineLabel } from '@/lib/focus';
+import {
   buildUpcomingCalendarItems,
   loadEveryPage,
 } from '@/lib/calendar-upcoming';
@@ -123,9 +138,33 @@ async function fetchUpcomingAppointments(now: Date): Promise<Appointment[]> {
   });
 }
 
+/**
+ * Deal dates (CAL-008): the milestone target dates, unpaid payment
+ * tranches and expected close dates the deal_deadlines rule decides are
+ * live (TXW-020), read a year ahead through the member-guarded function
+ * — the same rule Focus, Today and the digest read. The calendar never
+ * writes one; each row opens the deal record.
+ */
+async function fetchDealDates(
+  accountId: string,
+  today: string,
+  horizonDays: number
+): Promise<DealDate[]> {
+  const { data, error } = await supabase.rpc('deal_deadlines', {
+    target_account_id: accountId,
+    p_today: today,
+    p_horizon_days: horizonDays,
+  });
+  if (error) throw error;
+  return sortDealDates(
+    ((data ?? []) as DealDateRow[]).map((row) => toDealDate(row, today))
+  );
+}
+
 export default function CalendarScreen() {
   const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
+  const accountId = useAuthStore((s) => s.profile?.account_id);
   const [today] = useState(() => new Date());
   const params = useLocalSearchParams<{ eventId?: string | string[] }>();
   const eventId = Array.isArray(params.eventId)
@@ -150,11 +189,22 @@ export default function CalendarScreen() {
     queryFn: () => fetchAppointment(eventId!),
     enabled: !!eventId,
   });
+  const todayKey = todayDateKey(today);
+  const monthEndKey = localDateKey(
+    new Date(month.getFullYear(), month.getMonth() + 1, 0)
+  );
+  const dealHorizonDays = dealDateHorizonDays(todayKey, monthEndKey);
+  const dealDatesQuery = useQuery({
+    queryKey: ['deal-dates', accountId, todayKey, dealHorizonDays],
+    queryFn: () => fetchDealDates(accountId!, todayKey, dealHorizonDays),
+    enabled: !!accountId,
+  });
   const pull = usePullRefresh(() =>
     Promise.all([
       refetch(),
       todosQuery.refetch(),
       upcomingAppointmentsQuery.refetch(),
+      dealDatesQuery.refetch(),
     ])
   );
 
@@ -185,16 +235,39 @@ export default function CalendarScreen() {
     return out;
   }, [month]);
 
+  const dealDatesByDay = useMemo(() => {
+    const map = new Map<string, DealDate[]>();
+    const monthDates = dealDatesInRange(
+      dealDatesQuery.data ?? [],
+      localDateKey(monthStart(month)),
+      monthEndKey
+    );
+    for (const d of monthDates) {
+      const key = dayKey(dealDateLocalDay(d.dueDate));
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(d);
+    }
+    return map;
+  }, [dealDatesQuery.data, month, monthEndKey]);
+
   const dayAppointments = byDay.get(dayKey(selected)) ?? [];
+  const dayDealDates = dealDatesByDay.get(dayKey(selected)) ?? [];
   const upcomingItems = useMemo(
     () =>
       buildUpcomingCalendarItems(
         upcomingAppointmentsQuery.data ?? [],
         todosQuery.data ?? [],
         today,
-        selected
+        selected,
+        dealDatesQuery.data ?? []
       ),
-    [upcomingAppointmentsQuery.data, todosQuery.data, today, selected]
+    [
+      upcomingAppointmentsQuery.data,
+      todosQuery.data,
+      today,
+      selected,
+      dealDatesQuery.data,
+    ]
   );
   const upcomingTodoIds = useMemo(
     () =>
@@ -341,6 +414,10 @@ export default function CalendarScreen() {
               {cells.slice(row * 7, row * 7 + 7).map((date, i) => {
                 if (!date) return <View key={i} style={styles.dayCell} />;
                 const appts = byDay.get(dayKey(date)) ?? [];
+                const dealDots = (dealDatesByDay.get(dayKey(date)) ?? []).slice(
+                  0,
+                  Math.max(0, 3 - Math.min(appts.length, 3))
+                );
                 const isSelected = sameDay(date, selected);
                 const isToday = sameDay(date, today);
                 return (
@@ -393,6 +470,20 @@ export default function CalendarScreen() {
                           ]}
                         />
                       ))}
+                      {dealDots.map((d) => (
+                        <View
+                          key={dealDateKey(d)}
+                          style={[
+                            styles.dot,
+                            {
+                              backgroundColor:
+                                d.urgency === 'overdue'
+                                  ? colors.danger
+                                  : colors.warning,
+                            },
+                          ]}
+                        />
+                      ))}
                     </View>
                   </Pressable>
                 );
@@ -413,20 +504,25 @@ export default function CalendarScreen() {
           <ConvoRealLoader
             style={{ alignSelf: 'center', paddingVertical: 20 }}
           />
-        ) : dayAppointments.length === 0 ? (
+        ) : dayAppointments.length === 0 && dayDealDates.length === 0 ? (
           <EmptyState
             icon="calendar-outline"
             title="Nothing on this day"
             subtitle="Tap + to schedule a site visit, call or meeting. Attached contacts get automatic WhatsApp reminders."
           />
         ) : (
-          dayAppointments.map((appt) => (
-            <AppointmentCard
-              key={appt.id}
-              appointment={appt}
-              onPress={() => setDetail(appt)}
-            />
-          ))
+          <>
+            {dayDealDates.map((d) => (
+              <DealDateCard key={dealDateKey(d)} dealDate={d} />
+            ))}
+            {dayAppointments.map((appt) => (
+              <AppointmentCard
+                key={appt.id}
+                appointment={appt}
+                onPress={() => setDetail(appt)}
+              />
+            ))}
+          </>
         )}
 
         <Text style={[styles.dayLabel, { color: colors.textFaint }]}>Upcoming</Text>
@@ -436,7 +532,7 @@ export default function CalendarScreen() {
           />
         ) : upcomingItems.length === 0 ? (
           <Text style={{ fontSize: 13, color: colors.textMuted }}>
-            No upcoming appointments or dated tasks.
+            No upcoming appointments, deal dates or dated tasks.
           </Text>
         ) : (
           upcomingItems.map((item) =>
@@ -446,6 +542,12 @@ export default function CalendarScreen() {
                 appointment={item.appointment}
                 showDate
                 onPress={() => setDetail(item.appointment)}
+              />
+            ) : item.kind === 'deal' ? (
+              <DealDateCard
+                key={`deal-${dealDateKey(item.dealDate)}`}
+                dealDate={item.dealDate}
+                showDate
               />
             ) : (
               <TodoRow
@@ -1099,6 +1201,62 @@ function AppointmentCard({
         <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
       )}
     </Pressable>
+  );
+}
+
+/** A deal's dated commitment on its day. Opens the deal record, where
+ *  the date is changed or the milestone ticked — the calendar never
+ *  acts on it (TXW-020). */
+function DealDateCard({
+  dealDate,
+  showDate = false,
+}: {
+  dealDate: DealDate;
+  showDate?: boolean;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const date = dealDateLocalDay(dealDate.dueDate).toLocaleDateString([], {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+  const urgencyColor =
+    dealDate.urgency === 'overdue'
+      ? colors.danger
+      : dealDate.urgency === 'today'
+        ? colors.warning
+        : colors.textMuted;
+
+  return (
+    <Link href={dealDateHref(dealDate.dealId)} asChild>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={`${DEAL_DATE_KIND_LABELS[dealDate.kind]}: ${dealDate.title}, ${dealDate.subject}, ${deadlineLabel(dealDate.daysLeft)}`}
+        style={[
+          styles.card,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        ]}
+      >
+        <View style={[styles.typeBadge, { backgroundColor: colors.warningSoft }]}>
+          <Ionicons name="briefcase-outline" size={17} color={colors.warning} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+            {dealDate.title}
+          </Text>
+          <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
+            {showDate ? `${date} · ` : ''}
+            {DEAL_DATE_KIND_LABELS[dealDate.kind]} · {dealDate.subject}
+          </Text>
+          <Text
+            style={{ fontSize: 12.5, color: urgencyColor, fontFamily: f.semibold }}
+          >
+            {deadlineLabel(dealDate.daysLeft)}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+      </Pressable>
+    </Link>
   );
 }
 
