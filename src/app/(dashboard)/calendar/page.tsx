@@ -404,7 +404,23 @@ export default function CalendarPage() {
   // tranches and expected close dates the deal_deadlines rule decides
   // are live (TXW-020), read once a year ahead and pinned on their day.
   // The calendar never writes one; each chip opens the deal record.
-  const todayKey = todayDateKey();
+  const [todayKey, setTodayKey] = useState(() => todayDateKey());
+  useEffect(() => {
+    const rollDay = () =>
+      setTodayKey((current) => {
+        const next = todayDateKey();
+        return next === current ? current : next;
+      });
+    const timer = setInterval(rollDay, 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") rollDay();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
   const visibleRange = useMemo(() => {
     if (view === "week") {
       const start = new Date(currentDate);
