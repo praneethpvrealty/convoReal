@@ -66,6 +66,7 @@ import {
   formatInr,
 } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
+import { mapPortalAd } from '@/lib/portal-ad-map';
 import { haptic } from '@/lib/haptics';
 import {
   BUDGET_UNIT_OPTIONS,
@@ -1331,14 +1332,12 @@ function PortalAdMapping({ contact }: { contact: Contact }) {
     setPicking(false);
     setBusy(true);
     try {
-      const { data } = await apiFetch<{
-        data: { propertyTitle: string; taggedContacts: number };
-      }>(`/api/contacts/${contact.id}/portal-link`, {
-        method: 'POST',
-        body: JSON.stringify({ propertyId }),
+      const data = await mapPortalAd(contact.id, propertyId, {
+        portal: portal!,
+        portalListingId: listingId!,
       });
       haptic.success();
-      const others = data.taggedContacts - 1;
+      const others = (data.taggedContacts ?? 1) - 1;
       show({
         title: 'Ad mapped',
         message:
@@ -1348,14 +1347,6 @@ function PortalAdMapping({ contact }: { contact: Contact }) {
             ? ` ${others} lead${others === 1 ? '' : 's'} already waiting moved across too.`
             : ''),
       });
-      queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
-      queryClient.invalidateQueries({
-        queryKey: ['portal-ad-link', portal, listingId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['interested-properties', contact.id],
-      });
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
     } catch (e) {
       haptic.warn();
       show({
@@ -1366,6 +1357,15 @@ function PortalAdMapping({ contact }: { contact: Contact }) {
       });
     } finally {
       setBusy(false);
+      queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+      queryClient.invalidateQueries({
+        queryKey: ['portal-ad-link', portal, listingId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['interested-properties', contact.id],
+      });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['unmapped-portal-ads'] });
     }
   }
 

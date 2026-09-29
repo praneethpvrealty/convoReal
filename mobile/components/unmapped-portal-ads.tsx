@@ -13,6 +13,7 @@ import { PropertyPicker } from '@/components/agent-detail';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
+import { mapPortalAd } from '@/lib/portal-ad-map';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -57,23 +58,17 @@ export function UnmappedPortalAds() {
     setPicking(null);
     setBusy(ad.portalListingId);
     try {
-      const { data } = await apiFetch<{
-        data: { propertyTitle: string; taggedContacts: number };
-      }>(`/api/contacts/${ad.sampleContactId}/portal-link`, {
-        method: 'POST',
-        body: JSON.stringify({ propertyId }),
-      });
+      const data = await mapPortalAd(ad.sampleContactId, propertyId, ad);
       haptic.success();
       show({
         title: 'Ad mapped',
         message:
           `${ad.portal} ad ${ad.portalListingId} is now "${data.propertyTitle}". ` +
-          `${data.taggedContacts} lead${data.taggedContacts === 1 ? '' : 's'} tagged, and new ` +
+          (data.taggedContacts === null
+            ? 'Its leads are tagged, and new '
+            : `${data.taggedContacts} lead${data.taggedContacts === 1 ? '' : 's'} tagged, and new `) +
           `enquiries on it match automatically.`,
       });
-      queryClient.invalidateQueries({ queryKey: ['unmapped-portal-ads'] });
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
     } catch (e) {
       haptic.warn();
       show({
@@ -84,6 +79,9 @@ export function UnmappedPortalAds() {
       });
     } finally {
       setBusy(null);
+      queryClient.invalidateQueries({ queryKey: ['unmapped-portal-ads'] });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
     }
   }
 
