@@ -239,3 +239,11 @@ export function sortJourneys<T extends RankableJourney>(
     return 0;
   });
 }
+
+export function journeyStageBucketKey(
+  furthestStageIdx: number,
+  stages: { id: string }[]
+): string {
+  const stage = furthestStageIdx >= 0 ? stages[furthestStageIdx] : undefined;
+  return stage ? `stage:${stage.id}` : 'stage:unclassified';
+}

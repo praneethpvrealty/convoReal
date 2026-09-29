@@ -63,6 +63,7 @@ import {
   journeyEnquirySourceOptions,
   journeyRaceLabel,
   journeySourceChips,
+  journeyStageBucketKey,
   journeyViewCounts,
   matchesJourneyEnquirySource,
   sortJourneys,
@@ -152,6 +153,13 @@ export function JourneyBody() {
     'percentage'
   );
   const [brokerageValue, setBrokerageValue] = useState('');
+  const [movedItem, setMovedItem] = useState<{
+    subjectId: string;
+    itemId: string;
+  } | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const bucketOffsets = useRef(new Map<string, number>());
+  const cardOffsets = useRef(new Map<string, number>());
 
   // The same move the web journey makes: a mirrored stage moves the
   // item's deal through the board's logic, and the route pauses for
@@ -197,6 +205,10 @@ export function JourneyBody() {
       queryClient.invalidateQueries({ queryKey: ['journey-overview-groups'] }),
       queryClient.invalidateQueries({ queryKey: ['transaction-index'] }),
     ]);
+    setMovedItem({
+      subjectId: mode === 'buyer' ? item.contact_id : item.property_id,
+      itemId: item.id,
+    });
   }
 
   function askConvert(item: JourneyItem) {
@@ -945,11 +957,49 @@ export function JourneyBody() {
     });
   }
 
+  const movedGroup = movedItem
+    ? groups.find((group) => group.subjectId === movedItem.subjectId)
+    : undefined;
+  const movedKey =
+    view === 'active' && movedGroup
+      ? journeyStageBucketKey(movedGroup.furthestStageIdx, stages)
+      : null;
+
+  useEffect(() => {
+    if (!movedItem || !movedKey) return;
+    const { subjectId } = movedItem;
+    void Promise.resolve().then(() => {
+      setOpenGroups((current) =>
+        current.has(subjectId) ? current : new Set(current).add(subjectId)
+      );
+      setCollapsedBuckets((current) => {
+        if (!current.has(movedKey)) return current;
+        const next = new Set(current);
+        next.delete(movedKey);
+        return next;
+      });
+      setFocusedBucket((current) =>
+        current && current !== movedKey ? movedKey : current
+      );
+    });
+    const scroll = setTimeout(() => {
+      const bucketY = bucketOffsets.current.get(movedKey);
+      const cardY = cardOffsets.current.get(`${movedKey}:${subjectId}`);
+      if (bucketY === undefined || cardY === undefined) return;
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, bucketY + cardY - spacing.md),
+        animated: true,
+      });
+    }, 300);
+    return () => clearTimeout(scroll);
+  }, [movedItem, movedKey]);
+
   const isLoading =
     stagesQuery.isLoading || summariesQuery.isLoading || statesQuery.isLoading;
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={{ flex: 1 }}
       contentContainerStyle={[
         styles.container,
@@ -1214,6 +1264,12 @@ export function JourneyBody() {
           return (
             <View
               key={bucket.key}
+              onLayout={(event) =>
+                bucketOffsets.current.set(
+                  bucket.key,
+                  event.nativeEvent.layout.y
+                )
+              }
               style={[
                 styles.bucket,
                 {
@@ -1370,6 +1426,17 @@ export function JourneyBody() {
                       index={index}
                       count={bucket.groups.length}
                       expanded={openGroups.has(group.subjectId)}
+                      focusItemId={
+                        movedItem?.subjectId === group.subjectId
+                          ? movedItem.itemId
+                          : null
+                      }
+                      onLayout={(y) =>
+                        cardOffsets.current.set(
+                          `${bucket.key}:${group.subjectId}`,
+                          y
+                        )
+                      }
                       onToggle={() =>
                         setOpenGroups((current) => {
                           const next = new Set(current);
@@ -2004,6 +2071,8 @@ function DraggableJourneyCard({
   index,
   count,
   expanded,
+  focusItemId,
+  onLayout,
   onToggle,
   onMove,
   onActions,
@@ -2026,6 +2095,8 @@ function DraggableJourneyCard({
   index: number;
   count: number;
   expanded: boolean;
+  focusItemId: string | null;
+  onLayout: (y: number) => void;
   onToggle: () => void;
   onMove: (from: number, to: number) => void;
   onActions: () => void;
@@ -2098,6 +2169,9 @@ function DraggableJourneyCard({
           { borderTopColor: colors.border },
           highlighted
             ? { backgroundColor: `${stage?.color ?? colors.primary}14` }
+            : null,
+          item.id === focusItemId
+            ? { borderLeftWidth: 3, borderLeftColor: colors.primary }
             : null,
         ]}
       >
@@ -2197,6 +2271,7 @@ function DraggableJourneyCard({
 
   return (
     <Animated.View
+      onLayout={(event) => onLayout(event.nativeEvent.layout.y)}
       style={[
         styles.card,
         { borderTopColor: colors.border, backgroundColor: colors.surfaceWell },
@@ -2347,6 +2422,11 @@ function DraggableJourneyCard({
       ) : null}
 
       {expanded ? atStage.map((item) => renderItem(item)) : null}
+      {expanded && !showElsewhere
+        ? elsewhere
+            .filter((item) => item.id === focusItemId)
+            .map((item) => renderItem(item))
+        : null}
       {expanded && elsewhere.length > 0 ? (
         <Pressable
           onPress={() => setShowElsewhere((current) => !current)}
