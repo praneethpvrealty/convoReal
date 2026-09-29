@@ -1,16 +1,3 @@
--- ============================================================
--- 20260929050125_journey_compartments.sql
--- Focus / Passive compartments for the Journey overview.
---
--- Inside each stage group an agent works the Focus journeys and
--- parks the rest as Passive. A journey with no row is Passive.
---
--- The split is shared by the whole team unless an admin switches
--- accounts.journey_compartment_scope to 'agent', when every agent
--- keeps their own: team rows carry user_id NULL, an agent's rows
--- carry their user id, and each scope reads only its own rows.
--- ============================================================
-
 ALTER TABLE accounts
   ADD COLUMN IF NOT EXISTS journey_compartment_scope TEXT NOT NULL DEFAULT 'team'
   CHECK (journey_compartment_scope IN ('team', 'agent'));

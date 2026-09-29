@@ -5,11 +5,10 @@ import { parseStageNoteInput } from '@/lib/journey/stage-notes';
 
 export async function POST(request: Request) {
   let accountId: string;
-  let userId: string;
   let supabase: Awaited<ReturnType<typeof requireRole>>['supabase'];
 
   try {
-    ({ accountId, userId, supabase } = await requireRole('agent'));
+    ({ accountId, supabase } = await requireRole('agent'));
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -20,67 +19,27 @@ export async function POST(request: Request) {
   }
   const { itemId, note } = parsed.value;
 
-  const { data: item, error } = await supabase
-    .from('journey_items')
-    .select('id, stage_id')
-    .eq('id', itemId)
-    .eq('account_id', accountId)
-    .maybeSingle();
-
-  if (error) {
-    return NextResponse.json(
-      { error: 'Failed to load journey item' },
-      { status: 500 }
-    );
-  }
-  if (!item) {
-    return NextResponse.json(
-      { error: 'Journey item not found' },
-      { status: 404 }
-    );
-  }
-
-  const { data: stage } = await supabase
-    .from('journey_stages')
-    .select('id, name, color')
-    .eq('id', item.stage_id)
-    .eq('account_id', accountId)
-    .maybeSingle();
-  if (!stage) {
-    return NextResponse.json(
-      { error: 'Journey stage not found' },
-      { status: 404 }
-    );
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name')
-    .eq('user_id', userId)
-    .eq('account_id', accountId)
-    .maybeSingle();
-
-  const { data: saved, error: saveError } = await supabase
-    .from('journey_stage_notes')
-    .insert({
-      account_id: accountId,
-      item_id: itemId,
-      stage_id: stage.id,
-      stage_name: stage.name,
-      stage_color: stage.color,
-      note,
-      created_by: userId,
-      created_by_name: profile?.full_name ?? null,
+  const { data: saved, error } = await supabase
+    .rpc('add_journey_item_note', {
+      p_account_id: accountId,
+      p_item_id: itemId,
+      p_note: note,
     })
     .select(
       'id, account_id, item_id, stage_id, stage_name, stage_color, note, created_by, created_by_name, created_at'
     )
-    .single();
+    .maybeSingle();
 
-  if (saveError) {
+  if (error) {
     return NextResponse.json(
       { error: 'Failed to save the note' },
       { status: 500 }
+    );
+  }
+  if (!saved) {
+    return NextResponse.json(
+      { error: 'Journey item not found' },
+      { status: 404 }
     );
   }
 
