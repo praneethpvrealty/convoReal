@@ -69,13 +69,17 @@ describe('PUT /api/appointments/[id]', () => {
     }
   });
 
-  it('[CAL-010] reopening an appointment that has already started re-arms nothing', async () => {
+  it('[CAL-010] reopening an appointment that has already started marks its reminders covered instead', async () => {
     state.existing = { ...state.existing, status: 'cancelled', start_time: '2026-09-28T04:30:00.000Z' };
     state.updates = [];
     const res = await put({ status: 'scheduled' });
     expect(res.status).toBe(200);
-    expect(state.updates[0]).toMatchObject({ status: 'scheduled' });
-    untouched(state.updates[0]);
+    expect(state.updates[0]).toMatchObject({
+      status: 'scheduled',
+      reminder_morning_sent: true,
+      reminder_1h_sent: true,
+    });
+    expect(state.updates[0]).not.toHaveProperty('reminders_rearmed_at');
   });
 
   it('[CAL-010] closing an appointment, or re-sending scheduled, leaves the reminders alone', async () => {

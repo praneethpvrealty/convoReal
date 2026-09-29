@@ -322,7 +322,7 @@ async function claimReminder(
       console.error('[Reminder Cron] claim insert returned no row');
       return 'failed';
     }
-    return holdUnlessRearmed(admin, appt, claim as ReminderClaim);
+    return claim as ReminderClaim;
   }
   if (claimErr.code !== '23505') {
     console.error('[Reminder Cron] claim insert failed:', claimErr);
@@ -362,20 +362,21 @@ async function claimReminder(
     console.error('[Reminder Cron] claim takeover failed:', renewErr);
     return 'failed';
   }
-  if (!renewed) return null;
-  return holdUnlessRearmed(admin, appt, renewed as ReminderClaim);
+  return (renewed as ReminderClaim | null) ?? null;
 }
 
-/** A claim is only good for the appointment as this sweep read it. A
- *  re-arm that landed between that read and the claim would have the
- *  sweep send the old time under a claim newer than the re-arm, so the
- *  claim is released again and the recipient retried by the next
- *  sweep, which reads the appointment afresh. */
-async function holdUnlessRearmed(
+/** Called immediately before each delivery: a claim is only good for
+ *  the appointment as this sweep read it. A re-arm that landed since —
+ *  between the read and this instant, however long the loads in
+ *  between took — would have the sweep send the old time under a
+ *  claim newer than the re-arm, so the claim is released again and the
+ *  recipient retried by the next sweep, which reads the appointment
+ *  afresh. A check the database did not answer counts as changed. */
+async function stillAsRead(
   admin: SupabaseClient,
   appt: ReminderAppointment,
   claim: ReminderClaim
-): Promise<ReminderClaim | 'failed'> {
+): Promise<boolean> {
   const { data: current, error } = await admin
     .from('appointments')
     .select('reminders_rearmed_at')
@@ -389,10 +390,10 @@ async function holdUnlessRearmed(
     current &&
     sameInstant(current.reminders_rearmed_at, appt.reminders_rearmed_at)
   ) {
-    return claim;
+    return true;
   }
   await admin.from('appointment_reminder_log').delete().eq('id', claim.id);
-  return 'failed';
+  return false;
 }
 
 /**
@@ -487,6 +488,10 @@ async function sendToAllRecipients(
     // Voice); any failure falls through to the WhatsApp template below
     // so the reminder still lands. The claim above stays either way.
     if (contact.preferred_update_channel === 'voice_call') {
+      if (!(await stillAsRead(admin, appt, claim))) {
+        allCovered = false;
+        continue;
+      }
       const called = await placeReminderCall({
         admin,
         accountId: appt.account_id,
@@ -533,6 +538,10 @@ async function sendToAllRecipients(
       contact.preferred_update_channel === 'whatsapp_audio' &&
       isWithinCustomerWindow(audioWindows.get(contact.id))
     ) {
+      if (!(await stillAsRead(admin, appt, claim))) {
+        allCovered = false;
+        continue;
+      }
       const queued = await enqueueReminderAudioJob({
         kind: 'reminder_audio',
         accountId: appt.account_id,
@@ -583,6 +592,10 @@ async function sendToAllRecipients(
       );
     }
 
+    if (!(await stillAsRead(admin, appt, claim))) {
+      allCovered = false;
+      continue;
+    }
     const result = await sendWhatsAppMessageAndPersist({
       accountId: appt.account_id,
       userId: appt.user_id || null,
@@ -716,6 +729,7 @@ async function sendLiaisonReminder(
     appt.property?.title ||
     appt.title ||
     (isSiteVisit ? 'Property visit' : 'Appointment');
+  if (!(await stillAsRead(admin, appt, claim))) return false;
   try {
     await sendTemplateMessage({
       phoneNumberId: wa.phoneNumberId,
