@@ -40,6 +40,14 @@ END $$;
 COMMENT ON COLUMN appointment_reminder_log.prior_wa_message_ids IS
   'Message ids of earlier sends of this claim whose confirmations arrived after the cron had taken the claim over; a button reply to any of them still maps to the appointment.';
 
+-- An earlier form took no generation; a reply alias must belong to the
+-- generation the send was made under, or a "Fine" tapped on a reminder
+-- for a time the client no longer has would confirm the new time.
+DROP FUNCTION IF EXISTS public.appointment_reminder_keep_prior_id(UUID, UUID, UUID, UUID, UUID, TEXT, TEXT);
+
+-- Returns 'kept' when the row covering the recipient is of the given
+-- generation and now carries the id, 'other' when it exists in another
+-- generation (the alias is dropped), 'none' when there is no row.
 CREATE OR REPLACE FUNCTION public.appointment_reminder_keep_prior_id(
   p_account_id UUID,
   p_claim_id UUID,
@@ -47,48 +55,58 @@ CREATE OR REPLACE FUNCTION public.appointment_reminder_keep_prior_id(
   p_contact_id UUID,
   p_liaison_id UUID,
   p_reminder_type TEXT,
-  p_wa_message_id TEXT
-) RETURNS BOOLEAN
+  p_wa_message_id TEXT,
+  p_rearmed_known BOOLEAN,
+  p_rearmed_at TIMESTAMPTZ
+) RETURNS TEXT
 LANGUAGE plpgsql
 SET search_path = public
 AS $$
+DECLARE
+  v_row_rearmed_at TIMESTAMPTZ;
+  v_found BOOLEAN;
 BEGIN
+  IF p_claim_id IS NOT NULL THEN
+    SELECT true, rearmed_at INTO v_found, v_row_rearmed_at
+      FROM appointment_reminder_log
+     WHERE account_id = p_account_id AND id = p_claim_id;
+  ELSE
+    SELECT true, rearmed_at INTO v_found, v_row_rearmed_at
+      FROM appointment_reminder_log
+     WHERE account_id = p_account_id
+       AND appointment_id = p_appointment_id
+       AND reminder_type = p_reminder_type
+       AND ((p_liaison_id IS NOT NULL AND liaison_id = p_liaison_id)
+         OR (p_liaison_id IS NULL AND contact_id = p_contact_id));
+  END IF;
+  IF v_found IS NOT TRUE THEN
+    RETURN 'none';
+  END IF;
+  IF p_rearmed_known AND v_row_rearmed_at IS DISTINCT FROM p_rearmed_at THEN
+    RETURN 'other';
+  END IF;
+
   IF p_claim_id IS NOT NULL THEN
     UPDATE appointment_reminder_log
        SET prior_wa_message_ids = array_append(prior_wa_message_ids, p_wa_message_id)
      WHERE account_id = p_account_id
        AND id = p_claim_id
+       AND rearmed_at IS NOT DISTINCT FROM v_row_rearmed_at
        AND NOT (p_wa_message_id = ANY (prior_wa_message_ids));
-    IF FOUND THEN
-      RETURN true;
-    END IF;
-    RETURN EXISTS (
-      SELECT 1 FROM appointment_reminder_log
-       WHERE account_id = p_account_id AND id = p_claim_id
-    );
-  END IF;
-
-  UPDATE appointment_reminder_log
-     SET prior_wa_message_ids = array_append(prior_wa_message_ids, p_wa_message_id)
-   WHERE account_id = p_account_id
-     AND appointment_id = p_appointment_id
-     AND reminder_type = p_reminder_type
-     AND ((p_liaison_id IS NOT NULL AND liaison_id = p_liaison_id)
-       OR (p_liaison_id IS NULL AND contact_id = p_contact_id))
-     AND NOT (p_wa_message_id = ANY (prior_wa_message_ids));
-  IF FOUND THEN
-    RETURN true;
-  END IF;
-  RETURN EXISTS (
-    SELECT 1 FROM appointment_reminder_log
+  ELSE
+    UPDATE appointment_reminder_log
+       SET prior_wa_message_ids = array_append(prior_wa_message_ids, p_wa_message_id)
      WHERE account_id = p_account_id
        AND appointment_id = p_appointment_id
        AND reminder_type = p_reminder_type
        AND ((p_liaison_id IS NOT NULL AND liaison_id = p_liaison_id)
          OR (p_liaison_id IS NULL AND contact_id = p_contact_id))
-  );
+       AND rearmed_at IS NOT DISTINCT FROM v_row_rearmed_at
+       AND NOT (p_wa_message_id = ANY (prior_wa_message_ids));
+  END IF;
+  RETURN 'kept';
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.appointment_reminder_keep_prior_id(UUID, UUID, UUID, UUID, UUID, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.appointment_reminder_keep_prior_id(UUID, UUID, UUID, UUID, UUID, TEXT, TEXT) TO service_role;
+REVOKE ALL ON FUNCTION public.appointment_reminder_keep_prior_id(UUID, UUID, UUID, UUID, UUID, TEXT, TEXT, BOOLEAN, TIMESTAMPTZ) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.appointment_reminder_keep_prior_id(UUID, UUID, UUID, UUID, UUID, TEXT, TEXT, BOOLEAN, TIMESTAMPTZ) TO service_role;

@@ -187,6 +187,7 @@ function claim(
     rearmed_at: rearmedAt,
     sent_at: sentAt,
     wa_message_id: 'wamid.old',
+    prior_wa_message_ids: ['wamid.older'],
   };
 }
 
@@ -256,7 +257,7 @@ describe('checkAndSendAppointmentReminders', () => {
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
     const renewed = tables.appointment_reminder_log.filter((r) => r.wa_message_id === 'wamid.1');
     expect(renewed).toHaveLength(1);
-    expect(renewed[0]).toMatchObject({ rearmed_at: REARMED_AT });
+    expect(renewed[0]).toMatchObject({ rearmed_at: REARMED_AT, prior_wa_message_ids: [] });
     expect(String(renewed[0].created_at) > REARMED_AT).toBe(true);
     expect(tables.appointment_reminder_log).toHaveLength(2);
 
@@ -352,9 +353,9 @@ describe('checkAndSendAppointmentReminders', () => {
     ];
     await checkAndSendAppointmentReminders(NOW);
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
-    expect(
-      tables.appointment_reminder_log.filter((r) => typeof r.sent_at === 'string')
-    ).toHaveLength(1);
+    const retried = tables.appointment_reminder_log.filter((r) => typeof r.sent_at === 'string');
+    expect(retried).toHaveLength(1);
+    expect(retried[0].prior_wa_message_ids).toEqual(['wamid.older']);
   });
 
   it('[CAL-010] leaves a fresh unconfirmed claim to its owner', async () => {

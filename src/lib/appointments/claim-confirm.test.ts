@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  results: [] as Array<'stamped' | 'gone' | 'failed' | 'duplicate' | 'orphaned'>,
+  results: [] as Array<'stamped' | 'gone' | 'failed' | 'duplicate' | 'orphaned' | 'other'>,
   updates: 0,
   patches: [] as Array<Record<string, unknown>>,
   inserts: [] as Array<Record<string, unknown>>,
@@ -17,7 +17,10 @@ vi.mock('@/lib/supabase/admin', () => ({
       const result =
         state.results.length > 1 ? state.results.shift()! : state.results[0];
       if (result === 'failed') return { data: null, error: { message: 'timeout' } };
-      return { data: result === 'stamped', error: null };
+      return {
+        data: result === 'stamped' ? 'kept' : result === 'other' ? 'other' : 'none',
+        error: null,
+      };
     },
     from: () => {
       const builder = {
@@ -81,7 +84,7 @@ const confirmation = {
   sentAt: '2026-09-29T10:00:05.000Z',
 };
 
-function reset(results: Array<'stamped' | 'gone' | 'failed' | 'duplicate' | 'orphaned'>) {
+function reset(results: Array<'stamped' | 'gone' | 'failed' | 'duplicate' | 'orphaned' | 'other'>) {
   state.results = results;
   state.updates = 0;
   state.patches = [];
@@ -109,10 +112,19 @@ describe('[CAL-010] confirming a reminder claim', () => {
           p_liaison_id: null,
           p_reminder_type: '1h',
           p_wa_message_id: 'wamid.1',
+          p_rearmed_known: true,
+          p_rearmed_at: null,
         },
       ],
     ]);
     expect(state.inserts).toEqual([]);
+  });
+
+  it('drops the earlier message id when the claim has moved to a later generation', async () => {
+    reset(['gone', 'other']);
+    expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('gone');
+    expect(state.inserts).toEqual([]);
+    expect(state.queued).toEqual([]);
   });
 
   it('puts a released claim back as confirmed, since its send went out', async () => {

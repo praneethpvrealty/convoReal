@@ -141,6 +141,8 @@ async function keepPriorMessageId(
     p_liaison_id: confirmation.liaisonId,
     p_reminder_type: confirmation.reminderType,
     p_wa_message_id: confirmation.waMessageId,
+    p_rearmed_known: true,
+    p_rearmed_at: confirmation.rearmedAt,
   });
   if (error) {
     console.error(
@@ -149,7 +151,16 @@ async function keepPriorMessageId(
     );
     return 'failed';
   }
-  if (!data) return 'no-row';
+  if (data === 'none') return 'no-row';
+  if (data === 'other') {
+    // The row now belongs to a later generation: the send this
+    // confirms was for a time or a state the appointment no longer
+    // has, so a reply to it must not reach the appointment.
+    console.warn(
+      `[Reminder] claim ${confirmation.claimId} moved to a later generation before its send was confirmed; the earlier message id is not kept`
+    );
+    return 'gone';
+  }
   console.warn(
     `[Reminder] claim ${confirmation.claimId} was renewed before its send was confirmed; the earlier message id is kept beside the new one`
   );

@@ -387,6 +387,13 @@ async function claimReminder(
   if (!sameInstant(current.reminders_rearmed_at, appt.reminders_rearmed_at)) {
     return 'failed';
   }
+  // Across generations the reply aliases go too: a "Fine" tapped on a
+  // reminder for the old time must not confirm the new one. Within a
+  // generation — an unconfirmed retry — they stay.
+  const crossGeneration = !sameInstant(
+    existing.rearmed_at,
+    appt.reminders_rearmed_at
+  );
   const { data: renewed, error: renewErr } = await admin
     .from('appointment_reminder_log')
     .update({
@@ -395,6 +402,7 @@ async function claimReminder(
       sent_at: null,
       rearmed_at: appt.reminders_rearmed_at,
       generation_known: true,
+      ...(crossGeneration ? { prior_wa_message_ids: [] } : {}),
     })
     .eq('id', existing.id)
     .eq('account_id', appt.account_id)
