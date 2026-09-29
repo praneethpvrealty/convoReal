@@ -317,6 +317,29 @@ describe('checkAndSendAppointmentReminders', () => {
     ).toHaveLength(1);
   });
 
+  it('[CAL-010] a sweep from an earlier generation never takes over a current claim', async () => {
+    tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
+    tables.appointment_reminder_log = [
+      claim('c-visit', 'morning', '2026-08-01T05:45:00.000Z', REARMED_AT),
+      claim('c-visit', '1h', '2026-08-01T05:45:00.000Z', REARMED_AT),
+    ];
+    hooks.onAppointmentRead = () => {
+      tables.appointments[0].reminders_rearmed_at = REARMED_AT;
+    };
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(tables.appointment_reminder_log).toHaveLength(2);
+    expect(
+      tables.appointment_reminder_log.every(
+        (r) => r.rearmed_at === REARMED_AT && r.wa_message_id === 'wamid.old'
+      )
+    ).toBe(true);
+    expect(tables.appointments[0]).toMatchObject({
+      reminder_morning_sent: false,
+      reminder_1h_sent: false,
+    });
+  });
+
   it('[CAL-010] honours a claim from the current generation', async () => {
     tables.appointments = [
       { ...appointment('a-visit', 'site_visit', 'c-visit'), reminders_rearmed_at: REARMED_AT },

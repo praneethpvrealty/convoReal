@@ -348,6 +348,21 @@ async function claimReminder(
   if (!existing || sameInstant(existing.rearmed_at, appt.reminders_rearmed_at)) {
     return null;
   }
+  // Only a sweep of the current generation may take a claim over: one
+  // that read the appointment before a re-arm would otherwise rewind a
+  // claim the current sweep has just made.
+  const { data: current, error: currentErr } = await admin
+    .from('appointments')
+    .select('reminders_rearmed_at')
+    .eq('id', appt.id)
+    .maybeSingle();
+  if (currentErr || !current) {
+    console.error('[Reminder Cron] generation check failed:', currentErr);
+    return 'failed';
+  }
+  if (!sameInstant(current.reminders_rearmed_at, appt.reminders_rearmed_at)) {
+    return 'failed';
+  }
   const { data: renewed, error: renewErr } = await inGeneration(
     admin
       .from('appointment_reminder_log')
