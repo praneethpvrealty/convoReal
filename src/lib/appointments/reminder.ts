@@ -268,6 +268,13 @@ export interface ReminderClaim {
   rearmed_at: string | null;
 }
 
+/** How long a claim may stay unconfirmed — no sent_at — before the
+ *  cron treats its send as lost and takes the claim over. A queued
+ *  voice note normally goes out within seconds; a sweep that died
+ *  mid-send, or a release that failed, leaves a claim that would
+ *  otherwise count as coverage forever. */
+export const CLAIM_GRACE_MS = 20 * 60 * 1000;
+
 type ReminderRecipient = { contact_id: string } | { liaison_id: string };
 
 function sameInstant(a: string | null | undefined, b: string | null | undefined) {
@@ -293,15 +300,18 @@ function inGeneration<
  * (retry on the next tick).
  *
  * A claim records the appointment generation the claiming sweep read
- * (rearmed_at = reminders_rearmed_at as read). A claim from another
+ * (rearmed_at = reminders_rearmed_at as read) and, once its message
+ * has gone, the time it was confirmed (sent_at). A claim from another
  * generation — made before a re-arm (reopened or moved through
  * PUT /api/appointments/[id]), or by a sweep that had read the
  * appointment before one — recorded a reminder for the old time or a
- * closed event, so it is taken over rather than honoured: it moves to
- * this generation, its clock restarts and its reply mapping clears, in
- * one conditional update so two cron instances cannot both take it. A
- * voice note still queued under the old claim sees the restarted clock
- * and drops (src/lib/voice/reminder-audio-worker.ts).
+ * closed event; a claim of this generation whose send was never
+ * confirmed within CLAIM_GRACE_MS recorded one that was lost. Either
+ * is taken over rather than honoured: it moves to this generation, its
+ * clock restarts and its reply mapping clears, in one update
+ * conditional on the clock as read so two cron instances cannot both
+ * take it. A voice note still queued under the old claim sees the
+ * restarted clock and drops (src/lib/voice/reminder-audio-worker.ts).
  */
 async function claimReminder(
   admin: SupabaseClient,
@@ -336,7 +346,7 @@ async function claimReminder(
     'contact_id' in recipient ? recipient.contact_id : recipient.liaison_id;
   const { data: existing, error: readErr } = await admin
     .from('appointment_reminder_log')
-    .select('id, created_at, rearmed_at')
+    .select('id, created_at, rearmed_at, sent_at')
     .eq('account_id', appt.account_id)
     .eq('appointment_id', appt.id)
     .eq(recipientColumn, recipientId)
@@ -350,7 +360,13 @@ async function claimReminder(
   // released it — so nothing is known to be covered: leave the
   // recipient for the next sweep rather than call it done.
   if (!existing) return 'failed';
-  if (sameInstant(existing.rearmed_at, appt.reminders_rearmed_at)) {
+  const unconfirmed =
+    !existing.sent_at &&
+    Date.now() - new Date(existing.created_at).getTime() > CLAIM_GRACE_MS;
+  if (
+    sameInstant(existing.rearmed_at, appt.reminders_rearmed_at) &&
+    !unconfirmed
+  ) {
     return null;
   }
   // Only a sweep of the current generation may take a claim over: one
@@ -369,19 +385,17 @@ async function claimReminder(
   if (!sameInstant(current.reminders_rearmed_at, appt.reminders_rearmed_at)) {
     return 'failed';
   }
-  const { data: renewed, error: renewErr } = await inGeneration(
-    admin
-      .from('appointment_reminder_log')
-      .update({
-        created_at: new Date().toISOString(),
-        wa_message_id: null,
-        rearmed_at: appt.reminders_rearmed_at,
-      })
-      .eq('id', existing.id)
-      .eq('account_id', appt.account_id),
-    'rearmed_at',
-    existing.rearmed_at
-  )
+  const { data: renewed, error: renewErr } = await admin
+    .from('appointment_reminder_log')
+    .update({
+      created_at: new Date().toISOString(),
+      wa_message_id: null,
+      sent_at: null,
+      rearmed_at: appt.reminders_rearmed_at,
+    })
+    .eq('id', existing.id)
+    .eq('account_id', appt.account_id)
+    .eq('created_at', existing.created_at)
     .select('id, created_at, rearmed_at')
     .maybeSingle();
   if (renewErr) {
@@ -431,15 +445,40 @@ async function stillAsRead(
 /** Releases the claim as this sweep holds it — the row with the clock
  *  it was claimed under. A replacement sweep renews the same row with
  *  a fresh clock rather than making a new one, so a stale sweep letting
- *  go must not take the replacement's claim with it. */
+ *  go must not take the replacement's claim with it. A release the
+ *  database refused is tried once more; one that still fails leaves
+ *  an unconfirmed claim, which the grace period retires. */
 async function releaseClaim(
   admin: SupabaseClient,
   appt: ReminderAppointment,
   claim: ReminderClaim
 ) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const { error } = await admin
+      .from('appointment_reminder_log')
+      .delete()
+      .eq('account_id', appt.account_id)
+      .eq('id', claim.id)
+      .eq('created_at', claim.created_at);
+    if (!error) return;
+    console.error(
+      `[Reminder Cron] claim release failed (attempt ${attempt}); the grace period will retire it:`,
+      error
+    );
+  }
+}
+
+/** Marks the claim's send confirmed, with the message id the reply
+ *  webhook matches a button tap by. */
+async function confirmClaim(
+  admin: SupabaseClient,
+  appt: ReminderAppointment,
+  claim: ReminderClaim,
+  waMessageId: string | null = null
+) {
   await admin
     .from('appointment_reminder_log')
-    .delete()
+    .update({ sent_at: new Date().toISOString(), wa_message_id: waMessageId })
     .eq('account_id', appt.account_id)
     .eq('id', claim.id)
     .eq('created_at', claim.created_at);
@@ -559,6 +598,7 @@ async function sendToAllRecipients(
         console.log(
           `[Reminder Cron] Placed ${reminderType} reminder CALL for appt ${appt.id} to contact ${contact.id}`
         );
+        await confirmClaim(admin, appt, claim);
         continue;
       }
     }
@@ -665,14 +705,7 @@ async function sendToAllRecipients(
       // Record Meta's message id on the claim row so the webhook can
       // match an inbound "Fine" / "Requesting reschedule" button tap
       // (its context.id) back to this appointment.
-      if (result.whatsappMessageId) {
-        await admin
-          .from('appointment_reminder_log')
-          .update({ wa_message_id: result.whatsappMessageId })
-          .eq('account_id', appt.account_id)
-          .eq('id', claim.id)
-          .eq('created_at', claim.created_at);
-      }
+      await confirmClaim(admin, appt, claim, result.whatsappMessageId ?? null);
     } else {
       console.error(
         `[Reminder Cron] Failed ${reminderType} reminder to ${contact.phone}:`,
@@ -796,6 +829,7 @@ async function sendLiaisonReminder(
     console.log(
       `[Reminder Cron] Sent ${reminderType} reminder for appt ${appt.id} to liaison ${appt.liaison_id}`
     );
+    await confirmClaim(admin, appt, claim);
     return true;
   } catch (err) {
     console.error(

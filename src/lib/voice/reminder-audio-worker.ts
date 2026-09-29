@@ -295,6 +295,12 @@ export async function processReminderAudioJob(
       console.log(
         `[reminder-audio] Sent ${job.reminderType} reminder note for appt ${job.appointmentId} to contact ${job.contactId}`
       );
+      await claimFilter(
+        admin
+          .from('appointment_reminder_log')
+          .update({ sent_at: new Date().toISOString() }),
+        job
+      );
       return;
     }
     console.error(
@@ -325,14 +331,13 @@ export async function processReminderAudioJob(
     console.log(
       `[reminder-audio] Fell back to template for appt ${job.appointmentId} contact ${job.contactId}`
     );
-    if (result.whatsappMessageId) {
-      await claimFilter(
-        admin
-          .from('appointment_reminder_log')
-          .update({ wa_message_id: result.whatsappMessageId }),
-        job
-      );
-    }
+    await claimFilter(
+      admin.from('appointment_reminder_log').update({
+        sent_at: new Date().toISOString(),
+        wa_message_id: result.whatsappMessageId ?? null,
+      }),
+      job
+    );
     return;
   }
   console.error(

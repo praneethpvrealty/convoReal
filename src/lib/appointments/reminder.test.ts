@@ -173,7 +173,8 @@ function claim(
   contactId: string,
   reminderType: string,
   createdAt: string,
-  rearmedAt: string | null = null
+  rearmedAt: string | null = null,
+  sentAt: string | null = createdAt
 ): Row {
   return {
     id: `claim-${contactId}-${reminderType}`,
@@ -184,6 +185,7 @@ function claim(
     reminder_type: reminderType,
     created_at: createdAt,
     rearmed_at: rearmedAt,
+    sent_at: sentAt,
     wa_message_id: 'wamid.old',
   };
 }
@@ -234,6 +236,7 @@ describe('checkAndSendAppointmentReminders', () => {
     const claims = tables.appointment_reminder_log;
     expect(claims).toHaveLength(1);
     expect(claims[0]).toMatchObject({ contact_id: 'c-visit', wa_message_id: 'wamid.1' });
+    expect(typeof claims[0].sent_at).toBe('string');
 
     tables.appointments[0].reminder_morning_sent = false;
     tables.appointments[0].reminder_1h_sent = false;
@@ -338,6 +341,31 @@ describe('checkAndSendAppointmentReminders', () => {
       reminder_morning_sent: false,
       reminder_1h_sent: false,
     });
+  });
+
+  it('[CAL-010] retries a claim of the current generation whose send was never confirmed, after the grace period', async () => {
+    tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
+    const longAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    tables.appointment_reminder_log = [
+      claim('c-visit', 'morning', longAgo, null, null),
+      claim('c-visit', '1h', longAgo, null, null),
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(
+      tables.appointment_reminder_log.filter((r) => typeof r.sent_at === 'string')
+    ).toHaveLength(1);
+  });
+
+  it('[CAL-010] leaves a fresh unconfirmed claim to its owner', async () => {
+    tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
+    const justNow = new Date(Date.now() - 60 * 1000).toISOString();
+    tables.appointment_reminder_log = [
+      claim('c-visit', 'morning', justNow, null, null),
+      claim('c-visit', '1h', justNow, null, null),
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
   });
 
   it('[CAL-010] honours a claim from the current generation', async () => {

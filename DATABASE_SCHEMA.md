@@ -313,6 +313,7 @@ Per-recipient delivery claims for client appointment reminders — one row per `
 - `account_id` / `appointment_id` / `contact_id` (UUID FKs, CASCADE).
 - `reminder_type` (TEXT): CHECK `('morning', '1h', 'manual')` (migration 290).
 - `wa_message_id` (TEXT, migration 141): the outbound reminder's WhatsApp id, so a button reply maps back to the appointment.
+- `sent_at` (TIMESTAMPTZ, migration 20260929120000): when the send this claim covers was confirmed; null while in flight. A claim of the current generation still unconfirmed after the grace period (`CLAIM_GRACE_MS`) is taken over by the cron rather than counted as coverage.
 - `rearmed_at` (TIMESTAMPTZ, migration 20260929110500): `appointments.reminders_rearmed_at` as the sweep that made the claim read it. A claim from another generation is superseded — the cron takes it over and sends again — however new its clock, so a sweep that read the appointment before a re-arm can never leave a claim that counts as coverage.
 
 #### 17. `todos`
