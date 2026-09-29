@@ -94,9 +94,22 @@ describe('PUT /api/appointments/[id]', () => {
     expect(typeof state.updates[0].reminders_rearmed_at).toBe('string');
   });
 
-  it('[CAL-010] closing an appointment, or re-sending scheduled, leaves the reminders alone', async () => {
+  it('[CAL-010] closing an appointment keeps its flags but stamps a new generation, so nothing in flight goes out', async () => {
     state.existing = { ...state.existing, status: 'scheduled' };
-    for (const status of ['completed', 'cancelled', 'scheduled']) {
+    for (const status of ['completed', 'cancelled']) {
+      state.updates = [];
+      const res = await put({ status });
+      expect(res.status).toBe(200);
+      expect(state.updates[0]).toMatchObject({ status });
+      expect(state.updates[0]).not.toHaveProperty('reminder_morning_sent');
+      expect(state.updates[0]).not.toHaveProperty('reminder_1h_sent');
+      expect(typeof state.updates[0].reminders_rearmed_at).toBe('string');
+    }
+  });
+
+  it('re-sending the same status leaves the reminders alone', async () => {
+    for (const status of ['scheduled', 'completed', 'cancelled']) {
+      state.existing = { ...state.existing, status };
       state.updates = [];
       const res = await put({ status });
       expect(res.status).toBe(200);

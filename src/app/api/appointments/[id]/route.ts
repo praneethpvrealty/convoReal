@@ -93,6 +93,8 @@ export async function PUT(
       start_time !== undefined &&
       new Date(existing.start_time).getTime() !== new Date(start_time).getTime()
     const reopened = status === 'scheduled' && existing.status !== 'scheduled'
+    const closed =
+      status !== undefined && status !== 'scheduled' && existing.status === 'scheduled'
     // Only a start still ahead is worth reminding about: reopening
     // yesterday's cancelled visit must not message its contacts.
     const startsAhead =
@@ -105,6 +107,12 @@ export async function PUT(
       // And voids any earlier "Fine" confirmation — it was for the
       // old time; the re-sent reminders will collect a fresh one.
       updatePayload.client_confirmed_at = null
+    }
+    if (closed) {
+      // Done or Cancel: nothing changes for the sweep, which only reads
+      // scheduled rows, but a reminder it already fetched or queued
+      // for this event must not go out now that the event is closed.
+      updatePayload.reminders_rearmed_at = new Date().toISOString()
     }
     if ((rescheduled || reopened) && !startsAhead) {
       // A reminder that never went out for a visit now behind us must

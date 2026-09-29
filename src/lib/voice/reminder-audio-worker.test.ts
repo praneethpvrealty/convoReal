@@ -30,7 +30,7 @@ vi.mock('@/lib/supabase/admin', () => ({
         },
         eq: (column: string, value: unknown) => {
           filters.push([column, value]);
-          if (mutation) state.mutations.push([mutation, [...filters]]);
+          if (mutation && column !== 'account_id') state.mutations.push([mutation, [...filters]]);
           return builder;
         },
         maybeSingle: async () => {
@@ -162,8 +162,8 @@ describe('processReminderAudioJob', () => {
     expect(state.burns).toBe(1);
     expect(state.sends).toBe(1);
     expect(state.mutations).toEqual([
-      ['update', [['id', 'claim-1']]],
-      ['update', [['id', 'claim-1'], ['created_at', QUEUED_AT]]],
+      ['update', [['account_id', 'acct-1'], ['id', 'claim-1']]],
+      ['update', [['account_id', 'acct-1'], ['id', 'claim-1'], ['created_at', QUEUED_AT]]],
     ]);
   });
 
@@ -186,9 +186,9 @@ describe('processReminderAudioJob', () => {
     await processReminderAudioJob({ ...job, claimId: undefined, claimedAt: undefined });
     expect(state.sends).toBe(1);
     expect(state.mutations).toEqual([
-      ['update', [['appointment_id', 'appt-1']]],
-      ['update', [['appointment_id', 'appt-1'], ['contact_id', 'contact-1']]],
-      ['update', [['appointment_id', 'appt-1'], ['contact_id', 'contact-1'], ['reminder_type', '1h']]],
+      ['update', [['account_id', 'acct-1'], ['appointment_id', 'appt-1']]],
+      ['update', [['account_id', 'acct-1'], ['appointment_id', 'appt-1'], ['contact_id', 'contact-1']]],
+      ['update', [['account_id', 'acct-1'], ['appointment_id', 'appt-1'], ['contact_id', 'contact-1'], ['reminder_type', '1h']]],
     ]);
   });
 });

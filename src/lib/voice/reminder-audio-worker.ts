@@ -36,6 +36,7 @@ async function claimStands(
     .from('appointment_reminder_log')
     .select('id, created_at, appointment:appointments(reminders_rearmed_at)')
     .eq('id', job.claimId)
+    .eq('account_id', job.accountId)
     .maybeSingle();
   if (error) throw new Error(`claim lookup failed: ${error.message}`);
   if (!data) return false;
@@ -201,14 +202,15 @@ export async function processReminderAudioJob(
   const claimFilter = (query: {
     eq: (column: string, value: string) => unknown;
   }) => {
+    const own = query.eq('account_id', job.accountId) as typeof query;
     if (!job.claimId) {
       return (
         (
-          query.eq('appointment_id', job.appointmentId) as typeof query
+          own.eq('appointment_id', job.appointmentId) as typeof query
         ).eq('contact_id', job.contactId) as typeof query
       ).eq('reminder_type', job.reminderType);
     }
-    const byId = query.eq('id', job.claimId) as typeof query;
+    const byId = own.eq('id', job.claimId) as typeof query;
     return job.claimedAt ? byId.eq('created_at', job.claimedAt) : byId;
   };
   const result = await sendWhatsAppMessageAndPersist({
