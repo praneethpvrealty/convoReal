@@ -477,6 +477,8 @@ async function confirmClaim(
   admin: SupabaseClient,
   appt: ReminderAppointment,
   claim: ReminderClaim,
+  recipient: ReminderRecipient,
+  reminderType: ReminderType,
   waMessageId: string | null = null
 ): Promise<boolean> {
   const confirmed = await confirmClaimSent(
@@ -485,6 +487,11 @@ async function confirmClaim(
       accountId: appt.account_id,
       claimId: claim.id,
       claimedAt: claim.created_at,
+      appointmentId: appt.id,
+      contactId: 'contact_id' in recipient ? recipient.contact_id : null,
+      liaisonId: 'liaison_id' in recipient ? recipient.liaison_id : null,
+      reminderType,
+      rearmedAt: appt.reminders_rearmed_at,
       waMessageId,
       sentAt: new Date().toISOString(),
     },
@@ -616,7 +623,13 @@ async function sendToAllRecipients(
         console.log(
           `[Reminder Cron] Placed ${reminderType} reminder CALL for appt ${appt.id} to contact ${contact.id}`
         );
-        await confirmClaim(admin, appt, claim);
+        await confirmClaim(
+          admin,
+          appt,
+          claim,
+          { contact_id: contact.id },
+          reminderType
+        );
         continue;
       }
     }
@@ -723,7 +736,14 @@ async function sendToAllRecipients(
       // Record Meta's message id on the claim row so the webhook can
       // match an inbound "Fine" / "Requesting reschedule" button tap
       // (its context.id) back to this appointment.
-      await confirmClaim(admin, appt, claim, result.whatsappMessageId ?? null);
+      await confirmClaim(
+        admin,
+        appt,
+        claim,
+        { contact_id: contact.id },
+        reminderType,
+        result.whatsappMessageId ?? null
+      );
     } else {
       console.error(
         `[Reminder Cron] Failed ${reminderType} reminder to ${contact.phone}:`,
@@ -847,7 +867,13 @@ async function sendLiaisonReminder(
     console.log(
       `[Reminder Cron] Sent ${reminderType} reminder for appt ${appt.id} to liaison ${appt.liaison_id}`
     );
-    await confirmClaim(admin, appt, claim);
+    await confirmClaim(
+      admin,
+      appt,
+      claim,
+      { liaison_id: appt.liaison_id },
+      reminderType
+    );
     return true;
   } catch (err) {
     console.error(

@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  results: [] as Array<'stamped' | 'gone' | 'failed'>,
+  results: [] as Array<'stamped' | 'gone' | 'failed' | 'duplicate'>,
   updates: 0,
   patches: [] as Array<Record<string, unknown>>,
+  inserts: [] as Array<Record<string, unknown>>,
   queued: [] as Array<{ attempts?: number }>,
   queueFails: false,
 }));
@@ -16,6 +17,10 @@ vi.mock('@/lib/supabase/admin', () => ({
           state.patches.push(patch);
           return builder;
         },
+        insert: (row: Record<string, unknown>) => {
+          state.inserts.push(row);
+          return builder;
+        },
         eq: () => builder,
         select: () => builder,
         then: (resolve: (v: { error: null }) => unknown) => resolve({ error: null }),
@@ -24,6 +29,7 @@ vi.mock('@/lib/supabase/admin', () => ({
           const result =
             state.results.length > 1 ? state.results.shift()! : state.results[0];
           if (result === 'failed') return { data: null, error: { message: 'timeout' } };
+          if (result === 'duplicate') return { data: null, error: { code: '23505', message: 'duplicate' } };
           if (result === 'gone') return { data: null, error: null };
           return { data: { id: 'claim-1' }, error: null };
         },
@@ -57,14 +63,20 @@ const confirmation = {
   accountId: 'acct-1',
   claimId: 'claim-1',
   claimedAt: '2026-09-29T10:00:00.000+00:00',
+  appointmentId: 'appt-1',
+  contactId: 'contact-1',
+  liaisonId: null,
+  reminderType: '1h' as const,
+  rearmedAt: null,
   waMessageId: 'wamid.1',
   sentAt: '2026-09-29T10:00:05.000Z',
 };
 
-function reset(results: Array<'stamped' | 'gone' | 'failed'>) {
+function reset(results: Array<'stamped' | 'gone' | 'failed' | 'duplicate'>) {
   state.results = results;
   state.updates = 0;
   state.patches = [];
+  state.inserts = [];
   state.queued = [];
   state.queueFails = false;
 }
@@ -73,12 +85,36 @@ describe('[CAL-010] confirming a reminder claim', () => {
   it('stamps the claim, and keeps the earlier message id on a claim the cron renewed meanwhile', async () => {
     reset(['stamped']);
     expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('stamped');
-    reset(['gone']);
+    reset(['gone', 'stamped']);
     expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('gone');
     expect(state.patches).toEqual([
       { sent_at: confirmation.sentAt, wa_message_id: 'wamid.1' },
       { prior_wa_message_id: 'wamid.1' },
     ]);
+    expect(state.inserts).toEqual([]);
+  });
+
+  it('puts a released claim back as confirmed, since its send went out', async () => {
+    reset(['gone', 'gone', 'stamped']);
+    expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('stamped');
+    expect(state.inserts).toEqual([
+      {
+        id: 'claim-1',
+        account_id: 'acct-1',
+        appointment_id: 'appt-1',
+        contact_id: 'contact-1',
+        reminder_type: '1h',
+        rearmed_at: null,
+        sent_at: confirmation.sentAt,
+        wa_message_id: 'wamid.1',
+      },
+    ]);
+  });
+
+  it('keeps the earlier message id on a claim re-made under a new id while it was being put back', async () => {
+    reset(['gone', 'gone', 'duplicate', 'stamped']);
+    expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('gone');
+    expect(state.patches.at(-1)).toEqual({ prior_wa_message_id: 'wamid.1' });
   });
 
   it('holds the confirmation in process for the caller\'s window when the queue refuses too', async () => {

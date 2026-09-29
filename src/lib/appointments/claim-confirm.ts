@@ -21,6 +21,13 @@ export interface ClaimConfirmation {
   /** The claim's clock as the sender held it; a claim the cron has
    *  since renewed for a fresh send is never stamped from here. */
   claimedAt: string | null;
+  /** What the claim covered, so a claim released in the meantime can
+   *  be put back as a confirmed one. */
+  appointmentId: string;
+  contactId: string | null;
+  liaisonId: string | null;
+  reminderType: 'morning' | '1h';
+  rearmedAt: string | null;
   waMessageId: string | null;
   sentAt: string;
 }
@@ -59,25 +66,82 @@ export async function stampClaimSent(
     return 'failed';
   }
   if (data) return 'stamped';
-  // The cron took the claim over — and sent again — before this send
-  // was confirmed. The row now describes the later send; the earlier
-  // message id is kept beside it so a reply to either still maps.
-  console.warn(
-    `[Reminder] claim ${confirmation.claimId} was renewed before its send was confirmed; keeping the earlier message id beside the new one`
-  );
-  if (!confirmation.waMessageId) return 'gone';
-  const { error: priorErr } = await admin
+  // The claim moved before this send was confirmed: the cron took it
+  // over — and sent again — or a takeover's failed send released it.
+  // Renewed, the row describes the later send and the earlier message
+  // id is kept beside it so a reply to either still maps; released,
+  // the claim is put back as a confirmed one, since the send it
+  // covered did go out.
+  const kept = await keepPriorMessageId(admin, confirmation, 'id');
+  if (kept !== 'no-row') return kept;
+  const recipient = confirmation.liaisonId
+    ? { liaison_id: confirmation.liaisonId }
+    : { contact_id: confirmation.contactId };
+  const { data: restored, error: restoreErr } = await admin
     .from('appointment_reminder_log')
-    .update({ prior_wa_message_id: confirmation.waMessageId })
-    .eq('account_id', confirmation.accountId)
-    .eq('id', confirmation.claimId);
-  if (priorErr) {
+    .insert({
+      id: confirmation.claimId,
+      account_id: confirmation.accountId,
+      appointment_id: confirmation.appointmentId,
+      ...recipient,
+      reminder_type: confirmation.reminderType,
+      rearmed_at: confirmation.rearmedAt,
+      sent_at: confirmation.sentAt,
+      wa_message_id: confirmation.waMessageId,
+    })
+    .select('id')
+    .maybeSingle();
+  if (!restoreErr && restored) {
+    console.warn(
+      `[Reminder] claim ${confirmation.claimId} had been released before its send was confirmed; put back as confirmed`
+    );
+    return 'stamped';
+  }
+  if (restoreErr?.code !== '23505') {
     console.error(
-      `[Reminder] could not keep the earlier message id on claim ${confirmation.claimId}:`,
-      priorErr
+      `[Reminder] could not restore claim ${confirmation.claimId}:`,
+      restoreErr ?? 'no row'
     );
     return 'failed';
   }
+  const keptOnNew = await keepPriorMessageId(admin, confirmation, 'recipient');
+  return keptOnNew === 'no-row' ? 'failed' : keptOnNew;
+}
+
+/** Writes the earlier send's message id beside the current one on the
+ *  row that now covers the recipient — found by the claim's id, or by
+ *  the recipient when the claim was re-made under a new id. */
+async function keepPriorMessageId(
+  admin: SupabaseClient,
+  confirmation: ClaimConfirmation,
+  by: 'id' | 'recipient'
+): Promise<'gone' | 'failed' | 'no-row'> {
+  let query = admin
+    .from('appointment_reminder_log')
+    .update({ prior_wa_message_id: confirmation.waMessageId })
+    .eq('account_id', confirmation.accountId);
+  if (by === 'id') {
+    query = query.eq('id', confirmation.claimId);
+  } else {
+    query = query
+      .eq('appointment_id', confirmation.appointmentId)
+      .eq('reminder_type', confirmation.reminderType);
+    query = confirmation.liaisonId
+      ? query.eq('liaison_id', confirmation.liaisonId)
+      : query.eq('contact_id', confirmation.contactId!);
+  }
+  const { data, error } = await query.select('id').maybeSingle();
+  if (error) {
+    console.error(
+      `[Reminder] could not keep the earlier message id for claim ${confirmation.claimId}:`,
+      error
+    );
+    return 'failed';
+  }
+  if (!data) return 'no-row';
+  console.warn(
+    `[Reminder] claim ${confirmation.claimId} was renewed before its send was confirmed; the earlier message id is kept beside the new one`
+  );
   return 'gone';
 }
 

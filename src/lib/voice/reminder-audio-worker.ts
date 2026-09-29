@@ -102,6 +102,11 @@ async function confirmSent(
     accountId: job.accountId,
     claimId: job.claimId!,
     claimedAt: job.claimedAt ?? null,
+    appointmentId: job.appointmentId,
+    contactId: job.contactId,
+    liaisonId: null,
+    reminderType: job.reminderType,
+    rearmedAt: job.rearmedAt ?? null,
     waMessageId,
     sentAt: new Date().toISOString(),
   };
