@@ -1,12 +1,16 @@
--- A claim's send may be confirmed late — the confirmation rode the
--- queue through an outage — after the cron has already taken the claim
--- over and sent again, possibly more than once. The unique
--- (appointment, recipient, type) key leaves one row for every send, so
--- each earlier message id is kept beside the current one and the reply
--- webhook matches a button tap by any of them
--- (src/lib/appointments/claim-confirm.ts,
+-- Supersedes the single slot of 20260929122000: a claim's send may be
+-- confirmed late — the confirmation rode the queue through an outage —
+-- after the cron has already taken the claim over and sent again,
+-- possibly more than once. The unique (appointment, recipient, type)
+-- key leaves one row for every send, so each earlier message id is
+-- kept beside the current one and the reply webhook matches a button
+-- tap by any of them (src/lib/appointments/claim-confirm.ts,
 -- src/lib/whatsapp/webhook-handler.ts). The append is a function so
 -- two late confirmations cannot lose each other's id.
+--
+-- Not purely additive: the last block moves whatever the slot holds
+-- into the array and drops the slot. Apply it with the merge to main,
+-- together with the reader that queries the array.
 
 ALTER TABLE appointment_reminder_log
   ADD COLUMN IF NOT EXISTS prior_wa_message_ids TEXT[] NOT NULL DEFAULT '{}';
@@ -14,9 +18,8 @@ ALTER TABLE appointment_reminder_log
 CREATE INDEX IF NOT EXISTS idx_appointment_reminder_log_prior_wa_message_ids
   ON appointment_reminder_log USING GIN (prior_wa_message_ids);
 
--- A project that ran the earlier, single-slot form of this migration
--- carries prior_wa_message_id: whatever it holds moves into the array
--- before the reader switches, and the slot goes.
+-- Whatever the slot holds moves into the array before the reader
+-- switches, and the slot goes.
 DO $$
 BEGIN
   IF EXISTS (
