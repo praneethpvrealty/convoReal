@@ -144,6 +144,15 @@ export function sortDealDates<
   );
 }
 
+/** The day the calendar labels against. A tab kept mounted across
+ *  midnight — backgrounded, resumed — must not keep yesterday's key, or
+ *  a date due today reads "Due tomorrow" and Upcoming splits on the
+ *  wrong day; the screen re-reads this on resume and on pull-to-refresh
+ *  and keeps the same Date while the day has not changed. */
+export function refreshedToday(current: Date, now: Date = new Date()): Date {
+  return localDateKey(current) === localDateKey(now) ? current : now;
+}
+
 export function localDateKey(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;

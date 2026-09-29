@@ -10,6 +10,7 @@ import {
   dealDatesInRange,
   groupDealDatesByDate,
   localDateKey,
+  refreshedToday,
   toDealDate,
   type DealDate,
   type DealDateRow,
@@ -143,6 +144,15 @@ describe('[CAL-008] deal dates on the mobile calendar', () => {
       2026, 9, 10,
     ]);
     expect(localDateKey(day)).toBe('2026-10-10');
+  });
+
+  it('moves "today" forward only once the local day has changed', () => {
+    const mounted = new Date(2026, 8, 29, 23, 50);
+    expect(refreshedToday(mounted, new Date(2026, 8, 29, 23, 59))).toBe(
+      mounted
+    );
+    const next = new Date(2026, 8, 30, 0, 5);
+    expect(refreshedToday(mounted, next)).toBe(next);
   });
 
   it('labels the three kinds for the chip', () => {

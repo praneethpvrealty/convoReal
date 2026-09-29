@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -32,6 +33,7 @@ import {
   dealDateLocalDay,
   dealDatesInRange,
   localDateKey,
+  refreshedToday,
   sortDealDates,
   toDealDate,
   todayDateKey,
@@ -172,7 +174,13 @@ export default function CalendarScreen() {
   const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
   const accountId = useAuthStore((s) => s.profile?.account_id);
-  const [today] = useState(() => new Date());
+  const [today, setToday] = useState(() => new Date());
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setToday((current) => refreshedToday(current));
+    });
+    return () => subscription.remove();
+  }, []);
   const params = useLocalSearchParams<{ eventId?: string | string[] }>();
   const eventId = Array.isArray(params.eventId)
     ? params.eventId[0]
@@ -205,14 +213,15 @@ export default function CalendarScreen() {
     queryFn: () => fetchDealDates(accountId!, todayKey, DEAL_DATE_HORIZON_DAYS),
     enabled: !!accountId,
   });
-  const pull = usePullRefresh(() =>
-    Promise.all([
+  const pull = usePullRefresh(() => {
+    setToday((current) => refreshedToday(current));
+    return Promise.all([
       refetch(),
       todosQuery.refetch(),
       upcomingAppointmentsQuery.refetch(),
       dealDatesQuery.refetch(),
-    ])
-  );
+    ]);
+  });
 
   const byDay = useMemo(() => {
     const map = new Map<string, Appointment[]>();

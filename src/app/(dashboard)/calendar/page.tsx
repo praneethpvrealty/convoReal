@@ -343,15 +343,19 @@ export default function CalendarPage() {
     return cells;
   }, [year, month, firstDayIndex, daysInMonth, prevDaysInMonth]);
 
-  // View-level filters applied to every calendar surface.
+  // View-level filters applied to every calendar surface. The Team view
+  // has no lane for a deal date, so the Deal dates filter does not apply
+  // there and its chip is hidden rather than emptying every lane.
+  const effectiveTypeFilter: CalendarTypeFilter =
+    view === "team" && typeFilter === "deal" ? "all" : typeFilter;
   const filteredAppointments = useMemo(() => {
     return appointments.filter((appt) => {
-      if (typeFilter === "deal") return false;
-      if (typeFilter !== "all" && (appt.event_type || "other") !== typeFilter) return false;
+      if (effectiveTypeFilter === "deal") return false;
+      if (effectiveTypeFilter !== "all" && (appt.event_type || "other") !== effectiveTypeFilter) return false;
       if (memberFilter !== "all" && (appt.assigned_to || appt.user_id) !== memberFilter) return false;
       return true;
     });
-  }, [appointments, typeFilter, memberFilter]);
+  }, [appointments, effectiveTypeFilter, memberFilter]);
 
   // Combine appointments and todos for the To-Do task list
   const combinedTodos = useMemo(() => {
@@ -1257,7 +1261,7 @@ export default function CalendarPage() {
               onClick={() => setTypeFilter("all")}
               className={cn(
                 "rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
-                typeFilter === "all"
+                effectiveTypeFilter === "all"
                   ? "border-primary/50 bg-primary/15 text-primary"
                   : "border-slate-800 text-slate-400 hover:text-white"
               )}
@@ -1280,16 +1284,18 @@ export default function CalendarPage() {
                 </button>
               );
             })}
-            <button
-              onClick={() => setTypeFilter(typeFilter === "deal" ? "all" : "deal")}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
-                typeFilter === "deal" ? DEAL_DATE_META.chip : "border-slate-800 text-slate-500 hover:text-white"
-              )}
-            >
-              <span className={cn("h-1.5 w-1.5 rounded-full", DEAL_DATE_META.dot)} />
-              {DEAL_DATE_META.label}
-            </button>
+            {view !== "team" && (
+              <button
+                onClick={() => setTypeFilter(typeFilter === "deal" ? "all" : "deal")}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
+                  typeFilter === "deal" ? DEAL_DATE_META.chip : "border-slate-800 text-slate-500 hover:text-white"
+                )}
+              >
+                <span className={cn("h-1.5 w-1.5 rounded-full", DEAL_DATE_META.dot)} />
+                {DEAL_DATE_META.label}
+              </button>
+            )}
             {members.length > 1 && (
               <select
                 value={memberFilter}
