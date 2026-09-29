@@ -798,6 +798,13 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
       "label: inFocus ? 'Move to Passive' : 'Move to Focus'"
     );
     expect(screen).toContain(
+      "const compartmentsOn = view === 'active' && compartmentsQuery.isSuccess;"
+    );
+    expect(screen).toContain('compartmentsQuery.isLoading;');
+    expect(screen).toContain(
+      'await queryClient.cancelQueries({ queryKey: key });'
+    );
+    expect(screen).toContain(
       '{passiveOpen ? renderCards(split.passive) : null}'
     );
     const sheet = mobileSource('components/profile-edit-sheet.tsx');

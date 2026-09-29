@@ -727,7 +727,9 @@ describe('splitJourneysByCompartment', () => {
     expect(overview).toContain(
       'splitJourneysByCompartment(bucket.groups, focusIds)'
     );
-    expect(overview).toContain("compartments={view === 'active'}");
+    expect(overview).toContain(
+      "compartments={view === 'active' && compartmentsReady}"
+    );
     expect(overview).toContain(
       'fetch(`/api/journey/compartments?mode=${mode}`)'
     );

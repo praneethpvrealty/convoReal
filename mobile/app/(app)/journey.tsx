@@ -343,6 +343,7 @@ export function JourneyBody() {
     () => new Set(compartmentsQuery.data?.focus ?? []),
     [compartmentsQuery.data]
   );
+  const compartmentsOn = view === 'active' && compartmentsQuery.isSuccess;
 
   const notesQuery = useQuery({
     queryKey: ['journey-stage-notes', noteTarget?.item.id],
@@ -818,13 +819,17 @@ export function JourneyBody() {
     show({
       title: groupTitle(group, mode),
       actions: [
-        {
-          label: inFocus ? 'Move to Passive' : 'Move to Focus',
-          onPress: () => {
-            close();
-            void setCompartment(group, inFocus ? 'passive' : 'focus');
-          },
-        },
+        ...(compartmentsOn
+          ? [
+              {
+                label: inFocus ? 'Move to Passive' : 'Move to Focus',
+                onPress: () => {
+                  close();
+                  void setCompartment(group, inFocus ? 'passive' : 'focus');
+                },
+              },
+            ]
+          : []),
         {
           label: 'Close with outcome',
           variant: 'primary',
@@ -864,6 +869,7 @@ export function JourneyBody() {
   ) {
     if (!canEdit) return;
     const key = ['journey-compartments', accountId, mode];
+    await queryClient.cancelQueries({ queryKey: key });
     const previous = queryClient.getQueryData<{
       scope: 'team' | 'agent';
       focus: string[];
@@ -1064,7 +1070,10 @@ export function JourneyBody() {
   }, [focusIds, movedItem, movedKey]);
 
   const isLoading =
-    stagesQuery.isLoading || summariesQuery.isLoading || statesQuery.isLoading;
+    stagesQuery.isLoading ||
+    summariesQuery.isLoading ||
+    statesQuery.isLoading ||
+    compartmentsQuery.isLoading;
 
   return (
     <ScrollView
@@ -1370,7 +1379,7 @@ export function JourneyBody() {
                 onMove={(from, to) => void moveGroup(list, from, to)}
                 onActions={() => showGroupActions(group)}
                 compartment={
-                  view === 'active'
+                  compartmentsOn
                     ? focusIds.has(group.subjectId)
                       ? 'focus'
                       : 'passive'
@@ -1538,7 +1547,7 @@ export function JourneyBody() {
                   </Pressable>
                 </View>
               ) : null}
-              {showBody && view === 'active' ? (
+              {showBody && compartmentsOn ? (
                 <>
                   {split.focus.length > 0 ? (
                     renderCards(split.focus)

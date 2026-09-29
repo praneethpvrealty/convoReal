@@ -274,6 +274,7 @@ export function JourneyOverview({
     readIdSet(passiveKey)
   );
   const [focusIds, setFocusIds] = useState<Set<string>>(() => new Set());
+  const [compartmentsReady, setCompartmentsReady] = useState(false);
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
   const [enquirySource, setEnquirySource] = useState<string | null>(null);
@@ -418,6 +419,7 @@ export function JourneyOverview({
       data?: { focus?: string[] };
       error?: string;
     } | null;
+    setCompartmentsReady(compartmentsResponse.ok);
     if (compartmentsResponse.ok) {
       setFocusIds(new Set(compartmentsPayload?.data?.focus ?? []));
     } else {
@@ -1183,7 +1185,7 @@ export function JourneyOverview({
             onItemMoved={(subjectId, itemId) =>
               setSpotlight({ subjectId, itemId })
             }
-            compartments={view === 'active'}
+            compartments={view === 'active' && compartmentsReady}
             focusIds={focusIds}
             passiveOpen={
               Boolean(query.trim()) || passiveOpenIds.has(bucket.key)

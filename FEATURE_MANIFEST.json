@@ -1639,7 +1639,7 @@
         },
         {
           "id": "JRN-014",
-          "rule": "Inside every active stage group on web and mobile, journeys are split into Focus, listed first, and Passive, folded behind a count that opens on request (and opens by itself while searching or when a moved journey lands in it); closed and archived views are not split. A journey nobody has sorted is Passive. Any agent moves a journey between the two from a one-tap control on its row or its actions menu; viewers see the split but cannot change it. The split is shared by the whole team by default; an account admin can switch it (Settings → Members on web, Edit profile on mobile) so every agent keeps their own Focus list instead, and each scope reads and writes only its own rows. The compartment is saved through /api/journey/compartments, which checks the journey belongs to the caller's account.",
+          "rule": "Inside every active stage group on web and mobile, journeys are split into Focus, listed first, and Passive, folded behind a count that opens on request (and opens by itself while searching or when a moved journey lands in it); closed and archived views are not split. A journey nobody has sorted is Passive. Any agent moves a journey between the two from a one-tap control on its row or its actions menu; viewers see the split but cannot change it. The split is shared by the whole team by default; an account admin can switch it (Settings → Members on web, Edit profile on mobile) so every agent keeps their own Focus list instead, and each scope reads and writes only its own rows. The compartment is saved through /api/journey/compartments, which checks the journey belongs to the caller's account, and row-level security admits only rows of the scope in force. Neither surface splits a stage until the Focus list has loaded, and a failed load leaves the stage unsplit.",
           "tests": [
             {
               "file": "src/lib/journey/compartments.test.ts",
@@ -1664,10 +1664,15 @@
             {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[JRN-014]"
+            },
+            {
+              "file": "src/lib/migrations/journey-compartments-scope-rls.test.ts",
+              "case": "[JRN-014]"
             }
           ],
           "guards": [
             "supabase/migrations/20260929050125_journey_compartments.sql",
+            "supabase/migrations/20260929054500_journey_compartments_scope_rls.sql",
             "src/lib/journey/compartments.ts",
             "src/app/api/journey/compartments/route.ts"
           ]
