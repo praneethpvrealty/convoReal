@@ -121,7 +121,6 @@ vi.mock('./reminder-audio', async (importOriginal) => ({
 import { processReminderAudioJob, RETAIN } from './reminder-audio-worker';
 
 RETAIN.delayMs = 0;
-RETAIN.rounds = 3;
 
 const job = {
   kind: 'reminder_audio' as const,
@@ -130,6 +129,7 @@ const job = {
   contactId: 'contact-1',
   claimId: 'claim-1',
   claimedAt: QUEUED_AT,
+  rearmedAt: null,
   userId: null,
   reminderType: '1h' as const,
   spokenText: 'Reminder',
@@ -250,16 +250,16 @@ describe('processReminderAudioJob', () => {
     expect(state.parked).toEqual([{ ...job, attempts: 2 }]);
   });
 
-  it('logs the payload only once every store has refused it for the whole window', async () => {
+  it('keeps holding past the log threshold, printing the payload for a hand replay', async () => {
     reset(['error']);
     state.mutationError = { message: 'timeout' };
     state.enqueueFails = true;
-    state.parkFailures = 99;
+    state.parkFailures = 13;
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     await processReminderAudioJob({ ...job, attempts: 2 });
     expect(state.sends).toBe(0);
-    expect(state.rpcs).toHaveLength(RETAIN.rounds);
-    expect(state.parked).toEqual([]);
+    expect(state.rpcs).toHaveLength(14);
+    expect(state.parked).toEqual([{ ...job, attempts: 2 }]);
     expect(
       errors.mock.calls.some(
         (call) => typeof call[1] === 'string' && call[1].includes('"appointmentId":"appt-1"')
@@ -276,14 +276,34 @@ describe('processReminderAudioJob', () => {
     expect(state.requeued).toEqual([{ ...job, attempts: 3, rearmedAt: null }]);
   });
 
-  it('treats a note queued before claims were recorded as standing', async () => {
-    reset(['gone']);
-    await processReminderAudioJob({ ...job, claimId: undefined, claimedAt: undefined });
-    expect(state.sends).toBe(1);
-    expect(state.mutations).toEqual([
-      ['update', [['account_id', 'acct-1'], ['appointment_id', 'appt-1']]],
-      ['update', [['account_id', 'acct-1'], ['appointment_id', 'appt-1'], ['contact_id', 'contact-1']]],
-      ['update', [['account_id', 'acct-1'], ['appointment_id', 'appt-1'], ['contact_id', 'contact-1'], ['reminder_type', '1h']]],
+  it('[CAL-010] hands a note queued before generations were recorded back to the cron, unsent', async () => {
+    reset(['stands']);
+    await processReminderAudioJob({ ...job, claimId: undefined, claimedAt: undefined, rearmedAt: undefined });
+    expect(state.sends).toBe(0);
+    expect(state.requeued).toEqual([]);
+    expect(state.rpcs).toEqual([
+      [
+        'appointment_reminder_hand_back',
+        {
+          p_account_id: 'acct-1',
+          p_appointment_id: 'appt-1',
+          p_contact_id: 'contact-1',
+          p_reminder_type: '1h',
+          p_claim_id: null,
+          p_claimed_at: null,
+          p_rearmed_known: false,
+          p_rearmed_at: null,
+        },
+      ],
     ]);
+  });
+
+  it('never requeues a legacy note while holding it', async () => {
+    reset(['stands']);
+    state.mutationError = { message: 'timeout' };
+    state.parkFailures = 1;
+    await processReminderAudioJob({ ...job, claimId: undefined, claimedAt: undefined, rearmedAt: undefined });
+    expect(state.requeued).toEqual([]);
+    expect(state.parked).toHaveLength(1);
   });
 });

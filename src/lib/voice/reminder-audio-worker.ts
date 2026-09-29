@@ -68,40 +68,52 @@ async function handBackToCron(
   return true;
 }
 
-/** How long a note that cannot yet be verified, handed back, requeued
- *  or parked is held in the worker before its payload is logged whole:
- *  the worker already popped it, so it is kept here until one store
- *  confirms it. Exported so tests can shorten the wait. */
-export const RETAIN = { delayMs: 5_000, rounds: 24 };
+/** The pause between rounds while a note is held for a store to
+ *  confirm it. Exported so tests can shorten the wait. */
+export const RETAIN = { delayMs: 5_000 };
 
 /** Keeps the note until its reminder is persisted somewhere: handed
  *  back to the cron (the database confirmed it), requeued, or parked in
- *  the dead-letter list. Every store is retried with a pause between
- *  rounds — a database and a Redis outage at once is what this is for
- *  — and only after the whole window does the payload go to the log,
- *  whole, for replay by hand. */
+ *  the dead-letter list. The worker already popped it, and its claim
+ *  and flag say it was delivered, so nothing short of a store's
+ *  confirmation lets go of it: every store is retried with a pause
+ *  between rounds for as long as it takes — a database and a Redis
+ *  outage at once is what this is for — with the payload logged whole
+ *  each minute so an operator can replay it by hand if the worker is
+ *  restarted first. A note the worker cannot verify at all (queued
+ *  before generations were recorded) is never requeued, since it would
+ *  come straight back. */
 async function retainUntilPersisted(
   admin: SupabaseClient,
   job: ReminderAudioJob,
-  attempts: number
+  attempts: number,
+  requeue = true
 ): Promise<'drop' | 'requeued'> {
   for (let round = 1; ; round++) {
     if (await handBackToCron(admin, job).catch(() => false)) return 'drop';
-    if (await enqueueReminderAudioJob({ ...job, attempts })) return 'requeued';
+    if (requeue && (await enqueueReminderAudioJob({ ...job, attempts }))) {
+      return 'requeued';
+    }
     if (await parkReminderAudioJob(job)) {
       console.error(
         `[reminder-audio] Parked the ${job.reminderType} reminder for appt ${job.appointmentId} in the dead-letter list`
       );
       return 'drop';
     }
-    if (round >= RETAIN.rounds) break;
+    if (round % 12 === 0) {
+      console.error(
+        `[reminder-audio] Still holding the ${job.reminderType} reminder for appt ${job.appointmentId} after ${round} rounds; payload for replay:`,
+        JSON.stringify(job)
+      );
+    }
     await new Promise((resolve) => setTimeout(resolve, RETAIN.delayMs));
   }
-  console.error(
-    `[reminder-audio] Could not persist the ${job.reminderType} reminder for appt ${job.appointmentId} anywhere; payload for replay:`,
-    JSON.stringify(job)
-  );
-  return 'drop';
+}
+
+/** A note queued before claims and generations were recorded carries
+ *  nothing the appointment can be checked against. */
+function isLegacy(job: ReminderAudioJob): boolean {
+  return !job.claimId || job.rearmedAt === undefined;
 }
 
 /**
@@ -119,11 +131,10 @@ async function claimStands(
   admin: SupabaseClient,
   job: ReminderAudioJob
 ): Promise<boolean> {
-  if (!job.claimId) return true;
   const { data, error } = await admin
     .from('appointment_reminder_log')
     .select('id, created_at, appointment:appointments(reminders_rearmed_at)')
-    .eq('id', job.claimId)
+    .eq('id', job.claimId!)
     .eq('account_id', job.accountId)
     .maybeSingle();
   if (error) throw new Error(`claim lookup failed: ${error.message}`);
@@ -157,6 +168,15 @@ async function claimGate(
   admin: SupabaseClient,
   job: ReminderAudioJob
 ): Promise<'send' | 'drop' | 'requeued'> {
+  // A note from before generations were recorded cannot be verified
+  // against the appointment, so it is never sent: the cron gets the
+  // reminder back and sends the template from a fresh read.
+  if (isLegacy(job)) {
+    console.log(
+      `[reminder-audio] Handing the ${job.reminderType} reminder for appt ${job.appointmentId} back to the cron: queued without a generation`
+    );
+    return retainUntilPersisted(admin, job, job.attempts ?? 0, false);
+  }
   try {
     if (await claimStands(admin, job)) return 'send';
     console.log(
