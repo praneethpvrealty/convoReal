@@ -7,6 +7,7 @@ import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { loadTemplateForContact } from '@/lib/whatsapp/template-language';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { confirmClaimSent } from '@/lib/appointments/claim-confirm';
 import { synthesizeVoiceNoteOgg } from './announcement-worker';
 import {
   enqueueReminderAudioJob,
@@ -89,38 +90,23 @@ async function retainUntilPersisted(
   }
 }
 
-const CONFIRM_ATTEMPTS = 3;
-const CONFIRM_RETRY_MS = 1_000;
-
-/** Stamps the claim as sent once the message has gone, trying until
- *  the database confirms a row took it: a claim left provisional after
- *  a real delivery would be retried by the cron's grace period, and
- *  the reply webhook needs the message id on it. */
+/** Stamps the claim as sent once the message has gone. The worker can
+ *  wait, so it holds the confirmation until the database or the queue
+ *  takes it (src/lib/appointments/claim-confirm.ts). */
 async function confirmSent(
   admin: SupabaseClient,
   job: ReminderAudioJob,
   waMessageId: string | null
 ) {
-  for (let attempt = 1; attempt <= CONFIRM_ATTEMPTS; attempt++) {
-    // The claim as this note holds it — account, row and clock — so a
-    // claim the cron has since renewed for a fresh note is never
-    // stamped from here.
-    let query = admin
-      .from('appointment_reminder_log')
-      .update({ sent_at: new Date().toISOString(), wa_message_id: waMessageId })
-      .eq('account_id', job.accountId)
-      .eq('id', job.claimId!);
-    if (job.claimedAt) query = query.eq('created_at', job.claimedAt);
-    const { data, error } = await query.select('id').maybeSingle();
-    if (!error && data) return;
-    console.error(
-      `[reminder-audio] claim confirmation ${error ? 'failed' : 'matched no row'} (attempt ${attempt}) for appt ${job.appointmentId}:`,
-      error?.message ?? job.claimId
-    );
-    if (!error) return;
-    if (attempt < CONFIRM_ATTEMPTS) {
-      await new Promise((resolve) => setTimeout(resolve, CONFIRM_RETRY_MS));
-    }
+  const confirmation = {
+    accountId: job.accountId,
+    claimId: job.claimId!,
+    claimedAt: job.claimedAt ?? null,
+    waMessageId,
+    sentAt: new Date().toISOString(),
+  };
+  while (!(await confirmClaimSent(admin, confirmation))) {
+    await new Promise((resolve) => setTimeout(resolve, RETAIN.delayMs));
   }
 }
 

@@ -108,6 +108,7 @@ vi.mock('./reminder-audio', async (importOriginal) => ({
     state.requeued.push(job);
     return true;
   },
+  enqueueReminderClaimConfirm: async () => true,
   parkReminderAudioJob: async (job: { attempts?: number }) => {
     if (state.parkFailures > 0) {
       state.parkFailures -= 1;

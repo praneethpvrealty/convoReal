@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import type { ReminderClaimConfirmJob } from '@/lib/appointments/claim-confirm';
 import type { LanguageCode } from '@/lib/languages';
 import type { NarrationLanguage } from '@/lib/video/listing-video';
 
@@ -103,9 +104,17 @@ export async function parkReminderAudioJob(
   return pushReminderAudioJob(REMINDER_AUDIO_DLQ, job);
 }
 
+/** A claim confirmation the sender could not land travels the same
+ *  queue (src/lib/appointments/claim-confirm.ts). */
+export async function enqueueReminderClaimConfirm(
+  job: ReminderClaimConfirmJob
+): Promise<boolean> {
+  return pushReminderAudioJob(REMINDER_AUDIO_QUEUE, job);
+}
+
 async function pushReminderAudioJob(
   list: string,
-  job: ReminderAudioJob
+  job: ReminderAudioJob | ReminderClaimConfirmJob
 ): Promise<boolean> {
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) return false;

@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { placeReminderCall } from '@/lib/voice/reminder-call';
+import { confirmClaimSent } from './claim-confirm';
 import {
   enqueueReminderAudioJob,
   reminderSpokenText,
@@ -470,40 +471,22 @@ async function releaseClaim(
 
 /** Marks the claim's send confirmed, with the message id the reply
  *  webhook matches a button tap by. The message has gone, so the stamp
- *  is tried until the database confirms a row took it; a stamp that
- *  never lands leaves the claim provisional, and the grace period
- *  would retry a reminder that was in fact delivered — the one outcome
- *  the retries here exist to avoid. */
+ *  is retried and then carried by the queue worker until it lands
+ *  (src/lib/appointments/claim-confirm.ts). */
 async function confirmClaim(
   admin: SupabaseClient,
   appt: ReminderAppointment,
   claim: ReminderClaim,
   waMessageId: string | null = null
 ): Promise<boolean> {
-  for (let attempt = 1; attempt <= CONFIRM_ATTEMPTS; attempt++) {
-    const { data, error } = await admin
-      .from('appointment_reminder_log')
-      .update({ sent_at: new Date().toISOString(), wa_message_id: waMessageId })
-      .eq('account_id', appt.account_id)
-      .eq('id', claim.id)
-      .eq('created_at', claim.created_at)
-      .select('id')
-      .maybeSingle();
-    if (!error && data) return true;
-    console.error(
-      `[Reminder Cron] claim confirmation ${error ? 'failed' : 'matched no row'} (attempt ${attempt}) for appt ${appt.id}:`,
-      error ?? claim.id
-    );
-    if (!error) return false;
-    if (attempt < CONFIRM_ATTEMPTS) {
-      await new Promise((resolve) => setTimeout(resolve, CONFIRM_RETRY_MS));
-    }
-  }
-  return false;
+  return confirmClaimSent(admin, {
+    accountId: appt.account_id,
+    claimId: claim.id,
+    claimedAt: claim.created_at,
+    waMessageId,
+    sentAt: new Date().toISOString(),
+  });
 }
-
-const CONFIRM_ATTEMPTS = 3;
-const CONFIRM_RETRY_MS = 1_000;
 
 /**
  * Sends one reminder to every contact attached to the appointment,
