@@ -632,7 +632,7 @@
         },
         {
           "id": "CTM-012",
-          "rule": "Creating a contact on web or mobile requires a name; the mobile quick-add also captures the Name Tag. Editing a contact on web or mobile captures the Reference (referrer, unlinked from any referrer contact once its text changes) and Notes, which edit the contact's most recent note: a first note is inserted, changed text updates it, and cleared text deletes it.",
+          "rule": "The new-contact forms (web contact form, mobile quick-add) require a name, and the mobile quick-add also captures the Name Tag; channels that create contacts from inbound data (WhatsApp, portal leads, phonebook import, the share dialog's inline creator) keep their own rules. Editing a contact on web or mobile captures the Reference (referrer, unlinked from any referrer contact once its text changes) and Notes, which edit the contact's most recent note: a first note is inserted, changed text updates it, cleared text deletes it, and mobile keeps Notes read-only until that note has loaded so a save never overwrites or duplicates a note it has not seen.",
           "tests": [
             {
               "file": "mobile/lib/contact-form.test.ts",

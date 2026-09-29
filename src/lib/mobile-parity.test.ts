@@ -523,6 +523,7 @@ describe('the portal link invite is one server draft on both surfaces', () => {
     expect(editor).toContain('label="Reference"');
     expect(editor).toContain('...referrerFields(contact, referrer)');
     expect(editor).toContain('label="Notes"');
+    expect(editor).toContain('editable={recentNoteLoaded}');
     expect(editor).toContain("from('contact_notes')");
     expect(webForm).toContain('if (!contact?.id && !name.trim())');
     expect(webForm).toContain('referrer: referrer.trim() || null');

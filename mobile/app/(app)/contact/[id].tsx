@@ -1646,9 +1646,11 @@ function ContactEditor({
   const [requirements, setRequirements] = useState(source.requirements ?? '');
   const session = useAuthStore((s) => s.session);
   const accountId = useAuthStore((s) => s.profile?.account_id);
-  const { data: recentNote, isFetched: recentNoteFetched } = useRecentNote(
-    contact.id
-  );
+  const {
+    data: recentNote,
+    isSuccess: recentNoteLoaded,
+    isError: recentNoteFailed,
+  } = useRecentNote(contact.id);
   const [notesDraft, setNotesDraft] = useState<string | null>(null);
   const notes = notesDraft ?? recentNote?.note_text ?? '';
   const [classification, setClassification] = useState<
@@ -1789,9 +1791,10 @@ function ContactEditor({
       );
       return;
     }
-    const write = recentNoteFetched
-      ? noteWrite(recentNote ?? null, notes)
-      : ({ kind: 'none' } as const);
+    const write =
+      recentNoteLoaded && notesDraft !== null
+        ? noteWrite(recentNote ?? null, notesDraft)
+        : ({ kind: 'none' } as const);
     let noteError: string | null = null;
     if (write.kind === 'insert') {
       if (!session || !accountId) {
@@ -2061,7 +2064,14 @@ function ContactEditor({
           label="Notes"
           value={notes}
           onChangeText={setNotesDraft}
-          placeholder="Add any notes about the contact"
+          editable={recentNoteLoaded}
+          placeholder={
+            recentNoteLoaded
+              ? 'Add any notes about the contact'
+              : recentNoteFailed
+                ? 'Notes could not load \u2014 reopen the contact to edit them'
+                : 'Loading notes\u2026'
+          }
           multiline
         />
 
