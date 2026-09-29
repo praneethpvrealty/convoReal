@@ -153,6 +153,33 @@ export function refreshedToday(current: Date, now: Date = new Date()): Date {
   return localDateKey(current) === localDateKey(now) ? current : now;
 }
 
+export interface CalendarDayState {
+  today: Date;
+  selected: Date;
+  month: Date;
+}
+
+/** Rolls the calendar over midnight in one step: `today` moves to the
+ *  new day, and the selection (with the month it sits in) follows only
+ *  when it was resting on the old today — a day the agent chose
+ *  deliberately stays where it is. Same object back when nothing
+ *  changed, so callers can compare by identity. */
+export function rollCalendarDay(
+  state: CalendarDayState,
+  now: Date = new Date()
+): CalendarDayState {
+  const today = refreshedToday(state.today, now);
+  if (today === state.today) return state;
+  const followed = localDateKey(state.selected) === localDateKey(state.today);
+  return {
+    today,
+    selected: followed ? today : state.selected,
+    month: followed
+      ? new Date(today.getFullYear(), today.getMonth(), 1)
+      : state.month,
+  };
+}
+
 export function localDateKey(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;

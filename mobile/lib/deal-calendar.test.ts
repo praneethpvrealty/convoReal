@@ -11,6 +11,7 @@ import {
   groupDealDatesByDate,
   localDateKey,
   refreshedToday,
+  rollCalendarDay,
   toDealDate,
   type DealDate,
   type DealDateRow,
@@ -153,6 +154,34 @@ describe('[CAL-008] deal dates on the mobile calendar', () => {
     );
     const next = new Date(2026, 8, 30, 0, 5);
     expect(refreshedToday(mounted, next)).toBe(next);
+  });
+
+  it('rolls the selection and month over with today only when they rested on it', () => {
+    const today = new Date(2026, 8, 30, 23, 50);
+    const now = new Date(2026, 9, 1, 0, 5);
+    const resting = {
+      today,
+      selected: new Date(2026, 8, 30, 9, 0),
+      month: new Date(2026, 8, 1),
+    };
+    const rolled = rollCalendarDay(resting, now);
+    expect(rolled.today).toBe(now);
+    expect(rolled.selected).toBe(now);
+    expect(localDateKey(rolled.month)).toBe('2026-10-01');
+
+    const chosen = {
+      today,
+      selected: new Date(2026, 8, 12),
+      month: new Date(2026, 8, 1),
+    };
+    const kept = rollCalendarDay(chosen, now);
+    expect(kept.today).toBe(now);
+    expect(kept.selected).toBe(chosen.selected);
+    expect(kept.month).toBe(chosen.month);
+
+    expect(rollCalendarDay(resting, new Date(2026, 8, 30, 23, 59))).toBe(
+      resting
+    );
   });
 
   it('labels the three kinds for the chip', () => {

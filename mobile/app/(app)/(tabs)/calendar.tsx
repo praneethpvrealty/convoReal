@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -33,7 +33,7 @@ import {
   dealDateLocalDay,
   dealDatesInRange,
   localDateKey,
-  refreshedToday,
+  rollCalendarDay,
   sortDealDates,
   toDealDate,
   todayDateKey,
@@ -175,18 +175,26 @@ export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const [today, setToday] = useState(() => new Date());
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') setToday((current) => refreshedToday(current));
-    });
-    return () => subscription.remove();
-  }, []);
   const params = useLocalSearchParams<{ eventId?: string | string[] }>();
   const eventId = Array.isArray(params.eventId)
     ? params.eventId[0]
     : params.eventId;
   const [month, setMonth] = useState(() => monthStart(today));
   const [selected, setSelected] = useState<Date>(today);
+  const rollDay = useCallback(() => {
+    const current = { today, selected, month };
+    const rolled = rollCalendarDay(current);
+    if (rolled === current) return;
+    setToday(rolled.today);
+    setSelected(rolled.selected);
+    setMonth(rolled.month);
+  }, [today, selected, month]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') rollDay();
+    });
+    return () => subscription.remove();
+  }, [rollDay]);
   const [detail, setDetail] = useState<Appointment | null>(null);
   const [dismissedEventId, setDismissedEventId] = useState<string | null>(null);
 
@@ -214,7 +222,7 @@ export default function CalendarScreen() {
     enabled: !!accountId,
   });
   const pull = usePullRefresh(() => {
-    setToday((current) => refreshedToday(current));
+    rollDay();
     return Promise.all([
       refetch(),
       todosQuery.refetch(),
