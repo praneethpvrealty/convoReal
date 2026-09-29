@@ -161,11 +161,14 @@ describe('journey stage note visibility', () => {
     'utf8'
   );
 
-  it('[JRN-004] offers notes at every stage and keeps the complete history', () => {
-    expect(source).toContain('const notesAtStage = stageNotes.filter');
-    expect(source).toContain('aria-label={`Add note at ${s.name}`}');
-    expect(source).toContain('? `Add note · ${notesAtStage.length}`');
-    expect(source).not.toContain('canEdit && !future');
+  it('[JRN-004] saves one notes box against the current stage and lists every note across stages', () => {
+    expect(source).not.toContain('Add note at');
+    expect(source).not.toContain('noteStageId');
+    expect(source).not.toContain('stage_id: item.stage_id,');
+    expect(source).toContain('color: note.stage_color');
+    expect(source).toContain('Saved with the date, time and');
+    expect(source).toContain("'d MMM yyyy, h:mm a'");
+    expect(source).toContain('{note.stage_name || stageName(note.stage_id)}');
     expect(source).toContain('stageNotes.map((note)');
   });
 });

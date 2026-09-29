@@ -385,16 +385,6 @@ export function JourneyBody() {
   });
 
   const stages = useMemo(() => stagesQuery.data ?? [], [stagesQuery.data]);
-  const notesByStage = useMemo(() => {
-    const grouped = new Map<string, JourneyStageNote[]>();
-    for (const note of notesQuery.data ?? []) {
-      if (!note.stage_id) continue;
-      const notes = grouped.get(note.stage_id) ?? [];
-      notes.push(note);
-      grouped.set(note.stage_id, notes);
-    }
-    return grouped;
-  }, [notesQuery.data]);
   const stageById = useMemo(
     () => new Map(stages.map((stage) => [stage.id, stage])),
     [stages]
@@ -935,7 +925,6 @@ export function JourneyBody() {
     try {
       await addJourneyStageNote({
         itemId: noteTarget.item.id,
-        stageId: noteTarget.stage.id,
         note: noteText.trim(),
       });
       haptic.success();
@@ -1636,97 +1625,17 @@ export function JourneyBody() {
           setNoteTarget(null);
           setNoteText('');
         }}
-        title="Journey stage notes"
+        title="Notes"
       >
         <ScrollView
           style={sheetScrollArea}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
         >
-          {noteTarget ? (
-            <View style={{ gap: spacing.sm }}>
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontFamily: f.bold,
-                  color: colors.textMuted,
-                  textTransform: 'uppercase',
-                }}
-              >
-                Note stage
-              </Text>
-              <View style={{ gap: spacing.xs }}>
-                {stages.map((stage) => {
-                  const selected = stage.id === noteTarget.stage.id;
-                  const stageColor = stage.color ?? colors.primary;
-                  const stageNotes = notesByStage.get(stage.id) ?? [];
-                  const latestNote = stageNotes[0];
-                  return (
-                    <Pressable
-                      key={stage.id}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      onPress={() =>
-                        setNoteTarget((current) =>
-                          current ? { ...current, stage } : current
-                        )
-                      }
-                      style={[
-                        styles.noteStage,
-                        {
-                          backgroundColor: selected
-                            ? `${stageColor}22`
-                            : colors.glass,
-                          borderColor: selected
-                            ? stageColor
-                            : colors.glassBorder,
-                        },
-                      ]}
-                    >
-                      <View
-                        style={{
-                          width: 7,
-                          height: 7,
-                          borderRadius: 4,
-                          backgroundColor: stageColor,
-                        }}
-                      />
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            fontFamily: selected ? f.bold : f.medium,
-                            color: selected ? colors.text : colors.textMuted,
-                          }}
-                        >
-                          {stage.name}
-                          {stageNotes.length > 0
-                            ? ` · ${stageNotes.length} ${stageNotes.length === 1 ? 'note' : 'notes'}`
-                            : ''}
-                        </Text>
-                        {latestNote ? (
-                          <Text
-                            numberOfLines={2}
-                            style={{
-                              fontSize: 11.5,
-                              lineHeight: 16,
-                              color: colors.textFaint,
-                            }}
-                          >
-                            {latestNote.note}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <Ionicons
-                        name={selected ? 'radio-button-on' : 'radio-button-off'}
-                        size={16}
-                        color={selected ? stageColor : colors.textFaint}
-                      />
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
+          {noteTarget && canEdit ? (
+            <Text style={{ fontSize: 12, color: colors.textFaint }}>
+              Saved with the date, time and {noteTarget.stage.name}
+            </Text>
           ) : null}
           {canEdit ? (
             <>
@@ -1736,7 +1645,7 @@ export function JourneyBody() {
                 value={noteText}
                 maxLength={1000}
                 onChangeText={setNoteText}
-                placeholder={`Add note at ${noteTarget?.stage.name ?? 'this stage'}, e.g. ₹1 lakh token paid`}
+                placeholder="Add a note, e.g. ₹1 lakh token paid"
                 placeholderTextColor={colors.textFaint}
                 style={[
                   styles.noteInput,
@@ -1764,12 +1673,12 @@ export function JourneyBody() {
                 textTransform: 'uppercase',
               }}
             >
-              Complete journey history
+              All notes
             </Text>
           ) : null}
           {!notesQuery.isLoading && (notesQuery.data ?? []).length === 0 ? (
             <Text style={{ fontSize: 13, color: colors.textFaint }}>
-              No stage notes yet.
+              No notes yet.
             </Text>
           ) : null}
           {(notesQuery.data ?? []).map((note) => (
@@ -1783,20 +1692,57 @@ export function JourneyBody() {
                 },
               ]}
             >
-              <Text style={{ fontSize: 13.5, color: colors.text }}>
+              <View style={styles.noteTags}>
+                <View
+                  style={[
+                    styles.noteTag,
+                    { backgroundColor: colors.surfaceWell },
+                  ]}
+                >
+                  <Text style={{ fontSize: 10.5, color: colors.textMuted }}>
+                    {noteTimestamp(note.created_at)}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.noteTag,
+                    { borderWidth: 1, borderColor: colors.glassBorder },
+                  ]}
+                >
+                  <View
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 3,
+                      backgroundColor: note.stage_color ?? colors.textFaint,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 10.5,
+                      color: note.stage_color ?? colors.textMuted,
+                    }}
+                  >
+                    {note.stage_name}
+                  </Text>
+                </View>
+              </View>
+              <Text
+                style={{ marginTop: 6, fontSize: 13.5, color: colors.text }}
+              >
                 {note.note}
               </Text>
-              <Text
-                style={{
-                  marginTop: 4,
-                  fontSize: 10.5,
-                  color: colors.textFaint,
-                }}
-              >
-                {note.stage_name} ·{' '}
-                {note.created_by_name ? `${note.created_by_name} · ` : ''}
-                {new Date(note.created_at).toLocaleDateString('en-IN')}
-              </Text>
+              {note.created_by_name ? (
+                <Text
+                  style={{
+                    marginTop: 4,
+                    fontSize: 10.5,
+                    color: colors.textFaint,
+                  }}
+                >
+                  {note.created_by_name}
+                </Text>
+              ) : null}
             </View>
           ))}
         </ScrollView>
@@ -2414,7 +2360,7 @@ function DraggableJourneyCard({
         {itemStage ? (
           <Pressable
             onPress={() => onAddNote(item, itemStage)}
-            accessibilityLabel={`${canEdit ? 'Add or view' : 'View'} notes at ${itemStage.name}`}
+            accessibilityLabel={canEdit ? 'Add or view notes' : 'View notes'}
             hitSlop={8}
           >
             <Ionicons
@@ -2700,6 +2646,16 @@ async function loadJourneyStageNotes(
   }
 }
 
+function noteTimestamp(createdAt: string) {
+  return new Date(createdAt).toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function groupTitle(group: JourneyGroup, mode: JourneyMode) {
   return mode === 'buyer'
     ? group.contact?.name || group.contact?.phone || 'Unknown contact'
@@ -2728,6 +2684,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  noteTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+  },
+  noteTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
   },
   container: { padding: spacing.lg, gap: spacing.md },
   sheetHeader: {
@@ -2896,16 +2866,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.md,
     textAlignVertical: 'top',
-  },
-  noteStage: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
   },
   note: { borderWidth: 1, borderRadius: radius.md, padding: spacing.md },
 });

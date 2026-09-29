@@ -455,11 +455,7 @@ export function loadJourneyOverview(mode: 'buyer' | 'property') {
   }>(`/api/journey/overview?mode=${mode}`);
 }
 
-export function addJourneyStageNote(args: {
-  itemId: string;
-  stageId: string;
-  note: string;
-}) {
+export function addJourneyStageNote(args: { itemId: string; note: string }) {
   return apiFetch<{
     data: {
       id: string;
@@ -475,7 +471,6 @@ export function addJourneyStageNote(args: {
     method: 'POST',
     body: JSON.stringify({
       item_id: args.itemId,
-      stage_id: args.stageId,
       note: args.note,
     }),
   });
