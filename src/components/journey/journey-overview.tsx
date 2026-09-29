@@ -1633,6 +1633,7 @@ function SortableJourneyRow({
               Boolean(bucketStage) &&
               bucketStage?.id === group.lostStageId
             }
+            onFullscreen={onFullscreen}
           />
         </div>
       )}
