@@ -14,6 +14,26 @@ ALTER TABLE appointment_reminder_log
 CREATE INDEX IF NOT EXISTS idx_appointment_reminder_log_prior_wa_message_ids
   ON appointment_reminder_log USING GIN (prior_wa_message_ids);
 
+-- A project that ran the earlier, single-slot form of this migration
+-- carries prior_wa_message_id: whatever it holds moves into the array
+-- before the reader switches, and the slot goes.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'appointment_reminder_log'
+       AND column_name = 'prior_wa_message_id'
+  ) THEN
+    UPDATE appointment_reminder_log
+       SET prior_wa_message_ids = array_append(prior_wa_message_ids, prior_wa_message_id)
+     WHERE prior_wa_message_id IS NOT NULL
+       AND NOT (prior_wa_message_id = ANY (prior_wa_message_ids));
+    DROP INDEX IF EXISTS idx_appointment_reminder_log_prior_wa_message_id;
+    ALTER TABLE appointment_reminder_log DROP COLUMN prior_wa_message_id;
+  END IF;
+END $$;
+
 COMMENT ON COLUMN appointment_reminder_log.prior_wa_message_ids IS
   'Message ids of earlier sends of this claim whose confirmations arrived after the cron had taken the claim over; a button reply to any of them still maps to the appointment.';
 
