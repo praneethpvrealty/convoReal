@@ -91,6 +91,7 @@ export async function stampClaimSent(
       ...recipient,
       reminder_type: confirmation.reminderType,
       rearmed_at: confirmation.rearmedAt,
+      generation_known: true,
       sent_at: confirmation.sentAt,
       wa_message_id: confirmation.waMessageId,
     })

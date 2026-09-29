@@ -126,6 +126,7 @@ describe('[CAL-010] confirming a reminder claim', () => {
         contact_id: 'contact-1',
         reminder_type: '1h',
         rearmed_at: null,
+        generation_known: true,
         sent_at: confirmation.sentAt,
         wa_message_id: 'wamid.1',
       },

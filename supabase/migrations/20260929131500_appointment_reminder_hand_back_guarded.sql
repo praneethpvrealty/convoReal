@@ -1,11 +1,21 @@
+-- Every claim the current code makes or takes over is marked
+-- generation_known; a claim from before generations were recorded is
+-- not, whatever its rearmed_at (null on an appointment never re-armed
+-- either way). The column is additive and can go in at once.
+ALTER TABLE appointment_reminder_log
+  ADD COLUMN IF NOT EXISTS generation_known BOOLEAN NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN appointment_reminder_log.generation_known IS
+  'True for a claim made or taken over since generations were recorded on claims; false marks one from before, which a legacy hand-back may release.';
+
 -- Replaces appointment_reminder_hand_back from 20260929113500 with the
 -- guarded body: a note queued before claims were recorded (no claim
--- id) releases only a claim that is itself from before then — no
--- generation, no confirmed send — so a claim a later sweep renewed or
--- delivered is never taken with it; and the flag re-opens only when a
--- claim was in fact released. Depends on 20260929120000 (sent_at).
--- Replacing an existing function is not additive: apply with the
--- merge to main.
+-- id) releases only a claim that is itself from before then — not
+-- generation_known, no confirmed send — so a claim a later sweep made,
+-- renewed or delivered is never taken with it, even on an appointment
+-- never re-armed; and the flag re-opens only when a claim was in fact
+-- released. Depends on 20260929120000 (sent_at). Replacing an existing
+-- function is not additive: apply with the merge to main.
 
 CREATE OR REPLACE FUNCTION public.appointment_reminder_hand_back(
   p_account_id UUID,
@@ -23,14 +33,15 @@ AS $$
 BEGIN
   IF p_claim_id IS NULL THEN
     -- A note queued before claims were recorded: only a claim that is
-    -- itself from before then (no generation, no confirmed send) is
-    -- its own; a renewed or delivered claim belongs to a later sweep.
+    -- itself from before then (not generation_known, no confirmed
+    -- send) is its own; any claim the current code made, renewed or
+    -- delivered belongs to a later sweep.
     DELETE FROM appointment_reminder_log
      WHERE account_id = p_account_id
        AND appointment_id = p_appointment_id
        AND contact_id = p_contact_id
        AND reminder_type = p_reminder_type
-       AND rearmed_at IS NULL
+       AND NOT generation_known
        AND sent_at IS NULL;
   ELSE
     DELETE FROM appointment_reminder_log

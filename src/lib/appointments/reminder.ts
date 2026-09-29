@@ -328,6 +328,7 @@ async function claimReminder(
       ...recipient,
       reminder_type: reminderType,
       rearmed_at: appt.reminders_rearmed_at,
+      generation_known: true,
     })
     .select('id, created_at, rearmed_at')
     .maybeSingle();
@@ -393,6 +394,7 @@ async function claimReminder(
       wa_message_id: null,
       sent_at: null,
       rearmed_at: appt.reminders_rearmed_at,
+      generation_known: true,
     })
     .eq('id', existing.id)
     .eq('account_id', appt.account_id)
