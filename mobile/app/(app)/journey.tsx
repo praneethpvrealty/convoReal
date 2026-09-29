@@ -925,7 +925,6 @@ export function JourneyBody() {
     try {
       await addJourneyStageNote({
         itemId: noteTarget.item.id,
-        stageId: noteTarget.stage.id,
         note: noteText.trim(),
       });
       haptic.success();
@@ -1718,7 +1717,12 @@ export function JourneyBody() {
                       backgroundColor: note.stage_color ?? colors.textFaint,
                     }}
                   />
-                  <Text style={{ fontSize: 10.5, color: colors.textMuted }}>
+                  <Text
+                    style={{
+                      fontSize: 10.5,
+                      color: note.stage_color ?? colors.textMuted,
+                    }}
+                  >
                     {note.stage_name}
                   </Text>
                 </View>

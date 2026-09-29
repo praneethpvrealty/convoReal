@@ -164,7 +164,8 @@ describe('journey stage note visibility', () => {
   it('[JRN-004] saves one notes box against the current stage and lists every note across stages', () => {
     expect(source).not.toContain('Add note at');
     expect(source).not.toContain('noteStageId');
-    expect(source).toContain('stage_id: item.stage_id,');
+    expect(source).not.toContain('stage_id: item.stage_id,');
+    expect(source).toContain('color: note.stage_color');
     expect(source).toContain('Saved with the date, time and');
     expect(source).toContain("'d MMM yyyy, h:mm a'");
     expect(source).toContain('{note.stage_name || stageName(note.stage_id)}');

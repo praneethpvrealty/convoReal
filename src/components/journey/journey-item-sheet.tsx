@@ -381,7 +381,6 @@ export function JourneyItemSheet({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           item_id: item.id,
-          stage_id: item.stage_id,
           note: stageNote.trim(),
         }),
       });
@@ -673,7 +672,14 @@ export function JourneyItemSheet({
                           'd MMM yyyy, h:mm a'
                         )}
                       </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 px-2 py-0.5 text-[10px] font-medium text-slate-300">
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full border border-slate-700 px-2 py-0.5 text-[10px] font-medium text-slate-300"
+                        style={
+                          note.stage_color
+                            ? { color: note.stage_color }
+                            : undefined
+                        }
+                      >
                         <span
                           className="h-1.5 w-1.5 rounded-full"
                           style={{

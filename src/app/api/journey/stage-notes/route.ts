@@ -18,11 +18,11 @@ export async function POST(request: Request) {
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-  const { itemId, stageId, note } = parsed.value;
+  const { itemId, note } = parsed.value;
 
   const { data: item, error } = await supabase
     .from('journey_items')
-    .select('id')
+    .select('id, stage_id')
     .eq('id', itemId)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   const { data: stage } = await supabase
     .from('journey_stages')
     .select('id, name, color')
-    .eq('id', stageId)
+    .eq('id', item.stage_id)
     .eq('account_id', accountId)
     .maybeSingle();
   if (!stage) {
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     .insert({
       account_id: accountId,
       item_id: itemId,
-      stage_id: stageId,
+      stage_id: stage.id,
       stage_name: stage.name,
       stage_color: stage.color,
       note,
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
   if (saveError) {
     return NextResponse.json(
-      { error: 'Failed to add stage note' },
+      { error: 'Failed to save the note' },
       { status: 500 }
     );
   }

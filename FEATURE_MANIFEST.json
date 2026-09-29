@@ -1386,10 +1386,14 @@
         },
         {
           "id": "JRN-004",
-          "rule": "A journey item has one Notes box on web and mobile rather than a note button per stage. Saving a note records it, append-only and account-scoped, against the stage the item is at, and every note of the item is listed newest first at whatever stage the item reaches, each tagged with its date and time and its stage name in the stage colour, plus its author. The history keeps its stage snapshot, author and creation time through closure, archival and later stage deletion.",
+          "rule": "A journey item has one Notes box on web and mobile rather than a note button per stage. Saving a note records it, append-only and account-scoped, against the stage the item is at when the server saves it (any stage the client sends is ignored), and every note of the item is listed newest first at whatever stage the item reaches, each tagged with its date and time and its stage name in the stage colour, plus its author. The history keeps its stage snapshot, author and creation time through closure, archival and later stage deletion.",
           "tests": [
             {
               "file": "src/lib/journey/stage-notes.test.ts",
+              "case": "[JRN-004]"
+            },
+            {
+              "file": "src/app/api/journey/stage-notes/route.test.ts",
               "case": "[JRN-004]"
             },
             {

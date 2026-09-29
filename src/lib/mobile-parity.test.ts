@@ -926,7 +926,8 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('title="Notes"');
     expect(screen).not.toContain('Note stage');
     expect(screen).toContain('onPress={() => onAddNote(item, itemStage)}');
-    expect(screen).toContain('stageId: noteTarget.stage.id,');
+    expect(screen).not.toContain('stageId: noteTarget.stage.id,');
+    expect(screen).toContain('color: note.stage_color ?? colors.textMuted,');
     expect(screen).toContain(
       'Saved with the date, time and {noteTarget.stage.name}'
     );
