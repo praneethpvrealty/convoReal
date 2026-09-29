@@ -65,6 +65,7 @@ import {
   type ContactFilters,
 } from '@/lib/contact-filters';
 import { interestChipLabel, type InterestFilter } from '@/lib/contact-interest';
+import { quickAddContactPayload } from '@/lib/contact-form';
 import { friendlyError } from '@/lib/errors';
 import { splitImportedName } from '@/lib/name-tag-split';
 import { chatListTime, cleanPhoneInput, formatBudgetRange } from '@/lib/format';
@@ -1125,6 +1126,7 @@ function QuickAddContact({
 }) {
   const { colors, dark, fonts: f } = useTheme();
   const [name, setName] = useState('');
+  const [nameTag, setNameTag] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [classification, setClassification] = useState<Classification>('Buyer');
@@ -1133,6 +1135,7 @@ function QuickAddContact({
 
   function reset() {
     setName('');
+    setNameTag('');
     setPhone('');
     setEmail('');
     setClassification('Buyer');
@@ -1140,21 +1143,15 @@ function QuickAddContact({
   }
 
   async function save() {
-    // A builder or channel-partner desk often arrives as a mailbox with
-    // no number, so either field alone is enough — but a number that is
-    // typed still has to be a real one.
-    const cleanPhone = phone.trim() ? cleanPhoneInput(phone) : null;
-    const cleanEmail = email.trim().toLowerCase();
-    if (phone.trim() && !cleanPhone) {
-      setError('Enter a valid phone number (e.g. 9900277111 or +919900277111)');
-      return;
-    }
-    if (!cleanPhone && !cleanEmail) {
-      setError('Add a phone number or an email');
-      return;
-    }
-    if (cleanEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanEmail)) {
-      setError('Enter a valid email address');
+    const result = quickAddContactPayload({
+      name,
+      nameTag,
+      phone,
+      email,
+      classification,
+    });
+    if ('error' in result) {
+      setError(result.error);
       return;
     }
     setSaving(true);
@@ -1162,12 +1159,7 @@ function QuickAddContact({
     try {
       const { id } = await apiFetch<{ id: string }>('/api/contacts', {
         method: 'POST',
-        body: JSON.stringify({
-          phone: cleanPhone,
-          email: cleanEmail || null,
-          name: name.trim() || null,
-          classification,
-        }),
+        body: JSON.stringify(result.payload),
       });
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
@@ -1202,10 +1194,16 @@ function QuickAddContact({
       </Text>
       {error ? <Banner kind="error" text={error} /> : null}
       <TextField
-        placeholder="Name (optional)"
+        placeholder="Name"
         autoCapitalize="words"
         value={name}
         onChangeText={setName}
+      />
+      <TextField
+        placeholder='Name tag · e.g. "Bank DSA"'
+        autoCapitalize="words"
+        value={nameTag}
+        onChangeText={setNameTag}
       />
       <TextField
         placeholder="Phone · e.g. 99002 77111"
