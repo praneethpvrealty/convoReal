@@ -24,6 +24,9 @@ export interface Todo {
   completed: boolean;
   contact_id: string | null;
   property_id: string | null;
+  /** Set when the task was added from a deal's Tasks tab; the calendar
+   *  links back to the deal and never sets it (CAL-009). */
+  deal_id: string | null;
   contact: { id: string; name: string | null; phone: string | null } | null;
   property: { id: string; title: string } | null;
 }

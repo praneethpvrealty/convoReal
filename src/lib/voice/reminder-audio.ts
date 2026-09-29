@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import type { ReminderClaimConfirmJob } from '@/lib/appointments/claim-confirm';
 import type { LanguageCode } from '@/lib/languages';
 import type { NarrationLanguage } from '@/lib/video/listing-video';
 
@@ -21,6 +22,18 @@ export interface ReminderAudioJob {
   accountId: string;
   appointmentId: string;
   contactId: string;
+  /** The appointment_reminder_log row this send holds, and its clock
+   *  when queued. Reopening or rescheduling supersedes the claim — the
+   *  cron takes it over with a fresh clock — and a note queued under
+   *  the old one is dropped rather than sent with the old time. */
+  claimId?: string | null;
+  claimedAt?: string | null;
+  /** The appointment's reminders_rearmed_at as the cron read it when it
+   *  rendered this note; a different value now means the note's time
+   *  is stale. */
+  rearmedAt?: string | null;
+  /** Requeues so far after the claim could not be read. */
+  attempts?: number;
   userId: string | null;
   reminderType: 'morning' | '1h';
   spokenText: string;
@@ -70,10 +83,38 @@ export function narrationLanguageFor(code: LanguageCode): NarrationLanguage {
   return NARRATION_FOR_LANGUAGE[code];
 }
 
+const REMINDER_AUDIO_QUEUE = 'listing-videos';
+/** Notes the worker could neither verify, hand back nor requeue wait
+ *  here rather than vanish; replay one with
+ *  `LMOVE listing-videos-dlq listing-videos LEFT RIGHT` once the
+ *  outage is over. */
+export const REMINDER_AUDIO_DLQ = 'listing-videos-dlq';
+
 /** False when Redis is unconfigured or unreachable — the caller sends
  *  the template instead, so a queue outage never drops a reminder. */
 export async function enqueueReminderAudioJob(
   job: ReminderAudioJob
+): Promise<boolean> {
+  return pushReminderAudioJob(REMINDER_AUDIO_QUEUE, job);
+}
+
+export async function parkReminderAudioJob(
+  job: ReminderAudioJob
+): Promise<boolean> {
+  return pushReminderAudioJob(REMINDER_AUDIO_DLQ, job);
+}
+
+/** A claim confirmation the sender could not land travels the same
+ *  queue (src/lib/appointments/claim-confirm.ts). */
+export async function enqueueReminderClaimConfirm(
+  job: ReminderClaimConfirmJob
+): Promise<boolean> {
+  return pushReminderAudioJob(REMINDER_AUDIO_QUEUE, job);
+}
+
+async function pushReminderAudioJob(
+  list: string,
+  job: ReminderAudioJob | ReminderClaimConfirmJob
 ): Promise<boolean> {
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) return false;
@@ -83,7 +124,7 @@ export async function enqueueReminderAudioJob(
   });
   try {
     await redis.connect();
-    await redis.rpush('listing-videos', JSON.stringify(job));
+    await redis.rpush(list, JSON.stringify(job));
     return true;
   } catch (err) {
     console.error('[reminder-audio] enqueue failed:', err);

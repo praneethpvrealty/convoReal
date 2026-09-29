@@ -17,6 +17,10 @@ import {
 } from '../lib/voice/announcement-worker';
 import { processReminderAudioJob } from '../lib/voice/reminder-audio-worker';
 import type { ReminderAudioJob } from '../lib/voice/reminder-audio';
+import {
+  processReminderClaimConfirmJob,
+  type ReminderClaimConfirmJob,
+} from '../lib/appointments/claim-confirm';
 import { createShutdownGate } from '../lib/queue/graceful-shutdown';
 import {
   sanitizeSentryEvent,
@@ -101,7 +105,8 @@ async function startWorker() {
               | ListingVideoJob
               | YouTubeUploadJob
               | AnnouncementAudioJob
-              | ReminderAudioJob;
+              | ReminderAudioJob
+              | ReminderClaimConfirmJob;
             const t0 = Date.now();
             if (job.kind === 'youtube_upload') {
               console.log(
@@ -120,6 +125,13 @@ async function startWorker() {
               // Marks the announcement failed + refunds internally on
               // operational errors — no DLQ needed.
               await processAnnouncementAudioJob(job);
+            } else if (job.kind === 'reminder_claim_confirm') {
+              console.log(
+                `[Worker] Reminder-claim-confirm job: claim=${job.claimId}`
+              );
+              // Holds and requeues itself until the stamp lands — no
+              // DLQ needed.
+              await processReminderClaimConfirmJob(job);
             } else if (job.kind === 'reminder_audio') {
               console.log(
                 `[Worker] Reminder-audio job: appt=${job.appointmentId} contact=${job.contactId}`

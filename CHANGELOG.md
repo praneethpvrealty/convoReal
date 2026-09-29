@@ -19,6 +19,19 @@ than a written entry. Newest first.
 
 #### 29 September 2026
 
+- **Tasks under the Calendar, and a lighter To-Do list.** A **Tasks**
+  section beneath the month and week views lists everything pinned on the
+  days in view — appointments with their status and deal dates — in date
+  order. An appointment is marked **Done** or **Cancelled** in place and
+  reopened later — reopening re-arms its client reminders, as a
+  reschedule does; a cancelled one stays on its day, struck through. A
+  milestone date is ticked **Done** from there through the deal's own
+  milestone route (the stage never moves). Mobile offers the same
+  Done / Cancel / Reopen in the event sheet and a tick on milestone rows.
+  The **To-Do Task List** now holds to-dos alone — appointments no longer
+  appear in it — and the quick-add is a title, a due date and a priority;
+  the `@contact` / `#property` tagging is gone. A task added from a deal's
+  Tasks tab shows a **Deal** link back to the record. CAL-009, CAL-010.
 - **Deal dates are pinned on the Calendar.** A registration slot, an
   agreement date, a payment tranche's due date or a deal's expected close
   used to live only on the deal record and on Focus/Today. The calendar
@@ -29,7 +42,8 @@ than a written entry. Newest first.
   a card on the selected day and in Upcoming on mobile — labelled
   Milestone, Payment due or Expected close and opening the deal. A
   **Deal dates** filter chip shows them alone. The calendar never writes
-  or moves a deal date; change it on the record. CAL-008.
+  or moves a deal date; change it on the record. Its one write is the
+  milestone tick in the Tasks list (CAL-010). CAL-008.
 
 #### 28 September 2026
 

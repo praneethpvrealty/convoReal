@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,10 @@ import {
   ListTodo,
   MessageSquare,
   Pencil,
+  Briefcase,
+  User,
+  Home,
+  ChevronDown,
   Users,
   LayoutGrid,
   Columns3,
@@ -34,17 +38,16 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { SearchableContactMultiSelect } from "@/components/ui/searchable-contact-multi-select";
 import { SearchablePropertySelect } from "@/components/ui/searchable-property-select";
 import {
-  autoLinkContactProperty,
   linkedContactForProperty,
   linkedPropertyForContacts,
 } from "@/lib/calendar/auto-link";
 import { InfoHint } from "@/components/ui/info-hint";
 import { FavoriteButton } from "@/components/layout/favorite-button";
-import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import { SmartAddBar, ConfirmedEventDraft } from "@/components/calendar/smart-add-bar";
 import { TeamView } from "@/components/calendar/team-view";
 import { WeekView } from "@/components/calendar/week-view";
 import { AgendaView } from "@/components/calendar/agenda-view";
+import { TasksList } from "@/components/calendar/tasks-list";
 import {
   CalendarEvent,
   TeamMember,
@@ -69,6 +72,7 @@ import {
   dealDatesInRange,
   localDateKey,
 } from "@/lib/calendar/deal-dates";
+import { buildCalendarTaskRows, type AppointmentStatus } from "@/lib/calendar/tasks-view";
 
 const EMPTY_EXTRAS: Record<EventFieldKey, string> = { agenda: "", minutes: "", outcome: "" };
 
@@ -77,6 +81,9 @@ function formatDateTimeLocal(d: Date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** A lightweight to-do (CAL-009): title, notes, due, priority. The
+ *  contact/property/deal links are read-only here — a deal task carries
+ *  its deal from the workspace; the calendar never tags one. */
 interface Todo {
   id: string;
   title: string;
@@ -86,6 +93,7 @@ interface Todo {
   completed: boolean;
   contact_id?: string | null;
   property_id?: string | null;
+  deal_id?: string | null;
   contact?: {
     id: string;
     name: string;
@@ -97,8 +105,6 @@ interface Todo {
     location: string | null;
     sublocality: string | null;
   } | null;
-  isAppointment?: boolean;
-  eventType?: EventTypeKey;
 }
 
 interface SimpleContact {
@@ -131,7 +137,9 @@ type CalendarTypeFilter = EventTypeKey | "all" | "deal";
 
 export default function CalendarPage() {
   const supabase = createClient();
-  const { accountId, user } = useAuth();
+  const queryClient = useQueryClient();
+  const { accountId, user, isViewer, isReadOnly } = useAuth();
+  const canEdit = !isViewer && !isReadOnly;
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewMode>("month");
@@ -184,9 +192,9 @@ export default function CalendarPage() {
   const [todoDueDate, setTodoDueDate] = useState("");
   const [todoPriority, setTodoPriority] = useState<"low" | "medium" | "high">("medium");
 
-  // Mentions Form state
-  const [mentionType, setMentionType] = useState<"contact" | "property" | null>(null);
-  const [mentionSearch, setMentionSearch] = useState("");
+  // Tasks list under the calendar (CAL-010)
+  const [tasksOpen, setTasksOpen] = useState(true);
+  const [taskBusyKey, setTaskBusyKey] = useState<string | null>(null);
 
   // Todo Modal/Edit state
   const [isTodoModalOpen, setIsTodoModalOpen] = useState(false);
@@ -357,29 +365,14 @@ export default function CalendarPage() {
     });
   }, [appointments, effectiveTypeFilter, memberFilter]);
 
-  // Combine appointments and todos for the To-Do task list
-  const combinedTodos = useMemo(() => {
-    const apptTodos: Todo[] = appointments.map((appt) => ({
-      id: appt.id,
-      title: `[${eventTypeMeta(appt.event_type).label}] ${appt.title}`,
-      description: appt.description,
-      due_date: appt.start_time,
-      priority: "medium" as const,
-      completed: appt.status === "completed" || appt.status === "cancelled",
-      contact_id: appt.contact_id,
-      property_id: appt.property_id,
-      contact: appt.contact,
-      property: appt.property,
-      isAppointment: true,
-      eventType: appt.event_type,
-    }));
-
-    const all = [...todos, ...apptTodos];
+  // The To-Do list holds to-dos alone (CAL-009); appointments and deal
+  // dates are pinned on the calendar and listed in Tasks beneath it.
+  const visibleTodos = useMemo(() => {
     const filtered = todoFilter === "priority"
-      ? all.filter((t) => t.priority === "high" || t.priority === "medium")
-      : all;
+      ? todos.filter((t) => t.priority === "high" || t.priority === "medium")
+      : todos;
 
-    return filtered.sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       if (a.completed !== b.completed) {
         return a.completed ? 1 : -1;
       }
@@ -387,7 +380,7 @@ export default function CalendarPage() {
       const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
       return dateA - dateB;
     });
-  }, [todos, appointments, todoFilter]);
+  }, [todos, todoFilter]);
 
   // Group appointments by date string
   const appointmentsByDate = useMemo(() => {
@@ -463,6 +456,67 @@ export default function CalendarPage() {
     }
     return map;
   }, [visibleDealDates]);
+
+  // Tasks (CAL-010): every row pinned on the visible days, in date order.
+  // The Agenda view's rows are the Tasks rows themselves, so it carries
+  // no second list beneath it.
+  const taskRows = useMemo(
+    () =>
+      view === "month" || view === "week"
+        ? buildCalendarTaskRows(filteredAppointments, visibleDealDates, visibleRange.from, visibleRange.to)
+        : [],
+    [view, filteredAppointments, visibleDealDates, visibleRange]
+  );
+
+  const setAppointmentStatus = async (appt: CalendarEvent, status: AppointmentStatus) => {
+    setTaskBusyKey(appt.id);
+    try {
+      const response = await fetch(`/api/appointments/${appt.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Failed to update the event");
+      setAppointments((current) =>
+        current.map((item) => (item.id === appt.id ? { ...item, status } : item))
+      );
+      toast.success(
+        status === "completed"
+          ? "Marked done"
+          : status === "cancelled"
+            ? "Cancelled — it stays on its day, struck through"
+            : "Reopened"
+      );
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(errorMessage || "Failed to update the event");
+    } finally {
+      setTaskBusyKey(null);
+    }
+  };
+
+  const completeMilestone = async (d: DealDeadline) => {
+    if (!d.milestoneId) return;
+    const key = dealDateKey(d);
+    setTaskBusyKey(key);
+    try {
+      const response = await fetch(`/api/deals/${d.dealId}/milestones/${d.milestoneId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "completed", source: "web" }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Failed to update the milestone");
+      await queryClient.invalidateQueries({ queryKey: ["calendar-deal-dates"] });
+      toast.success(`${d.title} marked done on the deal`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(errorMessage || "Failed to update the milestone");
+    } finally {
+      setTaskBusyKey(null);
+    }
+  };
 
   // Date Nav handlers
   const handlePrev = () => {
@@ -750,218 +804,6 @@ export default function CalendarPage() {
     }
   };
 
-  // Mentions suggestions filtering
-  const filteredContacts = useMemo(() => {
-    if (mentionType !== "contact") return [];
-    const searchVal = mentionSearch.toLowerCase();
-    return contacts
-      .filter((c) => c.name.toLowerCase().includes(searchVal))
-      .slice(0, 5);
-  }, [contacts, mentionType, mentionSearch]);
-
-  const filteredProperties = useMemo(() => {
-    if (mentionType !== "property") return [];
-    const searchVal = mentionSearch.toLowerCase();
-    return properties
-      .filter(
-        (p) =>
-          p.title.toLowerCase().includes(searchVal) ||
-          (p.property_code || "").toLowerCase().includes(searchVal) ||
-          (p.tags || []).join(" ").toLowerCase().includes(searchVal)
-      )
-      .slice(0, 5);
-  }, [properties, mentionType, mentionSearch]);
-
-  const handleTodoTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setTodoTitle(val);
-
-    const words = val.split(/\s+/);
-    const lastWord = words[words.length - 1] || "";
-
-    if (lastWord.startsWith("@")) {
-      setMentionType("contact");
-      setMentionSearch(lastWord.substring(1));
-    } else if (lastWord.startsWith("#")) {
-      setMentionType("property");
-      setMentionSearch(lastWord.substring(1));
-    } else {
-      setMentionType(null);
-      setMentionSearch("");
-    }
-  };
-
-  const selectMention = (nameOrTitle: string, id: string, type: "contact" | "property") => {
-    const words = todoTitle.split(/\s+/);
-    words.pop();
-    const trigger = type === "contact" ? "@" : "#";
-    const replacement = `${trigger}${nameOrTitle} `;
-    words.push(replacement);
-
-    setTodoTitle(words.join(" "));
-    setMentionType(null);
-    setMentionSearch("");
-  };
-
-  const renderTodoTitle = (todo: Todo) => {
-    const title = todo.title;
-    const contactName = todo.contact?.name;
-    const propertyTitle = todo.property?.title;
-
-    const elements: React.ReactNode[] = [];
-    const matches: { start: number; end: number; type: "contact" | "property"; label: string; url: string }[] = [];
-
-    // Parse contact mention (e.g. @Praneeth or @Praneeth Kumar)
-    if (todo.contact_id && contactName) {
-      const firstName = contactName.split(" ")[0];
-      let matchedText = "";
-      if (title.includes(`@${contactName}`)) {
-        matchedText = `@${contactName}`;
-      } else if (title.includes(`@${firstName}`)) {
-        matchedText = `@${firstName}`;
-      } else {
-        const match = title.match(/@([A-Za-z0-9_]+)/);
-        if (match) {
-          matchedText = match[0];
-        }
-      }
-
-      if (matchedText) {
-        const start = title.indexOf(matchedText);
-        matches.push({
-          start,
-          end: start + matchedText.length,
-          type: "contact",
-          label: matchedText,
-          url: `/contacts?search=${encodeURIComponent(contactName)}`,
-        });
-      }
-    }
-
-    // Parse property mention (e.g. #2400JP Nagar or #2400JP)
-    if (todo.property_id && propertyTitle) {
-      const firstWord = propertyTitle.split(" ")[0];
-      let matchedText = "";
-      if (title.includes(`#${propertyTitle}`)) {
-        matchedText = `#${propertyTitle}`;
-      } else if (title.includes(`#${firstWord}`)) {
-        matchedText = `#${firstWord}`;
-      } else {
-        const match = title.match(/#([A-Za-z0-9_]+)/);
-        if (match) {
-          matchedText = match[0];
-        }
-      }
-
-      if (matchedText) {
-        const start = title.indexOf(matchedText);
-        matches.push({
-          start,
-          end: start + matchedText.length,
-          type: "property",
-          label: matchedText,
-          url: `/inventory?search=${encodeURIComponent(propertyTitle)}`,
-        });
-      }
-    }
-
-    matches.sort((a, b) => a.start - b.start);
-
-    let lastIndex = 0;
-    for (const match of matches) {
-      if (match.start > lastIndex) {
-        elements.push(title.substring(lastIndex, match.start));
-      }
-      elements.push(
-        <Link
-          key={match.start}
-          href={match.url}
-          className={cn(
-            "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold transition-all mx-0.5 whitespace-nowrap",
-            match.type === "contact"
-              ? cn(
-                  "bg-violet-500/10 text-violet-400 border border-violet-500/20",
-                  todo.completed ? "opacity-50 line-through" : "hover:bg-violet-500/25 hover:scale-105 active:scale-95"
-                )
-              : cn(
-                  "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-                  todo.completed ? "opacity-50 line-through" : "hover:bg-emerald-500/25 hover:scale-105 active:scale-95"
-                )
-          )}
-        >
-          {match.label}
-        </Link>
-      );
-      lastIndex = match.end;
-    }
-
-    if (lastIndex < title.length) {
-      elements.push(title.substring(lastIndex));
-    }
-
-    return elements.length > 0 ? elements : title;
-  };
-
-  // Helper to extract/resolve mentions
-  const resolveMentions = useCallback((title: string) => {
-    let finalContactId: string | null = null;
-    const sortedContacts = [...contacts].sort((a, b) => b.name.length - a.name.length);
-    for (const c of sortedContacts) {
-      if (title.toLowerCase().includes(`@${c.name.toLowerCase()}`)) {
-        finalContactId = c.id;
-        break;
-      }
-    }
-    if (!finalContactId) {
-      const contactMentionMatch = title.match(/@([A-Za-z0-9_]+)/);
-      if (contactMentionMatch) {
-        const query = contactMentionMatch[1].toLowerCase();
-        const matchedContact = contacts.find((c) => c.name.toLowerCase().includes(query));
-        if (matchedContact) {
-          finalContactId = matchedContact.id;
-        }
-      }
-    }
-
-    let finalPropertyId: string | null = null;
-    const sortedProps = [...properties].sort((a, b) => b.title.length - a.title.length);
-    for (const p of sortedProps) {
-      if (
-        title.toLowerCase().includes(`#${p.title.toLowerCase()}`) ||
-        (p.property_code && title.toLowerCase().includes(`#${p.property_code.toLowerCase()}`))
-      ) {
-        finalPropertyId = p.id;
-        break;
-      }
-    }
-    if (!finalPropertyId) {
-      const propertyMentionMatch = title.match(/#([A-Za-z0-9_-]+)/);
-      if (propertyMentionMatch) {
-        const query = propertyMentionMatch[1].toLowerCase();
-        const matchedProp = properties.find(
-          (p) =>
-            p.title.toLowerCase().includes(query) ||
-            (p.property_code || "").toLowerCase().includes(query)
-        );
-        if (matchedProp) {
-          finalPropertyId = matchedProp.id;
-        }
-      }
-    }
-
-    // Bidirectional auto-link: tagging a contact pulls in the property
-    // they inquired about, and tagging a property pulls in the contact
-    // linked to it.
-    const linked = autoLinkContactProperty(
-      finalContactId ? contacts.find((c) => c.id === finalContactId) || null : null,
-      finalPropertyId ? properties.find((p) => p.id === finalPropertyId) || null : null,
-      contacts,
-      properties
-    );
-
-    return { contactId: linked.contact?.id || null, propertyId: linked.property?.id || null };
-  }, [contacts, properties]);
-
   // Appointment modal pickers with the same bidirectional auto-link:
   // picking a contact fills the property they inquired about, picking
   // a property pulls in the contact linked to it.
@@ -996,8 +838,6 @@ export default function CalendarPage() {
     }
 
     try {
-      const { contactId, propertyId } = resolveMentions(todoTitle);
-
       const { error } = await supabase.from("todos").insert({
         title: todoTitle,
         description: todoDesc || null,
@@ -1006,8 +846,6 @@ export default function CalendarPage() {
         completed: false,
         account_id: accountId,
         user_id: (await supabase.auth.getUser()).data.user?.id,
-        contact_id: contactId,
-        property_id: propertyId,
       });
 
       if (error) throw error;
@@ -1016,8 +854,6 @@ export default function CalendarPage() {
       setTodoDesc("");
       setTodoDueDate("");
       setTodoPriority("medium");
-      setMentionType(null);
-      setMentionSearch("");
       loadData();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -1047,8 +883,6 @@ export default function CalendarPage() {
     }
 
     try {
-      const { contactId, propertyId } = resolveMentions(editTodoTitle);
-
       const { data, error } = await supabase
         .from("todos")
         .update({
@@ -1057,8 +891,6 @@ export default function CalendarPage() {
           due_date: editTodoDueDate ? new Date(editTodoDueDate).toISOString() : null,
           priority: editTodoPriority,
           completed: editTodoCompleted,
-          contact_id: contactId,
-          property_id: propertyId,
         })
         .eq("id", selectedTodo.id)
         .eq("account_id", accountId)
@@ -1076,61 +908,38 @@ export default function CalendarPage() {
     }
   };
 
-  const handleGoToChat = async (contactId: string) => {
+  const openContactChat = async (contactId: string) => {
     try {
-      // Find existing conversation
       const { data: existing, error } = await supabase
         .from("conversations")
         .select("id")
         .eq("account_id", accountId)
         .eq("contact_id", contactId)
         .maybeSingle();
-
       if (error) throw error;
-
       if (existing) {
         window.location.href = `/inbox?c=${existing.id}`;
-      } else {
-        // Create conversation
-        const { data: newConv, error: createError } = await supabase
-          .from("conversations")
-          .insert({
-            account_id: accountId,
-            user_id: (await supabase.auth.getUser()).data.user?.id,
-            contact_id: contactId,
-          })
-          .select("id")
-          .single();
-
-        if (createError) throw createError;
-        window.location.href = `/inbox?c=${newConv.id}`;
+        return;
       }
+      const { data: created, error: createError } = await supabase
+        .from("conversations")
+        .insert({
+          account_id: accountId,
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+          contact_id: contactId,
+        })
+        .select("id")
+        .single();
+      if (createError) throw createError;
+      window.location.href = `/inbox?c=${created.id}`;
     } catch (err) {
-      console.error("Failed to open chat:", err);
-      toast.error("Failed to open conversation");
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(errorMessage || "Failed to open conversation");
     }
   };
 
   const toggleTodo = async (todo: Todo) => {
     try {
-      if (todo.isAppointment) {
-        const appt = appointments.find((a) => a.id === todo.id);
-        if (!appt) return;
-        const newStatus = appt.status === "completed" ? "scheduled" : "completed";
-        const { data, error } = await supabase
-          .from("appointments")
-          .update({ status: newStatus })
-          .eq("id", appt.id)
-          .eq("account_id", accountId)
-          .select("id");
-
-        if (error) throw error;
-        if (!data?.length) throw new Error("That appointment is no longer there.");
-        toast.success(`Appointment marked as ${newStatus}`);
-        loadData();
-        return;
-      }
-
       const { data, error } = await supabase
         .from("todos")
         .update({ completed: !todo.completed })
@@ -1203,7 +1012,7 @@ export default function CalendarPage() {
         {/* `min-w-0`: this is a flex-row item on lg+, and without it the
             pane is only kept from bleeding by the ancestor's
             overflow-hidden — self-cap it so inner truncate engages. */}
-        <div className="flex flex-1 flex-col min-w-0 rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur min-h-[560px] lg:min-h-0">
+        <div className="flex flex-1 flex-col min-w-0 rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur min-h-[560px] lg:min-h-0 lg:overflow-y-auto">
           {/* Calendar Header Nav */}
           <div className="mb-4 flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
             <div className="flex items-center gap-3">
@@ -1358,7 +1167,11 @@ export default function CalendarPage() {
               events={filteredAppointments}
               dealDates={visibleDealDates}
               members={members}
+              canEdit={canEdit}
+              busyKey={taskBusyKey}
               onEventClick={openEditApptModal}
+              onStatusChange={setAppointmentStatus}
+              onMilestoneDone={completeMilestone}
             />
           ) : (
             <>
@@ -1469,6 +1282,40 @@ export default function CalendarPage() {
               </div>
             </>
           )}
+
+          {/* Tasks pinned on the visible days (CAL-010) */}
+          {!loading && (view === "month" || view === "week") && (
+            <div className="mt-4 shrink-0 border-t border-slate-800 pt-3">
+              <button
+                type="button"
+                onClick={() => setTasksOpen((open) => !open)}
+                aria-expanded={tasksOpen}
+                className="flex w-full items-center gap-2 text-left"
+              >
+                <ChevronDown className={cn("h-3.5 w-3.5 text-slate-500 transition-transform", !tasksOpen && "-rotate-90")} />
+                <h2 className="text-sm font-bold text-white flex items-center">
+                  Tasks
+                  <InfoHint text="Everything pinned on the days you are looking at, in date order: appointments with their status, and deal dates. Mark an event done or cancelled here — a cancelled event stays on its day, struck through. A milestone date can be ticked done; it completes the milestone on the deal without moving its stage." />
+                </h2>
+                <span className="text-[10px] font-semibold text-slate-500">
+                  {taskRows.length} on {view === "week" ? "this week" : "this month"}
+                </span>
+              </button>
+              {tasksOpen && (
+                <div className="mt-3 max-h-80 overflow-y-auto pr-1">
+                  <TasksList
+                    rows={taskRows}
+                    members={members}
+                    canEdit={canEdit}
+                    busyKey={taskBusyKey}
+                    onEventClick={openEditApptModal}
+                    onStatusChange={setAppointmentStatus}
+                    onMilestoneDone={completeMilestone}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Right Side: Interactive To-Do Checklist Panel ────────────────── */}
@@ -1480,7 +1327,7 @@ export default function CalendarPage() {
                 <ListTodo className="h-5 w-5 text-primary" />
                 <h2 className="text-sm font-bold text-white flex items-center">
                   To-Do Task List
-                  <InfoHint text="A checklist of operational tasks. You can tag contacts using '@' or properties using '#' directly in task titles." />
+                  <InfoHint text="A lightweight checklist: a title, an optional due date and a priority. Appointments and deal dates live on the calendar and in Tasks beneath it, not here. A task added from a deal's Tasks tab links back to that deal." />
                 </h2>
               </div>
               <select
@@ -1494,55 +1341,14 @@ export default function CalendarPage() {
             </div>
 
             {/* Quick task add form */}
-            <form onSubmit={saveTodo} className="mb-4 flex flex-col gap-2 border-b border-slate-800 pb-4 relative">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Add new task..."
-                  value={todoTitle}
-                  onChange={handleTodoTitleChange}
-                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                />
-
-                {/* Autocomplete dropdown overlay */}
-                {mentionType && (
-                  <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-1 shadow-xl">
-                    {mentionType === "contact" ? (
-                      filteredContacts.length === 0 ? (
-                        <div className="px-3 py-2 text-xs text-slate-500">No matching contacts</div>
-                      ) : (
-                        filteredContacts.map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => selectMention(c.name, c.id, "contact")}
-                            className="w-full text-left px-3 py-1.5 text-xs text-slate-300 rounded hover:bg-slate-800 hover:text-white"
-                          >
-                            <span className="inline-flex items-center gap-1.5">
-                              {c.name} ({c.phone}) <NameTagBadge tag={c.name_tag} />
-                            </span>
-                          </button>
-                        ))
-                      )
-                    ) : (
-                      filteredProperties.length === 0 ? (
-                        <div className="px-3 py-2 text-xs text-slate-500">No matching properties</div>
-                      ) : (
-                        filteredProperties.map((p) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => selectMention(p.title, p.id, "property")}
-                            className="w-full text-left px-3 py-1.5 text-xs text-slate-300 rounded hover:bg-slate-800 hover:text-white"
-                          >
-                            {p.property_code ? `[${p.property_code}] ` : ""}{p.title}
-                          </button>
-                        ))
-                      )
-                    )}
-                  </div>
-                )}
-              </div>
+            <form onSubmit={saveTodo} className="mb-4 flex flex-col gap-2 border-b border-slate-800 pb-4">
+              <input
+                type="text"
+                placeholder="Add new task..."
+                value={todoTitle}
+                onChange={(e) => setTodoTitle(e.target.value)}
+                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+              />
               <DateTimePicker
                 value={todoDueDate}
                 onChange={(val) => setTodoDueDate(val)}
@@ -1569,12 +1375,12 @@ export default function CalendarPage() {
 
             {/* Task checklist */}
             <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-              {combinedTodos.length === 0 ? (
+              {visibleTodos.length === 0 ? (
                 <div className="flex h-32 flex-col items-center justify-center text-center text-slate-500">
                   <p className="text-xs">No pending tasks!</p>
                 </div>
               ) : (
-                combinedTodos.map((todo) => (
+                visibleTodos.map((todo) => (
                   <div
                     key={todo.id}
                     className={cn(
@@ -1600,8 +1406,43 @@ export default function CalendarPage() {
                           todo.completed && "line-through text-slate-500 font-normal"
                         )}
                       >
-                        {renderTodoTitle(todo)}
+                        {todo.title}
                       </p>
+                      {(todo.due_date || todo.contact?.name || todo.property?.title) && (
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500">
+                          {todo.due_date && (
+                            <span>
+                              {new Date(todo.due_date).toLocaleString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "numeric",
+                                minute: "2-digit",
+                                hour12: true,
+                              })}
+                            </span>
+                          )}
+                          {todo.contact_id && todo.contact?.name && (
+                            <Link
+                              href={`/contacts?contactId=${todo.contact_id}`}
+                              className="inline-flex max-w-full items-center gap-1 truncate transition-colors hover:text-white"
+                              title="Open contact"
+                            >
+                              <User className="h-2.5 w-2.5 shrink-0" />
+                              {todo.contact.name}
+                            </Link>
+                          )}
+                          {todo.property_id && todo.property?.title && (
+                            <Link
+                              href={`/inventory?propertyId=${todo.property_id}`}
+                              className="inline-flex max-w-full items-center gap-1 truncate transition-colors hover:text-white"
+                              title="Open property"
+                            >
+                              <Home className="h-2.5 w-2.5 shrink-0" />
+                              {todo.property.title}
+                            </Link>
+                          )}
+                        </p>
+                      )}
                       {todo.description && (
                         <p
                           className={cn(
@@ -1612,42 +1453,50 @@ export default function CalendarPage() {
                           {todo.description}
                         </p>
                       )}
-                      {todo.priority && !todo.completed && (
-                        <span
-                          className={cn(
-                            "inline-block rounded px-1.5 py-0.5 text-[8px] font-bold uppercase mt-1",
-                            todo.priority === "high"
-                              ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                              : todo.priority === "medium"
-                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                                : "bg-slate-800 text-slate-400"
-                          )}
-                        >
-                          {todo.priority}
-                        </span>
-                      )}
+                      <span className="mt-1 flex flex-wrap items-center gap-1">
+                        {todo.priority && !todo.completed && (
+                          <span
+                            className={cn(
+                              "inline-block rounded px-1.5 py-0.5 text-[8px] font-bold uppercase",
+                              todo.priority === "high"
+                                ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                : todo.priority === "medium"
+                                  ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                                  : "bg-slate-800 text-slate-400"
+                            )}
+                          >
+                            {todo.priority}
+                          </span>
+                        )}
+                        {todo.deal_id && (
+                          <Link
+                            href={dealDateHref(todo.deal_id)}
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[8px] font-bold uppercase",
+                              DEAL_DATE_META.chip
+                            )}
+                            title="Open the deal this task belongs to"
+                          >
+                            <Briefcase className="h-2.5 w-2.5" />
+                            Deal
+                          </Link>
+                        )}
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                       {todo.contact_id && (
                         <button
-                          onClick={() => handleGoToChat(todo.contact_id!)}
+                          onClick={() => openContactChat(todo.contact_id!)}
                           className="text-slate-500 hover:text-emerald-400 transition-colors p-0.5"
-                          title="Go to WhatsApp Chat Inbox"
-                          aria-label="Open Chat"
+                          title={`Check with ${todo.contact?.name?.trim().split(/\s+/)[0] || "contact"} on WhatsApp`}
+                          aria-label="Open chat"
                         >
                           <MessageSquare className="h-3.5 w-3.5" />
                         </button>
                       )}
                       <button
-                        onClick={() => {
-                          if (todo.isAppointment) {
-                            const appt = appointments.find((a) => a.id === todo.id);
-                            if (appt) openEditApptModal(appt);
-                          } else {
-                            openEditTodoModal(todo);
-                          }
-                        }}
+                        onClick={() => openEditTodoModal(todo)}
                         className="text-slate-500 hover:text-white transition-colors p-0.5"
                         title="Edit task"
                         aria-label="Edit task"
@@ -1655,14 +1504,7 @@ export default function CalendarPage() {
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button
-                        onClick={() => {
-                          if (todo.isAppointment) {
-                            const appt = appointments.find((a) => a.id === todo.id);
-                            if (appt) deleteAppointment(appt);
-                          } else {
-                            deleteTodo(todo.id);
-                          }
-                        }}
+                        onClick={() => deleteTodo(todo.id)}
                         className="text-slate-500 hover:text-rose-450 transition-colors p-0.5"
                         title="Delete task"
                         aria-label="Delete task"
@@ -1995,7 +1837,7 @@ export default function CalendarPage() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Call @Customer name"
+                    placeholder="e.g. Send the EC copy to the advocate"
                     value={editTodoTitle}
                     onChange={(e) => setEditTodoTitle(e.target.value)}
                     className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"

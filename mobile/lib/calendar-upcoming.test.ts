@@ -49,7 +49,7 @@ describe('buildUpcomingCalendarItems', () => {
     ).toEqual(['todo-1', 'appointment-1', 'deal-1:ms-1', 'appointment-2']);
   });
 
-  it('[CAL-002] omits today, closed items, undated tasks, and the selected future day', () => {
+  it('[CAL-002] omits today, closed tasks, undated tasks, and the selected future day', () => {
     const selected = new Date(2026, 8, 15, 8, 0);
     const items = buildUpcomingCalendarItems(
       [
@@ -96,11 +96,39 @@ describe('buildUpcomingCalendarItems', () => {
       ]
     );
 
-    expect(items).toHaveLength(1);
-    expect(items[0]?.kind).toBe('appointment');
     expect(
-      items[0]?.kind === 'appointment' ? items[0].appointment.id : null
-    ).toBe('later');
+      items.map((item) =>
+        item.kind === 'appointment' ? item.appointment.id : item.kind
+      )
+    ).toEqual(['cancelled', 'later']);
+  });
+
+  it('[CAL-010] keeps a cancelled or completed appointment in Upcoming so it can be reopened', () => {
+    const items = buildUpcomingCalendarItems(
+      [
+        {
+          id: 'cancelled',
+          start_time: new Date(2026, 8, 16, 12, 0).toISOString(),
+          status: 'cancelled' as const,
+        },
+        {
+          id: 'completed',
+          start_time: new Date(2026, 8, 17, 12, 0).toISOString(),
+          status: 'completed' as const,
+        },
+      ],
+      [],
+      now,
+      now
+    );
+
+    expect(
+      items.map((item) =>
+        item.kind === 'appointment'
+          ? `${item.appointment.id}:${item.appointment.status}`
+          : item.kind
+      )
+    ).toEqual(['cancelled:cancelled', 'completed:completed']);
   });
 
   it('[CAL-001] loads every calendar page without a hidden item cap', async () => {

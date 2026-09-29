@@ -1084,13 +1084,42 @@ async function handleReminderButtonReply(
 
   try {
     const admin = supabaseAdmin();
-    const { data: log } = await admin
+    const claimColumns =
+      'appointment_id, rearmed_at, appointment:appointments(reminders_rearmed_at)';
+    let { data: log } = await admin
       .from('appointment_reminder_log')
-      .select('appointment_id')
+      .select(claimColumns)
       .eq('wa_message_id', message.context.id)
       .eq('account_id', accountId)
       .maybeSingle();
+    if (!log?.appointment_id) {
+      // A reply to an earlier send of a claim the cron has since sent
+      // again (src/lib/appointments/claim-confirm.ts).
+      ({ data: log } = await admin
+        .from('appointment_reminder_log')
+        .select(claimColumns)
+        .contains('prior_wa_message_ids', [message.context.id])
+        .eq('account_id', accountId)
+        .maybeSingle());
+    }
     if (!log?.appointment_id) return false;
+    // A tap on a reminder for a time or a state the appointment no
+    // longer has (it was moved, closed or reopened since — a new
+    // generation) is acknowledged as belonging to a reminder but
+    // changes nothing: the fresh reminders collect a fresh answer.
+    const appointmentRow = Array.isArray(log.appointment)
+      ? log.appointment[0]
+      : log.appointment;
+    const claimGeneration = log.rearmed_at ? new Date(log.rearmed_at).getTime() : null;
+    const currentGeneration = appointmentRow?.reminders_rearmed_at
+      ? new Date(appointmentRow.reminders_rearmed_at).getTime()
+      : null;
+    if (claimGeneration !== currentGeneration) {
+      console.log(
+        `[Reminder Reply] Ignoring a ${isReschedule ? 'reschedule' : 'confirmation'} tap on a reminder from an earlier generation of appointment ${log.appointment_id}`
+      );
+      return true;
+    }
 
     // Each tap resolves the other flag — the latest client signal wins.
     const stamp = isReschedule
@@ -1103,13 +1132,22 @@ async function handleReminderButtonReply(
           reschedule_requested_at: null,
         };
 
-    const { data: appt } = await admin
+    // The generation is a predicate of the write itself, so a re-arm
+    // landing between the check above and this update makes the
+    // update miss rather than land on the new generation.
+    const stampQuery = admin
       .from('appointments')
       .update(stamp)
       .eq('id', log.appointment_id)
+      .eq('account_id', accountId);
+    const { data: appt } = await (log.rearmed_at
+      ? stampQuery.eq('reminders_rearmed_at', log.rearmed_at)
+      : stampQuery.is('reminders_rearmed_at', null)
+    )
       .select('id, title, start_time, user_id, assigned_to')
       .maybeSingle();
-    // Reminder tap on a since-deleted appointment: still consumed.
+    // Reminder tap on a since-deleted or since-re-armed appointment:
+    // still consumed, nothing changed.
     if (!appt) return true;
 
     const formattedTime = new Date(appt.start_time).toLocaleString('en-IN', {

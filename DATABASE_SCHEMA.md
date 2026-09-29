@@ -305,12 +305,18 @@ Calendar bookings and site viewings.
 - `property_id` (UUID, FK -> `properties`): Listing being viewed.
 - `status` (TEXT): CHECK constraint `('scheduled', 'completed', 'cancelled')`.
 - `reminder_morning_sent` / `reminder_1h_sent` (BOOLEAN, migration 127): Client WhatsApp reminder flags — morning-of (~7 AM IST) and one-hour-before sends that go to every contact in `contact_ids`. Supersede the older `reminder_24h_sent` / `reminder_2h_sent` flags.
+- `reminders_rearmed_at` (TIMESTAMPTZ, migration 20260929103500): The appointment's reminder generation. The `trg_appointments_reminder_generation` trigger (migration 20260929134500) stamps it on the row itself for every writer, and `PUT /api/appointments/[id]` makes the same decision in code, whenever the reminders' premise changes — reopened or moved (with the two flags reset in the same write), moved or reopened into the past (flags set covered instead), or closed with Done / Cancel (flags untouched) — so a reminder fetched, queued or mid-send for the earlier state never goes out. A delivery claim in `appointment_reminder_log` made before this instant is superseded: the reminder cron takes it over and sends again, and a voice note still queued under it is dropped.
 - `agenda` / `minutes` / `outcome` (TEXT, migration 128): Type-specific structured notes — pre-event agenda (meetings, calls, follow-ups, document work; included in the assignee's pre-event brief), post-event minutes (meetings, calls), and post-event outcome (site visits, follow-ups, document work). Per-type visibility config lives in `src/components/calendar/event-types.ts`.
 
 #### 16b. `appointment_reminder_log` (migration 127)
 Per-recipient delivery claims for client appointment reminders — one row per `(appointment_id, contact_id, reminder_type)` (UNIQUE). The cron inserts a claim before each WhatsApp send and deletes it if the send fails, so partial failures retry only the missed recipients without duplicating the delivered ones.
 - `account_id` / `appointment_id` / `contact_id` (UUID FKs, CASCADE).
-- `reminder_type` (TEXT): CHECK `('morning', '1h')`.
+- `reminder_type` (TEXT): CHECK `('morning', '1h', 'manual')` (migration 290).
+- `wa_message_id` (TEXT, migration 141): the outbound reminder's WhatsApp id, so a button reply maps back to the appointment.
+- `sent_at` (TIMESTAMPTZ, migration 20260929120000): when the send this claim covers was confirmed; null while in flight. A claim of the current generation still unconfirmed after the grace period (`CLAIM_GRACE_MS`) is taken over by the cron rather than counted as coverage.
+- `prior_wa_message_ids` (TEXT[], migration 20260929125500, superseding the single slot of 20260929122000): message ids of earlier sends whose confirmations arrived after the cron had taken the claim over and sent again, appended through `appointment_reminder_keep_prior_id`; the reply webhook matches a button tap by the current id or any of these.
+- `generation_known` (BOOLEAN, migration 20260929131500): true for every claim made, taken over or restored since generations were recorded on claims; a legacy hand-back (a voice note queued before then) releases only a claim that is not, and unconfirmed.
+- `rearmed_at` (TIMESTAMPTZ, migration 20260929110500): `appointments.reminders_rearmed_at` as the sweep that made the claim read it. A claim from another generation is superseded — the cron takes it over and sends again — however new its clock, so a sweep that read the appointment before a re-arm can never leave a claim that counts as coverage.
 
 #### 17. `todos`
 Tasks list with reference linkages.

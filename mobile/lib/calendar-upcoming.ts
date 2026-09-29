@@ -69,7 +69,6 @@ export function buildUpcomingCalendarItems<
   const selectedKey = localDayKey(selected);
 
   const appointmentItems: UpcomingCalendarItem<A, T, D>[] = appointments
-    .filter((appointment) => appointment.status === 'scheduled')
     .map((appointment) => ({
       kind: 'appointment' as const,
       dueAt: new Date(appointment.start_time).getTime(),

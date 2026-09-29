@@ -36,7 +36,7 @@ export async function PUT(
 
     const { data: existing, error: existingError } = await supabase
       .from('appointments')
-      .select('id, user_id, start_time, contact_id, contact_ids')
+      .select('id, user_id, start_time, status, contact_id, contact_ids')
       .eq('id', id)
       .eq('account_id', accountId)
       .maybeSingle()
@@ -87,19 +87,56 @@ export async function PUT(
     // for its OLD time silently never reminds again after being
     // rescheduled, since reminder_morning_sent/reminder_1h_sent only
     // ever get set to true (src/lib/appointments/reminder.ts) and
-    // nothing else resets them.
-    if (start_time !== undefined) {
-      if (existing && new Date(existing.start_time).getTime() !== new Date(start_time).getTime()) {
-        updatePayload.reminder_morning_sent = false
-        updatePayload.reminder_1h_sent = false
-        // A reschedule also resolves any pending "Requesting reschedule"
-        // flag (src/lib/whatsapp/webhook-handler.ts) — the client's ask
-        // is addressed by definition once the time actually changes.
-        updatePayload.reschedule_requested_at = null
-        // And voids any earlier "Fine" confirmation — it was for the
-        // old time; the re-sent reminders will collect a fresh one.
-        updatePayload.client_confirmed_at = null
-      }
+    // nothing else resets them. Reopening a finished or cancelled
+    // appointment re-arms them the same way. The same rule runs on the
+    // row for every writer (trg_appointments_reminder_generation,
+    // migration 20260929134500); this is the route's own copy of it.
+    const rescheduled =
+      start_time !== undefined &&
+      new Date(existing.start_time).getTime() !== new Date(start_time).getTime()
+    const reopened = status === 'scheduled' && existing.status !== 'scheduled'
+    const closed =
+      status !== undefined && status !== 'scheduled' && existing.status === 'scheduled'
+    // Only a start still ahead is worth reminding about: reopening
+    // yesterday's cancelled visit must not message its contacts.
+    const startsAhead =
+      new Date(start_time !== undefined ? start_time : existing.start_time).getTime() > Date.now()
+    if (rescheduled) {
+      // A reschedule also resolves any pending "Requesting reschedule"
+      // flag (src/lib/whatsapp/webhook-handler.ts) — the client's ask
+      // is addressed by definition once the time actually changes.
+      updatePayload.reschedule_requested_at = null
+      // And voids any earlier "Fine" confirmation — it was for the
+      // old time; the re-sent reminders will collect a fresh one.
+      updatePayload.client_confirmed_at = null
+    }
+    if (closed) {
+      // Done or Cancel: nothing changes for the sweep, which only reads
+      // scheduled rows, but a reminder it already fetched or queued
+      // for this event must not go out now that the event is closed.
+      updatePayload.reminders_rearmed_at = new Date().toISOString()
+    }
+    if ((rescheduled || reopened) && !startsAhead) {
+      // A reminder that never went out for a visit now behind us must
+      // not go out on the next sweep either, and one already queued or
+      // mid-sweep for the old time must not go out at all: the stamp
+      // supersedes it while the flags keep the sweep away.
+      updatePayload.reminder_morning_sent = true
+      updatePayload.reminder_1h_sent = true
+      updatePayload.reminders_rearmed_at = new Date().toISOString()
+    }
+    if ((rescheduled || reopened) && startsAhead) {
+      updatePayload.reminder_morning_sent = false
+      updatePayload.reminder_1h_sent = false
+      // The flags alone re-arm nothing: each send first claims an
+      // (appointment, recipient, type) row in appointment_reminder_log,
+      // and a claim left from the earlier send would make the cron flip
+      // the flag straight back without sending. The re-arm instant goes
+      // in the same write as the flags, so it either lands with them or
+      // not at all; the cron takes over any claim made before it
+      // (src/lib/appointments/reminder.ts) and a voice note queued under
+      // such a claim is dropped (src/lib/voice/reminder-audio-worker.ts).
+      updatePayload.reminders_rearmed_at = new Date().toISOString()
     }
 
     const { data: appointment, error } = await supabase

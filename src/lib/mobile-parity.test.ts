@@ -45,6 +45,10 @@ import {
   DEAL_DEADLINE_PAGE_SIZE,
 } from '@/lib/deals/deadlines';
 import {
+  APPOINTMENT_STATUS_LABELS,
+  appointmentStatusActions,
+} from '@/lib/calendar/tasks-view';
+import {
   PULSE_FEED_PAGE_SIZE,
   nextPulseFeedCursor,
   pulseFeedCursorFilter,
@@ -3604,6 +3608,122 @@ describe('[CAL-008] deal dates are pinned on both calendars through the one dead
     expect(mobileUpcoming).toContain(
       "| { kind: 'deal'; dueAt: number; dealDate: D };"
     );
+  });
+});
+
+describe('[CAL-009] the to-do list is lightweight on both surfaces', () => {
+  const webCalendar = webSource('app/(dashboard)/calendar/page.tsx');
+  const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+  const mobileTodos = mobileSource('lib/todos.ts');
+
+  it('lists to-dos alone and never folds appointments into the list', () => {
+    expect(webCalendar).toContain('const visibleTodos = useMemo(() => {');
+    expect(webCalendar).not.toContain('isAppointment');
+    expect(webCalendar).not.toContain('resolveMentions');
+    expect(webCalendar).not.toContain('mentionType');
+    expect(mobileCalendar).toContain(
+      'await addTodo({ accountId, title: trimmed, priority, dueDate });'
+    );
+  });
+
+  it('a deal task links back to its deal on both surfaces', () => {
+    expect(mobileTodos).toContain('deal_id: string | null;');
+    expect(webCalendar).toContain('href={dealDateHref(todo.deal_id)}');
+    expect(mobileCalendar).toContain(
+      '<Link href={dealDateHref(todo.deal_id)} asChild>'
+    );
+    expect(webCalendar).toContain(
+      'href={`/contacts?contactId=${todo.contact_id}`}'
+    );
+    expect(webCalendar).toContain(
+      'href={`/inventory?propertyId=${todo.property_id}`}'
+    );
+    expect(mobileCalendar).toContain(
+      '<Link href={`/(app)/contact/${todo.contact.id}`} asChild>'
+    );
+    expect(mobileCalendar).toContain(
+      '<Link href={`/(app)/property/${todo.property.id}`} asChild>'
+    );
+    const webSmartAdd = webSource('components/calendar/smart-add-bar.tsx');
+    expect(webSmartAdd).toContain(
+      'contact_id: kind === "todo" ? null : resolved?.contact?.id || null'
+    );
+    expect(webSmartAdd).toContain(
+      'property_id: kind === "todo" ? null : resolved?.property?.id || null'
+    );
+  });
+});
+
+describe('[CAL-010] appointment status changes are offered identically on both surfaces', () => {
+  const mobileTasks = mobileSource('lib/calendar-tasks.ts');
+  const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+  const webTasksList = webSource('components/calendar/tasks-list.tsx');
+  const webCalendar = webSource('app/(dashboard)/calendar/page.tsx');
+
+  it('labels every status and offers the same actions per status', () => {
+    for (const [status, label] of Object.entries(APPOINTMENT_STATUS_LABELS)) {
+      expect(mobileTasks).toContain(`${status}: '${label}'`);
+    }
+    for (const status of ['scheduled', 'completed', 'cancelled'] as const) {
+      for (const action of appointmentStatusActions(status)) {
+        expect(mobileTasks).toContain(
+          `{ status: '${action.status}', label: '${action.label}' }`
+        );
+      }
+    }
+    expect(webTasksList).toContain(
+      'appointmentStatusActions(event.status).map('
+    );
+    expect(mobileCalendar).toContain(
+      'appointmentStatusActions(appointment.status).map('
+    );
+    expect(mobileCalendar).toContain(
+      "canEdit && !editingDetails && appointment.status !== 'scheduled'"
+    );
+    expect(webTasksList).toContain('{canEdit && (');
+    expect(webCalendar).toContain('`/api/appointments/${appt.id}`');
+    expect(mobileCalendar).toContain('`/api/appointments/${appointment.id}`');
+    expect(mobileCalendar).toContain(
+      "{ method: 'PUT', body: JSON.stringify({ status }) }"
+    );
+    expect(mobileCalendar).not.toContain('.update({ status })');
+  });
+
+  it('ticks a milestone through the deal route on both surfaces and opens other deal dates', () => {
+    expect(webCalendar).toContain(
+      '`/api/deals/${d.dealId}/milestones/${d.milestoneId}`'
+    );
+    expect(webCalendar).toContain(
+      'body: JSON.stringify({ status: "completed", source: "web" })'
+    );
+    expect(mobileCalendar).toContain(
+      'await updateDealMilestone(dealDate.dealId, dealDate.milestoneId, {'
+    );
+    expect(mobileCalendar).toContain("status: 'completed',");
+    expect(webTasksList).toContain(
+      'canEdit && dealDate.kind === "milestone" && dealDate.milestoneId'
+    );
+    expect(mobileCalendar).toContain(
+      "canEdit && dealDate.kind === 'milestone' && dealDate.milestoneId"
+    );
+    expect(webCalendar).toContain('const canEdit = !isViewer && !isReadOnly;');
+    expect(webCalendar).toContain(
+      'onClick={() => openContactChat(todo.contact_id!)}'
+    );
+    expect(mobileCalendar).toContain(
+      'await openContactChat(todo.contact!, { draftText: draft.message });'
+    );
+  });
+
+  it('keeps a cancelled appointment listed on both surfaces and gives the Agenda the same rows', () => {
+    const mobileUpcoming = mobileSource('lib/calendar-upcoming.ts');
+    const webAgenda = webSource('components/calendar/agenda-view.tsx');
+    expect(mobileUpcoming).not.toContain("appointment.status === 'scheduled'");
+    expect(mobileCalendar).not.toContain(".eq('status', 'scheduled')");
+    expect(webAgenda).toContain('<AppointmentTaskRow');
+    expect(webAgenda).toContain('<DealDateTaskRow');
+    expect(webAgenda).toContain('onStatusChange={onStatusChange}');
+    expect(webAgenda).toContain('onDone={onMilestoneDone}');
   });
 });
 

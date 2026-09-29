@@ -6,25 +6,62 @@ const tables: Record<string, Row[]> = {
   appointments: [],
   contacts: [],
   message_templates: [],
+  appointment_reminder_log: [],
 };
+
+let claimSeq = 0;
+const hooks: { beforeClaim?: () => void; onAppointmentRead?: () => void } = {};
+
+// The one unique key the code relies on: a recipient is claimed once
+// per reminder (migration 127 / 196).
+function claimKey(row: Row): string {
+  return [row.appointment_id, row.contact_id ?? '', row.liaison_id ?? '', row.reminder_type].join('|');
+}
 
 function makeBuilder(table: string) {
   const filters: { op: string; col: string; val: unknown }[] = [];
   let mode: 'select' | 'write' = 'select';
+  let pending: { kind: 'insert' | 'update' | 'delete'; row: Row } | null = null;
   const builder: Record<string, unknown> = {};
   const chain = () => builder;
+  const write = () => {
+    if (!pending) return { data: null as Row | null, error: null as { code: string } | null };
+    const rows = tables[table] || (tables[table] = []);
+    if (pending.kind === 'insert') {
+      if (table === 'appointment_reminder_log') hooks.beforeClaim?.();
+      if (
+        table === 'appointment_reminder_log' &&
+        rows.some((r) => claimKey(r) === claimKey(pending!.row))
+      ) {
+        return { data: null, error: { code: '23505' } };
+      }
+      const row = { id: `claim-${++claimSeq}`, created_at: new Date().toISOString(), ...pending.row };
+      rows.push(row);
+      return { data: { ...row }, error: null };
+    }
+    const hit = matching();
+    if (pending.kind === 'delete') {
+      tables[table] = rows.filter((r) => !hit.includes(r));
+      return { data: hit[0] ? { ...hit[0] } : null, error: null };
+    }
+    for (const r of hit) Object.assign(r, pending.row);
+    return { data: hit[0] ? { ...hit[0] } : null, error: null };
+  };
   Object.assign(builder, {
     select: chain,
-    insert: () => {
+    insert: (row: Row) => {
       mode = 'write';
+      pending = { kind: 'insert', row };
       return builder;
     },
-    update: () => {
+    update: (row: Row) => {
       mode = 'write';
+      pending = { kind: 'update', row };
       return builder;
     },
     delete: () => {
       mode = 'write';
+      pending = { kind: 'delete', row: {} };
       return builder;
     },
     or: chain,
@@ -44,6 +81,14 @@ function makeBuilder(table: string) {
       filters.push({ op: 'lte', col, val });
       return builder;
     },
+    lt: (col: string, val: unknown) => {
+      filters.push({ op: 'lt', col, val });
+      return builder;
+    },
+    is: (col: string, val: unknown) => {
+      filters.push({ op: 'is', col, val });
+      return builder;
+    },
     in: (col: string, val: unknown[]) => {
       filters.push({ op: 'in', col, val });
       return builder;
@@ -52,13 +97,17 @@ function makeBuilder(table: string) {
     // only need to exist for the real client's call shape to work.
     order: chain,
     limit: chain,
+    // Reads hand out copies, as the real client does: a sweep holds
+    // the row as it read it, not a live view of the table.
     maybeSingle: async () => {
-      if (mode === 'write') return { data: null, error: null };
-      return { data: matching()[0] ?? null, error: null };
+      if (mode === 'write') return write();
+      if (table === 'appointments') hooks.onAppointmentRead?.();
+      const hit = matching()[0];
+      return { data: hit ? { ...hit } : null, error: null };
     },
-    then: (resolve: (v: { data: Row[] | null; error: null }) => unknown) => {
-      if (mode === 'write') return resolve({ data: null, error: null });
-      return resolve({ data: matching(), error: null });
+    then: (resolve: (v: { data: Row[] | null; error: { code: string } | null }) => unknown) => {
+      if (mode === 'write') return resolve({ data: null, error: write().error });
+      return resolve({ data: matching().map((r) => ({ ...r })), error: null });
     },
   });
 
@@ -69,8 +118,10 @@ function makeBuilder(table: string) {
         if (op === 'eq') return v === val;
         if (op === 'neq') return v !== val;
         if (op === 'gt') return String(v) > String(val);
+        if (op === 'lt') return String(v) < String(val);
         if (op === 'lte') return String(v) <= String(val);
         if (op === 'in') return (val as unknown[]).includes(v);
+        if (op === 'is') return val === null ? v == null : v === val;
         return true;
       })
     );
@@ -112,10 +163,35 @@ function appointment(id: string, eventType: string, contactId: string): Row {
     status: 'scheduled',
     reminder_morning_sent: false,
     reminder_1h_sent: false,
+    reminders_rearmed_at: null,
     property: null,
     account: { name: 'Acme Realty' },
   };
 }
+
+function claim(
+  contactId: string,
+  reminderType: string,
+  createdAt: string,
+  rearmedAt: string | null = null,
+  sentAt: string | null = createdAt
+): Row {
+  return {
+    id: `claim-${contactId}-${reminderType}`,
+    account_id: 'acc',
+    appointment_id: 'a-visit',
+    contact_id: contactId,
+    liaison_id: null,
+    reminder_type: reminderType,
+    created_at: createdAt,
+    rearmed_at: rearmedAt,
+    sent_at: sentAt,
+    wa_message_id: 'wamid.old',
+    prior_wa_message_ids: ['wamid.older'],
+  };
+}
+
+const REARMED_AT = '2026-08-01T05:30:00.000Z';
 
 beforeEach(() => {
   sendWhatsAppMessageAndPersist.mockReset();
@@ -129,6 +205,9 @@ beforeEach(() => {
     { id: 'c-visit', name: 'Meera', phone: '+919876543211' },
   ];
   tables.message_templates = [];
+  tables.appointment_reminder_log = [];
+  hooks.beforeClaim = undefined;
+  hooks.onAppointmentRead = undefined;
 });
 
 describe('checkAndSendAppointmentReminders', () => {
@@ -149,6 +228,158 @@ describe('checkAndSendAppointmentReminders', () => {
       contactId: 'c-visit',
       templateName: 'property_visit_reminder',
     });
+  });
+
+  it('sends a contact once across ticks, holding the claim it sent under', async () => {
+    tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    const claims = tables.appointment_reminder_log;
+    expect(claims).toHaveLength(1);
+    expect(claims[0]).toMatchObject({ contact_id: 'c-visit', wa_message_id: 'wamid.1' });
+    expect(typeof claims[0].sent_at).toBe('string');
+
+    tables.appointments[0].reminder_morning_sent = false;
+    tables.appointments[0].reminder_1h_sent = false;
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+  });
+
+  it('[CAL-010] after a re-arm, takes over a claim from the earlier generation and sends again — once', async () => {
+    tables.appointments = [
+      { ...appointment('a-visit', 'site_visit', 'c-visit'), reminders_rearmed_at: REARMED_AT },
+    ];
+    tables.appointment_reminder_log = [
+      claim('c-visit', 'morning', '2026-08-01T05:00:00.000Z'),
+      claim('c-visit', '1h', '2026-08-01T05:00:00.000Z'),
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    const renewed = tables.appointment_reminder_log.filter((r) => r.wa_message_id === 'wamid.1');
+    expect(renewed).toHaveLength(1);
+    expect(renewed[0]).toMatchObject({ rearmed_at: REARMED_AT, prior_wa_message_ids: [] });
+    expect(String(renewed[0].created_at) > REARMED_AT).toBe(true);
+    expect(tables.appointment_reminder_log).toHaveLength(2);
+
+    tables.appointments[0].reminder_morning_sent = false;
+    tables.appointments[0].reminder_1h_sent = false;
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+  });
+
+  it('[CAL-010] a re-arm landing mid-sweep releases the claim and leaves the flags for the next sweep', async () => {
+    tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
+    hooks.beforeClaim = () => {
+      tables.appointments[0].reminders_rearmed_at = new Date().toISOString();
+      tables.appointments[0].start_time = '2026-08-01T07:30:00Z';
+    };
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(tables.appointment_reminder_log).toHaveLength(0);
+    expect(tables.appointments[0]).toMatchObject({
+      reminder_morning_sent: false,
+      reminder_1h_sent: false,
+    });
+
+    hooks.beforeClaim = undefined;
+    await checkAndSendAppointmentReminders(new Date('2026-08-01T07:00:00Z'));
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(tables.appointments[0].reminder_1h_sent).toBe(true);
+  });
+
+  it('[CAL-010] a stale sweep letting go never takes a renewed claim with it', async () => {
+    tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
+    hooks.onAppointmentRead = () => {
+      if (tables.appointment_reminder_log.length === 0) return;
+      hooks.onAppointmentRead = undefined;
+      const rearmedAt = new Date().toISOString();
+      tables.appointments[0].reminders_rearmed_at = rearmedAt;
+      for (const row of tables.appointment_reminder_log) {
+        row.created_at = new Date(Date.parse(rearmedAt) + 1).toISOString();
+        row.wa_message_id = 'wamid.fresh';
+      }
+    };
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(tables.appointment_reminder_log).toHaveLength(1);
+    expect(tables.appointment_reminder_log[0].wa_message_id).toBe('wamid.fresh');
+    expect(tables.appointments[0].reminder_1h_sent).toBe(false);
+  });
+
+  it('[CAL-010] a claim a stale sweep made after the re-arm is taken over, not counted as coverage', async () => {
+    tables.appointments = [
+      { ...appointment('a-visit', 'site_visit', 'c-visit'), reminders_rearmed_at: REARMED_AT },
+    ];
+    tables.appointment_reminder_log = [
+      claim('c-visit', 'morning', '2026-08-01T05:45:00.000Z'),
+      claim('c-visit', '1h', '2026-08-01T05:45:00.000Z'),
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(
+      tables.appointment_reminder_log.filter((r) => r.rearmed_at === REARMED_AT)
+    ).toHaveLength(1);
+  });
+
+  it('[CAL-010] a sweep from an earlier generation never takes over a current claim', async () => {
+    tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
+    tables.appointment_reminder_log = [
+      claim('c-visit', 'morning', '2026-08-01T05:45:00.000Z', REARMED_AT),
+      claim('c-visit', '1h', '2026-08-01T05:45:00.000Z', REARMED_AT),
+    ];
+    hooks.onAppointmentRead = () => {
+      tables.appointments[0].reminders_rearmed_at = REARMED_AT;
+    };
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(tables.appointment_reminder_log).toHaveLength(2);
+    expect(
+      tables.appointment_reminder_log.every(
+        (r) => r.rearmed_at === REARMED_AT && r.wa_message_id === 'wamid.old'
+      )
+    ).toBe(true);
+    expect(tables.appointments[0]).toMatchObject({
+      reminder_morning_sent: false,
+      reminder_1h_sent: false,
+    });
+  });
+
+  it('[CAL-010] retries a claim of the current generation whose send was never confirmed, after the grace period', async () => {
+    tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
+    const longAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    tables.appointment_reminder_log = [
+      claim('c-visit', 'morning', longAgo, null, null),
+      claim('c-visit', '1h', longAgo, null, null),
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    const retried = tables.appointment_reminder_log.filter((r) => typeof r.sent_at === 'string');
+    expect(retried).toHaveLength(1);
+    expect(retried[0].prior_wa_message_ids).toEqual(['wamid.older']);
+  });
+
+  it('[CAL-010] leaves a fresh unconfirmed claim to its owner', async () => {
+    tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
+    const justNow = new Date(Date.now() - 60 * 1000).toISOString();
+    tables.appointment_reminder_log = [
+      claim('c-visit', 'morning', justNow, null, null),
+      claim('c-visit', '1h', justNow, null, null),
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('[CAL-010] honours a claim from the current generation', async () => {
+    tables.appointments = [
+      { ...appointment('a-visit', 'site_visit', 'c-visit'), reminders_rearmed_at: REARMED_AT },
+    ];
+    tables.appointment_reminder_log = [
+      claim('c-visit', 'morning', '2026-08-01T05:45:00.000Z', REARMED_AT),
+      claim('c-visit', '1h', '2026-08-01T05:45:00.000Z', REARMED_AT),
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(tables.appointment_reminder_log.every((r) => r.wa_message_id === 'wamid.old')).toBe(true);
   });
 
   it('holds client reminders during quiet hours', async () => {
