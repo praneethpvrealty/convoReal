@@ -181,6 +181,14 @@ export function JourneySection({
     Promise.resolve().then(() => loadJourney());
   }, [loadJourney]);
 
+  useEffect(() => {
+    if (!spotlightItemId) return;
+    Promise.resolve().then(() => {
+      setFocusItemId(spotlightItemId);
+      void loadJourney();
+    });
+  }, [spotlightItemId, loadJourney]);
+
   // Refresh + notify the host after any mutation.
   const refresh = useCallback(async () => {
     await loadJourney();

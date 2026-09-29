@@ -1154,6 +1154,9 @@ export function JourneyOverview({
               preloadedContact={fullscreenGroup.contact}
               preloadedProperty={fullscreenGroup.property}
               onItemsChanged={loadGroups}
+              onItemMoved={(itemId) =>
+                setSpotlight({ subjectId: fullscreenGroup.subjectId, itemId })
+              }
             />
           </div>
         </div>

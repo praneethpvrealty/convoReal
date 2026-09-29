@@ -697,5 +697,9 @@ describe('focus after a stage move', () => {
     );
     expect(overview).toContain('`journey-row-${spotlightKey}-${subjectId}`');
     expect(overview).toContain('id={rowId}');
+    expect(overview).toContain(
+      'setSpotlight({ subjectId: fullscreenGroup.subjectId, itemId })'
+    );
+    expect(section).toContain('setFocusItemId(spotlightItemId);');
   });
 });
