@@ -38,57 +38,6 @@ export function appointmentStatusActions(
   return [{ status: 'scheduled', label: 'Reopen' }];
 }
 
-export interface ArchivableAppointmentLike {
-  id: string;
-  status: AppointmentStatus;
-  archived_at?: string | null;
-}
-
-export const ARCHIVE_BATCH_LIMIT = 500;
-
-export function canArchiveAppointment(status: AppointmentStatus): boolean {
-  return status !== 'scheduled';
-}
-
-export function isArchivedAppointment(
-  appointment: ArchivableAppointmentLike
-): boolean {
-  return !!appointment.archived_at && canArchiveAppointment(appointment.status);
-}
-
-export function archivableAppointmentIds(
-  appointments: readonly ArchivableAppointmentLike[]
-): string[] {
-  return appointments
-    .filter((a) => canArchiveAppointment(a.status) && !isArchivedAppointment(a))
-    .map((a) => a.id);
-}
-
-export function chunkIds(
-  ids: readonly string[],
-  size: number = ARCHIVE_BATCH_LIMIT
-): string[][] {
-  const chunks: string[][] = [];
-  for (let i = 0; i < ids.length; i += size)
-    chunks.push(ids.slice(i, i + size));
-  return chunks;
-}
-
-export function withoutArchivedAppointments<
-  A extends ArchivableAppointmentLike,
->(
-  appointments: readonly A[],
-  showArchived: boolean
-): { visible: A[]; archivedCount: number } {
-  const archivedCount = appointments.filter(isArchivedAppointment).length;
-  return {
-    visible: showArchived
-      ? [...appointments]
-      : appointments.filter((a) => !isArchivedAppointment(a)),
-    archivedCount,
-  };
-}
-
 export interface TaskAppointmentLike {
   id: string;
   start_time: string;
@@ -150,6 +99,70 @@ export function buildCalendarTaskRows<
   );
 }
 
+export function groupCalendarTaskRows<
+  A extends TaskAppointmentLike,
+  D extends TaskDealDateLike,
+>(rows: readonly CalendarTaskRow<A, D>[]): CalendarTaskDay<A, D>[] {
+  const days: CalendarTaskDay<A, D>[] = [];
+  for (const row of rows) {
+    const last = days[days.length - 1];
+    if (last && last.dayKey === row.dayKey) last.rows.push(row);
+    else days.push({ dayKey: row.dayKey, rows: [row] });
+  }
+  return days;
+}
+
+export interface ArchivableAppointmentLike {
+  id: string;
+  status: AppointmentStatus;
+  archived_at?: string | null;
+}
+
+export const ARCHIVE_BATCH_LIMIT = 500;
+
+export function canArchiveAppointment(status: AppointmentStatus): boolean {
+  return status !== 'scheduled';
+}
+
+export function isArchivedAppointment(
+  appointment: ArchivableAppointmentLike
+): boolean {
+  return !!appointment.archived_at && canArchiveAppointment(appointment.status);
+}
+
+export function archivableAppointmentIds(
+  appointments: readonly ArchivableAppointmentLike[]
+): string[] {
+  return appointments
+    .filter((a) => canArchiveAppointment(a.status) && !isArchivedAppointment(a))
+    .map((a) => a.id);
+}
+
+export function chunkIds(
+  ids: readonly string[],
+  size: number = ARCHIVE_BATCH_LIMIT
+): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += size)
+    chunks.push(ids.slice(i, i + size));
+  return chunks;
+}
+
+export function withoutArchivedAppointments<
+  A extends ArchivableAppointmentLike,
+>(
+  appointments: readonly A[],
+  showArchived: boolean
+): { visible: A[]; archivedCount: number } {
+  const archivedCount = appointments.filter(isArchivedAppointment).length;
+  return {
+    visible: showArchived
+      ? [...appointments]
+      : appointments.filter((a) => !isArchivedAppointment(a)),
+    archivedCount,
+  };
+}
+
 export type TaskSortMode = 'upcoming' | 'earliest' | 'latest';
 
 export const TASK_SORT_MODES: TaskSortMode[] = [
@@ -196,17 +209,4 @@ export function sortTasksByTime<T>(
     }
     return inOrder(a, b);
   });
-}
-
-export function groupCalendarTaskRows<
-  A extends TaskAppointmentLike,
-  D extends TaskDealDateLike,
->(rows: readonly CalendarTaskRow<A, D>[]): CalendarTaskDay<A, D>[] {
-  const days: CalendarTaskDay<A, D>[] = [];
-  for (const row of rows) {
-    const last = days[days.length - 1];
-    if (last && last.dayKey === row.dayKey) last.rows.push(row);
-    else days.push({ dayKey: row.dayKey, rows: [row] });
-  }
-  return days;
 }

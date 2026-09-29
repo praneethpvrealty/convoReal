@@ -110,17 +110,20 @@ function dayKey(d: Date): string {
 async function fetchMonth(month: Date): Promise<Appointment[]> {
   const from = monthStart(month);
   const to = new Date(month.getFullYear(), month.getMonth() + 1, 1);
-  const { data, error } = await supabase
-    .from('appointments')
-    .select(
-      '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
-    )
-    .gte('start_time', from.toISOString())
-    .lt('start_time', to.toISOString())
-    .order('start_time', { ascending: true })
-    .limit(300);
-  if (error) throw error;
-  return (data ?? []) as Appointment[];
+  return loadEveryPage(async (start, end) => {
+    const { data, error } = await supabase
+      .from('appointments')
+      .select(
+        '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
+      )
+      .gte('start_time', from.toISOString())
+      .lt('start_time', to.toISOString())
+      .order('start_time', { ascending: true })
+      .order('id', { ascending: true })
+      .range(start, end);
+    if (error) throw error;
+    return (data ?? []) as Appointment[];
+  });
 }
 
 async function fetchAppointment(id: string): Promise<Appointment | null> {

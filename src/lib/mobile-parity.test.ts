@@ -3735,6 +3735,18 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
   const webAgenda = webSource('components/calendar/agenda-view.tsx');
   const webCalendar = webSource('app/(dashboard)/calendar/page.tsx');
 
+  it('[CAL-012] keeps the archive and sort rules byte-identical to the web source', () => {
+    const marker = 'export interface ArchivableAppointmentLike {';
+    const body = (source: string) => {
+      const start = source.indexOf(marker);
+      expect(start, 'archive and sort marker missing').toBeGreaterThan(-1);
+      return source.slice(start);
+    };
+    expect(body(mobileTasks)).toBe(
+      body(webSource('lib/calendar/tasks-view.ts'))
+    );
+  });
+
   it('mirrors the archive rule and writes it through the archive route only', () => {
     expect(mobileTasks).toContain(
       `export const ARCHIVE_BATCH_LIMIT = ${WEB_ARCHIVE_BATCH_LIMIT};`

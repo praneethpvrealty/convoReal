@@ -62,7 +62,8 @@ export function chunkIds(
   size: number = ARCHIVE_BATCH_LIMIT
 ): string[][] {
   const chunks: string[][] = [];
-  for (let i = 0; i < ids.length; i += size) chunks.push(ids.slice(i, i + size));
+  for (let i = 0; i < ids.length; i += size)
+    chunks.push(ids.slice(i, i + size));
   return chunks;
 }
 
