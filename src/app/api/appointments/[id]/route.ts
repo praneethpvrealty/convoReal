@@ -106,7 +106,7 @@ export async function PUT(
       // old time; the re-sent reminders will collect a fresh one.
       updatePayload.client_confirmed_at = null
     }
-    if (reopened && !startsAhead) {
+    if ((rescheduled || reopened) && !startsAhead) {
       // A reminder that never went out for a visit now behind us must
       // not go out on the next sweep either.
       updatePayload.reminder_morning_sent = true

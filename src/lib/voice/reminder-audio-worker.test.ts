@@ -161,7 +161,10 @@ describe('processReminderAudioJob', () => {
     await processReminderAudioJob(job);
     expect(state.burns).toBe(1);
     expect(state.sends).toBe(1);
-    expect(state.mutations).toEqual([['update', [['id', 'claim-1']]]]);
+    expect(state.mutations).toEqual([
+      ['update', [['id', 'claim-1']]],
+      ['update', [['id', 'claim-1'], ['created_at', QUEUED_AT]]],
+    ]);
   });
 
   it('requeues, rather than drops, a note whose claim could not be read', async () => {

@@ -392,8 +392,20 @@ async function stillAsRead(
   ) {
     return true;
   }
-  await admin.from('appointment_reminder_log').delete().eq('id', claim.id);
+  await releaseClaim(admin, claim);
   return false;
+}
+
+/** Releases the claim as this sweep holds it — the row with the clock
+ *  it was claimed under. A replacement sweep renews the same row with
+ *  a fresh clock rather than making a new one, so a stale sweep letting
+ *  go must not take the replacement's claim with it. */
+async function releaseClaim(admin: SupabaseClient, claim: ReminderClaim) {
+  await admin
+    .from('appointment_reminder_log')
+    .delete()
+    .eq('id', claim.id)
+    .eq('created_at', claim.created_at);
 }
 
 /**
@@ -620,7 +632,8 @@ async function sendToAllRecipients(
         await admin
           .from('appointment_reminder_log')
           .update({ wa_message_id: result.whatsappMessageId })
-          .eq('id', claim.id);
+          .eq('id', claim.id)
+          .eq('created_at', claim.created_at);
       }
     } else {
       console.error(
@@ -629,10 +642,7 @@ async function sendToAllRecipients(
       );
       allCovered = false;
       // Release the claim so the next tick retries this recipient.
-      await admin
-        .from('appointment_reminder_log')
-        .delete()
-        .eq('id', claim.id);
+      await releaseClaim(admin, claim);
     }
   }
   return allCovered;
@@ -754,10 +764,7 @@ async function sendLiaisonReminder(
       `[Reminder Cron] Failed ${reminderType} liaison reminder for appt ${appt.id}:`,
       err
     );
-    await admin
-      .from('appointment_reminder_log')
-      .delete()
-      .eq('id', claim.id);
+    await releaseClaim(admin, claim);
     return false;
   }
 }

@@ -82,6 +82,18 @@ describe('PUT /api/appointments/[id]', () => {
     expect(state.updates[0]).not.toHaveProperty('reminders_rearmed_at');
   });
 
+  it('moving an appointment to a time already past marks its reminders covered', async () => {
+    state.existing = { ...state.existing, status: 'scheduled', start_time: '2999-10-01T04:30:00.000Z' };
+    state.updates = [];
+    const res = await put({ start_time: '2026-09-28T04:30:00.000Z' });
+    expect(res.status).toBe(200);
+    expect(state.updates[0]).toMatchObject({
+      reminder_morning_sent: true,
+      reminder_1h_sent: true,
+    });
+    expect(state.updates[0]).not.toHaveProperty('reminders_rearmed_at');
+  });
+
   it('[CAL-010] closing an appointment, or re-sending scheduled, leaves the reminders alone', async () => {
     state.existing = { ...state.existing, status: 'scheduled' };
     for (const status of ['completed', 'cancelled', 'scheduled']) {

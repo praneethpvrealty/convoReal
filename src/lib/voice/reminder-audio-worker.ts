@@ -195,16 +195,22 @@ export async function processReminderAudioJob(
   }
 
   if ((await claimGate(admin, job)) !== 'send') return;
+  // Writes touch the claim as this note holds it — by id and by the
+  // clock it was queued under — so a claim the cron has since renewed
+  // for a fresh note is never overwritten or released from here.
   const claimFilter = (query: {
     eq: (column: string, value: string) => unknown;
-  }) =>
-    job.claimId
-      ? query.eq('id', job.claimId)
-      : (
-          (
-            query.eq('appointment_id', job.appointmentId) as typeof query
-          ).eq('contact_id', job.contactId) as typeof query
-        ).eq('reminder_type', job.reminderType);
+  }) => {
+    if (!job.claimId) {
+      return (
+        (
+          query.eq('appointment_id', job.appointmentId) as typeof query
+        ).eq('contact_id', job.contactId) as typeof query
+      ).eq('reminder_type', job.reminderType);
+    }
+    const byId = query.eq('id', job.claimId) as typeof query;
+    return job.claimedAt ? byId.eq('created_at', job.claimedAt) : byId;
+  };
   const result = await sendWhatsAppMessageAndPersist({
     accountId: job.accountId,
     userId: job.userId,
