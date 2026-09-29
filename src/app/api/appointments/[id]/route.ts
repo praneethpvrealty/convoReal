@@ -88,7 +88,9 @@ export async function PUT(
     // rescheduled, since reminder_morning_sent/reminder_1h_sent only
     // ever get set to true (src/lib/appointments/reminder.ts) and
     // nothing else resets them. Reopening a finished or cancelled
-    // appointment re-arms them the same way.
+    // appointment re-arms them the same way. The same rule runs on the
+    // row for every writer (trg_appointments_reminder_generation,
+    // migration 20260929134500); this is the route's own copy of it.
     const rescheduled =
       start_time !== undefined &&
       new Date(existing.start_time).getTime() !== new Date(start_time).getTime()
