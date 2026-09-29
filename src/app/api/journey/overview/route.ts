@@ -5,33 +5,11 @@ import {
   listingsWithJourneyDeals,
   setListingStatusFromDeal,
 } from '@/lib/inventory/listing-status-sync';
+import { ownedJourneySubjects } from '@/lib/journey/owned-subjects';
 import {
   parseJourneyStateMutation,
-  type JourneyOverviewMode,
   type JourneyStateMutation,
 } from '@/lib/journey/overview-state';
-
-async function ownedSubjects(
-  supabase: Awaited<ReturnType<typeof requireRole>>['supabase'],
-  accountId: string,
-  mode: JourneyOverviewMode,
-  subjectIds: string[]
-): Promise<boolean> {
-  const column = mode === 'buyer' ? 'contact_id' : 'property_id';
-  const { data, error } = await supabase
-    .from('journey_items')
-    .select(column)
-    .eq('account_id', accountId)
-    .in(column, subjectIds)
-    .limit(2000);
-  if (error) throw error;
-  const found = new Set(
-    (data ?? []).map(
-      (row) => (row as unknown as Record<string, string>)[column]
-    )
-  );
-  return subjectIds.every((id) => found.has(id));
-}
 
 export async function GET(request: Request) {
   try {
@@ -81,7 +59,12 @@ export async function POST(request: Request) {
         ? mutation.subjectIds
         : [mutation.subjectId];
     if (
-      !(await ownedSubjects(supabase, accountId, mutation.mode, subjectIds))
+      !(await ownedJourneySubjects(
+        supabase,
+        accountId,
+        mutation.mode,
+        subjectIds
+      ))
     ) {
       return NextResponse.json(
         { error: 'One or more journeys were not found' },

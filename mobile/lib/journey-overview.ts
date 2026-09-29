@@ -239,3 +239,23 @@ export function sortJourneys<T extends RankableJourney>(
     return 0;
   });
 }
+
+export function journeyStageBucketKey(
+  furthestStageIdx: number,
+  stages: { id: string }[]
+): string {
+  const stage = furthestStageIdx >= 0 ? stages[furthestStageIdx] : undefined;
+  return stage ? `stage:${stage.id}` : 'stage:unclassified';
+}
+
+export function splitJourneysByCompartment<T extends { subjectId: string }>(
+  groups: T[],
+  focusIds: ReadonlySet<string>
+): { focus: T[]; passive: T[] } {
+  const focus: T[] = [];
+  const passive: T[] = [];
+  for (const group of groups) {
+    (focusIds.has(group.subjectId) ? focus : passive).push(group);
+  }
+  return { focus, passive };
+}

@@ -14,12 +14,15 @@ import {
   matchesJourneyEnquirySource,
   normalizeJourneyEnquirySource,
   journeyRaceLabel,
+  journeyStageBucketKey,
   planEtaLabel,
   plannedIndexOf,
   sortItemsForRows,
   sortJourneys,
   splitItemsAtStage,
+  splitJourneysByCompartment,
   stageIndexOf,
+  withFocusedItem,
   type JourneyPriority,
 } from './shared';
 
@@ -158,11 +161,14 @@ describe('journey stage note visibility', () => {
     'utf8'
   );
 
-  it('[JRN-004] offers notes at every stage and keeps the complete history', () => {
-    expect(source).toContain('const notesAtStage = stageNotes.filter');
-    expect(source).toContain('aria-label={`Add note at ${s.name}`}');
-    expect(source).toContain('? `Add note · ${notesAtStage.length}`');
-    expect(source).not.toContain('canEdit && !future');
+  it('[JRN-004] saves one notes box against the current stage and lists every note across stages', () => {
+    expect(source).not.toContain('Add note at');
+    expect(source).not.toContain('noteStageId');
+    expect(source).not.toContain('stage_id: item.stage_id,');
+    expect(source).toContain('color: note.stage_color');
+    expect(source).toContain('Saved with the date, time and');
+    expect(source).toContain("'d MMM yyyy, h:mm a'");
+    expect(source).toContain('{note.stage_name || stageName(note.stage_id)}');
     expect(source).toContain('stageNotes.map((note)');
   });
 });
@@ -654,5 +660,87 @@ describe('journeyViewCounts', () => {
       closed: 0,
       archived: 0,
     });
+  });
+});
+
+describe('focus after a stage move', () => {
+  const atStage = [{ id: 'a' }, { id: 'b' }];
+  const elsewhere = [{ id: 'c' }, { id: 'd' }];
+
+  it('[JRN-013] keeps the moved item on the map when it leaves the fold', () => {
+    expect(withFocusedItem(atStage, elsewhere, 'd')).toEqual([
+      { id: 'a' },
+      { id: 'b' },
+      { id: 'd' },
+    ]);
+    expect(withFocusedItem(atStage, elsewhere, 'a')).toBe(atStage);
+    expect(withFocusedItem(atStage, elsewhere, null)).toBe(atStage);
+  });
+
+  it('[JRN-013] finds the stage group the moved journey now sits in', () => {
+    const stages = [stage('new', 0), stage('visit', 1)];
+    expect(journeyStageBucketKey(1, stages)).toBe('stage:visit');
+    expect(journeyStageBucketKey(-1, stages)).toBe('stage:unclassified');
+    expect(journeyStageBucketKey(5, stages)).toBe('stage:unclassified');
+  });
+
+  it('[JRN-013] centres the map on the fresh step and scrolls the overview to it', () => {
+    const read = (file: string) =>
+      readFileSync(join(process.cwd(), 'src/components/journey', file), 'utf8');
+    const canvas = read('journey-canvas.tsx');
+    const section = read('journey-section.tsx');
+    const overview = read('journey-overview.tsx');
+    expect(canvas).toContain('nodes: [{ id: focusNodeId }]');
+    expect(section).toContain('setFocusItemId(item.id);');
+    expect(section).toContain('onItemMoved?.(item.id);');
+    expect(section).toContain(
+      'withFocusedItem(atStage, elsewhere, focusItemId)'
+    );
+    expect(overview).toContain(
+      'journeyStageBucketKey(spotlightGroup.furthestStageIdx, stages)'
+    );
+    expect(overview).toContain('`journey-row-${spotlightKey}-${subjectId}`');
+    expect(overview).toContain('id={rowId}');
+    expect(overview).toContain(
+      'setSpotlight({ subjectId: fullscreenGroup.subjectId, itemId })'
+    );
+    expect(section).toContain('setFocusItemId(spotlightItemId);');
+  });
+});
+
+describe('splitJourneysByCompartment', () => {
+  const groups = [{ subjectId: 'a' }, { subjectId: 'b' }, { subjectId: 'c' }];
+
+  it('[JRN-014] lists Focus journeys first and keeps the rest Passive, in order', () => {
+    expect(splitJourneysByCompartment(groups, new Set(['c', 'a']))).toEqual({
+      focus: [{ subjectId: 'a' }, { subjectId: 'c' }],
+      passive: [{ subjectId: 'b' }],
+    });
+    expect(splitJourneysByCompartment(groups, new Set())).toEqual({
+      focus: [],
+      passive: groups,
+    });
+  });
+
+  it('[JRN-014] splits each active stage group and moves journeys from the row', () => {
+    const overview = readFileSync(
+      join(process.cwd(), 'src/components/journey/journey-overview.tsx'),
+      'utf8'
+    );
+    expect(overview).toContain(
+      'splitJourneysByCompartment(bucket.groups, focusIds)'
+    );
+    expect(overview).toContain(
+      "compartments={view === 'active' && compartmentsReady}"
+    );
+    expect(overview).toContain(
+      'fetch(`/api/journey/compartments?mode=${mode}`).catch(() => null)'
+    );
+    expect(overview).toContain(
+      'const compartmentsLoaded = Boolean(compartmentsResponse?.ok);'
+    );
+    expect(overview).toContain("'Move to Passive'");
+    expect(overview).toContain("'Move to Focus'");
+    expect(overview).toContain('{passiveOpen && renderList(split.passive)}');
   });
 });

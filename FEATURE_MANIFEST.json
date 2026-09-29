@@ -1386,10 +1386,18 @@
         },
         {
           "id": "JRN-004",
-          "rule": "Every mirrored pipeline stage can capture an append-only, account-scoped note before or after the stage is reached; the latest note stays visible in the stage rail and the complete history retains its stage snapshot, author and creation time through closure, archival and later stage deletion.",
+          "rule": "A journey item has one Notes box on web and mobile rather than a note button per stage. Saving a note records it, append-only and account-scoped, against the stage the item is at when the server saves it, resolved and inserted in one locked database statement (any stage the client sends is ignored), and every note of the item is listed newest first at whatever stage the item reaches, each tagged with its date and time and its stage name in the stage colour, plus its author. The history keeps its stage snapshot, author and creation time through closure, archival and later stage deletion.",
           "tests": [
             {
               "file": "src/lib/journey/stage-notes.test.ts",
+              "case": "[JRN-004]"
+            },
+            {
+              "file": "src/app/api/journey/stage-notes/route.test.ts",
+              "case": "[JRN-004]"
+            },
+            {
+              "file": "src/lib/migrations/add-journey-item-note.test.ts",
               "case": "[JRN-004]"
             },
             {
@@ -1404,7 +1412,8 @@
           "guards": [
             "supabase/migrations/20260915010010_journey_overview_state.sql",
             "supabase/migrations/20260915015844_journey_table_privileges.sql",
-            "supabase/migrations/20260915020826_journey_stage_note_integrity.sql"
+            "supabase/migrations/20260915020826_journey_stage_note_integrity.sql",
+            "supabase/migrations/20260929062349_add_journey_item_note.sql"
           ]
         },
         {
@@ -1617,6 +1626,64 @@
             "supabase/migrations/20260928085644_journey_overview_enquiry_source_list.sql",
             "src/lib/journey/enquiries.ts",
             "src/app/api/journey/enquiries/route.ts"
+          ]
+        },
+        {
+          "id": "JRN-013",
+          "rule": "After an item on a web journey map is advanced or moved to another stage, the map centres on that item's new step and highlights it, keeping it on the map even when it now rests outside the stage group's fold. In the overview the journey stays expanded, its new stage group opens (and becomes the single focused group when one stage was focused), and the list scrolls to the journey in that group, so the fresh step is in view. Mobile does the same after a move from the journey list: the journey's new stage group opens, the journey card expands, the list scrolls to it, and the moved item stays listed and marked even when it now rests outside the group's stage. Web and mobile share the stage-group lookup.",
+          "tests": [
+            {
+              "file": "src/components/journey/shared.test.ts",
+              "case": "[JRN-013]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-013]"
+            },
+            {
+              "file": "mobile/lib/journey-overview.test.ts",
+              "case": "[JRN-013]"
+            }
+          ]
+        },
+        {
+          "id": "JRN-014",
+          "rule": "Inside every active stage group on web and mobile, journeys are split into Focus, listed first, and Passive, folded behind a count that opens on request (and opens by itself while searching or when a moved journey lands in it); closed and archived views are not split. A journey nobody has sorted is Passive. Any agent moves a journey between the two from a one-tap control on its row or its actions menu; viewers see the split but cannot change it. The split is shared by the whole team by default; an account admin can switch it (Settings → Members on web, Edit profile on mobile) so every agent keeps their own Focus list instead, and each scope reads and writes only its own rows. The compartment is saved through /api/journey/compartments, which checks the journey belongs to the caller's account, and row-level security admits only rows of the scope in force. Neither surface splits a stage until the Focus list has loaded, and a failed load leaves the stage unsplit.",
+          "tests": [
+            {
+              "file": "src/lib/journey/compartments.test.ts",
+              "case": "[JRN-014]"
+            },
+            {
+              "file": "src/app/api/journey/compartments/route.test.ts",
+              "case": "[JRN-014]"
+            },
+            {
+              "file": "src/app/api/account/route.test.ts",
+              "case": "[JRN-014]"
+            },
+            {
+              "file": "src/components/journey/shared.test.ts",
+              "case": "[JRN-014]"
+            },
+            {
+              "file": "mobile/lib/journey-overview.test.ts",
+              "case": "[JRN-014]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-014]"
+            },
+            {
+              "file": "src/lib/migrations/journey-compartments-scope-rls.test.ts",
+              "case": "[JRN-014]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20260929050125_journey_compartments.sql",
+            "supabase/migrations/20260929054500_journey_compartments_scope_rls.sql",
+            "src/lib/journey/compartments.ts",
+            "src/app/api/journey/compartments/route.ts"
           ]
         }
       ]

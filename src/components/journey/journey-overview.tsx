@@ -40,6 +40,7 @@ import {
   RotateCcw,
   Search,
   Shrink,
+  Target,
   UserRound,
   X,
 } from 'lucide-react';
@@ -98,15 +99,18 @@ import {
   journeyEnquiryLabel,
   journeyEnquirySourceOptions,
   journeyRaceLabel,
+  journeyStageBucketKey,
   journeyViewCounts,
   matchesJourneyEnquirySource,
   navigateJourney,
   normalizeJourneyEnquirySource,
   sortJourneys,
+  splitJourneysByCompartment,
   type JourneyMode,
   type JourneyPriority,
   type JourneySort,
 } from './shared';
+import type { JourneyCompartment } from '@/lib/journey/compartments';
 
 type JourneyView = 'active' | 'closed' | 'archived';
 
@@ -252,6 +256,7 @@ export function JourneyOverview({
     ? `journey_overview_source_${accountId}_${mode}`
     : null;
   const collapsedKey = `journey_overview_collapsed_${mode}`;
+  const passiveKey = `journey_overview_passive_open_${mode}`;
   const [groups, setGroups] = useState<JourneyGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() =>
@@ -265,6 +270,11 @@ export function JourneyOverview({
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() =>
     readIdSet(collapsedKey)
   );
+  const [passiveOpenIds, setPassiveOpenIds] = useState<Set<string>>(() =>
+    readIdSet(passiveKey)
+  );
+  const [focusIds, setFocusIds] = useState<Set<string>>(() => new Set());
+  const [compartmentsReady, setCompartmentsReady] = useState(false);
   const [view, setView] = useState<JourneyView>('active');
   const [query, setQuery] = useState('');
   const [enquirySource, setEnquirySource] = useState<string | null>(null);
@@ -273,6 +283,10 @@ export function JourneyOverview({
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [newJourneyOpen, setNewJourneyOpen] = useState(false);
   const [fullscreenId, setFullscreenId] = useState<string | null>(null);
+  const [spotlight, setSpotlight] = useState<{
+    subjectId: string;
+    itemId: string;
+  } | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [enquiriesId, setEnquiriesId] = useState<string | null>(null);
@@ -284,11 +298,12 @@ export function JourneyOverview({
       setOpenIds(stored.size > 0 ? stored : null);
       setSort(readSort(sortKey));
       setCollapsedIds(readIdSet(collapsedKey));
+      setPassiveOpenIds(readIdSet(passiveKey));
       setView('active');
       setQuery('');
       setShowHidden(false);
     });
-  }, [collapsedKey, hiddenKey, mode, openKey, sortKey]);
+  }, [collapsedKey, hiddenKey, mode, openKey, passiveKey, sortKey]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -343,24 +358,31 @@ export function JourneyOverview({
     let prioritiesResult;
     let statesResponse;
     let enquiriesResult;
+    let compartmentsResponse;
     try {
-      [summariesResult, prioritiesResult, statesResponse, enquiriesResult] =
-        await Promise.all([
-          supabase.rpc('journey_overview_groups', {
-            p_account_id: accountId,
-            p_mode: mode,
-          }),
-          supabase
-            .from('journey_priorities')
-            .select('subject_id, priority')
-            .eq('account_id', accountId)
-            .eq('mode', mode),
-          fetch(`/api/journey/overview?mode=${mode}`),
-          supabase.rpc('journey_overview_enquiries', {
-            p_account_id: accountId,
-            p_mode: mode,
-          }),
-        ]);
+      [
+        summariesResult,
+        prioritiesResult,
+        statesResponse,
+        enquiriesResult,
+        compartmentsResponse,
+      ] = await Promise.all([
+        supabase.rpc('journey_overview_groups', {
+          p_account_id: accountId,
+          p_mode: mode,
+        }),
+        supabase
+          .from('journey_priorities')
+          .select('subject_id, priority')
+          .eq('account_id', accountId)
+          .eq('mode', mode),
+        fetch(`/api/journey/overview?mode=${mode}`),
+        supabase.rpc('journey_overview_enquiries', {
+          p_account_id: accountId,
+          p_mode: mode,
+        }),
+        fetch(`/api/journey/compartments?mode=${mode}`).catch(() => null),
+      ]);
     } catch (error) {
       toast.error(
         `Failed to load journeys: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -389,6 +411,23 @@ export function JourneyOverview({
       toast.error(statePayload?.error ?? 'Failed to load journey status');
       setLoading(false);
       return;
+    }
+
+    const compartmentsPayload = (await compartmentsResponse
+      ?.json()
+      .catch(() => null)) as {
+      data?: { focus?: string[] };
+      error?: string;
+    } | null;
+    const compartmentsLoaded = Boolean(compartmentsResponse?.ok);
+    setCompartmentsReady(compartmentsLoaded);
+    if (compartmentsLoaded) {
+      setFocusIds(new Set(compartmentsPayload?.data?.focus ?? []));
+    } else {
+      setFocusIds(new Set());
+      toast.error(
+        compartmentsPayload?.error ?? 'Failed to load the Focus list'
+      );
     }
 
     const priorities = new Map<string, JourneyPriority>(
@@ -612,11 +651,106 @@ export function JourneyOverview({
     writeIdSet(collapsedKey, next);
   };
 
+  const togglePassive = (key: string) => {
+    const next = new Set(passiveOpenIds);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setPassiveOpenIds(next);
+    writeIdSet(passiveKey, next);
+  };
+
+  const setCompartment = async (
+    group: JourneyGroup,
+    compartment: JourneyCompartment
+  ) => {
+    const wasFocus = focusIds.has(group.subjectId);
+    if (wasFocus === (compartment === 'focus')) return;
+    const apply = (focus: boolean) =>
+      setFocusIds((current) => {
+        const next = new Set(current);
+        if (focus) next.add(group.subjectId);
+        else next.delete(group.subjectId);
+        return next;
+      });
+    apply(compartment === 'focus');
+    const res = await fetch('/api/journey/compartments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode,
+        subjectId: group.subjectId,
+        compartment,
+      }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      apply(wasFocus);
+      const json = (await res?.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      toast.error(json?.error ?? 'Failed to move the journey');
+      return;
+    }
+    toast.success(
+      `${titleOf(group, mode)} moved to ${compartment === 'focus' ? 'Focus' : 'Passive'}`
+    );
+  };
+
   const visibleBuckets = focusBuckets(buckets, focusedBucket);
   const focusActive =
     focusedBucket !== null &&
     visibleBuckets.length === 1 &&
     visibleBuckets[0].key === focusedBucket;
+
+  const spotlightGroup = spotlight
+    ? groups.find((group) => group.subjectId === spotlight.subjectId)
+    : undefined;
+  const spotlightKey =
+    view === 'active' && spotlightGroup
+      ? journeyStageBucketKey(spotlightGroup.furthestStageIdx, stages)
+      : null;
+
+  useEffect(() => {
+    if (!spotlight || !spotlightKey) return;
+    const { subjectId } = spotlight;
+    Promise.resolve().then(() => {
+      setOpenIds((current) => {
+        const next = new Set(current ?? effectiveOpen);
+        if (next.has(subjectId)) return current;
+        next.add(subjectId);
+        writeIdSet(openKey, next);
+        return next;
+      });
+      setCollapsedIds((current) => {
+        if (!current.has(spotlightKey)) return current;
+        const next = new Set(current);
+        next.delete(spotlightKey);
+        writeIdSet(collapsedKey, next);
+        return next;
+      });
+      if (!focusIds.has(subjectId)) {
+        setPassiveOpenIds((current) => {
+          if (current.has(spotlightKey)) return current;
+          const next = new Set(current).add(spotlightKey);
+          writeIdSet(passiveKey, next);
+          return next;
+        });
+      }
+    });
+    if (focusedBucket && focusedBucket !== spotlightKey) {
+      setFocusedBucket(spotlightKey);
+    }
+    const scroll = setTimeout(() => {
+      document
+        .getElementById(`journey-row-${spotlightKey}-${subjectId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
+    const release = setTimeout(() => setSpotlight(null), 5000);
+    return () => {
+      clearTimeout(scroll);
+      clearTimeout(release);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spotlight, spotlightKey]);
 
   const setPriority = async (
     group: JourneyGroup,
@@ -1049,6 +1183,17 @@ export function JourneyOverview({
             onFullscreen={setFullscreenId}
             onItemsChanged={loadGroups}
             onReorder={reorderBucket}
+            spotlight={spotlight}
+            onItemMoved={(subjectId, itemId) =>
+              setSpotlight({ subjectId, itemId })
+            }
+            compartments={view === 'active' && compartmentsReady}
+            focusIds={focusIds}
+            passiveOpen={
+              Boolean(query.trim()) || passiveOpenIds.has(bucket.key)
+            }
+            onTogglePassive={() => togglePassive(bucket.key)}
+            onCompartment={setCompartment}
           />
         );
       })}
@@ -1102,6 +1247,9 @@ export function JourneyOverview({
               preloadedContact={fullscreenGroup.contact}
               preloadedProperty={fullscreenGroup.property}
               onItemsChanged={loadGroups}
+              onItemMoved={(itemId) =>
+                setSpotlight({ subjectId: fullscreenGroup.subjectId, itemId })
+              }
             />
           </div>
         </div>
@@ -1183,6 +1331,13 @@ function JourneyBucketSection({
   onFullscreen,
   onItemsChanged,
   onReorder,
+  spotlight,
+  onItemMoved,
+  compartments,
+  focusIds,
+  passiveOpen,
+  onTogglePassive,
+  onCompartment,
 }: {
   bucket: JourneyBucket;
   focused: boolean;
@@ -1209,19 +1364,75 @@ function JourneyBucketSection({
   onFullscreen: (id: string) => void;
   onItemsChanged: () => void;
   onReorder: (groups: JourneyGroup[], activeId: string, overId: string) => void;
+  spotlight: { subjectId: string; itemId: string } | null;
+  onItemMoved: (subjectId: string, itemId: string) => void;
+  compartments: boolean;
+  focusIds: Set<string>;
+  passiveOpen: boolean;
+  onTogglePassive: () => void;
+  onCompartment: (group: JourneyGroup, compartment: JourneyCompartment) => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
-  const onDragEnd = (event: DragEndEvent) => {
-    if (!event.over || event.active.id === event.over.id) return;
-    void onReorder(
-      bucket.groups,
-      String(event.active.id),
-      String(event.over.id)
-    );
-  };
+  const split = splitJourneysByCompartment(bucket.groups, focusIds);
+
+  const renderList = (groups: JourneyGroup[]) => (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={(event: DragEndEvent) => {
+        if (!event.over || event.active.id === event.over.id) return;
+        void onReorder(groups, String(event.active.id), String(event.over.id));
+      }}
+    >
+      <SortableContext
+        items={groups.map((group) => group.subjectId)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="space-y-2">
+          {groups.map((group) => (
+            <SortableJourneyRow
+              key={group.subjectId}
+              group={group}
+              bucketStage={bucket.stage ?? null}
+              mode={mode}
+              stages={stages}
+              currency={currency}
+              canEdit={canEdit}
+              canDrag={canDrag}
+              showStage={showStage}
+              open={openIds.has(group.subjectId)}
+              onToggle={() => onToggleJourney(group.subjectId)}
+              onPriority={(priority) => onPriority(group, priority)}
+              onCloseJourney={() => onCloseJourney(group.subjectId)}
+              onLifecycle={(action) => onLifecycle(group, action)}
+              onHide={() => onHide(group.subjectId, true)}
+              onEnquiries={() => onEnquiries(group.subjectId)}
+              onFullscreen={() => onFullscreen(group.subjectId)}
+              onItemsChanged={onItemsChanged}
+              rowId={`journey-row-${bucket.key}-${group.subjectId}`}
+              spotlightItemId={
+                spotlight?.subjectId === group.subjectId
+                  ? spotlight.itemId
+                  : null
+              }
+              onItemMoved={(itemId) => onItemMoved(group.subjectId, itemId)}
+              compartment={
+                compartments
+                  ? focusIds.has(group.subjectId)
+                    ? 'focus'
+                    : 'passive'
+                  : null
+              }
+              onCompartment={(compartment) => onCompartment(group, compartment)}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
 
   const showBody = !collapsed && (bucket.groups.length > 0 || focused);
 
@@ -1269,6 +1480,12 @@ function JourneyBucketSection({
           <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-200 tabular-nums">
             {bucket.groups.length}
           </span>
+          {compartments && bucket.groups.length > 0 && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400">
+              <Target className="h-3 w-3" />
+              {split.focus.length} in focus
+            </span>
+          )}
         </button>
         <button
           type="button"
@@ -1313,41 +1530,45 @@ function JourneyBucketSection({
         </div>
       )}
       {showBody && bucket.groups.length > 0 && (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={onDragEnd}
-        >
-          <SortableContext
-            items={bucket.groups.map((group) => group.subjectId)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-2 border-t border-slate-800/70 p-2.5">
-              {bucket.groups.map((group) => (
-                <SortableJourneyRow
-                  key={group.subjectId}
-                  group={group}
-                  bucketStage={bucket.stage ?? null}
-                  mode={mode}
-                  stages={stages}
-                  currency={currency}
-                  canEdit={canEdit}
-                  canDrag={canDrag}
-                  showStage={showStage}
-                  open={openIds.has(group.subjectId)}
-                  onToggle={() => onToggleJourney(group.subjectId)}
-                  onPriority={(priority) => onPriority(group, priority)}
-                  onCloseJourney={() => onCloseJourney(group.subjectId)}
-                  onLifecycle={(action) => onLifecycle(group, action)}
-                  onHide={() => onHide(group.subjectId, true)}
-                  onEnquiries={() => onEnquiries(group.subjectId)}
-                  onFullscreen={() => onFullscreen(group.subjectId)}
-                  onItemsChanged={onItemsChanged}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+        <div className="space-y-2 border-t border-slate-800/70 p-2.5">
+          {compartments ? (
+            <>
+              {split.focus.length > 0 ? (
+                renderList(split.focus)
+              ) : (
+                <p className="flex items-center gap-1.5 px-1 text-xs text-slate-500">
+                  <Target className="h-3.5 w-3.5" />
+                  No journeys in Focus at this stage yet. Move one up from
+                  Passive to work it here.
+                </p>
+              )}
+              {split.passive.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={onTogglePassive}
+                    aria-expanded={passiveOpen}
+                    className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-xs font-semibold text-slate-400 hover:bg-slate-900/70 hover:text-slate-200"
+                  >
+                    <ChevronDown
+                      className={cn(
+                        'h-3.5 w-3.5 transition-transform',
+                        !passiveOpen && '-rotate-90'
+                      )}
+                    />
+                    Passive
+                    <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300 tabular-nums">
+                      {split.passive.length}
+                    </span>
+                  </button>
+                  {passiveOpen && renderList(split.passive)}
+                </>
+              )}
+            </>
+          ) : (
+            renderList(bucket.groups)
+          )}
+        </div>
       )}
     </section>
   );
@@ -1371,6 +1592,11 @@ function SortableJourneyRow({
   onEnquiries,
   onFullscreen,
   onItemsChanged,
+  rowId,
+  spotlightItemId,
+  onItemMoved,
+  compartment,
+  onCompartment,
 }: {
   group: JourneyGroup;
   bucketStage: JourneyStage | null;
@@ -1389,6 +1615,11 @@ function SortableJourneyRow({
   onEnquiries: () => void;
   onFullscreen: () => void;
   onItemsChanged: () => void;
+  rowId: string;
+  spotlightItemId: string | null;
+  onItemMoved: (itemId: string) => void;
+  compartment: JourneyCompartment | null;
+  onCompartment: (compartment: JourneyCompartment) => void;
 }) {
   const {
     attributes,
@@ -1413,12 +1644,13 @@ function SortableJourneyRow({
   return (
     <div
       ref={setNodeRef}
+      id={rowId}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0.55 : 1,
       }}
-      className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50"
+      className="scroll-mt-[calc(var(--journey-toolbar,0px)+56px)] overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50"
     >
       <div className="flex items-center gap-2 px-2.5 py-2">
         {canEdit && canDrag && (
@@ -1528,6 +1760,27 @@ function SortableJourneyRow({
               </span>
             </span>
           )}
+          {compartment && canEdit && (
+            <button
+              type="button"
+              onClick={() =>
+                onCompartment(compartment === 'focus' ? 'passive' : 'focus')
+              }
+              aria-pressed={compartment === 'focus'}
+              title={
+                compartment === 'focus' ? 'Move to Passive' : 'Move to Focus'
+              }
+              aria-label={`${compartment === 'focus' ? 'Move to Passive' : 'Move to Focus'}: ${titleOf(group, mode)}`}
+              className={cn(
+                'flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-slate-800',
+                compartment === 'focus'
+                  ? 'text-primary'
+                  : 'text-slate-500 hover:text-white'
+              )}
+            >
+              <Target className="h-4 w-4" />
+            </button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label={`Journey actions for ${titleOf(group, mode)}`}
@@ -1539,6 +1792,18 @@ function SortableJourneyRow({
               align="end"
               className="border-slate-700 bg-slate-900"
             >
+              {compartment && canEdit && (
+                <DropdownMenuItem
+                  onClick={() =>
+                    onCompartment(compartment === 'focus' ? 'passive' : 'focus')
+                  }
+                >
+                  <Target className="h-3.5 w-3.5" />
+                  {compartment === 'focus'
+                    ? 'Move to Passive'
+                    : 'Move to Focus'}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={onFullscreen}>
                 <Expand className="h-3.5 w-3.5" />
                 Open full screen
@@ -1627,12 +1892,15 @@ function SortableJourneyRow({
             preloadedContact={group.contact}
             preloadedProperty={group.property}
             onItemsChanged={onItemsChanged}
+            spotlightItemId={spotlightItemId}
+            onItemMoved={onItemMoved}
             focusStageId={showStage ? null : (bucketStage?.id ?? null)}
             focusDropped={
               !showStage &&
               Boolean(bucketStage) &&
               bucketStage?.id === group.lostStageId
             }
+            onFullscreen={onFullscreen}
           />
         </div>
       )}

@@ -34,10 +34,12 @@ import {
   ApiError,
   addJourneyStageNote,
   loadJourneyEnquiries,
+  loadJourneyCompartments,
   loadJourneyOverview,
   logPersonalWhatsAppJourneySend,
   removeJourneyItems,
   updateJourneyOverview,
+  setJourneyCompartment,
 } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { buildCheckInMessage } from '@/lib/checkin-message';
@@ -63,10 +65,12 @@ import {
   journeyEnquirySourceOptions,
   journeyRaceLabel,
   journeySourceChips,
+  journeyStageBucketKey,
   journeyViewCounts,
   matchesJourneyEnquirySource,
   sortJourneys,
   splitItemsAtStage,
+  splitJourneysByCompartment,
   type ClosedJourneyStatus,
   type JourneyLifecycleStatus,
   type JourneySort,
@@ -152,6 +156,14 @@ export function JourneyBody() {
     'percentage'
   );
   const [brokerageValue, setBrokerageValue] = useState('');
+  const [movedItem, setMovedItem] = useState<{
+    subjectId: string;
+    itemId: string;
+  } | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const bucketOffsets = useRef(new Map<string, number>());
+  const cardOffsets = useRef(new Map<string, number>());
+  const revealedMove = useRef<string | null>(null);
 
   // The same move the web journey makes: a mirrored stage moves the
   // item's deal through the board's logic, and the route pauses for
@@ -197,6 +209,10 @@ export function JourneyBody() {
       queryClient.invalidateQueries({ queryKey: ['journey-overview-groups'] }),
       queryClient.invalidateQueries({ queryKey: ['transaction-index'] }),
     ]);
+    setMovedItem({
+      subjectId: mode === 'buyer' ? item.contact_id : item.property_id,
+      itemId: item.id,
+    });
   }
 
   function askConvert(item: JourneyItem) {
@@ -253,6 +269,7 @@ export function JourneyBody() {
     () => new Set()
   );
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const [openPassive, setOpenPassive] = useState<Set<string>>(() => new Set());
   const [orderOverrides, setOrderOverrides] = useState<Map<string, number>>(
     new Map()
   );
@@ -317,6 +334,17 @@ export function JourneyBody() {
       (await loadJourneyOverview(mode)).data as JourneyOverviewState[],
   });
 
+  const compartmentsQuery = useQuery({
+    queryKey: ['journey-compartments', accountId, mode],
+    enabled: Boolean(accountId),
+    queryFn: async () => (await loadJourneyCompartments(mode)).data,
+  });
+  const focusIds = useMemo(
+    () => new Set(compartmentsQuery.data?.focus ?? []),
+    [compartmentsQuery.data]
+  );
+  const compartmentsOn = view === 'active' && compartmentsQuery.isSuccess;
+
   const notesQuery = useQuery({
     queryKey: ['journey-stage-notes', noteTarget?.item.id],
     enabled: Boolean(noteTarget),
@@ -351,21 +379,12 @@ export function JourneyBody() {
       summariesQuery.refetch(),
       enquiriesQuery.refetch(),
       statesQuery.refetch(),
+      compartmentsQuery.refetch(),
       queryClient.invalidateQueries({ queryKey: ['journey-branch-items'] }),
     ]);
   });
 
   const stages = useMemo(() => stagesQuery.data ?? [], [stagesQuery.data]);
-  const notesByStage = useMemo(() => {
-    const grouped = new Map<string, JourneyStageNote[]>();
-    for (const note of notesQuery.data ?? []) {
-      if (!note.stage_id) continue;
-      const notes = grouped.get(note.stage_id) ?? [];
-      notes.push(note);
-      grouped.set(note.stage_id, notes);
-    }
-    return grouped;
-  }, [notesQuery.data]);
   const stageById = useMemo(
     () => new Map(stages.map((stage) => [stage.id, stage])),
     [stages]
@@ -786,9 +805,21 @@ export function JourneyBody() {
       });
       return;
     }
+    const inFocus = focusIds.has(group.subjectId);
     show({
       title: groupTitle(group, mode),
       actions: [
+        ...(compartmentsOn
+          ? [
+              {
+                label: inFocus ? 'Move to Passive' : 'Move to Focus',
+                onPress: () => {
+                  close();
+                  void setCompartment(group, inFocus ? 'passive' : 'focus');
+                },
+              },
+            ]
+          : []),
         {
           label: 'Close with outcome',
           variant: 'primary',
@@ -822,9 +853,47 @@ export function JourneyBody() {
     });
   }
 
-  async function moveGroup(bucket: JourneyBucket, from: number, to: number) {
+  async function setCompartment(
+    group: JourneyGroup,
+    compartment: 'focus' | 'passive'
+  ) {
+    if (!canEdit) return;
+    const key = ['journey-compartments', accountId, mode];
+    await queryClient.cancelQueries({ queryKey: key });
+    const previous = queryClient.getQueryData<{
+      scope: 'team' | 'agent';
+      focus: string[];
+    }>(key);
+    const withoutGroup = (previous?.focus ?? []).filter(
+      (id) => id !== group.subjectId
+    );
+    queryClient.setQueryData(key, {
+      scope: previous?.scope ?? 'team',
+      focus:
+        compartment === 'focus'
+          ? [...withoutGroup, group.subjectId]
+          : withoutGroup,
+    });
+    try {
+      await setJourneyCompartment({
+        mode,
+        subjectId: group.subjectId,
+        compartment,
+      });
+      void haptic.success();
+    } catch (error) {
+      queryClient.setQueryData(key, previous);
+      void haptic.warn();
+      show({
+        title: 'Could not move the journey',
+        message: error instanceof Error ? error.message : 'Please try again.',
+      });
+    }
+  }
+
+  async function moveGroup(list: JourneyGroup[], from: number, to: number) {
     if (!canEdit || from === to) return;
-    const reordered = [...bucket.groups];
+    const reordered = [...list];
     const [moved] = reordered.splice(from, 1);
     reordered.splice(to, 0, moved);
     setOrderOverrides((current) => {
@@ -856,7 +925,6 @@ export function JourneyBody() {
     try {
       await addJourneyStageNote({
         itemId: noteTarget.item.id,
-        stageId: noteTarget.stage.id,
         note: noteText.trim(),
       });
       haptic.success();
@@ -945,11 +1013,60 @@ export function JourneyBody() {
     });
   }
 
+  const movedGroup = movedItem
+    ? groups.find((group) => group.subjectId === movedItem.subjectId)
+    : undefined;
+  const movedKey =
+    view === 'active' && movedGroup
+      ? journeyStageBucketKey(movedGroup.furthestStageIdx, stages)
+      : null;
+
+  useEffect(() => {
+    if (!movedItem || !movedKey) return;
+    const revealKey = `${movedItem.itemId}:${movedKey}`;
+    if (revealedMove.current === revealKey) return;
+    revealedMove.current = revealKey;
+    const { subjectId } = movedItem;
+    void Promise.resolve().then(() => {
+      setOpenGroups((current) =>
+        current.has(subjectId) ? current : new Set(current).add(subjectId)
+      );
+      setCollapsedBuckets((current) => {
+        if (!current.has(movedKey)) return current;
+        const next = new Set(current);
+        next.delete(movedKey);
+        return next;
+      });
+      setFocusedBucket((current) =>
+        current && current !== movedKey ? movedKey : current
+      );
+      if (!focusIds.has(subjectId)) {
+        setOpenPassive((current) =>
+          current.has(movedKey) ? current : new Set(current).add(movedKey)
+        );
+      }
+    });
+    const scroll = setTimeout(() => {
+      const bucketY = bucketOffsets.current.get(movedKey);
+      const cardY = cardOffsets.current.get(`${movedKey}:${subjectId}`);
+      if (bucketY === undefined || cardY === undefined) return;
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, bucketY + cardY - spacing.md),
+        animated: true,
+      });
+    }, 300);
+    return () => clearTimeout(scroll);
+  }, [focusIds, movedItem, movedKey]);
+
   const isLoading =
-    stagesQuery.isLoading || summariesQuery.isLoading || statesQuery.isLoading;
+    stagesQuery.isLoading ||
+    summariesQuery.isLoading ||
+    statesQuery.isLoading ||
+    compartmentsQuery.isLoading;
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={{ flex: 1 }}
       contentContainerStyle={[
         styles.container,
@@ -1211,9 +1328,76 @@ export function JourneyBody() {
           const focused = bucket.key === focusedBucket;
           const collapsed = !focused && collapsedBuckets.has(bucket.key);
           const showBody = !collapsed && (bucket.groups.length > 0 || focused);
+          const split = splitJourneysByCompartment(bucket.groups, focusIds);
+          const passiveOpen =
+            Boolean(query.trim()) || openPassive.has(bucket.key);
+          const renderCards = (list: JourneyGroup[]) =>
+            list.map((group, index) => (
+              <DraggableJourneyCard
+                key={group.subjectId}
+                group={group}
+                stage={bucket.stage ?? stages[group.furthestStageIdx]}
+                droppedStage={
+                  Boolean(bucket.stage) &&
+                  bucket.stage?.id === group.lostStageId
+                }
+                stageById={stageById}
+                mode={mode}
+                canEdit={canEdit}
+                canDrag={sort === 'manual'}
+                stageInHeader={view === 'active'}
+                index={index}
+                count={list.length}
+                expanded={openGroups.has(group.subjectId)}
+                focusItemId={
+                  movedItem?.subjectId === group.subjectId
+                    ? movedItem.itemId
+                    : null
+                }
+                onLayout={(y) =>
+                  cardOffsets.current.set(`${bucket.key}:${group.subjectId}`, y)
+                }
+                onToggle={() =>
+                  setOpenGroups((current) => {
+                    const next = new Set(current);
+                    if (next.has(group.subjectId)) next.delete(group.subjectId);
+                    else next.add(group.subjectId);
+                    return next;
+                  })
+                }
+                onMove={(from, to) => void moveGroup(list, from, to)}
+                onActions={() => showGroupActions(group)}
+                compartment={
+                  compartmentsOn
+                    ? focusIds.has(group.subjectId)
+                      ? 'focus'
+                      : 'passive'
+                    : null
+                }
+                onCompartment={(compartment) =>
+                  void setCompartment(group, compartment)
+                }
+                onCaptured={() => openTray(group)}
+                onEnquiries={() => setEnquiryGroup(group)}
+                onCheckIn={askCheckIn}
+                onMoveItem={(item) => canEdit && setMoveTarget(item)}
+                onConvert={askConvert}
+                onRemoveItem={askRemoveItem}
+                onAddNote={(item, stage) => {
+                  setNoteTarget({ item, stage });
+                  setNoteText('');
+                }}
+              />
+            ));
           return (
             <View
               key={bucket.key}
+              onLayout={(event) =>
+                bucketOffsets.current.set(
+                  bucket.key,
+                  event.nativeEvent.layout.y
+                )
+              }
               style={[
                 styles.bucket,
                 {
@@ -1352,48 +1536,84 @@ export function JourneyBody() {
                   </Pressable>
                 </View>
               ) : null}
-              {showBody
-                ? bucket.groups.map((group, index) => (
-                    <DraggableJourneyCard
-                      key={group.subjectId}
-                      group={group}
-                      stage={bucket.stage ?? stages[group.furthestStageIdx]}
-                      droppedStage={
-                        Boolean(bucket.stage) &&
-                        bucket.stage?.id === group.lostStageId
-                      }
-                      stageById={stageById}
-                      mode={mode}
-                      canEdit={canEdit}
-                      canDrag={sort === 'manual'}
-                      stageInHeader={view === 'active'}
-                      index={index}
-                      count={bucket.groups.length}
-                      expanded={openGroups.has(group.subjectId)}
-                      onToggle={() =>
-                        setOpenGroups((current) => {
+              {showBody && compartmentsOn ? (
+                <>
+                  {split.focus.length > 0 ? (
+                    renderCards(split.focus)
+                  ) : (
+                    <View style={styles.compartmentHint}>
+                      <Ionicons
+                        name="locate-outline"
+                        size={14}
+                        color={colors.textFaint}
+                      />
+                      <Text
+                        style={{
+                          flex: 1,
+                          fontSize: 12,
+                          color: colors.textFaint,
+                        }}
+                      >
+                        No journeys in Focus at this stage yet. Move one up from
+                        Passive to work it here.
+                      </Text>
+                    </View>
+                  )}
+                  {split.passive.length > 0 ? (
+                    <Pressable
+                      onPress={() =>
+                        setOpenPassive((current) => {
                           const next = new Set(current);
-                          if (next.has(group.subjectId))
-                            next.delete(group.subjectId);
-                          else next.add(group.subjectId);
+                          if (next.has(bucket.key)) next.delete(bucket.key);
+                          else next.add(bucket.key);
                           return next;
                         })
                       }
-                      onMove={(from, to) => void moveGroup(bucket, from, to)}
-                      onActions={() => showGroupActions(group)}
-                      onCaptured={() => openTray(group)}
-                      onEnquiries={() => setEnquiryGroup(group)}
-                      onCheckIn={askCheckIn}
-                      onMoveItem={(item) => canEdit && setMoveTarget(item)}
-                      onConvert={askConvert}
-                      onRemoveItem={askRemoveItem}
-                      onAddNote={(item, stage) => {
-                        setNoteTarget({ item, stage });
-                        setNoteText('');
-                      }}
-                    />
-                  ))
-                : null}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: passiveOpen }}
+                      accessibilityLabel={`${passiveOpen ? 'Hide' : 'Show'} ${split.passive.length} passive journeys`}
+                      style={[
+                        styles.passiveToggle,
+                        { borderTopColor: colors.border },
+                      ]}
+                    >
+                      <Ionicons
+                        name={passiveOpen ? 'chevron-down' : 'chevron-forward'}
+                        size={15}
+                        color={colors.textMuted}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 12.5,
+                          fontFamily: f.bold,
+                          color: colors.textMuted,
+                        }}
+                      >
+                        Passive
+                      </Text>
+                      <View
+                        style={[
+                          styles.bucketCount,
+                          { backgroundColor: colors.surfaceWell },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            fontFamily: f.bold,
+                            color: colors.textMuted,
+                          }}
+                        >
+                          {split.passive.length}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ) : null}
+                  {passiveOpen ? renderCards(split.passive) : null}
+                </>
+              ) : showBody ? (
+                renderCards(bucket.groups)
+              ) : null}
             </View>
           );
         })
@@ -1405,97 +1625,17 @@ export function JourneyBody() {
           setNoteTarget(null);
           setNoteText('');
         }}
-        title="Journey stage notes"
+        title="Notes"
       >
         <ScrollView
           style={sheetScrollArea}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
         >
-          {noteTarget ? (
-            <View style={{ gap: spacing.sm }}>
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontFamily: f.bold,
-                  color: colors.textMuted,
-                  textTransform: 'uppercase',
-                }}
-              >
-                Note stage
-              </Text>
-              <View style={{ gap: spacing.xs }}>
-                {stages.map((stage) => {
-                  const selected = stage.id === noteTarget.stage.id;
-                  const stageColor = stage.color ?? colors.primary;
-                  const stageNotes = notesByStage.get(stage.id) ?? [];
-                  const latestNote = stageNotes[0];
-                  return (
-                    <Pressable
-                      key={stage.id}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      onPress={() =>
-                        setNoteTarget((current) =>
-                          current ? { ...current, stage } : current
-                        )
-                      }
-                      style={[
-                        styles.noteStage,
-                        {
-                          backgroundColor: selected
-                            ? `${stageColor}22`
-                            : colors.glass,
-                          borderColor: selected
-                            ? stageColor
-                            : colors.glassBorder,
-                        },
-                      ]}
-                    >
-                      <View
-                        style={{
-                          width: 7,
-                          height: 7,
-                          borderRadius: 4,
-                          backgroundColor: stageColor,
-                        }}
-                      />
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            fontFamily: selected ? f.bold : f.medium,
-                            color: selected ? colors.text : colors.textMuted,
-                          }}
-                        >
-                          {stage.name}
-                          {stageNotes.length > 0
-                            ? ` · ${stageNotes.length} ${stageNotes.length === 1 ? 'note' : 'notes'}`
-                            : ''}
-                        </Text>
-                        {latestNote ? (
-                          <Text
-                            numberOfLines={2}
-                            style={{
-                              fontSize: 11.5,
-                              lineHeight: 16,
-                              color: colors.textFaint,
-                            }}
-                          >
-                            {latestNote.note}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <Ionicons
-                        name={selected ? 'radio-button-on' : 'radio-button-off'}
-                        size={16}
-                        color={selected ? stageColor : colors.textFaint}
-                      />
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
+          {noteTarget && canEdit ? (
+            <Text style={{ fontSize: 12, color: colors.textFaint }}>
+              Saved with the date, time and {noteTarget.stage.name}
+            </Text>
           ) : null}
           {canEdit ? (
             <>
@@ -1505,7 +1645,7 @@ export function JourneyBody() {
                 value={noteText}
                 maxLength={1000}
                 onChangeText={setNoteText}
-                placeholder={`Add note at ${noteTarget?.stage.name ?? 'this stage'}, e.g. ₹1 lakh token paid`}
+                placeholder="Add a note, e.g. ₹1 lakh token paid"
                 placeholderTextColor={colors.textFaint}
                 style={[
                   styles.noteInput,
@@ -1533,12 +1673,12 @@ export function JourneyBody() {
                 textTransform: 'uppercase',
               }}
             >
-              Complete journey history
+              All notes
             </Text>
           ) : null}
           {!notesQuery.isLoading && (notesQuery.data ?? []).length === 0 ? (
             <Text style={{ fontSize: 13, color: colors.textFaint }}>
-              No stage notes yet.
+              No notes yet.
             </Text>
           ) : null}
           {(notesQuery.data ?? []).map((note) => (
@@ -1552,20 +1692,57 @@ export function JourneyBody() {
                 },
               ]}
             >
-              <Text style={{ fontSize: 13.5, color: colors.text }}>
+              <View style={styles.noteTags}>
+                <View
+                  style={[
+                    styles.noteTag,
+                    { backgroundColor: colors.surfaceWell },
+                  ]}
+                >
+                  <Text style={{ fontSize: 10.5, color: colors.textMuted }}>
+                    {noteTimestamp(note.created_at)}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.noteTag,
+                    { borderWidth: 1, borderColor: colors.glassBorder },
+                  ]}
+                >
+                  <View
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 3,
+                      backgroundColor: note.stage_color ?? colors.textFaint,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 10.5,
+                      color: note.stage_color ?? colors.textMuted,
+                    }}
+                  >
+                    {note.stage_name}
+                  </Text>
+                </View>
+              </View>
+              <Text
+                style={{ marginTop: 6, fontSize: 13.5, color: colors.text }}
+              >
                 {note.note}
               </Text>
-              <Text
-                style={{
-                  marginTop: 4,
-                  fontSize: 10.5,
-                  color: colors.textFaint,
-                }}
-              >
-                {note.stage_name} ·{' '}
-                {note.created_by_name ? `${note.created_by_name} · ` : ''}
-                {new Date(note.created_at).toLocaleDateString('en-IN')}
-              </Text>
+              {note.created_by_name ? (
+                <Text
+                  style={{
+                    marginTop: 4,
+                    fontSize: 10.5,
+                    color: colors.textFaint,
+                  }}
+                >
+                  {note.created_by_name}
+                </Text>
+              ) : null}
             </View>
           ))}
         </ScrollView>
@@ -2004,6 +2181,10 @@ function DraggableJourneyCard({
   index,
   count,
   expanded,
+  focusItemId,
+  onLayout,
+  compartment,
+  onCompartment,
   onToggle,
   onMove,
   onActions,
@@ -2026,6 +2207,10 @@ function DraggableJourneyCard({
   index: number;
   count: number;
   expanded: boolean;
+  focusItemId: string | null;
+  onLayout: (y: number) => void;
+  compartment: 'focus' | 'passive' | null;
+  onCompartment: (compartment: 'focus' | 'passive') => void;
   onToggle: () => void;
   onMove: (from: number, to: number) => void;
   onActions: () => void;
@@ -2098,6 +2283,9 @@ function DraggableJourneyCard({
           { borderTopColor: colors.border },
           highlighted
             ? { backgroundColor: `${stage?.color ?? colors.primary}14` }
+            : null,
+          item.id === focusItemId
+            ? { borderLeftWidth: 3, borderLeftColor: colors.primary }
             : null,
         ]}
       >
@@ -2172,7 +2360,7 @@ function DraggableJourneyCard({
         {itemStage ? (
           <Pressable
             onPress={() => onAddNote(item, itemStage)}
-            accessibilityLabel={`${canEdit ? 'Add or view' : 'View'} notes at ${itemStage.name}`}
+            accessibilityLabel={canEdit ? 'Add or view notes' : 'View notes'}
             hitSlop={8}
           >
             <Ionicons
@@ -2197,6 +2385,7 @@ function DraggableJourneyCard({
 
   return (
     <Animated.View
+      onLayout={(event) => onLayout(event.nativeEvent.layout.y)}
       style={[
         styles.card,
         { borderTopColor: colors.border, backgroundColor: colors.surfaceWell },
@@ -2320,6 +2509,25 @@ function DraggableJourneyCard({
             color={colors.textFaint}
           />
         </Pressable>
+        {canEdit && compartment ? (
+          <Pressable
+            onPress={() =>
+              onCompartment(compartment === 'focus' ? 'passive' : 'focus')
+            }
+            accessibilityRole="button"
+            accessibilityState={{ selected: compartment === 'focus' }}
+            accessibilityLabel={`${compartment === 'focus' ? 'Move to Passive' : 'Move to Focus'}: ${name}`}
+            hitSlop={8}
+          >
+            <Ionicons
+              name={compartment === 'focus' ? 'locate' : 'locate-outline'}
+              size={18}
+              color={
+                compartment === 'focus' ? colors.primary : colors.textMuted
+              }
+            />
+          </Pressable>
+        ) : null}
         {canEdit ? (
           <Pressable
             onPress={onActions}
@@ -2347,6 +2555,11 @@ function DraggableJourneyCard({
       ) : null}
 
       {expanded ? atStage.map((item) => renderItem(item)) : null}
+      {expanded && !showElsewhere
+        ? elsewhere
+            .filter((item) => item.id === focusItemId)
+            .map((item) => renderItem(item))
+        : null}
       {expanded && elsewhere.length > 0 ? (
         <Pressable
           onPress={() => setShowElsewhere((current) => !current)}
@@ -2433,6 +2646,16 @@ async function loadJourneyStageNotes(
   }
 }
 
+function noteTimestamp(createdAt: string) {
+  return new Date(createdAt).toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function groupTitle(group: JourneyGroup, mode: JourneyMode) {
   return mode === 'buyer'
     ? group.contact?.name || group.contact?.phone || 'Unknown contact'
@@ -2447,6 +2670,35 @@ function groupSubtitle(group: JourneyGroup, mode: JourneyMode) {
 }
 
 const styles = StyleSheet.create({
+  compartmentHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  passiveToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  noteTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+  },
+  noteTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
   container: { padding: spacing.lg, gap: spacing.md },
   sheetHeader: {
     flexDirection: 'row',
@@ -2614,16 +2866,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.md,
     textAlignVertical: 'top',
-  },
-  noteStage: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
   },
   note: { borderWidth: 1, borderRadius: radius.md, padding: spacing.md },
 });

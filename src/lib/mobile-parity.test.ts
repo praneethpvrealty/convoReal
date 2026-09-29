@@ -623,7 +623,9 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('.enabled(canEdit)');
     expect(screen).toContain('{canEdit ? (');
     expect(screen).toContain('{itemStage ? (');
-    expect(screen).toContain("{canEdit ? 'Add or view' : 'View'} notes");
+    expect(screen).toContain(
+      "accessibilityLabel={canEdit ? 'Add or view notes' : 'View notes'}"
+    );
   });
 
   it('[JRN-005] reviews captured shares in a tray with show, show all and remove', () => {
@@ -756,6 +758,65 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(webSection).toContain('more at other stages');
   });
 
+  it('[JRN-013] keeps a moved item in view in its new stage group on web and mobile', () => {
+    const helpers = mobileSource('lib/journey-overview.ts');
+    const webShared = webSource('components/journey/shared.ts');
+    const body = (source: string) => {
+      const start = source.indexOf('export function journeyStageBucketKey');
+      return source.slice(start, source.indexOf('\n}\n', start) + 3);
+    };
+    expect(body(helpers)).not.toBe('');
+    expect(body(helpers)).toEqual(body(webShared));
+    expect(screen).toContain(
+      'journeyStageBucketKey(movedGroup.furthestStageIdx, stages)'
+    );
+    expect(screen).toContain('itemId: item.id,');
+    expect(screen).toContain('scrollRef.current?.scrollTo({');
+    expect(screen).toContain('.filter((item) => item.id === focusItemId)');
+    const webOverview = webSource('components/journey/journey-overview.tsx');
+    expect(webOverview).toContain(
+      'journeyStageBucketKey(spotlightGroup.furthestStageIdx, stages)'
+    );
+  });
+
+  it('[JRN-014] splits every stage into Focus and Passive on web and mobile', () => {
+    const helpers = mobileSource('lib/journey-overview.ts');
+    const webShared = webSource('components/journey/shared.ts');
+    const body = (source: string) => {
+      const start = source.indexOf(
+        'export function splitJourneysByCompartment'
+      );
+      return source.slice(start, source.indexOf('\n}\n', start) + 3);
+    };
+    expect(body(helpers)).toContain('focusIds.has(group.subjectId)');
+    expect(body(helpers)).toEqual(body(webShared));
+    const api = mobileSource('lib/api.ts');
+    expect(api).toContain('`/api/journey/compartments?mode=${mode}`');
+    expect(api).toContain("'/api/journey/compartments',");
+    expect(screen).toContain(
+      'splitJourneysByCompartment(bucket.groups, focusIds)'
+    );
+    expect(screen).toContain(
+      "label: inFocus ? 'Move to Passive' : 'Move to Focus'"
+    );
+    expect(screen).toContain(
+      "const compartmentsOn = view === 'active' && compartmentsQuery.isSuccess;"
+    );
+    expect(screen).toContain('compartmentsQuery.isLoading;');
+    expect(screen).toContain(
+      'await queryClient.cancelQueries({ queryKey: key });'
+    );
+    expect(screen).toContain(
+      '{passiveOpen ? renderCards(split.passive) : null}'
+    );
+    const sheet = mobileSource('components/profile-edit-sheet.tsx');
+    expect(sheet).toContain('journey_compartment_scope: scope');
+    const webCard = webSource(
+      'components/settings/journey-compartment-scope-card.tsx'
+    );
+    expect(webCard).toContain('journey_compartment_scope: scope');
+  });
+
   it('[JRN-012] orders journeys by the same enquiry totals on web and mobile', () => {
     const helpers = mobileSource('lib/journey-overview.ts');
     const webShared = webSource('components/journey/shared.ts');
@@ -861,16 +922,20 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('{canEdit && canDrag ? (');
   });
 
-  it('[JRN-004] offers every stage while retaining the complete note history', () => {
-    expect(screen).toContain('Journey stage notes');
-    expect(screen).toContain('stages.map((stage)');
-    expect(screen).toContain('current ? { ...current, stage } : current');
-    expect(screen).toContain('const notesByStage = useMemo');
-    expect(screen).toContain('const latestNote = stageNotes[0]');
-    expect(screen).toContain('{latestNote.note}');
+  it('[JRN-004] saves one notes box against the current stage and lists every note across stages', () => {
+    expect(screen).toContain('title="Notes"');
+    expect(screen).not.toContain('Note stage');
+    expect(screen).toContain('onPress={() => onAddNote(item, itemStage)}');
+    expect(screen).not.toContain('stageId: noteTarget.stage.id,');
+    expect(screen).toContain('color: note.stage_color ?? colors.textMuted,');
+    expect(screen).toContain(
+      'Saved with the date, time and {noteTarget.stage.name}'
+    );
+    expect(screen).toContain('{noteTimestamp(note.created_at)}');
+    expect(screen).toContain('{note.stage_name}');
     expect(screen).toContain('loadJourneyStageNotes(noteTarget!.item.id)');
     expect(screen).toContain('.range(from, from + JOURNEY_NOTE_PAGE_SIZE - 1)');
-    expect(screen).toContain('Complete journey history');
+    expect(screen).toContain('All notes');
     expect(screen).toContain('(notesQuery.data ?? []).map((note)');
   });
 });

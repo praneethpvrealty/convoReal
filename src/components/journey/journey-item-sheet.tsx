@@ -14,7 +14,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import {
   Briefcase,
@@ -30,7 +30,6 @@ import {
   Home,
   MapPin,
   MessageSquare,
-  NotebookPen,
   Phone,
   RotateCcw,
   Trash2,
@@ -154,7 +153,6 @@ export function JourneyItemSheet({
   const [events, setEvents] = useState<JourneyEvent[]>([]);
   const [stageNotes, setStageNotes] = useState<JourneyStageNote[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
-  const [noteStageId, setNoteStageId] = useState<string | null>(null);
   const [stageNote, setStageNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [dropFormOpen, setDropFormOpen] = useState(false);
@@ -223,7 +221,6 @@ export function JourneyItemSheet({
       setPlanStageId('');
       setPlanDate('');
       setOpeningInbox(false);
-      setNoteStageId(null);
       setStageNote('');
       setSavingNote(false);
     });
@@ -376,7 +373,7 @@ export function JourneyItemSheet({
   };
 
   const saveStageNote = async () => {
-    if (!item || !noteStageId || !stageNote.trim() || savingNote) return;
+    if (!item || !stageNote.trim() || savingNote) return;
     setSavingNote(true);
     try {
       const response = await fetch('/api/journey/stage-notes', {
@@ -384,7 +381,6 @@ export function JourneyItemSheet({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           item_id: item.id,
-          stage_id: noteStageId,
           note: stageNote.trim(),
         }),
       });
@@ -393,15 +389,14 @@ export function JourneyItemSheet({
         error?: string;
       } | null;
       if (!response.ok || !payload?.data) {
-        throw new Error(payload?.error ?? 'Failed to add stage note');
+        throw new Error(payload?.error ?? 'Failed to save the note');
       }
       setStageNotes((current) => [payload.data!, ...current]);
       setStageNote('');
-      setNoteStageId(null);
-      toast.success('Stage note added');
+      toast.success('Note saved');
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Failed to add stage note'
+        error instanceof Error ? error.message : 'Failed to save the note'
       );
     } finally {
       setSavingNote(false);
@@ -581,10 +576,6 @@ export function JourneyItemSheet({
                 const passed = idx < reached;
                 const current = idx === reached;
                 const future = idx > reached;
-                const notesAtStage = stageNotes.filter(
-                  (note) => note.stage_id === s.id
-                );
-                const latestNote = notesAtStage[0];
                 return (
                   <div
                     key={s.id}
@@ -631,64 +622,89 @@ export function JourneyItemSheet({
                           {dropped ? 'dropped here' : 'current'}
                         </span>
                       )}
-                      {canEdit && (
-                        <button
-                          type="button"
-                          aria-label={`Add note at ${s.name}`}
-                          title={`Add note at ${s.name}`}
-                          onClick={() => {
-                            setNoteStageId(noteStageId === s.id ? null : s.id);
-                            setStageNote('');
-                          }}
-                          className="hover:border-primary/60 hover:text-primary inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-semibold text-slate-400 transition-colors"
-                        >
-                          <NotebookPen className="h-3 w-3" />
-                          {notesAtStage.length > 0
-                            ? `Add note · ${notesAtStage.length}`
-                            : 'Add note'}
-                        </button>
-                      )}
                     </div>
-                    {latestNote && (
-                      <p className="mt-1 ml-6 line-clamp-2 text-[11px] leading-4 text-slate-400">
-                        {latestNote.note}
-                      </p>
-                    )}
-                    {noteStageId === s.id && (
-                      <div className="mt-2 ml-6 rounded-lg border border-slate-700 bg-slate-950 p-2">
-                        <Textarea
-                          autoFocus
-                          value={stageNote}
-                          maxLength={1000}
-                          onChange={(event) => setStageNote(event.target.value)}
-                          placeholder={`Add a note at ${s.name}, e.g. ₹1 lakh token paid`}
-                          className="min-h-16 border-slate-700 bg-slate-900 text-xs"
-                        />
-                        <div className="mt-2 flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setNoteStageId(null);
-                              setStageNote('');
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            size="sm"
-                            disabled={savingNote || !stageNote.trim()}
-                            onClick={saveStageNote}
-                          >
-                            Save note
-                          </Button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+              Notes
+            </p>
+            {canEdit && (
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-2">
+                <Textarea
+                  value={stageNote}
+                  maxLength={1000}
+                  onChange={(event) => setStageNote(event.target.value)}
+                  placeholder="Add a note, e.g. ₹1 lakh token paid"
+                  aria-label="Note"
+                  className="min-h-16 border-slate-700 bg-slate-900 text-xs"
+                />
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-slate-500">
+                    Saved with the date, time and{' '}
+                    {stages[reached]?.name ?? 'current stage'}
+                  </span>
+                  <Button
+                    size="sm"
+                    disabled={savingNote || !stageNote.trim()}
+                    onClick={saveStageNote}
+                  >
+                    Save note
+                  </Button>
+                </div>
+              </div>
+            )}
+            {stageNotes.length > 0 ? (
+              <ol className="mt-2 flex flex-col gap-2">
+                {stageNotes.map((note) => (
+                  <li
+                    key={note.id}
+                    className="rounded-md border border-slate-800/80 bg-slate-900/40 px-2.5 py-2"
+                  >
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-300 tabular-nums">
+                        {format(
+                          new Date(note.created_at),
+                          'd MMM yyyy, h:mm a'
+                        )}
+                      </span>
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full border border-slate-700 px-2 py-0.5 text-[10px] font-medium text-slate-300"
+                        style={
+                          note.stage_color
+                            ? { color: note.stage_color }
+                            : undefined
+                        }
+                      >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{
+                            backgroundColor: note.stage_color ?? '#64748b',
+                          }}
+                        />
+                        {note.stage_name || stageName(note.stage_id)}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-xs whitespace-pre-wrap text-slate-200">
+                      {note.note}
+                    </p>
+                    {note.created_by_name && (
+                      <p className="mt-1 text-[10px] text-slate-600">
+                        {note.created_by_name}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              !canEdit && (
+                <p className="text-xs text-slate-500">No notes yet.</p>
+              )
+            )}
           </div>
 
           {dropped && item.drop_reason && (
@@ -932,41 +948,6 @@ export function JourneyItemSheet({
                   Reactivate at {stages[reached]?.name ?? 'current stage'}
                 </Button>
               )}
-            </div>
-          )}
-
-          {stageNotes.length > 0 && (
-            <div>
-              <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
-                Stage notes
-              </p>
-              <ol className="flex flex-col gap-2">
-                {stageNotes.map((note) => (
-                  <li
-                    key={note.id}
-                    className="rounded-md border border-slate-800/80 bg-slate-900/40 px-2.5 py-2"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-semibold text-slate-300">
-                        {note.stage_name || stageName(note.stage_id)}
-                      </span>
-                      <span className="text-[10px] text-slate-600">
-                        {formatDistanceToNow(new Date(note.created_at), {
-                          addSuffix: true,
-                        })}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs whitespace-pre-wrap text-slate-300">
-                      {note.note}
-                    </p>
-                    {note.created_by_name && (
-                      <p className="mt-1 text-[10px] text-slate-600">
-                        Added by {note.created_by_name}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ol>
             </div>
           )}
 

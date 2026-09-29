@@ -10,8 +10,10 @@ import {
   matchesJourneyEnquirySource,
   normalizeJourneyEnquirySource,
   journeyRaceLabel,
+  journeyStageBucketKey,
   sortJourneys,
   splitItemsAtStage,
+  splitJourneysByCompartment,
 } from './journey-overview';
 
 describe('focusBuckets', () => {
@@ -286,6 +288,26 @@ describe('journeyViewCounts', () => {
       active: 0,
       closed: 0,
       archived: 0,
+    });
+  });
+});
+
+describe('journeyStageBucketKey', () => {
+  const stages = [{ id: 'new' }, { id: 'visit' }];
+
+  it('[JRN-013] finds the stage group a moved journey now sits in', () => {
+    expect(journeyStageBucketKey(1, stages)).toBe('stage:visit');
+    expect(journeyStageBucketKey(-1, stages)).toBe('stage:unclassified');
+    expect(journeyStageBucketKey(4, stages)).toBe('stage:unclassified');
+  });
+});
+
+describe('splitJourneysByCompartment', () => {
+  it('[JRN-014] lists Focus journeys first and keeps the rest Passive, in order', () => {
+    const groups = [{ subjectId: 'a' }, { subjectId: 'b' }, { subjectId: 'c' }];
+    expect(splitJourneysByCompartment(groups, new Set(['c']))).toEqual({
+      focus: [{ subjectId: 'c' }],
+      passive: [{ subjectId: 'a' }, { subjectId: 'b' }],
     });
   });
 });

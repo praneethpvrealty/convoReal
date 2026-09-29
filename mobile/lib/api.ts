@@ -416,6 +416,23 @@ export function updateJourneyOverview(body: Record<string, unknown>) {
   });
 }
 
+export function loadJourneyCompartments(mode: 'buyer' | 'property') {
+  return apiFetch<{
+    data: { scope: 'team' | 'agent'; focus: string[] };
+  }>(`/api/journey/compartments?mode=${mode}`);
+}
+
+export function setJourneyCompartment(body: {
+  mode: 'buyer' | 'property';
+  subjectId: string;
+  compartment: 'focus' | 'passive';
+}) {
+  return apiFetch<{ data: { compartment: 'focus' | 'passive' } }>(
+    '/api/journey/compartments',
+    { method: 'POST', body: JSON.stringify(body) }
+  );
+}
+
 export function loadJourneyEnquiries(
   mode: 'buyer' | 'property',
   subjectId: string
@@ -438,11 +455,7 @@ export function loadJourneyOverview(mode: 'buyer' | 'property') {
   }>(`/api/journey/overview?mode=${mode}`);
 }
 
-export function addJourneyStageNote(args: {
-  itemId: string;
-  stageId: string;
-  note: string;
-}) {
+export function addJourneyStageNote(args: { itemId: string; note: string }) {
   return apiFetch<{
     data: {
       id: string;
@@ -458,7 +471,6 @@ export function addJourneyStageNote(args: {
     method: 'POST',
     body: JSON.stringify({
       item_id: args.itemId,
-      stage_id: args.stageId,
       note: args.note,
     }),
   });
