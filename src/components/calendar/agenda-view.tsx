@@ -1,16 +1,36 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { ChevronDown, MapPin, User, Home, CheckCircle2 } from "lucide-react";
-import { CalendarEvent, TeamMember, eventTypeMeta, memberInitials, formatTimeShort } from "./event-types";
+import { ChevronDown, MapPin, User, Home, CheckCircle2, Clock } from "lucide-react";
+import { deadlineLabel, type DealDeadline } from "@/lib/deals/deadlines";
+import {
+  DEAL_DATE_KIND_LABELS,
+  dealDateHref,
+  dealDateKey,
+  dealDateLocalDay,
+} from "@/lib/calendar/deal-dates";
+import {
+  CalendarEvent,
+  TeamMember,
+  DEAL_DATE_META,
+  eventTypeMeta,
+  memberInitials,
+  formatTimeShort,
+} from "./event-types";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 
 interface AgendaViewProps {
   events: CalendarEvent[];
+  dealDates?: DealDeadline[];
   members: TeamMember[];
   onEventClick: (event: CalendarEvent) => void;
 }
+
+type AgendaItem =
+  | { kind: "event"; at: number; event: CalendarEvent }
+  | { kind: "deal"; at: number; dealDate: DealDeadline };
 
 function dayHeading(date: Date): string {
   const today = new Date();
@@ -25,39 +45,82 @@ function dayHeading(date: Date): string {
 /** One scrollable, chronological list of everything scheduled —
  *  grouped by day, upcoming first, with finished/past events tucked
  *  behind a toggle so the working list stays clean. */
-export function AgendaView({ events, members, onEventClick }: AgendaViewProps) {
+export function AgendaView({ events, dealDates = [], members, onEventClick }: AgendaViewProps) {
   const [showPast, setShowPast] = useState(false);
 
   const { upcomingGroups, pastGroups } = useMemo(() => {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const sorted = [...events].sort(
-      (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
-    );
+    // A deal date is date-only and sits at the top of its day, ahead
+    // of the timed events that follow it.
+    const items: AgendaItem[] = [
+      ...dealDates.map((dealDate) => ({
+        kind: "deal" as const,
+        at: dealDateLocalDay(dealDate.dueDate).getTime(),
+        dealDate,
+      })),
+      ...events.map((event) => ({
+        kind: "event" as const,
+        at: new Date(event.start_time).getTime(),
+        event,
+      })),
+    ].sort((a, b) => a.at - b.at);
 
-    const group = (list: CalendarEvent[]) => {
-      const map = new Map<string, { date: Date; events: CalendarEvent[] }>();
-      for (const ev of list) {
-        const d = new Date(ev.start_time);
+    const group = (list: AgendaItem[]) => {
+      const map = new Map<string, { date: Date; items: AgendaItem[] }>();
+      for (const item of list) {
+        const d = new Date(item.at);
         const key = d.toDateString();
         let entry = map.get(key);
         if (!entry) {
-          entry = { date: d, events: [] };
+          entry = { date: d, items: [] };
           map.set(key, entry);
         }
-        entry.events.push(ev);
+        entry.items.push(item);
       }
       return [...map.values()];
     };
 
-    const upcoming = sorted.filter((ev) => new Date(ev.start_time) >= startOfToday);
-    const past = sorted.filter((ev) => new Date(ev.start_time) < startOfToday).reverse();
+    const upcoming = items.filter((item) => item.at >= startOfToday.getTime());
+    const past = items.filter((item) => item.at < startOfToday.getTime()).reverse();
 
     return { upcomingGroups: group(upcoming), pastGroups: group(past) };
-  }, [events]);
+  }, [events, dealDates]);
 
   const memberFor = (ev: CalendarEvent) => members.find((m) => m.user_id === (ev.assigned_to || ev.user_id));
+
+  const renderDealRow = (d: DealDeadline) => (
+    <Link
+      key={dealDateKey(d)}
+      href={dealDateHref(d.dealId)}
+      className="flex w-full items-center gap-3 rounded-lg border border-slate-800/80 bg-slate-950/50 px-3 py-2 text-left transition-colors hover:border-slate-700 hover:bg-slate-950"
+    >
+      <span className="w-16 shrink-0 font-mono text-[11px] text-slate-500">All day</span>
+      <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold", DEAL_DATE_META.chip)}>
+        <DEAL_DATE_META.icon className="h-3 w-3" />
+        <span className="hidden sm:inline">{DEAL_DATE_KIND_LABELS[d.kind]}</span>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-semibold text-white">{d.title}</span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
+          <span className="truncate">{d.subject}</span>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1",
+              d.urgency === "overdue" ? "text-rose-400" : d.urgency === "today" ? "text-amber-300" : undefined
+            )}
+          >
+            <Clock className="h-2.5 w-2.5" />
+            {deadlineLabel(d.daysLeft)}
+          </span>
+        </span>
+      </span>
+    </Link>
+  );
+
+  const renderItem = (item: AgendaItem) =>
+    item.kind === "deal" ? renderDealRow(item.dealDate) : renderRow(item.event);
 
   const renderRow = (ev: CalendarEvent) => {
     const meta = eventTypeMeta(ev.event_type);
@@ -118,10 +181,10 @@ export function AgendaView({ events, members, onEventClick }: AgendaViewProps) {
           <h3 className="sticky top-0 z-10 mb-1.5 bg-slate-900/95 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 backdrop-blur">
             {dayHeading(group.date)}
             <span className="ml-2 font-normal normal-case text-slate-600">
-              {group.events.length} event{group.events.length === 1 ? "" : "s"}
+              {group.items.length} item{group.items.length === 1 ? "" : "s"}
             </span>
           </h3>
-          <div className="space-y-1.5">{group.events.map(renderRow)}</div>
+          <div className="space-y-1.5">{group.items.map(renderItem)}</div>
         </div>
       ))}
 
@@ -132,7 +195,7 @@ export function AgendaView({ events, members, onEventClick }: AgendaViewProps) {
             className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-white transition-colors"
           >
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showPast && "rotate-180")} />
-            {showPast ? "Hide past events" : `Show past events (${pastGroups.reduce((n, g) => n + g.events.length, 0)})`}
+            {showPast ? "Hide past events" : `Show past events (${pastGroups.reduce((n, g) => n + g.items.length, 0)})`}
           </button>
           {showPast && (
             <div className="mt-3 space-y-4">
@@ -141,7 +204,7 @@ export function AgendaView({ events, members, onEventClick }: AgendaViewProps) {
                   <h3 className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                     {dayHeading(group.date)}
                   </h3>
-                  <div className="space-y-1.5">{group.events.map(renderRow)}</div>
+                  <div className="space-y-1.5">{group.items.map(renderItem)}</div>
                 </div>
               ))}
             </div>
