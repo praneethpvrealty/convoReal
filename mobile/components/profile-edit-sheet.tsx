@@ -10,7 +10,7 @@ import {
   SectionLabel,
   TextField,
 } from '@/components/ui';
-import { ApiError, apiFetch } from '@/lib/api';
+import { ApiError, apiFetch, loadJourneyCompartments } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import {
   FOLLOW_COMPANY,
@@ -31,6 +31,25 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 
 /** Web parity: PATCH /api/account rejects names longer than 80 chars. */
 const MAX_ACCOUNT_NAME_LEN = 80;
+
+const JOURNEY_SCOPE_OPTIONS: {
+  value: 'team' | 'agent';
+  label: string;
+  detail: string;
+}[] = [
+  {
+    value: 'team',
+    label: 'Shared with the team',
+    detail:
+      'One Focus list for the account. Moving a journey moves it for everyone.',
+  },
+  {
+    value: 'agent',
+    label: 'Each agent keeps their own',
+    detail:
+      'Every agent curates their own Focus list. Nobody else’s moves change it.',
+  },
+];
 const MAX_FULL_NAME_LEN = 120;
 
 const CLASSIC_DESIGN_ICONS: Partial<
@@ -91,6 +110,9 @@ export function ProfileEditSheet({
   const [fullName, setFullName] = useState('');
   const [accountName, setAccountName] = useState('');
   const [savedAccountName, setSavedAccountName] = useState<string | null>(null);
+  const [compartmentScope, setCompartmentScope] = useState<
+    'team' | 'agent' | null
+  >(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editedShowcase, setEditedShowcase] = useState<PersonalShowcase | null>(
@@ -99,6 +121,13 @@ export function ProfileEditSheet({
 
   const userId = session?.user.id;
   const accountId = profile?.account_id;
+  const scopeQuery = useQuery({
+    queryKey: ['journey-compartment-scope', accountId],
+    queryFn: async () => (await loadJourneyCompartments('buyer')).data.scope,
+    enabled: visible && canRenameAccount && Boolean(accountId),
+  });
+  const savedScope = scopeQuery.data ?? null;
+  const scope = compartmentScope ?? savedScope;
   const showcaseQuery = useQuery({
     queryKey: ['personal-showcase-design', userId, accountId],
     queryFn: () => fetchShowcaseDesign(userId as string, accountId as string),
@@ -119,6 +148,7 @@ export function ProfileEditSheet({
     if (!visible) return;
     setError(null);
     setEditedShowcase(null);
+    setCompartmentScope(null);
     setFullName(profile?.full_name ?? '');
     if (!canRenameAccount) return;
     let cancelled = false;
@@ -192,6 +222,20 @@ export function ProfileEditSheet({
         });
         setSavedAccountName(nextAccountName);
       }
+      if (canRenameAccount && scope && savedScope && scope !== savedScope) {
+        await apiFetch('/api/account', {
+          method: 'PATCH',
+          body: JSON.stringify({ journey_compartment_scope: scope }),
+        });
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: ['journey-compartment-scope', accountId],
+          }),
+          queryClient.invalidateQueries({
+            queryKey: ['journey-compartments'],
+          }),
+        ]);
+      }
       onClose();
     } catch (err) {
       setError(
@@ -244,6 +288,62 @@ export function ProfileEditSheet({
             >
               The workspace name is shared with your whole team.
             </Text>
+          </View>
+        ) : null}
+        {canRenameAccount && scope ? (
+          <View style={{ gap: spacing.sm }}>
+            <SectionLabel text="Journey Focus list" />
+            <Text
+              style={{ fontSize: 12, lineHeight: 17, color: colors.textFaint }}
+            >
+              Each journey stage lists Focus journeys first and keeps the rest
+              under Passive. Choose whether that split is shared.
+            </Text>
+            {JOURNEY_SCOPE_OPTIONS.map((option) => {
+              const selected = scope === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  accessibilityRole="radio"
+                  accessibilityLabel={option.label}
+                  accessibilityState={{ checked: selected, disabled: saving }}
+                  disabled={saving}
+                  onPress={() => setCompartmentScope(option.value)}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: 12,
+                    borderWidth: 1,
+                    borderRadius: radius.md,
+                    borderColor: selected ? colors.primary : colors.glassBorder,
+                    backgroundColor: colors.glass,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontWeight: '700' }}>
+                      {option.label}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        lineHeight: 17,
+                        color: colors.textMuted,
+                      }}
+                    >
+                      {option.detail}
+                    </Text>
+                  </View>
+                  {selected ? (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={colors.primary}
+                    />
+                  ) : null}
+                </Pressable>
+              );
+            })}
           </View>
         ) : null}
         {showcase ? (

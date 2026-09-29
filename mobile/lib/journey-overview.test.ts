@@ -13,6 +13,7 @@ import {
   journeyStageBucketKey,
   sortJourneys,
   splitItemsAtStage,
+  splitJourneysByCompartment,
 } from './journey-overview';
 
 describe('focusBuckets', () => {
@@ -298,5 +299,15 @@ describe('journeyStageBucketKey', () => {
     expect(journeyStageBucketKey(1, stages)).toBe('stage:visit');
     expect(journeyStageBucketKey(-1, stages)).toBe('stage:unclassified');
     expect(journeyStageBucketKey(4, stages)).toBe('stage:unclassified');
+  });
+});
+
+describe('splitJourneysByCompartment', () => {
+  it('[JRN-014] lists Focus journeys first and keeps the rest Passive, in order', () => {
+    const groups = [{ subjectId: 'a' }, { subjectId: 'b' }, { subjectId: 'c' }];
+    expect(splitJourneysByCompartment(groups, new Set(['c']))).toEqual({
+      focus: [{ subjectId: 'c' }],
+      passive: [{ subjectId: 'a' }, { subjectId: 'b' }],
+    });
   });
 });
