@@ -23,8 +23,10 @@ import { EmptyState, FilterChip } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import {
+  DEAL_DATE_HORIZON_DAYS,
   DEAL_DATE_KIND_LABELS,
-  dealDateHorizonDays,
+  DEAL_DATE_PAGE_ORDER,
+  DEAL_DATE_PAGE_SIZE,
   dealDateHref,
   dealDateKey,
   dealDateLocalDay,
@@ -150,15 +152,20 @@ async function fetchDealDates(
   today: string,
   horizonDays: number
 ): Promise<DealDate[]> {
-  const { data, error } = await supabase.rpc('deal_deadlines', {
-    target_account_id: accountId,
-    p_today: today,
-    p_horizon_days: horizonDays,
-  });
-  if (error) throw error;
-  return sortDealDates(
-    ((data ?? []) as DealDateRow[]).map((row) => toDealDate(row, today))
-  );
+  const rows = await loadEveryPage<DealDateRow>(async (from, to) => {
+    let query = supabase.rpc('deal_deadlines', {
+      target_account_id: accountId,
+      p_today: today,
+      p_horizon_days: horizonDays,
+    });
+    for (const column of DEAL_DATE_PAGE_ORDER) {
+      query = query.order(column, { ascending: true });
+    }
+    const { data, error } = await query.range(from, to);
+    if (error) throw error;
+    return (data ?? []) as DealDateRow[];
+  }, DEAL_DATE_PAGE_SIZE);
+  return sortDealDates(rows.map((row) => toDealDate(row, today)));
 }
 
 export default function CalendarScreen() {
@@ -193,10 +200,9 @@ export default function CalendarScreen() {
   const monthEndKey = localDateKey(
     new Date(month.getFullYear(), month.getMonth() + 1, 0)
   );
-  const dealHorizonDays = dealDateHorizonDays(todayKey, monthEndKey);
   const dealDatesQuery = useQuery({
-    queryKey: ['deal-dates', accountId, todayKey, dealHorizonDays],
-    queryFn: () => fetchDealDates(accountId!, todayKey, dealHorizonDays),
+    queryKey: ['deal-dates', accountId, todayKey],
+    queryFn: () => fetchDealDates(accountId!, todayKey, DEAL_DATE_HORIZON_DAYS),
     enabled: !!accountId,
   });
   const pull = usePullRefresh(() =>

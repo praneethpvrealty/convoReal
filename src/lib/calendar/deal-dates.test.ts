@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest';
 import type { DealDeadline } from '@/lib/deals/deadlines';
 
 import {
+  DEAL_DATE_HORIZON_DAYS,
   DEAL_DATE_KIND_LABELS,
-  DEAL_DATE_MIN_HORIZON_DAYS,
-  dealDateHorizonDays,
   dealDateHref,
+  dealDatesForMember,
   dealDateKey,
   dealDateLocalDay,
   dealDatesInRange,
@@ -24,21 +24,51 @@ function deadline(over: Partial<DealDeadline>): DealDeadline {
     dueDate: '2026-10-10',
     daysLeft: 11,
     urgency: 'soon',
+    assignedTo: null,
+    ownerUserId: null,
     ...over,
   };
 }
 
 describe('[CAL-008] deal dates on the calendar', () => {
-  it('reads at least a year ahead and widens for a range further out', () => {
-    expect(dealDateHorizonDays('2026-09-29', '2026-10-31')).toBe(
-      DEAL_DATE_MIN_HORIZON_DAYS
-    );
-    expect(dealDateHorizonDays('2026-09-29', '2028-01-15')).toBe(
-      DEAL_DATE_MIN_HORIZON_DAYS + 108
-    );
-    expect(dealDateHorizonDays('2026-09-29', '2026-08-01')).toBe(
-      DEAL_DATE_MIN_HORIZON_DAYS
-    );
+  it('reads every open date, however far out', () => {
+    expect(DEAL_DATE_HORIZON_DAYS).toBeGreaterThanOrEqual(365 * 100);
+  });
+
+  it('follows the member filter by assignment, else by who opened an unassigned deal', () => {
+    const rows = [
+      deadline({
+        title: 'Assigned to Asha',
+        assignedTo: 'profile-asha',
+        ownerUserId: 'user-ravi',
+      }),
+      deadline({
+        title: 'Unassigned, opened by Asha',
+        assignedTo: null,
+        ownerUserId: 'user-asha',
+      }),
+      deadline({
+        title: 'Assigned to Ravi',
+        assignedTo: 'profile-ravi',
+        ownerUserId: 'user-asha',
+      }),
+      deadline({
+        title: 'Unassigned, opened by Ravi',
+        assignedTo: null,
+        ownerUserId: 'user-ravi',
+      }),
+    ];
+    expect(
+      dealDatesForMember(rows, {
+        profileId: 'profile-asha',
+        userId: 'user-asha',
+      }).map((d) => d.title)
+    ).toEqual(['Assigned to Asha', 'Unassigned, opened by Asha']);
+    expect(
+      dealDatesForMember(rows, { profileId: null, userId: 'user-ravi' }).map(
+        (d) => d.title
+      )
+    ).toEqual(['Unassigned, opened by Ravi']);
   });
 
   it('keeps only the rows inside the visible range, soonest first', () => {

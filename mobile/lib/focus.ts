@@ -53,10 +53,7 @@ export interface FocusJourney {
 }
 
 export type FocusRequestKind =
-  | 'inquiry'
-  | 'match'
-  | 'listing_submission'
-  | 'bid';
+  'inquiry' | 'match' | 'listing_submission' | 'bid';
 
 export type FocusUrgency = 'now' | 'soon' | 'later';
 
@@ -93,6 +90,8 @@ export interface FocusDeadline {
   dueDate: string;
   daysLeft: number;
   urgency: FocusDeadlineUrgency;
+  assignedTo: string | null;
+  ownerUserId: string | null;
 }
 
 export interface FocusDeadlines {

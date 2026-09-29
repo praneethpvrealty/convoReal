@@ -167,6 +167,8 @@ export interface CalendarEvent {
 
 export interface TeamMember {
   user_id: string;
+  /** profiles.id — what deals.assigned_to references. */
+  profile_id?: string;
   full_name: string;
   avatar_url: string | null;
   org_role?: string;

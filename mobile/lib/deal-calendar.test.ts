@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEAL_DATE_HORIZON_DAYS,
   DEAL_DATE_KIND_LABELS,
-  DEAL_DATE_MIN_HORIZON_DAYS,
   daysBetween,
-  dealDateHorizonDays,
   dealDateHref,
   dealDateKey,
   dealDateLocalDay,
@@ -43,6 +42,8 @@ function deadline(over: Partial<DealDate>): DealDate {
     dueDate: '2026-10-10',
     daysLeft: 11,
     urgency: 'soon',
+    assignedTo: null,
+    ownerUserId: null,
     ...over,
   };
 }
@@ -59,6 +60,8 @@ describe('[CAL-008] deal dates on the mobile calendar', () => {
       dueDate: '2026-10-10',
       daysLeft: 11,
       urgency: 'soon',
+      assignedTo: null,
+      ownerUserId: null,
     });
     expect(
       toDealDate(row({ due_date: '2026-09-29' }), '2026-09-29').urgency
@@ -69,13 +72,8 @@ describe('[CAL-008] deal dates on the mobile calendar', () => {
     expect(daysBetween('2026-09-29', '2026-09-20')).toBe(-9);
   });
 
-  it('reads at least a year ahead and widens for a range further out', () => {
-    expect(dealDateHorizonDays('2026-09-29', '2026-10-31')).toBe(
-      DEAL_DATE_MIN_HORIZON_DAYS
-    );
-    expect(dealDateHorizonDays('2026-09-29', '2028-01-15')).toBe(
-      DEAL_DATE_MIN_HORIZON_DAYS + 108
-    );
+  it('reads every open date, however far out', () => {
+    expect(DEAL_DATE_HORIZON_DAYS).toBeGreaterThanOrEqual(365 * 100);
   });
 
   it('keeps only the rows inside the visible range, soonest first', () => {

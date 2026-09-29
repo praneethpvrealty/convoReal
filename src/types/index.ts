@@ -85,6 +85,8 @@ export interface Account {
  */
 export interface AccountMember {
   user_id: string;
+  /** profiles.id — what deals.assigned_to references (CAL-008). */
+  profile_id?: string;
   full_name: string;
   email: string | null;
   avatar_url: string | null;

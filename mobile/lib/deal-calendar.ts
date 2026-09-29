@@ -20,8 +20,22 @@ export const DEAL_DATE_KIND_LABELS: Record<DealDateKind, string> = {
   expected_close: 'Expected close',
 };
 
-/** Mirrored from src/lib/calendar/deal-dates.ts (DEAL_DATE_MIN_HORIZON_DAYS). */
-export const DEAL_DATE_MIN_HORIZON_DAYS = 365;
+/** Mirrored from src/lib/calendar/deal-dates.ts (DEAL_DATE_HORIZON_DAYS):
+ *  every open deal date, however far out, in one paged read. */
+export const DEAL_DATE_HORIZON_DAYS = 36_525;
+
+/** Mirrored from src/lib/deals/deadlines.ts (DEAL_DEADLINE_PAGE_SIZE,
+ *  DEAL_DEADLINE_PAGE_ORDER): PostgREST answers at most its max-rows
+ *  per request, so a year of deal dates is read page by page in a
+ *  pinned order. */
+export const DEAL_DATE_PAGE_SIZE = 500;
+
+export const DEAL_DATE_PAGE_ORDER = [
+  'due_date',
+  'deal_id',
+  'kind',
+  'milestone_id',
+] as const;
 
 /** Mirrored from src/lib/deals/deadlines.ts (DealDeadlineRow). */
 export interface DealDateRow {
@@ -48,6 +62,8 @@ export interface DealDate {
   dueDate: string;
   daysLeft: number;
   urgency: DealDateUrgency;
+  assignedTo: string | null;
+  ownerUserId: string | null;
 }
 
 const DAY_MS = 24 * 3_600_000;
@@ -105,6 +121,8 @@ export function toDealDate(row: DealDateRow, today: string): DealDate {
     dueDate: row.due_date,
     daysLeft,
     urgency: deadlineUrgency(daysLeft),
+    assignedTo: row.assigned_to,
+    ownerUserId: row.owner_user_id,
   };
 }
 
@@ -124,10 +142,6 @@ export function sortDealDates<
       KIND_ORDER[a.kind] - KIND_ORDER[b.kind] ||
       a.title.localeCompare(b.title)
   );
-}
-
-export function dealDateHorizonDays(today: string, rangeEnd: string): number {
-  return Math.max(DEAL_DATE_MIN_HORIZON_DAYS, daysBetween(today, rangeEnd));
 }
 
 export function localDateKey(date: Date): string {

@@ -15,7 +15,6 @@
  */
 
 import {
-  daysBetween,
   sortDeadlines,
   type DealDeadline,
   type DealDeadlineKind,
@@ -27,14 +26,29 @@ export const DEAL_DATE_KIND_LABELS: Record<DealDeadlineKind, string> = {
   expected_close: 'Expected close',
 };
 
-/** The calendar reads at least a year ahead in one query, so paging
- *  through months never refetches; a range further out widens it. */
-export const DEAL_DATE_MIN_HORIZON_DAYS = 365;
+/** The calendar reads every open deal date, however far out — a
+ *  possession two years away is still a commitment — in one paged read
+ *  (loadDealDeadlines pages past the PostgREST row cap), so paging
+ *  through months never refetches. A century is "no ceiling" to the
+ *  DATE arithmetic in deal_deadlines. */
+export const DEAL_DATE_HORIZON_DAYS = 36_525;
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
-export function dealDateHorizonDays(today: string, rangeEnd: string): number {
-  return Math.max(DEAL_DATE_MIN_HORIZON_DAYS, daysBetween(today, rangeEnd));
+/** The deal dates one member is shown when the calendar is filtered to
+ *  them: deals assigned to their profile, plus unassigned deals they
+ *  opened — the rule deadlinesForAgent applies for the digest. */
+export function dealDatesForMember<
+  T extends Pick<DealDeadline, 'assignedTo' | 'ownerUserId'>,
+>(
+  items: readonly T[],
+  member: { profileId?: string | null; userId: string }
+): T[] {
+  return items.filter(
+    (d) =>
+      (member.profileId != null && d.assignedTo === member.profileId) ||
+      (d.assignedTo === null && d.ownerUserId === member.userId)
+  );
 }
 
 /** YYYY-MM-DD of a local calendar day. */

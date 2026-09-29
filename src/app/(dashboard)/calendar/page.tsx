@@ -60,9 +60,10 @@ import {
 import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from "@/lib/copilot/actions";
 import { deadlineLabel, loadDealDeadlines, todayDateKey, type DealDeadline } from "@/lib/deals/deadlines";
 import {
+  DEAL_DATE_HORIZON_DAYS,
   DEAL_DATE_KIND_LABELS,
-  dealDateHorizonDays,
   dealDateHref,
+  dealDatesForMember,
   dealDateKey,
   dealDateLocalDay,
   dealDatesInRange,
@@ -287,6 +288,7 @@ export default function CalendarPage() {
       .then((json) => {
         const rows = (json.members || []) as Array<{
           user_id: string;
+          profile_id?: string;
           full_name: string;
           avatar_url: string | null;
           org_role?: string;
@@ -408,30 +410,29 @@ export default function CalendarPage() {
       return { from: localDateKey(start), to: localDateKey(end) };
     }
     if (view === "agenda") {
-      const end = new Date();
-      end.setFullYear(end.getFullYear() + 1);
-      return { from: "1900-01-01", to: localDateKey(end) };
+      return { from: "1900-01-01", to: "9999-12-31" };
     }
     return {
       from: localDateKey(calendarCells[0].date),
       to: localDateKey(calendarCells[calendarCells.length - 1].date),
     };
   }, [view, currentDate, calendarCells]);
-  const dealHorizonDays = dealDateHorizonDays(todayKey, visibleRange.to);
   const dealDatesQuery = useQuery({
-    queryKey: ["calendar-deal-dates", accountId, todayKey, dealHorizonDays],
-    queryFn: () => loadDealDeadlines(supabase, accountId!, todayKey, dealHorizonDays),
+    queryKey: ["calendar-deal-dates", accountId, todayKey],
+    queryFn: () => loadDealDeadlines(supabase, accountId!, todayKey, DEAL_DATE_HORIZON_DAYS),
     enabled: !!accountId,
   });
-  const showDealDates =
-    view !== "team" && memberFilter === "all" && (typeFilter === "all" || typeFilter === "deal");
-  const visibleDealDates = useMemo(
-    () =>
-      showDealDates
-        ? dealDatesInRange(dealDatesQuery.data ?? [], visibleRange.from, visibleRange.to)
-        : [],
-    [showDealDates, dealDatesQuery.data, visibleRange]
-  );
+  const showDealDates = view !== "team" && (typeFilter === "all" || typeFilter === "deal");
+  const visibleDealDates = useMemo(() => {
+    if (!showDealDates) return [];
+    const inRange = dealDatesInRange(dealDatesQuery.data ?? [], visibleRange.from, visibleRange.to);
+    if (memberFilter === "all") return inRange;
+    const member = members.find((m) => m.user_id === memberFilter);
+    return dealDatesForMember(inRange, {
+      profileId: member?.profile_id ?? null,
+      userId: memberFilter,
+    });
+  }, [showDealDates, dealDatesQuery.data, visibleRange, memberFilter, members]);
   const dealDatesByDate = useMemo(() => {
     const map: Record<string, DealDeadline[]> = {};
     for (const d of visibleDealDates) {
