@@ -356,6 +356,11 @@ export function ContactForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
+    if (!contact?.id && !name.trim()) {
+      toast.error('Enter the contact’s name');
+      return;
+    }
+
     if (!phone.trim() && !email.trim()) {
       toast.error('Add a phone number or an email');
       return;
@@ -809,11 +814,7 @@ export function ContactForm({
                 onChange={(e) =>
                   setLeadTemp(
                     e.target.value as
-                      | 'HOT'
-                      | 'COLD'
-                      | 'Not Responding'
-                      | 'Dead'
-                      | ''
+                      'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''
                   )
                 }
                 className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
@@ -1045,7 +1046,8 @@ export function ContactForm({
                     <span className="block font-medium text-white">
                       Already rented / pre-leased only
                     </span>
-                    Exclude vacant properties even when projected rent or ROI is available.
+                    Exclude vacant properties even when projected rent or ROI is
+                    available.
                   </span>
                 </label>
 

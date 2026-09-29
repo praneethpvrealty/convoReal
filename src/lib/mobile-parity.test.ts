@@ -512,6 +512,24 @@ describe('the portal link invite is one server draft on both surfaces', () => {
     }
   });
 
+  it('[CTM-012] captures name, Name Tag, Reference and Notes on web and mobile', () => {
+    const quickAdd = mobileSource('app/(app)/(tabs)/contacts.tsx');
+    const editor = mobileSource('app/(app)/contact/[id].tsx');
+    const webForm = webSource('components/contacts/contact-form.tsx');
+
+    expect(quickAdd).toContain('quickAddContactPayload(');
+    expect(quickAdd).toContain('value={nameTag}');
+    expect(quickAdd).not.toContain('Name (optional)');
+    expect(editor).toContain('label="Reference"');
+    expect(editor).toContain('...referrerFields(contact, referrer)');
+    expect(editor).toContain('label="Notes"');
+    expect(editor).toContain('editable={recentNoteLoaded}');
+    expect(editor).toContain("from('contact_notes')");
+    expect(webForm).toContain('if (!contact?.id && !name.trim())');
+    expect(webForm).toContain('referrer: referrer.trim() || null');
+    expect(webForm).toContain('note_text: notesText');
+  });
+
   it('[CTM-004] shares hand-picked listings with a buyer from the contact record and saves them to their Portfolio', () => {
     const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
     const mobileSheet = mobileSource('components/showcase-share-sheet.tsx');

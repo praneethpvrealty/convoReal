@@ -629,6 +629,21 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "CTM-012",
+          "rule": "The new-contact forms (web contact form, mobile quick-add) require a name, and the mobile quick-add also captures the Name Tag; channels that create contacts from inbound data (WhatsApp, portal leads, phonebook import, the share dialog's inline creator) keep their own rules. Editing a contact on web or mobile captures the Reference (referrer, unlinked from any referrer contact once its text changes) and Notes, which edit the contact's most recent note: a first note is inserted, changed text updates it, cleared text deletes it, and mobile keeps Notes read-only until that note has loaded so a save never overwrites or duplicates a note it has not seen.",
+          "tests": [
+            {
+              "file": "mobile/lib/contact-form.test.ts",
+              "case": "[CTM-012]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-012]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },
@@ -2084,7 +2099,10 @@
           "id": "TXW-024",
           "rule": "Every dashboard revenue function (dashboard_metrics, dashboard_pipeline_donut, team_analytics, lead_source_analytics) counts the brokerage's own share of a deal: its brokerage, or the 2% fallback, less deals.co_broker_payout_total (the trigger-kept sum of what it pays co-brokers, which no client can write and whose upkeep never moves the deal's updated_at), floored at zero only when there are payouts, keeping each function's is_account_member guard and SECURITY DEFINER. A deal with no payouts reads exactly as before.",
           "tests": [
-            { "file": "src/lib/migrations/co-broking-net-brokerage.test.ts", "case": "[TXW-024]" }
+            {
+              "file": "src/lib/migrations/co-broking-net-brokerage.test.ts",
+              "case": "[TXW-024]"
+            }
           ],
           "guards": [
             "supabase/migrations/20260928042711_deal_co_broking.sql",
@@ -2096,7 +2114,10 @@
           "id": "TXW-025",
           "rule": "Marking a deal lost asks why, on web (board drag, deal form, workspace header) and mobile (move sheet, deal screen, edit form): one of Price disagreement, Terms disagreement, Owner backed out, Buyer backed out, Legal or document issue, Financing fell through, Bought elsewhere or Other, with a note that Other requires. The deal routes refuse a lost status without a reason (unless the deal was already lost) and any unlisted reason, the reason and note show on the lost deal's card, a deal marked lost carries its reason to its journey branch's drop reason and a journey branch dropped with a reason carries it to its deal, and reopening a deal clears both.",
           "tests": [
-            { "file": "src/lib/pipelines/lost-reasons.test.ts", "case": "[TXW-025]" }
+            {
+              "file": "src/lib/pipelines/lost-reasons.test.ts",
+              "case": "[TXW-025]"
+            }
           ],
           "guards": [
             "supabase/migrations/20260928093100_deal_lost_reason.sql",

@@ -56,6 +56,7 @@ import {
   approveAndSendDetails,
   type ApproveOutcome,
 } from '@/lib/approve-contact';
+import { noteWrite, referrerFields } from '@/lib/contact-form';
 import { contactFullName } from '@/lib/contact-name';
 import { storagePublicUrl } from '@/lib/storage-url';
 import {
@@ -181,7 +182,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
     .select(
       'id, phone, secondary_phones, whatsapp_phone_confirmed_at, name, salutation, second_name, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, pref_listing_types, areas_of_interest, areas_of_interest_geo, ' +
-        'strict_area_match, min_roi, requires_tenanted, pref_requires_tenanted, requirements, lead_temp, status, referrer, source, ' +
+        'strict_area_match, min_roi, requires_tenanted, pref_requires_tenanted, requirements, lead_temp, status, referrer, referrer_contact_id, source, ' +
         'requirement_profiles, ' +
         'preferred_update_channel, preferred_language, buyer_alerts_consent, buyer_alerts_consent_requested_at, ' +
         'property_interests, last_inquired_property_id, lead_portal, lead_portal_listing_id, ' +
@@ -805,6 +806,13 @@ function ContactCard({ contact }: { contact: Contact }) {
               value={contact.company}
             />
           ) : null}
+          {contact.referrer ? (
+            <InfoRow
+              icon="person-add-outline"
+              label="Reference"
+              value={contact.referrer}
+            />
+          ) : null}
           <InfoRow
             icon="calendar-outline"
             label="Added"
@@ -856,6 +864,7 @@ function ContactCard({ contact }: { contact: Contact }) {
               value={source.requirements}
             />
           ) : null}
+          <RecentNoteRow contactId={contact.id} />
           <BuysWithRow contactId={contact.id} />
         </View>
 
@@ -1633,7 +1642,17 @@ function ContactEditor({
   );
   const [email, setEmail] = useState(contact.email ?? '');
   const [company, setCompany] = useState(contact.company ?? '');
+  const [referrer, setReferrer] = useState(contact.referrer ?? '');
   const [requirements, setRequirements] = useState(source.requirements ?? '');
+  const session = useAuthStore((s) => s.session);
+  const accountId = useAuthStore((s) => s.profile?.account_id);
+  const {
+    data: recentNote,
+    isSuccess: recentNoteLoaded,
+    isError: recentNoteFailed,
+  } = useRecentNote(contact.id);
+  const [notesDraft, setNotesDraft] = useState<string | null>(null);
+  const notes = notesDraft ?? recentNote?.note_text ?? '';
   const [classification, setClassification] = useState<
     Classification | undefined
   >(contact.classification);
@@ -1740,6 +1759,7 @@ function ContactEditor({
           : {}),
         email: email.trim() || null,
         company: company.trim() || null,
+        ...referrerFields(contact, referrer),
         requirements: requirements.trim() || null,
         classification: classification ?? null,
         min_budget: minBudgetValue,
@@ -1761,13 +1781,66 @@ function ContactEditor({
       })
       .eq('id', contact.id)
       .select('id');
-    setSaving(false);
     if (updateError || !saved?.length) {
+      setSaving(false);
       haptic.warn();
       setError(
         updateError
           ? friendlyError(updateError.message)
           : 'That contact is no longer there. Go back and reopen it.'
+      );
+      return;
+    }
+    const write =
+      recentNoteLoaded && notesDraft !== null
+        ? noteWrite(recentNote ?? null, notesDraft)
+        : ({ kind: 'none' } as const);
+    let noteError: string | null = null;
+    if (write.kind === 'insert') {
+      if (!session || !accountId) {
+        noteError = 'Your session has expired. Sign in again to save the note.';
+      } else {
+        const { error } = await supabase.from('contact_notes').insert({
+          contact_id: contact.id,
+          user_id: session.user.id,
+          account_id: accountId,
+          note_text: write.text,
+        });
+        noteError = error ? error.message : null;
+      }
+    } else if (write.kind === 'update') {
+      const { data: rows, error } = await supabase
+        .from('contact_notes')
+        .update({ note_text: write.text })
+        .eq('id', write.id)
+        .select('id');
+      noteError = error
+        ? error.message
+        : rows?.length
+          ? null
+          : 'That note is no longer there.';
+    } else if (write.kind === 'delete') {
+      const { error } = await supabase
+        .from('contact_notes')
+        .delete()
+        .eq('id', write.id)
+        .select('id');
+      noteError = error ? error.message : null;
+    }
+    setSaving(false);
+    if (write.kind !== 'none') {
+      queryClient.invalidateQueries({
+        queryKey: ['contact-recent-note', contact.id],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['contact-notes', contact.id],
+      });
+    }
+    if (noteError) {
+      haptic.warn();
+      queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+      setError(
+        `Details saved, but the note was not: ${friendlyError(noteError)}`
       );
       return;
     }
@@ -1974,10 +2047,31 @@ function ContactEditor({
           placeholder="Company"
         />
         <TextField
+          label="Reference"
+          value={referrer}
+          onChangeText={setReferrer}
+          placeholder="Who referred them?"
+          autoCapitalize="words"
+        />
+        <TextField
           label="Requirements"
           value={requirements}
           onChangeText={setRequirements}
           placeholder="What are they looking for?"
+          multiline
+        />
+        <TextField
+          label="Notes"
+          value={notes}
+          onChangeText={setNotesDraft}
+          editable={recentNoteLoaded}
+          placeholder={
+            recentNoteLoaded
+              ? 'Add any notes about the contact'
+              : recentNoteFailed
+                ? 'Notes could not load \u2014 reopen the contact to edit them'
+                : 'Loading notes\u2026'
+          }
           multiline
         />
 
@@ -2666,6 +2760,30 @@ function OtherPhonesRow({
       </View>
     </View>
   );
+}
+
+function useRecentNote(contactId: string) {
+  return useQuery({
+    queryKey: ['contact-recent-note', contactId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contact_notes')
+        .select('id, note_text')
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { id: string; note_text: string | null } | null;
+    },
+  });
+}
+
+function RecentNoteRow({ contactId }: { contactId: string }) {
+  const { data } = useRecentNote(contactId);
+  const text = data?.note_text?.trim();
+  if (!text) return null;
+  return <InfoRow icon="document-text-outline" label="Notes" value={text} />;
 }
 
 function InfoRow({
