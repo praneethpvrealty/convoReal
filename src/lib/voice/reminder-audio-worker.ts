@@ -17,27 +17,6 @@ import {
 
 const CLAIM_LOOKUP_ATTEMPTS = 3;
 
-type ClaimQuery = {
-  eq: (column: string, value: string) => unknown;
-};
-
-/** Writes touch the claim as this note holds it — the account, the
- *  row and the clock it was queued under — so a claim the cron has
- *  since renewed for a fresh note is never overwritten or released. */
-function claimFilter<T extends ClaimQuery>(query: T, job: ReminderAudioJob) {
-  const own = query.eq('account_id', job.accountId) as T;
-  if (!job.claimId) {
-    return (
-      (own.eq('appointment_id', job.appointmentId) as T).eq(
-        'contact_id',
-        job.contactId
-      ) as T
-    ).eq('reminder_type', job.reminderType);
-  }
-  const byId = own.eq('id', job.claimId) as T;
-  return job.claimedAt ? byId.eq('created_at', job.claimedAt) : byId;
-}
-
 /** Hands the reminder back to the cron in one transaction
  *  (appointment_reminder_hand_back): the claim is released and the
  *  appointment flag re-opened together, pinned to the generation this
@@ -107,6 +86,41 @@ async function retainUntilPersisted(
       );
     }
     await new Promise((resolve) => setTimeout(resolve, RETAIN.delayMs));
+  }
+}
+
+const CONFIRM_ATTEMPTS = 3;
+const CONFIRM_RETRY_MS = 1_000;
+
+/** Stamps the claim as sent once the message has gone, trying until
+ *  the database confirms a row took it: a claim left provisional after
+ *  a real delivery would be retried by the cron's grace period, and
+ *  the reply webhook needs the message id on it. */
+async function confirmSent(
+  admin: SupabaseClient,
+  job: ReminderAudioJob,
+  waMessageId: string | null
+) {
+  for (let attempt = 1; attempt <= CONFIRM_ATTEMPTS; attempt++) {
+    // The claim as this note holds it — account, row and clock — so a
+    // claim the cron has since renewed for a fresh note is never
+    // stamped from here.
+    let query = admin
+      .from('appointment_reminder_log')
+      .update({ sent_at: new Date().toISOString(), wa_message_id: waMessageId })
+      .eq('account_id', job.accountId)
+      .eq('id', job.claimId!);
+    if (job.claimedAt) query = query.eq('created_at', job.claimedAt);
+    const { data, error } = await query.select('id').maybeSingle();
+    if (!error && data) return;
+    console.error(
+      `[reminder-audio] claim confirmation ${error ? 'failed' : 'matched no row'} (attempt ${attempt}) for appt ${job.appointmentId}:`,
+      error?.message ?? job.claimId
+    );
+    if (!error) return;
+    if (attempt < CONFIRM_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, CONFIRM_RETRY_MS));
+    }
   }
 }
 
@@ -295,12 +309,7 @@ export async function processReminderAudioJob(
       console.log(
         `[reminder-audio] Sent ${job.reminderType} reminder note for appt ${job.appointmentId} to contact ${job.contactId}`
       );
-      await claimFilter(
-        admin
-          .from('appointment_reminder_log')
-          .update({ sent_at: new Date().toISOString() }),
-        job
-      );
+      await confirmSent(admin, job, null);
       return;
     }
     console.error(
@@ -331,13 +340,7 @@ export async function processReminderAudioJob(
     console.log(
       `[reminder-audio] Fell back to template for appt ${job.appointmentId} contact ${job.contactId}`
     );
-    await claimFilter(
-      admin.from('appointment_reminder_log').update({
-        sent_at: new Date().toISOString(),
-        wa_message_id: result.whatsappMessageId ?? null,
-      }),
-      job
-    );
+    await confirmSent(admin, job, result.whatsappMessageId ?? null);
     return;
   }
   console.error(
