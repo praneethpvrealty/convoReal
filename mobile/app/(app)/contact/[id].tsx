@@ -1332,9 +1332,12 @@ function PortalAdMapping({ contact }: { contact: Contact }) {
     setPicking(false);
     setBusy(true);
     try {
-      const data = await mapPortalAd(contact.id, propertyId);
+      const data = await mapPortalAd(contact.id, propertyId, {
+        portal: portal!,
+        portalListingId: listingId!,
+      });
       haptic.success();
-      const others = data.taggedContacts - 1;
+      const others = (data.taggedContacts ?? 1) - 1;
       show({
         title: 'Ad mapped',
         message:

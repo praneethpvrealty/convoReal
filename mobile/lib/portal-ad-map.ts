@@ -1,41 +1,61 @@
 import { apiFetch, isTimeout } from './api';
+import { supabase } from './supabase';
 
 export interface PortalAdMapResult {
   propertyTitle: string;
-  taggedContacts: number;
+  taggedContacts: number | null;
 }
 
-/**
- * Mapping an ad is a dozen sequential round trips server-side, and on
- * mobile data the request can spend most of the default 20 seconds just
- * reaching the server. The agent then read "the server did not respond"
- * for an ad that had in fact been mapped.
- */
+export interface PortalAdRef {
+  portal: string;
+  portalListingId: string;
+}
+
 export const PORTAL_LINK_TIMEOUT_MS = 45_000;
 
-/**
- * Map the portal ad a lead came in on to a listing. The route is
- * idempotent for the same listing — a repeat finds its own mapping and
- * only re-tags the waiting leads — so an abandoned request is asked
- * again once, and that answer reports what actually happened.
- */
+type MappingRow = {
+  property_id: string;
+  properties: { title: string | null } | null;
+} | null;
+
+async function readMapping(ad: PortalAdRef): Promise<MappingRow> {
+  for (const table of [
+    'property_portal_listings',
+    'property_portal_listing_aliases',
+  ] as const) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('property_id, properties(title)')
+      .eq('portal', ad.portal)
+      .eq('portal_listing_id', ad.portalListingId)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) return data as unknown as MappingRow;
+  }
+  return null;
+}
+
 export async function mapPortalAd(
   contactId: string,
-  propertyId: string
+  propertyId: string,
+  ad: PortalAdRef
 ): Promise<PortalAdMapResult> {
-  const post = () =>
-    apiFetch<{ data: PortalAdMapResult }>(
-      `/api/contacts/${contactId}/portal-link`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ propertyId }),
-        timeoutMs: PORTAL_LINK_TIMEOUT_MS,
-      }
-    );
   try {
-    return (await post()).data;
+    const { data } = await apiFetch<{
+      data: { propertyTitle: string; taggedContacts: number };
+    }>(`/api/contacts/${contactId}/portal-link`, {
+      method: 'POST',
+      body: JSON.stringify({ propertyId }),
+      timeoutMs: PORTAL_LINK_TIMEOUT_MS,
+    });
+    return data;
   } catch (e) {
     if (!isTimeout(e)) throw e;
-    return (await post()).data;
+    const mapping = await readMapping(ad).catch(() => null);
+    if (mapping?.property_id !== propertyId) throw e;
+    return {
+      propertyTitle: mapping.properties?.title ?? 'the listing',
+      taggedContacts: null,
+    };
   }
 }

@@ -58,13 +58,15 @@ export function UnmappedPortalAds() {
     setPicking(null);
     setBusy(ad.portalListingId);
     try {
-      const data = await mapPortalAd(ad.sampleContactId, propertyId);
+      const data = await mapPortalAd(ad.sampleContactId, propertyId, ad);
       haptic.success();
       show({
         title: 'Ad mapped',
         message:
           `${ad.portal} ad ${ad.portalListingId} is now "${data.propertyTitle}". ` +
-          `${data.taggedContacts} lead${data.taggedContacts === 1 ? '' : 's'} tagged, and new ` +
+          (data.taggedContacts === null
+            ? 'Its leads are tagged, and new '
+            : `${data.taggedContacts} lead${data.taggedContacts === 1 ? '' : 's'} tagged, and new `) +
           `enquiries on it match automatically.`,
       });
     } catch (e) {
