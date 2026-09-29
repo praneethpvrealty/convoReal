@@ -3590,6 +3590,9 @@ describe('[CAL-008] deal dates are pinned on both calendars through the one dead
       'const timer = setInterval(rollDay, 60_000);'
     );
     expect(webCalendar).toContain(
+      'if (localDateKey(currentDate) === todayKey) setCurrentDate(new Date());'
+    );
+    expect(webCalendar).toContain(
       'const [todayKey, setTodayKey] = useState(() => todayDateKey());'
     );
     expect(mobileCalendar).toContain('label="Deal dates"');
