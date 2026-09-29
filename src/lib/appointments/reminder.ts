@@ -346,7 +346,11 @@ async function claimReminder(
     console.error('[Reminder Cron] claim lookup failed:', readErr);
     return 'failed';
   }
-  if (!existing || sameInstant(existing.rearmed_at, appt.reminders_rearmed_at)) {
+  // The claim went between the insert and this read — its owner
+  // released it — so nothing is known to be covered: leave the
+  // recipient for the next sweep rather than call it done.
+  if (!existing) return 'failed';
+  if (sameInstant(existing.rearmed_at, appt.reminders_rearmed_at)) {
     return null;
   }
   // Only a sweep of the current generation may take a claim over: one

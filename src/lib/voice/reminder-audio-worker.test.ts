@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   sends: 0,
   requeued: [] as Array<{ attempts?: number }>,
   mutations: [] as Array<[string, Array<[string, unknown]>]>,
+  mutationError: null as { message: string } | null,
 }));
 
 const QUEUED_AT = '2026-09-29T10:00:00.000+00:00';
@@ -38,7 +39,8 @@ vi.mock('@/lib/supabase/admin', () => ({
           if (mutation) state.mutations.push([mutation, [...filters]]);
           return builder;
         },
-        then: (resolve: (v: { error: null }) => unknown) => resolve({ error: null }),
+        then: (resolve: (v: { error: { message: string } | null }) => unknown) =>
+          resolve({ error: mutation ? state.mutationError : null }),
         maybeSingle: async () => {
           const answer =
             state.lookups.length > 1 ? state.lookups.shift()! : state.lookups[0];
@@ -121,6 +123,7 @@ function reset(lookups: Lookup[]) {
   state.sends = 0;
   state.requeued = [];
   state.mutations = [];
+  state.mutationError = null;
 }
 
 describe('processReminderAudioJob', () => {
@@ -193,6 +196,14 @@ describe('processReminderAudioJob', () => {
       'update',
       [['id', 'appt-1'], ['account_id', 'acct-1'], ['reminders_rearmed_at', null]],
     ]);
+  });
+
+  it('[CAL-010] keeps the job when the hand-back could not be confirmed', async () => {
+    reset(['error']);
+    state.mutationError = { message: 'timeout' };
+    await processReminderAudioJob({ ...job, attempts: 2, rearmedAt: null });
+    expect(state.sends).toBe(0);
+    expect(state.requeued).toEqual([{ ...job, attempts: 3, rearmedAt: null }]);
   });
 
   it('treats a note queued before claims were recorded as standing', async () => {
