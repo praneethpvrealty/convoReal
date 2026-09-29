@@ -228,6 +228,10 @@ export default function CalendarScreen() {
     rollDayRef.current = rollDay;
     refetchDealDatesRef.current = dealDatesQuery.refetch;
   }, [rollDay, dealDatesQuery.refetch]);
+  useEffect(() => {
+    const timer = setInterval(() => rollDayRef.current(), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const focusedBefore = useRef(false);
   useFocusEffect(
     useCallback(() => {

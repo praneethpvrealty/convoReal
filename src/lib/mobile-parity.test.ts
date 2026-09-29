@@ -3583,6 +3583,9 @@ describe('[CAL-008] deal dates are pinned on both calendars through the one dead
     );
     expect(mobileCalendar).toContain("if (state === 'active') rollDay();");
     expect(mobileCalendar).toContain('useFocusEffect(');
+    expect(mobileCalendar).toContain(
+      'setInterval(() => rollDayRef.current(), 60_000)'
+    );
     expect(mobileCalendar).toContain('label="Deal dates"');
     expect(webCalendar).toContain('{DEAL_DATE_META.label}');
     expect(mobileCalendar).toContain('void refetchDealDatesRef.current();');
