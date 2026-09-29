@@ -38,6 +38,9 @@ export interface ReminderClaimConfirmJob extends ClaimConfirmation {
 }
 
 export const CLAIM_CONFIRM_RETRY = { attempts: 3, delayMs: 1_000 };
+/** Foreign-key and check violations on the restore: the row the claim
+ *  referenced no longer exists, and no retry will change that. */
+const TERMINAL_RESTORE_ERRORS = new Set(['23503', '23514']);
 /** The pause between the queue worker's rounds while a confirmation is
  *  held for the database to take it. Exported so tests can shorten it. */
 export const CLAIM_CONFIRM_HOLD = { delayMs: 5_000 };
@@ -96,6 +99,14 @@ export async function stampClaimSent(
       `[Reminder] claim ${confirmation.claimId} had been released before its send was confirmed; put back as confirmed`
     );
     return 'stamped';
+  }
+  if (restoreErr && TERMINAL_RESTORE_ERRORS.has(restoreErr.code)) {
+    // The appointment, contact or liaison the claim referenced is
+    // gone, and the claim with it: there is nothing left to confirm.
+    console.warn(
+      `[Reminder] claim ${confirmation.claimId} cannot be restored, its appointment or recipient was deleted (${restoreErr.code}); nothing left to confirm`
+    );
+    return 'gone';
   }
   if (restoreErr?.code !== '23505') {
     console.error(

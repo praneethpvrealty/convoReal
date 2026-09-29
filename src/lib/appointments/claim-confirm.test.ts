@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  results: [] as Array<'stamped' | 'gone' | 'failed' | 'duplicate'>,
+  results: [] as Array<'stamped' | 'gone' | 'failed' | 'duplicate' | 'orphaned'>,
   updates: 0,
   patches: [] as Array<Record<string, unknown>>,
   inserts: [] as Array<Record<string, unknown>>,
@@ -30,6 +30,7 @@ vi.mock('@/lib/supabase/admin', () => ({
             state.results.length > 1 ? state.results.shift()! : state.results[0];
           if (result === 'failed') return { data: null, error: { message: 'timeout' } };
           if (result === 'duplicate') return { data: null, error: { code: '23505', message: 'duplicate' } };
+          if (result === 'orphaned') return { data: null, error: { code: '23503', message: 'fk' } };
           if (result === 'gone') return { data: null, error: null };
           return { data: { id: 'claim-1' }, error: null };
         },
@@ -72,7 +73,7 @@ const confirmation = {
   sentAt: '2026-09-29T10:00:05.000Z',
 };
 
-function reset(results: Array<'stamped' | 'gone' | 'failed' | 'duplicate'>) {
+function reset(results: Array<'stamped' | 'gone' | 'failed' | 'duplicate' | 'orphaned'>) {
   state.results = results;
   state.updates = 0;
   state.patches = [];
@@ -109,6 +110,14 @@ describe('[CAL-010] confirming a reminder claim', () => {
         wa_message_id: 'wamid.1',
       },
     ]);
+  });
+
+  it('gives up, without retrying, when the appointment or recipient the claim covered was deleted', async () => {
+    reset(['gone', 'gone', 'orphaned']);
+    expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('gone');
+    reset(['gone', 'gone', 'orphaned']);
+    await processReminderClaimConfirmJob({ kind: 'reminder_claim_confirm', ...confirmation });
+    expect(state.queued).toEqual([]);
   });
 
   it('keeps the earlier message id on a claim re-made under a new id while it was being put back', async () => {
