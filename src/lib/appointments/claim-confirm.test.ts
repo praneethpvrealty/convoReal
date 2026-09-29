@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   results: [] as Array<'stamped' | 'gone' | 'failed'>,
   updates: 0,
+  patches: [] as Array<Record<string, unknown>>,
   queued: [] as Array<{ attempts?: number }>,
   queueFails: false,
 }));
@@ -11,9 +12,13 @@ vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
     from: () => {
       const builder = {
-        update: () => builder,
+        update: (patch: Record<string, unknown>) => {
+          state.patches.push(patch);
+          return builder;
+        },
         eq: () => builder,
         select: () => builder,
+        then: (resolve: (v: { error: null }) => unknown) => resolve({ error: null }),
         maybeSingle: async () => {
           state.updates += 1;
           const result =
@@ -59,16 +64,28 @@ const confirmation = {
 function reset(results: Array<'stamped' | 'gone' | 'failed'>) {
   state.results = results;
   state.updates = 0;
+  state.patches = [];
   state.queued = [];
   state.queueFails = false;
 }
 
 describe('[CAL-010] confirming a reminder claim', () => {
-  it('stamps the claim, and reports a renewed claim as gone', async () => {
+  it('stamps the claim, and keeps the earlier message id on a claim the cron renewed meanwhile', async () => {
     reset(['stamped']);
     expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('stamped');
     reset(['gone']);
     expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('gone');
+    expect(state.patches).toEqual([
+      { sent_at: confirmation.sentAt, wa_message_id: 'wamid.1' },
+      { prior_wa_message_id: 'wamid.1' },
+    ]);
+  });
+
+  it('holds the confirmation in process for the caller\'s window when the queue refuses too', async () => {
+    reset(['failed', 'failed', 'failed', 'stamped']);
+    state.queueFails = true;
+    expect(await confirmClaimSent(supabaseAdmin(), confirmation, 5_000)).toBe(true);
+    expect(state.updates).toBe(4);
   });
 
   it('retries the stamp in process and lands it', async () => {
@@ -85,11 +102,11 @@ describe('[CAL-010] confirming a reminder claim', () => {
     expect(state.queued).toEqual([{ kind: 'reminder_claim_confirm', ...confirmation }]);
   });
 
-  it('reports false only when neither the database nor the queue takes it', async () => {
+  it('reports false only once the hold ran out with neither the database nor the queue taking it', async () => {
     reset(['failed']);
     state.queueFails = true;
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await confirmClaimSent(supabaseAdmin(), confirmation)).toBe(false);
+    expect(await confirmClaimSent(supabaseAdmin(), confirmation, 0)).toBe(false);
     expect(errors.mock.calls.some((call) => String(call[1]).includes('"claimId":"claim-1"'))).toBe(true);
     errors.mockRestore();
   });

@@ -1084,12 +1084,22 @@ async function handleReminderButtonReply(
 
   try {
     const admin = supabaseAdmin();
-    const { data: log } = await admin
+    let { data: log } = await admin
       .from('appointment_reminder_log')
       .select('appointment_id')
       .eq('wa_message_id', message.context.id)
       .eq('account_id', accountId)
       .maybeSingle();
+    if (!log?.appointment_id) {
+      // A reply to an earlier send of a claim the cron has since sent
+      // again (src/lib/appointments/claim-confirm.ts).
+      ({ data: log } = await admin
+        .from('appointment_reminder_log')
+        .select('appointment_id')
+        .eq('prior_wa_message_id', message.context.id)
+        .eq('account_id', accountId)
+        .maybeSingle());
+    }
     if (!log?.appointment_id) return false;
 
     // Each tap resolves the other flag — the latest client signal wins.

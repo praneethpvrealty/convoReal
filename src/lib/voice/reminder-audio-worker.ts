@@ -105,9 +105,7 @@ async function confirmSent(
     waMessageId,
     sentAt: new Date().toISOString(),
   };
-  while (!(await confirmClaimSent(admin, confirmation))) {
-    await new Promise((resolve) => setTimeout(resolve, RETAIN.delayMs));
-  }
+  await confirmClaimSent(admin, confirmation, Number.POSITIVE_INFINITY);
 }
 
 /** A note queued before claims and generations were recorded carries

@@ -58,24 +58,45 @@ export async function stampClaimSent(
     );
     return 'failed';
   }
-  if (!data) {
-    console.warn(
-      `[Reminder] claim ${confirmation.claimId} was renewed before its send was confirmed; the renewing sweep owns it now`
+  if (data) return 'stamped';
+  // The cron took the claim over — and sent again — before this send
+  // was confirmed. The row now describes the later send; the earlier
+  // message id is kept beside it so a reply to either still maps.
+  console.warn(
+    `[Reminder] claim ${confirmation.claimId} was renewed before its send was confirmed; keeping the earlier message id beside the new one`
+  );
+  if (!confirmation.waMessageId) return 'gone';
+  const { error: priorErr } = await admin
+    .from('appointment_reminder_log')
+    .update({ prior_wa_message_id: confirmation.waMessageId })
+    .eq('account_id', confirmation.accountId)
+    .eq('id', confirmation.claimId);
+  if (priorErr) {
+    console.error(
+      `[Reminder] could not keep the earlier message id on claim ${confirmation.claimId}:`,
+      priorErr
     );
-    return 'gone';
+    return 'failed';
   }
-  return 'stamped';
+  return 'gone';
 }
 
 /**
- * Lands the stamp, or hands it to the queue worker to land. True when
- * either took it; false only when neither the database nor the queue
- * would, in which case the confirmation is logged whole for replay.
+ * Lands the stamp, or hands it to the queue worker to land. The stamp
+ * is tried a few times, then the queue; when both refuse, the
+ * confirmation is held in process — both tried again after each pause
+ * — for as long as the caller can wait (`holdMs`: a cron function has
+ * seconds, the queue worker has forever). True when the database or
+ * the queue took it; false only once the hold ran out with neither
+ * taking it, in which case the confirmation is logged whole for
+ * replay and the caller knows the send is on record nowhere.
  */
 export async function confirmClaimSent(
   admin: SupabaseClient,
-  confirmation: ClaimConfirmation
+  confirmation: ClaimConfirmation,
+  holdMs = 0
 ): Promise<boolean> {
+  const deadline = Date.now() + holdMs;
   for (let attempt = 1; attempt <= CLAIM_CONFIRM_RETRY.attempts; attempt++) {
     if ((await stampClaimSent(admin, confirmation)) !== 'failed') return true;
     if (attempt < CLAIM_CONFIRM_RETRY.attempts) {
@@ -84,16 +105,23 @@ export async function confirmClaimSent(
       );
     }
   }
-  if (
-    await enqueueReminderClaimConfirm({
-      kind: 'reminder_claim_confirm',
-      ...confirmation,
-    })
-  ) {
-    console.error(
-      `[Reminder] claim ${confirmation.claimId} confirmation handed to the queue worker`
+  for (;;) {
+    if (
+      await enqueueReminderClaimConfirm({
+        kind: 'reminder_claim_confirm',
+        ...confirmation,
+      })
+    ) {
+      console.error(
+        `[Reminder] claim ${confirmation.claimId} confirmation handed to the queue worker`
+      );
+      return true;
+    }
+    if (Date.now() >= deadline) break;
+    await new Promise((resolve) =>
+      setTimeout(resolve, CLAIM_CONFIRM_HOLD.delayMs)
     );
-    return true;
+    if ((await stampClaimSent(admin, confirmation)) !== 'failed') return true;
   }
   console.error(
     `[Reminder] Could not confirm claim ${confirmation.claimId} anywhere; confirmation for replay:`,

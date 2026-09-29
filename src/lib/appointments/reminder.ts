@@ -479,14 +479,28 @@ async function confirmClaim(
   claim: ReminderClaim,
   waMessageId: string | null = null
 ): Promise<boolean> {
-  return confirmClaimSent(admin, {
-    accountId: appt.account_id,
-    claimId: claim.id,
-    claimedAt: claim.created_at,
-    waMessageId,
-    sentAt: new Date().toISOString(),
-  });
+  const confirmed = await confirmClaimSent(
+    admin,
+    {
+      accountId: appt.account_id,
+      claimId: claim.id,
+      claimedAt: claim.created_at,
+      waMessageId,
+      sentAt: new Date().toISOString(),
+    },
+    CRON_CONFIRM_HOLD_MS
+  );
+  if (!confirmed) {
+    console.error(
+      `[Reminder Cron] The send to claim ${claim.id} on appt ${appt.id} is on record nowhere: a reply to it will not map, and the grace period may resend it if the appointment stays open`
+    );
+  }
+  return confirmed;
 }
+
+/** How long a sweep, itself a cron function with seconds to live,
+ *  holds a confirmation the database and the queue both refuse. */
+const CRON_CONFIRM_HOLD_MS = 10_000;
 
 /**
  * Sends one reminder to every contact attached to the appointment,
