@@ -6,6 +6,8 @@ const state = vi.hoisted(() => ({
   patches: [] as Array<Record<string, unknown>>,
   inserts: [] as Array<Record<string, unknown>>,
   rpcs: [] as Array<[string, Record<string, unknown>]>,
+  currentGeneration: null as string | null,
+  appointmentGone: false,
   queued: [] as Array<{ attempts?: number }>,
   queueFails: false,
 }));
@@ -22,7 +24,20 @@ vi.mock('@/lib/supabase/admin', () => ({
         error: null,
       };
     },
-    from: () => {
+    from: (table: string) => {
+      if (table === 'appointments') {
+        const appointment = {
+          select: () => appointment,
+          eq: () => appointment,
+          maybeSingle: async () => ({
+            data: state.appointmentGone
+              ? null
+              : { reminders_rearmed_at: state.currentGeneration },
+            error: null,
+          }),
+        };
+        return appointment;
+      }
       const builder = {
         update: (patch: Record<string, unknown>) => {
           state.patches.push(patch);
@@ -90,6 +105,8 @@ function reset(results: Array<'stamped' | 'gone' | 'failed' | 'duplicate' | 'orp
   state.patches = [];
   state.inserts = [];
   state.rpcs = [];
+  state.currentGeneration = null;
+  state.appointmentGone = false;
   state.queued = [];
   state.queueFails = false;
 }
@@ -118,6 +135,26 @@ describe('[CAL-010] confirming a reminder claim', () => {
       ],
     ]);
     expect(state.inserts).toEqual([]);
+  });
+
+  it('records the send but exposes no message id once the appointment has moved on', async () => {
+    reset(['stamped']);
+    state.currentGeneration = '2026-09-29T10:30:00.000Z';
+    expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('stamped');
+    expect(state.patches).toEqual([{ sent_at: confirmation.sentAt, wa_message_id: null }]);
+
+    reset(['gone']);
+    state.currentGeneration = '2026-09-29T10:30:00.000Z';
+    expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('gone');
+    expect(state.rpcs).toEqual([]);
+    expect(state.inserts).toEqual([]);
+  });
+
+  it('has nothing to confirm once the appointment itself is gone', async () => {
+    reset(['stamped']);
+    state.appointmentGone = true;
+    expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('gone');
+    expect(state.patches).toEqual([]);
   });
 
   it('drops the earlier message id when the claim has moved to a later generation', async () => {

@@ -1084,9 +1084,11 @@ async function handleReminderButtonReply(
 
   try {
     const admin = supabaseAdmin();
+    const claimColumns =
+      'appointment_id, rearmed_at, appointment:appointments(reminders_rearmed_at)';
     let { data: log } = await admin
       .from('appointment_reminder_log')
-      .select('appointment_id')
+      .select(claimColumns)
       .eq('wa_message_id', message.context.id)
       .eq('account_id', accountId)
       .maybeSingle();
@@ -1095,12 +1097,29 @@ async function handleReminderButtonReply(
       // again (src/lib/appointments/claim-confirm.ts).
       ({ data: log } = await admin
         .from('appointment_reminder_log')
-        .select('appointment_id')
+        .select(claimColumns)
         .contains('prior_wa_message_ids', [message.context.id])
         .eq('account_id', accountId)
         .maybeSingle());
     }
     if (!log?.appointment_id) return false;
+    // A tap on a reminder for a time or a state the appointment no
+    // longer has (it was moved, closed or reopened since — a new
+    // generation) is acknowledged as belonging to a reminder but
+    // changes nothing: the fresh reminders collect a fresh answer.
+    const appointmentRow = Array.isArray(log.appointment)
+      ? log.appointment[0]
+      : log.appointment;
+    const claimGeneration = log.rearmed_at ? new Date(log.rearmed_at).getTime() : null;
+    const currentGeneration = appointmentRow?.reminders_rearmed_at
+      ? new Date(appointmentRow.reminders_rearmed_at).getTime()
+      : null;
+    if (claimGeneration !== currentGeneration) {
+      console.log(
+        `[Reminder Reply] Ignoring a ${isReschedule ? 'reschedule' : 'confirmation'} tap on a reminder from an earlier generation of appointment ${log.appointment_id}`
+      );
+      return true;
+    }
 
     // Each tap resolves the other flag — the latest client signal wins.
     const stamp = isReschedule

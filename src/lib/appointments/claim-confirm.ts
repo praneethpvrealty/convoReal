@@ -38,6 +38,11 @@ export interface ReminderClaimConfirmJob extends ClaimConfirmation {
 }
 
 export const CLAIM_CONFIRM_RETRY = { attempts: 3, delayMs: 1_000 };
+
+function sameInstant(a: string | null | undefined, b: string | null | undefined) {
+  if (!a || !b) return !a && !b;
+  return new Date(a).getTime() === new Date(b).getTime();
+}
 /** Foreign-key and check violations on the restore: the row the claim
  *  referenced no longer exists, and no retry will change that. */
 const TERMINAL_RESTORE_ERRORS = new Set(['23503', '23514']);
@@ -49,11 +54,44 @@ export async function stampClaimSent(
   admin: SupabaseClient,
   confirmation: ClaimConfirmation
 ): Promise<'stamped' | 'gone' | 'failed'> {
+  // A message id is exposed to the reply webhook only while the
+  // appointment is still in the generation the send was made under:
+  // a "Fine" tapped on a reminder for a time or a state the
+  // appointment no longer has must not confirm the new one. The send
+  // itself is still recorded, so the claim is not retried.
+  const { data: current, error: currentErr } = await admin
+    .from('appointments')
+    .select('reminders_rearmed_at')
+    .eq('id', confirmation.appointmentId)
+    .eq('account_id', confirmation.accountId)
+    .maybeSingle();
+  if (currentErr) {
+    console.error(
+      `[Reminder] could not read the appointment for claim ${confirmation.claimId}:`,
+      currentErr
+    );
+    return 'failed';
+  }
+  if (!current) {
+    console.warn(
+      `[Reminder] appointment ${confirmation.appointmentId} is gone; nothing left to confirm for claim ${confirmation.claimId}`
+    );
+    return 'gone';
+  }
+  const sameGeneration = sameInstant(
+    current.reminders_rearmed_at,
+    confirmation.rearmedAt
+  );
+  if (!sameGeneration && confirmation.waMessageId) {
+    console.warn(
+      `[Reminder] appointment ${confirmation.appointmentId} moved on since the send for claim ${confirmation.claimId}; its message id is not exposed to replies`
+    );
+  }
   let query = admin
     .from('appointment_reminder_log')
     .update({
       sent_at: confirmation.sentAt,
-      wa_message_id: confirmation.waMessageId,
+      wa_message_id: sameGeneration ? confirmation.waMessageId : null,
     })
     .eq('account_id', confirmation.accountId)
     .eq('id', confirmation.claimId);
@@ -69,6 +107,7 @@ export async function stampClaimSent(
     return 'failed';
   }
   if (data) return 'stamped';
+  if (!sameGeneration) return 'gone';
   // The claim moved before this send was confirmed: the cron took it
   // over — and sent again — or a takeover's failed send released it.
   // Renewed, the row describes the later send and the earlier message
