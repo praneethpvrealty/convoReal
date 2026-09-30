@@ -50,8 +50,12 @@ export function summarize(label, added, existing) {
   return lines.join('\n') + '\n';
 }
 
-export function readReport(text) {
-  const report = text.trim() ? JSON.parse(text) : {};
+export function readReport(text, { allowEmpty = false } = {}) {
+  if (!text.trim()) {
+    if (allowEmpty) return {};
+    throw new Error('npm audit wrote no report');
+  }
+  const report = JSON.parse(text);
   if (report.error) {
     throw new Error(
       `npm audit failed: ${report.error.summary ?? report.error.code}`
@@ -62,7 +66,9 @@ export function readReport(text) {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const [label, basePath, headPath] = process.argv.slice(2);
-  const baseReport = readReport(readFileSync(basePath, 'utf8'));
+  const baseReport = readReport(readFileSync(basePath, 'utf8'), {
+    allowEmpty: true,
+  });
   const added = newAdvisories(
     baseReport,
     readReport(readFileSync(headPath, 'utf8'))

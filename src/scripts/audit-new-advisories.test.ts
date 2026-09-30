@@ -100,8 +100,13 @@ describe('summarize', () => {
 });
 
 describe('readReport', () => {
-  it('reads an empty file as a clean report', () => {
-    expect(readReport('')).toEqual({});
+  it('reads an empty base report as clean', () => {
+    expect(readReport('', { allowEmpty: true })).toEqual({});
+  });
+
+  it('fails on an empty head report rather than reporting clean', () => {
+    expect(() => readReport('')).toThrow('npm audit wrote no report');
+    expect(() => readReport('  \n')).toThrow('npm audit wrote no report');
   });
 
   it('fails when npm audit itself failed rather than reporting clean', () => {
