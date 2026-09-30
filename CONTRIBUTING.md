@@ -61,8 +61,10 @@ logs will get to a fix fastest.
   after each fix; use it only if the review failed to start or errored. Resolve
   the findings and merge; ask again only when a fix changes behaviour beyond
   what the finding asked for.
-  High-risk standalone PRs get a review after every behaviour-changing push. See
-  `AGENTS.md` → Batched production releases.
+  High-risk standalone PRs get `@codex review` and `@codex security review` after
+  every behaviour-changing push. A Codex security finding of any severity is fixed,
+  or answered with the reason it does not apply, before merging. See `AGENTS.md` →
+  Batched production releases.
 - Vercel previews are disabled. Only `main` automatically deploys; do not manually
   deploy feature or release branches. The mobile EAS channel named `preview` is separate.
 - High-risk changes listed in `AGENTS.md` ship separately from routine batches.
