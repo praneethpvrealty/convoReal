@@ -22,6 +22,11 @@
 // ============================================================
 
 import { BRANDING } from '@/config/branding';
+import {
+  classifyGeminiKeyFailure,
+  resolveGeminiKeys,
+  withGeminiKeys,
+} from '@/lib/ai/gemini-keys';
 
 // Shown to users when no image provider can serve the request. The
 // provider/env-var detail goes to the server log instead: the people
@@ -254,6 +259,42 @@ export async function generateWithStability(
   return `data:${contentType};base64,${Buffer.from(buffer).toString('base64')}`;
 }
 
+// A provider saying its own account is out of credit, unauthorised or
+// over quota is our billing problem, not the agent's. Passing its 402
+// through told agents with a full ConvoReal wallet that they were out
+// of credits, and showed them Google's AI Studio billing link.
+const PROVIDER_ACCOUNT_STATUSES = new Set([401, 402, 403, 429]);
+
+function isProviderAccountFailure(err: unknown): boolean {
+  const status = (err as StatusError)?.status;
+  if (status && PROVIDER_ACCOUNT_STATUSES.has(status)) return true;
+  const message = err instanceof Error ? err.message : String(err);
+  return classifyGeminiKeyFailure(message) !== null;
+}
+
+function toCallerError(err: unknown): unknown {
+  if (!isProviderAccountFailure(err)) return err;
+  console.error(
+    '[image-gen] Provider account unavailable:',
+    err instanceof Error ? err.message : err
+  );
+  return statusError(IMAGE_PROVIDER_UNAVAILABLE, 503);
+}
+
+async function hasGeminiKey(): Promise<boolean> {
+  return (await resolveGeminiKeys({})).length > 0;
+}
+
+function generateWithGeminiPool(
+  prompt: string,
+  aspectRatio: string,
+  signal: () => AbortSignal | undefined
+): Promise<string> {
+  return withGeminiKeys({}, (entry) =>
+    generateWithImagen(prompt, aspectRatio, entry.key, signal())
+  );
+}
+
 export interface GenerateAiImageOptions {
   prompt: string;
   aspectRatio?: string;
@@ -272,6 +313,16 @@ export interface GenerateAiImageOptions {
 export async function generateAiImage(
   opts: GenerateAiImageOptions
 ): Promise<string> {
+  try {
+    return await generateWithProviders(opts);
+  } catch (err) {
+    throw toCallerError(err);
+  }
+}
+
+async function generateWithProviders(
+  opts: GenerateAiImageOptions
+): Promise<string> {
   const {
     prompt,
     aspectRatio = '1:1',
@@ -283,17 +334,16 @@ export async function generateAiImage(
   // primary provider times out would make every fallback abort immediately.
   const providerSignal = () =>
     timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined;
-  const geminiKey = process.env.GEMINI_API_KEY;
   const stabilityKey = process.env.STABILITY_API_KEY;
 
   if (provider === 'google') {
-    if (!geminiKey) {
+    if (!(await hasGeminiKey())) {
       console.error(
         '[image-gen] GEMINI_API_KEY is not configured on the server.'
       );
       throw statusError(IMAGE_PROVIDER_UNAVAILABLE, 500);
     }
-    return generateWithImagen(prompt, aspectRatio, geminiKey, providerSignal());
+    return generateWithGeminiPool(prompt, aspectRatio, providerSignal);
   }
 
   if (provider === 'stability') {
@@ -312,17 +362,12 @@ export async function generateAiImage(
         providerSignal()
       );
     } catch (stErr) {
-      if (geminiKey) {
+      if (await hasGeminiKey()) {
         console.warn(
           '[image-gen] Stability path failed, falling back to Gemini:',
           (stErr as Error).message
         );
-        return generateWithImagen(
-          prompt,
-          aspectRatio,
-          geminiKey,
-          providerSignal()
-        );
+        return generateWithGeminiPool(prompt, aspectRatio, providerSignal);
       }
       throw stErr;
     }
@@ -340,17 +385,12 @@ export async function generateAiImage(
     }
     return await generateWithHuggingFace(prompt, hfToken, providerSignal());
   } catch (hfErr) {
-    if (geminiKey) {
+    if (await hasGeminiKey()) {
       console.warn(
         '[image-gen] Hugging Face path failed, falling back to Gemini:',
         (hfErr as Error).message
       );
-      return generateWithImagen(
-        prompt,
-        aspectRatio,
-        geminiKey,
-        providerSignal()
-      );
+      return generateWithGeminiPool(prompt, aspectRatio, providerSignal);
     }
     if (stabilityKey) {
       console.warn(

@@ -4,6 +4,21 @@ import {
   generateAiImage,
   IMAGE_PROVIDER_UNAVAILABLE,
 } from './image-gen';
+import { resetGeminiKeyState } from './gemini-keys';
+
+vi.mock('@/lib/supabase/admin', () => ({
+  supabaseAdmin: () => {
+    const query = {
+      select: () => query,
+      eq: () => query,
+      order: () => query,
+      update: () => query,
+      then: (resolve: (value: { data: never[]; error: null }) => void) =>
+        resolve({ data: [], error: null }),
+    };
+    return { from: () => query };
+  },
+}));
 
 function imageResponse() {
   return {
@@ -29,6 +44,7 @@ function geminiImageResponse() {
 }
 
 afterEach(() => {
+  resetGeminiKeyState();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
@@ -182,5 +198,58 @@ describe('generateAiImage — Hugging Face fallback', () => {
     >;
     expect(calls[0]?.[1].signal).toBe(expired.signal);
     expect(calls[1]?.[1].signal).toBe(fallbackSignal);
+  });
+});
+
+describe('generateAiImage — Gemini account failures', () => {
+  const prepaymentDepleted = {
+    ok: false,
+    status: 402,
+    statusText: 'Payment Required',
+    json: async () => ({
+      error: {
+        message:
+          'Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing.',
+      },
+    }),
+  };
+
+  it('never surfaces a provider 402 as the caller running out of credits', async () => {
+    vi.stubEnv('GEMINI_API_KEY', 'gm-key');
+    vi.stubEnv('GEMINI_FALLBACK_API_KEYS', '');
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(prepaymentDepleted))
+    );
+
+    const err: Error & { status?: number } = await generateAiImage({
+      prompt: 'x',
+      provider: 'google',
+    }).then(
+      () => new Error('expected a rejection'),
+      (e: Error & { status?: number }) => e
+    );
+
+    expect(err.status).toBe(503);
+    expect(err.message).toBe(IMAGE_PROVIDER_UNAVAILABLE);
+    expect(err.message).not.toMatch(/ai\.studio|prepayment/i);
+  });
+
+  it('rotates to a fallback Gemini key when the primary is depleted', async () => {
+    vi.stubEnv('GEMINI_API_KEY', 'gm-depleted');
+    vi.stubEnv('GEMINI_FALLBACK_API_KEYS', 'gm-spare');
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve(
+        url.includes('gm-depleted') ? prepaymentDepleted : geminiImageResponse()
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const out = await generateAiImage({ prompt: 'x', provider: 'google' });
+
+    expect(out).toMatch(/^data:image\/png;base64,/);
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('gm-spare');
   });
 });
