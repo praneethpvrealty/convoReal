@@ -56,6 +56,11 @@ logs will get to a fix fastest.
 - Keep each member PR focused, reviewed by Codex, and green in GitHub CI. Merge
   reviewed members into the release branch, then open one combined release PR to
   `main` and squash-merge it after green CI. Web changes build before this merge.
+- Codex reviews each member PR once, not on every push. Open it as a draft, mark
+  it ready once CI is green, and comment `@codex review` if no review starts.
+  Resolve the findings and merge; ask again only when a fix changes behaviour.
+  High-risk standalone PRs get a review after every behaviour-changing push. See
+  `AGENTS.md` → Batched production releases.
 - Vercel previews are disabled. Only `main` automatically deploys; do not manually
   deploy feature or release branches. The mobile EAS channel named `preview` is separate.
 - High-risk changes listed in `AGENTS.md` ship separately from routine batches.
