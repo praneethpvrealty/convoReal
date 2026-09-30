@@ -84,6 +84,7 @@ jobs:
             deps:
               - '**/package.json'
               - '**/package-lock.json'
+              - '**/npm-shrinkwrap.json'
               - 'src/scripts/audit-new-advisories.mjs'
               - '.github/workflows/ci.yml'
             # Adding or moving a file here changes the route SURFACE, which
@@ -274,11 +275,11 @@ jobs:
             name=${dir/#./root}
             base="$RUNNER_TEMP/base/$name"
             mkdir -p "$base"
-            for file in package.json package-lock.json; do
+            for file in package.json package-lock.json npm-shrinkwrap.json; do
               git show "$BASE_SHA:$dir/$file" > "$base/$file" 2>/dev/null || rm -f "$base/$file"
             done
             : > "$RUNNER_TEMP/base-$name.json"
-            if [ -f "$base/package-lock.json" ]; then
+            if [ -f "$base/package-lock.json" ] || [ -f "$base/npm-shrinkwrap.json" ]; then
               (cd "$base" && npm audit --omit=dev --package-lock-only --json > "$RUNNER_TEMP/base-$name.json") || true
             fi
             (cd "$dir" && npm audit --omit=dev --package-lock-only --json > "$RUNNER_TEMP/head-$name.json") || true
