@@ -53,6 +53,7 @@ jobs:
       mobile: ${{ steps.filter.outputs.mobile != 'false' }}
       go: ${{ steps.filter.outputs.go != 'false' }}
       newRoutes: ${{ steps.filter.outputs.newRoutes != 'false' }}
+      deps: ${{ steps.filter.outputs.deps != 'false' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -79,6 +80,11 @@ jobs:
               - '.github/workflows/ci.yml'
             go:
               - 'go-ingress/**'
+              - '.github/workflows/ci.yml'
+            deps:
+              - '**/package.json'
+              - '**/package-lock.json'
+              - 'src/scripts/audit-new-advisories.mjs'
               - '.github/workflows/ci.yml'
             # Adding or moving a file here changes the route SURFACE, which
             # is the one class of breakage typecheck cannot see: a route only
@@ -241,6 +247,45 @@ jobs:
           cache-dependency-path: go-ingress/go.sum
       - run: go test ./...
 
+  # Fails only on a high or critical advisory in production dependencies that
+  # this change adds. Every lockfile already carries some, so a plain
+  # `npm audit --audit-level=high` would turn every PR red for debt it did not
+  # create. The base is the PR's base commit, or the previous tip on a push to
+  # main; a dispatched run has no base and only reports.
+  audit:
+    name: npm audit (new advisories)
+    needs: changes
+    if: needs.changes.outputs.deps == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Compare advisories against the base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+        run: |
+          if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then BASE_SHA=$GITHUB_SHA; fi
+          status=0
+          for dir in . mobile mcp; do
+            name=${dir/#./root}
+            base="$RUNNER_TEMP/base/$name"
+            mkdir -p "$base"
+            for file in package.json package-lock.json; do
+              git show "$BASE_SHA:$dir/$file" > "$base/$file" 2>/dev/null || rm -f "$base/$file"
+            done
+            : > "$RUNNER_TEMP/base-$name.json"
+            if [ -f "$base/package-lock.json" ]; then
+              (cd "$base" && npm audit --omit=dev --package-lock-only --json > "$RUNNER_TEMP/base-$name.json") || true
+            fi
+            (cd "$dir" && npm audit --omit=dev --package-lock-only --json > "$RUNNER_TEMP/head-$name.json") || true
+            node src/scripts/audit-new-advisories.mjs "$dir" "$RUNNER_TEMP/base-$name.json" "$RUNNER_TEMP/head-$name.json" || status=1
+          done
+          exit $status
+
   # The single required status check. It always reports, so a PR that skips
   # every job (docs-only, say) still goes green instead of hanging.
   #
@@ -254,7 +299,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [changes, lint, typecheck, test, build, mobile, go-ingress]
+    needs: [changes, lint, typecheck, test, build, mobile, go-ingress, audit]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if change detection did not run
