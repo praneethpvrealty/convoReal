@@ -3,7 +3,12 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
-import { generateAiImage, IMAGE_PROVIDER_UNAVAILABLE, type StatusError } from '@/lib/ai/image-gen';
+import {
+  generateAiImage,
+  hasImageProvider,
+  IMAGE_PROVIDER_UNAVAILABLE,
+  type StatusError,
+} from '@/lib/ai/image-gen';
 
 // POST /api/ai/enhance-image
 // Calls Imagen or Hugging Face to generate/enhance listing images
@@ -35,22 +40,9 @@ export async function POST(request: Request) {
 
     const { prompt, aspectRatio = '1:1', image } = body;
 
-    // Validate provider keys before burning credits. The Hugging Face
-    // path can fall back to Imagen, so it's usable as long as either key
-    // is present.
-    if (provider === 'google') {
-      if (!process.env.GEMINI_API_KEY) {
-        console.error('[AI Enhance] GEMINI_API_KEY is not configured on the server.');
-        return NextResponse.json({ error: IMAGE_PROVIDER_UNAVAILABLE }, { status: 500 });
-      }
-    } else if (provider === 'stability') {
-      if (!process.env.STABILITY_API_KEY && !process.env.GEMINI_API_KEY) {
-        console.error('[AI Enhance] STABILITY_API_KEY is not configured on the server.');
-        return NextResponse.json({ error: IMAGE_PROVIDER_UNAVAILABLE }, { status: 500 });
-      }
-    } else if (!process.env.HF_ACCESS_TOKEN && !process.env.GEMINI_API_KEY) {
-      console.error('[AI Enhance] No image provider configured (HF_ACCESS_TOKEN or GEMINI_API_KEY).');
-      return NextResponse.json({ error: IMAGE_PROVIDER_UNAVAILABLE }, { status: 400 });
+    if (!(await hasImageProvider(provider))) {
+      console.error(`[AI Enhance] No usable key for image provider "${provider}".`);
+      return NextResponse.json({ error: IMAGE_PROVIDER_UNAVAILABLE }, { status: 503 });
     }
 
     const cost = AI_FEATURE_COSTS.image_enhance;

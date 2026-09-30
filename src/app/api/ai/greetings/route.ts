@@ -5,7 +5,7 @@ import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { generateText } from '@/lib/ai/gemini';
-import { generateAiImage, IMAGE_PROVIDER_UNAVAILABLE } from '@/lib/ai/image-gen';
+import { generateAiImage, hasImageProvider, IMAGE_PROVIDER_UNAVAILABLE } from '@/lib/ai/image-gen';
 
 // POST /api/ai/greetings
 // Generates a personalized text greeting and a festive graphic card image
@@ -36,10 +36,8 @@ export async function POST(request: Request) {
 
     const { occasion, contactName, generateImage = false } = body;
 
-    // Validate image-provider config if a card image is requested. Either
-    // a Hugging Face token or a Gemini key (Imagen fallback) works.
-    if (generateImage && !process.env.HF_ACCESS_TOKEN && !process.env.GEMINI_API_KEY) {
-      console.error('[AI Greetings] No image provider configured (HF_ACCESS_TOKEN or GEMINI_API_KEY).');
+    if (generateImage && !(await hasImageProvider('huggingface'))) {
+      console.error('[AI Greetings] No image provider configured.');
       return NextResponse.json({ error: IMAGE_PROVIDER_UNAVAILABLE }, { status: 400 });
     }
 

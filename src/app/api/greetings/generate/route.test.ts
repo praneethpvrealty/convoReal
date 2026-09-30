@@ -47,6 +47,7 @@ vi.mock('@/lib/ai/gemini', () => ({ generateText }));
 
 vi.mock('@/lib/ai/image-gen', () => ({
   generateAiImage,
+  hasImageProvider: async () => true,
   IMAGE_PROVIDER_UNAVAILABLE: 'Image provider unavailable',
 }));
 
