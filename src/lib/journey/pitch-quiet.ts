@@ -59,8 +59,15 @@ const MONTHS = [
 const DAY_THEN_MONTH =
   /\b(\d{1,2})\s*(?:st|nd|rd|th)?\s+(?:of\s+)?([a-z]{3,})\b/gi;
 const MONTH_THEN_DAY = /\b([a-z]{3,})\.?\s+(\d{1,2})\s*(?:st|nd|rd|th)?\b/gi;
-const IN_N =
-  /\b(?:in|after)\s+(?:a\s+|another\s+)?(\d{1,3}|a|couple of|few)\s*(day|week|month)s?\b/i;
+const COUNT = '(\\d{1,3}|an?|one|two|three|four|five|six|couple of|few)';
+const IN_N = new RegExp(
+  `\\b(?:in|after|for|wait)\\s+(?:for\\s+)?(?:a\\s+|another\\s+)?${COUNT}\\s*(day|week|month)s?\\b`,
+  'i'
+);
+const N_LATER = new RegExp(
+  `\\b${COUNT}\\s*(day|week|month)s?\\s+(?:later|from now)\\b`,
+  'i'
+);
 const NEXT_UNIT = /\bnext\s+(week|month)\b/i;
 const TOMORROW = /\btomorrow\b/i;
 
@@ -98,9 +105,19 @@ function readDayAndMonth(value: string): { day: number; month: number } | null {
 
 function countWord(word: string): number {
   const lower = word.toLowerCase();
-  if (lower === 'a') return 1;
-  if (lower === 'couple of') return 2;
-  if (lower === 'few') return 3;
+  const words: Record<string, number> = {
+    a: 1,
+    an: 1,
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    'couple of': 2,
+    few: 3,
+  };
+  if (words[lower]) return words[lower];
   const n = parseInt(lower, 10);
   return Number.isFinite(n) ? n : 0;
 }
@@ -131,7 +148,7 @@ export function parseCheckBackDate(
     );
   }
 
-  const inN = value.match(IN_N);
+  const inN = value.match(IN_N) ?? value.match(N_LATER);
   if (inN) {
     const count = countWord(inN[1]);
     const unit = inN[2].toLowerCase();

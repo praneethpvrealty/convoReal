@@ -33,6 +33,21 @@ describe('parseCheckBackDate', () => {
     expect(parseCheckBackDate('after a month', NOW)?.getMonth()).toBe(8);
   });
 
+  it('[JRN-015] reads a wait the client asks for', () => {
+    expect(
+      parseCheckBackDate('You need to wait for a week', NOW)?.getDate()
+    ).toBe(30);
+    expect(parseCheckBackDate('Out of town for 2 weeks', NOW)?.getDate()).toBe(
+      6
+    );
+    expect(parseCheckBackDate('wait a couple of days', NOW)?.getDate()).toBe(
+      25
+    );
+    expect(parseCheckBackDate('one week later', NOW)?.getDate()).toBe(30);
+    expect(parseCheckBackDate('after three days', NOW)?.getDate()).toBe(26);
+    expect(parseCheckBackDate('Out of town', NOW)).toBeNull();
+  });
+
   it('refuses to guess from an answer that names nothing', () => {
     expect(parseCheckBackDate('will let you know', NOW)).toBeNull();
     expect(parseCheckBackDate('after we discuss internally', NOW)).toBeNull();
