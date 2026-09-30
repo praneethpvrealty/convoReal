@@ -21,7 +21,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { addDays, format } from 'date-fns';
+import { addDays, differenceInCalendarDays, format } from 'date-fns';
 
 import type { ParsedClientReply } from '@/lib/ai/gemini';
 import {
@@ -48,7 +48,11 @@ import {
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { createNotification } from '@/lib/notifications/create';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
-import { sendInteractiveButtons } from '@/lib/whatsapp/meta-api';
+import {
+  sendInteractiveButtons,
+  type InteractiveButton,
+} from '@/lib/whatsapp/meta-api';
+import { JOURNEY_CHECKIN_TEMPLATE_NAME } from '@/lib/whatsapp/journey-checkin-template';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { phonesMatch } from '@/lib/whatsapp/phone-utils';
 import {
@@ -191,10 +195,232 @@ export function buildClientAskBody(args: {
 export const TIMELINE_ASK_FINGERPRINT =
   /when should we check back with you|when we should check back/i;
 
+/** The client's own prefix for confirming a date they typed. */
+export const CHECKBACK_CONFIRM_PREFIX = 'jcd_';
+
+/** Sent when the client wants a different date. Carries the timeline
+ *  fingerprint so the typed answer lands back in captureTypedCheckBack,
+ *  and is recognised there so the new date is not asked about again. */
+export const CHECKBACK_ALT_PROMPT =
+  'No problem — when should we check back with you? Reply with a date, like "15 October".';
+
+function describeSpan(due: Date, now: Date): string | null {
+  const days = differenceInCalendarDays(due, now);
+  if (days <= 0) return null;
+  if (days === 1) return 'tomorrow';
+  if (days === 7) return 'in a week';
+  if (days % 7 === 0 && days <= 56) return `in ${days / 7} weeks`;
+  if (days < 28) return `in ${days} days`;
+  return null;
+}
+
+export function buildCheckBackConfirmBody(args: {
+  contactName?: string | null;
+  due: Date;
+  now?: Date;
+}): string {
+  const first = firstName(args.contactName);
+  const span = describeSpan(args.due, args.now ?? new Date());
+  const when = format(args.due, 'EEEE, d MMMM');
+  return (
+    `👍 Noted${first ? `, ${first}` : ''} — shall I check back with you ` +
+    `${span ? `${span}, on` : 'on'} *${when}*?`
+  );
+}
+
+export function buildCheckBackConfirmButtons(due: Date): InteractiveButton[] {
+  return [
+    {
+      id: `${CHECKBACK_CONFIRM_PREFIX}ok:${format(due, 'yyyy-MM-dd')}`,
+      title: `Yes, ${format(due, 'd MMM')}`,
+    },
+    { id: `${CHECKBACK_CONFIRM_PREFIX}alt`, title: 'Another date' },
+  ];
+}
+
+export function parseCheckBackConfirmReplyId(
+  replyId: string
+): { confirmed: true; due: Date } | { confirmed: false } | null {
+  if (replyId === `${CHECKBACK_CONFIRM_PREFIX}alt`) return { confirmed: false };
+  const match = replyId.match(
+    new RegExp(`^${CHECKBACK_CONFIRM_PREFIX}ok:(\\d{4})-(\\d{2})-(\\d{2})$`)
+  );
+  if (!match) return null;
+  const due = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3])
+  );
+  if (!Number.isFinite(due.getTime()) || due.getDate() !== Number(match[3]))
+    return null;
+  return { confirmed: true, due };
+}
+
+export function buildCheckBackDoneAck(due: Date): string {
+  return `📅 Done — we'll check back with you on ${format(due, 'd MMMM')}.`;
+}
+
+interface FollowupItem {
+  id: string;
+  contact_id: string;
+  property_id: string;
+  stage_id: string;
+}
+
+/**
+ * Stamps the date a client is to be checked back on: the journey
+ * item's planned step (and next stage) when there is one, and the
+ * system follow-up to-do for that contact×property, moved rather than
+ * duplicated when one is already open.
+ */
+async function planFollowup(args: {
+  db: SupabaseClient;
+  accountId: string;
+  ownerUserId: string;
+  contactId: string;
+  item: FollowupItem | null;
+  subjectName: string;
+  label: string;
+  due: Date;
+}): Promise<void> {
+  const { db, accountId, ownerUserId, contactId, item, due } = args;
+  const propertyId = item?.property_id ?? null;
+
+  if (item) {
+    const itemUpdate: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+      planned_at: format(due, 'yyyy-MM-dd'),
+    };
+    const { data: stageRows } = await db
+      .from('journey_stages')
+      .select('id, name, position')
+      .eq('account_id', accountId)
+      .not('pipeline_stage_id', 'is', null)
+      .order('position');
+    const stages = (stageRows ?? []) as StageRow[];
+    const idx = stages.findIndex((s) => s.id === item.stage_id);
+    const next = idx >= 0 ? stages[idx + 1] : undefined;
+    if (next) itemUpdate.planned_stage_id = next.id;
+    await db.from('journey_items').update(itemUpdate).eq('id', item.id);
+  }
+
+  let existing = db
+    .from('todos')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .eq('completed', false)
+    .eq('source', 'system');
+  existing = propertyId
+    ? existing.eq('property_id', propertyId)
+    : existing.is('property_id', null);
+  const { data: existingTodo } = await existing.limit(1).maybeSingle();
+  const todo = {
+    account_id: accountId,
+    user_id: ownerUserId,
+    assigned_to: ownerUserId,
+    title: item
+      ? `Follow up with ${args.subjectName} — ${args.label}`
+      : `Follow up with ${args.subjectName}`,
+    due_date: due.toISOString(),
+    priority: 'medium',
+    completed: false,
+    contact_id: contactId,
+    property_id: propertyId,
+    source: 'system',
+  };
+  const { error: todoError } = existingTodo
+    ? await db.from('todos').update(todo).eq('id', existingTodo.id)
+    : await db.from('todos').insert(todo);
+  if (todoError)
+    console.error('[client-response] follow-up todo failed:', todoError.message);
+}
+
+/**
+ * A date the client typed: the quiet window, the journey event, the
+ * follow-up to-do and the agent's notification, all before the client
+ * is asked to confirm — so the reminder exists whether or not they tap.
+ */
+async function recordTypedCheckBack(args: {
+  db: SupabaseClient;
+  accountId: string;
+  ownerUserId: string;
+  contact: { id: string; name?: string | null };
+  itemId: string | null;
+  text: string;
+  due: Date;
+}): Promise<void> {
+  const { db, accountId, ownerUserId, contact, due } = args;
+
+  const { error: quietError } = await db
+    .from('contacts')
+    .update({ pitch_quiet_until: quietUntilFrom(due).toISOString() })
+    .eq('id', contact.id)
+    .eq('account_id', accountId);
+  if (quietError)
+    console.error('[client-response] quiet window failed:', quietError.message);
+
+  let item: FollowupItem | null = null;
+  let label = 'their enquiry';
+  if (args.itemId) {
+    const { data } = await db
+      .from('journey_items')
+      .select('id, contact_id, property_id, stage_id')
+      .eq('id', args.itemId)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    item = data as FollowupItem | null;
+    if (item && item.contact_id !== contact.id) item = null;
+  }
+  if (item) {
+    const { data: property } = await db
+      .from('properties')
+      .select('id, title, property_code')
+      .eq('id', item.property_id)
+      .maybeSingle();
+    if (property) label = propertyLabel(property as PropertyRow);
+    const { error: evError } = await db.from('journey_events').insert({
+      account_id: accountId,
+      item_id: item.id,
+      event_type: 'client_response',
+      reason: `Client asked to be checked back on ${format(due, 'd MMM yyyy')}: "${args.text.trim().slice(0, RESPONSE_REASON_LIMIT)}"`,
+    });
+    if (evError)
+      console.error('[client-response] check-back event failed:', evError.message);
+  }
+
+  const subjectName = contact.name || 'client';
+  await planFollowup({
+    db,
+    accountId,
+    ownerUserId,
+    contactId: contact.id,
+    item,
+    subjectName,
+    label,
+    due,
+  });
+
+  await createNotification({
+    accountId,
+    userId: ownerUserId,
+    type: 'new_message',
+    title: `📅 ${subjectName}: check back on ${format(due, 'd MMM')}`,
+    body: item
+      ? `Follow-up to-do added for ${label}.`
+      : 'Follow-up to-do added.',
+    entityType: 'contact',
+    entityId: contact.id,
+    link: `/journey?contact=${contact.id}`,
+  });
+}
+
 export interface TypedCheckBackArgs {
   db: SupabaseClient;
   accountId: string;
-  contactId: string;
+  /** The WhatsApp config owner — to-do owner + notification recipient. */
+  ownerUserId: string;
+  contact: { id: string; name?: string | null };
   /** What the client typed. */
   text: string;
   /** The bot message immediately before it. */
@@ -202,36 +428,125 @@ export interface TypedCheckBackArgs {
   now?: Date;
 }
 
+export interface TypedCheckBackReply {
+  text: string;
+  buttons?: InteractiveButton[];
+}
+
 /**
  * A client who answers the timeline question in words rather than by
  * tapping one of the three buttons.
  *
- * Everyone does this — "By the 5th of September" — and until now it
- * landed nowhere: no acknowledgement, no follow-up date, and the next
- * thing they heard was a new listing. Returns the line to send back, or
- * null when the standing question is not the timeline one.
+ * Everyone does this — "By the 5th of September", "You need to wait for
+ * a week" — and until now it landed nowhere: no acknowledgement, no
+ * follow-up date, and the next thing they heard was a new listing. A
+ * named date is recorded as the follow-up reminder at once and the
+ * client is asked to confirm it; returns the reply to send, or null
+ * when the standing question is not the timeline one.
  */
 export async function captureTypedCheckBack(
   args: TypedCheckBackArgs
-): Promise<string | null> {
-  if (!TIMELINE_ASK_FINGERPRINT.test(args.previousBotText || '')) return null;
+): Promise<TypedCheckBackReply | null> {
+  const previous = args.previousBotText || '';
+  if (!TIMELINE_ASK_FINGERPRINT.test(previous)) return null;
   const now = args.now ?? new Date();
   const named = parseCheckBackDate(args.text, now);
-  const until = quietUntilFrom(named, now);
 
-  const { error } = await args.db
-    .from('contacts')
-    .update({ pitch_quiet_until: until.toISOString() })
-    .eq('id', args.contactId)
-    .eq('account_id', args.accountId);
-  if (error) {
-    console.error('[client-response] typed quiet window failed:', error.message);
-    return null;
+  if (!named) {
+    const { error } = await args.db
+      .from('contacts')
+      .update({ pitch_quiet_until: quietUntilFrom(null, now).toISOString() })
+      .eq('id', args.contact.id)
+      .eq('account_id', args.accountId);
+    if (error) {
+      console.error(
+        '[client-response] typed quiet window failed:',
+        error.message
+      );
+      return null;
+    }
+    return {
+      text: "👍 No problem — take your time. We're here whenever you're ready.",
+    };
   }
 
-  return named
-    ? `👍 Noted — we'll check back with you around ${format(named, 'd MMMM')}.`
-    : "👍 No problem — take your time. We're here whenever you're ready.";
+  const due = quietUntilFrom(named, now);
+  await recordTypedCheckBack({
+    db: args.db,
+    accountId: args.accountId,
+    ownerUserId: args.ownerUserId,
+    contact: args.contact,
+    itemId: await latestRespondedItemId(
+      args.db,
+      args.accountId,
+      args.contact.id
+    ),
+    text: args.text,
+    due,
+  });
+
+  if (previous.trim() === CHECKBACK_ALT_PROMPT)
+    return { text: buildCheckBackDoneAck(due) };
+  return {
+    text: buildCheckBackConfirmBody({
+      contactName: args.contact.name,
+      due,
+      now,
+    }),
+    buttons: buildCheckBackConfirmButtons(due),
+  };
+}
+
+/**
+ * The client's tap on a `jcd_` confirmation. The reminder was filed
+ * when they typed the date, so "yes" only acknowledges it; "another
+ * date" asks again, and the typed answer moves the same reminder.
+ */
+export async function handleCheckBackConfirmReply(
+  args: HandleClientFollowupArgs
+): Promise<boolean> {
+  const parsed = parseCheckBackConfirmReplyId(args.replyId);
+  if (!parsed) return false;
+  await sendWhatsAppMessageAndPersist({
+    accountId: args.accountId,
+    userId: args.ownerUserId,
+    contactId: args.contact.id,
+    conversationId: args.conversationId,
+    kind: 'text',
+    senderType: 'bot',
+    text: parsed.confirmed
+      ? buildCheckBackDoneAck(parsed.due)
+      : CHECKBACK_ALT_PROMPT,
+  });
+  return true;
+}
+
+/** Sends the confirm question inside the open window. */
+export async function sendCheckBackConfirm(args: {
+  db: SupabaseClient;
+  accountId: string;
+  ownerUserId: string;
+  contactId: string;
+  conversationId: string;
+  reply: TypedCheckBackReply;
+}): Promise<boolean> {
+  const res = await sendWhatsAppMessageAndPersist({
+    accountId: args.accountId,
+    userId: args.ownerUserId,
+    contactId: args.contactId,
+    conversationId: args.conversationId,
+    ...(args.reply.buttons
+      ? {
+          kind: 'interactive' as const,
+          interactiveType: 'buttons' as const,
+          interactiveBody: args.reply.text,
+          interactiveButtons: args.reply.buttons,
+        }
+      : { kind: 'text' as const, text: args.reply.text }),
+    senderType: 'bot',
+    customDbClient: args.db,
+  });
+  return res.success;
 }
 
 export type ClientAskOutcome =
@@ -1871,24 +2186,6 @@ async function applyTimelineChoice(
   if (evError)
     console.error('[client-response] choice event failed:', evError.message);
 
-  const itemUpdate: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
-  if (due) {
-    itemUpdate.planned_at = format(due, 'yyyy-MM-dd');
-    const { data: stageRows } = await db
-      .from('journey_stages')
-      .select('id, name, position')
-      .eq('account_id', accountId)
-      .not('pipeline_stage_id', 'is', null)
-      .order('position');
-    const stages = (stageRows ?? []) as StageRow[];
-    const idx = stages.findIndex((s) => s.id === item.stage_id);
-    const next = idx >= 0 ? stages[idx + 1] : undefined;
-    if (next) itemUpdate.planned_stage_id = next.id;
-  }
-  await db.from('journey_items').update(itemUpdate).eq('id', item.id);
-
   // The to-do belongs to the lead's branch, so it is filed against the
   // journey item's contact rather than whoever tapped.
   const { data: subject } = await db
@@ -1902,36 +2199,21 @@ async function applyTimelineChoice(
     'client';
 
   if (due) {
-    const { data: existingTodo } = await db
-      .from('todos')
-      .select('id')
-      .eq('account_id', accountId)
-      .eq('contact_id', item.contact_id)
-      .eq('property_id', item.property_id)
-      .eq('completed', false)
-      .eq('source', 'system')
-      .limit(1)
-      .maybeSingle();
-    const todo = {
-      account_id: accountId,
-      user_id: ownerUserId,
-      assigned_to: ownerUserId,
-      title: `Follow up with ${subjectName} — ${label}`,
-      due_date: due.toISOString(),
-      priority: 'medium',
-      completed: false,
-      contact_id: item.contact_id,
-      property_id: item.property_id,
-      source: 'system',
-    };
-    const { error: todoError } = existingTodo
-      ? await db.from('todos').update(todo).eq('id', existingTodo.id)
-      : await db.from('todos').insert(todo);
-    if (todoError)
-      console.error(
-        '[client-response] follow-up todo failed:',
-        todoError.message
-      );
+    await planFollowup({
+      db,
+      accountId,
+      ownerUserId,
+      contactId: item.contact_id,
+      item,
+      subjectName,
+      label,
+      due,
+    });
+  } else {
+    await db
+      .from('journey_items')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', item.id);
   }
 
   if (byAgent) {
@@ -2021,7 +2303,7 @@ export async function handleInboxCheckinReply(
 
   const { data: outboundData } = await db
     .from('messages')
-    .select('content_text, created_at')
+    .select('content_text, created_at, template_name')
     .eq('conversation_id', conversationId)
     .in('sender_type', ['agent', 'bot'])
     .order('created_at', { ascending: false })
@@ -2031,11 +2313,14 @@ export async function handleInboxCheckinReply(
     (outboundData ?? []) as Array<{
       content_text: string | null;
       created_at: string;
+      template_name?: string | null;
     }>
   ).filter(
     (m) =>
       new Date(m.created_at).getTime() > cutoff &&
-      (fromButton || isJourneyCheckinText(m.content_text))
+      (fromButton ||
+        isJourneyCheckinText(m.content_text) ||
+        m.template_name === JOURNEY_CHECKIN_TEMPLATE_NAME)
   );
   if (checkins.length === 0) return 'not_checkin';
 
@@ -2109,6 +2394,32 @@ export async function handleInboxCheckinReply(
   });
 
   if (!fromButton && looksLikeQuestion(response)) return 'logged';
+
+  const named = fromButton ? null : parseCheckBackDate(response);
+  if (named) {
+    const due = quietUntilFrom(named);
+    await recordTypedCheckBack({
+      db,
+      accountId,
+      ownerUserId,
+      contact,
+      itemId: item.id,
+      text: response,
+      due,
+    });
+    const sent = await sendCheckBackConfirm({
+      db,
+      accountId,
+      ownerUserId,
+      contactId: contact.id,
+      conversationId,
+      reply: {
+        text: buildCheckBackConfirmBody({ contactName: contact.name, due }),
+        buttons: buildCheckBackConfirmButtons(due),
+      },
+    });
+    return sent ? 'logged_and_asked' : 'logged';
+  }
 
   const askOutcome = await askClientForTimeline({
     db,

@@ -1801,6 +1801,24 @@
             "src/lib/journey/compartments.ts",
             "src/app/api/journey/compartments/route.ts"
           ]
+        },
+        {
+          "id": "JRN-015",
+          "rule": "A client who types when to be checked back on — in reply to the enquiry check-in (the enquiry_checkin_notice template or an inbox check-in) or to the timeline question — gets the date read (\"wait for a week\", \"in 10 days\", \"5th October\"), a follow-up to-do filed at once for that contact×property (moved, never duplicated, when one is open), the journey item's planned step stamped, the unprompted-pitch quiet window set, the words logged on the journey and the agent notified; the bot then asks \"shall I check back with you in a week, on <date>?\" with Yes and Another date buttons. Yes acknowledges the date; Another date asks again and the typed answer moves the same reminder without asking a second time. A reply that names no date files no reminder.",
+          "tests": [
+            {
+              "file": "src/lib/journey/typed-check-back.test.ts",
+              "case": "[JRN-015]"
+            },
+            {
+              "file": "src/lib/journey/pitch-quiet.test.ts",
+              "case": "[JRN-015]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/client-response.ts",
+            "src/lib/journey/pitch-quiet.ts"
+          ]
         }
       ]
     },

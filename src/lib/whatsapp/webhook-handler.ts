@@ -101,9 +101,12 @@ import {
 } from '@/lib/whatsapp/preference-flow';
 import { JOURNEY_CHECKIN_KEEP_BUTTON } from '@/lib/whatsapp/journey-checkin-template';
 import {
+  CHECKBACK_CONFIRM_PREFIX,
   CLIENT_FOLLOWUP_PREFIX,
   captureTypedCheckBack,
+  handleCheckBackConfirmReply,
   handleClientFollowupReply,
+  sendCheckBackConfirm,
   handleInboxCheckinReply,
   handleTimelineTemplateTap,
 } from '@/lib/journey/client-response';
@@ -2947,25 +2950,27 @@ async function handleInboundChain(
           .select('sender_type, content_text')
           .eq('conversation_id', conversation.id)
           .order('created_at', { ascending: false })
-          .limit(2);
-        const previousBot = (previous ?? [])[1];
+          .limit(4);
+        const previousBot = (previous ?? [])
+          .slice(1)
+          .find((m) => m.sender_type !== 'customer');
         if (previousBot?.sender_type === 'bot') {
-          const ack = await captureTypedCheckBack({
+          const reply = await captureTypedCheckBack({
             db: supabaseAdmin(),
             accountId,
-            contactId: contactRecord.id,
+            ownerUserId: configOwnerUserId,
+            contact: { id: contactRecord.id, name: contactRecord.name },
             text: contentText,
             previousBotText: previousBot.content_text as string | null,
           });
-          if (ack) {
-            await sendWhatsAppMessageAndPersist({
+          if (reply) {
+            await sendCheckBackConfirm({
+              db: supabaseAdmin(),
               accountId,
-              userId: configOwnerUserId,
+              ownerUserId: configOwnerUserId,
               contactId: contactRecord.id,
               conversationId: conversation.id,
-              kind: 'text',
-              senderType: 'bot',
-              text: ack,
+              reply,
             });
             return;
           }
@@ -3374,6 +3379,21 @@ async function handleInboundChain(
   }
 
   if (interactiveReplyId) {
+    if (interactiveReplyId.startsWith(CHECKBACK_CONFIRM_PREFIX)) {
+      const handledConfirm = await handleCheckBackConfirmReply({
+        db: supabaseAdmin(),
+        accountId,
+        ownerUserId: configOwnerUserId,
+        contact: {
+          id: contactRecord.id,
+          name: contactRecord.name,
+          phone: senderPhone,
+        },
+        conversationId: conversation.id,
+        replyId: interactiveReplyId,
+      });
+      if (handledConfirm) return;
+    }
     if (interactiveReplyId.startsWith(CLIENT_FOLLOWUP_PREFIX)) {
       const handledFollowup = await handleClientFollowupReply({
         db: supabaseAdmin(),
