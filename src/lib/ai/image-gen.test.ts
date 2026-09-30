@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   generateWithStability,
   generateAiImage,
+  hasImageProvider,
   IMAGE_PROVIDER_UNAVAILABLE,
 } from './image-gen';
 import { resetGeminiKeyState } from './gemini-keys';
@@ -251,5 +252,27 @@ describe('generateAiImage — Gemini account failures', () => {
 
     expect(out).toMatch(/^data:image\/png;base64,/);
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain('gm-spare');
+  });
+});
+
+describe('hasImageProvider', () => {
+  it('finds Gemini keys outside GEMINI_API_KEY', async () => {
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.stubEnv('GEMINI_FALLBACK_API_KEYS', 'gm-spare');
+    vi.stubEnv('HF_ACCESS_TOKEN', '');
+    vi.stubEnv('STABILITY_API_KEY', '');
+
+    await expect(hasImageProvider('google')).resolves.toBe(true);
+    await expect(hasImageProvider('huggingface')).resolves.toBe(true);
+    await expect(hasImageProvider('stability')).resolves.toBe(false);
+  });
+
+  it('reports no provider when nothing is configured', async () => {
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.stubEnv('GEMINI_FALLBACK_API_KEYS', '');
+    vi.stubEnv('HF_ACCESS_TOKEN', '');
+    vi.stubEnv('STABILITY_API_KEY', '');
+
+    await expect(hasImageProvider('huggingface')).resolves.toBe(false);
   });
 });

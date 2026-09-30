@@ -11,6 +11,7 @@ import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { generateText } from '@/lib/ai/gemini';
 import {
   generateAiImage,
+  hasImageProvider,
   IMAGE_PROVIDER_UNAVAILABLE,
 } from '@/lib/ai/image-gen';
 import {
@@ -57,11 +58,7 @@ export async function POST(request: NextRequest) {
     const notes = typeof body?.notes === 'string' ? body.notes : undefined;
     const generateImage = body?.generateImage !== false;
 
-    if (
-      generateImage &&
-      !process.env.HF_ACCESS_TOKEN &&
-      !process.env.GEMINI_API_KEY
-    ) {
+    if (generateImage && !(await hasImageProvider('huggingface'))) {
       return NextResponse.json(
         { error: IMAGE_PROVIDER_UNAVAILABLE },
         { status: 400 }

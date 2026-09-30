@@ -259,10 +259,6 @@ export async function generateWithStability(
   return `data:${contentType};base64,${Buffer.from(buffer).toString('base64')}`;
 }
 
-// A provider saying its own account is out of credit, unauthorised or
-// over quota is our billing problem, not the agent's. Passing its 402
-// through told agents with a full ConvoReal wallet that they were out
-// of credits, and showed them Google's AI Studio billing link.
 const PROVIDER_ACCOUNT_STATUSES = new Set([401, 402, 403, 429]);
 
 function isProviderAccountFailure(err: unknown): boolean {
@@ -283,6 +279,15 @@ function toCallerError(err: unknown): unknown {
 
 async function hasGeminiKey(): Promise<boolean> {
   return (await resolveGeminiKeys({})).length > 0;
+}
+
+export async function hasImageProvider(
+  provider: GenerateAiImageOptions['provider']
+): Promise<boolean> {
+  if (provider === 'google') return hasGeminiKey();
+  if (provider === 'stability') return Boolean(process.env.STABILITY_API_KEY);
+  if (process.env.HF_ACCESS_TOKEN || process.env.STABILITY_API_KEY) return true;
+  return hasGeminiKey();
 }
 
 function generateWithGeminiPool(
