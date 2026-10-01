@@ -12,7 +12,12 @@ function escapeRegExp(value: string): string {
  * still carrying an app-host session or OAuth code verifier is left
  * where it is: moving it would land the user on www signed out.
  */
-function appHostPages(baseDomain: string) {
+function appHostRedirectMatch(
+  baseDomain: string,
+  supabaseUrl: string | undefined
+) {
+  if (!supabaseUrl) return null;
+  const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
   return {
     source: '/:path((?!api(?:/|$)|\\.well-known(?:/|$)).*)',
     has: [
@@ -21,24 +26,17 @@ function appHostPages(baseDomain: string) {
         value: `app\\.${escapeRegExp(baseDomain)}`,
       },
     ],
+    missing: [storageKey, `${storageKey}.0`, `${storageKey}-code-verifier`].map(
+      (key) => ({ type: 'cookie' as const, key })
+    ),
   };
 }
 
-function appHostRedirect(baseDomain: string, supabaseUrl: string | undefined) {
-  if (!supabaseUrl) return [];
-  const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
-  return [
-    {
-      ...appHostPages(baseDomain),
-      missing: [
-        storageKey,
-        `${storageKey}.0`,
-        `${storageKey}-code-verifier`,
-      ].map((key) => ({ type: 'cookie' as const, key })),
-      destination: `https://www.${baseDomain}/:path`,
-      permanent: true,
-    },
-  ];
+function currentAppHostMatch() {
+  return appHostRedirectMatch(
+    process.env.NEXT_PUBLIC_BASE_DOMAIN || 'convoreal.com',
+    process.env.NEXT_PUBLIC_SUPABASE_URL
+  );
 }
 
 /**
@@ -161,6 +159,7 @@ const nextConfig: NextConfig = {
    * exactly what happened here previously (2026-07-07 incident).
    */
   async headers() {
+    const appHostMatch = currentAppHostMatch();
     return [
       // Immutable chunk caching is PRODUCTION-ONLY: `next build` chunk
       // filenames are content-hashed so year-long caching is safe. In
@@ -222,13 +221,19 @@ const nextConfig: NextConfig = {
         source: '/api/:path*',
         headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
-      {
-        // The app-host redirect is a 308 whose outcome depends on cookies,
-        // so the browser must ask again every time rather than replay a
-        // cached redirect after an app-host session appears.
-        ...appHostPages(process.env.NEXT_PUBLIC_BASE_DOMAIN || 'convoreal.com'),
-        headers: [{ key: 'Cache-Control', value: 'no-store' }],
-      },
+      // The app-host redirect is a 308 whose outcome depends on cookies,
+      // so the browser must ask again every time rather than replay a
+      // cached redirect after an app-host session appears. Only the
+      // requests the redirect answers get it; a signed-in app-host
+      // session keeps its normal page and static-asset caching.
+      ...(appHostMatch
+        ? [
+            {
+              ...appHostMatch,
+              headers: [{ key: 'Cache-Control', value: 'no-store' }],
+            },
+          ]
+        : []),
       {
         // Security headers on every response, including /_next/static
         // assets (nosniff matters there) and /api/* (HSTS + referrer-
@@ -241,10 +246,16 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     const baseDomain = process.env.NEXT_PUBLIC_BASE_DOMAIN || 'convoreal.com';
-    const appHostRedirects = appHostRedirect(
-      baseDomain,
-      process.env.NEXT_PUBLIC_SUPABASE_URL
-    );
+    const appHostMatch = currentAppHostMatch();
+    const appHostRedirects = appHostMatch
+      ? [
+          {
+            ...appHostMatch,
+            destination: `https://www.${baseDomain}/:path`,
+            permanent: true,
+          },
+        ]
+      : [];
 
     const fromDomain = process.env.REDIRECT_FROM_DOMAIN;
     const toDomain = process.env.REDIRECT_TO_DOMAIN || 'convoreal.com';

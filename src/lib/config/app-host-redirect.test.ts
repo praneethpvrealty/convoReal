@@ -79,6 +79,7 @@ describe('app.convoreal.com', () => {
     const headers = (await nextConfig.headers!()) as Array<{
       source: string;
       has?: Condition[];
+      missing?: Condition[];
       headers: Array<{ key: string; value: string }>;
     }>;
     const cacheRules = headers.filter((h) =>
@@ -90,6 +91,7 @@ describe('app.convoreal.com', () => {
       )
     )!;
     expect(appRule.source).toBe(rule.source);
+    expect(appRule.missing).toEqual(rule.missing);
     expect(appRule.headers).toEqual([
       { key: 'Cache-Control', value: 'no-store' },
     ]);
@@ -99,6 +101,16 @@ describe('app.convoreal.com', () => {
   it('is not added when the Supabase project is unknown', async () => {
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     expect(await appHostRule()).toBeUndefined();
+    const headers = (await nextConfig.headers!()) as Array<{
+      has?: Condition[];
+    }>;
+    expect(
+      headers.some((h) =>
+        h.has?.some(
+          (c) => c.type === 'host' && c.value === 'app\\.convoreal\\.com'
+        )
+      )
+    ).toBe(false);
   });
 
   it('comes before a legacy domain redirect', async () => {
