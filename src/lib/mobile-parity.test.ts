@@ -3824,8 +3824,23 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
       'withoutArchivedAppointments(filteredAppointments, archivedOnCalendar(archivedView))'
     );
     expect(mobileCalendar).toContain('archivedOnCalendar(archivedView)');
-    expect(webCalendar).toContain('useState<ArchivedView>("greyed")');
-    expect(mobileCalendar).toContain("useState<ArchivedView>('greyed')");
+    expect(webCalendar).toContain(
+      'const archivedView = archivedViewQuery.data ?? "greyed";'
+    );
+    expect(mobileCalendar).toContain(
+      "const archivedView = archivedViewQuery.data ?? 'greyed';"
+    );
+    for (const source of [webCalendar, mobileCalendar]) {
+      expect(source).toContain(
+        'return toArchivedView(data?.calendar_archived_view);'
+      );
+      expect(source).toContain('.update({ calendar_archived_view: view })');
+      expect(source).toContain(
+        'archivedViewWrites.current = archivedViewWrites.current.then(async () => {'
+      );
+      expect(source).toContain('if (write === archivedViewLatest.current)');
+    }
+    expect(mobileCalendar).toContain('void refetchArchivedView();');
     expect(webCalendar).toContain(
       'isArchivedAppointment(appt) && ARCHIVED_EVENT_CHIP'
     );

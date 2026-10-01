@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 1 October 2026
 
+- **The archived setting is remembered for each user.** Whichever of
+  **Grey out archived**, **Hide archived** or **List archived** you pick is
+  saved to your profile and applies on every browser and on the mobile app.
+  **Migration required:** `20261001060000_profiles_calendar_archived_view.sql`.
+
 - **Archived events are greyed out on the calendar, with an option to hide
   them.** An archived event now stays on its day in the month grid, the Week
   and Team views and mobile's month dots, dimmed and greyed, instead of

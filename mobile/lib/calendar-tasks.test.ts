@@ -7,6 +7,7 @@ import {
   ARCHIVED_VIEWS,
   archivedInLists,
   archivedOnCalendar,
+  toArchivedView,
   appointmentStatusActions,
   archivableAppointmentIds,
   canArchiveAppointment,
@@ -176,5 +177,14 @@ describe('[CAL-011] archived events on the calendar and in the lists on mobile',
       hidden: 'Hide archived',
       listed: 'List archived',
     });
+  });
+
+  it('reads a stored setting and falls back to Grey out for anything unknown', () => {
+    expect(toArchivedView('hidden')).toBe('hidden');
+    expect(toArchivedView('listed')).toBe('listed');
+    expect(toArchivedView('greyed')).toBe('greyed');
+    for (const value of [null, undefined, '', 'HIDDEN', 'shown', 3]) {
+      expect(toArchivedView(value)).toBe('greyed');
+    }
   });
 });
