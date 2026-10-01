@@ -41,7 +41,7 @@ describe('app.convoreal.com', () => {
   it('sends pages to www, keeping the path', async () => {
     const rule = (await appHostRule())!;
     expect(rule.destination).toBe('https://www.convoreal.com/:path');
-    expect(rule.permanent).toBe(false);
+    expect(rule.permanent).toBe(true);
     for (const path of [
       '/',
       '/login',

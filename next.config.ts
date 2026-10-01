@@ -30,7 +30,7 @@ function appHostRedirect(baseDomain: string, supabaseUrl: string | undefined) {
         `${storageKey}-code-verifier`,
       ].map((key) => ({ type: 'cookie' as const, key })),
       destination: `https://www.${baseDomain}/:path`,
-      permanent: false,
+      permanent: true,
     },
   ];
 }
