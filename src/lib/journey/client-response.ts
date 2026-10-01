@@ -79,6 +79,7 @@ import {
 import { pickApprovedTemplate } from '@/lib/whatsapp/pick-approved-template';
 import { narrowToLanguage } from '@/lib/whatsapp/template-language';
 import {
+  ownedPropertyCandidates,
   rankJourneyPropertyCandidates,
   type RankedPropertyCandidate,
 } from '@/lib/journey/property-candidates';
@@ -792,10 +793,11 @@ interface ClientPropertyResolution {
   candidates: RankedPropertyCandidate<PropertyRow & { title: string }>[];
 }
 
-async function resolveClientProperty(
+export async function resolveClientProperty(
   db: SupabaseClient,
   accountId: string,
-  parsed: ParsedClientReply
+  parsed: ParsedClientReply,
+  owner?: { id: string; name: string }
 ): Promise<ClientPropertyResolution> {
   const select =
     'id, title, property_code, owner_contact_id, listing_source, location, sublocality, city, type, tags';
@@ -823,15 +825,6 @@ async function resolveClientProperty(
       return { property: data[0] as PropertyRow, candidates: [] };
     }
   }
-  const { data } = await db
-    .from('properties')
-    .select(select)
-    .eq('account_id', accountId)
-    .limit(500);
-  const properties = ((data ?? []) as PropertyRow[]).filter(
-    (property): property is PropertyRow & { title: string } =>
-      Boolean(property.title?.trim())
-  );
   const query = [
     parsed.property_title,
     parsed.response_summary,
@@ -840,10 +833,37 @@ async function resolveClientProperty(
   ]
     .filter(Boolean)
     .join(' ');
-  return {
-    property: null,
-    candidates: rankJourneyPropertyCandidates(query, properties),
-  };
+  let owned: (PropertyRow & { title: string })[] = [];
+  if (owner) {
+    const { data: ownedRows } = await db
+      .from('properties')
+      .select(select)
+      .eq('account_id', accountId)
+      .eq('owner_contact_id', owner.id)
+      .limit(20);
+    owned = ((ownedRows ?? []) as PropertyRow[]).filter(
+      (property): property is PropertyRow & { title: string } =>
+        Boolean(property.title?.trim())
+    );
+  }
+  const { data } = await db
+    .from('properties')
+    .select(select)
+    .eq('account_id', accountId)
+    .limit(500);
+  const ownedIds = new Set(owned.map((property) => property.id));
+  const properties = ((data ?? []) as PropertyRow[]).filter(
+    (property): property is PropertyRow & { title: string } =>
+      Boolean(property.title?.trim()) && !ownedIds.has(property.id)
+  );
+  const ranked = rankJourneyPropertyCandidates(query, properties);
+  if (owned.length === 1 && ranked.length === 0) {
+    return { property: owned[0], candidates: [] };
+  }
+  const candidates = owner
+    ? [...ownedPropertyCandidates(query, owned, owner.name), ...ranked]
+    : ranked;
+  return { property: null, candidates: candidates.slice(0, 3) };
 }
 
 async function matchClientProperty(
@@ -1425,7 +1445,12 @@ async function logClientResponse(args: LogArgs): Promise<ClientReplyOutcome> {
     args;
   const contactName = contact.name || parsed.client_name || 'Client';
 
-  const propertyResolution = await resolveClientProperty(db, accountId, parsed);
+  const propertyResolution = await resolveClientProperty(
+    db,
+    accountId,
+    parsed,
+    { id: contact.id, name: contactName }
+  );
   const property = propertyResolution.property;
   const summary = parsed.response_summary || parsed.next_action || null;
   const label = property

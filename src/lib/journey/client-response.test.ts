@@ -35,6 +35,7 @@ import {
   isJourneyCheckinText,
   parseClientFollowupReplyId,
   propertyLabel,
+  resolveClientProperty,
 } from './client-response';
 import { buildCheckInMessage } from './checkin-message';
 import { CLIENT_QUESTION_PROMPT } from './client-answer';
@@ -449,3 +450,90 @@ describe('confirming the property before side effects', () => {
     );
   });
 });
+
+describe('resolving the property a forwarded reply is about', () => {
+  type Row = Record<string, unknown>;
+  const inventory: Row[] = [
+    {
+      id: 'p-1403',
+      title: '#19, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase.',
+      property_code: 'PROP-1403',
+      owner_contact_id: 'c-yogi',
+      sublocality: 'JP Nagar 4th Phase',
+    },
+    {
+      id: 'p-1108',
+      title: 'Residential House in Koramangala 7th phase, opposite to the park is for sale.',
+      property_code: 'PROP-1108',
+      owner_contact_id: 'c-other',
+      sublocality: 'Koramangala',
+    },
+    {
+      id: 'p-1878',
+      title: '300 Acres Residential Land with the plan approval on Harohalli to Bidadi Road',
+      property_code: 'PROP-1878',
+      owner_contact_id: null,
+    },
+  ];
+
+  function fakeDb(rows: Row[]) {
+    return {
+      from() {
+        const filters: [string, unknown][] = [];
+        const b: Record<string, unknown> = {
+          select: () => b,
+          eq: (col: string, val: unknown) => {
+            filters.push([col, val]);
+            return b;
+          },
+          ilike: () => b,
+          limit: () => b,
+          maybeSingle: async () => ({ data: null, error: null }),
+          then: (resolve: (v: { data: Row[]; error: null }) => unknown) =>
+            Promise.resolve({
+              data: rows.filter((row) =>
+                filters.every(([col, val]) => col === 'account_id' || row[col] === val)
+              ),
+              error: null,
+            }).then(resolve),
+        };
+        return b;
+      },
+    };
+  }
+
+  const parsed = {
+    response_summary:
+      'Yogendranath to share the family tree application number by today evening.',
+  } as Parameters<typeof resolveClientProperty>[2];
+
+  it('[JRN-016] picks the one property the contact owns when the message names no other', async () => {
+    const result = await resolveClientProperty(fakeDb(inventory) as never, 'acc', parsed, {
+      id: 'c-yogi',
+      name: 'Yogendranath',
+    });
+    expect(result.property?.id).toBe('p-1403');
+    expect(result.candidates).toEqual([]);
+  });
+
+  it('[JRN-016] puts the owned property first when the message also points elsewhere', async () => {
+    const result = await resolveClientProperty(
+      fakeDb(inventory) as never,
+      'acc',
+      { response_summary: 'Yogendranath asked about the Koramangala house too' } as typeof parsed,
+      { id: 'c-yogi', name: 'Yogendranath' }
+    );
+    expect(result.property).toBeNull();
+    expect(result.candidates.map((c) => c.property.id)).toEqual(['p-1403', 'p-1108']);
+    expect(result.candidates[0].reason).toBe('owned by Yogendranath');
+  });
+
+  it('[JRN-016] offers nothing for a contact who owns nothing and a message that names nothing', async () => {
+    const result = await resolveClientProperty(fakeDb(inventory) as never, 'acc', parsed, {
+      id: 'c-nobody',
+      name: 'Ravi',
+    });
+    expect(result).toEqual({ property: null, candidates: [] });
+  });
+});
+
