@@ -85,7 +85,11 @@ async function requestGeminiImage(
   aspectRatio: string,
   apiKey: string,
   signal?: AbortSignal
-): Promise<{ image: string; usage: GeminiImageUsage | undefined }> {
+): Promise<{
+  image: string;
+  text: string;
+  usage: GeminiImageUsage | undefined;
+}> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const payload = {
     contents: [{ parts: [{ text: prompt }] }],
@@ -126,6 +130,7 @@ async function requestGeminiImage(
   }
   return {
     image: `data:${image.mimeType || 'image/png'};base64,${image.data}`,
+    text: parts.map((p: { text?: string }) => p.text ?? '').join(''),
     usage: data.usageMetadata,
   };
 }
@@ -328,12 +333,12 @@ function generateWithGeminiPool(
       feature,
       model: GEMINI_IMAGE_MODEL,
       jsonMode: false,
-      hasMedia: true,
+      hasMedia: false,
       promptChars: prompt.length,
       inputPreview: prompt,
     };
     try {
-      const { image, usage } = await requestGeminiImage(
+      const { image, text, usage } = await requestGeminiImage(
         prompt,
         aspectRatio,
         entry.key,
@@ -346,7 +351,7 @@ function generateWithGeminiPool(
         promptTokens: usage?.promptTokenCount ?? null,
         responseTokens: usage?.candidatesTokenCount ?? null,
         thoughtTokens: usage?.thoughtsTokenCount ?? null,
-        responseChars: image.length,
+        responseChars: text.length,
       });
       return image;
     } catch (err) {

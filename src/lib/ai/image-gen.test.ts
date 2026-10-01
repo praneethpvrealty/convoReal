@@ -330,6 +330,8 @@ describe('generateAiImage — spend log', () => {
         success: true,
         promptTokens: 12,
         responseTokens: 1290,
+        hasMedia: false,
+        responseChars: 0,
       })
     );
   });
