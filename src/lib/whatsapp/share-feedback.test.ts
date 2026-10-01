@@ -211,6 +211,20 @@ describe('processShareFeedbackFollowups', () => {
     expect(db.state.shares[0].feedback_status).toBe('sent');
   });
 
+  it('stores the rendered template body so the inbox bubble is not blank', async () => {
+    const db = makeDb({ lastCustomerMessageAt: null });
+
+    await processShareFeedbackFollowups(db as never);
+
+    expect(h.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'template',
+        templateParams: ['Asha'],
+        text: 'Hi Asha, following up on the property I shared earlier.\n\nDid it match what you are looking for?',
+      })
+    );
+  });
+
   it('skips the share once the buyer has replied since it was created', async () => {
     const db = makeDb({
       lastCustomerMessageAt: new Date(

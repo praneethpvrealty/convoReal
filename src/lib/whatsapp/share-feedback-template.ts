@@ -1,6 +1,8 @@
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import {
   DEFAULT_LANGUAGE,
+  isLanguageCode,
+  languageForMetaCode,
   metaLanguageCode,
   type LanguageCode,
 } from '@/lib/languages';
@@ -13,6 +15,7 @@ import {
   templateBody,
   templateButtonLabel,
 } from '@/lib/whatsapp/template-copy';
+import { renderShareTemplateBody } from '@/lib/whatsapp/share-property-preview';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 
 export const SHARE_FEEDBACK_TEMPLATE_NAME = 'property_share_feedback';
@@ -65,4 +68,15 @@ export function buildShareFeedbackParams(
   return [
     sanitizeTemplateParam(firstName) || 'there',
   ];
+}
+
+export function renderShareFeedbackBody(
+  params: string[],
+  templateLanguage: string | null | undefined
+): string {
+  const raw = templateLanguage?.trim() ?? '';
+  const language = isLanguageCode(raw)
+    ? raw
+    : (languageForMetaCode(raw) ?? DEFAULT_LANGUAGE);
+  return renderShareTemplateBody(templateBody('share_feedback', language), params);
 }

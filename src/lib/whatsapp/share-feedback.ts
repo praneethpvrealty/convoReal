@@ -152,6 +152,7 @@ async function sendShareFeedback(
   const {
     buildShareFeedbackParams,
     pickShareFeedbackTemplate,
+    renderShareFeedbackBody,
     SHARE_FEEDBACK_TEMPLATE_NAMES,
   } = await import('./share-feedback-template');
 
@@ -179,6 +180,7 @@ async function sendShareFeedback(
       templateName,
       templateLanguage,
       templateParams: params,
+      text: renderShareFeedbackBody(params, templateLanguage),
       customDbClient: db,
     });
     if (result?.success === false) {
