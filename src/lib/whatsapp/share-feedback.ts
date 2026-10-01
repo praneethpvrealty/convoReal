@@ -217,19 +217,27 @@ async function sendShareFeedback(
 
   const params = buildShareFeedbackParams(contact.name);
 
-  const property =
+  let property: { id: string; title: string | null } | null = null;
+  if (
     share.property_id &&
     isWithinCustomerWindow(conversation?.last_customer_message_at) &&
     (await resolveSendLanguage(db, share.account_id, share.contact_id)) === 'en'
-      ? (
-          await db
-            .from('properties')
-            .select('id, title')
-            .eq('id', share.property_id)
-            .eq('account_id', share.account_id)
-            .maybeSingle()
-        ).data
-      : null;
+  ) {
+    const { data, error: propertyError } = await db
+      .from('properties')
+      .select('id, title')
+      .eq('id', share.property_id)
+      .eq('account_id', share.account_id)
+      .maybeSingle();
+    if (propertyError) {
+      console.error(
+        `[share-feedback] Failed to load the property for share ${share.id}:`,
+        propertyError
+      );
+      return 'retry';
+    }
+    property = data;
+  }
 
   let feedbackMessageId: string | null = null;
   try {

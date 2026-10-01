@@ -86,6 +86,7 @@ function makeDb(
     lastCustomerMessageAt?: string | null;
     share?: Row;
     property?: Row | null;
+    propertyError?: boolean;
     failMarks?: number;
     contactLanguage?: string | null;
     accountLanguage?: string | null;
@@ -152,7 +153,9 @@ function makeDb(
           return { data: rows[0] ? { id: rows[0].id } : null, error: null };
         }
         if (table === 'properties') {
-          return { data: opts.property ?? null, error: null };
+          return opts.propertyError
+            ? { data: null, error: { message: 'timeout' } }
+            : { data: opts.property ?? null, error: null };
         }
         if (table === 'accounts') {
           return {
@@ -285,6 +288,21 @@ describe('processShareFeedbackFollowups', () => {
       { id: 'lfb_form', title: 'Update preferences' },
     ]);
     expect(db.state.shares[0].feedback_status).toBe('sent');
+  });
+
+  it('[INB-022] retries rather than sending the generic template when the property lookup fails', async () => {
+    const db = makeDb({
+      lastCustomerMessageAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      propertyError: true,
+    });
+
+    expect(await processShareFeedbackFollowups(db as never)).toBe(0);
+
+    expect(h.send).not.toHaveBeenCalled();
+    expect(db.state.shares[0]).toMatchObject({
+      feedback_status: 'pending',
+      feedback_sent_at: null,
+    });
   });
 
   it('[INB-022] sends the localized template to a buyer who inherits a non-English account language', async () => {
