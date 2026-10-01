@@ -9,6 +9,8 @@
 // panel is also the person who can act on it.
 // ============================================================
 
+import { hasGeminiKey } from '@/lib/ai/gemini-keys';
+
 export type ImageProviderId = 'huggingface' | 'google' | 'stability';
 
 export interface ImageProviderStatus {
@@ -26,7 +28,7 @@ export function isSelfHosted(): boolean {
   return process.env.NEXT_PUBLIC_SELF_HOSTED === 'true';
 }
 
-export function getImageProvidersStatus(): ImageProvidersStatus {
+export async function getImageProvidersStatus(): Promise<ImageProvidersStatus> {
   const selfHosted = isSelfHosted();
 
   const keys: Record<
@@ -44,9 +46,10 @@ export function getImageProvidersStatus(): ImageProvidersStatus {
     },
   };
 
+  const gemini = await hasGeminiKey();
   const providers = (Object.keys(keys) as ImageProviderId[]).map((id) => ({
     id,
-    available: Boolean(keys[id].value),
+    available: id === 'google' ? gemini : Boolean(keys[id].value),
     ...(selfHosted ? { envVar: keys[id].envVar } : {}),
   }));
 

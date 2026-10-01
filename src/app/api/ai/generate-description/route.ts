@@ -4,6 +4,7 @@ import { generateText } from "@/lib/ai/gemini";
 import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
 import { burnCredits, refundCredits } from "@/lib/credits/burn";
 import { AI_FEATURE_COSTS } from "@/lib/credits/types";
+import { hasGeminiKey } from "@/lib/ai/gemini-keys";
 
 // POST /api/ai/generate-description
 // Generates property listing description using Gemini 2.5 Flash
@@ -16,9 +17,9 @@ export async function POST(request: NextRequest) {
     const gate = await checkPlanLimit(ctx, "ai");
     if (!gate.allowed) return gateResponse(gate);
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!(await hasGeminiKey())) {
       return NextResponse.json(
-        { error: "Gemini API Key is not configured. Please add GEMINI_API_KEY in your .env.local file and restart the dev server." },
+        { error: "AI is not configured on this server." },
         { status: 500 }
       );
     }

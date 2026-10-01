@@ -55,6 +55,7 @@ import {
   resetGeminiKeyState,
 } from './gemini';
 import {
+  hasGeminiKey,
   markModelRetired,
   parseEnvKeys,
   resolveGeminiKeys,
@@ -150,6 +151,15 @@ describe('key pool', () => {
     store.rows = [managedRow('pransss@gmail.com', 'db-a')];
     expect(await generateText('hi')).toBe('ok from db-a');
     expect(seen).toEqual(['db-a']);
+  });
+
+  it('[AIK-001] reports a usable key from the managed pool without any environment key', async () => {
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.stubEnv('GEMINI_FALLBACK_API_KEYS', '');
+    expect(await hasGeminiKey()).toBe(false);
+    store.rows = [managedRow('first', 'db-a')];
+    resetGeminiKeyState();
+    expect(await hasGeminiKey()).toBe(true);
   });
 
   it('[AIK-001] uses environment keys with their labels when none are managed', async () => {

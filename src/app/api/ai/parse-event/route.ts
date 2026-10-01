@@ -4,6 +4,7 @@ import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { parseEventFromInput, resolveByName, istLocalToUtcIso } from '@/lib/calendar/event-parse';
 import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
+import { hasGeminiKey } from '@/lib/ai/gemini-keys';
 
 // POST /api/ai/parse-event
 // Turns a natural-language scheduling request (typed text or a
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
   try {
     const ctx = await requireRole('agent');
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!(await hasGeminiKey())) {
       return NextResponse.json({ error: 'AI is not configured on this server.' }, { status: 500 });
     }
 

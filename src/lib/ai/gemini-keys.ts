@@ -207,6 +207,10 @@ export async function resolveGeminiKeys(opts: {
   return dedupe(envGeneralKeys());
 }
 
+export async function hasGeminiKey(scope?: GeminiKeyScope): Promise<boolean> {
+  return (await resolveGeminiKeys({ scope })).length > 0;
+}
+
 function restingUntil(entry: GeminiKey): number {
   return Math.max(entry.restingUntil, cooldowns.get(entry.key)?.until ?? 0);
 }

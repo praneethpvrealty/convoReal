@@ -5,6 +5,7 @@ import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { generateText } from '@/lib/ai/gemini';
 import { buildAdCopyPrompt, parseAdCopy, AD_COPY_SYSTEM_PROMPT } from '@/lib/meta-ads/ad-copy';
+import { hasGeminiKey } from '@/lib/ai/gemini-keys';
 
 // POST /api/ai/ad-copy
 // Generates Click-to-WhatsApp ad copy (primary text / headline /
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
     const gate = await checkPlanLimit(ctx, 'meta_ads');
     if (!gate.allowed) return gateResponse(gate);
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!(await hasGeminiKey())) {
       return NextResponse.json({ error: 'AI is not configured on this server.' }, { status: 500 });
     }
 

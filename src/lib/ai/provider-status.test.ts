@@ -25,10 +25,10 @@ describe('getImageProvidersStatus', () => {
     }
   });
 
-  it('marks a provider available only when its key is set', () => {
+  it('marks a provider available only when its key is set', async () => {
     process.env.STABILITY_API_KEY = 'sk-test';
 
-    const { providers } = getImageProvidersStatus();
+    const { providers } = await getImageProvidersStatus();
 
     expect(providers.find((p) => p.id === 'stability')?.available).toBe(true);
     expect(providers.find((p) => p.id === 'google')?.available).toBe(false);
@@ -37,19 +37,19 @@ describe('getImageProvidersStatus', () => {
     );
   });
 
-  it('withholds env var names on the managed deployment', () => {
+  it('withholds env var names on the managed deployment', async () => {
     process.env.GEMINI_API_KEY = 'g-test';
 
-    const { selfHosted, providers } = getImageProvidersStatus();
+    const { selfHosted, providers } = await getImageProvidersStatus();
 
     expect(selfHosted).toBe(false);
     expect(providers.every((p) => p.envVar === undefined)).toBe(true);
   });
 
-  it('exposes env var names when self-hosted', () => {
+  it('exposes env var names when self-hosted', async () => {
     process.env.NEXT_PUBLIC_SELF_HOSTED = 'true';
 
-    const { selfHosted, providers } = getImageProvidersStatus();
+    const { selfHosted, providers } = await getImageProvidersStatus();
 
     expect(selfHosted).toBe(true);
     expect(providers.find((p) => p.id === 'huggingface')?.envVar).toBe(
