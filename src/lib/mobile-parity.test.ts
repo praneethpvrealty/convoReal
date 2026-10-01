@@ -2787,6 +2787,33 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     ).toBe(false);
   });
 
+  it('[TXW-026] filters the Board to Focus journeys through one database rule on both surfaces', () => {
+    const webBoard = webSource(
+      'app/(dashboard)/pipelines/pipelines-content.tsx'
+    );
+    for (const source of [webBoard, mobileList]) {
+      expect(source).toContain("useState<BoardScope>('focus')");
+      expect(source).toContain("rpc('board_focus_deal_ids'");
+      expect(source).toContain('[BOARD_FOCUS_QUERY_KEY, accountId,');
+    }
+    const webFocus = webSource('lib/deals/board-focus.ts');
+    for (const line of [
+      "{ id: 'focus', label: 'Focus' },",
+      "{ id: 'all', label: 'All' },",
+      "export const BOARD_FOCUS_QUERY_KEY = 'board-focus';",
+      "if (scope === 'all') return [...deals];",
+      'if (!focusIds) return [];',
+      'return deals.filter((deal) => focus.has(deal.id));',
+    ]) {
+      expect(webFocus).toContain(line);
+      expect(mobileVocab, `mobile drifted at: ${line}`).toContain(line);
+    }
+    expect(mobileVocab).not.toContain('isFocusedDeal');
+    expect(mobileSource('app/(app)/journey.tsx')).toContain(
+      'queryKey: [BOARD_FOCUS_QUERY_KEY]'
+    );
+  });
+
   it('titles rows by buyer and property and lists only closing records', () => {
     for (const source of [webIndex, mobileList]) {
       expect(source).toContain('transactionTitle(');

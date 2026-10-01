@@ -2398,6 +2398,25 @@
             "supabase/migrations/20260928094000_pipeline_stages_by_type.sql",
             "supabase/migrations/20260928095000_resync_stage_deals.sql"
           ]
+        },
+        {
+          "id": "TXW-026",
+          "rule": "The Board on web and mobile opens on Focus: it shows only deals whose buyer or listing journey is in the Focus compartment (by the account's team or per-agent Focus setting) and still active on the Journey (not paused, closed or archived), decided once in board_focus_deal_ids for both surfaces, with a Focus / All switch that shows every deal on the pipeline; the stage counts, column totals and stage wheel follow the switch, moving a journey between Focus and Passive refreshes the Board, and while Focus is loading or has failed the Board shows a loading or error state with a way to All rather than every deal. On web each stage column scrolls its own cards inside a bounded height, so a busy stage never stretches the page.",
+          "tests": [
+            {
+              "file": "src/lib/deals/board-focus.test.ts",
+              "case": "[TXW-026]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-026]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261001113322_board_focus_deal_ids.sql",
+            "src/lib/deals/board-focus.ts",
+            "src/components/pipelines/pipeline-board.tsx"
+          ]
         }
       ]
     },

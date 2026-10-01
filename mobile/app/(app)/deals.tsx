@@ -28,6 +28,9 @@ import {
 import { useAuthStore } from '@/lib/auth-store';
 import { contactFullName } from '@/lib/contact-name';
 import {
+  BOARD_FOCUS_QUERY_KEY,
+  BOARD_SCOPES,
+  boardDeals,
   expectedCloseLabel,
   isClosingRecord,
   netOfPayouts,
@@ -35,6 +38,7 @@ import {
   sortIndexRows,
   transactionSubtitle,
   transactionTitle,
+  type BoardScope,
   type RecordsSort,
   type TransactionIndexRow,
 } from '@/lib/deal-workspace';
@@ -112,6 +116,7 @@ export default function DealsScreen() {
   const [pipelineId, setPipelineId] = useState<string | null>(null);
   const [stageId, setStageId] = useState<string | null>(null);
   const [outcomeView, setOutcomeView] = useState<PipelineOutcome>('active');
+  const [boardScope, setBoardScope] = useState<BoardScope>('focus');
   const [movingDeal, setMovingDeal] = useState<Deal | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [lostPrompt, setLostPrompt] = useState<{
@@ -193,7 +198,29 @@ export default function DealsScreen() {
       return (data ?? []) as Deal[];
     },
   });
-  const pull = usePullRefresh(refetch);
+  const focusQuery = useQuery({
+    queryKey: [BOARD_FOCUS_QUERY_KEY, accountId, activePipeline],
+    enabled: Boolean(accountId && activePipeline),
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase.rpc('board_focus_deal_ids', {
+        target_account_id: accountId!,
+        target_pipeline_id: activePipeline!,
+      });
+      if (error) throw error;
+      return (data ?? []) as string[];
+    },
+  });
+  const focusDeals = useMemo(
+    () => boardDeals(deals ?? [], 'focus', focusQuery.data),
+    [deals, focusQuery.data]
+  );
+  const boardList = useMemo(
+    () => (boardScope === 'focus' ? focusDeals : (deals ?? [])),
+    [boardScope, focusDeals, deals]
+  );
+  const pull = usePullRefresh(() =>
+    Promise.all([refetch(), focusQuery.refetch()])
+  );
   const { show, dialogProps } = useAppDialog();
 
   const stageById = useMemo(
@@ -206,12 +233,12 @@ export default function DealsScreen() {
       successful: 0,
       lost: 0,
     };
-    for (const deal of deals ?? []) {
+    for (const deal of boardList) {
       const stage = stageById.get(deal.stage_id);
       if (stage) counts[pipelineOutcomeForStage(stage)] += 1;
     }
     return counts;
-  }, [deals, stageById]);
+  }, [boardList, stageById]);
 
   const visibleStages = useMemo(
     () =>
@@ -223,9 +250,9 @@ export default function DealsScreen() {
   const visibleStageCounts = useMemo(
     () =>
       visibleStages.map(
-        (stage) => (deals ?? []).filter((d) => d.stage_id === stage.id).length
+        (stage) => boardList.filter((d) => d.stage_id === stage.id).length
       ),
-    [visibleStages, deals]
+    [visibleStages, boardList]
   );
   const openingKey = `${activePipeline}:${outcomeView}`;
   const [openingStage, setOpeningStage] = useState<{
@@ -246,8 +273,8 @@ export default function DealsScreen() {
     visibleStages[0]?.id ??
     null;
   const stageDeals = useMemo(
-    () => (deals ?? []).filter((d) => d.stage_id === activeStage),
-    [deals, activeStage]
+    () => boardList.filter((d) => d.stage_id === activeStage),
+    [boardList, activeStage]
   );
   const stageValue = stageDeals.reduce((sum, d) => sum + (d.value ?? 0), 0);
   const stageBrokerage = stageDeals.reduce(
@@ -375,7 +402,10 @@ export default function DealsScreen() {
         <FilterChip
           label="Board"
           active={segment === 'board'}
-          onPress={() => setSegment('board')}
+          onPress={() => {
+            setSegment('board');
+            void focusQuery.refetch();
+          }}
         />
         <FilterChip
           label="Journey"
@@ -418,6 +448,27 @@ export default function DealsScreen() {
               ))}
             </View>
           </ScrollView>
+        </View>
+      ) : null}
+
+      {segment === 'board' ? (
+        <View
+          style={styles.outcomeRow}
+          accessibilityLabel="Deals shown on the board"
+        >
+          {BOARD_SCOPES.map((scope) => (
+            <FilterChip
+              key={scope.id}
+              label={`${scope.label} (${
+                scope.id === 'all' ? (deals?.length ?? 0) : focusDeals.length
+              })`}
+              active={boardScope === scope.id}
+              onPress={() => {
+                setBoardScope(scope.id);
+                setStageId(null);
+              }}
+            />
+          ))}
         </View>
       ) : null}
 
@@ -468,12 +519,25 @@ export default function DealsScreen() {
         </Text>
       ) : null}
 
-      {segment !== 'board' ? null : isLoading ? (
+      {segment !== 'board' ? null : isLoading ||
+        (boardScope === 'focus' && focusQuery.isLoading) ? (
         <View>
           {Array.from({ length: 5 }, (_, i) => (
             <ConversationSkeleton key={i} />
           ))}
         </View>
+      ) : boardScope === 'focus' && focusQuery.isError ? (
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Couldn't load Focus"
+          subtitle="The board could not tell which journeys are in Focus."
+          action={
+            <PrimaryButton
+              label="Show all deals"
+              onPress={() => setBoardScope('all')}
+            />
+          }
+        />
       ) : !pipelines?.length ? (
         <EmptyState
           icon="trending-up-outline"
