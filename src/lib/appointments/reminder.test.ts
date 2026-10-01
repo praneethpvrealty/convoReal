@@ -140,6 +140,15 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
     sendWhatsAppMessageAndPersist(...args),
 }));
 
+const enqueueReminderAudioJob = vi.fn();
+vi.mock('@/lib/voice/reminder-audio', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/voice/reminder-audio')>()),
+  enqueueReminderAudioJob: (...args: unknown[]) => enqueueReminderAudioJob(...args),
+}));
+vi.mock('@/lib/voice/config', () => ({
+  getVoiceConfig: async () => ({ reminder_audio_enabled: true }),
+}));
+
 import {
   buildReminderTemplateContent,
   checkAndSendAppointmentReminders,
@@ -196,6 +205,8 @@ function claim(
 const REARMED_AT = '2026-08-01T05:30:00.000Z';
 
 beforeEach(() => {
+  enqueueReminderAudioJob.mockReset();
+  enqueueReminderAudioJob.mockResolvedValue(true);
   sendWhatsAppMessageAndPersist.mockReset();
   sendWhatsAppMessageAndPersist.mockResolvedValue({
     success: true,
@@ -466,6 +477,36 @@ describe('reminder wording', () => {
     expect(sent.text).toContain('Thanks for confirming');
     expect(sent.text).not.toMatch(/tap a button/i);
     expect(tables.appointment_reminder_log[0]).toMatchObject({ wa_message_id: 'wamid.1' });
+  });
+
+  it('[CAL-013] thanks a confirmed client in text even when they prefer audio notes', async () => {
+    vi.stubEnv('REDIS_URL', 'redis://localhost:6379');
+    tables.contacts = [
+      {
+        id: 'c-visit',
+        name: 'Meera',
+        phone: '+919876543211',
+        preferred_update_channel: 'whatsapp_audio',
+      },
+    ];
+    tables.appointments = [
+      {
+        ...appointment('a-meet', 'meeting', 'c-visit'),
+        client_confirmed_at: '2026-08-01T03:21:00Z',
+      },
+    ];
+    tables.conversations = [
+      { account_id: 'acc', contact_id: 'c-visit', last_customer_message_at: new Date().toISOString() },
+    ];
+    try {
+      await checkAndSendAppointmentReminders(NOW);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect(enqueueReminderAudioJob).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0]).toMatchObject({ kind: 'text' });
+    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0].text).toContain('Thanks for confirming');
   });
 
   it('[CAL-013] falls back to the template for a confirmed client outside the 24-hour window', async () => {

@@ -712,44 +712,6 @@ async function sendToAllRecipients(
       });
 
     if (
-      audioEnabled &&
-      contact.preferred_update_channel === 'whatsapp_audio' &&
-      isWithinCustomerWindow(audioWindows.get(contact.id))
-    ) {
-      if (!(await stillAsRead(admin, appt, claim))) {
-        allCovered = false;
-        continue;
-      }
-      const queued = await enqueueReminderAudioJob({
-        kind: 'reminder_audio',
-        accountId: appt.account_id,
-        appointmentId: appt.id,
-        contactId: contact.id,
-        claimId: claim.id,
-        claimedAt: claim.created_at,
-        rearmedAt: appt.reminders_rearmed_at,
-        userId: appt.user_id || null,
-        reminderType,
-        spokenText: reminderSpokenText({
-          clientName,
-          brandName: accountName,
-          title: visitTitle,
-          formattedTime,
-          locationText,
-          agenda: agendaParam,
-          isSiteVisit,
-        }),
-        fallback: { templateName, templateParams, bodyText },
-      });
-      if (queued) {
-        console.log(
-          `[Reminder Cron] Queued ${reminderType} reminder NOTE for appt ${appt.id} to contact ${contact.id}`
-        );
-        continue;
-      }
-    }
-
-    if (
       confirmedOnly &&
       isWithinCustomerWindow(confirmedWindows.get(contact.id)) &&
       (await resolveSendLanguage(admin, appt.account_id, contact.id)) === 'en'
@@ -793,6 +755,44 @@ async function sendToAllRecipients(
         `[Reminder Cron] Confirmed reminder text failed for appt ${appt.id}, falling back to the template:`,
         confirmedResult.error
       );
+    }
+
+    if (
+      audioEnabled &&
+      contact.preferred_update_channel === 'whatsapp_audio' &&
+      isWithinCustomerWindow(audioWindows.get(contact.id))
+    ) {
+      if (!(await stillAsRead(admin, appt, claim))) {
+        allCovered = false;
+        continue;
+      }
+      const queued = await enqueueReminderAudioJob({
+        kind: 'reminder_audio',
+        accountId: appt.account_id,
+        appointmentId: appt.id,
+        contactId: contact.id,
+        claimId: claim.id,
+        claimedAt: claim.created_at,
+        rearmedAt: appt.reminders_rearmed_at,
+        userId: appt.user_id || null,
+        reminderType,
+        spokenText: reminderSpokenText({
+          clientName,
+          brandName: accountName,
+          title: visitTitle,
+          formattedTime,
+          locationText,
+          agenda: agendaParam,
+          isSiteVisit,
+        }),
+        fallback: { templateName, templateParams, bodyText },
+      });
+      if (queued) {
+        console.log(
+          `[Reminder Cron] Queued ${reminderType} reminder NOTE for appt ${appt.id} to contact ${contact.id}`
+        );
+        continue;
+      }
     }
 
     // The reminder goes to THIS contact, so their language decides the

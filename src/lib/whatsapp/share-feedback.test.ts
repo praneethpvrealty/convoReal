@@ -447,7 +447,7 @@ describe('processShareFeedbackFollowups', () => {
 });
 
 describe('findFeedbackSharePropertyId', () => {
-  function lookupDb(rows: Row[]) {
+  function lookupDb(rows: Row[], failOr = false) {
     const calls: [string, unknown][] = [];
     const tables: string[] = [];
     return {
@@ -468,6 +468,9 @@ describe('findFeedbackSharePropertyId', () => {
           return b;
         };
         b.maybeSingle = async () => {
+          if (failOr && ors.length > 0) {
+            return { data: null, error: { message: 'timeout' } };
+          }
           const hit = rows.filter((row) => ors.every((expr) => matchesOr(row, expr)));
           return { data: hit[0] ?? null, error: null };
         };
@@ -496,6 +499,16 @@ describe('findFeedbackSharePropertyId', () => {
       ...Array.from({ length: 25 }, () => ({ property_id: PROPERTY_ID })),
       { property_id: '99999999-2222-4333-8444-555555555555' },
     ]);
+    expect(
+      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
+    ).toBeNull();
+  });
+
+  it('[INB-022] resolves nothing when the ambiguity check fails', async () => {
+    const db = lookupDb(
+      [{ property_id: PROPERTY_ID }, { property_id: '99999999-2222-4333-8444-555555555555' }],
+      true
+    );
     expect(
       await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
     ).toBeNull();

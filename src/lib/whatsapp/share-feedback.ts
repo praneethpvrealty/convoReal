@@ -35,14 +35,16 @@ export async function findFeedbackSharePropertyId(
       .eq('account_id', accountId)
       .eq('contact_id', contactId)
       .eq('feedback_message_id', contextMessageId);
-  const { data: first } = await sharesOnPrompt().limit(1).maybeSingle();
+  const { data: first, error: firstError } = await sharesOnPrompt()
+    .limit(1)
+    .maybeSingle();
   const propertyId = (first?.property_id as string | null | undefined) ?? null;
-  if (!propertyId) return null;
-  const { data: other } = await sharesOnPrompt()
+  if (firstError || !propertyId) return null;
+  const { data: other, error: otherError } = await sharesOnPrompt()
     .or(`property_id.is.null,property_id.neq.${propertyId}`)
     .limit(1)
     .maybeSingle();
-  return other ? null : propertyId;
+  return otherError || other ? null : propertyId;
 }
 
 export const SHARE_FEEDBACK_CLAIM_STALE_MS = 15 * 60 * 1000;
