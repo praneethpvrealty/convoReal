@@ -55,6 +55,7 @@ import {
   sortTasksByTime,
   TASK_SORT_LABELS,
   TASK_SORT_MODES,
+  toArchivedView,
   withoutArchivedAppointments,
   type ArchivedView,
   type TaskSortMode,
@@ -263,7 +264,31 @@ export default function CalendarScreen() {
     }, [])
   );
   const [dealOnly, setDealOnly] = useState(false);
-  const [archivedView, setArchivedView] = useState<ArchivedView>('greyed');
+  const profile = useAuthStore((s) => s.profile);
+  const setProfile = useAuthStore((s) => s.setProfile);
+  const userId = useAuthStore((s) => s.session?.user.id);
+  const [archivedViewChoice, setArchivedViewChoice] =
+    useState<ArchivedView | null>(null);
+  const archivedView =
+    archivedViewChoice ?? toArchivedView(profile?.calendar_archived_view);
+  async function changeArchivedView(view: ArchivedView) {
+    haptic.tap();
+    setArchivedViewChoice(view);
+    if (!userId) return;
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ calendar_archived_view: view })
+      .eq('user_id', userId)
+      .select('id');
+    if (error || !data?.length) {
+      Alert.alert(
+        'Could not save this setting',
+        'It applies until you leave the calendar.'
+      );
+      return;
+    }
+    if (profile) setProfile({ ...profile, calendar_archived_view: view });
+  }
   const [taskSort, setTaskSort] = useState<TaskSortMode>('upcoming');
   const [archiving, setArchiving] = useState(false);
   const canEditTasks = useAuthStore((s) =>
@@ -699,10 +724,7 @@ export default function CalendarScreen() {
                   key={mode}
                   label={`${ARCHIVED_VIEW_LABELS[mode]} (${monthArchive.archivedCount})`}
                   active={archivedView === mode}
-                  onPress={() => {
-                    haptic.tap();
-                    setArchivedView(mode);
-                  }}
+                  onPress={() => void changeArchivedView(mode)}
                 />
               ))
             : null}

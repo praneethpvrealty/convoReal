@@ -808,7 +808,7 @@
         },
         {
           "id": "CAL-011",
-          "rule": "A done or cancelled appointment can be archived and unarchived on web and mobile through POST /api/appointments/archive, which stamps appointments.archived_at for the caller's account only and never archives a scheduled event; Archive done archives every unarchived finished event in view (web: the Month or Week in view, mobile: the whole month shown, loaded in pages), sent in requests of up to 500 so none is left out, and the route refuses a read-only member. How archived events show is one three-way setting with the same modes on web and mobile, Grey out archived by default: Grey out keeps an archived event on the calendar grid (the web month grid, Week and Team views, and mobile's month dots) dimmed and greyed, and off Tasks, the Agenda and mobile's day and Upcoming lists; Hide archived takes it off the grid as well; List archived also lists it in Tasks, the Agenda and mobile's lists. The setting sits in the web calendar's filter row whenever an archived event is filtered in, and in mobile's chip row whenever the month shown or Upcoming holds one. Hide archived is the one exception to CAL-010's cancelled event staying on its day. Reopening clears the stamp, and an event whose status is scheduled is never hidden whichever writer reopened it.",
+          "rule": "A done or cancelled appointment can be archived and unarchived on web and mobile through POST /api/appointments/archive, which stamps appointments.archived_at for the caller's account only and never archives a scheduled event; Archive done archives every unarchived finished event in view (web: the Month or Week in view, mobile: the whole month shown, loaded in pages), sent in requests of up to 500 so none is left out, and the route refuses a read-only member. How archived events show is one three-way setting with the same modes on web and mobile, Grey out archived by default: Grey out keeps an archived event on the calendar grid (the web month grid, Week and Team views, and mobile's month dots) dimmed and greyed, and off Tasks, the Agenda and mobile's day and Upcoming lists; Hide archived takes it off the grid as well; List archived also lists it in Tasks, the Agenda and mobile's lists. The setting sits in the web calendar's filter row whenever an archived event is filtered in, and in mobile's chip row whenever the month shown or Upcoming holds one. It is remembered per user in profiles.calendar_archived_view, so the same choice applies on every browser and on the mobile app, and an unknown stored value reads as Grey out. Hide archived is the one exception to CAL-010's cancelled event staying on its day. Reopening clears the stamp, and an event whose status is scheduled is never hidden whichever writer reopened it.",
           "tests": [
             {
               "file": "src/lib/calendar/tasks-view.test.ts",
@@ -832,7 +832,8 @@
             }
           ],
           "guards": [
-            "supabase/migrations/20260929150000_appointments_archived_at.sql"
+            "supabase/migrations/20260929150000_appointments_archived_at.sql",
+            "supabase/migrations/20261001060000_profiles_calendar_archived_view.sql"
           ]
         },
         {

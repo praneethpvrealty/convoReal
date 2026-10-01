@@ -147,3 +147,7 @@ export function archivedOnCalendar(view: ArchivedView): boolean {
 export function archivedInLists(view: ArchivedView): boolean {
   return view === 'listed';
 }
+
+export function toArchivedView(value: unknown): ArchivedView {
+  return ARCHIVED_VIEWS.find((view) => view === value) ?? 'greyed';
+}

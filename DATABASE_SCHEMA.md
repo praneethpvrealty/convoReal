@@ -40,6 +40,7 @@ Extends default Auth users with workspace attributes.
 - `avatar_url` (TEXT): Public asset link.
 - `account_id` (UUID, FK -> `accounts`): Links the profile to their active tenant workspace.
 - `account_role` (account_role_enum): Role within that workspace (`owner`, `admin`, `agent`, `viewer`).
+- `calendar_archived_view` (TEXT, migration 20261001060000, default `greyed`, one of `greyed` / `hidden` / `listed`): The user's own choice of how the calendar shows archived appointments (CAL-011), written by the web calendar and the mobile app on their own row under `profiles_update`, so it follows the user across browsers and devices.
 
 #### 3. `account_invitations`
 Pending team member invitations.
