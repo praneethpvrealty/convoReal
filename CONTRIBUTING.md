@@ -67,7 +67,7 @@ logs will get to a fix fastest.
   behaviour-changing push, convert it back to draft and mark it ready again so both
   reviews re-run on the head that will merge. A Codex security finding of any
   severity is fixed, or answered with the reason it does not apply, before
-  merging. See `AGENTS.md` → Batched production releases.
+  merging; on any PR, a push that fixes one gets the same draft-to-ready cycle. See `AGENTS.md` → Batched production releases.
 - Vercel previews are disabled. Only `main` automatically deploys; do not manually
   deploy feature or release branches. The mobile EAS channel named `preview` is separate.
 - High-risk changes listed in `AGENTS.md` ship separately from routine batches.
