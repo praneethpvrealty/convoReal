@@ -12,18 +12,24 @@ function escapeRegExp(value: string): string {
  * still carrying an app-host session or OAuth code verifier is left
  * where it is: moving it would land the user on www signed out.
  */
+function appHostPages(baseDomain: string) {
+  return {
+    source: '/:path((?!api(?:/|$)|\\.well-known(?:/|$)).*)',
+    has: [
+      {
+        type: 'host' as const,
+        value: `app\\.${escapeRegExp(baseDomain)}`,
+      },
+    ],
+  };
+}
+
 function appHostRedirect(baseDomain: string, supabaseUrl: string | undefined) {
   if (!supabaseUrl) return [];
   const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
   return [
     {
-      source: '/:path((?!api(?:/|$)|\\.well-known(?:/|$)).*)',
-      has: [
-        {
-          type: 'host' as const,
-          value: `app\\.${escapeRegExp(baseDomain)}`,
-        },
-      ],
+      ...appHostPages(baseDomain),
       missing: [
         storageKey,
         `${storageKey}.0`,
@@ -214,6 +220,13 @@ const nextConfig: NextConfig = {
         // an account that already had properties. API responses are
         // per-user and must never be shared across requests at the edge.
         source: '/api/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
+      },
+      {
+        // The app-host redirect is a 308 whose outcome depends on cookies,
+        // so the browser must ask again every time rather than replay a
+        // cached redirect after an app-host session appears.
+        ...appHostPages(process.env.NEXT_PUBLIC_BASE_DOMAIN || 'convoreal.com'),
         headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
       {

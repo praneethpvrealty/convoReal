@@ -74,6 +74,28 @@ describe('app.convoreal.com', () => {
     ]);
   });
 
+  it('is never cached, so the cookie check runs on every request', async () => {
+    const rule = (await appHostRule())!;
+    const headers = (await nextConfig.headers!()) as Array<{
+      source: string;
+      has?: Condition[];
+      headers: Array<{ key: string; value: string }>;
+    }>;
+    const cacheRules = headers.filter((h) =>
+      h.headers.some((x) => x.key === 'Cache-Control')
+    );
+    const appRule = cacheRules.find((h) =>
+      h.has?.some(
+        (c) => c.type === 'host' && c.value === 'app\\.convoreal\\.com'
+      )
+    )!;
+    expect(appRule.source).toBe(rule.source);
+    expect(appRule.headers).toEqual([
+      { key: 'Cache-Control', value: 'no-store' },
+    ]);
+    expect(cacheRules.indexOf(appRule)).toBe(cacheRules.length - 1);
+  });
+
   it('is not added when the Supabase project is unknown', async () => {
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     expect(await appHostRule()).toBeUndefined();
