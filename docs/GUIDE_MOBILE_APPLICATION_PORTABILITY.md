@@ -133,6 +133,6 @@ native client unchanged — no copilot-specific auth work.
 - [x] Native tour engine: self-navigating steps + `measureInWindow` polling + advance (August 2026)
 - [x] Spotlight + tooltip as a four-rect scrim (plain Views — no SVG dependency needed)
 - [x] Floating button + chat sheet as native components calling the same APIs (`copilot-widget.tsx`, `copilot-sheet.tsx`)
-- [x] Mobile-capable tours declared as `mobileSteps` on the web registry; the app runs its parity-tested copy (`mobile/lib/copilot-tours.ts`, guarded by `src/lib/mobile-parity.test.ts` — the runtime-import plan didn't survive contact with Metro's project root)
+- [x] Mobile-capable tours declared as `mobileSteps` on the web registry; the app runs its parity-tested copy (`mobile/lib/copilot-tours.ts`, guarded by `src/lib/mobile-parity.test.ts` — the runtime-import plan didn't survive contact with Metro's project root at the time; `@shared/` runtime imports of dependency-free modules now work, see `mobile/AGENTS.md`)
 - [x] 👍/👎 feedback wired to `/api/copilot/feedback`
 - [x] Platform-aware answers: the app sends `platform: 'mobile'` and every reply carries a `coverage` verdict — full (in-app steps + optional tour), web_only (desktop link), partial/none (help-desk escalation). See `src/lib/copilot/platform.ts` and the support-ticket flow (`/api/copilot/support-ticket`, Admin → Support).

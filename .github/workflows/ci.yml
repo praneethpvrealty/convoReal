@@ -209,10 +209,12 @@ jobs:
         run: npm test
 
       # The resolver gate. Everything above resolves `@/*` and `@shared/*`
-      # through tsconfig `paths`, which map into the web `src/` tree —
-      # Metro does not. So a runtime import of a web value type-checks,
-      # lints and unit-tests clean, then dies here with "Unable to resolve
-      # module". Only `import type` survives the boundary; it is erased.
+      # through tsconfig `paths` and the Vitest alias, which map into the
+      # web `src/` tree. Metro resolves `@shared/*` too, but only to
+      # dependency-free modules (mobile/shared-resolver.js), and refuses a
+      # mobile import that reaches src/ any other way. A runtime import
+      # that breaks either rule type-checks, lints and unit-tests clean,
+      # then dies here.
       #
       # That gap is not hypothetical: #658 shipped exactly this and broke
       # the OTA on every push to main until #664, because `expo export`
