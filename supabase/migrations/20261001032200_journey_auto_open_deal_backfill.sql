@@ -12,8 +12,6 @@ WHERE NOT ji.hidden
   AND js.pipeline_stage_id IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM deals d
-    WHERE d.account_id = ji.account_id
-      AND (d.source_journey_item_id = ji.id
-           OR (d.contact_id = ji.contact_id AND d.property_id = ji.property_id))
+    WHERE d.account_id = ji.account_id AND d.source_journey_item_id = ji.id
   )
 ORDER BY ji.created_at;

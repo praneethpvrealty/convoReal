@@ -3,6 +3,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { DEAL_MILESTONE_TEMPLATES } from '@/lib/deals/milestones';
+
 const migration = readFileSync(
   join(
     process.cwd(),
@@ -34,15 +36,42 @@ describe('[JRN-016] every live journey branch is a deal on the Board', () => {
     );
   });
 
-  it('opens one deal per pair, linked to the branch, on the stage it mirrors', () => {
+  it('opens one deal per branch, linked to it, on the stage it mirrors', () => {
     expect(migration).toMatch(
-      /source_journey_item_id = v_item\.id\s+OR \(contact_id = v_item\.contact_id AND property_id = v_item\.property_id\)/
+      /WHERE account_id = v_item\.account_id AND source_journey_item_id = v_item\.id\s+\) THEN\s+RETURN NULL;/
     );
     expect(migration).toContain(
       'v_item.account_id, v_user, v_stage.pipeline_id, v_stage.pipeline_stage_id,'
     );
     expect(migration).toContain("'converted_from_journey', 'system'");
     expect(migration).toContain("'converted_to_deal'");
+  });
+
+  it('adopts the pair’s unlinked deal instead of opening a second one', () => {
+    expect(migration).toMatch(
+      /AND source_journey_item_id IS NULL\s+ORDER BY created_at, id\s+LIMIT 1;/
+    );
+    expect(migration).toContain(
+      'UPDATE deals SET source_journey_item_id = v_item.id'
+    );
+    expect(migration).toMatch(
+      /SET stage_id = v_stage\.pipeline_stage_id,\s+status = v_status/
+    );
+  });
+
+  it('seeds the standard closing checklist on a closing stage', () => {
+    const keys = DEAL_MILESTONE_TEMPLATES.map((t) => `'${t.key}'`).join(
+      '[\\s,]+'
+    );
+    const titles = DEAL_MILESTONE_TEMPLATES.map(
+      (t) => `'${t.title.replace(/[/]/g, '\\/')}'`
+    ).join('[\\s,]+');
+    expect(migration).toMatch(new RegExp(keys));
+    expect(migration).toMatch(new RegExp(titles));
+    expect(migration).toContain("'milestone_added', 'system'");
+    expect(migration).toContain(
+      "v_closing := v_stage.stage_type IN ('committed', 'won', 'brokerage_pending', 'brokerage_paid');"
+    );
   });
 
   it('never reopens a deal deleted from the Board, and never blocks the journey write', () => {

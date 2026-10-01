@@ -2577,9 +2577,10 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     expect(mobileScreen).toContain("data.token_source === 'token_safe'");
   });
 
-  it('[TXW-001] converts a journey through the same route on both surfaces', () => {
-    expect(mobileApi).toContain("'/api/journey/convert-to-deal'");
-    expect(mobileJourney).toContain('convertJourneyItemToDeal');
+  it('[TXW-001] leaves conversion to the server on both surfaces', () => {
+    expect(webJourneySheet).not.toContain('/api/journey/convert-to-deal');
+    expect(mobileApi).not.toContain('/api/journey/convert-to-deal');
+    expect(mobileJourney).not.toContain('convertJourneyItemToDeal');
   });
 
   it('[JRN-016] opens a live branch’s deal on its own, with no convert step on either surface', () => {
@@ -2590,6 +2591,11 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
       'Joins the Board as a deal at this stage as soon as it is live on the journey.'
     );
     expect(mobileJourney).toContain('accessibilityLabel="Open deal"');
+    expect(webJourneySheet).toContain(".eq('source_journey_item_id', item.id)");
+    expect(mobileJourney).toContain(
+      'deal:deals!deals_source_journey_item_id_fkey(id)'
+    );
+    expect(mobileJourney).toContain('{linkedDealId(item) ? (');
   });
 
   it('links deal tasks through the same to-do routes', () => {
