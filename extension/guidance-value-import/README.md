@@ -36,7 +36,8 @@ the pages in flight.
 
 Settings at the top of the tab (saved for next time):
 
-- **ConvoReal address** — `https://app.convoreal.com` by default. Add other
+- **ConvoReal address** — `https://www.convoreal.com` by default (a saved
+  `https://app.convoreal.com` is moved to it). Add other
   domains to `host_permissions` in `manifest.json` if you run ConvoReal
   elsewhere.
 - **IGR page** — the revised guidelines value page.
