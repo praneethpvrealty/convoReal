@@ -279,13 +279,14 @@ export default function CalendarScreen() {
 
   const byDay = useMemo(() => {
     const map = new Map<string, Appointment[]>();
-    for (const appt of data ?? []) {
+    for (const appt of withoutArchivedAppointments(data ?? [], showArchived)
+      .visible) {
       const key = dayKey(new Date(appt.start_time));
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(appt);
     }
     return map;
-  }, [data]);
+  }, [data, showArchived]);
 
   // Build the visible grid: leading blanks (Monday-first) + days.
   const cells = useMemo(() => {
