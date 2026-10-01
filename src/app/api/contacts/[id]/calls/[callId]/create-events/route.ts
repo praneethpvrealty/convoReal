@@ -4,6 +4,7 @@ import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { parseActionItemEvents } from '@/lib/calendar/action-item-events';
 import { istLocalToUtcIso, resolveByName } from '@/lib/calendar/event-parse';
+import { hasGeminiKey } from '@/lib/ai/gemini-keys';
 
 // POST /api/contacts/[id]/calls/[callId]/create-events
 // Turns an analyzed call's action items into calendar entries: items
@@ -24,7 +25,7 @@ export async function POST(
     const ctx = await requireRole('agent');
     const { id: contactId, callId } = await params;
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!(await hasGeminiKey())) {
       return NextResponse.json({ error: 'AI is not configured on this server.' }, { status: 500 });
     }
 

@@ -2839,7 +2839,7 @@
       "invariants": [
         {
           "id": "AIK-001",
-          "rule": "Every Gemini text and embedding call draws its key from the managed pool: enabled ai_provider_keys rows ordered by priority, decrypted with ENCRYPTION_KEY and cached in-process for a minute, so both Vercel and the Railway worker pick up a new key without a redeploy. Import-scoped keys serve only the guidance value import, which shares the general keys when it has none; a pool holding only import keys leaves ordinary calls on the environment keys. When no general key is managed or the table is unreachable, the pool is GEMINI_API_KEY plus the comma-separated GEMINI_FALLBACK_API_KEYS, each entry either a bare key or label=key.",
+          "rule": "Every Gemini text and embedding call draws its key from the managed pool: enabled ai_provider_keys rows ordered by priority, decrypted with ENCRYPTION_KEY and cached in-process for a minute, so both Vercel and the Railway worker pick up a new key without a redeploy. Import-scoped keys serve only the guidance value import, which shares the general keys when it has none; a pool holding only import keys leaves ordinary calls on the environment keys. When no general key is managed or the table is unreachable, the pool is GEMINI_API_KEY plus the comma-separated GEMINI_FALLBACK_API_KEYS, each entry either a bare key or label=key. Every feature decides whether AI is available from this pool (hasGeminiKey), never from GEMINI_API_KEY alone, so a deployment whose keys are all managed needs no Gemini environment variable.",
           "tests": [
             {
               "file": "src/lib/ai/gemini-keys.test.ts",

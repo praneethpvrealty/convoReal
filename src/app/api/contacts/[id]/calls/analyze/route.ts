@@ -5,6 +5,7 @@ import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { analyzeCall } from '@/lib/ai/call-analysis';
 import { uploadCallRecording } from '@/lib/storage/upload';
 import type { CallDirection } from '@/types';
+import { hasGeminiKey } from '@/lib/ai/gemini-keys';
 
 // POST /api/contacts/[id]/calls/analyze
 // Turns an uploaded call recording (base64 audio) or a pasted
@@ -25,7 +26,7 @@ export async function POST(
     const ctx = await requireRole('agent');
     const { id: contactId } = await params;
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!(await hasGeminiKey())) {
       return NextResponse.json({ error: 'AI is not configured on this server.' }, { status: 500 });
     }
 

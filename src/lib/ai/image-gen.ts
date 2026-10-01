@@ -25,7 +25,7 @@ import { BRANDING } from '@/config/branding';
 import { logAiCall } from '@/lib/ai/call-log';
 import {
   classifyGeminiKeyFailure,
-  resolveGeminiKeys,
+  hasGeminiKey,
   withGeminiKeys,
 } from '@/lib/ai/gemini-keys';
 
@@ -307,10 +307,6 @@ function toCallerError(err: unknown): unknown {
   return statusError(IMAGE_PROVIDER_UNAVAILABLE, 503);
 }
 
-async function hasGeminiKey(): Promise<boolean> {
-  return (await resolveGeminiKeys({})).length > 0;
-}
-
 export async function hasImageProvider(
   provider: GenerateAiImageOptions['provider']
 ): Promise<boolean> {
@@ -412,7 +408,7 @@ async function generateWithProviders(
   if (provider === 'google') {
     if (!(await hasGeminiKey())) {
       console.error(
-        '[image-gen] GEMINI_API_KEY is not configured on the server.'
+        '[image-gen] No Gemini key is configured (Admin -> AI keys).'
       );
       throw statusError(IMAGE_PROVIDER_UNAVAILABLE, 500);
     }

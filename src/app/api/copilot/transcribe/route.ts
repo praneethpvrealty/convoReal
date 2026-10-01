@@ -7,6 +7,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { readCopilotVoiceRequest } from '@/lib/copilot/voice';
+import { hasGeminiKey } from '@/lib/ai/gemini-keys';
 
 export async function POST(request: Request) {
   try {
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
     );
     if (!accountLimit.success) return rateLimitResponse(accountLimit);
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!(await hasGeminiKey())) {
       return NextResponse.json(
         { error: 'Voice input is not configured on this server.' },
         { status: 503 }

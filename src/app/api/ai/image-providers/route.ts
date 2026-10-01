@@ -10,7 +10,7 @@ import { getImageProvidersStatus } from '@/lib/ai/provider-status';
 export async function GET() {
   try {
     await requireRole('agent');
-    return NextResponse.json({ data: getImageProvidersStatus() });
+    return NextResponse.json({ data: await getImageProvidersStatus() });
   } catch (err) {
     return toErrorResponse(err);
   }

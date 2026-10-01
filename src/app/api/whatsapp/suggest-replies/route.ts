@@ -3,6 +3,7 @@ import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { generateJson } from '@/lib/ai/gemini'
 import { REPLY_LANGUAGE_RULE } from '@/lib/languages'
+import { hasGeminiKey } from '@/lib/ai/gemini-keys'
 
 /**
  * POST /api/whatsapp/suggest-replies — AI draft replies for the inbox.
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
     }
 
     // Feature degrades gracefully on deployments without a Gemini key.
-    if (!process.env.GEMINI_API_KEY) {
+    if (!(await hasGeminiKey())) {
       return NextResponse.json({ suggestions: [] })
     }
 
