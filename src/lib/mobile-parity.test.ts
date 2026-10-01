@@ -2766,7 +2766,7 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
       'if (who && what) return `${who} — ${what}`;',
       'return who ?? what ?? row.title;',
       'if (headline.toLowerCase().includes(title.toLowerCase())) return null;',
-      'return row.source_journey_item_id !== null || row.milestones_total > 0;',
+      'return row.milestones_total > 0;',
     ]) {
       expect(mobileVocab, `mobile drifted at: ${line}`).toContain(line);
     }
@@ -2781,6 +2781,9 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     expect(transactionSubtitle(row)).toBe(row.title);
     expect(
       isClosingRecord({ source_journey_item_id: null, milestones_total: 0 })
+    ).toBe(false);
+    expect(
+      isClosingRecord({ source_journey_item_id: 'j1', milestones_total: 0 })
     ).toBe(false);
   });
 

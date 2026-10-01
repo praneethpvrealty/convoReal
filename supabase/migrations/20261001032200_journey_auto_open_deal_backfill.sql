@@ -2,7 +2,12 @@
 -- predates journey_auto_open_deal (…032159), through the same function
 -- the trigger calls, so the Board shows every live branch at its stage.
 --
+-- Runs with the service-role claim so the opener's listing-status sync
+-- passes its guard, as the earlier pipeline backfills do.
+--
 -- Data backfill: held until the PR carrying …032159 is merged.
+
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
 SELECT journey_open_deal_for_item(ji.id)
 FROM journey_items ji

@@ -49,7 +49,7 @@ describe('[JRN-016] every live journey branch is a deal on the Board', () => {
 
   it('adopts the pair’s unlinked deal instead of opening a second one', () => {
     expect(migration).toMatch(
-      /AND source_journey_item_id IS NULL\s+ORDER BY created_at, id\s+LIMIT 1;/
+      /AND pipeline_id = v_stage\.pipeline_id\s+AND source_journey_item_id IS NULL\s+ORDER BY created_at, id\s+LIMIT 1;/
     );
     expect(migration).toContain(
       'UPDATE deals SET source_journey_item_id = v_item.id'
@@ -59,15 +59,20 @@ describe('[JRN-016] every live journey branch is a deal on the Board', () => {
     );
   });
 
-  it('seeds the standard closing checklist on a closing stage', () => {
-    const keys = DEAL_MILESTONE_TEMPLATES.map((t) => `'${t.key}'`).join(
-      '[\\s,]+'
+  it('re-syncs the listing whenever an adopted deal moves or a deal opens on a closing stage', () => {
+    expect(migration).toMatch(
+      /IF v_closing OR v_adopted THEN\s+BEGIN\s+PERFORM sync_listing_status_from_deals\(/
     );
-    const titles = DEAL_MILESTONE_TEMPLATES.map(
-      (t) => `'${t.title.replace(/[/]/g, '\\/')}'`
-    ).join('[\\s,]+');
-    expect(migration).toMatch(new RegExp(keys));
-    expect(migration).toMatch(new RegExp(titles));
+    expect(migration).toContain('v_adopted := TRUE;');
+  });
+
+  it('seeds the standard closing checklist on a closing stage', () => {
+    const literal = (text: string) =>
+      `'${text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}'`;
+    const keys = DEAL_MILESTONE_TEMPLATES.map((t) => literal(t.key));
+    const titles = DEAL_MILESTONE_TEMPLATES.map((t) => literal(t.title));
+    expect(migration).toMatch(new RegExp(keys.join('[\\s,]+')));
+    expect(migration).toMatch(new RegExp(titles.join('[\\s,]+')));
     expect(migration).toContain("'milestone_added', 'system'");
     expect(migration).toContain(
       "v_closing := v_stage.stage_type IN ('committed', 'won', 'brokerage_pending', 'brokerage_paid');"
@@ -90,5 +95,8 @@ describe('[JRN-016] every live journey branch is a deal on the Board', () => {
   it('backfills every live branch through the same opener', () => {
     expect(backfill).toContain('SELECT journey_open_deal_for_item(ji.id)');
     expect(backfill).toContain('AND js.pipeline_stage_id IS NOT NULL');
+    expect(backfill).toContain(
+      `SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);`
+    );
   });
 });

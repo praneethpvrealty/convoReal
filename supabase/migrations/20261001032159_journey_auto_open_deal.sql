@@ -13,11 +13,13 @@
 --
 -- Not opened: a branch still hidden in the Captured tray, a dropped
 -- branch, a branch on an unmirrored stage, and a branch already linked
--- to a deal. When the pair has an unlinked deal (the one left after the
--- linked deal was deleted), that deal is adopted, linked and moved to
--- the branch's stage instead of opening another. A deal that opens or is
--- adopted on a closing stage gets the standard milestone checklist and
--- syncs the listing status, as a Board move into that stage would. An UPDATE nested inside another trigger is
+-- to a deal. When the pair has an unlinked deal on the mirrored pipeline
+-- (the one left after the linked deal was deleted), that deal is
+-- adopted, linked and moved to the branch's stage instead of opening
+-- another; a deal on another pipeline is never adopted. A deal that
+-- opens or is adopted on a closing stage gets the standard milestone
+-- checklist, and the listing status is re-synced whenever a deal opens
+-- on a closing stage or an adopted deal moves, as a Board move would. An UPDATE nested inside another trigger is
 -- skipped, so dropping a branch because its deal was deleted never
 -- reopens the deal; an INSERT at any depth is handled, because shares
 -- capture branches from a trigger on property_shares.
@@ -41,6 +43,7 @@ DECLARE
   v_title TEXT;
   v_status TEXT;
   v_closing BOOLEAN;
+  v_adopted BOOLEAN := FALSE;
   v_deal UUID;
   v_seeded INTEGER;
 BEGIN
@@ -86,6 +89,7 @@ BEGIN
     WHERE account_id = v_item.account_id
       AND contact_id = v_item.contact_id
       AND property_id = v_item.property_id
+      AND pipeline_id = v_stage.pipeline_id
       AND source_journey_item_id IS NULL
     ORDER BY created_at, id
     LIMIT 1;
@@ -96,17 +100,14 @@ BEGIN
       -- to the branch's stage rather than opening a second one.
       UPDATE deals SET source_journey_item_id = v_item.id
         WHERE id = v_pair.id AND account_id = v_item.account_id;
-      IF v_pair.pipeline_id = v_stage.pipeline_id THEN
-        UPDATE deals
-          SET stage_id = v_stage.pipeline_stage_id,
-              status = v_status
-          WHERE id = v_pair.id AND account_id = v_item.account_id
-            AND (stage_id IS DISTINCT FROM v_stage.pipeline_stage_id
-                 OR status IS DISTINCT FROM v_status);
-      ELSE
-        v_closing := FALSE;
-      END IF;
+      UPDATE deals
+        SET stage_id = v_stage.pipeline_stage_id,
+            status = v_status
+        WHERE id = v_pair.id AND account_id = v_item.account_id
+          AND (stage_id IS DISTINCT FROM v_stage.pipeline_stage_id
+               OR status IS DISTINCT FROM v_status);
       v_deal := v_pair.id;
+      v_adopted := TRUE;
     ELSE
       v_user := COALESCE(
         v_item.created_by,
@@ -205,12 +206,18 @@ BEGIN
           jsonb_build_object('template', 'standard', 'count', v_seeded, 'stage', v_stage.name)
         );
       END IF;
+    END IF;
 
+    IF v_closing OR v_adopted THEN
       BEGIN
         PERFORM sync_listing_status_from_deals(
           v_item.account_id,
           v_item.property_id,
-          CASE WHEN v_status = 'won' THEN 'Sold' ELSE 'Under Contract' END
+          CASE
+            WHEN v_status = 'won' THEN 'Sold'
+            WHEN v_closing THEN 'Under Contract'
+            ELSE 'Available'
+          END
         );
       EXCEPTION WHEN OTHERS THEN
         RAISE WARNING 'journey_open_deal_for_item(%): listing status not synced: %', p_item_id, SQLERRM;
