@@ -34,6 +34,7 @@ import {
   type CopilotActionProposal,
 } from './actions';
 import { DEFAULT_LANGUAGE, type LanguageCode } from '@/lib/languages';
+import { hasGeminiKey } from '@/lib/ai/gemini-keys';
 
 /**
  * The helper's answer engine, shared by all three surfaces: the staff
@@ -269,7 +270,7 @@ export async function answerQuestion(
   }
 
   // Helper still works on deployments without a Gemini key.
-  if (!process.env.GEMINI_API_KEY) {
+  if (!(await hasGeminiKey())) {
     return { reply: NO_AI_REPLY[audience] };
   }
 

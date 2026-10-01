@@ -3784,6 +3784,34 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
     expect(mobileCalendar).not.toContain('archived_at:');
   });
 
+  it('[CAL-011] greys out or hides archived events on the calendar grid on both surfaces', () => {
+    expect(webCalendar).toContain(
+      'calendarAppointments.visible.forEach((appt) => {'
+    );
+    expect(
+      webCalendar.match(/events=\{calendarAppointments\.visible\}/g)
+    ).toHaveLength(2);
+    expect(webCalendar).toContain('events={listedAppointments.visible}');
+    expect(webCalendar).not.toContain('events={filteredAppointments}');
+    expect(webCalendar).toContain(
+      'withoutArchivedAppointments(filteredAppointments, archivedOnCalendar(archivedView))'
+    );
+    expect(mobileCalendar).toContain('archivedOnCalendar(archivedView)');
+    expect(webCalendar).toContain('useState<ArchivedView>("greyed")');
+    expect(mobileCalendar).toContain("useState<ArchivedView>('greyed')");
+    expect(webCalendar).toContain(
+      'isArchivedAppointment(appt) && ARCHIVED_EVENT_CHIP'
+    );
+    for (const view of ['week-view.tsx', 'team-view.tsx']) {
+      expect(webSource(`components/calendar/${view}`)).toContain(
+        'isArchivedAppointment(ev) && ARCHIVED_EVENT_CHIP'
+      );
+    }
+    expect(mobileCalendar).toContain(
+      "a.status === 'cancelled' ||\n                                isArchivedAppointment(a)"
+    );
+  });
+
   it('offers Archive on a finished event, Archive done and Show archived on both surfaces', () => {
     expect(webTasksList).toContain('canArchiveAppointment(event.status) && (');
     expect(mobileCalendar).toContain(
@@ -3795,14 +3823,15 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
     expect(mobileCalendar).toContain(
       '...(upcomingAppointmentsQuery.data ?? [])]'
     );
-    expect(webCalendar).toContain('`Show archived (${archivedTaskCount})`');
-    expect(webAgenda).toContain('`Show archived (${archivedCount})`');
-    expect(mobileCalendar).toContain(
-      '`Show archived (${monthArchive.archivedCount})`'
-    );
+    expect(webCalendar).toContain('ARCHIVED_VIEWS.map((mode) => (');
+    expect(mobileCalendar).toContain('ARCHIVED_VIEWS.map((mode) => (');
+    expect(webAgenda).not.toContain('Show archived');
     expect(webCalendar).toContain(
-      'withoutArchivedAppointments(filteredAppointments, showArchivedTasks)'
+      'withoutArchivedAppointments(filteredAppointments, archivedInLists(archivedView))'
     );
+    expect(
+      mobileCalendar.match(/archivedInLists\(archivedView\)/g)
+    ).toHaveLength(2);
     expect(mobileCalendar).toContain('withoutArchivedAppointments(');
   });
 });

@@ -55,6 +55,7 @@ import {
   resetGeminiKeyState,
 } from './gemini';
 import {
+  hasGeminiKey,
   markModelRetired,
   parseEnvKeys,
   resolveGeminiKeys,
@@ -152,6 +153,15 @@ describe('key pool', () => {
     expect(seen).toEqual(['db-a']);
   });
 
+  it('[AIK-001] reports a usable key from the managed pool without any environment key', async () => {
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.stubEnv('GEMINI_FALLBACK_API_KEYS', '');
+    expect(await hasGeminiKey()).toBe(false);
+    store.rows = [managedRow('first', 'db-a')];
+    resetGeminiKeyState();
+    expect(await hasGeminiKey()).toBe(true);
+  });
+
   it('[AIK-001] uses environment keys with their labels when none are managed', async () => {
     const keys = await resolveGeminiKeys({});
     expect(keys.map((k) => [k.label, k.key])).toEqual([
@@ -228,6 +238,31 @@ describe('failover', () => {
       last_error: 'Your prepayment credits are depleted.',
     });
     expect(typeof rest?.patch.resting_until).toBe('string');
+  });
+
+  it("[AIK-002] clears a recovered key's last error on its next success", async () => {
+    store.rows = [
+      managedRow('only', 'db-a', {
+        last_error: 'Your prepayment credits are depleted.',
+      }),
+    ];
+    expect(await generateText('hi')).toBe('ok from db-a');
+    await tick();
+    expect(store.updates.find((u) => u.id === 'id-only')?.patch).toMatchObject({
+      last_error: null,
+      last_error_at: null,
+      resting_until: null,
+    });
+  });
+
+  it('[AIK-002] clears an error another instance recorded while the call was in flight', async () => {
+    store.rows = [managedRow('only', 'db-a')];
+    expect(await generateText('hi')).toBe('ok from db-a');
+    await tick();
+    expect(store.updates.find((u) => u.id === 'id-only')?.patch).toMatchObject({
+      last_error: null,
+      last_error_at: null,
+    });
   });
 
   it('[AIK-002] honours a rest recorded by another instance', async () => {

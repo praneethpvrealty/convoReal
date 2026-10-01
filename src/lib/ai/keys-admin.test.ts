@@ -75,6 +75,9 @@ describe('pricing', () => {
     expect(
       estimateCostUsd('gemini-4-flash', 1_000_000, 0, DEFAULT_PRICING)
     ).toBe(DEFAULT_PRICING.models['gemini-3.5-flash'].input);
+    expect(
+      estimateCostUsd('gemini-4-flash-image', 0, 1_000_000, DEFAULT_PRICING)
+    ).toBe(DEFAULT_PRICING.models['gemini-3.1-flash-image'].output);
     expect(DEFAULT_PRICING.models['gemini-3.8-flash']).toEqual({
       input: 0.75,
       output: 3.75,

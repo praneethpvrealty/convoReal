@@ -4,7 +4,8 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { storagePublicUrl } from "@/lib/storage/url";
 import { ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
-import { CalendarEvent, TeamMember, eventTypeMeta, memberInitials, formatTimeShort } from "./event-types";
+import { isArchivedAppointment } from "@/lib/calendar/tasks-view";
+import { ARCHIVED_EVENT_CHIP, CalendarEvent, TeamMember, eventTypeMeta, memberInitials, formatTimeShort } from "./event-types";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 
 interface TeamViewProps {
@@ -149,7 +150,8 @@ export function TeamView({ events, members, selectedDate, onSelectDate, onEventC
                               "inline-flex max-w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-semibold transition-colors",
                               meta.chip,
                               ev.status === "cancelled" && "line-through opacity-50",
-                              ev.status === "completed" && "opacity-60"
+                              ev.status === "completed" && "opacity-60",
+                              isArchivedAppointment(ev) && ARCHIVED_EVENT_CHIP
                             )}
                           >
                             {ev.status === "completed" ? (

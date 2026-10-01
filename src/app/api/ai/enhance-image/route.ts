@@ -69,7 +69,13 @@ export async function POST(request: Request) {
     let imageResult: string;
     try {
       console.log(`[AI Enhance] Requesting generation (provider=${provider}) with prompt: "${prompt}"`);
-      imageResult = await generateAiImage({ prompt, aspectRatio, provider, stabilityModel });
+      imageResult = await generateAiImage({
+        prompt,
+        aspectRatio,
+        provider,
+        stabilityModel,
+        feature: 'image_enhance',
+      });
     } catch (apiErr: unknown) {
       // API or network failure: refund the credits
       await refundCredits(accountId, 'image_enhance', cost);

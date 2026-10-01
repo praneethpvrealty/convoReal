@@ -14,6 +14,7 @@ import {
   isLocationGuarded,
   localityLabel,
 } from '@/lib/inventory/location-guard';
+import { hasGeminiKey } from '@/lib/ai/gemini-keys';
 
 // POST /api/ai/share-email
 // Rewrites the deterministic "Share via Email" draft for a property into
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
     const gate = await checkPlanLimit(ctx, 'ai');
     if (!gate.allowed) return gateResponse(gate);
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!(await hasGeminiKey())) {
       return NextResponse.json({ error: 'AI is not configured on this server.' }, { status: 500 });
     }
 

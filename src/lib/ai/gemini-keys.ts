@@ -207,6 +207,10 @@ export async function resolveGeminiKeys(opts: {
   return dedupe(envGeneralKeys());
 }
 
+export async function hasGeminiKey(scope?: GeminiKeyScope): Promise<boolean> {
+  return (await resolveGeminiKeys({ scope })).length > 0;
+}
+
 function restingUntil(entry: GeminiKey): number {
   return Math.max(entry.restingUntil, cooldowns.get(entry.key)?.until ?? 0);
 }
@@ -267,12 +271,16 @@ export function markKeySuccess(entry: GeminiKey): void {
   cooldowns.delete(entry.key);
   entry.restingUntil = 0;
   if (!entry.id) return;
+  const hadError = entry.lastError !== null;
+  entry.lastError = null;
   const last = lastUsedWrites.get(entry.id) ?? 0;
-  if (Date.now() - last < LAST_USED_WRITE_INTERVAL_MS) return;
+  if (!hadError && Date.now() - last < LAST_USED_WRITE_INTERVAL_MS) return;
   lastUsedWrites.set(entry.id, Date.now());
   persist(entry.id, {
     last_used_at: new Date().toISOString(),
     resting_until: null,
+    last_error: null,
+    last_error_at: null,
   });
 }
 

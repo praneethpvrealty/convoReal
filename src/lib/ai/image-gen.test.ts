@@ -6,6 +6,9 @@ import {
   IMAGE_PROVIDER_UNAVAILABLE,
 } from './image-gen';
 import { resetGeminiKeyState } from './gemini-keys';
+import { logAiCall } from './call-log';
+
+vi.mock('./call-log', () => ({ logAiCall: vi.fn() }));
 
 vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => {
@@ -40,6 +43,7 @@ function geminiImageResponse() {
           },
         },
       ],
+      usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 1290 },
     }),
   };
 }
@@ -274,5 +278,61 @@ describe('hasImageProvider', () => {
     vi.stubEnv('STABILITY_API_KEY', '');
 
     await expect(hasImageProvider('huggingface')).resolves.toBe(false);
+  });
+});
+
+describe('generateAiImage — spend log', () => {
+  it('logs each Gemini image attempt under the serving key and feature', async () => {
+    vi.stubEnv('GEMINI_API_KEY', 'gm-depleted');
+    vi.stubEnv('GEMINI_FALLBACK_API_KEYS', 'gm-spare');
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.mocked(logAiCall).mockClear();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          url.includes('gm-depleted')
+            ? {
+                ok: false,
+                status: 402,
+                statusText: 'Payment Required',
+                json: async () => ({
+                  error: { message: 'Your prepayment credits are depleted.' },
+                }),
+              }
+            : geminiImageResponse()
+        )
+      )
+    );
+
+    await generateAiImage({
+      prompt: 'flyer background',
+      provider: 'google',
+      feature: 'image_enhance',
+    });
+
+    expect(logAiCall).toHaveBeenCalledTimes(2);
+    expect(logAiCall).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        keyLabel: 'primary',
+        feature: 'image_enhance',
+        success: false,
+        errorMessage: 'Your prepayment credits are depleted.',
+      })
+    );
+    expect(logAiCall).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        keyLabel: 'fallback-1',
+        feature: 'image_enhance',
+        model: expect.stringContaining('image'),
+        success: true,
+        promptTokens: 12,
+        responseTokens: 1290,
+        hasMedia: false,
+        responseChars: 0,
+      })
+    );
   });
 });

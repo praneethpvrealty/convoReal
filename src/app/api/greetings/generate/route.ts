@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
             prompt: greetingImagePrompt(occasionLabel),
             provider: 'huggingface',
             timeoutMs: GREETING_CARD_TIMEOUT_MS,
+            feature: 'greetings_image',
           });
           const match = /^data:([^;]+);base64,(.+)$/.exec(dataUri);
           if (match) {
