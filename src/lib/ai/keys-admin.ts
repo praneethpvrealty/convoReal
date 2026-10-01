@@ -50,6 +50,7 @@ export const DEFAULT_PRICING: Pricing = {
     'gemini-3.1-flash-lite': { input: 0.25, output: 1.5 },
     'gemini-3.5-flash-lite': { input: 0.3, output: 2.5 },
     'gemini-embedding-001': { input: 0.15, output: 0 },
+    'gemini-3.1-flash-image': { input: 0.5, output: 60 },
   },
   inrPerUsd: 84,
 };
@@ -62,6 +63,9 @@ export function priceFor(model: string, pricing: Pricing): ModelPrice {
   const exact = pricing.models[model];
   if (exact) return exact;
   const lower = model.toLowerCase();
+  if (lower.includes('image')) {
+    return pricing.models['gemini-3.1-flash-image'] ?? { input: 0, output: 0 };
+  }
   if (lower.includes('embedding')) {
     return pricing.models['gemini-embedding-001'] ?? { input: 0, output: 0 };
   }

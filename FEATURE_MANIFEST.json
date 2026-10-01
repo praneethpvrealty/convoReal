@@ -2873,7 +2873,7 @@
         },
         {
           "id": "AIK-004",
-          "rule": "Usage comes from ai_call_log, which records the serving key's label for generation and embedding calls alike and is switched on by migration (the panel warns and offers to turn it on when it is off); the panel shows per key calls, tokens and estimated spend for today (Asia/Kolkata), this month and since the last recorded top-up, an estimated remaining balance of top-ups minus that spend (Google exposes no balance) computed over a window that reaches back to the month start and the last top-up, marked partial beyond the 90-day log, and labels seen in the log that are not managed. Spend is tokens × per-model USD prices with family fallbacks, overridable in system_settings.",
+          "rule": "Usage comes from ai_call_log, which records the serving key's label for generation, embedding and Gemini image calls alike and is switched on by migration (the panel warns and offers to turn it on when it is off); the panel shows per key calls, tokens and estimated spend for today (Asia/Kolkata), this month and since the last recorded top-up, an estimated remaining balance of top-ups minus that spend (Google exposes no balance) computed over a window that reaches back to the month start and the last top-up, marked partial beyond the 90-day log, and labels seen in the log that are not managed. Spend is tokens × per-model USD prices with family fallbacks, overridable in system_settings.",
           "tests": [
             {
               "file": "src/lib/ai/keys-admin.test.ts",
