@@ -61,10 +61,13 @@ logs will get to a fix fastest.
   after each fix; use it only if the review failed to start or errored. Resolve
   the findings and merge; ask again only when a fix changes behaviour beyond
   what the finding asked for.
-  High-risk standalone PRs get `@codex review` and `@codex security review` after
-  every behaviour-changing push. A Codex security finding of any severity is fixed,
-  or answered with the reason it does not apply, before merging. See `AGENTS.md` →
-  Batched production releases.
+  The security review is the automatic one Codex runs when a PR opens ready or
+  leaves draft; `@codex security review` does not start one, so keep a PR in draft
+  until the change is complete. On a high-risk standalone PR, after every
+  behaviour-changing push, convert it back to draft and mark it ready again so both
+  reviews re-run on the head that will merge. A Codex security finding of any
+  severity is fixed, or answered with the reason it does not apply, before
+  merging; on any PR, a push that fixes one gets the same draft-to-ready cycle. See `AGENTS.md` → Batched production releases.
 - Vercel previews are disabled. Only `main` automatically deploys; do not manually
   deploy feature or release branches. The mobile EAS channel named `preview` is separate.
 - High-risk changes listed in `AGENTS.md` ship separately from routine batches.
