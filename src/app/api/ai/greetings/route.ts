@@ -72,7 +72,7 @@ export async function POST(request: Request) {
         const imagePrompt = getImagePromptForOccasion(occasion);
         console.log(`[Greetings AI] Generating card image with prompt: "${imagePrompt}"`);
         try {
-          imageResult = await generateAiImage({ prompt: imagePrompt, provider: 'huggingface' });
+          imageResult = await generateAiImage({ prompt: imagePrompt, provider: 'huggingface', feature: 'greetings_image' });
         } catch (imgErr) {
           console.error('[Greetings AI] Image generation failed, returning text only:', (imgErr as Error).message);
         }
