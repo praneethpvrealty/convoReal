@@ -82,7 +82,7 @@ export function useAuthListener() {
     supabase
       .from('profiles')
       .select(
-        'account_id, account_role, org_role, full_name, active_ui_language, is_read_only, calendar_archived_view'
+        'account_id, account_role, org_role, full_name, active_ui_language, is_read_only'
       )
       .eq('user_id', userId)
       .maybeSingle()

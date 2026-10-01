@@ -177,7 +177,6 @@ export interface Profile {
   /** Read-only member (migration 082): an agent who may view but never
    *  write; the API's requireWriteRole refuses them. */
   is_read_only?: boolean | null;
-  calendar_archived_view?: string | null;
 }
 
 // ------------------------------------------------------------------

@@ -215,7 +215,8 @@ export default function CalendarPage() {
 
   // Tasks list under the calendar (CAL-010)
   const [tasksOpen, setTasksOpen] = useState(true);
-  const [archivedViewChoice, setArchivedViewChoice] = useState<ArchivedView | null>(null);
+  const archivedViewWrites = useRef<Promise<void>>(Promise.resolve());
+  const archivedViewLatest = useRef(0);
   const archivedViewQuery = useQuery({
     queryKey: ["calendar-archived-view", user?.id],
     enabled: !!user?.id,
@@ -229,7 +230,7 @@ export default function CalendarPage() {
       return toArchivedView(data?.calendar_archived_view);
     },
   });
-  const archivedView = archivedViewChoice ?? archivedViewQuery.data ?? "greyed";
+  const archivedView = archivedViewQuery.data ?? "greyed";
   const [taskSort, setTaskSort] = useState<TaskSortMode>("upcoming");
   const [taskBusyKey, setTaskBusyKey] = useState<string | null>(null);
 
@@ -569,19 +570,21 @@ export default function CalendarPage() {
       setTaskBusyKey(null);
     }
   };
-  const changeArchivedView = async (view: ArchivedView) => {
-    setArchivedViewChoice(view);
+  const changeArchivedView = (view: ArchivedView) => {
     if (!user?.id) return;
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({ calendar_archived_view: view })
-      .eq("user_id", user.id)
-      .select("id");
-    if (error || !data?.length) {
-      toast.error("Could not save this setting; it applies until you leave the calendar");
-      return;
-    }
-    queryClient.setQueryData(["calendar-archived-view", user.id], view);
+    const key = ["calendar-archived-view", user.id];
+    void queryClient.cancelQueries({ queryKey: key });
+    queryClient.setQueryData(key, view);
+    const write = ++archivedViewLatest.current;
+    archivedViewWrites.current = archivedViewWrites.current.then(async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({ calendar_archived_view: view })
+        .eq("user_id", key[1])
+        .select("id");
+      if (error || !data?.length) toast.error("Could not save the archived setting");
+      if (write === archivedViewLatest.current) await queryClient.invalidateQueries({ queryKey: key });
+    });
   };
   const archiveAppointment = (appt: CalendarEvent, archived: boolean) =>
     archiveAppointments([appt.id], archived, appt.id);

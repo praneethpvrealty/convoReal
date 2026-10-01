@@ -264,30 +264,55 @@ export default function CalendarScreen() {
     }, [])
   );
   const [dealOnly, setDealOnly] = useState(false);
-  const profile = useAuthStore((s) => s.profile);
-  const setProfile = useAuthStore((s) => s.setProfile);
   const userId = useAuthStore((s) => s.session?.user.id);
-  const [archivedViewChoice, setArchivedViewChoice] =
-    useState<ArchivedView | null>(null);
-  const archivedView =
-    archivedViewChoice ?? toArchivedView(profile?.calendar_archived_view);
-  async function changeArchivedView(view: ArchivedView) {
+  const archivedViewQuery = useQuery({
+    queryKey: ['calendar-archived-view', userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('calendar_archived_view')
+        .eq('user_id', userId!)
+        .maybeSingle();
+      if (error) throw error;
+      return toArchivedView(data?.calendar_archived_view);
+    },
+  });
+  const archivedView = archivedViewQuery.data ?? 'greyed';
+  const refetchArchivedView = archivedViewQuery.refetch;
+  useFocusEffect(
+    useCallback(() => {
+      void refetchArchivedView();
+    }, [refetchArchivedView])
+  );
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refetchArchivedView();
+    });
+    return () => subscription.remove();
+  }, [refetchArchivedView]);
+  const archivedViewWrites = useRef<Promise<void>>(Promise.resolve());
+  const archivedViewLatest = useRef(0);
+  function changeArchivedView(view: ArchivedView) {
     haptic.tap();
-    setArchivedViewChoice(view);
     if (!userId) return;
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({ calendar_archived_view: view })
-      .eq('user_id', userId)
-      .select('id');
-    if (error || !data?.length) {
-      Alert.alert(
-        'Could not save this setting',
-        'It applies until you leave the calendar.'
-      );
-      return;
-    }
-    if (profile) setProfile({ ...profile, calendar_archived_view: view });
+    const key = ['calendar-archived-view', userId];
+    void queryClient.cancelQueries({ queryKey: key });
+    queryClient.setQueryData(key, view);
+    const write = ++archivedViewLatest.current;
+    archivedViewWrites.current = archivedViewWrites.current.then(async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ calendar_archived_view: view })
+        .eq('user_id', userId)
+        .select('id');
+      if (error || !data?.length) {
+        Alert.alert('Could not save the archived setting');
+      }
+      if (write === archivedViewLatest.current) {
+        await queryClient.invalidateQueries({ queryKey: key });
+      }
+    });
   }
   const [taskSort, setTaskSort] = useState<TaskSortMode>('upcoming');
   const [archiving, setArchiving] = useState(false);
@@ -724,7 +749,7 @@ export default function CalendarScreen() {
                   key={mode}
                   label={`${ARCHIVED_VIEW_LABELS[mode]} (${monthArchive.archivedCount})`}
                   active={archivedView === mode}
-                  onPress={() => void changeArchivedView(mode)}
+                  onPress={() => changeArchivedView(mode)}
                 />
               ))
             : null}
