@@ -79,6 +79,8 @@ export const DEAL_DATE_META = {
   dot: "bg-teal-400",
 } as const;
 
+export const ARCHIVED_EVENT_CHIP = "border-slate-700 bg-slate-800/40 text-slate-500 opacity-60 grayscale";
+
 export function eventTypeMeta(key?: string | null): EventTypeMeta {
   return EVENT_TYPES[(key as EventTypeKey) || "other"] || EVENT_TYPES.other;
 }

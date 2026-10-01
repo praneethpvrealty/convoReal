@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 1 October 2026
 
+- **Archived events are greyed out on the calendar, with an option to hide
+  them.** An archived event now stays on its day in the month grid, the Week
+  and Team views and mobile's month dots, dimmed and greyed, instead of
+  disappearing. A three-way setting in the web calendar's filter row, and as
+  chips on mobile, chooses **Grey out archived** (the default), **Hide
+  archived**, or **List archived**, which also brings archived events back into
+  Tasks and the Agenda.
+
 - **Archived events leave the calendar grid too.** Archiving a done or
   cancelled event now hides it from the month grid, the Week and Team views
   and mobile's month dots, as well as from Tasks and the Agenda. One

@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   APPOINTMENT_STATUS_LABELS,
   ARCHIVE_BATCH_LIMIT,
+  ARCHIVED_VIEW_LABELS,
+  ARCHIVED_VIEWS,
+  archivedInLists,
+  archivedOnCalendar,
   appointmentStatusActions,
   archivableAppointmentIds,
   buildCalendarTaskRows,
@@ -232,6 +236,27 @@ describe('[CAL-012] tasks sorted by date and time', () => {
       upcoming: 'Upcoming first',
       earliest: 'Earliest first',
       latest: 'Latest first',
+    });
+  });
+});
+
+describe('[CAL-011] archived events on the calendar and in the lists', () => {
+  it('greys archived events out on the calendar by default, hides them on request, and lists them only when asked', () => {
+    expect(ARCHIVED_VIEWS[0]).toBe('greyed');
+    expect(
+      ARCHIVED_VIEWS.map((view) => [
+        archivedOnCalendar(view),
+        archivedInLists(view),
+      ])
+    ).toEqual([
+      [true, false],
+      [false, false],
+      [true, true],
+    ]);
+    expect(ARCHIVED_VIEW_LABELS).toEqual({
+      greyed: 'Grey out archived',
+      hidden: 'Hide archived',
+      listed: 'List archived',
     });
   });
 });

@@ -44,7 +44,11 @@ import { updateDealMilestone } from '@/lib/deal-workspace-api';
 import { deadlineLabel } from '@/lib/focus';
 import {
   appointmentStatusActions,
+  ARCHIVED_VIEW_LABELS,
+  ARCHIVED_VIEWS,
   archivableAppointmentIds,
+  archivedInLists,
+  archivedOnCalendar,
   canArchiveAppointment,
   chunkIds,
   isArchivedAppointment,
@@ -52,6 +56,7 @@ import {
   TASK_SORT_LABELS,
   TASK_SORT_MODES,
   withoutArchivedAppointments,
+  type ArchivedView,
   type TaskSortMode,
 } from '@/lib/calendar-tasks';
 import {
@@ -258,7 +263,7 @@ export default function CalendarScreen() {
     }, [])
   );
   const [dealOnly, setDealOnly] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
+  const [archivedView, setArchivedView] = useState<ArchivedView>('greyed');
   const [taskSort, setTaskSort] = useState<TaskSortMode>('upcoming');
   const [archiving, setArchiving] = useState(false);
   const canEditTasks = useAuthStore((s) =>
@@ -279,14 +284,16 @@ export default function CalendarScreen() {
 
   const byDay = useMemo(() => {
     const map = new Map<string, Appointment[]>();
-    for (const appt of withoutArchivedAppointments(data ?? [], showArchived)
-      .visible) {
+    for (const appt of withoutArchivedAppointments(
+      data ?? [],
+      archivedOnCalendar(archivedView)
+    ).visible) {
       const key = dayKey(new Date(appt.start_time));
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(appt);
     }
     return map;
-  }, [data, showArchived]);
+  }, [data, archivedView]);
 
   // Build the visible grid: leading blanks (Monday-first) + days.
   const cells = useMemo(() => {
@@ -322,7 +329,7 @@ export default function CalendarScreen() {
 
   const dayAppointments = withoutArchivedAppointments(
     dealOnly ? [] : (byDay.get(dayKey(selected)) ?? []),
-    showArchived
+    archivedInLists(archivedView)
   ).visible;
   const dayDealDates = dealDatesByDay.get(dayKey(selected)) ?? [];
   const dayItems = sortTasksByTime(
@@ -389,7 +396,7 @@ export default function CalendarScreen() {
         buildUpcomingCalendarItems(
           withoutArchivedAppointments(
             dealOnly ? [] : (upcomingAppointmentsQuery.data ?? []),
-            showArchived
+            archivedInLists(archivedView)
           ).visible,
           dealOnly ? [] : (todosQuery.data ?? []),
           today,
@@ -403,7 +410,7 @@ export default function CalendarScreen() {
       ),
     [
       dealOnly,
-      showArchived,
+      archivedView,
       taskSort,
       upcomingAppointmentsQuery.data,
       todosQuery.data,
@@ -623,7 +630,8 @@ export default function CalendarScreen() {
                             styles.dot,
                             {
                               backgroundColor:
-                                a.status === 'cancelled'
+                                a.status === 'cancelled' ||
+                                isArchivedAppointment(a)
                                   ? colors.textFaint
                                   : a.event_type === 'site_visit'
                                     ? colors.success
@@ -685,20 +693,19 @@ export default function CalendarScreen() {
               }}
             />
           ) : null}
-          {!dealOnly && monthArchive.archivedCount > 0 ? (
-            <FilterChip
-              label={
-                showArchived
-                  ? 'Hide archived'
-                  : `Show archived (${monthArchive.archivedCount})`
-              }
-              active={showArchived}
-              onPress={() => {
-                haptic.tap();
-                setShowArchived((show) => !show);
-              }}
-            />
-          ) : null}
+          {!dealOnly && monthArchive.archivedCount > 0
+            ? ARCHIVED_VIEWS.map((mode) => (
+                <FilterChip
+                  key={mode}
+                  label={`${ARCHIVED_VIEW_LABELS[mode]} (${monthArchive.archivedCount})`}
+                  active={archivedView === mode}
+                  onPress={() => {
+                    haptic.tap();
+                    setArchivedView(mode);
+                  }}
+                />
+              ))
+            : null}
         </ScrollView>
 
         {/* Selected-day agenda */}
