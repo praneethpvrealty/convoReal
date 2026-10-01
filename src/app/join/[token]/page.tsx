@@ -53,6 +53,7 @@ import {
 } from '@/components/ui/dialog';
 import { createClient } from '@/lib/supabase/client';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { reloadTo } from '@/lib/navigation';
 
 interface PeekOk {
   ok: true;
@@ -196,7 +197,7 @@ export default function JoinPage() {
       toast.success('Welcome to the team');
       // Full reload (not router.push) so AuthProvider re-fetches
       // the profile with the new account_id and account_role.
-      window.location.href = '/dashboard';
+      reloadTo('/dashboard');
     } catch (err) {
       console.error('[join] redeem error:', err);
       toast.error('Could not reach the server');

@@ -18,6 +18,7 @@ import { CopilotWidget } from "@/components/copilot/copilot-widget";
 import { TourOverlay } from "@/components/copilot/tour-overlay";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 import { BRANDING } from "@/config/branding";
+import { reloadTo } from '@/lib/navigation';
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -55,7 +56,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     });
 
     if (!loading && !user) {
-      window.location.href = "/login";
+      reloadTo("/login");
     } else if (!loading && !profileLoading && user) {
       if (profileError) {
         // A failed fetch is not the same as "no profile row" — redirecting
@@ -65,7 +66,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
         console.warn('[SHELL GATE] profile fetch failed, holding on dashboard for retry...');
       } else if (!profile) {
         console.warn('[SHELL GATE] profile not found, redirecting to setup...');
-        window.location.href = "/profile-setup";
+        reloadTo("/profile-setup");
       } else {
         const hasMissingName = !profile.full_name || profile.full_name.trim() === "";
         const hasMissingEmail = !profile.email || profile.email.trim() === "";
@@ -74,14 +75,14 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
             hasMissingName,
             hasMissingEmail,
           });
-          window.location.href = "/profile-setup";
+          reloadTo("/profile-setup");
         } else if (!user.phone || !user.phone_confirmed_at) {
           // ConvoReal is WhatsApp-based: every account needs an
           // OTP-verified WhatsApp number. Checked on auth.users, so
           // it's once per ACCOUNT — a Google sign-in whose account
           // already verified is never asked again.
           console.warn('[SHELL GATE] WhatsApp number unverified, redirecting to verify-phone...');
-          window.location.href = "/verify-phone";
+          reloadTo("/verify-phone");
         }
       }
     }

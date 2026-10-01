@@ -22,6 +22,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { KeyRound, Phone, ArrowLeft } from "lucide-react";
+import { reloadTo } from "@/lib/navigation";
 
 const cleanPhoneInput = toAuthPhone;
 
@@ -129,7 +130,7 @@ export default function DenLoginPage() {
     }
     // Hard navigation so fresh cookies ride the next request; the Den
     // provider finishes linking via /api/den/auth/complete.
-    window.location.href = "/den";
+    reloadTo("/den");
   };
 
   const handleGoogleLogin = async () => {
