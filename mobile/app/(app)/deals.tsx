@@ -31,9 +31,6 @@ import {
   BOARD_FOCUS_QUERY_KEY,
   BOARD_SCOPES,
   boardDeals,
-  type BoardScope,
-} from '@shared/lib/deals/board-focus';
-import {
   expectedCloseLabel,
   isClosingRecord,
   netOfPayouts,
@@ -41,6 +38,7 @@ import {
   sortIndexRows,
   transactionSubtitle,
   transactionTitle,
+  type BoardScope,
   type RecordsSort,
   type TransactionIndexRow,
 } from '@/lib/deal-workspace';

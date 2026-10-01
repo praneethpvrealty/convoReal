@@ -2796,7 +2796,18 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
       expect(source).toContain("rpc('board_focus_deal_ids'");
       expect(source).toContain('[BOARD_FOCUS_QUERY_KEY, accountId,');
     }
-    expect(mobileList).toContain("from '@shared/lib/deals/board-focus'");
+    const webFocus = webSource('lib/deals/board-focus.ts');
+    for (const line of [
+      "{ id: 'focus', label: 'Focus' },",
+      "{ id: 'all', label: 'All' },",
+      "export const BOARD_FOCUS_QUERY_KEY = 'board-focus';",
+      "if (scope === 'all') return [...deals];",
+      'if (!focusIds) return [];',
+      'return deals.filter((deal) => focus.has(deal.id));',
+    ]) {
+      expect(webFocus).toContain(line);
+      expect(mobileVocab, `mobile drifted at: ${line}`).toContain(line);
+    }
     expect(mobileVocab).not.toContain('isFocusedDeal');
     expect(mobileSource('app/(app)/journey.tsx')).toContain(
       'queryKey: [BOARD_FOCUS_QUERY_KEY]'

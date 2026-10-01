@@ -76,7 +76,7 @@ import { useRememberedJourneySource } from '@/lib/journey-source-preference';
 import { openContactChat } from '@/lib/open-chat';
 import { contactPropertyShareUrl } from '@/lib/showcase-share';
 import { supabase } from '@/lib/supabase';
-import { BOARD_FOCUS_QUERY_KEY } from '@shared/lib/deals/board-focus';
+import { BOARD_FOCUS_QUERY_KEY } from '@/lib/deal-workspace';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type {
   JourneyItem,
