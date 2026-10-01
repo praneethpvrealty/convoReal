@@ -1,36 +1,54 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
-import { boardDeals, isFocusedDeal } from './board-focus';
+import { boardDeals } from './board-focus';
 
-const focus = {
-  buyers: new Set(['buyer-focus']),
-  properties: new Set(['property-focus']),
-};
+const deals = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
 
-const deals = [
-  { id: 'a', contact_id: 'buyer-focus', property_id: 'p1' },
-  { id: 'b', contact_id: 'buyer-passive', property_id: 'property-focus' },
-  { id: 'c', contact_id: 'buyer-passive', property_id: 'p2' },
-  { id: 'd', contact_id: null, property_id: null },
-];
+const migration = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20261001113322_board_focus_deal_ids.sql'
+  ),
+  'utf8'
+);
 
 describe('[TXW-026] the Board shows Focus journeys by default', () => {
-  it('keeps a deal whose buyer or listing journey is in Focus', () => {
-    expect(isFocusedDeal(deals[0], focus)).toBe(true);
-    expect(isFocusedDeal(deals[1], focus)).toBe(true);
-  });
-
-  it('leaves out Passive journeys and deals with no journey', () => {
-    expect(isFocusedDeal(deals[2], focus)).toBe(false);
-    expect(isFocusedDeal(deals[3], focus)).toBe(false);
-    expect(boardDeals(deals, 'focus', focus).map((d) => d.id)).toEqual([
+  it('keeps only the deals the database counts as Focus', () => {
+    expect(boardDeals(deals, 'focus', ['a', 'c']).map((d) => d.id)).toEqual([
       'a',
-      'b',
+      'c',
     ]);
   });
 
-  it('shows every deal under All, and while Focus has not loaded', () => {
-    expect(boardDeals(deals, 'all', focus)).toHaveLength(4);
-    expect(boardDeals(deals, 'focus', null)).toHaveLength(4);
+  it('shows every deal under All', () => {
+    expect(boardDeals(deals, 'all', null)).toHaveLength(3);
+    expect(boardDeals(deals, 'all', ['a'])).toHaveLength(3);
+  });
+
+  it('never falls back to All while Focus is loading or failed', () => {
+    expect(boardDeals(deals, 'focus', null)).toEqual([]);
+    expect(boardDeals(deals, 'focus', undefined)).toEqual([]);
+  });
+
+  it('counts a buyer or listing journey in Focus only while it is active', () => {
+    expect(migration).toContain(
+      "AND (s.lifecycle_status <> 'active' OR s.archived_at IS NOT NULL)"
+    );
+    expect(migration).toMatch(
+      /\(f\.mode = 'buyer' AND f\.subject_id = d\.contact_id\)\s+OR \(f\.mode = 'property' AND f\.subject_id = d\.property_id\)/
+    );
+  });
+
+  it('follows the team or per-agent Focus scope and the caller’s membership', () => {
+    expect(migration).toContain(
+      "CASE WHEN a.journey_compartment_scope = 'agent' THEN auth.uid() END"
+    );
+    expect(migration).toContain(
+      'JOIN owner o ON jc.user_id IS NOT DISTINCT FROM o.user_id'
+    );
+    expect(migration).toContain('AND is_account_member(target_account_id)');
   });
 });

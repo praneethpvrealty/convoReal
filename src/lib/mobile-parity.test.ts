@@ -2787,26 +2787,20 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     ).toBe(false);
   });
 
-  it('[TXW-026] filters the Board to Focus journeys by the same rule on both surfaces', () => {
-    const webFocus = webSource('lib/deals/board-focus.ts');
-    for (const line of [
-      "{ id: 'focus', label: 'Focus' },",
-      "{ id: 'all', label: 'All' },",
-      '(deal.contact_id && focus.buyers.has(deal.contact_id)) ||',
-      '(deal.property_id && focus.properties.has(deal.property_id))',
-      "if (scope === 'all' || !focus) return [...deals];",
-    ]) {
-      expect(webFocus).toContain(line);
-      expect(mobileVocab, `mobile drifted at: ${line}`).toContain(line);
-    }
+  it('[TXW-026] filters the Board to Focus journeys through one database rule on both surfaces', () => {
     const webBoard = webSource(
       'app/(dashboard)/pipelines/pipelines-content.tsx'
     );
-    expect(webBoard).toContain("useState<BoardScope>('focus')");
-    expect(webBoard).toContain('/api/journey/compartments?mode=${mode}');
-    expect(mobileList).toContain("useState<BoardScope>('focus')");
-    expect(mobileList).toContain("loadJourneyCompartments('buyer')");
-    expect(mobileList).toContain("loadJourneyCompartments('property')");
+    for (const source of [webBoard, mobileList]) {
+      expect(source).toContain("useState<BoardScope>('focus')");
+      expect(source).toContain("rpc('board_focus_deal_ids'");
+      expect(source).toContain('[BOARD_FOCUS_QUERY_KEY, accountId,');
+    }
+    expect(mobileList).toContain("from '@shared/lib/deals/board-focus'");
+    expect(mobileVocab).not.toContain('isFocusedDeal');
+    expect(mobileSource('app/(app)/journey.tsx')).toContain(
+      'queryKey: [BOARD_FOCUS_QUERY_KEY]'
+    );
   });
 
   it('titles rows by buyer and property and lists only closing records', () => {
