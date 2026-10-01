@@ -28,6 +28,7 @@ vi.mock('@/lib/conversations/outbound-lease', () => ({
 }));
 
 import {
+  findFeedbackSharePropertyId,
   processShareFeedbackFollowups,
   SHARE_FEEDBACK_CLAIM_STALE_MS,
 } from './share-feedback';
@@ -35,6 +36,7 @@ import {
 const ACCOUNT_ID = 'acc-1';
 const CONTACT_ID = 'contact-1';
 const SHARE_ID = 'share-1';
+const PROPERTY_ID = '11111111-2222-4333-8444-555555555555';
 const SHARE_CREATED_AT = new Date(Date.now() - 45 * 60 * 1000).toISOString();
 
 function splitTopLevel(expr: string): string[] {
@@ -82,6 +84,7 @@ function makeDb(
   opts: {
     lastCustomerMessageAt?: string | null;
     share?: Row;
+    property?: Row | null;
   } = {}
 ) {
   const state = {
@@ -91,6 +94,7 @@ function makeDb(
         id: SHARE_ID,
         account_id: ACCOUNT_ID,
         contact_id: CONTACT_ID,
+        property_id: PROPERTY_ID,
         created_at: SHARE_CREATED_AT,
         recipient_kind: 'buyer',
         feedback_status: 'pending',
@@ -141,6 +145,9 @@ function makeDb(
         if (table === 'property_shares' && patch) {
           const rows = applyPatch();
           return { data: rows[0] ? { id: rows[0].id } : null, error: null };
+        }
+        if (table === 'properties') {
+          return { data: opts.property ?? null, error: null };
         }
         if (table === 'conversations') {
           return {
@@ -211,7 +218,7 @@ describe('processShareFeedbackFollowups', () => {
     expect(db.state.shares[0].feedback_status).toBe('sent');
   });
 
-  it('stores the rendered template body so the inbox bubble is not blank', async () => {
+  it('[INB-022] stores the rendered template body so the inbox bubble is not blank', async () => {
     const db = makeDb({ lastCustomerMessageAt: null });
 
     await processShareFeedbackFollowups(db as never);
@@ -223,6 +230,41 @@ describe('processShareFeedbackFollowups', () => {
         text: 'Hi Asha, following up on the property I shared earlier.\n\nDid it match what you are looking for?',
       })
     );
+  });
+
+  it('[INB-022] names the shared property and asks with tappable buttons while the window is open', async () => {
+    const db = makeDb({
+      lastCustomerMessageAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      property: { id: PROPERTY_ID, title: '35x80 Commercial Corner Plot on Kolar Main Road' },
+    });
+
+    expect(await processShareFeedbackFollowups(db as never)).toBe(1);
+
+    const sent = h.send.mock.calls[0][0];
+    expect(sent).toMatchObject({ kind: 'interactive', interactiveType: 'buttons' });
+    expect(sent.interactiveBody).toBe(
+      'Hi Asha, following up on *35x80 Commercial Corner Plot on Kolar Main Road*, which I shared earlier.\n\nDid it match what you are looking for?'
+    );
+    expect(sent.interactiveButtons).toEqual([
+      { id: `lfb_y_${PROPERTY_ID}`, title: "It's perfect" },
+      { id: `lfb_n_${PROPERTY_ID}`, title: 'Not interested' },
+      { id: 'lfb_form', title: 'Update preferences' },
+    ]);
+    expect(db.state.shares[0].feedback_status).toBe('sent');
+  });
+
+  it('[INB-022] falls back to the template once the 24-hour window has closed', async () => {
+    const db = makeDb({
+      lastCustomerMessageAt: new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString(),
+      property: { id: PROPERTY_ID, title: '35x80 Commercial Corner Plot' },
+    });
+
+    await processShareFeedbackFollowups(db as never);
+
+    expect(h.send.mock.calls[0][0]).toMatchObject({
+      kind: 'template',
+      templateName: 'property_share_feedback',
+    });
   });
 
   it('skips the share once the buyer has replied since it was created', async () => {
@@ -354,5 +396,53 @@ describe('processShareFeedbackFollowups', () => {
       feedback_status: 'pending',
       feedback_sent_at: null,
     });
+  });
+});
+
+describe('findFeedbackSharePropertyId', () => {
+  function lookupDb(rows: Record<string, Row | null>) {
+    const calls: Record<string, [string, unknown][]> = {};
+    return {
+      calls,
+      from(table: string) {
+        const log: [string, unknown][] = (calls[table] = []);
+        const b: Record<string, unknown> = {};
+        for (const m of ['select', 'eq', 'lte', 'order', 'limit']) {
+          b[m] = (col: string, val: unknown) => {
+            log.push([`${m}:${col}`, val]);
+            return b;
+          };
+        }
+        b.maybeSingle = async () => ({ data: rows[table] ?? null, error: null });
+        return b;
+      },
+    };
+  }
+
+  it('[INB-022] finds the share whose feedback prompt the tap replied to', async () => {
+    const db = lookupDb({
+      messages: { created_at: '2026-09-30T15:00:40.195Z' },
+      property_shares: { property_id: PROPERTY_ID },
+    });
+
+    expect(
+      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
+    ).toBe(PROPERTY_ID);
+    expect(db.calls.messages).toContainEqual(['eq:message_id', 'wamid.prompt']);
+    expect(db.calls.property_shares).toEqual(
+      expect.arrayContaining([
+        ['eq:account_id', ACCOUNT_ID],
+        ['eq:contact_id', CONTACT_ID],
+        ['eq:feedback_status', 'sent'],
+        ['lte:feedback_sent_at', '2026-09-30T15:01:40.195Z'],
+      ])
+    );
+  });
+
+  it('returns null when no feedback prompt went to the contact', async () => {
+    const db = lookupDb({});
+    expect(
+      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, null)
+    ).toBeNull();
   });
 });

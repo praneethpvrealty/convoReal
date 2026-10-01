@@ -70,16 +70,28 @@ export function buildShareFeedbackParams(
   ];
 }
 
+export function shareFeedbackLanguage(
+  templateLanguage: string | null | undefined
+): LanguageCode {
+  const raw = templateLanguage?.trim() ?? '';
+  return isLanguageCode(raw)
+    ? raw
+    : (languageForMetaCode(raw) ?? DEFAULT_LANGUAGE);
+}
+
 export function renderShareFeedbackBody(
   params: string[],
   templateLanguage: string | null | undefined
 ): string {
-  const raw = templateLanguage?.trim() ?? '';
-  const language = isLanguageCode(raw)
-    ? raw
-    : (languageForMetaCode(raw) ?? DEFAULT_LANGUAGE);
   return renderShareTemplateBody(
-    templateBody('share_feedback', language),
+    templateBody('share_feedback', shareFeedbackLanguage(templateLanguage)),
     params
   );
+}
+
+export function buildShareFeedbackButtonsBody(
+  firstName: string,
+  propertyTitle: string
+): string {
+  return `Hi ${firstName}, following up on *${sanitizeTemplateParam(propertyTitle)}*, which I shared earlier.\n\nDid it match what you are looking for?`;
 }

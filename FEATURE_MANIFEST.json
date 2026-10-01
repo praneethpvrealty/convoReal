@@ -388,6 +388,16 @@
               "case": "[INB-020]"
             }
           ]
+        },
+        {
+          "id": "INB-022",
+          "rule": "A property-share feedback request always says which property it asks about and is visible in the inbox. While the buyer's 24-hour window is open and their language is English it goes as free-form buttons naming the property (It's perfect / Not interested / Update preferences, each title within Meta's 20 characters) wired to the listing-feedback handler; otherwise the approved property_share_feedback template goes out with its rendered body stored as the message text. An \"It's perfect\" tap on that template is resolved to the share whose request it answered and handled as interest in that property: recorded on listing_feedback, acknowledged by naming the property, and the agent notified.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/share-feedback.test.ts",
+              "case": "[INB-022]"
+            }
+          ]
         }
       ]
     },

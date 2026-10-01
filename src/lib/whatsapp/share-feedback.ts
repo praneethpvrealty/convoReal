@@ -2,6 +2,54 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { lookupConversation } from '@/lib/conversations/resolve';
 import { withContactConversationLease } from '@/lib/conversations/outbound-lease';
+import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
+import { templateButtonLabel } from '@/lib/whatsapp/template-copy';
+import type { InteractiveButton } from '@/lib/whatsapp/meta-api';
+
+export function shareFeedbackButtons(propertyId: string): InteractiveButton[] {
+  return [
+    {
+      id: `lfb_y_${propertyId}`,
+      title: templateButtonLabel('feedback_perfect', 'en'),
+    },
+    {
+      id: `lfb_n_${propertyId}`,
+      title: templateButtonLabel('feedback_not_interested', 'en'),
+    },
+    { id: 'lfb_form', title: 'Update preferences' },
+  ];
+}
+
+export async function findFeedbackSharePropertyId(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  contextMessageId: string | null
+): Promise<string | null> {
+  let sentBy = new Date().toISOString();
+  if (contextMessageId) {
+    const { data: prompt } = await db
+      .from('messages')
+      .select('created_at')
+      .eq('account_id', accountId)
+      .eq('message_id', contextMessageId)
+      .maybeSingle();
+    if (prompt?.created_at) {
+      sentBy = new Date(Date.parse(prompt.created_at) + 60_000).toISOString();
+    }
+  }
+  const { data: share } = await db
+    .from('property_shares')
+    .select('property_id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .eq('feedback_status', 'sent')
+    .lte('feedback_sent_at', sentBy)
+    .order('feedback_sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (share?.property_id as string | null | undefined) ?? null;
+}
 
 export const SHARE_FEEDBACK_CLAIM_STALE_MS = 15 * 60 * 1000;
 export const SHARE_FEEDBACK_CLAIM_GRACE_MS = 30 * 60 * 1000;
@@ -28,6 +76,7 @@ export async function processShareFeedbackFollowups(
       id,
       account_id,
       contact_id,
+      property_id,
       created_at,
       contacts!inner(id, name)
     `
@@ -103,6 +152,7 @@ async function sendShareFeedback(
     id: string;
     account_id: string;
     contact_id: string;
+    property_id: string | null;
     created_at: string;
   }
 ): Promise<'sent' | 'skipped' | 'retry'> {
@@ -151,8 +201,10 @@ async function sendShareFeedback(
 
   const {
     buildShareFeedbackParams,
+    buildShareFeedbackButtonsBody,
     pickShareFeedbackTemplate,
     renderShareFeedbackBody,
+    shareFeedbackLanguage,
     SHARE_FEEDBACK_TEMPLATE_NAMES,
   } = await import('./share-feedback-template');
 
@@ -170,19 +222,48 @@ async function sendShareFeedback(
 
   const params = buildShareFeedbackParams(contact.name);
 
+  const property =
+    share.property_id &&
+    isWithinCustomerWindow(conversation?.last_customer_message_at) &&
+    shareFeedbackLanguage(templateLanguage) === 'en'
+      ? (
+          await db
+            .from('properties')
+            .select('id, title')
+            .eq('id', share.property_id)
+            .eq('account_id', share.account_id)
+            .maybeSingle()
+        ).data
+      : null;
+
   try {
-    const result = await sendWhatsAppMessageAndPersist({
-      accountId: share.account_id,
-      userId: config.user_id,
-      contactId: share.contact_id,
-      kind: 'template',
-      senderType: 'bot',
-      templateName,
-      templateLanguage,
-      templateParams: params,
-      text: renderShareFeedbackBody(params, templateLanguage),
-      customDbClient: db,
-    });
+    const result = property?.title
+      ? await sendWhatsAppMessageAndPersist({
+          accountId: share.account_id,
+          userId: config.user_id,
+          contactId: share.contact_id,
+          kind: 'interactive',
+          senderType: 'bot',
+          interactiveType: 'buttons',
+          interactiveBody: buildShareFeedbackButtonsBody(
+            params[0],
+            property.title
+          ),
+          interactiveButtons: shareFeedbackButtons(property.id),
+          customDbClient: db,
+        })
+      : await sendWhatsAppMessageAndPersist({
+          accountId: share.account_id,
+          userId: config.user_id,
+          contactId: share.contact_id,
+          kind: 'template',
+          senderType: 'bot',
+          templateName,
+          templateLanguage,
+          templateParams: params,
+          text: renderShareFeedbackBody(params, templateLanguage),
+          customDbClient: db,
+        });
     if (result?.success === false) {
       console.error(
         `[share-feedback] Feedback template for share ${share.id} was not sent:`,
