@@ -536,7 +536,9 @@ export default function CalendarPage() {
       }
       toast.success(
         archived
-          ? `${changed.size === 1 ? "Archived" : `${changed.size} archived`} — off Tasks, greyed out on the calendar`
+          ? changed.size === 1
+            ? "Archived"
+            : `${changed.size} archived`
           : "Unarchived — back in Tasks"
       );
     } catch (err) {
@@ -1427,7 +1429,7 @@ export default function CalendarPage() {
                   type="button"
                   disabled={taskBusyKey !== null}
                   onClick={() => archiveAppointments(archivableTaskIds, true, "archive-done")}
-                  title="Archive every done or cancelled event on these days: it leaves Tasks and is greyed out on the calendar"
+                  title="Archive every done or cancelled event on these days"
                   className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
                 >
                   {taskBusyKey === "archive-done" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
