@@ -397,16 +397,21 @@ export default function CalendarPage() {
     });
   }, [todos, todoFilter]);
 
+  const calendarAppointments = useMemo(
+    () => withoutArchivedAppointments(filteredAppointments, showArchivedTasks),
+    [filteredAppointments, showArchivedTasks]
+  );
+
   // Group appointments by date string
   const appointmentsByDate = useMemo(() => {
     const map: Record<string, CalendarEvent[]> = {};
-    filteredAppointments.forEach((appt) => {
+    calendarAppointments.visible.forEach((appt) => {
       const dateStr = new Date(appt.start_time).toDateString();
       if (!map[dateStr]) map[dateStr] = [];
       map[dateStr].push(appt);
     });
     return map;
-  }, [filteredAppointments]);
+  }, [calendarAppointments]);
 
   // Deal dates (CAL-008): the milestone target dates, unpaid payment
   // tranches and expected close dates the deal_deadlines rule decides
@@ -486,10 +491,6 @@ export default function CalendarPage() {
     () => allTaskRows.flatMap((row) => (row.kind === "appointment" ? [row.appointment] : [])),
     [allTaskRows]
   );
-  const archivedTaskCount = useMemo(
-    () => taskAppointmentsInView.filter(isArchivedAppointment).length,
-    [taskAppointmentsInView]
-  );
   const archivableTaskIds = useMemo(
     () => archivableAppointmentIds(taskAppointmentsInView),
     [taskAppointmentsInView]
@@ -506,10 +507,6 @@ export default function CalendarPage() {
         (row) => row.kind === "deal"
       ),
     [allTaskRows, showArchivedTasks, taskSort]
-  );
-  const agendaAppointments = useMemo(
-    () => withoutArchivedAppointments(filteredAppointments, showArchivedTasks),
-    [filteredAppointments, showArchivedTasks]
   );
 
   const archiveAppointments = async (ids: string[], archived: boolean, busyKey: string) => {
@@ -529,8 +526,8 @@ export default function CalendarPage() {
       }
       toast.success(
         archived
-          ? `${changed.size === 1 ? "Archived" : `${changed.size} archived`} — hidden from Tasks, still on the calendar`
-          : "Unarchived — listed in Tasks again"
+          ? `${changed.size === 1 ? "Archived" : `${changed.size} archived`} — hidden from the calendar and Tasks`
+          : "Unarchived — back on the calendar and in Tasks"
       );
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -1205,6 +1202,21 @@ export default function CalendarPage() {
                 {DEAL_DATE_META.label}
               </button>
             )}
+            {calendarAppointments.archivedCount > 0 && (
+              <button
+                onClick={() => setShowArchivedTasks((show) => !show)}
+                title="Archived events are hidden from the calendar, Tasks and the Agenda until shown"
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
+                  showArchivedTasks
+                    ? "border-primary/50 bg-primary/15 text-primary"
+                    : "border-slate-800 text-slate-500 hover:text-white"
+                )}
+              >
+                <Archive className="h-2.5 w-2.5" />
+                {showArchivedTasks ? "Hide archived" : `Show archived (${calendarAppointments.archivedCount})`}
+              </button>
+            )}
             {members.length > 1 && (
               <select
                 value={memberFilter}
@@ -1229,7 +1241,7 @@ export default function CalendarPage() {
             </div>
           ) : view === "team" ? (
             <TeamView
-              events={filteredAppointments}
+              events={calendarAppointments.visible}
               members={memberFilter === "all" ? members : members.filter((m) => m.user_id === memberFilter)}
               selectedDate={currentDate}
               onSelectDate={setCurrentDate}
@@ -1238,7 +1250,7 @@ export default function CalendarPage() {
             />
           ) : view === "week" ? (
             <WeekView
-              events={filteredAppointments}
+              events={calendarAppointments.visible}
               dealDates={visibleDealDates}
               members={members}
               selectedDate={currentDate}
@@ -1247,7 +1259,7 @@ export default function CalendarPage() {
             />
           ) : view === "agenda" ? (
             <AgendaView
-              events={agendaAppointments.visible}
+              events={calendarAppointments.visible}
               dealDates={visibleDealDates}
               members={members}
               canEdit={canEdit}
@@ -1256,9 +1268,6 @@ export default function CalendarPage() {
               onStatusChange={setAppointmentStatus}
               onArchive={archiveAppointment}
               onMilestoneDone={completeMilestone}
-              archivedCount={agendaAppointments.archivedCount}
-              showArchived={showArchivedTasks}
-              onToggleArchived={() => setShowArchivedTasks((show) => !show)}
             />
           ) : (
             <>
@@ -1383,7 +1392,7 @@ export default function CalendarPage() {
                 <ChevronDown className={cn("h-3.5 w-3.5 text-slate-500 transition-transform", !tasksOpen && "-rotate-90")} />
                 <h2 className="text-sm font-bold text-white flex items-center">
                   Tasks
-                  <InfoHint text="Everything pinned on the days you are looking at: appointments with their status, and deal dates. Upcoming first puts today at the top, then the days ahead, then past days; Earliest first and Latest first sort strictly by date and time. Mark an event done or cancelled here — a cancelled event stays on its day, struck through. Archive a done or cancelled event to hide it from this list; it stays on its day in the calendar. A milestone date can be ticked done; it completes the milestone on the deal without moving its stage." />
+                  <InfoHint text="Everything pinned on the days you are looking at: appointments with their status, and deal dates. Upcoming first puts today at the top, then the days ahead, then past days; Earliest first and Latest first sort strictly by date and time. Mark an event done or cancelled here — a cancelled event stays on its day, struck through. Archive a done or cancelled event to hide it from this list and the calendar; Show archived in the filter row brings it back. A milestone date can be ticked done; it completes the milestone on the deal without moving its stage." />
                 </h2>
                 <span className="text-[10px] font-semibold text-slate-500">
                   {taskRows.length} on {view === "week" ? "this week" : "this month"}
@@ -1404,20 +1413,11 @@ export default function CalendarPage() {
                   type="button"
                   disabled={taskBusyKey !== null}
                   onClick={() => archiveAppointments(archivableTaskIds, true, "archive-done")}
-                  title="Hide every done or cancelled event on these days from Tasks; they stay on the calendar"
+                  title="Hide every done or cancelled event on these days from the calendar and Tasks"
                   className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
                 >
                   {taskBusyKey === "archive-done" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
                   Archive done ({archivableTaskIds.length})
-                </button>
-              )}
-              {archivedTaskCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowArchivedTasks((show) => !show)}
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold text-slate-500 transition-colors hover:text-white"
-                >
-                  {showArchivedTasks ? "Hide archived" : `Show archived (${archivedTaskCount})`}
                 </button>
               )}
               </div>
