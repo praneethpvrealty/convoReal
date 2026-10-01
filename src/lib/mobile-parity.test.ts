@@ -3768,6 +3768,19 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
     expect(mobileCalendar).not.toContain('archived_at:');
   });
 
+  it('[CAL-011] hides archived events from the calendar grid on both surfaces', () => {
+    expect(webCalendar).toContain(
+      'calendarAppointments.visible.forEach((appt) => {'
+    );
+    expect(
+      webCalendar.match(/events=\{calendarAppointments\.visible\}/g)
+    ).toHaveLength(3);
+    expect(webCalendar).not.toContain('events={filteredAppointments}');
+    expect(mobileCalendar).toContain(
+      'for (const appt of withoutArchivedAppointments(data ?? [], showArchived)'
+    );
+  });
+
   it('offers Archive on a finished event, Archive done and Show archived on both surfaces', () => {
     expect(webTasksList).toContain('canArchiveAppointment(event.status) && (');
     expect(mobileCalendar).toContain(
@@ -3779,8 +3792,10 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
     expect(mobileCalendar).toContain(
       '...(upcomingAppointmentsQuery.data ?? [])]'
     );
-    expect(webCalendar).toContain('`Show archived (${archivedTaskCount})`');
-    expect(webAgenda).toContain('`Show archived (${archivedCount})`');
+    expect(webCalendar).toContain(
+      '`Show archived (${calendarAppointments.archivedCount})`'
+    );
+    expect(webAgenda).not.toContain('Show archived');
     expect(mobileCalendar).toContain(
       '`Show archived (${monthArchive.archivedCount})`'
     );

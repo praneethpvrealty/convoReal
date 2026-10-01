@@ -17,6 +17,14 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 1 October 2026
+
+- **Archived events leave the calendar grid too.** Archiving a done or
+  cancelled event now hides it from the month grid, the Week and Team views
+  and mobile's month dots, as well as from Tasks and the Agenda. One
+  **Show archived** chip in the calendar's filter row brings archived events
+  back across every view on web; mobile keeps its **Show archived** chip.
+
 #### 29 September 2026
 
 - **Archive finished tasks, and sort Tasks by date and time.** A done or
