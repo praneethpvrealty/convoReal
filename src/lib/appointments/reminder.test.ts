@@ -7,6 +7,7 @@ const tables: Record<string, Row[]> = {
   contacts: [],
   message_templates: [],
   appointment_reminder_log: [],
+  conversations: [],
 };
 
 let claimSeq = 0;
@@ -140,6 +141,7 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
 }));
 
 import {
+  buildReminderTemplateContent,
   checkAndSendAppointmentReminders,
   reminderLocationText,
   LOCATION_TO_FOLLOW,
@@ -206,6 +208,7 @@ beforeEach(() => {
   ];
   tables.message_templates = [];
   tables.appointment_reminder_log = [];
+  tables.conversations = [];
   hooks.beforeClaim = undefined;
   hooks.onAppointmentRead = undefined;
 });
@@ -408,6 +411,111 @@ describe('checkAndSendAppointmentReminders', () => {
     await checkAndSendAppointmentReminders(quietEnd);
 
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('reminder wording', () => {
+  const linkedProperty = {
+    id: 'p-1',
+    title: '50x70 Commercial Land in 6th Block, Koramangala',
+    type: 'Commercial Land',
+    location: null,
+    sublocality: 'Koramangala',
+    city: 'Bangalore',
+    state: 'Karnataka',
+  };
+
+  it("[CAL-013] names a meeting by the agent's title, not the linked property's", async () => {
+    tables.appointments = [
+      {
+        ...appointment('a-meet', 'meeting', 'c-visit'),
+        title: 'Sub registrar visit',
+        property: linkedProperty,
+      },
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    const sent = sendWhatsAppMessageAndPersist.mock.calls[0][0];
+    expect(sent.templateParams[1]).toBe('Sub registrar visit');
+    expect(sent.text).toContain('"Sub registrar visit"');
+  });
+
+  it('[CAL-013] still names a site visit by its property', async () => {
+    tables.appointments = [
+      { ...appointment('a-visit', 'site_visit', 'c-visit'), property: linkedProperty },
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0].templateParams[1]).toBe(
+      linkedProperty.title
+    );
+  });
+
+  it('[CAL-013] does not ask a client who already confirmed to confirm again', async () => {
+    tables.appointments = [
+      {
+        ...appointment('a-meet', 'meeting', 'c-visit'),
+        client_confirmed_at: '2026-08-01T03:21:00Z',
+      },
+    ];
+    tables.conversations = [
+      { account_id: 'acc', contact_id: 'c-visit', last_customer_message_at: new Date().toISOString() },
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    const sent = sendWhatsAppMessageAndPersist.mock.calls[0][0];
+    expect(sent.kind).toBe('text');
+    expect(sent.text).toContain('Thanks for confirming');
+    expect(sent.text).not.toMatch(/tap a button/i);
+    expect(tables.appointment_reminder_log[0]).toMatchObject({ wa_message_id: 'wamid.1' });
+  });
+
+  it('[CAL-013] falls back to the template for a confirmed client outside the 24-hour window', async () => {
+    tables.appointments = [
+      {
+        ...appointment('a-meet', 'meeting', 'c-visit'),
+        client_confirmed_at: '2026-07-30T03:21:00Z',
+      },
+    ];
+    tables.conversations = [
+      { account_id: 'acc', contact_id: 'c-visit', last_customer_message_at: '2026-07-30T03:21:00Z' },
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0]).toMatchObject({
+      kind: 'template',
+      templateName: 'appointment_reminder',
+    });
+  });
+
+  it('[CAL-013] keeps asking every recipient when only the appointment, not each contact, is confirmed', async () => {
+    tables.appointments = [
+      {
+        ...appointment('a-meet', 'meeting', 'c-visit'),
+        contact_ids: ['c-visit', 'c-call'],
+        client_confirmed_at: '2026-08-01T03:21:00Z',
+      },
+    ];
+    tables.conversations = [
+      { account_id: 'acc', contact_id: 'c-visit', last_customer_message_at: new Date().toISOString() },
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(2);
+    for (const [args] of sendWhatsAppMessageAndPersist.mock.calls) {
+      expect(args.kind).toBe('template');
+    }
+  });
+
+  it('[CAL-013] does not double the full stop after an agenda that ends in one', () => {
+    const { bodyText, templateParams } = buildReminderTemplateContent({
+      clientName: 'Yusuf',
+      accountName: 'Acme Realty',
+      title: 'Sub registrar visit',
+      formattedTime: '30/09/2026, 12:00 pm',
+      locationText: 'Koramangala',
+      agenda: 'To find out the official SR value of the property.',
+      isSiteVisit: false,
+    });
+    expect(templateParams[4]).toBe('To find out the official SR value of the property');
+    expect(bodyText).toContain('of the property. Please tap');
+    expect(bodyText).not.toContain('..');
   });
 });
 

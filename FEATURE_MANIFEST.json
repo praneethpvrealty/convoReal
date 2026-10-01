@@ -842,6 +842,16 @@
               "case": "[CAL-012]"
             }
           ]
+        },
+        {
+          "id": "CAL-013",
+          "rule": "A client reminder names the appointment the way its confirmation does: a meeting, call or other non-visit event by the agent's own title, and only a site visit by its linked property. A client who already confirmed the appointment is not asked to confirm again: when they are its only recipient and their 24-hour window is open in English, the reminder goes as a free-form message thanking them for confirming, and otherwise it falls back to the approved template. The agenda never ends in a doubled full stop.",
+          "tests": [
+            {
+              "file": "src/lib/appointments/reminder.test.ts",
+              "case": "[CAL-013]"
+            }
+          ]
         }
       ]
     },

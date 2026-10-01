@@ -78,5 +78,8 @@ export function renderShareFeedbackBody(
   const language = isLanguageCode(raw)
     ? raw
     : (languageForMetaCode(raw) ?? DEFAULT_LANGUAGE);
-  return renderShareTemplateBody(templateBody('share_feedback', language), params);
+  return renderShareTemplateBody(
+    templateBody('share_feedback', language),
+    params
+  );
 }
