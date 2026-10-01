@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import {
@@ -40,6 +41,7 @@ type ConnectionStatus = 'connected' | 'disconnected' | 'unknown';
 type ResetReason = 'token_corrupted' | 'meta_api_error' | null;
 
 export function WhatsAppConfig() {
+  const router = useRouter();
   const supabase = createClient();
   // After multi-user, whatsapp_config is one-row-per-account, not
   // one-row-per-user. We pull `accountId` straight off the auth
@@ -645,7 +647,7 @@ export function WhatsAppConfig() {
               <Button
                 size="sm"
                 className="gap-1.5"
-                onClick={() => (window.location.href = '/settings/whatsapp-setup')}
+                onClick={() => router.push('/settings/whatsapp-setup')}
               >
                 Open guided setup <ArrowUpRight className="size-3.5" />
               </Button>

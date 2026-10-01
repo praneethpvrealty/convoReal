@@ -125,7 +125,7 @@ export function MetaAdsTab() {
 
   async function handleConnect() {
     setConnecting(true);
-    window.location.href = '/api/meta-ads/oauth/start';
+    window.location.assign(new URL('/api/meta-ads/oauth/start', window.location.origin));
   }
 
   async function handleSaveSelection() {

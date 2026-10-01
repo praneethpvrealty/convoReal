@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
@@ -1739,7 +1740,7 @@ export function ShowcaseView({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.location.href = '/dashboard'}
+              render={<Link href="/dashboard" />}
               className="border-slate-900 bg-slate-900/40 hover:bg-slate-850 text-slate-300 hover:text-white text-xs font-bold px-4 rounded-xl cursor-pointer transition-all"
             >
               Portal Login

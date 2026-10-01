@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import NextImage from 'next/image';
@@ -232,6 +233,7 @@ export function PropertyForm({
   viewOnly = false,
   initialTab = 'details',
 }: PropertyFormProps) {
+  const router = useRouter();
   const supabase = createClient();
   const { user, accountId, profile } = useAuth();
   const canEdit = useCan('send-messages');
@@ -899,7 +901,7 @@ export function PropertyForm({
 
       if (error) throw error;
       if (conversation) {
-        window.location.href = `/inbox?c=${conversation.id}`;
+        router.push(`/inbox?c=${conversation.id}`);
       }
     } catch (err) {
       console.error('Failed to navigate to chat:', err);
@@ -1485,7 +1487,7 @@ export function PropertyForm({
         if (response.status === 402) {
           if (errData.upgradeRequired && typeof errData.upgradeRequired === 'string') {
             toast.error(errData.error || 'AI features require a plan upgrade.', {
-              action: { label: 'Upgrade plan', onClick: () => window.location.href = '/settings?tab=billing' },
+              action: { label: 'Upgrade plan', onClick: () => router.push('/settings?tab=billing') },
             });
           } else {
             toast.error(errData.error || `You've used all your credits for this month.`, {

@@ -107,7 +107,9 @@ export function YouTubeConnectCard() {
 
   function handleConnect() {
     setConnecting(true);
-    window.location.href = '/api/youtube/oauth/start';
+    window.location.assign(
+      new URL('/api/youtube/oauth/start', window.location.origin)
+    );
   }
 
   async function handleToggleAutoUpload(next: boolean) {
