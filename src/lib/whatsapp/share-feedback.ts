@@ -26,26 +26,13 @@ export async function findFeedbackSharePropertyId(
   contactId: string,
   contextMessageId: string | null
 ): Promise<string | null> {
-  let sentBy = new Date().toISOString();
-  if (contextMessageId) {
-    const { data: prompt } = await db
-      .from('messages')
-      .select('created_at')
-      .eq('account_id', accountId)
-      .eq('message_id', contextMessageId)
-      .maybeSingle();
-    if (prompt?.created_at) {
-      sentBy = new Date(Date.parse(prompt.created_at) + 60_000).toISOString();
-    }
-  }
+  if (!contextMessageId) return null;
   const { data: share } = await db
     .from('property_shares')
     .select('property_id')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
-    .eq('feedback_status', 'sent')
-    .lte('feedback_sent_at', sentBy)
-    .order('feedback_sent_at', { ascending: false })
+    .eq('feedback_message_id', contextMessageId)
     .limit(1)
     .maybeSingle();
   return (share?.property_id as string | null | undefined) ?? null;
@@ -236,6 +223,7 @@ async function sendShareFeedback(
         ).data
       : null;
 
+  let feedbackMessageId: string | null = null;
   try {
     const result = property?.title
       ? await sendWhatsAppMessageAndPersist({
@@ -271,6 +259,7 @@ async function sendShareFeedback(
       );
       return 'retry';
     }
+    feedbackMessageId = result?.whatsappMessageId ?? null;
   } catch (err) {
     console.error(
       `[share-feedback] Failed to send feedback template for share ${share.id}:`,
@@ -284,6 +273,7 @@ async function sendShareFeedback(
     .update({
       feedback_status: 'sent',
       feedback_sent_at: new Date().toISOString(),
+      feedback_message_id: feedbackMessageId,
     })
     .eq('id', share.id)
     .eq('account_id', share.account_id);

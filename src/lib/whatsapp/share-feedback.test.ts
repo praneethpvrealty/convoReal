@@ -201,7 +201,7 @@ function makeDb(
 
 beforeEach(() => {
   h.send.mockReset();
-  h.send.mockResolvedValue({ success: true });
+  h.send.mockResolvedValue({ success: true, whatsappMessageId: 'wamid.prompt' });
   h.lease = 'run';
   h.beforeRun = null;
   h.leased = [];
@@ -216,6 +216,7 @@ describe('processShareFeedbackFollowups', () => {
     expect(sent).toBe(1);
     expect(h.send).toHaveBeenCalledTimes(1);
     expect(db.state.shares[0].feedback_status).toBe('sent');
+    expect(db.state.shares[0].feedback_message_id).toBe('wamid.prompt');
   });
 
   it('[INB-022] stores the rendered template body so the inbox bubble is not blank', async () => {
@@ -400,49 +401,47 @@ describe('processShareFeedbackFollowups', () => {
 });
 
 describe('findFeedbackSharePropertyId', () => {
-  function lookupDb(rows: Record<string, Row | null>) {
-    const calls: Record<string, [string, unknown][]> = {};
+  function lookupDb(row: Row | null) {
+    const calls: [string, unknown][] = [];
+    const b: Record<string, unknown> = {};
+    for (const m of ['select', 'eq', 'limit']) {
+      b[m] = (col: string, val: unknown) => {
+        calls.push([`${m}:${col}`, val]);
+        return b;
+      };
+    }
+    b.maybeSingle = async () => ({ data: row, error: null });
     return {
       calls,
+      tables: [] as string[],
       from(table: string) {
-        const log: [string, unknown][] = (calls[table] = []);
-        const b: Record<string, unknown> = {};
-        for (const m of ['select', 'eq', 'lte', 'order', 'limit']) {
-          b[m] = (col: string, val: unknown) => {
-            log.push([`${m}:${col}`, val]);
-            return b;
-          };
-        }
-        b.maybeSingle = async () => ({ data: rows[table] ?? null, error: null });
+        this.tables.push(table);
         return b;
       },
     };
   }
 
-  it('[INB-022] finds the share whose feedback prompt the tap replied to', async () => {
-    const db = lookupDb({
-      messages: { created_at: '2026-09-30T15:00:40.195Z' },
-      property_shares: { property_id: PROPERTY_ID },
-    });
+  it('[INB-022] resolves the share by the exact prompt message the tap replied to', async () => {
+    const db = lookupDb({ property_id: PROPERTY_ID });
 
     expect(
       await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
     ).toBe(PROPERTY_ID);
-    expect(db.calls.messages).toContainEqual(['eq:message_id', 'wamid.prompt']);
-    expect(db.calls.property_shares).toEqual(
+    expect(db.tables).toEqual(['property_shares']);
+    expect(db.calls).toEqual(
       expect.arrayContaining([
         ['eq:account_id', ACCOUNT_ID],
         ['eq:contact_id', CONTACT_ID],
-        ['eq:feedback_status', 'sent'],
-        ['lte:feedback_sent_at', '2026-09-30T15:01:40.195Z'],
+        ['eq:feedback_message_id', 'wamid.prompt'],
       ])
     );
   });
 
-  it('returns null when no feedback prompt went to the contact', async () => {
-    const db = lookupDb({});
+  it('[INB-022] never guesses a property when the tap carries no prompt id', async () => {
+    const db = lookupDb({ property_id: PROPERTY_ID });
     expect(
       await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, null)
     ).toBeNull();
+    expect(db.tables).toEqual([]);
   });
 });
