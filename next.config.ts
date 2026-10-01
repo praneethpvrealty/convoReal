@@ -1,6 +1,10 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs/config';
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Baseline security headers applied to every response.
  *
@@ -202,7 +206,7 @@ const nextConfig: NextConfig = {
       has: [
         {
           type: 'host' as const,
-          value: `app\\.${baseDomain.replace(/\./g, '\\.')}`,
+          value: `app\\.${escapeRegExp(baseDomain)}`,
         },
       ],
       destination: `https://www.${baseDomain}/:path`,
@@ -213,7 +217,7 @@ const nextConfig: NextConfig = {
     const toDomain = process.env.REDIRECT_TO_DOMAIN || 'convoreal.com';
     if (!fromDomain) return [appHostRedirect];
 
-    const escapedFrom = fromDomain.replace(/\./g, '\\.');
+    const escapedFrom = escapeRegExp(fromDomain);
 
     return [
       appHostRedirect,
