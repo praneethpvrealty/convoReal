@@ -2849,7 +2849,7 @@
         },
         {
           "id": "AIK-002",
-          "rule": "A key refused for depleted credits, billing or an invalid key rests for ten minutes and a rate-limited key for one; the call moves to the next ready key, an ordinary model error never switches keys, a resting key is never called before its time, and when every key rests the call fails at once with the soonest key's failure. A managed key's rest and last error are written to its row and re-read on every call (only the ciphertext is cached), so every instance and the admin panel see the same state and a rest recorded elsewhere keeps its original failure message.",
+          "rule": "A key refused for depleted credits, billing or an invalid key rests for ten minutes and a rate-limited key for one; the call moves to the next ready key, an ordinary model error never switches keys, a resting key is never called before its time, and when every key rests the call fails at once with the soonest key's failure. A managed key's rest and last error are written to its row and re-read on every call (only the ciphertext is cached), so every instance and the admin panel see the same state and a rest recorded elsewhere keeps its original failure message. The key's next successful call clears its last error, so the admin panel never shows a recovered key as still failing.",
           "tests": [
             {
               "file": "src/lib/ai/gemini-keys.test.ts",

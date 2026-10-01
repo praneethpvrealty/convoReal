@@ -267,12 +267,15 @@ export function markKeySuccess(entry: GeminiKey): void {
   cooldowns.delete(entry.key);
   entry.restingUntil = 0;
   if (!entry.id) return;
+  const hadError = entry.lastError !== null;
+  entry.lastError = null;
   const last = lastUsedWrites.get(entry.id) ?? 0;
-  if (Date.now() - last < LAST_USED_WRITE_INTERVAL_MS) return;
+  if (!hadError && Date.now() - last < LAST_USED_WRITE_INTERVAL_MS) return;
   lastUsedWrites.set(entry.id, Date.now());
   persist(entry.id, {
     last_used_at: new Date().toISOString(),
     resting_until: null,
+    ...(hadError ? { last_error: null, last_error_at: null } : {}),
   });
 }
 

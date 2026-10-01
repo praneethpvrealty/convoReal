@@ -230,6 +230,21 @@ describe('failover', () => {
     expect(typeof rest?.patch.resting_until).toBe('string');
   });
 
+  it("[AIK-002] clears a recovered key's last error on its next success", async () => {
+    store.rows = [
+      managedRow('only', 'db-a', {
+        last_error: 'Your prepayment credits are depleted.',
+      }),
+    ];
+    expect(await generateText('hi')).toBe('ok from db-a');
+    await tick();
+    expect(store.updates.find((u) => u.id === 'id-only')?.patch).toMatchObject({
+      last_error: null,
+      last_error_at: null,
+      resting_until: null,
+    });
+  });
+
   it('[AIK-002] honours a rest recorded by another instance', async () => {
     store.rows = [
       managedRow('first', 'db-a', {
