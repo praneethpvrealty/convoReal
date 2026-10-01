@@ -16,8 +16,9 @@
 // Nothing is stored except the settings below.
 // ============================================================
 
+const RETIRED_ENGINE_URLS = ['https://app.convoreal.com'];
 const DEFAULTS = {
-  engineUrl: 'https://app.convoreal.com',
+  engineUrl: 'https://www.convoreal.com',
   igrUrl: 'https://igr.karnataka.gov.in/72/revised-guidelines-value/en',
   concurrency: 2,
   includeCorrigenda: true,
@@ -47,7 +48,10 @@ class ApiError extends Error {
 
 async function loadSettings() {
   const { gvSettings } = await chrome.storage.local.get('gvSettings');
-  return { ...DEFAULTS, ...(gvSettings || {}) };
+  const settings = { ...DEFAULTS, ...(gvSettings || {}) };
+  if (RETIRED_ENGINE_URLS.includes(settings.engineUrl))
+    settings.engineUrl = DEFAULTS.engineUrl;
+  return settings;
 }
 
 function readForm() {
