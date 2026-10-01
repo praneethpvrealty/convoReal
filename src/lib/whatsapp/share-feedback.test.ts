@@ -85,9 +85,11 @@ function makeDb(
     lastCustomerMessageAt?: string | null;
     share?: Row;
     property?: Row | null;
+    failMarks?: number;
   } = {}
 ) {
   const state = {
+    failMarks: opts.failMarks ?? 0,
     lastCustomerMessageAt: opts.lastCustomerMessageAt,
     shares: [
       {
@@ -171,6 +173,13 @@ function makeDb(
       },
       then: (resolve: (v: { data: unknown; error: unknown }) => unknown) => {
         if (table === 'property_shares') {
+          if (patch?.feedback_status === 'sent' && state.failMarks > 0) {
+            state.failMarks--;
+            return Promise.resolve({
+              data: null,
+              error: { message: 'connection reset' },
+            }).then(resolve);
+          }
           if (patch) {
             applyPatch();
             return Promise.resolve({ data: null, error: null }).then(resolve);
@@ -231,6 +240,17 @@ describe('processShareFeedbackFollowups', () => {
         text: 'Hi Asha, following up on the property I shared earlier.\n\nDid it match what you are looking for?',
       })
     );
+  });
+
+  it('[INB-022] retries recording the prompt id when the first write fails', async () => {
+    const db = makeDb({ lastCustomerMessageAt: null, failMarks: 1 });
+
+    expect(await processShareFeedbackFollowups(db as never)).toBe(1);
+
+    expect(db.state.shares[0]).toMatchObject({
+      feedback_status: 'sent',
+      feedback_message_id: 'wamid.prompt',
+    });
   });
 
   it('[INB-022] names the shared property and asks with tappable buttons while the window is open', async () => {
@@ -401,8 +421,9 @@ describe('processShareFeedbackFollowups', () => {
 });
 
 describe('findFeedbackSharePropertyId', () => {
-  function lookupDb(row: Row | null) {
+  function lookupDb(rows: Row[]) {
     const calls: [string, unknown][] = [];
+    const tables: string[] = [];
     const b: Record<string, unknown> = {};
     for (const m of ['select', 'eq', 'limit']) {
       b[m] = (col: string, val: unknown) => {
@@ -410,19 +431,20 @@ describe('findFeedbackSharePropertyId', () => {
         return b;
       };
     }
-    b.maybeSingle = async () => ({ data: row, error: null });
+    b.then = (resolve: (v: { data: Row[]; error: null }) => unknown) =>
+      Promise.resolve({ data: rows, error: null }).then(resolve);
     return {
       calls,
-      tables: [] as string[],
+      tables,
       from(table: string) {
-        this.tables.push(table);
+        tables.push(table);
         return b;
       },
     };
   }
 
   it('[INB-022] resolves the share by the exact prompt message the tap replied to', async () => {
-    const db = lookupDb({ property_id: PROPERTY_ID });
+    const db = lookupDb([{ property_id: PROPERTY_ID }]);
 
     expect(
       await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
@@ -437,8 +459,25 @@ describe('findFeedbackSharePropertyId', () => {
     );
   });
 
+  it('[INB-022] refuses to pick when one prompt covers shares of different properties', async () => {
+    const db = lookupDb([
+      { property_id: PROPERTY_ID },
+      { property_id: '99999999-2222-4333-8444-555555555555' },
+    ]);
+    expect(
+      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
+    ).toBeNull();
+  });
+
+  it('[INB-022] still resolves when every share on the prompt is the same property', async () => {
+    const db = lookupDb([{ property_id: PROPERTY_ID }, { property_id: PROPERTY_ID }]);
+    expect(
+      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
+    ).toBe(PROPERTY_ID);
+  });
+
   it('[INB-022] never guesses a property when the tap carries no prompt id', async () => {
-    const db = lookupDb({ property_id: PROPERTY_ID });
+    const db = lookupDb([{ property_id: PROPERTY_ID }]);
     expect(
       await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, null)
     ).toBeNull();

@@ -616,7 +616,10 @@ async function sendToAllRecipients(
   }
 
   const confirmedWindows = new Map<string, string | null>();
-  const confirmedOnly = !!appt.client_confirmed_at && reachable.length === 1;
+  const confirmedOnly =
+    !!appt.client_confirmed_at &&
+    recipientIds(appt).length === 1 &&
+    reachable.length === 1;
   if (confirmedOnly) {
     const { data: convos } = await admin
       .from('conversations')

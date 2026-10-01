@@ -503,6 +503,23 @@ describe('reminder wording', () => {
     }
   });
 
+  it('[CAL-013] does not thank a contact for a confirmation another recipient may have made', async () => {
+    tables.contacts.push({ id: 'c-nophone', name: 'Kiran', phone: null });
+    tables.appointments = [
+      {
+        ...appointment('a-meet', 'meeting', 'c-visit'),
+        contact_ids: ['c-visit', 'c-nophone'],
+        client_confirmed_at: '2026-08-01T03:21:00Z',
+      },
+    ];
+    tables.conversations = [
+      { account_id: 'acc', contact_id: 'c-visit', last_customer_message_at: new Date().toISOString() },
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0].kind).toBe('template');
+  });
+
   it('[CAL-013] does not double the full stop after an agenda that ends in one', () => {
     const { bodyText, templateParams } = buildReminderTemplateContent({
       clientName: 'Yusuf',

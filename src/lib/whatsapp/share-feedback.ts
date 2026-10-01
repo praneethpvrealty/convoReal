@@ -27,15 +27,18 @@ export async function findFeedbackSharePropertyId(
   contextMessageId: string | null
 ): Promise<string | null> {
   if (!contextMessageId) return null;
-  const { data: share } = await db
+  const { data: shares } = await db
     .from('property_shares')
     .select('property_id')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
     .eq('feedback_message_id', contextMessageId)
-    .limit(1)
-    .maybeSingle();
-  return (share?.property_id as string | null | undefined) ?? null;
+    .limit(20);
+  const propertyIds = new Set(
+    (shares ?? []).map((row) => row.property_id as string | null)
+  );
+  if (propertyIds.size !== 1) return null;
+  return [...propertyIds][0] ?? null;
 }
 
 export const SHARE_FEEDBACK_CLAIM_STALE_MS = 15 * 60 * 1000;
@@ -268,14 +271,22 @@ async function sendShareFeedback(
     return 'retry';
   }
 
-  await db
-    .from('property_shares')
-    .update({
-      feedback_status: 'sent',
-      feedback_sent_at: new Date().toISOString(),
-      feedback_message_id: feedbackMessageId,
-    })
-    .eq('id', share.id)
-    .eq('account_id', share.account_id);
+  const sentAt = new Date().toISOString();
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const { error: markError } = await db
+      .from('property_shares')
+      .update({
+        feedback_status: 'sent',
+        feedback_sent_at: sentAt,
+        feedback_message_id: feedbackMessageId,
+      })
+      .eq('id', share.id)
+      .eq('account_id', share.account_id);
+    if (!markError) break;
+    console.error(
+      `[share-feedback] Failed to mark share ${share.id} sent (attempt ${attempt}):`,
+      markError
+    );
+  }
   return 'sent';
 }
