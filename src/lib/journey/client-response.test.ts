@@ -517,6 +517,7 @@ describe('resolving the property a forwarded reply is about', () => {
     return {
       from() {
         const filters: [string, unknown][] = [];
+        let cap = Infinity;
         const b: Record<string, unknown> = {
           select: () => b,
           eq: (col: string, val: unknown) => {
@@ -524,13 +525,18 @@ describe('resolving the property a forwarded reply is about', () => {
             return b;
           },
           ilike: () => b,
-          limit: () => b,
+          limit: (n: number) => {
+            cap = n;
+            return b;
+          },
           maybeSingle: async () => ({ data: null, error: null }),
           then: (resolve: (v: { data: Row[]; error: null }) => unknown) =>
             Promise.resolve({
-              data: rows.filter((row) =>
-                filters.every(([col, val]) => col === 'account_id' || row[col] === val)
-              ),
+              data: rows
+                .filter((row) =>
+                  filters.every(([col, val]) => col === 'account_id' || row[col] === val)
+                )
+                .slice(0, cap),
               error: null,
             }).then(resolve),
         };
@@ -563,6 +569,24 @@ describe('resolving the property a forwarded reply is about', () => {
     expect(result.property).toBeNull();
     expect(result.candidates.map((c) => c.property.id)).toEqual(['p-1403', 'p-1108']);
     expect(result.candidates[0].reason).toBe('owned by Yogendranath');
+  });
+
+  it('[JRN-016] offers rather than picks the owned property when the inventory scan was capped', async () => {
+    const large: Row[] = [
+      inventory[0],
+      ...Array.from({ length: 600 }, (_, i) => ({
+        id: `bulk-${i}`,
+        title: `Bulk listing ${i}`,
+        property_code: `PROP-${5000 + i}`,
+        owner_contact_id: null,
+      })),
+    ];
+    const result = await resolveClientProperty(fakeDb(large) as never, 'acc', parsed, {
+      id: 'c-yogi',
+      name: 'Yogendranath',
+    });
+    expect(result.property).toBeNull();
+    expect(result.candidates.map((c) => c.property.id)).toEqual(['p-1403']);
   });
 
   it('[JRN-016] offers nothing for a contact who owns nothing and a message that names nothing', async () => {

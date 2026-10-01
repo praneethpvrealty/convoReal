@@ -808,6 +808,8 @@ interface ClientPropertyResolution {
   candidates: RankedPropertyCandidate<PropertyRow & { title: string }>[];
 }
 
+const INVENTORY_SCAN_LIMIT = 500;
+
 export async function resolveClientProperty(
   db: SupabaseClient,
   accountId: string,
@@ -865,14 +867,15 @@ export async function resolveClientProperty(
     .from('properties')
     .select(select)
     .eq('account_id', accountId)
-    .limit(500);
+    .limit(INVENTORY_SCAN_LIMIT);
+  const scannedWholeInventory = (data?.length ?? 0) < INVENTORY_SCAN_LIMIT;
   const ownedIds = new Set(owned.map((property) => property.id));
   const properties = ((data ?? []) as PropertyRow[]).filter(
     (property): property is PropertyRow & { title: string } =>
       Boolean(property.title?.trim()) && !ownedIds.has(property.id)
   );
   const ranked = rankJourneyPropertyCandidates(query, properties);
-  if (owned.length === 1 && ranked.length === 0) {
+  if (owned.length === 1 && ranked.length === 0 && scannedWholeInventory) {
     return { property: owned[0], candidates: [] };
   }
   const candidates = owner

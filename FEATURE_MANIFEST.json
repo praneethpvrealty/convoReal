@@ -1842,7 +1842,7 @@
         },
         {
           "id": "JRN-016",
-          "rule": "When a forwarded client reply names no property by code or title, the property it is about is resolved from the contact first: a contact who owns exactly one listing (owner_contact_id) has it picked when the message points at no other listing, and a contact who owns several, or whose message also points elsewhere, is offered their own listings first, each marked \"owned by <name>\". Only then is the rest of the inventory ranked by words in the message, and filler words (the, and, for, with, sale and the like) never count as a match, so a reply is never offered unrelated listings for sharing a word like \"the\".",
+          "rule": "When a forwarded client reply names no property by code or title, the property it is about is resolved from the contact first: a contact who owns exactly one listing (owner_contact_id) has it picked when the message points at no other listing and the whole inventory was read (an account too large to read in one pass is offered the owned listing rather than having it picked), and a contact who owns several, or whose message also points elsewhere, is offered their own listings first, each marked \"owned by <name>\". Only then is the rest of the inventory ranked by words in the message, and filler words (the, and, for, with, sale and the like) never count as a match, so a reply is never offered unrelated listings for sharing a word like \"the\".",
           "tests": [
             {
               "file": "src/lib/journey/client-response.test.ts",
