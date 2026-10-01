@@ -57,6 +57,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { phonesMatch } from '@/lib/whatsapp/phone-utils';
 import {
   extractLoggedSummary,
+  PROPERTY_CHOICE_PROMPT,
   PROPERTY_QUESTION_PROMPT,
   type PropertyAnswer,
 } from '@/lib/journey/property-answer';
@@ -79,6 +80,7 @@ import {
 import { pickApprovedTemplate } from '@/lib/whatsapp/pick-approved-template';
 import { narrowToLanguage } from '@/lib/whatsapp/template-language';
 import {
+  ownedPropertyCandidates,
   rankJourneyPropertyCandidates,
   type RankedPropertyCandidate,
 } from '@/lib/journey/property-candidates';
@@ -658,14 +660,28 @@ export function parsePropertyCandidateReplyId(
   return propertyId && contactId ? { propertyId, contactId } : null;
 }
 
+export const PROPERTY_CANDIDATE_CANCEL_PREFIX = 'jpx_';
+
+export function parsePropertyCandidateCancelId(replyId: string): string | null {
+  if (!replyId.startsWith(PROPERTY_CANDIDATE_CANCEL_PREFIX)) return null;
+  return replyId.slice(PROPERTY_CANDIDATE_CANCEL_PREFIX.length) || null;
+}
+
 export function buildPropertyCandidateButtons(
   contactId: string,
   candidates: RankedPropertyCandidate<PropertyRow & { title: string }>[]
 ): Array<{ id: string; title: string }> {
-  return candidates.slice(0, 3).map(({ property }) => ({
-    id: `${PROPERTY_CANDIDATE_PREFIX}${property.id}:${contactId}`,
-    title: candidateButtonTitle(property.property_code || property.title),
-  }));
+  return [
+    ...candidates.slice(0, 2).map(({ property }) => ({
+      id: `${PROPERTY_CANDIDATE_PREFIX}${property.id}:${contactId}`,
+      title: candidateButtonTitle(property.property_code || property.title),
+    })),
+    { id: `${PROPERTY_CANDIDATE_CANCEL_PREFIX}${contactId}`, title: 'Cancel' },
+  ];
+}
+
+export function buildPropertyCandidateCancelReply(contactName: string): string {
+  return `👍 Cancelled. Nothing was linked, and no event, reminder or owner message was created. ${contactName}'s update stays in their contact notes.`;
 }
 
 export function buildPropertyCandidateReply(
@@ -680,7 +696,7 @@ export function buildPropertyCandidateReply(
         `• *${property.title}*${property.property_code ? ` (${property.property_code})` : ''} — _${reason}_`
     ),
     '',
-    'Tap the right property before I create the event, reminders or owner message.',
+    PROPERTY_CHOICE_PROMPT,
   ].join('\n');
 }
 
@@ -792,10 +808,13 @@ interface ClientPropertyResolution {
   candidates: RankedPropertyCandidate<PropertyRow & { title: string }>[];
 }
 
-async function resolveClientProperty(
+const INVENTORY_SCAN_LIMIT = 500;
+
+export async function resolveClientProperty(
   db: SupabaseClient,
   accountId: string,
-  parsed: ParsedClientReply
+  parsed: ParsedClientReply,
+  owner?: { id: string; name: string }
 ): Promise<ClientPropertyResolution> {
   const select =
     'id, title, property_code, owner_contact_id, listing_source, location, sublocality, city, type, tags';
@@ -823,15 +842,6 @@ async function resolveClientProperty(
       return { property: data[0] as PropertyRow, candidates: [] };
     }
   }
-  const { data } = await db
-    .from('properties')
-    .select(select)
-    .eq('account_id', accountId)
-    .limit(500);
-  const properties = ((data ?? []) as PropertyRow[]).filter(
-    (property): property is PropertyRow & { title: string } =>
-      Boolean(property.title?.trim())
-  );
   const query = [
     parsed.property_title,
     parsed.response_summary,
@@ -840,10 +850,38 @@ async function resolveClientProperty(
   ]
     .filter(Boolean)
     .join(' ');
-  return {
-    property: null,
-    candidates: rankJourneyPropertyCandidates(query, properties),
-  };
+  let owned: (PropertyRow & { title: string })[] = [];
+  if (owner) {
+    const { data: ownedRows } = await db
+      .from('properties')
+      .select(select)
+      .eq('account_id', accountId)
+      .eq('owner_contact_id', owner.id)
+      .limit(20);
+    owned = ((ownedRows ?? []) as PropertyRow[]).filter(
+      (property): property is PropertyRow & { title: string } =>
+        Boolean(property.title?.trim())
+    );
+  }
+  const { data } = await db
+    .from('properties')
+    .select(select)
+    .eq('account_id', accountId)
+    .limit(INVENTORY_SCAN_LIMIT);
+  const scannedWholeInventory = (data?.length ?? 0) < INVENTORY_SCAN_LIMIT;
+  const ownedIds = new Set(owned.map((property) => property.id));
+  const properties = ((data ?? []) as PropertyRow[]).filter(
+    (property): property is PropertyRow & { title: string } =>
+      Boolean(property.title?.trim()) && !ownedIds.has(property.id)
+  );
+  const ranked = rankJourneyPropertyCandidates(query, properties);
+  if (owned.length === 1 && ranked.length === 0 && scannedWholeInventory) {
+    return { property: owned[0], candidates: [] };
+  }
+  const candidates = owner
+    ? [...ownedPropertyCandidates(query, owned, owner.name), ...ranked]
+    : ranked;
+  return { property: null, candidates: candidates.slice(0, 3) };
 }
 
 async function matchClientProperty(
@@ -1425,7 +1463,12 @@ async function logClientResponse(args: LogArgs): Promise<ClientReplyOutcome> {
     args;
   const contactName = contact.name || parsed.client_name || 'Client';
 
-  const propertyResolution = await resolveClientProperty(db, accountId, parsed);
+  const propertyResolution = await resolveClientProperty(
+    db,
+    accountId,
+    parsed,
+    { id: contact.id, name: contactName }
+  );
   const property = propertyResolution.property;
   const summary = parsed.response_summary || parsed.next_action || null;
   const label = property
@@ -1487,6 +1530,7 @@ async function logClientResponse(args: LogArgs): Promise<ClientReplyOutcome> {
           contact.id,
           propertyResolution.candidates
         ),
+        pendingPropertyContactId: contact.id,
       };
     }
     return {

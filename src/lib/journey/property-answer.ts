@@ -24,7 +24,13 @@ export const PROPERTY_QUESTION_PROMPT =
 /** Finds that question in a stored bot message. Matched on the stable
  *  half of the sentence, so a copy tweak around it stays harmless. */
 export const PROPERTY_QUESTION_FINGERPRINT =
-  /couldn't tell which property this is about/i;
+  /couldn't tell which property this is about|tap the right property, or reply with its code/i;
+
+/** The choice offered when the forward points at a few listings: tap
+ *  one, type a code that is not among them, or cancel. Matched by the
+ *  same fingerprint, so a typed code completes it. */
+export const PROPERTY_CHOICE_PROMPT =
+  "Tap the right property, or reply with its code (e.g. PROP-1138) for any property without a button. I'll create the event, reminders or owner message only after you choose. Tap Cancel to leave it unlinked.";
 
 export interface PropertyAnswer {
   /** A property code the agent typed, normalised to PROP-<n>. */

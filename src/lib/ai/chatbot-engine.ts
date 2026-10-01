@@ -24,6 +24,8 @@ import {
   completeClientReplyForContactId,
   parseClientCandidateReplyId,
   parsePropertyCandidateReplyId,
+  parsePropertyCandidateCancelId,
+  buildPropertyCandidateCancelReply,
   handleAgentFollowupReply,
   AGENT_FOLLOWUP_PREFIX,
   type ClientReplyOutcome,
@@ -1042,6 +1044,30 @@ export async function processOwnerChatbotMessage(
     return true;
   }
 
+  const cancelledPropertyContactId = buttonId
+    ? parsePropertyCandidateCancelId(buttonId)
+    : null;
+  if (cancelledPropertyContactId) {
+    await clearBotTarget({ accountId, waMessageId: message.context?.id });
+    const { data: cancelledContact } = await supabaseAdmin()
+      .from('contacts')
+      .select('name')
+      .eq('id', cancelledPropertyContactId)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    const text = buildPropertyCandidateCancelReply(
+      (cancelledContact?.name as string | null) || 'The client'
+    );
+    const sendRes = await sendTextMessage({
+      phoneNumberId,
+      accessToken,
+      to: contactRecord.phone,
+      text,
+    });
+    await saveBotMessage(conversation.id, text, sendRes.messageId);
+    return true;
+  }
+
   const tappedProperty = buttonId
     ? parsePropertyCandidateReplyId(buttonId)
     : null;
@@ -1055,6 +1081,9 @@ export async function processOwnerChatbotMessage(
       accessToken,
       phoneNumberId,
     });
+    if (outcome) {
+      await clearBotTarget({ accountId, waMessageId: message.context?.id });
+    }
     const text =
       outcome?.text ??
       "❓ I couldn't find that contact or property any more. Forward the update again and I'll rematch it.";

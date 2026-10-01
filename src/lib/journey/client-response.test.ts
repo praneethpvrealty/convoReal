@@ -29,16 +29,22 @@ import {
   candidateButtonTitle,
   parseClientCandidateReplyId,
   parsePropertyCandidateReplyId,
+  parsePropertyCandidateCancelId,
+  buildPropertyCandidateCancelReply,
   buildRequirementLine,
   buildUnmatchedReply,
   followupDueDate,
   isJourneyCheckinText,
   parseClientFollowupReplyId,
   propertyLabel,
+  resolveClientProperty,
 } from './client-response';
 import { buildCheckInMessage } from './checkin-message';
 import { CLIENT_QUESTION_PROMPT } from './client-answer';
-import { PROPERTY_QUESTION_PROMPT } from './property-answer';
+import {
+  PROPERTY_QUESTION_FINGERPRINT,
+  PROPERTY_QUESTION_PROMPT,
+} from './property-answer';
 
 describe('client follow-up buttons', () => {
   it('builds the three timeline choices against the journey item', () => {
@@ -433,6 +439,7 @@ describe('confirming the property before side effects', () => {
     expect(buttons).toEqual([
       { id: 'jpc_p1:c1', title: 'PROP-101' },
       { id: 'jpc_p2:c1', title: 'PROP-102' },
+      { id: 'jpx_c1', title: 'Cancel' },
     ]);
     expect(parsePropertyCandidateReplyId(buttons[0].id)).toEqual({
       propertyId: 'p1',
@@ -445,7 +452,149 @@ describe('confirming the property before side effects', () => {
     const reply = buildPropertyCandidateReply('Yogendranath', candidates);
     expect(reply).toContain('JP Nagar 100 Feet Road');
     expect(reply).toContain(
-      'before I create the event, reminders or owner message'
+      "I'll create the event, reminders or owner message only after you choose"
+    );
+  });
+
+  it('[JRN-017] always leaves room for Cancel within the three WhatsApp buttons', () => {
+    const three = [
+      ...candidates,
+      {
+        property: { id: 'p3', title: 'Third listing', property_code: 'PROP-103' },
+        score: 60,
+        reason: 'title third',
+      },
+    ];
+    const buttons = buildPropertyCandidateButtons('c1', three);
+    expect(buttons).toHaveLength(3);
+    expect(buttons[2]).toEqual({ id: 'jpx_c1', title: 'Cancel' });
+    expect(parsePropertyCandidateCancelId(buttons[2].id)).toBe('c1');
+    expect(parsePropertyCandidateCancelId('jpc_p1:c1')).toBeNull();
+    expect(parsePropertyCandidateReplyId(buttons[2].id)).toBeNull();
+    const reply = buildPropertyCandidateReply('Yogendranath', three);
+    expect(reply).toContain('PROP-103');
+  });
+
+  it('[JRN-017] lets the agent type a property code that has no button', () => {
+    const reply = buildPropertyCandidateReply('Yogendranath', candidates);
+    expect(PROPERTY_QUESTION_FINGERPRINT.test(reply)).toBe(true);
+    expect(reply).toMatch(/reply with its code \(e\.g\. PROP-1138\)/);
+  });
+
+  it('[JRN-017] says a cancel links nothing and keeps the note', () => {
+    expect(buildPropertyCandidateCancelReply('Yogendranath')).toBe(
+      "👍 Cancelled. Nothing was linked, and no event, reminder or owner message was created. Yogendranath's update stays in their contact notes."
     );
   });
 });
+
+describe('resolving the property a forwarded reply is about', () => {
+  type Row = Record<string, unknown>;
+  const inventory: Row[] = [
+    {
+      id: 'p-1403',
+      title: '#19, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase.',
+      property_code: 'PROP-1403',
+      owner_contact_id: 'c-yogi',
+      sublocality: 'JP Nagar 4th Phase',
+    },
+    {
+      id: 'p-1108',
+      title: 'Residential House in Koramangala 7th phase, opposite to the park is for sale.',
+      property_code: 'PROP-1108',
+      owner_contact_id: 'c-other',
+      sublocality: 'Koramangala',
+    },
+    {
+      id: 'p-1878',
+      title: '300 Acres Residential Land with the plan approval on Harohalli to Bidadi Road',
+      property_code: 'PROP-1878',
+      owner_contact_id: null,
+    },
+  ];
+
+  function fakeDb(rows: Row[]) {
+    return {
+      from() {
+        const filters: [string, unknown][] = [];
+        let cap = Infinity;
+        const b: Record<string, unknown> = {
+          select: () => b,
+          eq: (col: string, val: unknown) => {
+            filters.push([col, val]);
+            return b;
+          },
+          ilike: () => b,
+          limit: (n: number) => {
+            cap = n;
+            return b;
+          },
+          maybeSingle: async () => ({ data: null, error: null }),
+          then: (resolve: (v: { data: Row[]; error: null }) => unknown) =>
+            Promise.resolve({
+              data: rows
+                .filter((row) =>
+                  filters.every(([col, val]) => col === 'account_id' || row[col] === val)
+                )
+                .slice(0, cap),
+              error: null,
+            }).then(resolve),
+        };
+        return b;
+      },
+    };
+  }
+
+  const parsed = {
+    response_summary:
+      'Yogendranath to share the family tree application number by today evening.',
+  } as Parameters<typeof resolveClientProperty>[2];
+
+  it('[JRN-016] picks the one property the contact owns when the message names no other', async () => {
+    const result = await resolveClientProperty(fakeDb(inventory) as never, 'acc', parsed, {
+      id: 'c-yogi',
+      name: 'Yogendranath',
+    });
+    expect(result.property?.id).toBe('p-1403');
+    expect(result.candidates).toEqual([]);
+  });
+
+  it('[JRN-016] puts the owned property first when the message also points elsewhere', async () => {
+    const result = await resolveClientProperty(
+      fakeDb(inventory) as never,
+      'acc',
+      { response_summary: 'Yogendranath asked about the Koramangala house too' } as typeof parsed,
+      { id: 'c-yogi', name: 'Yogendranath' }
+    );
+    expect(result.property).toBeNull();
+    expect(result.candidates.map((c) => c.property.id)).toEqual(['p-1403', 'p-1108']);
+    expect(result.candidates[0].reason).toBe('owned by Yogendranath');
+  });
+
+  it('[JRN-016] offers rather than picks the owned property when the inventory scan was capped', async () => {
+    const large: Row[] = [
+      inventory[0],
+      ...Array.from({ length: 600 }, (_, i) => ({
+        id: `bulk-${i}`,
+        title: `Bulk listing ${i}`,
+        property_code: `PROP-${5000 + i}`,
+        owner_contact_id: null,
+      })),
+    ];
+    const result = await resolveClientProperty(fakeDb(large) as never, 'acc', parsed, {
+      id: 'c-yogi',
+      name: 'Yogendranath',
+    });
+    expect(result.property).toBeNull();
+    expect(result.candidates.map((c) => c.property.id)).toEqual(['p-1403']);
+  });
+
+  it('[JRN-016] offers nothing for a contact who owns nothing and a message that names nothing', async () => {
+    const result = await resolveClientProperty(fakeDb(inventory) as never, 'acc', parsed, {
+      id: 'c-nobody',
+      name: 'Ravi',
+    });
+    expect(result).toEqual({ property: null, candidates: [] });
+  });
+});
+
