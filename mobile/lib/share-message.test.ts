@@ -57,3 +57,50 @@ describe('link order', () => {
     expect(msg).toContain(URL);
   });
 });
+
+describe('land area', () => {
+  const commercial = {
+    ...property,
+    type: 'Commercial Office Space',
+    area_sqft: 5371,
+    area_unit: 'Sq.Ft.',
+    land_area: 2400,
+    land_area_unit: 'sqft',
+  } as unknown as Property;
+
+  it('shows land area alongside built-up area on a complete share', () => {
+    const msg = buildPropertyShareMessage({
+      property: commercial,
+      url: URL,
+      audience: 'client',
+      detail: 'complete',
+      tone: 'professional',
+    });
+    expect(msg).toContain(
+      '📐 Commercial Office Space · 5371 Sq.Ft. built-up · 2400 sqft land'
+    );
+  });
+
+  it('shows land area on a standard share', () => {
+    const msg = buildPropertyShareMessage({
+      property: commercial,
+      url: URL,
+      audience: 'client',
+      detail: 'standard',
+      tone: 'professional',
+    });
+    expect(msg).toContain('5371 Sq.Ft. built-up | 2400 sqft land');
+  });
+
+  it('leaves built-up area unlabelled when there is no land area', () => {
+    const msg = buildPropertyShareMessage({
+      property: { ...commercial, land_area: null } as unknown as Property,
+      url: URL,
+      audience: 'client',
+      detail: 'complete',
+      tone: 'professional',
+    });
+    expect(msg).toContain('📐 Commercial Office Space · 5371 Sq.Ft.\n');
+    expect(msg).not.toContain(' land');
+  });
+});
