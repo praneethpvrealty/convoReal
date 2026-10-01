@@ -121,10 +121,10 @@ describe('[TXW-016] the deals list names a transaction by buyer and property', (
     ).toBe(base.title);
   });
 
-  it('treats provenance or milestones as the mark of a closing record', () => {
+  it('treats milestones as the mark of a closing record', () => {
     expect(
       isClosingRecord({ source_journey_item_id: 'j1', milestones_total: 0 })
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isClosingRecord({ source_journey_item_id: null, milestones_total: 2 })
     ).toBe(true);

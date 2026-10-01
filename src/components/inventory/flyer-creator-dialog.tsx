@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Property } from '@/types';
 import {
@@ -45,6 +46,7 @@ export function FlyerCreatorDialog({
   property,
   onSaved,
 }: FlyerCreatorDialogProps) {
+  const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { user, accountId } = useAuth();
   const { openTopupModal } = useTopupModal();
@@ -133,7 +135,7 @@ export function FlyerCreatorDialog({
         if (response.status === 402) {
           if (errData.upgradeRequired && typeof errData.upgradeRequired === 'string') {
             toast.error(errData.error || 'AI features require a plan upgrade.', {
-              action: { label: 'Upgrade plan', onClick: () => window.location.href = '/settings?tab=billing' },
+              action: { label: 'Upgrade plan', onClick: () => router.push('/settings?tab=billing') },
             });
           } else {
             toast.error(errData.error || `You've used all your credits for this month.`, {

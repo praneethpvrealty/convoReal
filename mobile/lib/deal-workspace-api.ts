@@ -361,15 +361,6 @@ export function updateDealDocument(
   ).then((r) => r.data);
 }
 
-/** Open the closing record for a journey item. Idempotent: returns the
- *  existing transaction when the item already has one. */
-export function convertJourneyItemToDeal(itemId: string) {
-  return apiFetch<{ data: { id: string; existing: boolean } }>(
-    '/api/journey/convert-to-deal',
-    { method: 'POST', ...json({ item_id: itemId }) }
-  ).then((r) => r.data);
-}
-
 /** Move a journey item to a stage. A mirrored stage moves the item's
  *  deal through the board's stage-move logic; a 409 BROKERAGE_REQUIRED
  *  asks for the brokerage first, exactly as the board does. */

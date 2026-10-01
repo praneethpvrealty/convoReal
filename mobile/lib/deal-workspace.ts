@@ -1017,7 +1017,7 @@ export function transactionSubtitle(
 }
 
 export function isClosingRecord(row: TransactionIndexOrigin): boolean {
-  return row.source_journey_item_id !== null || row.milestones_total > 0;
+  return row.milestones_total > 0;
 }
 
 export type RecordsSort = 'updated' | 'close';

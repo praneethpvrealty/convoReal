@@ -1,6 +1,40 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs/config';
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * app.<domain> is an alias of the www site; pages move to www. /api and
+ * /.well-known stay put, because webhooks and app-link verifiers do not
+ * follow redirects. Supabase auth cookies are host-only, so a request
+ * still carrying an app-host session or OAuth code verifier is left
+ * where it is: moving it would land the user on www signed out.
+ */
+function appHostRedirect(baseDomain: string, supabaseUrl: string | undefined) {
+  if (!supabaseUrl) return [];
+  const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
+  return [
+    {
+      source: '/:path((?!api(?:/|$)|\\.well-known(?:/|$)).*)',
+      has: [
+        {
+          type: 'host' as const,
+          value: `app\\.${escapeRegExp(baseDomain)}`,
+        },
+      ],
+      missing: [
+        storageKey,
+        `${storageKey}.0`,
+        `${storageKey}-code-verifier`,
+      ].map((key) => ({ type: 'cookie' as const, key })),
+      destination: `https://www.${baseDomain}/:path`,
+      permanent: false,
+    },
+  ];
+}
+
 /**
  * Baseline security headers applied to every response.
  *
@@ -193,13 +227,20 @@ const nextConfig: NextConfig = {
   },
 
   async redirects() {
+    const baseDomain = process.env.NEXT_PUBLIC_BASE_DOMAIN || 'convoreal.com';
+    const appHostRedirects = appHostRedirect(
+      baseDomain,
+      process.env.NEXT_PUBLIC_SUPABASE_URL
+    );
+
     const fromDomain = process.env.REDIRECT_FROM_DOMAIN;
     const toDomain = process.env.REDIRECT_TO_DOMAIN || 'convoreal.com';
-    if (!fromDomain) return [];
+    if (!fromDomain) return appHostRedirects;
 
-    const escapedFrom = fromDomain.replace(/\./g, '\\.');
+    const escapedFrom = escapeRegExp(fromDomain);
 
     return [
+      ...appHostRedirects,
       // 1. Redirect main domain root and all paths.
       // /.well-known is exempt: assetlinks.json and
       // apple-app-site-association must be served with a 200 on every

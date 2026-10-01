@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { 
@@ -33,6 +34,7 @@ import { PUBLIC_TOOLS, TOOLS_PATH } from '@/lib/marketing/public-tools';
 import { ToolIcon } from '@/components/landing/tool-icon';
 
 export function MarketingLanding() {
+  const router = useRouter();
   // Catch recovery/reset password, session tokens, or auth errors in URL hash and redirect client-side
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hash) {
@@ -170,13 +172,13 @@ export function MarketingLanding() {
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
-              onClick={() => window.location.href = '/login'}
+              onClick={() => router.push('/login')}
               className="text-slate-300 hover:text-white hover:bg-slate-900/60 text-xs font-semibold px-4 cursor-pointer"
             >
               Sign In
             </Button>
             <Button
-              onClick={() => window.location.href = '/signup'}
+              onClick={() => router.push('/signup')}
               className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-lg shadow-indigo-600/20 hover:shadow-indigo-600/30 hover:scale-[1.02] transition-all cursor-pointer"
             >
               Start Free Trial
@@ -214,7 +216,7 @@ export function MarketingLanding() {
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
               <Button
-                onClick={() => window.location.href = '/signup'}
+                onClick={() => router.push('/signup')}
                 className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-sm font-bold px-8 py-6 rounded-xl hover:scale-103 transition-all shadow-xl shadow-indigo-600/25 cursor-pointer flex items-center justify-center gap-2"
               >
                 {MARKETING_CONFIG.hero.ctaPrimary}
@@ -964,7 +966,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                     <span className="text-xs text-slate-400">/ {plan.period}</span>
                   </div>
                   <Button
-                    onClick={() => window.location.href = '/signup'}
+                    onClick={() => router.push('/signup')}
                     className={`w-full font-bold py-3.5 rounded-xl transition-all cursor-pointer ${
                       plan.isPopular 
                         ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25'
@@ -1064,14 +1066,14 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                   <Button
-                    onClick={() => window.location.href = '/signup'}
+                    onClick={() => router.push('/signup')}
                     className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-8 py-5 rounded-xl hover:scale-102 transition-all shadow-lg shadow-indigo-600/20 cursor-pointer"
                   >
                     Create Free Account
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => window.location.href = '/login'}
+                    onClick={() => router.push('/login')}
                     className="w-full sm:w-auto border-slate-850 bg-slate-950 hover:bg-slate-900 text-slate-200 text-xs font-semibold px-8 py-5 rounded-xl cursor-pointer"
                   >
                     Portal Login

@@ -41,6 +41,25 @@ const eslintConfig = defineConfig([
     files: ["**/*.integration.test.ts"],
     rules: { "convoreal/no-env-local-in-unit-tests": "off" },
   },
+  {
+    rules: { "@next/next/no-location-assign-relative-destination": "error" },
+  },
+  {
+    files: [
+      "src/app/(auth)/login/page.tsx",
+      "src/app/(dashboard)/dashboard-shell.tsx",
+      "src/app/(den)/den/login/page.tsx",
+      "src/app/(den)/den/verify-phone/page.tsx",
+      "src/app/join/[[]token]/page.tsx",
+      "src/app/profile-setup/page.tsx",
+      "src/app/verify-phone/page.tsx",
+      "src/components/buyer/buyer-provider.tsx",
+      "src/components/den/den-provider.tsx",
+      "src/components/settings/sessions-card.tsx",
+      "src/hooks/use-auth.tsx",
+    ],
+    rules: { "@next/next/no-location-assign-relative-destination": "warn" },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

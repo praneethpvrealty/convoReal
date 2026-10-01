@@ -2577,12 +2577,25 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     expect(mobileScreen).toContain("data.token_source === 'token_safe'");
   });
 
-  it('[TXW-001] converts a journey through the same route on both surfaces', () => {
-    expect(webJourneySheet).toContain("'/api/journey/convert-to-deal'");
-    expect(mobileApi).toContain("'/api/journey/convert-to-deal'");
-    expect(mobileJourney).toContain('convertJourneyItemToDeal');
-    expect(mobileJourney).toContain('Convert to deal');
-    expect(webJourneySheet).toContain('Convert to deal');
+  it('[TXW-001] leaves conversion to the server on both surfaces', () => {
+    expect(webJourneySheet).not.toContain('/api/journey/convert-to-deal');
+    expect(mobileApi).not.toContain('/api/journey/convert-to-deal');
+    expect(mobileJourney).not.toContain('convertJourneyItemToDeal');
+  });
+
+  it('[JRN-018] opens a live branch’s deal on its own, with no convert step on either surface', () => {
+    expect(webJourneySheet).not.toContain('Convert to deal');
+    expect(mobileJourney).not.toContain('Convert to deal');
+    expect(webJourneySheet).toContain('Open transaction');
+    expect(webJourneySheet).toContain(
+      'Joins the Board as a deal at this stage as soon as it is live on the journey.'
+    );
+    expect(mobileJourney).toContain('accessibilityLabel="Open deal"');
+    expect(webJourneySheet).toContain(".eq('source_journey_item_id', item.id)");
+    expect(mobileJourney).toContain(
+      'deal:deals!deals_source_journey_item_id_fkey(id)'
+    );
+    expect(mobileJourney).toContain('{linkedDealId(item) ? (');
   });
 
   it('links deal tasks through the same to-do routes', () => {
@@ -2753,7 +2766,7 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
       'if (who && what) return `${who} — ${what}`;',
       'return who ?? what ?? row.title;',
       'if (headline.toLowerCase().includes(title.toLowerCase())) return null;',
-      'return row.source_journey_item_id !== null || row.milestones_total > 0;',
+      'return row.milestones_total > 0;',
     ]) {
       expect(mobileVocab, `mobile drifted at: ${line}`).toContain(line);
     }
@@ -2768,6 +2781,9 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     expect(transactionSubtitle(row)).toBe(row.title);
     expect(
       isClosingRecord({ source_journey_item_id: null, milestones_total: 0 })
+    ).toBe(false);
+    expect(
+      isClosingRecord({ source_journey_item_id: 'j1', milestones_total: 0 })
     ).toBe(false);
   });
 
