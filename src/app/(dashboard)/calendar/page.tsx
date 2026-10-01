@@ -53,6 +53,7 @@ import { TasksList } from "@/components/calendar/tasks-list";
 import {
   CalendarEvent,
   TeamMember,
+  ARCHIVED_EVENT_CHIP,
   DEAL_DATE_META,
   EVENT_TYPES,
   EVENT_TYPE_KEYS,
@@ -75,7 +76,11 @@ import {
   localDateKey,
 } from "@/lib/calendar/deal-dates";
 import {
+  ARCHIVED_VIEW_LABELS,
+  ARCHIVED_VIEWS,
   archivableAppointmentIds,
+  archivedInLists,
+  archivedOnCalendar,
   buildCalendarTaskRows,
   chunkIds,
   isArchivedAppointment,
@@ -84,6 +89,7 @@ import {
   TASK_SORT_MODES,
   withoutArchivedAppointments,
   type AppointmentStatus,
+  type ArchivedView,
   type TaskSortMode,
 } from "@/lib/calendar/tasks-view";
 
@@ -207,7 +213,7 @@ export default function CalendarPage() {
 
   // Tasks list under the calendar (CAL-010)
   const [tasksOpen, setTasksOpen] = useState(true);
-  const [showArchivedTasks, setShowArchivedTasks] = useState(false);
+  const [archivedView, setArchivedView] = useState<ArchivedView>("greyed");
   const [taskSort, setTaskSort] = useState<TaskSortMode>("upcoming");
   const [taskBusyKey, setTaskBusyKey] = useState<string | null>(null);
 
@@ -398,8 +404,12 @@ export default function CalendarPage() {
   }, [todos, todoFilter]);
 
   const calendarAppointments = useMemo(
-    () => withoutArchivedAppointments(filteredAppointments, showArchivedTasks),
-    [filteredAppointments, showArchivedTasks]
+    () => withoutArchivedAppointments(filteredAppointments, archivedOnCalendar(archivedView)),
+    [filteredAppointments, archivedView]
+  );
+  const listedAppointments = useMemo(
+    () => withoutArchivedAppointments(filteredAppointments, archivedInLists(archivedView)),
+    [filteredAppointments, archivedView]
   );
 
   // Group appointments by date string
@@ -498,7 +508,7 @@ export default function CalendarPage() {
   const taskRows = useMemo(
     () =>
       sortTasksByTime(
-        showArchivedTasks
+        archivedInLists(archivedView)
           ? allTaskRows
           : allTaskRows.filter((row) => row.kind !== "appointment" || !isArchivedAppointment(row.appointment)),
         (row) => row.at,
@@ -506,7 +516,7 @@ export default function CalendarPage() {
         new Date(),
         (row) => row.kind === "deal"
       ),
-    [allTaskRows, showArchivedTasks, taskSort]
+    [allTaskRows, archivedView, taskSort]
   );
 
   const archiveAppointments = async (ids: string[], archived: boolean, busyKey: string) => {
@@ -526,8 +536,10 @@ export default function CalendarPage() {
       }
       toast.success(
         archived
-          ? `${changed.size === 1 ? "Archived" : `${changed.size} archived`} — hidden from the calendar and Tasks`
-          : "Unarchived — back on the calendar and in Tasks"
+          ? changed.size === 1
+            ? "Archived"
+            : `${changed.size} archived`
+          : "Unarchived — back in Tasks"
       );
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -1203,19 +1215,22 @@ export default function CalendarPage() {
               </button>
             )}
             {calendarAppointments.archivedCount > 0 && (
-              <button
-                onClick={() => setShowArchivedTasks((show) => !show)}
-                title="Archived events are hidden from the calendar, Tasks and the Agenda until shown"
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
-                  showArchivedTasks
-                    ? "border-primary/50 bg-primary/15 text-primary"
-                    : "border-slate-800 text-slate-500 hover:text-white"
-                )}
-              >
+              <label className="inline-flex items-center gap-1 rounded-full border border-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
                 <Archive className="h-2.5 w-2.5" />
-                {showArchivedTasks ? "Hide archived" : `Show archived (${calendarAppointments.archivedCount})`}
-              </button>
+                <select
+                  value={archivedView}
+                  onChange={(e) => setArchivedView(e.target.value as ArchivedView)}
+                  aria-label={`Archived events (${calendarAppointments.archivedCount})`}
+                  title="Grey out keeps archived events on the calendar, dimmed; Hide removes them; List also shows them in Tasks and the Agenda"
+                  className="bg-transparent text-[10px] font-semibold text-slate-300 focus:outline-none cursor-pointer"
+                >
+                  {ARCHIVED_VIEWS.map((mode) => (
+                    <option key={mode} value={mode} className="bg-slate-950">
+                      {`${ARCHIVED_VIEW_LABELS[mode]} (${calendarAppointments.archivedCount})`}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
             {members.length > 1 && (
               <select
@@ -1259,7 +1274,7 @@ export default function CalendarPage() {
             />
           ) : view === "agenda" ? (
             <AgendaView
-              events={calendarAppointments.visible}
+              events={listedAppointments.visible}
               dealDates={visibleDealDates}
               members={members}
               canEdit={canEdit}
@@ -1327,7 +1342,8 @@ export default function CalendarPage() {
                                 "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border leading-snug cursor-pointer transition-colors",
                                 meta.chip,
                                 appt.status === "completed" && "opacity-60",
-                                appt.status === "cancelled" && "line-through opacity-50"
+                                appt.status === "cancelled" && "line-through opacity-50",
+                                isArchivedAppointment(appt) && ARCHIVED_EVENT_CHIP
                               )}
                             >
                               <meta.icon className="h-2.5 w-2.5 shrink-0" />
@@ -1392,7 +1408,7 @@ export default function CalendarPage() {
                 <ChevronDown className={cn("h-3.5 w-3.5 text-slate-500 transition-transform", !tasksOpen && "-rotate-90")} />
                 <h2 className="text-sm font-bold text-white flex items-center">
                   Tasks
-                  <InfoHint text="Everything pinned on the days you are looking at: appointments with their status, and deal dates. Upcoming first puts today at the top, then the days ahead, then past days; Earliest first and Latest first sort strictly by date and time. Mark an event done or cancelled here — a cancelled event stays on its day, struck through. Archive a done or cancelled event to hide it from this list and the calendar; Show archived in the filter row brings it back. A milestone date can be ticked done; it completes the milestone on the deal without moving its stage." />
+                  <InfoHint text="Everything pinned on the days you are looking at: appointments with their status, and deal dates. Upcoming first puts today at the top, then the days ahead, then past days; Earliest first and Latest first sort strictly by date and time. Mark an event done or cancelled here — a cancelled event stays on its day, struck through. Archive a done or cancelled event to take it off this list; on the calendar it is greyed out, or hidden if you choose Hide archived in the filter row, and List archived brings it back here. A milestone date can be ticked done; it completes the milestone on the deal without moving its stage." />
                 </h2>
                 <span className="text-[10px] font-semibold text-slate-500">
                   {taskRows.length} on {view === "week" ? "this week" : "this month"}
@@ -1413,7 +1429,7 @@ export default function CalendarPage() {
                   type="button"
                   disabled={taskBusyKey !== null}
                   onClick={() => archiveAppointments(archivableTaskIds, true, "archive-done")}
-                  title="Hide every done or cancelled event on these days from the calendar and Tasks"
+                  title="Archive every done or cancelled event on these days"
                   className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
                 >
                   {taskBusyKey === "archive-done" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}

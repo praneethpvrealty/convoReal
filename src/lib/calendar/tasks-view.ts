@@ -210,3 +210,21 @@ export function sortTasksByTime<T>(
     return inOrder(a, b);
   });
 }
+
+export type ArchivedView = 'greyed' | 'hidden' | 'listed';
+
+export const ARCHIVED_VIEWS: ArchivedView[] = ['greyed', 'hidden', 'listed'];
+
+export const ARCHIVED_VIEW_LABELS: Record<ArchivedView, string> = {
+  greyed: 'Grey out archived',
+  hidden: 'Hide archived',
+  listed: 'List archived',
+};
+
+export function archivedOnCalendar(view: ArchivedView): boolean {
+  return view !== 'hidden';
+}
+
+export function archivedInLists(view: ArchivedView): boolean {
+  return view === 'listed';
+}

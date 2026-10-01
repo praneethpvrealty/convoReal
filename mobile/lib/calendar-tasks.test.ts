@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   APPOINTMENT_STATUS_LABELS,
   ARCHIVE_BATCH_LIMIT,
+  ARCHIVED_VIEW_LABELS,
+  ARCHIVED_VIEWS,
+  archivedInLists,
+  archivedOnCalendar,
   appointmentStatusActions,
   archivableAppointmentIds,
   canArchiveAppointment,
@@ -38,9 +42,17 @@ describe('[CAL-010] appointment status changes on mobile', () => {
 describe('[CAL-011] archiving done and cancelled events on mobile', () => {
   const finished = [
     { id: 'a', status: 'completed' as const, archived_at: null },
-    { id: 'b', status: 'cancelled' as const, archived_at: '2026-09-29T10:00:00.000Z' },
+    {
+      id: 'b',
+      status: 'cancelled' as const,
+      archived_at: '2026-09-29T10:00:00.000Z',
+    },
     { id: 'c', status: 'scheduled' as const, archived_at: null },
-    { id: 'd', status: 'scheduled' as const, archived_at: '2026-09-29T10:00:00.000Z' },
+    {
+      id: 'd',
+      status: 'scheduled' as const,
+      archived_at: '2026-09-29T10:00:00.000Z',
+    },
     { id: 'e', status: 'cancelled' as const },
   ];
 
@@ -65,7 +77,10 @@ describe('[CAL-011] archiving done and cancelled events on mobile', () => {
     }));
     const ids = archivableAppointmentIds(many);
     expect(ids).toHaveLength(ARCHIVE_BATCH_LIMIT + 5);
-    expect(chunkIds(ids).map((chunk) => chunk.length)).toEqual([ARCHIVE_BATCH_LIMIT, 5]);
+    expect(chunkIds(ids).map((chunk) => chunk.length)).toEqual([
+      ARCHIVE_BATCH_LIMIT,
+      5,
+    ]);
     expect(chunkIds(ids).flat()).toEqual(ids);
     expect(chunkIds([])).toEqual([]);
   });
@@ -84,7 +99,8 @@ describe('[CAL-011] archiving done and cancelled events on mobile', () => {
 
 describe('[CAL-012] tasks sorted by date and time on mobile', () => {
   const now = new Date(2026, 8, 29, 12, 0);
-  const at = (day: number, hour: number) => new Date(2026, 8, day, hour, 0).getTime();
+  const at = (day: number, hour: number) =>
+    new Date(2026, 8, day, hour, 0).getTime();
   const items = [
     { id: 'three-days-ago', at: at(26, 9) },
     { id: 'yesterday', at: at(28, 10) },
@@ -96,7 +112,13 @@ describe('[CAL-012] tasks sorted by date and time on mobile', () => {
     { id: 'tomorrow', at: at(30, 8) },
   ];
   const order = (mode: TaskSortMode) =>
-    sortTasksByTime(items, (i) => i.at, mode, now, (i) => !!i.deal).map((i) => i.id);
+    sortTasksByTime(
+      items,
+      (i) => i.at,
+      mode,
+      now,
+      (i) => !!i.deal
+    ).map((i) => i.id);
 
   it('puts today first, then the days ahead, then the most recent past days', () => {
     expect(order('upcoming')).toEqual([
@@ -132,6 +154,27 @@ describe('[CAL-012] tasks sorted by date and time on mobile', () => {
       upcoming: 'Upcoming first',
       earliest: 'Earliest first',
       latest: 'Latest first',
+    });
+  });
+});
+
+describe('[CAL-011] archived events on the calendar and in the lists on mobile', () => {
+  it('greys archived events out on the calendar by default, hides them on request, and lists them only when asked', () => {
+    expect(ARCHIVED_VIEWS[0]).toBe('greyed');
+    expect(
+      ARCHIVED_VIEWS.map((view) => [
+        archivedOnCalendar(view),
+        archivedInLists(view),
+      ])
+    ).toEqual([
+      [true, false],
+      [false, false],
+      [true, true],
+    ]);
+    expect(ARCHIVED_VIEW_LABELS).toEqual({
+      greyed: 'Grey out archived',
+      hidden: 'Hide archived',
+      listed: 'List archived',
     });
   });
 });

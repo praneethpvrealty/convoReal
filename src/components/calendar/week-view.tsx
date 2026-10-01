@@ -10,7 +10,9 @@ import {
   dealDateKey,
   dealDateLocalDay,
 } from "@/lib/calendar/deal-dates";
+import { isArchivedAppointment } from "@/lib/calendar/tasks-view";
 import {
+  ARCHIVED_EVENT_CHIP,
   CalendarEvent,
   TeamMember,
   DEAL_DATE_META,
@@ -127,7 +129,8 @@ export function WeekView({ events, dealDates = [], members, selectedDate, onEven
                       "block w-full rounded-md border px-1.5 py-1 text-left text-[10px] leading-snug transition-colors",
                       meta.chip,
                       ev.status === "cancelled" && "line-through opacity-50",
-                      ev.status === "completed" && "opacity-60"
+                      ev.status === "completed" && "opacity-60",
+                      isArchivedAppointment(ev) && ARCHIVED_EVENT_CHIP
                     )}
                   >
                     <span className="flex items-center gap-1">
