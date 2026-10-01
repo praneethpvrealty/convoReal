@@ -1,6 +1,8 @@
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import {
   DEFAULT_LANGUAGE,
+  isLanguageCode,
+  languageForMetaCode,
   metaLanguageCode,
   type LanguageCode,
 } from '@/lib/languages';
@@ -13,6 +15,7 @@ import {
   templateBody,
   templateButtonLabel,
 } from '@/lib/whatsapp/template-copy';
+import { renderShareTemplateBody } from '@/lib/whatsapp/share-property-preview';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 
 export const SHARE_FEEDBACK_TEMPLATE_NAME = 'property_share_feedback';
@@ -65,4 +68,30 @@ export function buildShareFeedbackParams(
   return [
     sanitizeTemplateParam(firstName) || 'there',
   ];
+}
+
+export function shareFeedbackLanguage(
+  templateLanguage: string | null | undefined
+): LanguageCode {
+  const raw = templateLanguage?.trim() ?? '';
+  return isLanguageCode(raw)
+    ? raw
+    : (languageForMetaCode(raw) ?? DEFAULT_LANGUAGE);
+}
+
+export function renderShareFeedbackBody(
+  params: string[],
+  templateLanguage: string | null | undefined
+): string {
+  return renderShareTemplateBody(
+    templateBody('share_feedback', shareFeedbackLanguage(templateLanguage)),
+    params
+  );
+}
+
+export function buildShareFeedbackButtonsBody(
+  firstName: string,
+  propertyTitle: string
+): string {
+  return `Hi ${firstName}, following up on *${sanitizeTemplateParam(propertyTitle)}*, which I shared earlier.\n\nDid it match what you are looking for?`;
 }

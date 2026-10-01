@@ -11,6 +11,7 @@ import { getVoiceConfig } from '@/lib/voice/config';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import {
   loadTemplateForContact,
+  resolveSendLanguage,
   warnLanguageFallback,
 } from '@/lib/whatsapp/template-language';
 import { sendTemplateMessage } from '@/lib/whatsapp/meta-api';
@@ -181,6 +182,33 @@ export function buildReminderTemplateContent(args: {
   };
 }
 
+export function reminderTitle(
+  appt: { title: string | null; property: { title?: string | null } | null },
+  isSiteVisit: boolean
+): string {
+  return isSiteVisit
+    ? appt.property?.title || appt.title || 'Property visit'
+    : appt.title || appt.property?.title || 'Appointment';
+}
+
+export function buildConfirmedReminderText(args: {
+  clientName: string;
+  accountName: string;
+  title: string;
+  formattedTime: string;
+  locationText: string;
+  agenda?: string | null;
+  isSiteVisit: boolean;
+}): string {
+  const what = args.isSiteVisit
+    ? `property visit for "${args.title}"`
+    : `meeting "${args.title}"`;
+  const agendaPart = args.agenda
+    ? ` Agenda for the ${args.isSiteVisit ? 'visit' : 'meeting'}: ${args.agenda}.`
+    : '';
+  return `Hi ${args.clientName}, a quick reminder from ${args.accountName}: your ${what} is on ${args.formattedTime}. Location: ${args.locationText}.${agendaPart} Thanks for confirming, see you there! Reply here if anything changes.`;
+}
+
 type ReminderType = 'morning' | '1h';
 
 interface ReminderContact {
@@ -199,6 +227,7 @@ interface ReminderAppointment {
   location: string | null;
   agenda: string | null;
   event_type: string;
+  client_confirmed_at: string | null;
   contact_id: string | null;
   contact_ids: string[] | null;
   reminder_morning_sent: boolean;
@@ -247,7 +276,10 @@ async function loadContacts(
  *  params can push the rendered body past its limit — flatten the
  *  free-text agenda into one bounded line. */
 function sanitizeTemplateParam(text: string, max = 300): string {
-  const flat = text.replace(/\s+/g, ' ').trim();
+  const flat = text
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[\s.]+$/, '');
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 }
 
@@ -583,6 +615,25 @@ async function sendToAllRecipients(
     }
   }
 
+  const confirmedWindows = new Map<string, string | null>();
+  const confirmedOnly =
+    !!appt.client_confirmed_at &&
+    recipientIds(appt).length === 1 &&
+    reachable.length === 1;
+  if (confirmedOnly) {
+    const { data: convos } = await admin
+      .from('conversations')
+      .select('contact_id, last_customer_message_at')
+      .eq('account_id', appt.account_id)
+      .in(
+        'contact_id',
+        reachable.map((c) => c.id)
+      );
+    for (const c of convos ?? []) {
+      confirmedWindows.set(c.contact_id, c.last_customer_message_at);
+    }
+  }
+
   let allCovered = true;
   for (const contact of reachable) {
     // Claim this recipient. An earlier tick's live claim means it
@@ -600,10 +651,7 @@ async function sendToAllRecipients(
     if (!claim) continue;
 
     const clientName = contact.name || 'Client';
-    const visitTitle =
-      appt.property?.title ||
-      appt.title ||
-      (isSiteVisit ? 'Property visit' : 'Appointment');
+    const visitTitle = reminderTitle(appt, isSiteVisit);
     const locationText = reminderLocationText(appt.location, appt.property);
 
     // A contact who asked for phone-call updates gets the reminder as a
@@ -662,6 +710,52 @@ async function sendToAllRecipients(
         agenda: agendaParam,
         isSiteVisit,
       });
+
+    if (
+      confirmedOnly &&
+      isWithinCustomerWindow(confirmedWindows.get(contact.id)) &&
+      (await resolveSendLanguage(admin, appt.account_id, contact.id)) === 'en'
+    ) {
+      if (!(await stillAsRead(admin, appt, claim))) {
+        allCovered = false;
+        continue;
+      }
+      const confirmedResult = await sendWhatsAppMessageAndPersist({
+        accountId: appt.account_id,
+        userId: appt.user_id || null,
+        contactId: contact.id,
+        kind: 'text',
+        senderType: 'agent',
+        text: buildConfirmedReminderText({
+          clientName,
+          accountName,
+          title: visitTitle,
+          formattedTime,
+          locationText,
+          agenda: appt.agenda ? sanitizeTemplateParam(appt.agenda) : null,
+          isSiteVisit,
+        }),
+        customDbClient: admin,
+      });
+      if (confirmedResult.success) {
+        console.log(
+          `[Reminder Cron] Sent ${reminderType} confirmed reminder for appt ${appt.id} to contact ${contact.id}`
+        );
+        await confirmClaim(
+          admin,
+          appt,
+          claim,
+          { contact_id: contact.id },
+          reminderType,
+          confirmedResult.whatsappMessageId ?? null
+        );
+        continue;
+      }
+      console.warn(
+        `[Reminder Cron] Confirmed reminder text failed for appt ${appt.id}, falling back to the template:`,
+        confirmedResult.error
+      );
+    }
 
     if (
       audioEnabled &&
@@ -854,10 +948,7 @@ async function sendLiaisonReminder(
   if (!claim) return true; // already delivered on an earlier tick
 
   const templateName = isSiteVisit ? BASE_TEMPLATE_NAME : GENERIC_TEMPLATE_NAME;
-  const visitTitle =
-    appt.property?.title ||
-    appt.title ||
-    (isSiteVisit ? 'Property visit' : 'Appointment');
+  const visitTitle = reminderTitle(appt, isSiteVisit);
   if (!(await stillAsRead(admin, appt, claim))) return false;
   try {
     await sendTemplateMessage({
@@ -914,7 +1005,7 @@ export async function checkAndSendAppointmentReminders(
   const { data: appointments, error } = await admin
     .from('appointments')
     .select(
-      'id, account_id, user_id, title, start_time, location, agenda, event_type, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, reminders_rearmed_at, remind_liaison, liaison_id, liaison:liaisons(id, name, phone), property:properties(id, title, type, location_privacy, location, sublocality, city, state), account:accounts(name, client_quiet_hours_enabled, client_quiet_hours_start, client_quiet_hours_end)'
+      'id, account_id, user_id, title, start_time, location, agenda, event_type, client_confirmed_at, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, reminders_rearmed_at, remind_liaison, liaison_id, liaison:liaisons(id, name, phone), property:properties(id, title, type, location_privacy, location, sublocality, city, state), account:accounts(name, client_quiet_hours_enabled, client_quiet_hours_start, client_quiet_hours_end)'
     )
     .eq('status', 'scheduled')
     .neq('event_type', 'call')

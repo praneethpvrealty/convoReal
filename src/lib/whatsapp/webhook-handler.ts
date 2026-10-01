@@ -72,6 +72,7 @@ import {
   LISTING_FEEDBACK_ID_PREFIX,
   sendListingFeedbackPrompt,
 } from '@/lib/whatsapp/listing-feedback';
+import { findFeedbackSharePropertyId } from '@/lib/whatsapp/share-feedback';
 import {
   budgetBandAcknowledgement,
   handleBudgetBandReply,
@@ -2533,6 +2534,26 @@ async function handleInboundChain(
 
   const feedbackAction = matchTemplateButton(message.button?.text);
   if (feedbackAction === 'feedback_perfect') {
+    const feedbackDb = supabaseAdmin();
+    const sharedPropertyId = await findFeedbackSharePropertyId(
+      feedbackDb,
+      accountId,
+      contactRecord.id,
+      message.context?.id ?? null
+    );
+    if (
+      sharedPropertyId &&
+      (await handleListingFeedbackReply({
+        db: feedbackDb,
+        accountId,
+        configOwnerUserId,
+        contact: contactRecord,
+        conversationId: conversation.id,
+        replyId: `lfb_y_${sharedPropertyId}`,
+      }))
+    ) {
+      return;
+    }
     await sendWhatsAppMessageAndPersist({
       accountId,
       userId: configOwnerUserId,

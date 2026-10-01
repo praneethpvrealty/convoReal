@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { rankJourneyPropertyCandidates } from './property-candidates';
+import {
+  ownedPropertyCandidates,
+  rankJourneyPropertyCandidates,
+} from './property-candidates';
 
 describe('rankJourneyPropertyCandidates', () => {
   const properties = [
@@ -53,5 +56,63 @@ describe('rankJourneyPropertyCandidates', () => {
     expect(
       rankJourneyPropertyCandidates('farm land near Devanahalli', properties)
     ).toEqual([]);
+  });
+
+  it('[JRN-016] never offers a property because it shares a filler word with the message', () => {
+    const fillerTitles = [
+      {
+        id: 'p-1154',
+        title: '3 BHK Independent Building Floor House for Sale in Emerald Enclave, Mysuru',
+        property_code: 'PROP-1154',
+        location: 'the Emerald Enclave',
+      },
+      {
+        id: 'p-1108',
+        title: 'Residential House in Koramangala 7th phase, opposite to the park is for sale.',
+        property_code: 'PROP-1108',
+      },
+      {
+        id: 'p-1878',
+        title: '300 Acres Residential Land with the plan approval on Harohalli to Bidadi Road',
+        property_code: 'PROP-1878',
+      },
+    ];
+    expect(
+      rankJourneyPropertyCandidates(
+        'Yogendranath to share the family tree application number by today evening.',
+        fillerTitles
+      )
+    ).toEqual([]);
+  });
+});
+
+describe('ownedPropertyCandidates', () => {
+  const owned = [
+    {
+      id: 'own-1',
+      title: '#19, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase.',
+      property_code: 'PROP-1403',
+      sublocality: 'JP Nagar 4th Phase',
+    },
+    {
+      id: 'own-2',
+      title: 'Villa in Whitefield',
+      property_code: 'PROP-1500',
+      sublocality: 'Whitefield',
+    },
+  ];
+
+  it('[JRN-016] offers every property the contact owns, the one the message points at first', () => {
+    const ranked = ownedPropertyCandidates(
+      'Family tree for the Whitefield villa is pending',
+      owned,
+      'Yogendranath'
+    );
+    expect(ranked.map((candidate) => candidate.property.id)).toEqual([
+      'own-2',
+      'own-1',
+    ]);
+    expect(ranked[0].reason).toMatch(/^owned by Yogendranath · /);
+    expect(ranked[1].reason).toBe('owned by Yogendranath');
   });
 });

@@ -16,6 +16,31 @@ export interface RankedPropertyCandidate<T extends JourneyPropertyCandidate> {
 }
 
 const GENERIC = new Set([
+  'and',
+  'are',
+  'but',
+  'can',
+  'for',
+  'from',
+  'has',
+  'have',
+  'her',
+  'his',
+  'into',
+  'its',
+  'not',
+  'our',
+  'sale',
+  'that',
+  'the',
+  'their',
+  'they',
+  'this',
+  'was',
+  'will',
+  'with',
+  'you',
+  'your',
   'about',
   'buyer',
   'commercial',
@@ -99,4 +124,24 @@ export function rankJourneyPropertyCandidates<
         )
     )
     .slice(0, limit);
+}
+
+export function ownedPropertyCandidates<T extends JourneyPropertyCandidate>(
+  queryText: string,
+  owned: T[],
+  ownerName: string,
+  limit = 3
+): RankedPropertyCandidate<T>[] {
+  const ranked = rankJourneyPropertyCandidates(queryText, owned, limit);
+  const rankedIds = new Set(ranked.map((candidate) => candidate.property.id));
+  const reason = `owned by ${ownerName}`;
+  return [
+    ...ranked.map((candidate) => ({
+      ...candidate,
+      reason: `${reason} · ${candidate.reason}`,
+    })),
+    ...owned
+      .filter((property) => !rankedIds.has(property.id))
+      .map((property) => ({ property, score: 0, reason })),
+  ].slice(0, limit);
 }

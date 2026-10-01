@@ -2583,7 +2583,7 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     expect(mobileJourney).not.toContain('convertJourneyItemToDeal');
   });
 
-  it('[JRN-016] opens a live branch’s deal on its own, with no convert step on either surface', () => {
+  it('[JRN-018] opens a live branch’s deal on its own, with no convert step on either surface', () => {
     expect(webJourneySheet).not.toContain('Convert to deal');
     expect(mobileJourney).not.toContain('Convert to deal');
     expect(webJourneySheet).toContain('Open transaction');

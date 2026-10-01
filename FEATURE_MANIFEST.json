@@ -388,6 +388,16 @@
               "case": "[INB-020]"
             }
           ]
+        },
+        {
+          "id": "INB-022",
+          "rule": "A property-share feedback request is visible in the inbox and names its property wherever free-form text is allowed. While the buyer's 24-hour window is open and their send language (their own, else the account default) is English it goes as free-form buttons naming the property (It's perfect / Not interested / Update preferences, each title within Meta's 20 characters) wired to the listing-feedback handler; otherwise the approved property_share_feedback template goes out with its rendered body stored as the message text (the template carries no property parameter, so it cannot name one). The WhatsApp message id of every request is stored on its share, and an \"It's perfect\" tap on that template is resolved to the share whose request it replied to by that id alone, never by time, and handled as interest in that property: recorded on listing_feedback, acknowledged by naming the property, and the agent notified. A tap that matches no stored request, or one request stored on shares of different properties (the dispatcher collapses an identical template sent twice within seconds into one message), gets the generic acknowledgement and records nothing.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/share-feedback.test.ts",
+              "case": "[INB-022]"
+            }
+          ]
         }
       ]
     },
@@ -840,6 +850,16 @@
             {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[CAL-012]"
+            }
+          ]
+        },
+        {
+          "id": "CAL-013",
+          "rule": "A client reminder names the appointment the way its confirmation does: a meeting or other non-visit event by the agent's own title (calls send no client reminder), and only a site visit by its linked property. A client who already confirmed the appointment is not asked to confirm again: when they are its only recipient (counted over every contact on it, reachable or not) and their 24-hour window is open in English, the reminder goes as a free-form message thanking them for confirming, and otherwise it falls back to the approved template. The agenda never ends in a doubled full stop.",
+          "tests": [
+            {
+              "file": "src/lib/appointments/reminder.test.ts",
+              "case": "[CAL-013]"
             }
           ]
         }
@@ -1822,15 +1842,48 @@
         },
         {
           "id": "JRN-016",
+          "rule": "When a forwarded client reply names no property by code or title, the property it is about is resolved from the contact first: a contact who owns exactly one listing (owner_contact_id) has it picked when the message points at no other listing and the whole inventory was read (an account too large to read in one pass is offered the owned listing rather than having it picked), and a contact who owns several, or whose message also points elsewhere, is offered their own listings first, each marked \"owned by <name>\". Only then is the rest of the inventory ranked by words in the message, and filler words (the, and, for, with, sale and the like) never count as a match, so a reply is never offered unrelated listings for sharing a word like \"the\".",
+          "tests": [
+            {
+              "file": "src/lib/journey/client-response.test.ts",
+              "case": "[JRN-016]"
+            },
+            {
+              "file": "src/lib/journey/property-candidates.test.ts",
+              "case": "[JRN-016]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/client-response.ts",
+            "src/lib/journey/property-candidates.ts"
+          ]
+        },
+        {
+          "id": "JRN-017",
+          "rule": "When a forwarded client reply could be about a few listings, the agent is never boxed in: the message lists up to three, offers buttons for the top two plus Cancel (three in all, WhatsApp's limit), and accepts a typed property code for any listing without a button, which completes the same reply as a tap would. Cancel links nothing and creates no event, reminder or owner message; the client's words stay in their contact notes, and a later code typed in the thread no longer attaches to the cancelled reply. A tap or typed code that links a listing retires the question the same way.",
+          "tests": [
+            {
+              "file": "src/lib/journey/client-response.test.ts",
+              "case": "[JRN-017]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/client-response.ts",
+            "src/lib/journey/property-answer.ts",
+            "src/lib/ai/chatbot-engine.ts"
+          ]
+        },
+        {
+          "id": "JRN-018",
           "rule": "Every visible, active journey branch on a stage that mirrors a pipeline stage is a deal on the Board at that stage, with no convert step: the deal opens by itself, linked to the branch, when the branch is captured visibly, shown from the Captured tray, moved or reactivated, and existing branches were backfilled the same way. A branch still in the Captured tray, a dropped branch, a branch on an unmirrored stage and a branch already linked to a deal open none; when the pair has a deal no branch holds on the mirrored pipeline, that deal is linked and brought to the branch's stage instead of opening a second one (a deal on another pipeline is never adopted); a deal that opens or is linked on a closing stage gets the standard milestone checklist, and the listing status is re-synced whenever a deal opens on a closing stage or a linked deal moves; Records lists only deals whose closing record has started (they carry milestones), so a deal opened at an early stage stays off it; a deal deleted from the Board is not reopened by the drop that follows; failing to open the deal never blocks the journey write. Neither web nor mobile offers \"Convert to deal\" or calls the conversion route; both open the branch's linked deal, for viewers too, and show nothing to open when there is none.",
           "tests": [
             {
               "file": "src/lib/migrations/journey-auto-open-deal.test.ts",
-              "case": "[JRN-016]"
+              "case": "[JRN-018]"
             },
             {
               "file": "src/lib/mobile-parity.test.ts",
-              "case": "[JRN-016]"
+              "case": "[JRN-018]"
             }
           ],
           "guards": [

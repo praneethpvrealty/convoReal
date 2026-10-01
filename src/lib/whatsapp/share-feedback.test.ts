@@ -28,6 +28,7 @@ vi.mock('@/lib/conversations/outbound-lease', () => ({
 }));
 
 import {
+  findFeedbackSharePropertyId,
   processShareFeedbackFollowups,
   SHARE_FEEDBACK_CLAIM_STALE_MS,
 } from './share-feedback';
@@ -35,6 +36,7 @@ import {
 const ACCOUNT_ID = 'acc-1';
 const CONTACT_ID = 'contact-1';
 const SHARE_ID = 'share-1';
+const PROPERTY_ID = '11111111-2222-4333-8444-555555555555';
 const SHARE_CREATED_AT = new Date(Date.now() - 45 * 60 * 1000).toISOString();
 
 function splitTopLevel(expr: string): string[] {
@@ -71,6 +73,7 @@ function matchesClause(row: Row, clause: string): boolean {
   if (cell == null) return false;
   if (op === 'lt') return String(cell) < value;
   if (op === 'gte') return String(cell) >= value;
+  if (op === 'neq') return String(cell) !== value;
   return false;
 }
 
@@ -82,15 +85,22 @@ function makeDb(
   opts: {
     lastCustomerMessageAt?: string | null;
     share?: Row;
+    property?: Row | null;
+    propertyError?: boolean;
+    failMarks?: number;
+    contactLanguage?: string | null;
+    accountLanguage?: string | null;
   } = {}
 ) {
   const state = {
+    failMarks: opts.failMarks ?? 0,
     lastCustomerMessageAt: opts.lastCustomerMessageAt,
     shares: [
       {
         id: SHARE_ID,
         account_id: ACCOUNT_ID,
         contact_id: CONTACT_ID,
+        property_id: PROPERTY_ID,
         created_at: SHARE_CREATED_AT,
         recipient_kind: 'buyer',
         feedback_status: 'pending',
@@ -142,6 +152,17 @@ function makeDb(
           const rows = applyPatch();
           return { data: rows[0] ? { id: rows[0].id } : null, error: null };
         }
+        if (table === 'properties') {
+          return opts.propertyError
+            ? { data: null, error: { message: 'timeout' } }
+            : { data: opts.property ?? null, error: null };
+        }
+        if (table === 'accounts') {
+          return {
+            data: { default_language: opts.accountLanguage ?? null },
+            error: null,
+          };
+        }
         if (table === 'conversations') {
           return {
             data:
@@ -156,7 +177,11 @@ function makeDb(
         }
         if (table === 'contacts') {
           return {
-            data: { name: 'Asha', preferred_language: 'en_US' },
+            data: {
+              name: 'Asha',
+              preferred_language:
+                opts.contactLanguage === undefined ? 'en' : opts.contactLanguage,
+            },
             error: null,
           };
         }
@@ -164,6 +189,13 @@ function makeDb(
       },
       then: (resolve: (v: { data: unknown; error: unknown }) => unknown) => {
         if (table === 'property_shares') {
+          if (patch?.feedback_status === 'sent' && state.failMarks > 0) {
+            state.failMarks--;
+            return Promise.resolve({
+              data: null,
+              error: { message: 'connection reset' },
+            }).then(resolve);
+          }
           if (patch) {
             applyPatch();
             return Promise.resolve({ data: null, error: null }).then(resolve);
@@ -194,7 +226,7 @@ function makeDb(
 
 beforeEach(() => {
   h.send.mockReset();
-  h.send.mockResolvedValue({ success: true });
+  h.send.mockResolvedValue({ success: true, whatsappMessageId: 'wamid.prompt' });
   h.lease = 'run';
   h.beforeRun = null;
   h.leased = [];
@@ -209,6 +241,95 @@ describe('processShareFeedbackFollowups', () => {
     expect(sent).toBe(1);
     expect(h.send).toHaveBeenCalledTimes(1);
     expect(db.state.shares[0].feedback_status).toBe('sent');
+    expect(db.state.shares[0].feedback_message_id).toBe('wamid.prompt');
+  });
+
+  it('[INB-022] stores the rendered template body so the inbox bubble is not blank', async () => {
+    const db = makeDb({ lastCustomerMessageAt: null });
+
+    await processShareFeedbackFollowups(db as never);
+
+    expect(h.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'template',
+        templateParams: ['Asha'],
+        text: 'Hi Asha, following up on the property I shared earlier.\n\nDid it match what you are looking for?',
+      })
+    );
+  });
+
+  it('[INB-022] retries recording the prompt id when the first write fails', async () => {
+    const db = makeDb({ lastCustomerMessageAt: null, failMarks: 1 });
+
+    expect(await processShareFeedbackFollowups(db as never)).toBe(1);
+
+    expect(db.state.shares[0]).toMatchObject({
+      feedback_status: 'sent',
+      feedback_message_id: 'wamid.prompt',
+    });
+  });
+
+  it('[INB-022] names the shared property and asks with tappable buttons while the window is open', async () => {
+    const db = makeDb({
+      lastCustomerMessageAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      property: { id: PROPERTY_ID, title: '35x80 Commercial Corner Plot on Kolar Main Road' },
+    });
+
+    expect(await processShareFeedbackFollowups(db as never)).toBe(1);
+
+    const sent = h.send.mock.calls[0][0];
+    expect(sent).toMatchObject({ kind: 'interactive', interactiveType: 'buttons' });
+    expect(sent.interactiveBody).toBe(
+      'Hi Asha, following up on *35x80 Commercial Corner Plot on Kolar Main Road*, which I shared earlier.\n\nDid it match what you are looking for?'
+    );
+    expect(sent.interactiveButtons).toEqual([
+      { id: `lfb_y_${PROPERTY_ID}`, title: "It's perfect" },
+      { id: `lfb_n_${PROPERTY_ID}`, title: 'Not interested' },
+      { id: 'lfb_form', title: 'Update preferences' },
+    ]);
+    expect(db.state.shares[0].feedback_status).toBe('sent');
+  });
+
+  it('[INB-022] retries rather than sending the generic template when the property lookup fails', async () => {
+    const db = makeDb({
+      lastCustomerMessageAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      propertyError: true,
+    });
+
+    expect(await processShareFeedbackFollowups(db as never)).toBe(0);
+
+    expect(h.send).not.toHaveBeenCalled();
+    expect(db.state.shares[0]).toMatchObject({
+      feedback_status: 'pending',
+      feedback_sent_at: null,
+    });
+  });
+
+  it('[INB-022] sends the localized template to a buyer who inherits a non-English account language', async () => {
+    const db = makeDb({
+      lastCustomerMessageAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      property: { id: PROPERTY_ID, title: '35x80 Commercial Corner Plot' },
+      contactLanguage: null,
+      accountLanguage: 'kn',
+    });
+
+    await processShareFeedbackFollowups(db as never);
+
+    expect(h.send.mock.calls[0][0]).toMatchObject({ kind: 'template' });
+  });
+
+  it('[INB-022] falls back to the template once the 24-hour window has closed', async () => {
+    const db = makeDb({
+      lastCustomerMessageAt: new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString(),
+      property: { id: PROPERTY_ID, title: '35x80 Commercial Corner Plot' },
+    });
+
+    await processShareFeedbackFollowups(db as never);
+
+    expect(h.send.mock.calls[0][0]).toMatchObject({
+      kind: 'template',
+      templateName: 'property_share_feedback',
+    });
   });
 
   it('skips the share once the buyer has replied since it was created', async () => {
@@ -340,5 +461,89 @@ describe('processShareFeedbackFollowups', () => {
       feedback_status: 'pending',
       feedback_sent_at: null,
     });
+  });
+});
+
+describe('findFeedbackSharePropertyId', () => {
+  function lookupDb(rows: Row[], failOr = false) {
+    const calls: [string, unknown][] = [];
+    const tables: string[] = [];
+    return {
+      calls,
+      tables,
+      from(table: string) {
+        tables.push(table);
+        const ors: string[] = [];
+        const b: Record<string, unknown> = {};
+        for (const m of ['select', 'eq', 'limit']) {
+          b[m] = (col: string, val: unknown) => {
+            calls.push([`${m}:${col}`, val]);
+            return b;
+          };
+        }
+        b.or = (expr: string) => {
+          ors.push(expr);
+          return b;
+        };
+        b.maybeSingle = async () => {
+          if (failOr && ors.length > 0) {
+            return { data: null, error: { message: 'timeout' } };
+          }
+          const hit = rows.filter((row) => ors.every((expr) => matchesOr(row, expr)));
+          return { data: hit[0] ?? null, error: null };
+        };
+        return b;
+      },
+    };
+  }
+
+  it('[INB-022] resolves the share by the exact prompt message the tap replied to', async () => {
+    const db = lookupDb([{ property_id: PROPERTY_ID }]);
+
+    expect(
+      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
+    ).toBe(PROPERTY_ID);
+    expect(db.calls).toEqual(
+      expect.arrayContaining([
+        ['eq:account_id', ACCOUNT_ID],
+        ['eq:contact_id', CONTACT_ID],
+        ['eq:feedback_message_id', 'wamid.prompt'],
+      ])
+    );
+  });
+
+  it('[INB-022] refuses to pick when one prompt covers shares of different properties', async () => {
+    const db = lookupDb([
+      ...Array.from({ length: 25 }, () => ({ property_id: PROPERTY_ID })),
+      { property_id: '99999999-2222-4333-8444-555555555555' },
+    ]);
+    expect(
+      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
+    ).toBeNull();
+  });
+
+  it('[INB-022] resolves nothing when the ambiguity check fails', async () => {
+    const db = lookupDb(
+      [{ property_id: PROPERTY_ID }, { property_id: '99999999-2222-4333-8444-555555555555' }],
+      true
+    );
+    expect(
+      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
+    ).toBeNull();
+  });
+
+  it('[INB-022] still resolves when every share on the prompt is the same property', async () => {
+    const db = lookupDb([{ property_id: PROPERTY_ID }, { property_id: PROPERTY_ID }]);
+    expect(
+      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
+    ).toBe(PROPERTY_ID);
+  });
+
+  it('[INB-022] never guesses a property when the tap carries no prompt id', async () => {
+    const db = lookupDb([{ property_id: PROPERTY_ID }]);
+    expect(
+      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, null)
+    ).toBeNull();
+    expect(db.tables).toEqual([]);
   });
 });

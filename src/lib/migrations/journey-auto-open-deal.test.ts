@@ -20,7 +20,7 @@ const backfill = readFileSync(
   'utf8'
 );
 
-describe('[JRN-016] every live journey branch is a deal on the Board', () => {
+describe('[JRN-018] every live journey branch is a deal on the Board', () => {
   it('opens the deal when a branch is captured, shown, moved or reactivated', () => {
     expect(migration).toMatch(
       /CREATE TRIGGER journey_auto_open_deal_trigger\s+AFTER INSERT OR UPDATE OF hidden, stage_id, status ON journey_items\s+FOR EACH ROW\s+WHEN \(NOT NEW\.hidden AND NEW\.status = 'active'\)\s+EXECUTE FUNCTION journey_auto_open_deal\(\)/
