@@ -23,6 +23,7 @@ import {
   type OrgRole,
 } from "@/lib/auth/roles";
 import type { ShowcaseStyle } from "@/lib/showcase/style";
+import { reloadTo } from "@/lib/navigation";
 
 interface Profile {
   id: string;
@@ -449,7 +450,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setProfile(null);
     setAccount(null);
-    window.location.href = "/login";
+    reloadTo("/login");
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -546,7 +547,7 @@ export function useAuth(): AuthContextValue {
       profileLoading: false,
       profileError: false,
       signOut: async () => {
-        window.location.href = "/login";
+        reloadTo("/login");
       },
       refreshProfile: async () => {},
       account: null,

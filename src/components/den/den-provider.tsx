@@ -16,6 +16,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { reloadTo } from "@/lib/navigation";
 
 export interface DenLink {
   account_id: string;
@@ -79,7 +80,7 @@ export function DenProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    window.location.href = "/den/login";
+    reloadTo("/den/login");
   }, []);
 
   useEffect(() => {

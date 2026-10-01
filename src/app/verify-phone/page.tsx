@@ -25,6 +25,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { reloadTo } from '@/lib/navigation';
 
 export default function VerifyPhonePage() {
   const router = useRouter();
@@ -85,7 +86,7 @@ export default function VerifyPhonePage() {
                 // The DB trigger has already mirrored the verified
                 // number onto profiles.phone; hard navigation so the
                 // shell re-reads a fresh session.
-                window.location.href = '/dashboard';
+                reloadTo('/dashboard');
               }}
             />
           ) : (

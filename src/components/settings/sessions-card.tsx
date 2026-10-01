@@ -21,6 +21,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { reloadTo } from '@/lib/navigation';
 
 export function SessionsCard() {
   const supabase = createClient();
@@ -38,7 +39,7 @@ export function SessionsCard() {
         toast.error(`Sign-out failed: ${error.message}`);
         return;
       }
-      window.location.href = '/login';
+      reloadTo('/login');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       toast.error(msg);

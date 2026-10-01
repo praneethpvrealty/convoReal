@@ -25,6 +25,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Phone, ShieldCheck, ArrowLeft } from "lucide-react";
+import { reloadTo } from "@/lib/navigation";
 
 export default function DenVerifyPhonePage() {
   const router = useRouter();
@@ -99,7 +100,7 @@ export default function DenVerifyPhonePage() {
     }
     // Finish Den identity + contact linking, then enter.
     await fetch("/api/den/auth/complete", { method: "POST" }).catch(() => null);
-    window.location.href = "/den";
+    reloadTo("/den");
   };
 
   return (

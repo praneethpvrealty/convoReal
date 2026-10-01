@@ -22,6 +22,7 @@ import {
 import { useRouter } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/client';
+import { reloadTo } from '@/lib/navigation';
 
 export interface BuyerLink {
   account_id: string;
@@ -75,7 +76,7 @@ export function BuyerProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    window.location.href = '/buyer/login';
+    reloadTo('/buyer/login');
   }, []);
 
   useEffect(() => {
