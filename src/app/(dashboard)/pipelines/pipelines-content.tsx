@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import type { Pipeline, PipelineStage, Deal, DealStatus } from '@/types';
@@ -43,6 +43,12 @@ import {
 import { SPEC_DEFAULT_STAGES } from '@/lib/pipelines/default-stages';
 import type { LostReasonInput } from '@/lib/pipelines/lost-reasons';
 import { LostReasonDialog } from '@/components/pipelines/lost-reason-dialog';
+import {
+  BOARD_SCOPES,
+  boardDeals,
+  type BoardFocus,
+  type BoardScope,
+} from '@/lib/deals/board-focus';
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -62,6 +68,26 @@ export default function PipelinesPage() {
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [boardScope, setBoardScope] = useState<BoardScope>('focus');
+
+  const focusQuery = useQuery({
+    queryKey: ['journey-focus', accountId],
+    enabled: Boolean(accountId),
+    queryFn: async (): Promise<BoardFocus | null> => {
+      const load = async (mode: 'buyer' | 'property') => {
+        const res = await fetch(`/api/journey/compartments?mode=${mode}`);
+        if (!res.ok) throw new Error('Could not load Focus');
+        const json = (await res.json()) as { data: { focus: string[] } };
+        return new Set(json.data.focus);
+      };
+      const [buyers, properties] = await Promise.all([
+        load('buyer'),
+        load('property'),
+      ]);
+      return { buyers, properties };
+    },
+  });
+  const visibleDeals = boardDeals(deals, boardScope, focusQuery.data ?? null);
   const [currency, setCurrency] = useState('INR');
 
   const fetchCurrency = useCallback(async () => {
@@ -585,7 +611,7 @@ export default function PipelinesPage() {
 
   const selectedPipeline = pipelines.find((p) => p.id === selectedPipelineId);
 
-  if (loading) {
+  if (loading || focusQuery.isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
         <PipelineStageLoader
@@ -652,6 +678,34 @@ export default function PipelinesPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <div
+            role="radiogroup"
+            aria-label="Deals shown on the board"
+            className="flex rounded-lg border border-slate-700 bg-slate-900 p-0.5"
+          >
+            {BOARD_SCOPES.map((scope) => (
+              <button
+                key={scope.id}
+                type="button"
+                role="radio"
+                aria-checked={boardScope === scope.id}
+                onClick={() => setBoardScope(scope.id)}
+                className={
+                  boardScope === scope.id
+                    ? 'bg-primary/15 rounded-md px-3 py-1.5 text-xs font-semibold text-white'
+                    : 'rounded-md px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white'
+                }
+              >
+                {scope.label}{' '}
+                <span className="text-slate-500">
+                  {scope.id === 'all'
+                    ? deals.length
+                    : boardDeals(deals, 'focus', focusQuery.data ?? null)
+                        .length}
+                </span>
+              </button>
+            ))}
+          </div>
           <GatedButton
             variant="outline"
             canAct={canEditSettings}
@@ -704,7 +758,7 @@ export default function PipelinesPage() {
           />
           <PipelineBoard
             stages={stages}
-            deals={deals}
+            deals={visibleDeals}
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}

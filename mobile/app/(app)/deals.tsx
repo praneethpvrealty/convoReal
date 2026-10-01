@@ -27,7 +27,10 @@ import {
 } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { contactFullName } from '@/lib/contact-name';
+import { loadJourneyCompartments } from '@/lib/api';
 import {
+  BOARD_SCOPES,
+  boardDeals,
   expectedCloseLabel,
   isClosingRecord,
   netOfPayouts,
@@ -35,6 +38,8 @@ import {
   sortIndexRows,
   transactionSubtitle,
   transactionTitle,
+  type BoardFocus,
+  type BoardScope,
   type RecordsSort,
   type TransactionIndexRow,
 } from '@/lib/deal-workspace';
@@ -112,6 +117,7 @@ export default function DealsScreen() {
   const [pipelineId, setPipelineId] = useState<string | null>(null);
   const [stageId, setStageId] = useState<string | null>(null);
   const [outcomeView, setOutcomeView] = useState<PipelineOutcome>('active');
+  const [boardScope, setBoardScope] = useState<BoardScope>('focus');
   const [movingDeal, setMovingDeal] = useState<Deal | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [lostPrompt, setLostPrompt] = useState<{
@@ -193,6 +199,28 @@ export default function DealsScreen() {
       return (data ?? []) as Deal[];
     },
   });
+  const { data: focus } = useQuery({
+    queryKey: ['journey-focus', accountId],
+    enabled: Boolean(accountId),
+    queryFn: async (): Promise<BoardFocus> => {
+      const [buyers, properties] = await Promise.all([
+        loadJourneyCompartments('buyer'),
+        loadJourneyCompartments('property'),
+      ]);
+      return {
+        buyers: new Set(buyers.data.focus),
+        properties: new Set(properties.data.focus),
+      };
+    },
+  });
+  const focusDeals = useMemo(
+    () => boardDeals(deals ?? [], 'focus', focus ?? null),
+    [deals, focus]
+  );
+  const boardList = useMemo(
+    () => (boardScope === 'focus' ? focusDeals : (deals ?? [])),
+    [boardScope, focusDeals, deals]
+  );
   const pull = usePullRefresh(refetch);
   const { show, dialogProps } = useAppDialog();
 
@@ -206,12 +234,12 @@ export default function DealsScreen() {
       successful: 0,
       lost: 0,
     };
-    for (const deal of deals ?? []) {
+    for (const deal of boardList) {
       const stage = stageById.get(deal.stage_id);
       if (stage) counts[pipelineOutcomeForStage(stage)] += 1;
     }
     return counts;
-  }, [deals, stageById]);
+  }, [boardList, stageById]);
 
   const visibleStages = useMemo(
     () =>
@@ -223,9 +251,9 @@ export default function DealsScreen() {
   const visibleStageCounts = useMemo(
     () =>
       visibleStages.map(
-        (stage) => (deals ?? []).filter((d) => d.stage_id === stage.id).length
+        (stage) => boardList.filter((d) => d.stage_id === stage.id).length
       ),
-    [visibleStages, deals]
+    [visibleStages, boardList]
   );
   const openingKey = `${activePipeline}:${outcomeView}`;
   const [openingStage, setOpeningStage] = useState<{
@@ -246,8 +274,8 @@ export default function DealsScreen() {
     visibleStages[0]?.id ??
     null;
   const stageDeals = useMemo(
-    () => (deals ?? []).filter((d) => d.stage_id === activeStage),
-    [deals, activeStage]
+    () => boardList.filter((d) => d.stage_id === activeStage),
+    [boardList, activeStage]
   );
   const stageValue = stageDeals.reduce((sum, d) => sum + (d.value ?? 0), 0);
   const stageBrokerage = stageDeals.reduce(
@@ -418,6 +446,27 @@ export default function DealsScreen() {
               ))}
             </View>
           </ScrollView>
+        </View>
+      ) : null}
+
+      {segment === 'board' ? (
+        <View
+          style={styles.outcomeRow}
+          accessibilityLabel="Deals shown on the board"
+        >
+          {BOARD_SCOPES.map((scope) => (
+            <FilterChip
+              key={scope.id}
+              label={`${scope.label} (${
+                scope.id === 'all' ? (deals?.length ?? 0) : focusDeals.length
+              })`}
+              active={boardScope === scope.id}
+              onPress={() => {
+                setBoardScope(scope.id);
+                setStageId(null);
+              }}
+            />
+          ))}
         </View>
       ) : null}
 

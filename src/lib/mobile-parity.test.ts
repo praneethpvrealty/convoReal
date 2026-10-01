@@ -2787,6 +2787,28 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     ).toBe(false);
   });
 
+  it('[TXW-026] filters the Board to Focus journeys by the same rule on both surfaces', () => {
+    const webFocus = webSource('lib/deals/board-focus.ts');
+    for (const line of [
+      "{ id: 'focus', label: 'Focus' },",
+      "{ id: 'all', label: 'All' },",
+      '(deal.contact_id && focus.buyers.has(deal.contact_id)) ||',
+      '(deal.property_id && focus.properties.has(deal.property_id))',
+      "if (scope === 'all' || !focus) return [...deals];",
+    ]) {
+      expect(webFocus).toContain(line);
+      expect(mobileVocab, `mobile drifted at: ${line}`).toContain(line);
+    }
+    const webBoard = webSource(
+      'app/(dashboard)/pipelines/pipelines-content.tsx'
+    );
+    expect(webBoard).toContain("useState<BoardScope>('focus')");
+    expect(webBoard).toContain('/api/journey/compartments?mode=${mode}');
+    expect(mobileList).toContain("useState<BoardScope>('focus')");
+    expect(mobileList).toContain("loadJourneyCompartments('buyer')");
+    expect(mobileList).toContain("loadJourneyCompartments('property')");
+  });
+
   it('titles rows by buyer and property and lists only closing records', () => {
     for (const source of [webIndex, mobileList]) {
       expect(source).toContain('transactionTitle(');
