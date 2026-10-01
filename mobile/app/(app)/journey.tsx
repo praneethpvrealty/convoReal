@@ -145,7 +145,9 @@ export function JourneyBody() {
   const [trayBusy, setTrayBusy] = useState(false);
   const [trayError, setTrayError] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
-  const [convertingItemId, setConvertingItemId] = useState<string | null>(null);
+  const [openingDealItemId, setOpeningDealItemId] = useState<string | null>(
+    null
+  );
   const [moveTarget, setMoveTarget] = useState<JourneyItem | null>(null);
   const [brokeragePrompt, setBrokeragePrompt] = useState<{
     item: JourneyItem;
@@ -215,35 +217,20 @@ export function JourneyBody() {
     });
   }
 
-  function askConvert(item: JourneyItem) {
-    if (!canEdit || convertingItemId) return;
-    show({
-      title: 'Convert to deal?',
-      message:
-        'Opens the closing record — milestones, papers, tasks and money — and keeps this journey and its history as they are.',
-      actions: [
-        { label: 'Cancel', variant: 'muted', onPress: close },
-        {
-          label: 'Convert',
-          onPress: async () => {
-            close();
-            setConvertingItemId(item.id);
-            try {
-              const result = await convertJourneyItemToDeal(item.id);
-              void haptic.success();
-              router.push(`/deal/${result.id}`);
-            } catch (err) {
-              show({
-                title: 'Could not convert',
-                message: err instanceof Error ? err.message : String(err),
-              });
-            } finally {
-              setConvertingItemId(null);
-            }
-          },
-        },
-      ],
-    });
+  async function openDeal(item: JourneyItem) {
+    if (openingDealItemId) return;
+    setOpeningDealItemId(item.id);
+    try {
+      const result = await convertJourneyItemToDeal(item.id);
+      router.push(`/deal/${result.id}`);
+    } catch (err) {
+      show({
+        title: 'Could not open the deal',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setOpeningDealItemId(null);
+    }
   }
 
   const { contactId, propertyId } = useLocalSearchParams<{
@@ -1381,7 +1368,7 @@ export function JourneyBody() {
                 onEnquiries={() => setEnquiryGroup(group)}
                 onCheckIn={askCheckIn}
                 onMoveItem={(item) => canEdit && setMoveTarget(item)}
-                onConvert={askConvert}
+                onOpenDeal={(item) => void openDeal(item)}
                 onRemoveItem={askRemoveItem}
                 onAddNote={(item, stage) => {
                   setNoteTarget({ item, stage });
@@ -2192,7 +2179,7 @@ function DraggableJourneyCard({
   onEnquiries,
   onCheckIn,
   onMoveItem,
-  onConvert,
+  onOpenDeal,
   onRemoveItem,
   onAddNote,
 }: {
@@ -2218,7 +2205,7 @@ function DraggableJourneyCard({
   onEnquiries: () => void;
   onCheckIn: (item: JourneyItem, stageLabel: string | undefined) => void;
   onMoveItem: (item: JourneyItem) => void;
-  onConvert: (item: JourneyItem) => void;
+  onOpenDeal: (item: JourneyItem) => void;
   onRemoveItem: (item: JourneyItem) => void;
   onAddNote: (item: JourneyItem, stage: JourneyStage) => void;
 }) {
@@ -2346,8 +2333,8 @@ function DraggableJourneyCard({
         ) : null}
         {canEdit && !dropped ? (
           <Pressable
-            onPress={() => onConvert(item)}
-            accessibilityLabel="Convert to deal"
+            onPress={() => onOpenDeal(item)}
+            accessibilityLabel="Open deal"
             hitSlop={8}
           >
             <Ionicons

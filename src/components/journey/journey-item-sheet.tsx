@@ -165,7 +165,6 @@ export function JourneyItemSheet({
   const [showcaseBase, setShowcaseBase] = useState<string | null>(null);
   const [brandName, setBrandName] = useState<string | null>(null);
   const [linkedDealId, setLinkedDealId] = useState<string | null>(null);
-  const [converting, setConverting] = useState(false);
 
   useEffect(() => {
     if (!item) return;
@@ -182,32 +181,6 @@ export function JourneyItemSheet({
       cancelled = true;
     };
   }, [item, supabase]);
-
-  async function convertToDeal() {
-    if (!item) return;
-    setConverting(true);
-    try {
-      const response = await fetch('/api/journey/convert-to-deal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id: item.id, source: 'web' }),
-      });
-      const json = await response.json();
-      if (!response.ok) throw new Error(json?.error || 'Could not convert');
-      const dealId: string = json.data.id;
-      setLinkedDealId(dealId);
-      toast.success(
-        json.data.existing
-          ? 'This journey already has a transaction.'
-          : 'Transaction opened.'
-      );
-      router.push(`/deals/${dealId}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not convert');
-    } finally {
-      setConverting(false);
-    }
-  }
 
   // Reset transient state whenever a different item opens. Deferred
   // setter (matches the repo-wide pattern) so the reset doesn't
@@ -547,22 +520,11 @@ export function JourneyItemSheet({
                 Open transaction
               </Button>
             ) : (
-              <>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="w-full"
-                  disabled={!canEdit || converting || item.status === 'dropped'}
-                  onClick={convertToDeal}
-                >
-                  <Briefcase className="h-3.5 w-3.5" />
-                  {converting ? 'Opening…' : 'Convert to deal'}
-                </Button>
-                <p className="mt-1.5 text-[11px] text-slate-500">
-                  Opens the closing record — milestones, papers, tasks and money
-                  — and keeps this journey and its history as they are.
-                </p>
-              </>
+              <p className="text-[11px] text-slate-500">
+                {item.status === 'dropped'
+                  ? 'Off the Board while dropped. Reactivate it to put its deal back on the Board.'
+                  : 'Joins the Board as a deal at this stage as soon as it is live on the journey.'}
+              </p>
             )}
           </div>
 

@@ -2578,11 +2578,18 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
   });
 
   it('[TXW-001] converts a journey through the same route on both surfaces', () => {
-    expect(webJourneySheet).toContain("'/api/journey/convert-to-deal'");
     expect(mobileApi).toContain("'/api/journey/convert-to-deal'");
     expect(mobileJourney).toContain('convertJourneyItemToDeal');
-    expect(mobileJourney).toContain('Convert to deal');
-    expect(webJourneySheet).toContain('Convert to deal');
+  });
+
+  it('[JRN-016] opens a live branch’s deal on its own, with no convert step on either surface', () => {
+    expect(webJourneySheet).not.toContain('Convert to deal');
+    expect(mobileJourney).not.toContain('Convert to deal');
+    expect(webJourneySheet).toContain('Open transaction');
+    expect(webJourneySheet).toContain(
+      'Joins the Board as a deal at this stage as soon as it is live on the journey.'
+    );
+    expect(mobileJourney).toContain('accessibilityLabel="Open deal"');
   });
 
   it('links deal tasks through the same to-do routes', () => {

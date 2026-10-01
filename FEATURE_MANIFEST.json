@@ -1819,6 +1819,26 @@
             "src/lib/journey/client-response.ts",
             "src/lib/journey/pitch-quiet.ts"
           ]
+        },
+        {
+          "id": "JRN-016",
+          "rule": "Every visible, active journey branch on a stage that mirrors a pipeline stage is a deal on the Board at that stage, with no convert step: the deal opens by itself, linked to the branch, when the branch is captured visibly, shown from the Captured tray, moved or reactivated, and existing branches were backfilled the same way. A branch still in the Captured tray, a dropped branch, a branch on an unmirrored stage and a pair that already has a deal open none; a deal deleted from the Board is not reopened by the drop that follows; failing to open the deal never blocks the journey write. Neither web nor mobile offers \"Convert to deal\"; both open the branch's existing deal instead.",
+          "tests": [
+            {
+              "file": "src/lib/migrations/journey-auto-open-deal.test.ts",
+              "case": "[JRN-016]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-016]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261001032159_journey_auto_open_deal.sql",
+            "supabase/migrations/20261001032200_journey_auto_open_deal_backfill.sql",
+            "src/components/journey/journey-item-sheet.tsx",
+            "mobile/app/(app)/journey.tsx"
+          ]
         }
       ]
     },
