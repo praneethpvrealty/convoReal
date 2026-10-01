@@ -95,18 +95,20 @@ function locationLine(property: Property): string {
   return isLocationGuarded(property) ? '' : property.location || '';
 }
 
-function areaLine(property: Property): string {
+function areaParts(property: Property): string[] {
   const isLand = (property.type || '').includes('Land') || (property.type || '').includes('Plot');
-  const val = isLand ? property.land_area : property.area_sqft;
-  const unit = isLand ? property.land_area_unit || 'sqft' : property.area_unit || 'sqft';
-  return val ? `${val} ${unit}` : '';
+  const land = property.land_area ? `${property.land_area} ${property.land_area_unit || 'sqft'}` : '';
+  if (isLand) return land ? [land] : [];
+  const built = property.area_sqft ? `${property.area_sqft} ${property.area_unit || 'sqft'}` : '';
+  if (!land) return built ? [built] : [];
+  return built ? [`${built} built-up`, `${land} land`] : [`${land} land`];
 }
 
 function specsLine(property: Property): string {
   return [
     property.bedrooms ? `${property.bedrooms} BHK` : '',
     property.type || '',
-    areaLine(property),
+    ...areaParts(property),
     locationLine(property),
   ]
     .filter(Boolean)
@@ -169,7 +171,7 @@ function completeBody(
   const physical = [
     property.bedrooms ? `${property.bedrooms} BHK` : '',
     property.bathrooms ? `${property.bathrooms} Bath` : '',
-    areaLine(property),
+    ...areaParts(property),
     property.super_built_area ? `${property.super_built_area} super built-up` : '',
     property.dimensions || '',
     property.facing_direction ? `${property.facing_direction} facing` : '',
@@ -438,7 +440,7 @@ export function buildRevealTemplateFacts(input: {
   const specs = [
     property.type || '',
     property.bedrooms ? `${property.bedrooms} BHK` : '',
-    areaLine(property),
+    ...areaParts(property),
     property.dimensions || '',
     property.facing_direction ? `${property.facing_direction} facing` : '',
     priceLine(property, currency),
