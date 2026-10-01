@@ -1857,6 +1857,21 @@
             "src/lib/journey/client-response.ts",
             "src/lib/journey/property-candidates.ts"
           ]
+        },
+        {
+          "id": "JRN-017",
+          "rule": "When a forwarded client reply could be about a few listings, the agent is never boxed in: the message lists up to three, offers buttons for the top two plus Cancel (three in all, WhatsApp's limit), and accepts a typed property code for any listing without a button, which completes the same reply as a tap would. Cancel links nothing and creates no event, reminder or owner message; the client's words stay in their contact notes, and a later code typed in the thread no longer attaches to the cancelled reply. A tap or typed code that links a listing retires the question the same way.",
+          "tests": [
+            {
+              "file": "src/lib/journey/client-response.test.ts",
+              "case": "[JRN-017]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/client-response.ts",
+            "src/lib/journey/property-answer.ts",
+            "src/lib/ai/chatbot-engine.ts"
+          ]
         }
       ]
     },

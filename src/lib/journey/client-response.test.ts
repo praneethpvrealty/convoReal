@@ -29,6 +29,8 @@ import {
   candidateButtonTitle,
   parseClientCandidateReplyId,
   parsePropertyCandidateReplyId,
+  parsePropertyCandidateCancelId,
+  buildPropertyCandidateCancelReply,
   buildRequirementLine,
   buildUnmatchedReply,
   followupDueDate,
@@ -39,7 +41,10 @@ import {
 } from './client-response';
 import { buildCheckInMessage } from './checkin-message';
 import { CLIENT_QUESTION_PROMPT } from './client-answer';
-import { PROPERTY_QUESTION_PROMPT } from './property-answer';
+import {
+  PROPERTY_QUESTION_FINGERPRINT,
+  PROPERTY_QUESTION_PROMPT,
+} from './property-answer';
 
 describe('client follow-up buttons', () => {
   it('builds the three timeline choices against the journey item', () => {
@@ -434,6 +439,7 @@ describe('confirming the property before side effects', () => {
     expect(buttons).toEqual([
       { id: 'jpc_p1:c1', title: 'PROP-101' },
       { id: 'jpc_p2:c1', title: 'PROP-102' },
+      { id: 'jpx_c1', title: 'Cancel' },
     ]);
     expect(parsePropertyCandidateReplyId(buttons[0].id)).toEqual({
       propertyId: 'p1',
@@ -446,7 +452,38 @@ describe('confirming the property before side effects', () => {
     const reply = buildPropertyCandidateReply('Yogendranath', candidates);
     expect(reply).toContain('JP Nagar 100 Feet Road');
     expect(reply).toContain(
-      'before I create the event, reminders or owner message'
+      "I'll create the event, reminders or owner message only after you choose"
+    );
+  });
+
+  it('[JRN-017] always leaves room for Cancel within the three WhatsApp buttons', () => {
+    const three = [
+      ...candidates,
+      {
+        property: { id: 'p3', title: 'Third listing', property_code: 'PROP-103' },
+        score: 60,
+        reason: 'title third',
+      },
+    ];
+    const buttons = buildPropertyCandidateButtons('c1', three);
+    expect(buttons).toHaveLength(3);
+    expect(buttons[2]).toEqual({ id: 'jpx_c1', title: 'Cancel' });
+    expect(parsePropertyCandidateCancelId(buttons[2].id)).toBe('c1');
+    expect(parsePropertyCandidateCancelId('jpc_p1:c1')).toBeNull();
+    expect(parsePropertyCandidateReplyId(buttons[2].id)).toBeNull();
+    const reply = buildPropertyCandidateReply('Yogendranath', three);
+    expect(reply).toContain('PROP-103');
+  });
+
+  it('[JRN-017] lets the agent type a property code that has no button', () => {
+    const reply = buildPropertyCandidateReply('Yogendranath', candidates);
+    expect(PROPERTY_QUESTION_FINGERPRINT.test(reply)).toBe(true);
+    expect(reply).toMatch(/reply with its code \(e\.g\. PROP-1138\)/);
+  });
+
+  it('[JRN-017] says a cancel links nothing and keeps the note', () => {
+    expect(buildPropertyCandidateCancelReply('Yogendranath')).toBe(
+      "👍 Cancelled. Nothing was linked, and no event, reminder or owner message was created. Yogendranath's update stays in their contact notes."
     );
   });
 });

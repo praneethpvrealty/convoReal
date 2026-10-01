@@ -57,6 +57,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { phonesMatch } from '@/lib/whatsapp/phone-utils';
 import {
   extractLoggedSummary,
+  PROPERTY_CHOICE_PROMPT,
   PROPERTY_QUESTION_PROMPT,
   type PropertyAnswer,
 } from '@/lib/journey/property-answer';
@@ -659,14 +660,28 @@ export function parsePropertyCandidateReplyId(
   return propertyId && contactId ? { propertyId, contactId } : null;
 }
 
+export const PROPERTY_CANDIDATE_CANCEL_PREFIX = 'jpx_';
+
+export function parsePropertyCandidateCancelId(replyId: string): string | null {
+  if (!replyId.startsWith(PROPERTY_CANDIDATE_CANCEL_PREFIX)) return null;
+  return replyId.slice(PROPERTY_CANDIDATE_CANCEL_PREFIX.length) || null;
+}
+
 export function buildPropertyCandidateButtons(
   contactId: string,
   candidates: RankedPropertyCandidate<PropertyRow & { title: string }>[]
 ): Array<{ id: string; title: string }> {
-  return candidates.slice(0, 3).map(({ property }) => ({
-    id: `${PROPERTY_CANDIDATE_PREFIX}${property.id}:${contactId}`,
-    title: candidateButtonTitle(property.property_code || property.title),
-  }));
+  return [
+    ...candidates.slice(0, 2).map(({ property }) => ({
+      id: `${PROPERTY_CANDIDATE_PREFIX}${property.id}:${contactId}`,
+      title: candidateButtonTitle(property.property_code || property.title),
+    })),
+    { id: `${PROPERTY_CANDIDATE_CANCEL_PREFIX}${contactId}`, title: 'Cancel' },
+  ];
+}
+
+export function buildPropertyCandidateCancelReply(contactName: string): string {
+  return `👍 Cancelled. Nothing was linked, and no event, reminder or owner message was created. ${contactName}'s update stays in their contact notes.`;
 }
 
 export function buildPropertyCandidateReply(
@@ -681,7 +696,7 @@ export function buildPropertyCandidateReply(
         `• *${property.title}*${property.property_code ? ` (${property.property_code})` : ''} — _${reason}_`
     ),
     '',
-    'Tap the right property before I create the event, reminders or owner message.',
+    PROPERTY_CHOICE_PROMPT,
   ].join('\n');
 }
 
@@ -1512,6 +1527,7 @@ async function logClientResponse(args: LogArgs): Promise<ClientReplyOutcome> {
           contact.id,
           propertyResolution.candidates
         ),
+        pendingPropertyContactId: contact.id,
       };
     }
     return {
