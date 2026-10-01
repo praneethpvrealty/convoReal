@@ -275,7 +275,8 @@ export function markKeySuccess(entry: GeminiKey): void {
   persist(entry.id, {
     last_used_at: new Date().toISOString(),
     resting_until: null,
-    ...(hadError ? { last_error: null, last_error_at: null } : {}),
+    last_error: null,
+    last_error_at: null,
   });
 }
 

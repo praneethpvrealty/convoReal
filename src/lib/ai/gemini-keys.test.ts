@@ -245,6 +245,16 @@ describe('failover', () => {
     });
   });
 
+  it('[AIK-002] clears an error another instance recorded while the call was in flight', async () => {
+    store.rows = [managedRow('only', 'db-a')];
+    expect(await generateText('hi')).toBe('ok from db-a');
+    await tick();
+    expect(store.updates.find((u) => u.id === 'id-only')?.patch).toMatchObject({
+      last_error: null,
+      last_error_at: null,
+    });
+  });
+
   it('[AIK-002] honours a rest recorded by another instance', async () => {
     store.rows = [
       managedRow('first', 'db-a', {
