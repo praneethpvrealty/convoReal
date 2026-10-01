@@ -41,6 +41,32 @@ const eslintConfig = defineConfig([
     files: ["**/*.integration.test.ts"],
     rules: { "convoreal/no-env-local-in-unit-tests": "off" },
   },
+  {
+    // A relative `location.href` / `location.assign()` reloads the whole
+    // app for an in-app link. Use `router.push()` or a `Link`; a full load
+    // of an API route (an OAuth start) passes an absolute URL.
+    rules: { "@next/next/no-location-assign-relative-destination": "error" },
+  },
+  {
+    // Sign-in, sign-out and session redirects reload on purpose so the
+    // client drops its auth state. Authentication changes ship as their
+    // own reviewed PR, not in a routine batch, so these stay warnings
+    // until that PR decides each one.
+    files: [
+      "src/app/(auth)/login/page.tsx",
+      "src/app/(dashboard)/dashboard-shell.tsx",
+      "src/app/(den)/den/login/page.tsx",
+      "src/app/(den)/den/verify-phone/page.tsx",
+      "src/app/join/[[]token]/page.tsx",
+      "src/app/profile-setup/page.tsx",
+      "src/app/verify-phone/page.tsx",
+      "src/components/buyer/buyer-provider.tsx",
+      "src/components/den/den-provider.tsx",
+      "src/components/settings/sessions-card.tsx",
+      "src/hooks/use-auth.tsx",
+    ],
+    rules: { "@next/next/no-location-assign-relative-destination": "warn" },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

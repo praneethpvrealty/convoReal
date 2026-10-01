@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
@@ -149,6 +149,7 @@ type ViewMode = "month" | "week" | "team" | "agenda";
 type CalendarTypeFilter = EventTypeKey | "all" | "deal";
 
 export default function CalendarPage() {
+  const router = useRouter();
   const supabase = createClient();
   const queryClient = useQueryClient();
   const { accountId, user, isViewer, isReadOnly } = useAuth();
@@ -1001,7 +1002,7 @@ export default function CalendarPage() {
         .maybeSingle();
       if (error) throw error;
       if (existing) {
-        window.location.href = `/inbox?c=${existing.id}`;
+        router.push(`/inbox?c=${existing.id}`);
         return;
       }
       const { data: created, error: createError } = await supabase
@@ -1014,7 +1015,7 @@ export default function CalendarPage() {
         .select("id")
         .single();
       if (createError) throw createError;
-      window.location.href = `/inbox?c=${created.id}`;
+      router.push(`/inbox?c=${created.id}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || "Failed to open conversation");
