@@ -74,10 +74,16 @@ describe('[TXW-016] the index names a transaction by buyer and property', () => 
   });
 });
 
-describe('[TXW-016] a pipeline deal becomes a transaction through provenance or milestones', () => {
-  it('marks a converted journey as a closing record whatever its checklist', () => {
+describe('[TXW-016] a pipeline deal becomes a transaction through its milestones', () => {
+  it('leaves an early-stage journey deal without milestones outside', () => {
     expect(
       isClosingRecord({ source_journey_item_id: 'j1', milestones_total: 0 })
+    ).toBe(false);
+  });
+
+  it('marks a journey deal that started its closing record as one', () => {
+    expect(
+      isClosingRecord({ source_journey_item_id: 'j1', milestones_total: 15 })
     ).toBe(true);
   });
 

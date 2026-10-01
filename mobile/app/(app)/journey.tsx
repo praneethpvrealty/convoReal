@@ -44,10 +44,7 @@ import {
 import { useAuthStore } from '@/lib/auth-store';
 import { buildCheckInMessage } from '@/lib/checkin-message';
 import { copilotFabClearance } from '@/lib/copilot-fab';
-import {
-  convertJourneyItemToDeal,
-  moveJourneyItem,
-} from '@/lib/deal-workspace-api';
+import { moveJourneyItem } from '@/lib/deal-workspace-api';
 import { auditDate, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import {
@@ -145,7 +142,6 @@ export function JourneyBody() {
   const [trayBusy, setTrayBusy] = useState(false);
   const [trayError, setTrayError] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
-  const [convertingItemId, setConvertingItemId] = useState<string | null>(null);
   const [moveTarget, setMoveTarget] = useState<JourneyItem | null>(null);
   const [brokeragePrompt, setBrokeragePrompt] = useState<{
     item: JourneyItem;
@@ -212,37 +208,6 @@ export function JourneyBody() {
     setMovedItem({
       subjectId: mode === 'buyer' ? item.contact_id : item.property_id,
       itemId: item.id,
-    });
-  }
-
-  function askConvert(item: JourneyItem) {
-    if (!canEdit || convertingItemId) return;
-    show({
-      title: 'Convert to deal?',
-      message:
-        'Opens the closing record — milestones, papers, tasks and money — and keeps this journey and its history as they are.',
-      actions: [
-        { label: 'Cancel', variant: 'muted', onPress: close },
-        {
-          label: 'Convert',
-          onPress: async () => {
-            close();
-            setConvertingItemId(item.id);
-            try {
-              const result = await convertJourneyItemToDeal(item.id);
-              void haptic.success();
-              router.push(`/deal/${result.id}`);
-            } catch (err) {
-              show({
-                title: 'Could not convert',
-                message: err instanceof Error ? err.message : String(err),
-              });
-            } finally {
-              setConvertingItemId(null);
-            }
-          },
-        },
-      ],
     });
   }
 
@@ -1381,7 +1346,7 @@ export function JourneyBody() {
                 onEnquiries={() => setEnquiryGroup(group)}
                 onCheckIn={askCheckIn}
                 onMoveItem={(item) => canEdit && setMoveTarget(item)}
-                onConvert={askConvert}
+                onOpenDeal={(dealId) => router.push(`/deal/${dealId}`)}
                 onRemoveItem={askRemoveItem}
                 onAddNote={(item, stage) => {
                   setNoteTarget({ item, stage });
@@ -2192,7 +2157,7 @@ function DraggableJourneyCard({
   onEnquiries,
   onCheckIn,
   onMoveItem,
-  onConvert,
+  onOpenDeal,
   onRemoveItem,
   onAddNote,
 }: {
@@ -2218,7 +2183,7 @@ function DraggableJourneyCard({
   onEnquiries: () => void;
   onCheckIn: (item: JourneyItem, stageLabel: string | undefined) => void;
   onMoveItem: (item: JourneyItem) => void;
-  onConvert: (item: JourneyItem) => void;
+  onOpenDeal: (dealId: string) => void;
   onRemoveItem: (item: JourneyItem) => void;
   onAddNote: (item: JourneyItem, stage: JourneyStage) => void;
 }) {
@@ -2344,10 +2309,10 @@ function DraggableJourneyCard({
             />
           </Pressable>
         ) : null}
-        {canEdit && !dropped ? (
+        {linkedDealId(item) ? (
           <Pressable
-            onPress={() => onConvert(item)}
-            accessibilityLabel="Convert to deal"
+            onPress={() => onOpenDeal(linkedDealId(item)!)}
+            accessibilityLabel="Open deal"
             hitSlop={8}
           >
             <Ionicons
@@ -2593,6 +2558,11 @@ function DraggableJourneyCard({
   );
 }
 
+function linkedDealId(item: JourneyItem): string | null {
+  const deal = Array.isArray(item.deal) ? item.deal[0] : item.deal;
+  return deal?.id ?? null;
+}
+
 async function loadJourneyItems(
   mode: JourneyMode,
   subjectId: string,
@@ -2605,7 +2575,8 @@ async function loadJourneyItems(
       .from('journey_items')
       .select(
         'id, contact_id, property_id, stage_id, status, source, drop_reason, hidden, created_at, updated_at, ' +
-          'contact:contacts(id, name, phone, classification), property:properties(id, title, property_code, location)'
+          'contact:contacts(id, name, phone, classification), property:properties(id, title, property_code, location), ' +
+          'deal:deals!deals_source_journey_item_id_fkey(id)'
       )
       .eq('hidden', hidden)
       .order('id', { ascending: true })

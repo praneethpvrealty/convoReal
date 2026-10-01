@@ -371,6 +371,7 @@ export interface JourneyItem {
     property_code?: string | null;
     location?: string | null;
   } | null;
+  deal?: { id: string } | { id: string }[] | null;
 }
 
 export interface JourneyOverviewState {

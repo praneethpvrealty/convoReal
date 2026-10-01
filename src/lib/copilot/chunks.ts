@@ -465,7 +465,7 @@ export const CHUNKS: KnowledgeChunk[] = [
     id: 'deals.convert-journey',
     title: 'Turn a journey into a transaction',
     kind: 'howto',
-    body: 'Open the buyer\u2019s journey, tap the property branch, and choose Convert to deal. ConvoReal opens the closing record with the standard milestone checklist, links it back to the journey, and keeps the journey and its history exactly as they were. Converting twice opens the same transaction.',
+    body: 'There is no convert step: every journey branch that is live on the journey is already a deal on the Board at the same stage, and moving either one moves the other. Open the branch and choose Open transaction to reach its deal. The closing record \u2014 milestone checklist, papers and money \u2014 starts when the deal reaches a closing stage, and the journey and its history stay exactly as they were.',
     keywords: [
       'convert to deal',
       'journey to deal',
