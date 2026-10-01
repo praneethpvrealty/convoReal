@@ -193,13 +193,30 @@ const nextConfig: NextConfig = {
   },
 
   async redirects() {
+    const baseDomain = process.env.NEXT_PUBLIC_BASE_DOMAIN || 'convoreal.com';
+    // app.<domain> is an alias of the www site. Pages move to www;
+    // /api and /.well-known stay put, because webhooks and app-link
+    // verifiers posting to the old host do not follow redirects.
+    const appHostRedirect = {
+      source: '/:path((?!api(?:/|$)|\\.well-known(?:/|$)).*)',
+      has: [
+        {
+          type: 'host' as const,
+          value: `app\\.${baseDomain.replace(/\./g, '\\.')}`,
+        },
+      ],
+      destination: `https://www.${baseDomain}/:path`,
+      permanent: false,
+    };
+
     const fromDomain = process.env.REDIRECT_FROM_DOMAIN;
     const toDomain = process.env.REDIRECT_TO_DOMAIN || 'convoreal.com';
-    if (!fromDomain) return [];
+    if (!fromDomain) return [appHostRedirect];
 
     const escapedFrom = fromDomain.replace(/\./g, '\\.');
 
     return [
+      appHostRedirect,
       // 1. Redirect main domain root and all paths.
       // /.well-known is exempt: assetlinks.json and
       // apple-app-site-association must be served with a 200 on every
