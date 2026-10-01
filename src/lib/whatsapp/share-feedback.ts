@@ -28,18 +28,21 @@ export async function findFeedbackSharePropertyId(
   contextMessageId: string | null
 ): Promise<string | null> {
   if (!contextMessageId) return null;
-  const { data: shares } = await db
-    .from('property_shares')
-    .select('property_id')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .eq('feedback_message_id', contextMessageId)
-    .limit(20);
-  const propertyIds = new Set(
-    (shares ?? []).map((row) => row.property_id as string | null)
-  );
-  if (propertyIds.size !== 1) return null;
-  return [...propertyIds][0] ?? null;
+  const sharesOnPrompt = () =>
+    db
+      .from('property_shares')
+      .select('property_id')
+      .eq('account_id', accountId)
+      .eq('contact_id', contactId)
+      .eq('feedback_message_id', contextMessageId);
+  const { data: first } = await sharesOnPrompt().limit(1).maybeSingle();
+  const propertyId = (first?.property_id as string | null | undefined) ?? null;
+  if (!propertyId) return null;
+  const { data: other } = await sharesOnPrompt()
+    .or(`property_id.is.null,property_id.neq.${propertyId}`)
+    .limit(1)
+    .maybeSingle();
+  return other ? null : propertyId;
 }
 
 export const SHARE_FEEDBACK_CLAIM_STALE_MS = 15 * 60 * 1000;

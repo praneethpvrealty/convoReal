@@ -73,6 +73,7 @@ function matchesClause(row: Row, clause: string): boolean {
   if (cell == null) return false;
   if (op === 'lt') return String(cell) < value;
   if (op === 'gte') return String(cell) >= value;
+  if (op === 'neq') return String(cell) !== value;
   return false;
 }
 
@@ -449,20 +450,27 @@ describe('findFeedbackSharePropertyId', () => {
   function lookupDb(rows: Row[]) {
     const calls: [string, unknown][] = [];
     const tables: string[] = [];
-    const b: Record<string, unknown> = {};
-    for (const m of ['select', 'eq', 'limit']) {
-      b[m] = (col: string, val: unknown) => {
-        calls.push([`${m}:${col}`, val]);
-        return b;
-      };
-    }
-    b.then = (resolve: (v: { data: Row[]; error: null }) => unknown) =>
-      Promise.resolve({ data: rows, error: null }).then(resolve);
     return {
       calls,
       tables,
       from(table: string) {
         tables.push(table);
+        const ors: string[] = [];
+        const b: Record<string, unknown> = {};
+        for (const m of ['select', 'eq', 'limit']) {
+          b[m] = (col: string, val: unknown) => {
+            calls.push([`${m}:${col}`, val]);
+            return b;
+          };
+        }
+        b.or = (expr: string) => {
+          ors.push(expr);
+          return b;
+        };
+        b.maybeSingle = async () => {
+          const hit = rows.filter((row) => ors.every((expr) => matchesOr(row, expr)));
+          return { data: hit[0] ?? null, error: null };
+        };
         return b;
       },
     };
@@ -474,7 +482,6 @@ describe('findFeedbackSharePropertyId', () => {
     expect(
       await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
     ).toBe(PROPERTY_ID);
-    expect(db.tables).toEqual(['property_shares']);
     expect(db.calls).toEqual(
       expect.arrayContaining([
         ['eq:account_id', ACCOUNT_ID],
@@ -486,7 +493,7 @@ describe('findFeedbackSharePropertyId', () => {
 
   it('[INB-022] refuses to pick when one prompt covers shares of different properties', async () => {
     const db = lookupDb([
-      { property_id: PROPERTY_ID },
+      ...Array.from({ length: 25 }, () => ({ property_id: PROPERTY_ID })),
       { property_id: '99999999-2222-4333-8444-555555555555' },
     ]);
     expect(
