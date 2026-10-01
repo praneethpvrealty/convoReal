@@ -1246,6 +1246,52 @@ Content-Transfer-Encoding: quoted-printable
   });
 });
 
+describe('the host a lead email arrived on', () => {
+  beforeEach(() => {
+    process.env.LEADS_WEBHOOK_TOKEN = 'test-token';
+  });
+
+  function post(token: string, headers: Record<string, string>) {
+    return POST(
+      new Request(
+        `http://localhost/api/leads/email-webhook?account_id=acc-789&token=${token}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({ subject: 'Hello', from: 'a@b.c', text: 'hi' }),
+        }
+      )
+    );
+  }
+
+  it('is logged without the token once the request is authorised', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await post('test-token', { 'x-forwarded-host': 'app.convoreal.com' });
+      const lines = log.mock.calls.map((c) => String(c[0]));
+      expect(lines).toContain(
+        '[lead-webhook] Received on host app.convoreal.com'
+      );
+      expect(lines.join('\n')).not.toContain('test-token');
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it('is not logged for a request with the wrong token', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const res = await post('wrong', { host: 'www.convoreal.com' });
+      expect(res.status).toBe(401);
+      expect(
+        log.mock.calls.some((c) => String(c[0]).includes('Received on host'))
+      ).toBe(false);
+    } finally {
+      log.mockRestore();
+    }
+  });
+});
+
 describe('[PRP-014] a repeat portal enquiry reopens a closed one', () => {
   it('marks the listing interested again for an existing contact', async () => {
     const { readFileSync } = await import('node:fs');

@@ -250,6 +250,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized token' }, { status: 401 });
     }
 
+    console.log(
+      `[lead-webhook] Received on host ${request.headers.get('x-forwarded-host') || request.headers.get('host') || new URL(request.url).host}`
+    );
+
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
       request.headers.get('x-real-ip') ||
