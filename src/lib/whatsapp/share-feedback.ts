@@ -4,6 +4,7 @@ import { lookupConversation } from '@/lib/conversations/resolve';
 import { withContactConversationLease } from '@/lib/conversations/outbound-lease';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { templateButtonLabel } from '@/lib/whatsapp/template-copy';
+import { resolveSendLanguage } from '@/lib/whatsapp/template-language';
 import type { InteractiveButton } from '@/lib/whatsapp/meta-api';
 
 export function shareFeedbackButtons(propertyId: string): InteractiveButton[] {
@@ -194,7 +195,6 @@ async function sendShareFeedback(
     buildShareFeedbackButtonsBody,
     pickShareFeedbackTemplate,
     renderShareFeedbackBody,
-    shareFeedbackLanguage,
     SHARE_FEEDBACK_TEMPLATE_NAMES,
   } = await import('./share-feedback-template');
 
@@ -215,7 +215,7 @@ async function sendShareFeedback(
   const property =
     share.property_id &&
     isWithinCustomerWindow(conversation?.last_customer_message_at) &&
-    shareFeedbackLanguage(templateLanguage) === 'en'
+    (await resolveSendLanguage(db, share.account_id, share.contact_id)) === 'en'
       ? (
           await db
             .from('properties')

@@ -86,6 +86,8 @@ function makeDb(
     share?: Row;
     property?: Row | null;
     failMarks?: number;
+    contactLanguage?: string | null;
+    accountLanguage?: string | null;
   } = {}
 ) {
   const state = {
@@ -151,6 +153,12 @@ function makeDb(
         if (table === 'properties') {
           return { data: opts.property ?? null, error: null };
         }
+        if (table === 'accounts') {
+          return {
+            data: { default_language: opts.accountLanguage ?? null },
+            error: null,
+          };
+        }
         if (table === 'conversations') {
           return {
             data:
@@ -165,7 +173,11 @@ function makeDb(
         }
         if (table === 'contacts') {
           return {
-            data: { name: 'Asha', preferred_language: 'en_US' },
+            data: {
+              name: 'Asha',
+              preferred_language:
+                opts.contactLanguage === undefined ? 'en' : opts.contactLanguage,
+            },
             error: null,
           };
         }
@@ -272,6 +284,19 @@ describe('processShareFeedbackFollowups', () => {
       { id: 'lfb_form', title: 'Update preferences' },
     ]);
     expect(db.state.shares[0].feedback_status).toBe('sent');
+  });
+
+  it('[INB-022] sends the localized template to a buyer who inherits a non-English account language', async () => {
+    const db = makeDb({
+      lastCustomerMessageAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      property: { id: PROPERTY_ID, title: '35x80 Commercial Corner Plot' },
+      contactLanguage: null,
+      accountLanguage: 'kn',
+    });
+
+    await processShareFeedbackFollowups(db as never);
+
+    expect(h.send.mock.calls[0][0]).toMatchObject({ kind: 'template' });
   });
 
   it('[INB-022] falls back to the template once the 24-hour window has closed', async () => {
