@@ -21,6 +21,8 @@ dotenv.config({ path: '.env.local' });
 
 import {
   DELIVERY_FAILURE_MARKER,
+  isMarketingBlockCode,
+  laterSuppression,
   legacyDeliveryFailureSplit,
   stripDeliveryFailure,
 } from '@/lib/whatsapp/delivery-failure';
@@ -28,12 +30,17 @@ import {
 interface MessageRow {
   id: string;
   account_id: string;
+  conversation_id: string;
   status: string | null;
   content_text: string | null;
   error_code: number | null;
   error_info: string | null;
   retry_after: string | null;
   created_at: string;
+  conversations: {
+    contact_id: string | null;
+    last_customer_message_at: string | null;
+  } | null;
 }
 
 interface ConversationRow {
@@ -73,7 +80,7 @@ async function fetchMessagePage(afterId: string | null): Promise<MessageRow[]> {
   let query = supabase
     .from('messages')
     .select(
-      'id, account_id, status, content_text, error_code, error_info, retry_after, created_at'
+      'id, account_id, conversation_id, status, content_text, error_code, error_info, retry_after, created_at, conversations!inner(contact_id, last_customer_message_at)'
     )
     .like('content_text', markerPattern)
     .order('id', { ascending: true })
@@ -82,7 +89,52 @@ async function fetchMessagePage(afterId: string | null): Promise<MessageRow[]> {
   if (afterId) query = query.gt('id', afterId);
   const { data, error } = await query;
   if (error) throw new Error(`Failed to load messages: ${error.message}`);
-  return (data ?? []) as MessageRow[];
+  return (data ?? []) as unknown as MessageRow[];
+}
+
+async function extendContactSuppression(
+  row: MessageRow,
+  code: number,
+  until: string
+): Promise<boolean> {
+  const contactId = row.conversations?.contact_id;
+  if (!contactId) return false;
+  const repliedAt = row.conversations?.last_customer_message_at;
+  if (repliedAt && new Date(repliedAt) > new Date(row.created_at)) return false;
+  const { data: contact, error } = await supabase
+    .from('contacts')
+    .select(
+      'whatsapp_marketing_suppressed_until, whatsapp_marketing_suppression_code'
+    )
+    .eq('id', contactId)
+    .eq('account_id', row.account_id)
+    .maybeSingle();
+  if (error)
+    throw new Error(`Failed to load contact ${contactId}: ${error.message}`);
+  const standing = contact?.whatsapp_marketing_suppressed_until as
+    string | null | undefined;
+  const later = laterSuppression(standing, until);
+  if (later === standing) return false;
+  if (dryRun) {
+    console.log(
+      `  [dry-run] pause contact ${contactId} until ${later} (${code})`
+    );
+    return true;
+  }
+  const { error: updateError } = await supabase
+    .from('contacts')
+    .update({
+      whatsapp_marketing_suppressed_until: later,
+      whatsapp_marketing_suppression_code: code,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', contactId)
+    .eq('account_id', row.account_id);
+  if (updateError)
+    throw new Error(
+      `Failed to pause contact ${contactId}: ${updateError.message}`
+    );
+  return true;
 }
 
 async function backfillMessages() {
@@ -90,6 +142,7 @@ async function backfillMessages() {
   let scanned = 0;
   let updated = 0;
   let emptied = 0;
+  let paused = 0;
   let failed = 0;
 
   while (true) {
@@ -113,6 +166,19 @@ async function backfillMessages() {
         update.retry_after = row.retry_after ?? split.retry_after;
       }
       if (!split.content_text) emptied++;
+      if (
+        row.status === 'failed' &&
+        isMarketingBlockCode(split.error_code) &&
+        split.retry_after &&
+        new Date(split.retry_after) > new Date() &&
+        (await extendContactSuppression(
+          row,
+          split.error_code as number,
+          split.retry_after
+        ))
+      ) {
+        paused++;
+      }
       if (dryRun) {
         console.log(
           `  [dry-run] ${row.id}: ${JSON.stringify(update).slice(0, 200)}`
@@ -137,45 +203,85 @@ async function backfillMessages() {
     );
   }
 
-  return { scanned, updated, emptied, failed };
+  return { scanned, updated, emptied, paused, failed };
 }
 
-async function backfillPreviews() {
+async function previewFallback(
+  conversation: ConversationRow
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('content_text, template_name')
+    .eq('conversation_id', conversation.id)
+    .eq('account_id', conversation.account_id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error)
+    throw new Error(
+      `Failed to load latest message for ${conversation.id}: ${error.message}`
+    );
+  const text = stripDeliveryFailure(data?.content_text as string | null);
+  if (text) return text;
+  return data?.template_name ? `[template:${data.template_name}]` : null;
+}
+
+async function fetchPreviewPage(
+  afterId: string | null
+): Promise<ConversationRow[]> {
   let query = supabase
     .from('conversations')
     .select('id, account_id, last_message_text')
-    .like('last_message_text', markerPattern);
+    .like('last_message_text', markerPattern)
+    .order('id', { ascending: true })
+    .limit(batchSize);
   if (accountId) query = query.eq('account_id', accountId);
+  if (afterId) query = query.gt('id', afterId);
   const { data, error } = await query;
   if (error) throw new Error(`Failed to load conversations: ${error.message}`);
+  return (data ?? []) as ConversationRow[];
+}
 
+async function backfillPreviews() {
+  let afterId: string | null = null;
+  let scanned = 0;
   let updated = 0;
   let failed = 0;
-  for (const conversation of (data ?? []) as ConversationRow[]) {
-    const text = stripDeliveryFailure(conversation.last_message_text) || null;
-    if (dryRun) {
-      console.log(
-        `  [dry-run] preview ${conversation.id}: ${JSON.stringify(text)}`
-      );
-      continue;
-    }
-    const { error: updateError } = await supabase
-      .from('conversations')
-      .update({ last_message_text: text })
-      .eq('id', conversation.id)
-      .eq('account_id', conversation.account_id)
-      .eq('last_message_text', conversation.last_message_text);
-    if (updateError) {
-      failed++;
-      console.error(
-        `  failed to update preview ${conversation.id}: ${updateError.message}`
-      );
-    } else {
-      updated++;
+
+  while (true) {
+    const rows = await fetchPreviewPage(afterId);
+    if (rows.length === 0) break;
+    afterId = rows[rows.length - 1].id;
+
+    for (const conversation of rows) {
+      scanned++;
+      const text =
+        stripDeliveryFailure(conversation.last_message_text) ||
+        (await previewFallback(conversation));
+      if (dryRun) {
+        console.log(
+          `  [dry-run] preview ${conversation.id}: ${JSON.stringify(text)}`
+        );
+        continue;
+      }
+      const { error: updateError } = await supabase
+        .from('conversations')
+        .update({ last_message_text: text })
+        .eq('id', conversation.id)
+        .eq('account_id', conversation.account_id)
+        .eq('last_message_text', conversation.last_message_text);
+      if (updateError) {
+        failed++;
+        console.error(
+          `  failed to update preview ${conversation.id}: ${updateError.message}`
+        );
+      } else {
+        updated++;
+      }
     }
   }
 
-  return { scanned: data?.length ?? 0, updated, failed };
+  return { scanned, updated, failed };
 }
 
 async function main() {
