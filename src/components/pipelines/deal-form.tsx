@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, createElement } from 'react';
+import { useState, useEffect, useRef, createElement } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -49,6 +49,7 @@ import { LostReasonDialog } from './lost-reason-dialog';
 import {
   LOST_REASONS,
   isLostReason,
+  answeredLostReason,
   lostReasonNeedsNote,
   type LostReason,
   type LostReasonInput,
@@ -88,6 +89,7 @@ export function DealForm({
   const [lostReason, setLostReason] = useState<LostReason | null>(null);
   const [lostNote, setLostNote] = useState('');
   const [lostPromptOpen, setLostPromptOpen] = useState(false);
+  const lostPanelRef = useRef<HTMLDivElement>(null);
   const [propertyId, setPropertyId] = useState('');
   const [brokerageType, setBrokerageType] = useState<'percentage' | 'fixed'>(
     'percentage'
@@ -307,8 +309,32 @@ export function DealForm({
   ) {
     if (!deal) return;
     if (status === 'lost' && !lost) {
-      setLostPromptOpen(true);
-      return;
+      const lostStage = [...stages]
+        .sort((a, b) => a.position - b.position)
+        .find((s) => isLostStage(s));
+      const answered = answeredLostReason(lostReason, lostNote);
+      if (answered) {
+        lost = answered;
+      } else if (lostStage) {
+        const current = stages.find((s) => s.id === stageId);
+        if (!current || !isLostStage(current)) {
+          setStageId(lostStage.id);
+          if (!actualCloseDate) {
+            setActualCloseDate(new Date().toLocaleDateString('en-CA'));
+          }
+        }
+        toast.error('Pick why the deal was lost');
+        requestAnimationFrame(() =>
+          lostPanelRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          })
+        );
+        return;
+      } else {
+        setLostPromptOpen(true);
+        return;
+      }
     }
     setStatusAction(status);
 
@@ -610,7 +636,10 @@ export function DealForm({
             </div>
 
             {selectedStage && isLostStage(selectedStage) && (
-              <div className="grid gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+              <div
+                ref={lostPanelRef}
+                className="grid gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-3"
+              >
                 <Label className="text-slate-300">Why was it lost?</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {LOST_REASONS.map((option) => (

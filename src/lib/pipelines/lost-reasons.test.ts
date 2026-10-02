@@ -5,12 +5,26 @@ import { describe, expect, it } from 'vitest';
 
 import {
   LOST_REASONS,
+  answeredLostReason,
   lostReasonLabel,
   lostReasonMissing,
   parseLostReason,
 } from './lost-reasons';
 
 describe('[TXW-025] lost reasons', () => {
+  it('reuses a reason already answered in the deal form instead of asking again', () => {
+    expect(answeredLostReason('Owner backed out', '  W&B dispute ')).toEqual({
+      lost_reason: 'Owner backed out',
+      lost_note: 'W&B dispute',
+    });
+    expect(answeredLostReason('Price disagreement', '')).toEqual({
+      lost_reason: 'Price disagreement',
+      lost_note: null,
+    });
+    expect(answeredLostReason(null, 'note')).toBeNull();
+    expect(answeredLostReason('Other', '   ')).toBeNull();
+  });
+
   it('accepts a listed reason with an optional note', () => {
     expect(parseLostReason({ lost_reason: 'Price disagreement' })).toEqual({
       ok: true,
