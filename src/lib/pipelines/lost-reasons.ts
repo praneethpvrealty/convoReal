@@ -79,3 +79,12 @@ export function answeredLostReason(
   if (lostReasonNeedsNote(reason) && !trimmed) return null;
   return { lost_reason: reason, lost_note: trimmed || null };
 }
+
+export function recordedLostReason(deal: {
+  status?: string | null;
+  lost_reason?: string | null;
+  lost_note?: string | null;
+}): LostReasonInput | null {
+  if (deal.status !== 'lost' || !isLostReason(deal.lost_reason)) return null;
+  return answeredLostReason(deal.lost_reason, deal.lost_note ?? '');
+}
