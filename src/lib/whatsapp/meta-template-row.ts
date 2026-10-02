@@ -36,6 +36,7 @@ export interface MetaTemplate {
   category: string;
   components?: MetaTemplateComponent[];
   quality_score?: { score?: string } | string;
+  rejected_reason?: string;
 }
 
 export function normalizeQualityScore(
