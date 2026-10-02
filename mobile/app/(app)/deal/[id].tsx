@@ -395,6 +395,7 @@ export default function DealWorkspaceScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          style={styles.tabStrip}
           contentContainerStyle={styles.tabs}
         >
           {DEAL_WORKSPACE_TABS.map((item) => (
@@ -3956,6 +3957,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.md,
   },
+  tabStrip: { flexGrow: 0, flexShrink: 0 },
   tabs: {
     flexDirection: 'row',
     gap: spacing.sm,
