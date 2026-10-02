@@ -1457,6 +1457,32 @@
             "src/app/api/contacts/merge/route.ts",
             "supabase/migrations/20260928050000_merged_enquiry_sources.sql"
           ]
+        },
+        {
+          "id": "PRP-025",
+          "rule": "A paid Google Maps lookup is bought at most once a month: every address geocode, pin reverse-geocode and showcase area lookup is served from the shared maps_lookup_cache before Google is called, a definitive miss is remembered for a week, and a property whose address Google could not place is stamped geocode_attempted_at and left out of the radius-search self-heal for 30 days instead of being re-geocoded on every search.",
+          "tests": [
+            {
+              "file": "src/lib/maps/lookup-cache.test.ts",
+              "case": "[PRP-025]"
+            },
+            {
+              "file": "src/lib/maps/google-places.test.ts",
+              "case": "[PRP-025]"
+            },
+            {
+              "file": "src/app/api/properties/route.test.ts",
+              "case": "[PRP-025]"
+            },
+            {
+              "file": "src/app/api/public/properties/near/route.test.ts",
+              "case": "[PRP-025]"
+            }
+          ],
+          "guards": [
+            "src/lib/maps/lookup-cache.ts",
+            "supabase/migrations/20261002073439_maps_lookup_cache.sql"
+          ]
         }
       ]
     },

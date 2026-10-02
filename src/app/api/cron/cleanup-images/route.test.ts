@@ -8,6 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * ever touching properties.
  */
 
+const { sweepExpiredLookups } = vi.hoisted(() => ({
+  sweepExpiredLookups: vi.fn(async () => 0),
+}));
+
+vi.mock('@/lib/maps/lookup-cache', () => ({ sweepExpiredLookups }));
+
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: () => {
@@ -25,6 +31,7 @@ let GET: (req: Request) => Promise<Response>;
 const url = 'http://localhost/api/cron/cleanup-images';
 
 beforeEach(async () => {
+  sweepExpiredLookups.mockClear();
   delete process.env.AUTOMATION_CRON_SECRET;
   delete process.env.CRON_SECRET;
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
@@ -53,7 +60,7 @@ describe('cleanup-images cron auth', () => {
   it('rejects a wrong x-cron-secret of different length (401)', async () => {
     process.env.AUTOMATION_CRON_SECRET = 'sekret';
     const res = await GET(
-      new Request(url, { headers: { 'x-cron-secret': 'no' } }),
+      new Request(url, { headers: { 'x-cron-secret': 'no' } })
     );
     expect(res.status).toBe(401);
   });
@@ -61,7 +68,7 @@ describe('cleanup-images cron auth', () => {
   it('rejects a wrong same-length secret via constant-time compare (401)', async () => {
     process.env.AUTOMATION_CRON_SECRET = 'sekret';
     const res = await GET(
-      new Request(url, { headers: { 'x-cron-secret': 'wrong6' } }),
+      new Request(url, { headers: { 'x-cron-secret': 'wrong6' } })
     );
     expect(res.status).toBe(401);
   });
@@ -69,7 +76,7 @@ describe('cleanup-images cron auth', () => {
   it('rejects a wrong Bearer token (401)', async () => {
     process.env.AUTOMATION_CRON_SECRET = 'sekret';
     const res = await GET(
-      new Request(url, { headers: { authorization: 'Bearer nope' } }),
+      new Request(url, { headers: { authorization: 'Bearer nope' } })
     );
     expect(res.status).toBe(401);
   });
@@ -79,16 +86,28 @@ describe('cleanup-images disabled short-circuit', () => {
   it('returns skipped when authorized but config is disabled (default)', async () => {
     process.env.AUTOMATION_CRON_SECRET = 'sekret';
     const res = await GET(
-      new Request(url, { headers: { 'x-cron-secret': 'sekret' } }),
+      new Request(url, { headers: { 'x-cron-secret': 'sekret' } })
     );
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ skipped: 'disabled' });
   });
 
+  it('[PRP-025] sweeps expired maps lookups even while image cleanup is disabled', async () => {
+    process.env.AUTOMATION_CRON_SECRET = 'sekret';
+    await GET(new Request(url, { headers: { 'x-cron-secret': 'sekret' } }));
+    expect(sweepExpiredLookups).toHaveBeenCalledTimes(1);
+  });
+
+  it('never sweeps for an unauthorised caller', async () => {
+    process.env.AUTOMATION_CRON_SECRET = 'sekret';
+    await GET(new Request(url, { headers: { 'x-cron-secret': 'wrong6' } }));
+    expect(sweepExpiredLookups).not.toHaveBeenCalled();
+  });
+
   it("accepts Vercel Cron's Authorization: Bearer against CRON_SECRET", async () => {
     process.env.CRON_SECRET = 'vercel-secret';
     const res = await GET(
-      new Request(url, { headers: { authorization: 'Bearer vercel-secret' } }),
+      new Request(url, { headers: { authorization: 'Bearer vercel-secret' } })
     );
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ skipped: 'disabled' });

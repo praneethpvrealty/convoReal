@@ -3,10 +3,13 @@ import { NextResponse } from 'next/server';
 import { getImageCleanupConfig } from '@/lib/storage/image-cleanup-config';
 import { runImageCleanup } from '@/lib/storage/image-cleanup';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { sweepExpiredLookups } from '@/lib/maps/lookup-cache';
 
 /**
  * Property image cleanup cron — drives the staged, reversible lifecycle in
  * src/lib/storage/image-cleanup.ts (warn → dereference → optional purge).
+ * Also sweeps expired rows out of maps_lookup_cache on every authorised
+ * run, whether or not image cleanup itself is enabled.
  * DESTRUCTIVE and cross-tenant, so it must never be publicly triggerable and
  * ships inert (config `enabled:false`, `dry_run:true`) until an operator opts
  * in via the `image_cleanup_config` system setting.
@@ -34,6 +37,13 @@ export async function GET(request: Request) {
     !timingSafeEqual(suppliedBuf, expectedBuf)
   ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const sweptLookups = await sweepExpiredLookups();
+    console.log('[cleanup-images] swept expired maps lookups:', sweptLookups);
+  } catch (sweepErr) {
+    console.warn('[cleanup-images] maps lookup sweep failed:', sweepErr);
   }
 
   const config = await getImageCleanupConfig();

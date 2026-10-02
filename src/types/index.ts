@@ -1263,6 +1263,7 @@ export interface Property {
   latitude?: number | null;
   longitude?: number | null;
   locality_place_id?: string | null;
+  geocode_attempted_at?: string | null;
   locality_canonical?: string | null;
   /** Location guard (migration 175). NULL = derived from type: houses,
    *  villas, farm houses and land default to 'locality' (exact address,
