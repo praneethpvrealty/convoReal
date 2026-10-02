@@ -19,7 +19,10 @@ const auth = vi.hoisted(() => ({
   },
 }));
 
-const calls = vi.hoisted(() => ({ pipelines: 0 }));
+const calls = vi.hoisted(() => ({
+  pipelines: 0,
+  holdPipelines: null as Promise<void> | null,
+}));
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
@@ -87,10 +90,12 @@ const rows: Record<string, unknown> = {
 };
 
 function query(table: string) {
+  const held = table === 'pipelines' ? calls.holdPipelines : null;
   if (table === 'pipelines') calls.pipelines += 1;
   const result = { data: rows[table] ?? null, error: null };
   const builder: Record<string, unknown> = {
-    then: (resolve: (value: typeof result) => unknown) => resolve(result),
+    then: (resolve: (value: typeof result) => unknown) =>
+      held ? held.then(() => resolve(result)) : resolve(result),
   };
   for (const method of [
     'select',
@@ -132,6 +137,7 @@ function renderBoard() {
 afterEach(() => {
   cleanup();
   calls.pipelines = 0;
+  calls.holdPipelines = null;
   auth.current = { user: { id: 'user-1' }, accountId: 'acct-1' };
 });
 
@@ -155,5 +161,33 @@ describe('[TXW-028] the Board keeps an open deal form through an auth refresh', 
       'KP Anand — Koramangala plot'
     );
     expect(calls.pipelines).toBe(1);
+  });
+
+  it("hides the previous user's board until the new user's pipelines load", async () => {
+    const board = renderBoard();
+    await screen.findByText('Add deal from board');
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    let release = () => {};
+    calls.holdPipelines = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    auth.current = { user: { id: 'user-2' }, accountId: 'acct-1' };
+    await act(async () => {
+      board.rerender();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    expect(calls.pipelines).toBe(2);
+    expect(screen.queryByText('Add deal from board')).toBeNull();
+    expect(screen.getByText('Loading pipeline...')).toBeTruthy();
+
+    await act(async () => {
+      release();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(screen.getByText('Add deal from board')).toBeTruthy();
   });
 });

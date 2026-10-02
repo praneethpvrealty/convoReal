@@ -272,6 +272,7 @@ export default function PipelinesPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
       let list = await loadPipelines();
 
       if (list.length === 0 && !seedAttempted.current) {

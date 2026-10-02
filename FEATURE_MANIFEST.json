@@ -2462,7 +2462,7 @@
         },
         {
           "id": "TXW-028",
-          "rule": "An open New Deal or Edit Deal form on the web Board keeps what was typed when the browser tab regains focus or the session token refreshes: those auth events never send the Board back to its full-page loading state or reload its pipeline list; that state shows only while the pipelines first load or while a pipeline's Focus list loads for the first time.",
+          "rule": "An open New Deal or Edit Deal form on the web Board keeps what was typed when the browser tab regains focus or the session token refreshes: those auth events never send the Board back to its full-page loading state or reload its pipeline list; that state shows only while the pipelines first load, when the signed-in user or account actually changes (so another account's board is never left on screen), or while a pipeline's Focus list loads for the first time.",
           "tests": [
             {
               "file": "src/app/(dashboard)/pipelines/pipelines-content.test.tsx",
