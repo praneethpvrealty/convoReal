@@ -687,6 +687,12 @@ Content-Transfer-Encoding: quoted-printable
       expect(isValidContactName('SYED THANVEER')).toBe(true);
     });
 
+    it('rejects the masks portals send instead of a name', () => {
+      expect(isValidContactName('Mbuser')).toBe(false);
+      expect(isValidContactName('USER')).toBe(false);
+      expect(isValidContactName('Housing User')).toBe(false);
+    });
+
     it('rejects company names regardless of casing', () => {
       expect(isValidContactName('SBS PROPERTIES')).toBe(false);
       expect(isValidContactName('VK GROUPS PVT LTD')).toBe(false);

@@ -64,6 +64,30 @@ export function stripDeliveryFailure(text: string | null | undefined): string {
   return (at === -1 ? text : text.slice(0, at)).trim();
 }
 
+export function legacyDeliveryFailureSplit(
+  text: string | null | undefined,
+  at: Date
+): {
+  content_text: string | null;
+  error_code: number | null;
+  error_info: string;
+  retry_after: string | null;
+} | null {
+  if (!text) return null;
+  const marker = text.indexOf(DELIVERY_FAILURE_MARKER);
+  if (marker === -1) return null;
+  const errors = text
+    .slice(marker + DELIVERY_FAILURE_MARKER.length)
+    .split('\n')
+    .map((line) => line.trim().match(/^\[Error (\d+)\]\s*(.*)$/))
+    .filter((match): match is RegExpMatchArray => match !== null)
+    .map((match) => ({ code: Number(match[1]), message: match[2] }));
+  return {
+    content_text: stripDeliveryFailure(text) || null,
+    ...deliveryFailureUpdate(errors, at),
+  };
+}
+
 export function metaErrorCode(value: unknown): number | null {
   const text = value instanceof Error ? value.message : String(value ?? '');
   const match = text.match(/(?:Error|error|#)\s*(\d{5,6})/);
