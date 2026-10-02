@@ -404,10 +404,9 @@ export default function PipelinesPage() {
         refreshDeals();
         return;
       }
-      void queryClient.invalidateQueries({
-        queryKey: ['transaction-workspace-index'],
-      });
-      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const queryKey of DEAL_SAVED_QUERY_KEYS) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
     },
     [refreshDeals, deals, stages, queryClient]
   );
@@ -498,9 +497,9 @@ export default function PipelinesPage() {
       return;
     }
 
-    void queryClient.invalidateQueries({
-      queryKey: ['transaction-workspace-index'],
-    });
+    for (const queryKey of DEAL_SAVED_QUERY_KEYS) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
     toast.success('Deal moved and brokerage updated');
     setBrokeragePromptDeal(null);
     setPendingStageId('');

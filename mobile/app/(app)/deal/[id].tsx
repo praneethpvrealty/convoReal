@@ -32,6 +32,7 @@ import {
 import { apiBase, authHeaders } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import {
+  DEAL_SAVED_QUERY_KEYS,
   BUNDLE_MAX_DEALS,
   bundleBlocker,
   bundleCandidateLabel,
@@ -305,7 +306,9 @@ export default function DealWorkspaceScreen() {
       haptic.success();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deal-head', dealId] }),
-        queryClient.invalidateQueries({ queryKey: ['deals'] }),
+        ...DEAL_SAVED_QUERY_KEYS.map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey })
+        ),
       ]);
     } catch (err) {
       haptic.warn();

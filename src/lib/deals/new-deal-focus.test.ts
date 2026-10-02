@@ -10,10 +10,12 @@ interface Fake {
   scope: 'team' | 'agent';
   owned: Record<string, string[]>;
   upserts: { row: Record<string, unknown>; options: unknown }[];
+  tables?: string[];
 }
 
 function fakeSupabase(fake: Fake): SupabaseClient {
   const from = (table: string) => {
+    fake.tables?.push(table);
     const filters: Record<string, unknown> = {};
     const chain = {
       select: () => chain,
@@ -104,6 +106,23 @@ describe('[TXW-029] a new deal puts its journey in Focus', () => {
       user_id: 'agent-1',
       compartment: 'focus',
     });
+  });
+
+  it('never reopens a paused, closed or archived journey', async () => {
+    const fake: Fake = {
+      scope: 'team',
+      owned: { contacts: ['c1'] },
+      upserts: [],
+      tables: [],
+    };
+    await focusNewDealJourney(
+      fakeSupabase(fake),
+      input({ contact_id: 'c1', property_id: null })
+    );
+    expect(fake.tables).not.toContain('journey_overview_states');
+    expect(new Set(fake.tables)).toEqual(
+      new Set(['contacts', 'accounts', 'journey_compartments'])
+    );
   });
 
   it('writes nothing for a buyer outside the account', async () => {

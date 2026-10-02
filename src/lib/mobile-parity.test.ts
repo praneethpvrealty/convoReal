@@ -2840,6 +2840,18 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
         /for \(const queryKey of DEAL_SAVED_QUERY_KEYS\)/g
       )
     ).toHaveLength(2);
+    for (const source of [
+      mobileSource('app/(app)/deals.tsx'),
+      mobileSource('app/(app)/deal/[id].tsx'),
+      webSource('components/deals/deal-workspace.tsx'),
+    ]) {
+      expect(source).toContain('DEAL_SAVED_QUERY_KEYS.map((queryKey)');
+    }
+    expect(
+      webSource('app/(dashboard)/pipelines/pipelines-content.tsx').match(
+        /for \(const queryKey of DEAL_SAVED_QUERY_KEYS\)/g
+      )
+    ).toHaveLength(3);
   });
 
   it('titles rows by buyer and property and lists only closing records', () => {
