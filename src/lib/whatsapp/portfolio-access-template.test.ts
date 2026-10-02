@@ -6,6 +6,8 @@ import {
   PORTFOLIO_ACCESS_TEMPLATE_NAME,
   portfolioAccessButtonSuffix,
 } from './portfolio-access-template';
+import { LANGUAGE_CODES } from '@/lib/languages';
+
 import { validateTemplatePayload } from './template-validators';
 
 describe('portfolio access template', () => {
@@ -37,10 +39,23 @@ describe('portfolio access template', () => {
       .toLowerCase();
 
     expect(rendered).toContain('account notice');
-    expect(rendered).toContain('one-time code');
+    expect(rendered).toContain('sign in');
+    expect(rendered).not.toMatch(/one-time|code|otp|password/);
     expect(rendered).not.toMatch(
       /deal|offer|discount|exclusive|subscribe|stop|listing|new!/
     );
+  });
+
+  it('[CTM-011] asks for no one-time code in any language, which Meta reserves for Authentication templates', () => {
+    const otpWording =
+      /one-time|otp|वन-टाइम|ಒಂದು ಬಾರಿಯ ಕೋಡ್|ஒருமுறை குறியீட்டை|వన్-టైమ్|ഒറ്റത്തവണ കോഡ്/i;
+    for (const language of LANGUAGE_CODES) {
+      const payload = buildPortfolioAccessTemplatePayload(
+        'https://x.test',
+        language
+      );
+      expect(payload.body_text).not.toMatch(otpWording);
+    }
   });
 
   it('[CTM-011] fills the button with the buyer or owner sign-in path', () => {
