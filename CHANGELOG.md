@@ -31,8 +31,8 @@ than a written entry. Newest first.
   Coming back to the Deals board from another tab or app, or the session
   quietly refreshing, sent the board back to its "Loading pipeline"
   screen, which threw away a half-filled New Deal or Edit Deal form while
-  the panel stayed open. The board now shows that screen only on its first
-  load, and those refreshes no longer reload the pipeline list.
+  the panel stayed open. Those refreshes no longer bring the loading
+  screen back or reload the pipeline list.
 - **The Deals board's stage wheel now turns full circle and fills the
   screen.** The focused stage sits in the centre with the stages before
   and after it fanned out on both sides, so the last stage stands left of
