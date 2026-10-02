@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getImageCleanupConfig } from '@/lib/storage/image-cleanup-config';
 import { runImageCleanup } from '@/lib/storage/image-cleanup';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { sweepExpiredLookups } from '@/lib/maps/lookup-cache';
 
 /**
  * Property image cleanup cron — drives the staged, reversible lifecycle in
@@ -44,6 +45,12 @@ export async function GET(request: Request) {
   try {
     const summary = await runImageCleanup(supabaseAdmin(), config);
     console.log('[cleanup-images]', JSON.stringify(summary));
+    try {
+      const sweptLookups = await sweepExpiredLookups();
+      console.log('[cleanup-images] swept expired maps lookups:', sweptLookups);
+    } catch (sweepErr) {
+      console.warn('[cleanup-images] maps lookup sweep failed:', sweepErr);
+    }
     return NextResponse.json(summary);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

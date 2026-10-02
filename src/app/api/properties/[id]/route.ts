@@ -692,6 +692,8 @@ export async function PUT(
           if (updateData.locality_place_id === undefined) {
             updateData.locality_place_id = geo.place_id;
           }
+        } else {
+          updateData.geocode_attempted_at = new Date().toISOString();
         }
       } catch (geoErr) {
         console.warn("[PUT /api/properties/[id]] Geocode fallback failed:", geoErr);

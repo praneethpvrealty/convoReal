@@ -17,6 +17,17 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 2 October 2026
+
+- **Google Maps lookups are no longer bought twice.** Address geocodes,
+  map-pin reverse geocodes and showcase area searches are now answered from
+  a shared 30-day cache before Google is called, so the same locality costs
+  one Maps API call a month across every account and no longer costs one
+  per cold start. A property whose address Google cannot place is left alone
+  by the radius-search self-heal for 30 days instead of being re-geocoded on
+  every search. **Migration required:**
+  `20261002073439_maps_lookup_cache.sql`.
+
 #### 1 October 2026
 
 - **The archived setting is remembered for each user.** Whichever of

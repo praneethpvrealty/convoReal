@@ -38,6 +38,7 @@ const MAX_RADIUS_KM = 50;
 // tier no matter how close they physically are, so near-search geocodes
 // a bounded batch of them on the fly (and persists the result).
 const GEOCODE_FALLBACK_CAP = 20;
+const GEOCODE_RETRY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Price-bounded searches imply buy/rent intent — JV/JD deals are priced
 // in share percentages, not a sale amount — unless the query itself
@@ -82,9 +83,21 @@ function areaFilter(op: "gte" | "lte", sqft: number): string {
 /**
  * Best-effort on-the-fly geocode for near-search candidates that have
  * no stored coordinates. Successful lookups are persisted (RLS
- * permitting) so each row is geocoded at most once; failures leave the
- * row name-match-only, exactly as before.
+ * permitting) so each row is geocoded at most once; a row Google
+ * cannot place is stamped geocode_attempted_at and left name-match-only
+ * for GEOCODE_RETRY_AFTER_MS, so it is not bought again on every search.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function markGeocodeAttempted(supabase: any, id: string): Promise<void> {
+  await supabase
+    .from("properties")
+    // Marking a failed geocode while listing; the response does not
+    // depend on this write landing.
+    // eslint-disable-next-line convoreal/supabase-write-guard
+    .update({ geocode_attempted_at: new Date().toISOString() })
+    .eq("id", id);
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
   return Promise.all(
@@ -112,10 +125,16 @@ async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
       const address = [row.location, row.city, row.state]
         .filter((part: unknown) => typeof part === "string" && part.trim())
         .join(", ");
-      if (!address) return row;
+      if (!address) {
+        await markGeocodeAttempted(supabase, row.id);
+        return row;
+      }
       try {
         const geo = await geocodeAddress(address);
-        if (!geo) return row;
+        if (!geo) {
+          await markGeocodeAttempted(supabase, row.id);
+          return row;
+        }
         await supabase
           .from("properties")
           // Geocode backfill while listing; the response uses the value
@@ -358,6 +377,11 @@ export async function GET(request: Request) {
               .eq("account_id", ctx.accountId)
               .is("latitude", null)
               .not("location", "is", null)
+              .or(
+                `geocode_attempted_at.is.null,geocode_attempted_at.lt.${new Date(
+                  Date.now() - GEOCODE_RETRY_AFTER_MS
+                ).toISOString()}`
+              )
               .limit(GEOCODE_FALLBACK_CAP)
           )
         : Promise.resolve({ data: [], error: null });
@@ -699,6 +723,7 @@ export async function POST(request: Request) {
       longitude: typeof longitude === "number" && Number.isFinite(longitude) ? longitude : null,
       locality_place_id:
         typeof locality_place_id === "string" ? locality_place_id.trim() || null : null,
+      geocode_attempted_at: null as string | null,
       locality_canonical:
         typeof locality_canonical === "string" ? locality_canonical.trim() || null : null,
     };
@@ -731,6 +756,8 @@ export async function POST(request: Request) {
           insertData.latitude = geo.latitude;
           insertData.longitude = geo.longitude;
           insertData.locality_place_id = insertData.locality_place_id || geo.place_id;
+        } else {
+          insertData.geocode_attempted_at = new Date().toISOString();
         }
       } catch (geoErr) {
         console.warn("[POST /api/properties] Geocode fallback failed:", geoErr);
