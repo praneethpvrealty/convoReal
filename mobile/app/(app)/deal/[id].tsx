@@ -152,7 +152,7 @@ import {
 } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
 import { auditDate, auditDateTime, formatInr } from '@/lib/format';
-import type { LostReasonInput } from '@/lib/lost-reasons';
+import { recordedLostReason, type LostReasonInput } from '@/lib/lost-reasons';
 import {
   dealStatusForStage,
   isLostStage,
@@ -179,6 +179,9 @@ interface DealHead {
   value: number | null;
   brokerage_amount: number | null;
   deal_group_id: string | null;
+  status: 'open' | 'won' | 'lost' | null;
+  lost_reason: string | null;
+  lost_note: string | null;
   stage: { name: string } | { name: string }[] | null;
   contact:
     | { name: string | null; second_name: string | null }
@@ -232,7 +235,7 @@ export default function DealWorkspaceScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          'id, title, contact_id, property_id, pipeline_id, stage_id, value, brokerage_amount, deal_group_id, ' +
+          'id, title, contact_id, property_id, pipeline_id, stage_id, value, brokerage_amount, deal_group_id, status, lost_reason, lost_note, ' +
             'stage:pipeline_stages(name), contact:contacts(name, second_name), group:deal_groups(id, name)'
         )
         .eq('id', dealId)
@@ -267,6 +270,11 @@ export default function DealWorkspaceScreen() {
       return;
     }
     if (isLostStage(stage)) {
+      const recorded = recordedLostReason(head);
+      if (recorded) {
+        void moveToStage(stage, undefined, recorded);
+        return;
+      }
       setLostPrompt(stage);
       return;
     }

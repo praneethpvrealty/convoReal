@@ -41,7 +41,10 @@ import {
   shouldCaptureBrokerage,
 } from '@/lib/pipelines/stage-semantics';
 import { SPEC_DEFAULT_STAGES } from '@/lib/pipelines/default-stages';
-import type { LostReasonInput } from '@/lib/pipelines/lost-reasons';
+import {
+  recordedLostReason,
+  type LostReasonInput,
+} from '@/lib/pipelines/lost-reasons';
 import { LostReasonDialog } from '@/components/pipelines/lost-reason-dialog';
 import {
   BOARD_FOCUS_QUERY_KEY,
@@ -418,6 +421,11 @@ export default function PipelinesPage() {
       }
 
       if (targetStage && isLostStage(targetStage) && deal) {
+        const recorded = recordedLostReason(deal);
+        if (recorded) {
+          await persistDealMove(dealId, newStageId, recorded);
+          return;
+        }
         setLostPrompt({ deal, stageId: newStageId });
         return;
       }

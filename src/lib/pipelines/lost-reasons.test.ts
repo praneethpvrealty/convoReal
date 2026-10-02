@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   LOST_REASONS,
   answeredLostReason,
+  recordedLostReason,
   lostReasonLabel,
   lostReasonMissing,
   parseLostReason,
@@ -23,6 +24,32 @@ describe('[TXW-025] lost reasons', () => {
     });
     expect(answeredLostReason(null, 'note')).toBeNull();
     expect(answeredLostReason('Other', '   ')).toBeNull();
+  });
+
+  it('keeps the recorded reason when a lost deal moves to another lost stage', () => {
+    expect(
+      recordedLostReason({
+        status: 'lost',
+        lost_reason: 'Buyer backed out',
+        lost_note: 'loan',
+      })
+    ).toEqual({ lost_reason: 'Buyer backed out', lost_note: 'loan' });
+    expect(
+      recordedLostReason({ status: 'open', lost_reason: 'Buyer backed out' })
+    ).toBeNull();
+    expect(
+      recordedLostReason({ status: 'lost', lost_reason: null })
+    ).toBeNull();
+    expect(
+      recordedLostReason({ status: 'lost', lost_reason: 'Not listed' })
+    ).toBeNull();
+    expect(
+      recordedLostReason({
+        status: 'lost',
+        lost_reason: 'Other',
+        lost_note: '',
+      })
+    ).toBeNull();
   });
 
   it('accepts a listed reason with an optional note', () => {

@@ -56,7 +56,11 @@ import {
   pipelineOutcomeForStage,
   type PipelineOutcome,
 } from '@/lib/stage-semantics';
-import { lostReasonLabel, type LostReasonInput } from '@/lib/lost-reasons';
+import {
+  lostReasonLabel,
+  recordedLostReason,
+  type LostReasonInput,
+} from '@/lib/lost-reasons';
 import { initialWheelStageIndex } from '@/lib/stage-wheel';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
@@ -298,8 +302,12 @@ export default function DealsScreen() {
     setBrokeragePrompt(null);
     setLostPrompt(null);
     if (!lost && isLostStage(stage)) {
-      setLostPrompt({ deal, stage });
-      return;
+      const recorded = recordedLostReason(deal);
+      if (!recorded) {
+        setLostPrompt({ deal, stage });
+        return;
+      }
+      lost = recorded;
     }
     if (
       !brokerage &&
