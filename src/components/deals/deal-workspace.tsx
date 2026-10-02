@@ -35,7 +35,10 @@ import {
   isLostStage,
   needsBrokerageCapture,
 } from '@/lib/pipelines/stage-semantics';
-import type { LostReasonInput } from '@/lib/pipelines/lost-reasons';
+import {
+  recordedLostReason,
+  type LostReasonInput,
+} from '@/lib/pipelines/lost-reasons';
 import { LostReasonDialog } from '@/components/pipelines/lost-reason-dialog';
 import { cn } from '@/lib/utils';
 
@@ -69,6 +72,8 @@ interface DealSummary {
   brokerage_amount: number | null;
   co_broker_payout_total: number | null;
   status: string;
+  lost_reason: string | null;
+  lost_note: string | null;
   pipeline_id: string;
   stage_id: string;
   source_journey_item_id: string | null;
@@ -126,7 +131,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          'id, title, value, currency, brokerage_type, brokerage_value, brokerage_amount, co_broker_payout_total, status, ' +
+          'id, title, value, currency, brokerage_type, brokerage_value, brokerage_amount, co_broker_payout_total, status, lost_reason, lost_note, ' +
             'pipeline_id, stage_id, source_journey_item_id, deal_group_id, deal_room_id, ' +
             'contact:contacts(id, name, second_name), ' +
             'property:properties(id, title, unit_no), ' +
@@ -167,6 +172,11 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
       return;
     }
     if (isLostStage(stage)) {
+      const recorded = recordedLostReason(deal);
+      if (recorded) {
+        void moveToStage(stage, undefined, recorded);
+        return;
+      }
       setLostPrompt(stage);
       return;
     }
