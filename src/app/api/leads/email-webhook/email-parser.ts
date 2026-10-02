@@ -1,5 +1,6 @@
 import { extractHousingUrls } from './phone-resolver';
 import { isAreaFragment } from '@/lib/contacts/area-fragments';
+import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import {
   parseListingIdFromLead,
   portalKeyFromSource,
@@ -208,6 +209,8 @@ export function isValidContactName(name: string): boolean {
   
   const trimmed = name.trim();
   
+  if (isPlaceholderLeadName(trimmed)) return false;
+
   // Too short or too long
   if (trimmed.length < 2 || trimmed.length > 100) return false;
   

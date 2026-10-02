@@ -10,6 +10,7 @@ import {
   isMarketingBlockError,
   isMarketingTemplateSuppressed,
   laterSuppression,
+  legacyDeliveryFailureSplit,
   MarketingPausedError,
   stripDeliveryFailure,
 } from './delivery-failure';
@@ -214,5 +215,43 @@ describe('MarketingPausedError', () => {
     // Still readable as a block by the code that parses error strings.
     expect(isMarketingBlockError(err)).toBe(true);
     expect(err.message).toContain('experiment');
+  });
+});
+
+describe('legacyDeliveryFailureSplit', () => {
+  const at = new Date('2026-09-15T09:45:47.000Z');
+
+  it('moves the appended note into the failure columns and keeps the body', () => {
+    const stored = `Hi Krish, thanks for your interest.\n\n${DELIVERY_FAILURE_MARKER}\n[Error 131026] Message undeliverable: Message Undeliverable.`;
+
+    expect(legacyDeliveryFailureSplit(stored, at)).toEqual({
+      content_text: 'Hi Krish, thanks for your interest.',
+      error_code: 131026,
+      error_info: 'Message undeliverable: Message Undeliverable.',
+      retry_after: null,
+    });
+  });
+
+  it('gives a marketing block the same cooldown a live failure gets', () => {
+    const stored = `Hi Ravi\n${DELIVERY_FAILURE_MARKER}\n[Error ${META_MARKETING_FREQUENCY_ERROR}] This message was not delivered to maintain healthy ecosystem engagement.`;
+
+    expect(legacyDeliveryFailureSplit(stored, at)).toEqual({
+      content_text: 'Hi Ravi',
+      ...deliveryFailureUpdate([{ code: META_MARKETING_FREQUENCY_ERROR }], at),
+    });
+  });
+
+  it('leaves no body when the note was all that was stored', () => {
+    const stored = `${DELIVERY_FAILURE_MARKER}\n[Error 131047] Re-engagement message: More than 24 hours have passed.`;
+
+    expect(legacyDeliveryFailureSplit(stored, at)).toMatchObject({
+      content_text: null,
+      error_code: 131047,
+    });
+  });
+
+  it('ignores text without a failure note', () => {
+    expect(legacyDeliveryFailureSplit('Hi there', at)).toBeNull();
+    expect(legacyDeliveryFailureSplit(null, at)).toBeNull();
   });
 });
