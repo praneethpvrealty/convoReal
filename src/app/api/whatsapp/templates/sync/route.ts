@@ -77,7 +77,7 @@ export async function POST() {
     const metaTemplates: MetaTemplate[] = []
     let nextUrl:
       | string
-      | null = `${META_API_BASE}/${config.waba_id}/message_templates?limit=100&fields=id,name,language,status,category,components,quality_score`
+      | null = `${META_API_BASE}/${config.waba_id}/message_templates?limit=100&fields=id,name,language,status,category,components,quality_score,rejected_reason`
     const PAGE_CAP = 20
     let pageCount = 0
 
@@ -166,7 +166,10 @@ export async function POST() {
         status: normalizeStatus(t.status),
         meta_template_id: t.id,
         quality_score: normalizeQualityScore(t.quality_score),
-        ...clearedTemplateComplaints(normalizeStatus(t.status)),
+        ...clearedTemplateComplaints(
+          normalizeStatus(t.status),
+          t.rejected_reason,
+        ),
         updated_at: new Date().toISOString(),
       }
 

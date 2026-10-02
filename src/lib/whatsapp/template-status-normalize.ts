@@ -38,15 +38,24 @@ export function normalizeStatus(raw: string): MessageTemplateStatus {
  * perfectly well wore a red banner indefinitely.
  *
  * `rejection_reason` is Meta's own verdict and survives exactly as long
- * as Meta still calls the template rejected.
+ * as Meta still calls the template rejected. A sync that carries Meta's
+ * `rejected_reason` records it, so a rejection whose webhook never
+ * arrived still says why; Meta's `NONE` placeholder records nothing.
  */
-export function clearedTemplateComplaints(status: MessageTemplateStatus): {
+export function clearedTemplateComplaints(
+  status: MessageTemplateStatus,
+  rejectedReason?: string | null,
+): {
   submission_error: null
-  rejection_reason?: null
+  rejection_reason?: string | null
 } {
-  return status === 'REJECTED'
-    ? { submission_error: null }
-    : { submission_error: null, rejection_reason: null }
+  if (status !== 'REJECTED') {
+    return { submission_error: null, rejection_reason: null }
+  }
+  const reason = rejectedReason?.trim()
+  return reason && reason.toUpperCase() !== 'NONE'
+    ? { submission_error: null, rejection_reason: reason }
+    : { submission_error: null }
 }
 
 /**
