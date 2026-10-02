@@ -6,6 +6,7 @@ export interface StageWheelMotion {
 }
 
 const MAX_SLOTS_FROM_CENTER = 2.5;
+const FLICK_REACH_SLOTS = 3;
 
 function round(value: number): number {
   return Math.round(value * 1000) / 1000 + 0;
@@ -35,18 +36,37 @@ export function initialWheelStageIndex(dealCounts: readonly number[]): number {
   return firstWithDeals === -1 ? 0 : firstWithDeals;
 }
 
-export function nearestWheelSlot(
-  slotCenters: readonly number[],
-  viewportCenter: number
+export function wheelSlotOffset(
+  index: number,
+  position: number,
+  count: number
 ): number {
-  let nearest = 0;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-  slotCenters.forEach((center, index) => {
-    const distance = Math.abs(center - viewportCenter);
-    if (distance < nearestDistance) {
-      nearest = index;
-      nearestDistance = distance;
-    }
-  });
-  return nearest;
+  if (count <= 0) return 0;
+  let offset = (index - position) % count;
+  if (offset > count / 2) offset -= count;
+  if (offset <= -count / 2) offset += count;
+  return round(offset);
+}
+
+export function wheelTurnTarget(
+  position: number,
+  index: number,
+  count: number
+): number {
+  return round(position + wheelSlotOffset(index, position, count));
+}
+
+export function settleWheelPosition(
+  position: number,
+  velocitySlotsPerMs = 0
+): number {
+  const reach = Math.max(
+    -FLICK_REACH_SLOTS,
+    Math.min(FLICK_REACH_SLOTS, velocitySlotsPerMs * 160)
+  );
+  return Math.round(position + reach) + 0;
+}
+
+export function wheelStageIndexAt(position: number, count: number): number {
+  return wrapStageIndex(Math.round(position), count);
 }

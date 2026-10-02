@@ -2444,6 +2444,21 @@
             "src/lib/deals/board-focus.ts",
             "src/components/pipelines/pipeline-board.tsx"
           ]
+        },
+        {
+          "id": "TXW-027",
+          "rule": "On web the active and successful stages sit on a ring that turns full circle: the focused stage faces the centre with the stages before and after it fanned out on both sides (the last stage sits left of the first), every stage's heading chip rides directly above its own column and turns with it, and the ring turns the same way from a grab anywhere on it, a horizontal trackpad or shift-scroll, a chip, the arrows and the arrow keys, settling on the nearest stage (further after a flick). Dragging a deal flattens the ring so a drop lands where it is seen even while it turns, and holding the deal at either edge keeps turning it a stage at a time.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/stage-wheel.test.ts",
+              "case": "[TXW-027]"
+            }
+          ],
+          "guards": [
+            "src/lib/pipelines/stage-wheel.ts",
+            "src/components/pipelines/stage-wheel.tsx",
+            "src/components/pipelines/pipeline-board.tsx"
+          ]
         }
       ]
     },

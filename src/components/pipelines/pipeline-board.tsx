@@ -329,6 +329,7 @@ function DraggableDealCard({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
+      data-deal-draggable
       style={{ opacity: isDragging ? 0.3 : 1, touchAction: 'none' }}
     >
       <DealCard deal={deal} stage={stage} onEdit={onEdit} currency={currency} />
