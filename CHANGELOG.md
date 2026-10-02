@@ -28,9 +28,9 @@ than a written entry. Newest first.
   horizontal trackpad or shift-scroll, by tapping a chip, with the arrows,
   or with the arrow keys on the chip row; it settles on the nearest stage,
   further after a flick. Dragging a deal still flattens the wheel so the
-  drop lands where you see it, and holding the deal at either edge turns
-  it one stage. The mobile strip keeps its ends for now (see
-  `FEATURE_ROADMAP.md`).
+  drop lands where you see it, and holding the deal at either edge keeps
+  turning it a stage at a time. The mobile strip keeps its ends for now
+  (see `FEATURE_ROADMAP.md`).
 - **A shorter reply after Mark cold on a follow-up card.** When the lead
   stays hot because another enquiry is still open, the agent's WhatsApp now
   gets one line — the closed listing's code, then the still-open listings

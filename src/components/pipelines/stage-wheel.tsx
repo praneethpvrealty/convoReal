@@ -124,6 +124,13 @@ export function StageWheel({
     frame.current = 0;
   }, []);
 
+  const stageIds = useRef<string[]>([]);
+  const measure = useRef(measureDroppableContainers);
+  useEffect(() => {
+    stageIds.current = stages.map((stage) => stage.id);
+    measure.current = measureDroppableContainers;
+  }, [stages, measureDroppableContainers]);
+
   const turnTo = useCallback(
     (target: number, onDone?: () => void) => {
       stopTurn();
@@ -147,6 +154,7 @@ export function StageWheel({
         const eased = 1 - Math.pow(1 - t, 3);
         position.current = from + (target - from) * eased;
         apply();
+        if (flat.current) measure.current(stageIds.current);
         if (t < 1) {
           frame.current = window.requestAnimationFrame(tick);
         } else {
@@ -158,13 +166,6 @@ export function StageWheel({
     },
     [apply, stopTurn]
   );
-
-  const stageIds = useRef<string[]>([]);
-  const measure = useRef(measureDroppableContainers);
-  useEffect(() => {
-    stageIds.current = stages.map((stage) => stage.id);
-    measure.current = measureDroppableContainers;
-  }, [stages, measureDroppableContainers]);
 
   const settle = useCallback(
     (target: number) => {
@@ -309,14 +310,17 @@ export function StageWheel({
 
     const onWheel = (event: WheelEvent) => {
       if (flat.current) return;
-      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+      const sideways = event.shiftKey && event.deltaX === 0;
+      const across = sideways ? event.deltaY : event.deltaX;
+      const along = sideways ? 0 : event.deltaY;
+      if (Math.abs(across) <= Math.abs(along)) return;
       const step = pitch();
       const dx =
         event.deltaMode === 1
-          ? event.deltaX * 16
+          ? across * 16
           : event.deltaMode === 2
-            ? event.deltaX * step
-            : event.deltaX;
+            ? across * step
+            : across;
       if (dx === 0) return;
       event.preventDefault();
       stopTurn();
@@ -350,24 +354,31 @@ export function StageWheel({
   useEffect(() => {
     if (!dragging || count < 2) return;
     let lastTurn = 0;
-    const onPointerMove = (event: PointerEvent) => {
-      const ring = ringRef.current;
-      if (!ring || frame.current) return;
-      const rect = ring.getBoundingClientRect();
-      if (event.clientY < rect.top || event.clientY > rect.bottom) return;
-      if (event.timeStamp - lastTurn < EDGE_TURN_COOLDOWN_MS) return;
-      const step =
-        event.clientX < rect.left + EDGE_ZONE
-          ? -1
-          : event.clientX > rect.right - EDGE_ZONE
-            ? 1
-            : 0;
-      if (!step) return;
-      lastTurn = event.timeStamp;
-      settle(Math.round(position.current) + step);
+    let edgeStep = 0;
+    const turnAtEdge = () => {
+      if (!edgeStep || frame.current) return;
+      if (performance.now() - lastTurn < EDGE_TURN_COOLDOWN_MS) return;
+      lastTurn = performance.now();
+      settle(Math.round(position.current) + edgeStep);
     };
+    const onPointerMove = (event: PointerEvent) => {
+      const rect = ringRef.current?.getBoundingClientRect();
+      edgeStep =
+        !rect || event.clientY < rect.top || event.clientY > rect.bottom
+          ? 0
+          : event.clientX < rect.left + EDGE_ZONE
+            ? -1
+            : event.clientX > rect.right - EDGE_ZONE
+              ? 1
+              : 0;
+      turnAtEdge();
+    };
+    const timer = window.setInterval(turnAtEdge, 100);
     window.addEventListener('pointermove', onPointerMove);
-    return () => window.removeEventListener('pointermove', onPointerMove);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('pointermove', onPointerMove);
+    };
   }, [dragging, count, settle]);
 
   function turn(step: number) {
