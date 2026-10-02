@@ -2470,6 +2470,22 @@
             }
           ],
           "guards": ["src/app/(dashboard)/pipelines/pipelines-content.tsx"]
+        },
+        {
+          "id": "TXW-029",
+          "rule": "A deal created on web or mobile (POST /api/deals) lands on the Board's default Focus view at once: the server puts its buyer's journey (or its listing's, when it has no buyer) in Focus, in the team split or the creating agent's own by the account's Focus scope, only for a buyer or listing in the caller's account, and a failed Focus move never fails the creation. After any deal save or delete both surfaces refresh the Focus board, the transaction records and the dashboard.",
+          "tests": [
+            { "file": "src/lib/deals/new-deal-focus.test.ts", "case": "[TXW-029]" },
+            { "file": "src/app/api/deals/route.test.ts", "case": "[TXW-029]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-029]" }
+          ],
+          "guards": [
+            "src/lib/deals/new-deal-focus.ts",
+            "src/lib/journey/compartment-store.ts",
+            "src/app/api/deals/route.ts",
+            "src/lib/deals/board-focus.ts",
+            "mobile/lib/deal-workspace.ts"
+          ]
         }
       ]
     },

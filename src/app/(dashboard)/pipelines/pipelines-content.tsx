@@ -50,6 +50,7 @@ import {
   BOARD_FOCUS_QUERY_KEY,
   BOARD_SCOPES,
   boardDeals,
+  DEAL_SAVED_QUERY_KEYS,
   type BoardScope,
 } from '@/lib/deals/board-focus';
 
@@ -350,6 +351,13 @@ export default function PipelinesPage() {
     setDeals(await loadDeals(selectedPipelineId));
     void queryClient.invalidateQueries({ queryKey: [BOARD_FOCUS_QUERY_KEY] });
   }, [loadDeals, selectedPipelineId, queryClient]);
+
+  const handleDealSaved = useCallback(async () => {
+    for (const queryKey of DEAL_SAVED_QUERY_KEYS) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
+    await refreshDeals();
+  }, [queryClient, refreshDeals]);
 
   const persistDealMove = useCallback(
     async (
@@ -962,7 +970,7 @@ export default function PipelinesPage() {
         pipelineId={selectedPipelineId}
         stages={stages}
         defaultStageId={defaultStageId}
-        onSaved={refreshDeals}
+        onSaved={handleDealSaved}
       />
     </div>
   );

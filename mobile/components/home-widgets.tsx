@@ -9,7 +9,12 @@ import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { SectionLabel } from '@/components/ui';
 import { haptic } from '@/lib/haptics';
 import { useHomeWidgets } from '@/lib/home-widget-store';
-import { availableWidgets, WIDGET_DEFS, type WidgetId } from '@/lib/home-widgets';
+import {
+  availableWidgets,
+  HOME_WIDGET_QUERY_KEY,
+  WIDGET_DEFS,
+  type WidgetId,
+} from '@/lib/home-widgets';
 import { fonts, radius, spacing, useTheme } from '@/lib/theme';
 import { fetchWidgetSummary } from '@/lib/widget-summaries';
 
@@ -32,9 +37,7 @@ const WIDGET_ROUTES: Record<WidgetId, Href> = {
   broadcasts: '/(app)/broadcasts',
 };
 
-/** Invalidation prefix for every widget query — the Overview screen's
- *  pull-to-refresh invalidates ['home-widget'] to refresh them all. */
-export const HOME_WIDGET_QUERY_KEY = 'home-widget';
+export { HOME_WIDGET_QUERY_KEY };
 
 export function HomeWidgets() {
   const { colors, fonts: f } = useTheme();

@@ -28,6 +28,7 @@ import {
   nameTagCap,
 } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
+import { DEAL_SAVED_QUERY_KEYS } from '@/lib/deal-workspace';
 import { parseDateOnly } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -247,7 +248,9 @@ function DealForm({
         }),
       });
       haptic.success();
-      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      for (const queryKey of DEAL_SAVED_QUERY_KEYS) {
+        queryClient.invalidateQueries({ queryKey });
+      }
       if (deal) queryClient.invalidateQueries({ queryKey: ['deal', deal.id] });
       router.back();
     } catch (err) {
@@ -272,7 +275,9 @@ function DealForm({
       // The route also resets a linked property back to Available.
       await apiFetch(`/api/deals/${deal.id}`, { method: 'DELETE' });
       haptic.success();
-      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      for (const queryKey of DEAL_SAVED_QUERY_KEYS) {
+        queryClient.invalidateQueries({ queryKey });
+      }
       router.back();
     } catch (err) {
       setError(

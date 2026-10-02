@@ -2814,6 +2814,34 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     );
   });
 
+  it('[TXW-029] refreshes the Focus board, records and dashboard after every deal save on both surfaces', () => {
+    const webKeys = webSource('lib/deals/board-focus.ts');
+    for (const line of [
+      '[BOARD_FOCUS_QUERY_KEY],',
+      "['dashboard'],",
+      "['transaction-workspace-index'],",
+    ]) {
+      expect(webKeys).toContain(line);
+    }
+    for (const line of [
+      "['deals'],",
+      '[BOARD_FOCUS_QUERY_KEY],',
+      "['transaction-index'],",
+      "['overview'],",
+      '[HOME_WIDGET_QUERY_KEY],',
+    ]) {
+      expect(mobileVocab).toContain(line);
+    }
+    expect(
+      webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
+    ).toContain('onSaved={handleDealSaved}');
+    expect(
+      mobileSource('app/(app)/deal-edit.tsx').match(
+        /for \(const queryKey of DEAL_SAVED_QUERY_KEYS\)/g
+      )
+    ).toHaveLength(2);
+  });
+
   it('titles rows by buyer and property and lists only closing records', () => {
     for (const source of [webIndex, mobileList]) {
       expect(source).toContain('transactionTitle(');

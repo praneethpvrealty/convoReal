@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 2 October 2026
 
+- **A deal you create shows up on the Deals board straight away.** The
+  board opens on Focus, which shows only deals whose buyer or listing
+  journey is in Focus, and a new deal's buyer usually was not, so the deal
+  was saved but hidden until you switched to All. Creating a deal on web or
+  mobile now puts its buyer's journey (or its listing's, when there is no
+  buyer) into Focus, for the whole team or just you depending on your
+  Focus setting. Saving, editing or deleting a deal also refreshes the
+  Dashboard and Records at once instead of up to 30 seconds later.
 - **A deal you are typing no longer vanishes when you switch tabs.**
   Coming back to the Deals board from another tab or app, or the session
   quietly refreshing, sent the board back to its "Loading pipeline"
