@@ -12,6 +12,7 @@ import {
   placesAutocomplete,
   type PlaceSuggestion,
 } from '@/lib/maps/google-places';
+import { cachedLookup } from '@/lib/maps/lookup-cache';
 import {
   dominantCity,
   geocodeQuery,
@@ -22,11 +23,8 @@ import {
 } from '@/lib/showcase/nearby-search';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PLACE_CACHE_CAP = 500;
 const PLACE_BIAS_RADIUS_KM = 30;
 type ResolvedCentre = NearbyCentre & { label: string };
-
-const placeCache = new Map<string, ResolvedCentre | null>();
 
 function clientIp(request: Request): string {
   const xff = request.headers.get('x-forwarded-for');
@@ -70,10 +68,10 @@ async function cachedPlace(
     texts.join('~').toLocaleLowerCase(),
     bias ? `${bias.latitude.toFixed(1)},${bias.longitude.toFixed(1)}` : '',
   ].join('|');
-  if (placeCache.has(key)) return placeCache.get(key) ?? null;
-  let result: ResolvedCentre | null;
   try {
-    result = await resolvePlace(texts, bias);
+    return await cachedLookup<ResolvedCentre>('near-place', key, () =>
+      resolvePlace(texts, bias)
+    );
   } catch (err) {
     console.warn('[GET /api/public/properties/near] place lookup failed', {
       texts,
@@ -81,12 +79,6 @@ async function cachedPlace(
     });
     return null;
   }
-  if (placeCache.size >= PLACE_CACHE_CAP) {
-    const oldest = placeCache.keys().next().value;
-    if (oldest !== undefined) placeCache.delete(oldest);
-  }
-  placeCache.set(key, result);
-  return result;
 }
 
 export async function GET(request: Request) {
