@@ -17,9 +17,15 @@ import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 import {
+  applySalutationToTemplateParams,
+  type ContactSalutation,
+} from '@/lib/contacts/salutation';
+import {
   buildShareFeedbackParams,
+  pickShareFeedbackTemplate,
   renderShareFeedbackBody,
   SHARE_FEEDBACK_TEMPLATE_NAME,
+  SHARE_FEEDBACK_TEMPLATE_NAMES,
 } from '@/lib/whatsapp/share-feedback-template';
 
 interface FeedbackMessageRow {
@@ -62,54 +68,76 @@ if (!Number.isFinite(batchSize) || batchSize <= 0) {
 }
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
-const contactNames = new Map<string, string | null>();
-const templateLanguages = new Map<string, string | null>();
+interface ContactRow {
+  name: string | null;
+  salutation: string | null;
+  preferred_language: string | null;
+}
 
-async function contactName(
+const contacts = new Map<string, ContactRow | null>();
+const approvedLanguages = new Map<string, string | null>();
+
+async function loadContact(
   account: string,
   contactId: string | null
-): Promise<string | null> {
+): Promise<ContactRow | null> {
   if (!contactId) return null;
-  if (contactNames.has(contactId)) return contactNames.get(contactId) ?? null;
+  if (contacts.has(contactId)) return contacts.get(contactId) ?? null;
   const { data, error } = await supabase
     .from('contacts')
-    .select('name')
+    .select('name, salutation, preferred_language')
     .eq('id', contactId)
     .eq('account_id', account)
     .maybeSingle();
   if (error)
     throw new Error(`Failed to load contact ${contactId}: ${error.message}`);
-  const name = (data?.name as string | null | undefined) ?? null;
-  contactNames.set(contactId, name);
-  return name;
+  const contact = (data as ContactRow | null) ?? null;
+  contacts.set(contactId, contact);
+  return contact;
 }
 
-async function templateLanguage(account: string): Promise<string | null> {
-  if (templateLanguages.has(account))
-    return templateLanguages.get(account) ?? null;
+async function approvedTemplateLanguage(
+  account: string
+): Promise<string | null> {
+  if (approvedLanguages.has(account))
+    return approvedLanguages.get(account) ?? null;
   const { data, error } = await supabase
     .from('message_templates')
-    .select('language')
+    .select('name, language, category')
     .eq('account_id', account)
-    .eq('name', SHARE_FEEDBACK_TEMPLATE_NAME)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .in('name', SHARE_FEEDBACK_TEMPLATE_NAMES)
+    .eq('status', 'APPROVED');
   if (error)
-    throw new Error(`Failed to load template for ${account}: ${error.message}`);
-  const language = (data?.language as string | null | undefined) ?? null;
-  templateLanguages.set(account, language);
+    throw new Error(
+      `Failed to load templates for ${account}: ${error.message}`
+    );
+  const language = pickShareFeedbackTemplate(data ?? [])?.language ?? null;
+  approvedLanguages.set(account, language);
   return language;
+}
+
+function contactSalutation(
+  value: string | null | undefined
+): ContactSalutation | null {
+  return value === 'Mr.' || value === 'Mrs.' ? value : null;
 }
 
 async function renderFor(
   account: string,
   contactId: string | null
 ): Promise<string> {
-  const params = buildShareFeedbackParams(
-    await contactName(account, contactId)
-  );
-  return renderShareFeedbackBody(params, await templateLanguage(account));
+  const contact = await loadContact(account, contactId);
+  const language =
+    (await approvedTemplateLanguage(account)) ||
+    contact?.preferred_language ||
+    'en_US';
+  const params =
+    applySalutationToTemplateParams(
+      buildShareFeedbackParams(contact?.name),
+      contact?.name,
+      contactSalutation(contact?.salutation)
+    ) ?? [];
+  return renderShareFeedbackBody(params, language);
 }
 
 async function fetchMessagePage(
