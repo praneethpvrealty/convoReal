@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
+import { DEAL_SAVED_QUERY_KEYS } from '@/lib/deals/board-focus';
 import { netOfPayouts } from '@/lib/deals/co-broking';
 import { dealsHref } from '@/lib/deals/routes';
 import { formatIndianDigits } from '@/lib/invoices/pdf-text';
@@ -203,9 +204,9 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deal-workspace', dealId] }),
-        queryClient.invalidateQueries({
-          queryKey: ['transaction-workspace-index'],
-        }),
+        ...DEAL_SAVED_QUERY_KEYS.map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey })
+        ),
       ]);
       toast.success(`Moved to ${stage.name}.`);
     } catch (err) {

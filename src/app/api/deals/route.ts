@@ -8,6 +8,7 @@ import {
 import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics';
 import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 import { resolveStage } from '@/lib/deals/stage-move';
+import { focusNewDealJourney } from '@/lib/deals/new-deal-focus';
 import {
   LOST_REASON_REQUIRED_ERROR,
   lostReasonMissing,
@@ -157,6 +158,16 @@ export async function POST(request: Request) {
           insertData.property_id
         );
       }
+    }
+
+    try {
+      await focusNewDealJourney(ctx.supabase, {
+        accountId: ctx.accountId,
+        userId: ctx.userId,
+        deal: insertData,
+      });
+    } catch (focusErr) {
+      console.warn('[POST /api/deals] Journey not moved to Focus:', focusErr);
     }
 
     return NextResponse.json({ id: created.id }, { status: 201 });

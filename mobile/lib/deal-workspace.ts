@@ -1,3 +1,5 @@
+import { HOME_WIDGET_QUERY_KEY } from './home-widgets';
+
 /**
  * Invoice and deal-document vocabulary, shared by the screen and the
  * API client beside it.
@@ -1107,6 +1109,14 @@ export const BOARD_SCOPES: readonly { id: BoardScope; label: string }[] = [
 ];
 
 export const BOARD_FOCUS_QUERY_KEY = 'board-focus';
+
+export const DEAL_SAVED_QUERY_KEYS: readonly (readonly string[])[] = [
+  ['deals'],
+  [BOARD_FOCUS_QUERY_KEY],
+  ['transaction-index'],
+  ['overview'],
+  [HOME_WIDGET_QUERY_KEY],
+];
 
 export function boardDeals<T extends { id: string }>(
   deals: readonly T[],

@@ -31,6 +31,7 @@ import {
   BOARD_FOCUS_QUERY_KEY,
   BOARD_SCOPES,
   boardDeals,
+  DEAL_SAVED_QUERY_KEYS,
   expectedCloseLabel,
   isClosingRecord,
   netOfPayouts,
@@ -348,10 +349,11 @@ export default function DealsScreen() {
     }
     setOutcomeView(pipelineOutcomeForStage(stage));
     setStageId(stage.id);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['deals', activePipeline] }),
-      queryClient.invalidateQueries({ queryKey: ['transaction-index'] }),
-    ]);
+    await Promise.all(
+      DEAL_SAVED_QUERY_KEYS.map((queryKey) =>
+        queryClient.invalidateQueries({ queryKey })
+      )
+    );
   }
 
   async function reopenDeal(deal: Deal) {

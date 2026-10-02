@@ -50,6 +50,7 @@ import {
   BOARD_FOCUS_QUERY_KEY,
   BOARD_SCOPES,
   boardDeals,
+  DEAL_SAVED_QUERY_KEYS,
   type BoardScope,
 } from '@/lib/deals/board-focus';
 
@@ -231,14 +232,15 @@ export default function PipelinesPage() {
     [supabase]
   );
 
+  const userId = user?.id ?? null;
   const seedDefaultPipeline =
     useCallback(async (): Promise<Pipeline | null> => {
-      if (!user || !accountId) return null;
+      if (!userId || !accountId) return null;
 
       const { data: pipeline, error } = await supabase
         .from('pipelines')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           account_id: accountId,
           name: 'Real Estate Pipeline',
         })
@@ -264,7 +266,7 @@ export default function PipelinesPage() {
       });
 
       return pipeline as Pipeline;
-    }, [supabase, user, accountId]);
+    }, [supabase, userId, accountId]);
 
   // Initial load + seed-if-empty
   useEffect(() => {
@@ -351,6 +353,13 @@ export default function PipelinesPage() {
     void queryClient.invalidateQueries({ queryKey: [BOARD_FOCUS_QUERY_KEY] });
   }, [loadDeals, selectedPipelineId, queryClient]);
 
+  const handleDealSaved = useCallback(async () => {
+    for (const queryKey of DEAL_SAVED_QUERY_KEYS) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
+    await refreshDeals();
+  }, [queryClient, refreshDeals]);
+
   const persistDealMove = useCallback(
     async (
       dealId: string,
@@ -396,10 +405,9 @@ export default function PipelinesPage() {
         refreshDeals();
         return;
       }
-      void queryClient.invalidateQueries({
-        queryKey: ['transaction-workspace-index'],
-      });
-      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      for (const queryKey of DEAL_SAVED_QUERY_KEYS) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
     },
     [refreshDeals, deals, stages, queryClient]
   );
@@ -490,9 +498,9 @@ export default function PipelinesPage() {
       return;
     }
 
-    void queryClient.invalidateQueries({
-      queryKey: ['transaction-workspace-index'],
-    });
+    for (const queryKey of DEAL_SAVED_QUERY_KEYS) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
     toast.success('Deal moved and brokerage updated');
     setBrokeragePromptDeal(null);
     setPendingStageId('');
@@ -962,7 +970,7 @@ export default function PipelinesPage() {
         pipelineId={selectedPipelineId}
         stages={stages}
         defaultStageId={defaultStageId}
-        onSaved={refreshDeals}
+        onSaved={handleDealSaved}
       />
     </div>
   );
