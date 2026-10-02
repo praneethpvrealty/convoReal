@@ -2459,6 +2459,17 @@
             "src/components/pipelines/stage-wheel.tsx",
             "src/components/pipelines/pipeline-board.tsx"
           ]
+        },
+        {
+          "id": "TXW-028",
+          "rule": "An open New Deal or Edit Deal form on the web Board keeps what was typed when the browser tab regains focus or the session token refreshes: those auth events never send the Board back to its full-page loading state or reload its pipelines, and only the Board's first load shows that state.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/pipelines/pipelines-content.test.tsx",
+              "case": "[TXW-028]"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/pipelines/pipelines-content.tsx"]
         }
       ]
     },

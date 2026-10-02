@@ -231,14 +231,15 @@ export default function PipelinesPage() {
     [supabase]
   );
 
+  const userId = user?.id ?? null;
   const seedDefaultPipeline =
     useCallback(async (): Promise<Pipeline | null> => {
-      if (!user || !accountId) return null;
+      if (!userId || !accountId) return null;
 
       const { data: pipeline, error } = await supabase
         .from('pipelines')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           account_id: accountId,
           name: 'Real Estate Pipeline',
         })
@@ -264,13 +265,12 @@ export default function PipelinesPage() {
       });
 
       return pipeline as Pipeline;
-    }, [supabase, user, accountId]);
+    }, [supabase, userId, accountId]);
 
   // Initial load + seed-if-empty
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
       let list = await loadPipelines();
 
       if (list.length === 0 && !seedAttempted.current) {
