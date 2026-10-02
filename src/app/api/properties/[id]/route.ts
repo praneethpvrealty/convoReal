@@ -671,6 +671,13 @@ export async function PUT(
       }
     }
 
+    // An edited address is a new address: lift the self-heal cooldown so a
+    // corrected city or state gets another geocode. The fallback below
+    // re-stamps it when the full address is a definitive miss.
+    if ("location" in updateData || "city" in updateData || "state" in updateData) {
+      updateData.geocode_attempted_at = null;
+    }
+
     // Best-effort geocode when the location text changed but this update
     // carries no coordinates (typed edit, WhatsApp-intake correction, etc.)
     // so radius search keeps covering the property. Never blocks the save.
@@ -692,6 +699,8 @@ export async function PUT(
           if (updateData.locality_place_id === undefined) {
             updateData.locality_place_id = geo.place_id;
           }
+        } else {
+          updateData.geocode_attempted_at = new Date().toISOString();
         }
       } catch (geoErr) {
         console.warn("[PUT /api/properties/[id]] Geocode fallback failed:", geoErr);

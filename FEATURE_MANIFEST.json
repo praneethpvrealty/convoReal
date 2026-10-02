@@ -1457,6 +1457,32 @@
             "src/app/api/contacts/merge/route.ts",
             "supabase/migrations/20260928050000_merged_enquiry_sources.sql"
           ]
+        },
+        {
+          "id": "PRP-025",
+          "rule": "A paid Google Maps lookup is bought at most once a month: every address geocode, pin reverse-geocode and showcase area lookup is served from the shared maps_lookup_cache before Google is called, a definitive miss is remembered for a week, and a property whose address Google could not place is stamped geocode_attempted_at and left out of the radius-search self-heal for 30 days instead of being re-geocoded on every search.",
+          "tests": [
+            {
+              "file": "src/lib/maps/lookup-cache.test.ts",
+              "case": "[PRP-025]"
+            },
+            {
+              "file": "src/lib/maps/google-places.test.ts",
+              "case": "[PRP-025]"
+            },
+            {
+              "file": "src/app/api/properties/route.test.ts",
+              "case": "[PRP-025]"
+            },
+            {
+              "file": "src/app/api/public/properties/near/route.test.ts",
+              "case": "[PRP-025]"
+            }
+          ],
+          "guards": [
+            "src/lib/maps/lookup-cache.ts",
+            "supabase/migrations/20261002073439_maps_lookup_cache.sql"
+          ]
         }
       ]
     },
@@ -2416,6 +2442,21 @@
           "guards": [
             "supabase/migrations/20261001113322_board_focus_deal_ids.sql",
             "src/lib/deals/board-focus.ts",
+            "src/components/pipelines/pipeline-board.tsx"
+          ]
+        },
+        {
+          "id": "TXW-027",
+          "rule": "On web the active and successful stages sit on a ring that turns full circle: the focused stage faces the centre with the stages before and after it fanned out on both sides (the last stage sits left of the first), every stage's heading chip rides directly above its own column and turns with it, and the ring turns the same way from a grab anywhere on it, a horizontal trackpad or shift-scroll, a chip, the arrows and the arrow keys, settling on the nearest stage (further after a flick). Dragging a deal flattens the ring so a drop lands where it is seen even while it turns, and holding the deal at either edge keeps turning it a stage at a time.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/stage-wheel.test.ts",
+              "case": "[TXW-027]"
+            }
+          ],
+          "guards": [
+            "src/lib/pipelines/stage-wheel.ts",
+            "src/components/pipelines/stage-wheel.tsx",
             "src/components/pipelines/pipeline-board.tsx"
           ]
         }
