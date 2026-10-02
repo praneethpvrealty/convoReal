@@ -25,6 +25,7 @@ export const LOOKUP_MISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export type LookupKind = 'geocode' | 'reverse-geocode' | 'near-place';
 
 let unavailable = false;
+const inflight = new Map<string, Promise<unknown>>();
 
 function client() {
   if (unavailable) return null;
@@ -102,18 +103,31 @@ async function writeCached<T>(
  * Serves `fetcher`'s answer for (kind, key) from the cache when one is
  * held, otherwise runs it once and stores the result — `null` included,
  * as a shorter-lived miss. A fetcher that throws is not cached, so a
- * transient Google failure is retried next time.
+ * transient Google failure is retried next time. Concurrent misses on
+ * one key within a process share a single fetch, so a batch that
+ * geocodes the same address twenty times over buys it once.
  */
 export async function cachedLookup<T>(
   kind: LookupKind,
   key: string,
   fetcher: () => Promise<T | null>
 ): Promise<T | null> {
-  const cached = await readCached<T>(kind, key);
-  if (cached !== undefined) return cached;
-  const value = await fetcher();
-  await writeCached(kind, key, value);
-  return value;
+  const id = `${kind}|${key}`;
+  const pending = inflight.get(id) as Promise<T | null> | undefined;
+  if (pending) return pending;
+  const run = (async () => {
+    const cached = await readCached<T>(kind, key);
+    if (cached !== undefined) return cached;
+    const value = await fetcher();
+    await writeCached(kind, key, value);
+    return value;
+  })();
+  inflight.set(id, run);
+  try {
+    return await run;
+  } finally {
+    inflight.delete(id);
+  }
 }
 
 /** Drops expired rows; run from a daily cron. */
@@ -131,4 +145,5 @@ export async function sweepExpiredLookups(): Promise<number> {
 
 export function __resetLookupCacheForTests(): void {
   unavailable = false;
+  inflight.clear();
 }

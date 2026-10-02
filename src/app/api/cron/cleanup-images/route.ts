@@ -8,6 +8,8 @@ import { sweepExpiredLookups } from '@/lib/maps/lookup-cache';
 /**
  * Property image cleanup cron — drives the staged, reversible lifecycle in
  * src/lib/storage/image-cleanup.ts (warn → dereference → optional purge).
+ * Also sweeps expired rows out of maps_lookup_cache on every authorised
+ * run, whether or not image cleanup itself is enabled.
  * DESTRUCTIVE and cross-tenant, so it must never be publicly triggerable and
  * ships inert (config `enabled:false`, `dry_run:true`) until an operator opts
  * in via the `image_cleanup_config` system setting.
@@ -37,6 +39,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  try {
+    const sweptLookups = await sweepExpiredLookups();
+    console.log('[cleanup-images] swept expired maps lookups:', sweptLookups);
+  } catch (sweepErr) {
+    console.warn('[cleanup-images] maps lookup sweep failed:', sweepErr);
+  }
+
   const config = await getImageCleanupConfig();
   if (!config.enabled) {
     return NextResponse.json({ skipped: 'disabled' });
@@ -45,12 +54,6 @@ export async function GET(request: Request) {
   try {
     const summary = await runImageCleanup(supabaseAdmin(), config);
     console.log('[cleanup-images]', JSON.stringify(summary));
-    try {
-      const sweptLookups = await sweepExpiredLookups();
-      console.log('[cleanup-images] swept expired maps lookups:', sweptLookups);
-    } catch (sweepErr) {
-      console.warn('[cleanup-images] maps lookup sweep failed:', sweepErr);
-    }
     return NextResponse.json(summary);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

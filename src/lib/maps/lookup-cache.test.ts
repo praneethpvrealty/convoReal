@@ -88,6 +88,51 @@ describe('cachedLookup', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it('[PRP-025] shares one fetch between concurrent misses on the same key', async () => {
+    let release: (value: {
+      latitude: number;
+      longitude: number;
+    }) => void = () => {};
+    const answer = new Promise<{ latitude: number; longitude: number }>(
+      (resolve) => {
+        release = resolve;
+      }
+    );
+    const fetcher = vi.fn(() => answer);
+
+    const asks = Promise.all([
+      cachedLookup('geocode', 'hsr layout', fetcher),
+      cachedLookup('geocode', 'hsr layout', fetcher),
+      cachedLookup('geocode', 'hsr layout', fetcher),
+    ]);
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalled());
+    release({ latitude: 12.9, longitude: 77.6 });
+
+    expect(await asks).toEqual(
+      Array(3).fill({ latitude: 12.9, longitude: 77.6 })
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(upserts).toHaveLength(1);
+  });
+
+  it('lets the next ask retry after a shared fetch fails', async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('503'))
+      .mockResolvedValueOnce({ latitude: 1, longitude: 2 });
+
+    const results = await Promise.allSettled([
+      cachedLookup('geocode', 'hsr', fetcher),
+      cachedLookup('geocode', 'hsr', fetcher),
+    ]);
+    expect(results.map((r) => r.status)).toEqual(['rejected', 'rejected']);
+    expect(await cachedLookup('geocode', 'hsr', fetcher)).toEqual({
+      latitude: 1,
+      longitude: 2,
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps kinds apart so a geocode hit never answers a reverse lookup', async () => {
     const geocode = vi.fn().mockResolvedValue({ latitude: 1, longitude: 2 });
     const reverse = vi.fn().mockResolvedValue({ city: 'Bengaluru' });
