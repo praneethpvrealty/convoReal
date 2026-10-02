@@ -27,7 +27,7 @@ const PORTAL = 'portal|housing|99acres|magic\\s*bricks|others';
 // template greets on the first word, so one of them is a "Hi Housing,"
 // waiting to happen.
 const PLACEHOLDER_NAME = new RegExp(
-  `^(?:(?:${PORTAL})\\s+(?:lead|user)|user|unknown|guest|customer|anonymous)$`,
+  `^(?:(?:${PORTAL})\\s+(?:lead|user)|mb\\s*user|user|unknown|guest|customer|anonymous)$`,
   'i',
 );
 
