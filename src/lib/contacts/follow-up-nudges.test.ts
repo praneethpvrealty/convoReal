@@ -189,18 +189,47 @@ describe('[INB-021] Mark cold is scoped to the carded listing', () => {
     });
   });
 
-  it('tells the agent which enquiries are still tracked', () => {
+  it('[INB-021] tells the agent which enquiries are still tracked, in one line', () => {
     const text = buildColdConfirmation('Rohit', {
       scope: 'property',
-      property: { id: 'p-1', title: 'JP Nagar Plot', property_code: null },
+      property: { id: 'p-1', title: 'JP Nagar Plot', property_code: 'JP-7' },
       stillOpen: [
         { id: 'p-2', title: 'Yelahanka House', property_code: 'YH-1' },
       ],
     });
-    expect(text).toContain('cold on JP Nagar Plot only');
-    expect(text).toContain('1 other enquiry');
-    expect(text).toContain('Yelahanka House (YH-1)');
-    expect(text).toContain('stays hot');
+    expect(text).toBe(
+      '❄️ JP-7 closed for Rohit. Still hot via Yelahanka House (YH-1).'
+    );
+    expect(text).not.toContain('JP Nagar Plot');
+  });
+
+  it('[INB-021] names the closed listing by title when it has no code', () => {
+    const text = buildColdConfirmation('Rohit', {
+      scope: 'property',
+      property: { id: 'p-1', title: 'JP Nagar Plot', property_code: null },
+      stillOpen: [{ id: 'p-2', title: 'Yelahanka House', property_code: null }],
+    });
+    expect(text).toBe(
+      '❄️ JP Nagar Plot closed for Rohit. Still hot via Yelahanka House.'
+    );
+  });
+
+  it('[INB-021] names at most three still-open enquiries and counts the rest', () => {
+    const text = buildColdConfirmation('Rohit', {
+      scope: 'property',
+      property: { id: 'p-1', title: 'JP Nagar Plot', property_code: 'JP-7' },
+      stillOpen: [
+        { id: 'p-2', title: 'A', property_code: null },
+        { id: 'p-3', title: 'B', property_code: null },
+        { id: 'p-4', title: 'C', property_code: null },
+        { id: 'p-5', title: 'D', property_code: null },
+        { id: 'p-6', title: 'E', property_code: null },
+      ],
+    });
+    expect(text).toBe(
+      '❄️ JP-7 closed for Rohit. Still hot via A, B, C and 2 more.'
+    );
+    expect(text.split('\n')).toHaveLength(1);
   });
 
   it('refuses rather than guessing when the carded listing is gone', () => {
