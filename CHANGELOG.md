@@ -17,6 +17,14 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 2 October 2026
+
+- **A shorter reply after Mark cold on a follow-up card.** When the lead
+  stays hot because another enquiry is still open, the agent's WhatsApp now
+  gets one line — the closed listing's code, then the still-open listings
+  it stays hot through — instead of a multi-line paragraph repeating every
+  title.
+
 #### 1 October 2026
 
 - **The archived setting is remembered for each user.** Whichever of
