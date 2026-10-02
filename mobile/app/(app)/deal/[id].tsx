@@ -32,6 +32,7 @@ import {
 import { apiBase, authHeaders } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import {
+  DEAL_SAVED_QUERY_KEYS,
   BUNDLE_MAX_DEALS,
   bundleBlocker,
   bundleCandidateLabel,
@@ -305,7 +306,9 @@ export default function DealWorkspaceScreen() {
       haptic.success();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deal-head', dealId] }),
-        queryClient.invalidateQueries({ queryKey: ['deals'] }),
+        ...DEAL_SAVED_QUERY_KEYS.map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey })
+        ),
       ]);
     } catch (err) {
       haptic.warn();
@@ -395,6 +398,7 @@ export default function DealWorkspaceScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          style={styles.tabStrip}
           contentContainerStyle={styles.tabs}
         >
           {DEAL_WORKSPACE_TABS.map((item) => (
@@ -3956,6 +3960,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.md,
   },
+  tabStrip: { flexGrow: 0, flexShrink: 0 },
   tabs: {
     flexDirection: 'row',
     gap: spacing.sm,

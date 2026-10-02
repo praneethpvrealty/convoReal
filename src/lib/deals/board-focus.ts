@@ -7,6 +7,12 @@ export const BOARD_SCOPES: ReadonlyArray<{ id: BoardScope; label: string }> = [
 
 export const BOARD_FOCUS_QUERY_KEY = 'board-focus';
 
+export const DEAL_SAVED_QUERY_KEYS: readonly (readonly string[])[] = [
+  [BOARD_FOCUS_QUERY_KEY],
+  ['dashboard'],
+  ['transaction-workspace-index'],
+];
+
 /**
  * The deals the Board shows. Focus keeps the deals whose ids
  * `board_focus_deal_ids` returned; until those ids are known (loading or

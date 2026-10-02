@@ -2,23 +2,16 @@ import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import {
+  accountJourneyCompartmentScope,
+  placeJourneyCompartment,
+} from '@/lib/journey/compartment-store';
+import {
   journeyCompartmentOwner,
-  journeyCompartmentScopeOf,
   parseJourneyCompartmentMutation,
 } from '@/lib/journey/compartments';
 import { ownedJourneySubjects } from '@/lib/journey/owned-subjects';
 
 type RouteSupabase = Awaited<ReturnType<typeof requireRole>>['supabase'];
-
-async function accountScope(supabase: RouteSupabase, accountId: string) {
-  const { data, error } = await supabase
-    .from('accounts')
-    .select('journey_compartment_scope')
-    .eq('id', accountId)
-    .single();
-  if (error) throw error;
-  return journeyCompartmentScopeOf(data?.journey_compartment_scope);
-}
 
 export async function GET(request: Request) {
   try {
@@ -30,7 +23,7 @@ export async function GET(request: Request) {
         { status: 400 }
       );
     }
-    const scope = await accountScope(supabase, accountId);
+    const scope = await accountJourneyCompartmentScope(supabase, accountId);
     const owner = journeyCompartmentOwner(scope, userId);
     let query = supabase
       .from('journey_compartments')
@@ -74,19 +67,13 @@ export async function POST(request: Request) {
     if (!(await ownedJourneySubjects(supabase, accountId, mode, [subjectId]))) {
       return NextResponse.json({ error: 'Journey not found' }, { status: 404 });
     }
-    const scope = await accountScope(supabase, accountId);
-    const { error } = await supabase.from('journey_compartments').upsert(
-      {
-        account_id: accountId,
-        mode,
-        subject_id: subjectId,
-        user_id: journeyCompartmentOwner(scope, userId),
-        compartment,
-        created_by: userId,
-      },
-      { onConflict: 'account_id,mode,subject_id,user_id' }
-    );
-    if (error) throw error;
+    const scope = await placeJourneyCompartment(supabase, {
+      accountId,
+      userId,
+      mode,
+      subjectId,
+      compartment,
+    });
     return NextResponse.json({ data: { scope, subjectId, compartment } });
   } catch (error) {
     console.error('[journey/compartments] failed', error);
