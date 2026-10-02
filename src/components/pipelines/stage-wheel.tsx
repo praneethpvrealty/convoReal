@@ -354,23 +354,24 @@ export function StageWheel({
   useEffect(() => {
     if (!dragging || count < 2) return;
     let lastTurn = 0;
-    let edgeStep = 0;
+    let pointer: { x: number; y: number } | null = null;
+    const edgeStep = () => {
+      const rect = ringRef.current?.getBoundingClientRect();
+      if (!pointer || !rect) return 0;
+      if (pointer.y < rect.top || pointer.y > rect.bottom) return 0;
+      if (pointer.x < rect.left + EDGE_ZONE) return -1;
+      if (pointer.x > rect.right - EDGE_ZONE) return 1;
+      return 0;
+    };
     const turnAtEdge = () => {
-      if (!edgeStep || frame.current) return;
+      const step = edgeStep();
+      if (!step || frame.current) return;
       if (performance.now() - lastTurn < EDGE_TURN_COOLDOWN_MS) return;
       lastTurn = performance.now();
-      settle(Math.round(position.current) + edgeStep);
+      settle(Math.round(position.current) + step);
     };
     const onPointerMove = (event: PointerEvent) => {
-      const rect = ringRef.current?.getBoundingClientRect();
-      edgeStep =
-        !rect || event.clientY < rect.top || event.clientY > rect.bottom
-          ? 0
-          : event.clientX < rect.left + EDGE_ZONE
-            ? -1
-            : event.clientX > rect.right - EDGE_ZONE
-              ? 1
-              : 0;
+      pointer = { x: event.clientX, y: event.clientY };
       turnAtEdge();
     };
     const timer = window.setInterval(turnAtEdge, 100);
@@ -380,6 +381,27 @@ export function StageWheel({
       window.removeEventListener('pointermove', onPointerMove);
     };
   }, [dragging, count, settle]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || count < 2) return;
+    const onFocusIn = (event: FocusEvent) => {
+      if (flat.current) return;
+      const target = event.target as Element | null;
+      const item = target?.closest<HTMLElement>(
+        '[data-stage-wheel-slot], [data-stage-wheel-chip]'
+      );
+      const container = item?.parentElement;
+      if (!item || !container) return;
+      const rect = item.getBoundingClientRect();
+      const bounds = container.getBoundingClientRect();
+      if (rect.right > bounds.left && rect.left < bounds.right) return;
+      const index = Array.prototype.indexOf.call(container.children, item);
+      settle(wheelTurnTarget(position.current, index, count));
+    };
+    root.addEventListener('focusin', onFocusIn);
+    return () => root.removeEventListener('focusin', onFocusIn);
+  }, [count, settle]);
 
   function turn(step: number) {
     settle(Math.round(position.current) + step);
