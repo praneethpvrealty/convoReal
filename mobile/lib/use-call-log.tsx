@@ -31,7 +31,7 @@ export function useCallLog() {
   async function save(
     contactId: string,
     outcome: QuickOutcome,
-    calledAt: string,
+    calledAt: string
   ) {
     close();
     try {
@@ -50,7 +50,9 @@ export function useCallLog() {
       haptic.warn();
       show({
         title: 'Could not log call',
-        message: friendlyError(err instanceof Error ? err.message : 'Try again.'),
+        message: friendlyError(
+          err instanceof Error ? err.message : 'Try again.'
+        ),
       });
     }
   }

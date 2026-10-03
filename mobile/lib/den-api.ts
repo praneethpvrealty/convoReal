@@ -19,7 +19,11 @@ export interface DenMe {
   notify_matches: boolean;
   notify_bids: boolean;
   digest_frequency: 'off' | 'daily' | 'weekly';
-  links: { account_id: string; contact_id: string; agency_name: string | null }[];
+  links: {
+    account_id: string;
+    contact_id: string;
+    agency_name: string | null;
+  }[];
   property_count: number;
   seller_pages?: DenSellerPage[];
 }
@@ -43,7 +47,12 @@ export interface DenDashboardProperty {
 
 export interface DenDashboard {
   period: { days: number; label: string };
-  totals: { inquiries: number; shortlisted: number; visits: number; views: number };
+  totals: {
+    inquiries: number;
+    shortlisted: number;
+    visits: number;
+    views: number;
+  };
   properties: DenDashboardProperty[];
 }
 

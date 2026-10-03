@@ -25,7 +25,13 @@ const TIER_GRADIENTS = {
 
 export const PLAN_META: Record<
   Plan,
-  { label: string; tagline: string; icon: IconName; gradient: readonly [string, string]; perks: string }
+  {
+    label: string;
+    tagline: string;
+    icon: IconName;
+    gradient: readonly [string, string];
+    perks: string;
+  }
 > = {
   starter: {
     label: 'Starter',

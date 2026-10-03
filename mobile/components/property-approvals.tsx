@@ -256,14 +256,20 @@ export function PropertyApprovals({ style }: { style?: ViewStyle } = {}) {
                         />
                       </Animated.View>
                     ) : (
-                      <Ionicons name="checkmark" size={15} color={colors.onPrimary} />
+                      <Ionicons
+                        name="checkmark"
+                        size={15}
+                        color={colors.onPrimary}
+                      />
                     )}
                     <Text
                       style={[
                         styles.buttonText,
                         {
                           fontFamily: f.bold,
-                          color: approving ? colors.onSuccess : colors.onPrimary,
+                          color: approving
+                            ? colors.onSuccess
+                            : colors.onPrimary,
                         },
                       ]}
                     >

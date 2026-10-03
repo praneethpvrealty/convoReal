@@ -12,7 +12,9 @@ import { fetchWidgetSummary, hasSession } from '@/lib/widget-summaries';
  * client. Taps deep-link through OPEN_URI click actions, so
  * WIDGET_CLICK never reaches this handler.
  */
-export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<void> {
+export async function widgetTaskHandler(
+  props: WidgetTaskHandlerProps
+): Promise<void> {
   const id = widgetIdForOsName(props.widgetInfo.widgetName);
   if (!id) return;
 
@@ -24,7 +26,12 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<
         ? await fetchWidgetSummary(id).catch(() => null)
         : null;
       props.renderWidget(
-        renderOsWidget(id, summary, bubbleTime(new Date().toISOString()), props.widgetInfo.height)
+        renderOsWidget(
+          id,
+          summary,
+          bubbleTime(new Date().toISOString()),
+          props.widgetInfo.height
+        )
       );
       break;
     }

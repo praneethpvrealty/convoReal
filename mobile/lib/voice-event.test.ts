@@ -33,11 +33,20 @@ describe('prefillFromParse', () => {
 
   it('maps a fully resolved parse into form values', () => {
     const parsed = response(
-      { location: 'JP Nagar', transcript: 'site visit with varun tomorrow 4pm', notes: 'carry EC copy' },
+      {
+        location: 'JP Nagar',
+        transcript: 'site visit with varun tomorrow 4pm',
+        notes: 'carry EC copy',
+      },
       {
         start_time: '2026-08-01T10:30:00.000Z',
         end_time: '2026-08-01T11:30:00.000Z',
-        contact: { id: 'c1', name: 'Varun', phone: '+919900112233', name_tag: 'Buyer' },
+        contact: {
+          id: 'c1',
+          name: 'Varun',
+          phone: '+919900112233',
+          name_tag: 'Buyer',
+        },
       }
     );
     const prefill = prefillFromParse(parsed);
@@ -46,16 +55,26 @@ describe('prefillFromParse', () => {
     expect(prefill!.eventType).toBe('site_visit');
     expect(prefill!.start?.toISOString()).toBe('2026-08-01T10:30:00.000Z');
     expect(prefill!.location).toBe('JP Nagar');
-    expect(prefill!.contact).toMatchObject({ id: 'c1', name: 'Varun', phone: '+919900112233' });
+    expect(prefill!.contact).toMatchObject({
+      id: 'c1',
+      name: 'Varun',
+      phone: '+919900112233',
+    });
     expect(prefill!.description).toBe('carry EC copy');
     expect(prefill!.transcript).toBe('site visit with varun tomorrow 4pm');
     expect(prefill!.unmatchedContactName).toBeNull();
   });
 
   it('clamps event types the chips cannot display to meeting', () => {
-    expect(prefillFromParse(response({ event_type: 'document' }))!.eventType).toBe('meeting');
-    expect(prefillFromParse(response({ event_type: 'other' }))!.eventType).toBe('meeting');
-    expect(prefillFromParse(response({ event_type: 'follow_up' }))!.eventType).toBe('follow_up');
+    expect(
+      prefillFromParse(response({ event_type: 'document' }))!.eventType
+    ).toBe('meeting');
+    expect(prefillFromParse(response({ event_type: 'other' }))!.eventType).toBe(
+      'meeting'
+    );
+    expect(
+      prefillFromParse(response({ event_type: 'follow_up' }))!.eventType
+    ).toBe('follow_up');
   });
 
   it('keeps start null for task intent with no resolved time', () => {
@@ -80,11 +99,14 @@ describe('prefillFromParse', () => {
 describe('voiceHints', () => {
   it('is empty for a complete prefill', () => {
     const prefill = prefillFromParse(
-      response({}, {
-        start_time: '2026-08-01T10:30:00.000Z',
-        end_time: null,
-        contact: { id: 'c1', name: 'Varun', phone: '+91' },
-      })
+      response(
+        {},
+        {
+          start_time: '2026-08-01T10:30:00.000Z',
+          end_time: null,
+          contact: { id: 'c1', name: 'Varun', phone: '+91' },
+        }
+      )
     );
     expect(voiceHints(prefill!)).toEqual([]);
   });

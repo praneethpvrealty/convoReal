@@ -49,12 +49,7 @@ import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
-type ActionState =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'cancelled'
-  | 'failed';
+type ActionState = 'pending' | 'running' | 'completed' | 'cancelled' | 'failed';
 type VoicePhase = 'idle' | 'recording' | 'transcribing';
 
 // ------------------------------------------------------------------
@@ -140,7 +135,9 @@ export function CopilotSheet({
   const openSupport = (turnIndex: number) => {
     const phone = session?.user.phone;
     setSupportChannel(phone ? 'whatsapp' : 'email');
-    setSupportDest(phone ? `+${phone.replace(/^\+/, '')}` : (session?.user.email ?? ''));
+    setSupportDest(
+      phone ? `+${phone.replace(/^\+/, '')}` : (session?.user.email ?? '')
+    );
     setSupportFor(turnIndex);
   };
 
@@ -172,9 +169,7 @@ export function CopilotSheet({
       haptic.success();
       setTurns((t) =>
         t.map((x, i) =>
-          i === turnIndex
-            ? { ...x, supportRef: reference, supportChannel }
-            : x
+          i === turnIndex ? { ...x, supportRef: reference, supportChannel } : x
         )
       );
       setSupportFor(null);
@@ -413,7 +408,12 @@ export function CopilotSheet({
       style={[styles.actionChip, { backgroundColor: colors.primarySoft }]}
     >
       <Ionicons name={icon} size={14} color={colors.primary} />
-      <Text style={[styles.actionChipLabel, { fontFamily: f.semibold, color: colors.primary }]}>
+      <Text
+        style={[
+          styles.actionChipLabel,
+          { fontFamily: f.semibold, color: colors.primary },
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -444,8 +444,16 @@ export function CopilotSheet({
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: colors.surfaceSunken }]}>
-          <Text style={[type.bodySmall, { color: colors.text }]}>{t('copilot.greeting')}</Text>
+        <View
+          style={[
+            styles.bubble,
+            styles.assistantBubble,
+            { backgroundColor: colors.surfaceSunken },
+          ]}
+        >
+          <Text style={[type.bodySmall, { color: colors.text }]}>
+            {t('copilot.greeting')}
+          </Text>
         </View>
 
         {turns.length === 0 ? (
@@ -457,7 +465,12 @@ export function CopilotSheet({
                 accessibilityRole="button"
                 style={[styles.chip, { borderColor: colors.border }]}
               >
-                <Text style={[styles.chipLabel, { fontFamily: f.medium, color: colors.textMuted }]}>
+                <Text
+                  style={[
+                    styles.chipLabel,
+                    { fontFamily: f.medium, color: colors.textMuted },
+                  ]}
+                >
                   {s}
                 </Text>
               </Pressable>
@@ -468,7 +481,9 @@ export function CopilotSheet({
         {turns.map((turn, i) => {
           const a = turn.answer;
           const coverage: CopilotCoverage | undefined = a?.coverage;
-          const appHref = a?.navigateTo ? appHrefForWebRoute(a.navigateTo) : null;
+          const appHref = a?.navigateTo
+            ? appHrefForWebRoute(a.navigateTo)
+            : null;
           const showSupport =
             turn.role === 'assistant' &&
             !!turn.question &&
@@ -477,20 +492,27 @@ export function CopilotSheet({
           return (
             <View
               key={i}
-              style={turn.role === 'user' ? styles.userWrap : styles.assistantWrap}
+              style={
+                turn.role === 'user' ? styles.userWrap : styles.assistantWrap
+              }
             >
               <View
                 style={[
                   styles.bubble,
                   turn.role === 'user'
                     ? [styles.userBubble, { backgroundColor: colors.primary }]
-                    : [styles.assistantBubble, { backgroundColor: colors.surfaceSunken }],
+                    : [
+                        styles.assistantBubble,
+                        { backgroundColor: colors.surfaceSunken },
+                      ],
                 ]}
               >
                 <TourBodyText
                   text={turn.text}
                   color={turn.role === 'user' ? colors.onPrimary : colors.text}
-                  boldColor={turn.role === 'user' ? colors.onPrimary : colors.text}
+                  boldColor={
+                    turn.role === 'user' ? colors.onPrimary : colors.text
+                  }
                   selectable
                 />
               </View>
@@ -498,7 +520,9 @@ export function CopilotSheet({
               <Pressable
                 onPress={() => void copyTurn(i, turn.text)}
                 accessibilityRole="button"
-                accessibilityLabel={copiedTurn === i ? t('copilot.copied') : t('copilot.copy')}
+                accessibilityLabel={
+                  copiedTurn === i ? t('copilot.copied') : t('copilot.copy')
+                }
                 style={styles.copyAction}
               >
                 <Ionicons
@@ -510,7 +534,8 @@ export function CopilotSheet({
                   style={[
                     styles.copyLabel,
                     {
-                      color: copiedTurn === i ? colors.success : colors.textFaint,
+                      color:
+                        copiedTurn === i ? colors.success : colors.textFaint,
                       fontFamily: f.medium,
                     },
                   ]}
@@ -692,38 +717,65 @@ export function CopilotSheet({
                       : null;
                   })}
                   {a.tourId
-                    ? actionChip(t('copilot.startTour'), 'navigate-outline', () => {
-                        onStartTour(a.tourId!);
-                      })
+                    ? actionChip(
+                        t('copilot.startTour'),
+                        'navigate-outline',
+                        () => {
+                          onStartTour(a.tourId!);
+                        }
+                      )
                     : null}
                   {coverage === 'web_only'
-                    ? actionChip(t('copilot.openDesktop'), 'laptop-outline', () => {
-                        void openDesktopWeb(a.webUrl);
-                      })
+                    ? actionChip(
+                        t('copilot.openDesktop'),
+                        'laptop-outline',
+                        () => {
+                          void openDesktopWeb(a.webUrl);
+                        }
+                      )
                     : null}
                   {!a.tourId && coverage !== 'web_only' && appHref
-                    ? actionChip(t('copilot.takeMeThere'), 'arrow-forward-outline', () => {
-                        onClose();
-                        router.push(appHref as Href);
-                      })
+                    ? actionChip(
+                        t('copilot.takeMeThere'),
+                        'arrow-forward-outline',
+                        () => {
+                          onClose();
+                          router.push(appHref as Href);
+                        }
+                      )
                     : null}
                 </View>
               ) : null}
 
               {turn.role === 'assistant' && coverage === 'web_only' ? (
-                <Text style={[styles.hint, { fontFamily: f.medium, color: colors.textFaint }]}>
+                <Text
+                  style={[
+                    styles.hint,
+                    { fontFamily: f.medium, color: colors.textFaint },
+                  ]}
+                >
                   {t('copilot.webOnlyHint')}
                 </Text>
               ) : null}
 
               {turn.role === 'assistant' && a?.unsupported ? (
-                <Text style={[styles.hint, { fontFamily: f.medium, color: colors.textFaint }]}>
+                <Text
+                  style={[
+                    styles.hint,
+                    { fontFamily: f.medium, color: colors.textFaint },
+                  ]}
+                >
                   {`\u{1F4A1} ${t('copilot.featureNoted')}`}
                 </Text>
               ) : null}
 
               {turn.supportRef ? (
-                <Text style={[styles.hint, { fontFamily: f.semibold, color: colors.success }]}>
+                <Text
+                  style={[
+                    styles.hint,
+                    { fontFamily: f.semibold, color: colors.success },
+                  ]}
+                >
                   {`✅ ${t('copilot.supportSent')} ${turn.supportRef}. ${t('copilot.supportReply')} ${turn.supportChannel === 'email' ? 'email' : 'WhatsApp'}.`}
                 </Text>
               ) : null}
@@ -731,11 +783,20 @@ export function CopilotSheet({
               {showSupport && supportFor !== i ? (
                 <View style={styles.actions}>
                   {coverage === 'partial' ? (
-                    <Text style={[styles.hint, { fontFamily: f.medium, color: colors.textFaint }]}>
+                    <Text
+                      style={[
+                        styles.hint,
+                        { fontFamily: f.medium, color: colors.textFaint },
+                      ]}
+                    >
                       {t('copilot.partialHint')}
                     </Text>
                   ) : null}
-                  {actionChip(t('copilot.askSupport'), 'help-buoy-outline', () => openSupport(i))}
+                  {actionChip(
+                    t('copilot.askSupport'),
+                    'help-buoy-outline',
+                    () => openSupport(i)
+                  )}
                 </View>
               ) : null}
 
@@ -743,10 +804,18 @@ export function CopilotSheet({
                 <View
                   style={[
                     styles.supportCard,
-                    { backgroundColor: colors.surface, borderColor: colors.glassBorder },
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.glassBorder,
+                    },
                   ]}
                 >
-                  <Text style={[styles.supportTitle, { fontFamily: f.bold, color: colors.text }]}>
+                  <Text
+                    style={[
+                      styles.supportTitle,
+                      { fontFamily: f.bold, color: colors.text },
+                    ]}
+                  >
                     {t('copilot.supportWhere')}
                   </Text>
                   <View style={styles.channelRow}>
@@ -759,23 +828,36 @@ export function CopilotSheet({
                           styles.channelChip,
                           {
                             borderColor:
-                              supportChannel === ch ? colors.primary : colors.border,
+                              supportChannel === ch
+                                ? colors.primary
+                                : colors.border,
                             backgroundColor:
-                              supportChannel === ch ? colors.primarySoft : 'transparent',
+                              supportChannel === ch
+                                ? colors.primarySoft
+                                : 'transparent',
                           },
                         ]}
                       >
                         <Ionicons
-                          name={ch === 'whatsapp' ? 'logo-whatsapp' : 'mail-outline'}
+                          name={
+                            ch === 'whatsapp' ? 'logo-whatsapp' : 'mail-outline'
+                          }
                           size={14}
-                          color={supportChannel === ch ? colors.primary : colors.textMuted}
+                          color={
+                            supportChannel === ch
+                              ? colors.primary
+                              : colors.textMuted
+                          }
                         />
                         <Text
                           style={[
                             styles.channelLabel,
                             {
                               fontFamily: f.semibold,
-                              color: supportChannel === ch ? colors.primary : colors.textMuted,
+                              color:
+                                supportChannel === ch
+                                  ? colors.primary
+                                  : colors.textMuted,
                             },
                           ]}
                         >
@@ -794,7 +876,9 @@ export function CopilotSheet({
                     }
                     placeholderTextColor={colors.textFaint}
                     keyboardType={
-                      supportChannel === 'whatsapp' ? 'phone-pad' : 'email-address'
+                      supportChannel === 'whatsapp'
+                        ? 'phone-pad'
+                        : 'email-address'
                     }
                     autoCapitalize="none"
                     style={[
@@ -820,8 +904,15 @@ export function CopilotSheet({
                         },
                       ]}
                     >
-                      <Text style={[styles.supportSendLabel, { fontFamily: f.bold, color: colors.onPrimary }]}>
-                        {supportBusy ? t('copilot.supportSending') : t('copilot.supportSend')}
+                      <Text
+                        style={[
+                          styles.supportSendLabel,
+                          { fontFamily: f.bold, color: colors.onPrimary },
+                        ]}
+                      >
+                        {supportBusy
+                          ? t('copilot.supportSending')
+                          : t('copilot.supportSend')}
                       </Text>
                     </Pressable>
                     <Pressable
@@ -829,7 +920,12 @@ export function CopilotSheet({
                       accessibilityRole="button"
                       hitSlop={8}
                     >
-                      <Text style={[styles.hint, { fontFamily: f.semibold, color: colors.textFaint }]}>
+                      <Text
+                        style={[
+                          styles.hint,
+                          { fontFamily: f.semibold, color: colors.textFaint },
+                        ]}
+                      >
                         {t('common.cancel')}
                       </Text>
                     </Pressable>
@@ -840,12 +936,22 @@ export function CopilotSheet({
               {turn.role === 'assistant' && a?.cacheId ? (
                 <View style={styles.feedbackRow}>
                   {turn.voted ? (
-                    <Text style={[styles.hint, { fontFamily: f.medium, color: colors.textFaint }]}>
+                    <Text
+                      style={[
+                        styles.hint,
+                        { fontFamily: f.medium, color: colors.textFaint },
+                      ]}
+                    >
                       {t('copilot.thanks')}
                     </Text>
                   ) : (
                     <>
-                      <Text style={[styles.hint, { fontFamily: f.medium, color: colors.textFaint }]}>
+                      <Text
+                        style={[
+                          styles.hint,
+                          { fontFamily: f.medium, color: colors.textFaint },
+                        ]}
+                      >
                         {t('copilot.helpful')}
                       </Text>
                       {(['up', 'down'] as const).map((vote) => (
@@ -853,17 +959,25 @@ export function CopilotSheet({
                           key={vote}
                           hitSlop={8}
                           accessibilityRole="button"
-                          accessibilityLabel={vote === 'up' ? 'Helpful' : 'Not helpful'}
+                          accessibilityLabel={
+                            vote === 'up' ? 'Helpful' : 'Not helpful'
+                          }
                           onPress={() => {
                             haptic.tap();
                             setTurns((x) =>
-                              x.map((turn, j) => (j === i ? { ...turn, voted: vote } : turn))
+                              x.map((turn, j) =>
+                                j === i ? { ...turn, voted: vote } : turn
+                              )
                             );
                             sendCopilotFeedback(a.cacheId!, vote);
                           }}
                         >
                           <Ionicons
-                            name={vote === 'up' ? 'thumbs-up-outline' : 'thumbs-down-outline'}
+                            name={
+                              vote === 'up'
+                                ? 'thumbs-up-outline'
+                                : 'thumbs-down-outline'
+                            }
                             size={14}
                             color={colors.textFaint}
                           />
@@ -878,14 +992,27 @@ export function CopilotSheet({
         })}
 
         {busy ? (
-          <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: colors.surfaceSunken }]}>
-            <Text style={[type.bodySmall, { color: colors.textFaint }]}>{t('copilot.typing')}</Text>
+          <View
+            style={[
+              styles.bubble,
+              styles.assistantBubble,
+              { backgroundColor: colors.surfaceSunken },
+            ]}
+          >
+            <Text style={[type.bodySmall, { color: colors.textFaint }]}>
+              {t('copilot.typing')}
+            </Text>
           </View>
         ) : null}
 
         {showGuides ? (
           <View style={styles.guides}>
-            <Text style={[styles.guidesLabel, { fontFamily: f.bold, color: colors.textFaint }]}>
+            <Text
+              style={[
+                styles.guidesLabel,
+                { fontFamily: f.bold, color: colors.textFaint },
+              ]}
+            >
               {t('copilot.guides').toUpperCase()}
             </Text>
             {MOBILE_TOURS.map((tour) => (
@@ -895,18 +1022,35 @@ export function CopilotSheet({
                 accessibilityRole="button"
                 style={[
                   styles.guideRow,
-                  { backgroundColor: colors.surface, borderColor: colors.glassBorder },
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.glassBorder,
+                  },
                 ]}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.guideTitle, { fontFamily: f.semibold, color: colors.text }]}>
+                  <Text
+                    style={[
+                      styles.guideTitle,
+                      { fontFamily: f.semibold, color: colors.text },
+                    ]}
+                  >
                     {tour.title}
                   </Text>
-                  <Text style={[styles.guideDesc, { fontFamily: f.regular, color: colors.textMuted }]}>
+                  <Text
+                    style={[
+                      styles.guideDesc,
+                      { fontFamily: f.regular, color: colors.textMuted },
+                    ]}
+                  >
                     {tour.description}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={colors.textFaint}
+                />
               </Pressable>
             ))}
           </View>
@@ -941,7 +1085,8 @@ export function CopilotSheet({
                     { color: colors.primary, fontFamily: f.semibold },
                   ]}
                 >
-                  {copilotEntitySymbol(entity.kind)}{entity.label}
+                  {copilotEntitySymbol(entity.kind)}
+                  {entity.label}
                 </Text>
                 <Ionicons name="close" size={13} color={colors.primary} />
               </Pressable>
@@ -1012,7 +1157,10 @@ export function CopilotSheet({
             accessibilityLabel="Send"
             style={[
               styles.sendBtn,
-              { backgroundColor: colors.primary, opacity: busy || !input.trim() ? 0.4 : 1 },
+              {
+                backgroundColor: colors.primary,
+                opacity: busy || !input.trim() ? 0.4 : 1,
+              },
             ]}
           >
             <Ionicons name="send" size={16} color={colors.onPrimary} />
@@ -1052,14 +1200,26 @@ export function CopilotSheet({
 }
 
 const styles = StyleSheet.create({
-  body: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.sm },
+  body: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+    gap: spacing.sm,
+  },
   bubble: {
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
   },
-  assistantBubble: { alignSelf: 'flex-start', maxWidth: '88%', borderTopLeftRadius: 4 },
-  userBubble: { alignSelf: 'flex-end', maxWidth: '88%', borderBottomRightRadius: 4 },
+  assistantBubble: {
+    alignSelf: 'flex-start',
+    maxWidth: '88%',
+    borderTopLeftRadius: 4,
+  },
+  userBubble: {
+    alignSelf: 'flex-end',
+    maxWidth: '88%',
+    borderBottomRightRadius: 4,
+  },
   userWrap: { alignItems: 'flex-end', gap: 4 },
   assistantWrap: { alignItems: 'flex-start', gap: 4 },
   copyAction: {
@@ -1078,7 +1238,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   chipLabel: { fontSize: 12 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, alignItems: 'center' },
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
   actionChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1115,7 +1280,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 13.5,
   },
-  supportActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  supportActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
   supportSend: {
     borderRadius: radius.full,
     paddingHorizontal: spacing.lg,

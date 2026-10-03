@@ -239,7 +239,8 @@ export async function sendPropertyViaEngineMany(
   );
   for (const id of firstConfirmed) {
     const previous = outcomes.get(id);
-    if (!previous?.sent) outcomes.set(id, { ...previous, sent: true, timedOut: false });
+    if (!previous?.sent)
+      outcomes.set(id, { ...previous, sent: true, timedOut: false });
   }
 
   const retryable = contacts.filter((contact) => {
@@ -247,7 +248,9 @@ export async function sendPropertyViaEngineMany(
     return outcome && !outcome.sent && !outcome.templateStatus;
   });
   if (retryable.length > 0) {
-    await new Promise((resolve) => setTimeout(resolve, TRANSIENT_RETRY_DELAY_MS));
+    await new Promise((resolve) =>
+      setTimeout(resolve, TRANSIENT_RETRY_DELAY_MS)
+    );
     const confirmedBeforeRetry = await recentlyConfirmedShares(
       property.id,
       retryable.map((contact) => contact.id),
@@ -278,7 +281,8 @@ export async function sendPropertyViaEngineMany(
   );
   for (const id of finalConfirmed) {
     const previous = outcomes.get(id);
-    if (!previous?.sent) outcomes.set(id, { ...previous, sent: true, timedOut: false });
+    if (!previous?.sent)
+      outcomes.set(id, { ...previous, sent: true, timedOut: false });
   }
 
   return outcomes;

@@ -35,7 +35,6 @@ export function isLanguageCode(v: unknown): v is LanguageCode {
   return typeof v === 'string' && v in SUPPORTED_LANGUAGES;
 }
 
-
 /** "हिन्दी (Hindi)" — native first, since that's what a native reader scans for. */
 export function languageDisplay(code: LanguageCode): string {
   const { label, native } = SUPPORTED_LANGUAGES[code];

@@ -1,11 +1,24 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { DeleteAccountRow } from '@/components/delete-account-row';
-import { Banner, FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
+import {
+  Banner,
+  FilterChip,
+  PrimaryButton,
+  SectionLabel,
+  TextField,
+} from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { signOut } from '@/lib/auth-store';
 import { deleteDenAccount, fetchDenMe, updateDenSettings } from '@/lib/den-api';
@@ -53,7 +66,9 @@ export default function DenSettingsScreen() {
       haptic.warn();
       show({
         title: 'Could not save',
-        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+        message: friendlyError(
+          e instanceof ApiError ? e.message : 'Try again.'
+        ),
       });
     },
   });
@@ -68,7 +83,11 @@ export default function DenSettingsScreen() {
       {me.error ? (
         <Banner
           kind="error"
-          text={friendlyError(me.error instanceof ApiError ? me.error.message : 'Could not load your Den profile.')}
+          text={friendlyError(
+            me.error instanceof ApiError
+              ? me.error.message
+              : 'Could not load your Den profile.'
+          )}
         />
       ) : null}
 
@@ -81,7 +100,12 @@ export default function DenSettingsScreen() {
       />
 
       <SectionLabel text="WhatsApp notifications" />
-      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        ]}
+      >
         <View style={styles.switchRow}>
           <Text style={{ flex: 1, fontSize: 14.5, color: colors.text }}>
             Buyer matches on my properties
@@ -93,8 +117,15 @@ export default function DenSettingsScreen() {
             accessibilityLabel="Notify me about buyer matches"
           />
         </View>
-        <View style={[styles.switchRow, { borderTopWidth: 1, borderTopColor: colors.glassBorder }]}>
-          <Text style={{ flex: 1, fontSize: 14.5, color: colors.text }}>New offers (bids)</Text>
+        <View
+          style={[
+            styles.switchRow,
+            { borderTopWidth: 1, borderTopColor: colors.glassBorder },
+          ]}
+        >
+          <Text style={{ flex: 1, fontSize: 14.5, color: colors.text }}>
+            New offers (bids)
+          </Text>
           <Switch
             value={notifyBids}
             onValueChange={setNotifyBids}
@@ -116,14 +147,25 @@ export default function DenSettingsScreen() {
         ))}
       </View>
 
-      <PrimaryButton label="Save settings" busy={save.isPending} onPress={() => save.mutate()} />
+      <PrimaryButton
+        label="Save settings"
+        busy={save.isPending}
+        onPress={() => save.mutate()}
+      />
 
       <Pressable
         onPress={handleSignOut}
         accessibilityRole="button"
-        style={[styles.signOut, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+        style={[
+          styles.signOut,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        ]}
       >
-        <Text style={{ color: colors.danger, fontSize: 15, fontFamily: f.bold }}>Sign out</Text>
+        <Text
+          style={{ color: colors.danger, fontSize: 15, fontFamily: f.bold }}
+        >
+          Sign out
+        </Text>
       </Pressable>
 
       <DeleteAccountRow
@@ -132,8 +174,14 @@ export default function DenSettingsScreen() {
         onDeleted={() => setSurface('staff')}
       />
 
-      <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
-        Linked agencies: {me.data?.links.map((l) => l.agency_name).filter(Boolean).join(', ') || '—'}
+      <Text
+        style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}
+      >
+        Linked agencies:{' '}
+        {me.data?.links
+          .map((l) => l.agency_name)
+          .filter(Boolean)
+          .join(', ') || '—'}
       </Text>
       <AppDialog {...dialogProps} />
     </ScrollView>
@@ -141,7 +189,11 @@ export default function DenSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  container: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.xxl,
+  },
   card: { borderRadius: radius.lg, borderWidth: 1, overflow: 'hidden' },
   switchRow: {
     flexDirection: 'row',

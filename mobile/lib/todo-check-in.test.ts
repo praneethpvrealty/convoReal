@@ -32,9 +32,12 @@ describe('todo participant check-in', () => {
     ['Meeting with buyer', null, 'meeting'],
     ['Check advocate', 'Status of legal documents', 'document'],
     ['Follow up with prospect', null, 'follow_up'],
-  ] as const)('uses the relevant copy for %s', (title, description, expected) => {
-    expect(inferTodoCheckInKind(title, description)).toBe(expected);
-  });
+  ] as const)(
+    'uses the relevant copy for %s',
+    (title, description, expected) => {
+      expect(inferTodoCheckInKind(title, description)).toBe(expected);
+    }
+  );
 
   it('falls back to a neutral greeting when a contact name is unavailable', () => {
     const draft = buildTodoParticipantCheckIn({

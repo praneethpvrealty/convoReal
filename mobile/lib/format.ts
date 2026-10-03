@@ -22,7 +22,11 @@ export function chatListTime(iso: string | undefined): string {
   if (today - day < 7 * DAY_MS) {
     return d.toLocaleDateString([], { weekday: 'short' });
   }
-  return d.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: '2-digit' });
+  return d.toLocaleDateString([], {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  });
 }
 
 export function bubbleTime(iso: string): string {
@@ -63,7 +67,11 @@ export function dayLabel(iso: string): string {
   const day = startOfDay(d);
   if (day === today) return 'Today';
   if (today - day === DAY_MS) return 'Yesterday';
-  return d.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' });
+  return d.toLocaleDateString([], {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 export function initials(name: string): string {
@@ -92,11 +100,17 @@ export function avatarHue(seed: string): number {
  * below, which is the abbreviated form ("₹1.2 Cr") used in dense lists
  * and cards.
  */
-export function priceInWords(value: string | number | null | undefined): string {
+export function priceInWords(
+  value: string | number | null | undefined
+): string {
   if (value === null || value === undefined || value === '') return '';
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount <= 0) return '';
-  const trim = (n: number) => n.toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1');
+  const trim = (n: number) =>
+    n
+      .toFixed(2)
+      .replace(/\.00$/, '')
+      .replace(/\.(\d)0$/, '.$1');
   if (amount >= 10000000) return `₹${trim(amount / 10000000)} Crore`;
   if (amount >= 100000) return `₹${trim(amount / 100000)} Lakhs`;
   return `₹${amount.toLocaleString('en-IN')}`;
@@ -105,8 +119,10 @@ export function priceInWords(value: string | number | null | undefined): string 
 /** Indian price notation: ₹85 L, ₹1.2 Cr. */
 export function formatInr(n: number | null | undefined): string {
   if (!n) return '—';
-  if (n >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
-  if (n >= 1_00_000) return `₹${(n / 1_00_000).toFixed(1).replace(/\.0$/, '')} L`;
+  if (n >= 1_00_00_000)
+    return `₹${(n / 1_00_00_000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
+  if (n >= 1_00_000)
+    return `₹${(n / 1_00_000).toFixed(1).replace(/\.0$/, '')} L`;
   return `₹${n.toLocaleString('en-IN')}`;
 }
 

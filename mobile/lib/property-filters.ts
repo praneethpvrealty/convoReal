@@ -12,11 +12,7 @@ import { BUDGET_STEPS, budgetStepLabel } from '@/lib/money-ladder';
 export { BUDGET_STEPS, budgetStepLabel };
 
 export type PropertySort =
-  | 'newest'
-  | 'updated'
-  | 'price_desc'
-  | 'price_asc'
-  | 'title_asc';
+  'newest' | 'updated' | 'price_desc' | 'price_asc' | 'title_asc';
 
 export interface PropertyFilters {
   /** A category key the route expands over its subtypes
@@ -93,9 +89,7 @@ export function activePropertyFilterCount(filters: PropertyFilters): number {
 /** True once anything differs from the defaults, sort included — what
  *  "Clear all" acts on. */
 export function isPropertyFiltersDirty(filters: PropertyFilters): boolean {
-  return (
-    activePropertyFilterCount(filters) > 0 || filters.sort !== 'newest'
-  );
+  return activePropertyFilterCount(filters) > 0 || filters.sort !== 'newest';
 }
 
 /** Stable identity for the react-query key. */

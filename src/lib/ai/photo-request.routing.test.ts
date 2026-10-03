@@ -32,7 +32,7 @@ function calendarQueryRegex(): RegExp {
     join(process.cwd(), 'src/lib/whatsapp/webhook-handler.ts'),
     'utf8'
   );
-  const match = source.match(/const isCalendarQuery = (\/.+\/i)\.test/);
+  const match = source.match(/const isCalendarQuery =\s*(\/.+\/i)\.test/);
   if (!match) throw new Error('isCalendarQuery regex not found in handler');
   const body = match[1].replace(/^\//, '').replace(/\/i$/, '');
   return new RegExp(body, 'i');

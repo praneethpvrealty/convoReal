@@ -568,10 +568,10 @@ describe('splitItemsAtStage', () => {
       'utf8'
     );
     expect(canvas).toContain(
-      'item.status === "dropped" || stage.id === highlightStageId'
+      "item.status === 'dropped' || stage.id === highlightStageId"
     );
     expect(canvas).toContain(
-      'stage.id === highlightStageId && item.status !== "dropped"'
+      "stage.id === highlightStageId && item.status !== 'dropped'"
     );
     expect(overview).toContain(
       'focusStageId={showStage ? null : (bucketStage?.id ?? null)}'

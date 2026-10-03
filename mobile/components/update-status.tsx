@@ -1,7 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Updates from 'expo-updates';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { radius, spacing, useTheme } from '@/lib/theme';
 
@@ -60,11 +66,21 @@ export function UpdateStatus() {
   // update channel to report, and every action below would throw.
   if (!Updates.isEnabled) {
     return (
-      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-        <Row label="App updates" value="Off in this build" colors={colors} f={f} />
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        ]}
+      >
+        <Row
+          label="App updates"
+          value="Off in this build"
+          colors={colors}
+          f={f}
+        />
         <Text style={[styles.hint, { color: colors.textFaint }]}>
-          Over-the-air updates are disabled in development builds. Install a preview or
-          production build to test them.
+          Over-the-air updates are disabled in development builds. Install a
+          preview or production build to test them.
         </Text>
       </View>
     );
@@ -90,12 +106,23 @@ export function UpdateStatus() {
       ? 'Download'
       : 'Check for update';
 
-  const error = manualError || checkError?.message || downloadError?.message || null;
+  const error =
+    manualError || checkError?.message || downloadError?.message || null;
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+      ]}
+    >
       <Row label="Running" value={running} colors={colors} f={f} />
-      <Row label="Channel" value={currentlyRunning.channel || '—'} colors={colors} f={f} />
+      <Row
+        label="Channel"
+        value={currentlyRunning.channel || '—'}
+        colors={colors}
+        f={f}
+      />
       <Row
         label="Runtime"
         value={shortId(currentlyRunning.runtimeVersion)}
@@ -120,8 +147,8 @@ export function UpdateStatus() {
 
       {currentlyRunning.isEmergencyLaunch && (
         <Text style={[styles.hint, { color: colors.danger }]}>
-          Emergency launch: a downloaded update failed to start, so the build&apos;s own bundle
-          is running instead.
+          Emergency launch: a downloaded update failed to start, so the
+          build&apos;s own bundle is running instead.
           {currentlyRunning.emergencyLaunchReason
             ? ` ${currentlyRunning.emergencyLaunchReason}`
             : ''}
@@ -146,12 +173,16 @@ export function UpdateStatus() {
           <ActivityIndicator size="small" color={colors.primary} />
         ) : (
           <Ionicons
-            name={isUpdatePending ? 'refresh-outline' : 'cloud-download-outline'}
+            name={
+              isUpdatePending ? 'refresh-outline' : 'cloud-download-outline'
+            }
             size={17}
             color={colors.primary}
           />
         )}
-        <Text style={{ color: colors.primary, fontSize: 14.5, fontFamily: f.bold }}>
+        <Text
+          style={{ color: colors.primary, fontSize: 14.5, fontFamily: f.bold }}
+        >
           {actionLabel}
         </Text>
       </Pressable>
@@ -187,7 +218,9 @@ function Row({
 }) {
   return (
     <View style={[styles.row, { borderTopColor: colors.border }]}>
-      <Text style={{ flex: 1, fontSize: 14.5, color: colors.textMuted }}>{label}</Text>
+      <Text style={{ flex: 1, fontSize: 14.5, color: colors.textMuted }}>
+        {label}
+      </Text>
       <Text
         style={{
           fontSize: 13.5,

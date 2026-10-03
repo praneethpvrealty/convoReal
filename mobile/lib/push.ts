@@ -7,7 +7,10 @@ import { registerDevice } from './api';
 import { brand } from './theme';
 
 function projectId(): string | undefined {
-  return Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+  return (
+    Constants.expoConfig?.extra?.eas?.projectId ??
+    Constants.easConfig?.projectId
+  );
 }
 
 async function registerForPushNotifications(): Promise<void> {
@@ -57,7 +60,9 @@ async function registerForPushNotifications(): Promise<void> {
   const id = projectId();
   if (!id) return;
 
-  const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: id });
+  const { data: token } = await Notifications.getExpoPushTokenAsync({
+    projectId: id,
+  });
   if (!token) return;
 
   await registerDevice(token, Platform.OS);

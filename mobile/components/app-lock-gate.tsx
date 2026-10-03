@@ -45,14 +45,24 @@ export function AppLockGate() {
   if (!enabled || !locked) return null;
 
   return (
-    <View style={[StyleSheet.absoluteFill, styles.cover, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        StyleSheet.absoluteFill,
+        styles.cover,
+        { backgroundColor: colors.background },
+      ]}
+    >
       <View style={[styles.badge, { backgroundColor: colors.primarySoft }]}>
         <Ionicons name="finger-print" size={40} color={colors.primary} />
       </View>
-      <Text style={{ fontSize: 20, fontFamily: f.extrabold, color: colors.text }}>
+      <Text
+        style={{ fontSize: 20, fontFamily: f.extrabold, color: colors.text }}
+      >
         ConvoReal is locked
       </Text>
-      <Text style={{ fontSize: 13.5, color: colors.textMuted, textAlign: 'center' }}>
+      <Text
+        style={{ fontSize: 13.5, color: colors.textMuted, textAlign: 'center' }}
+      >
         Unlock with your fingerprint or face to continue.
       </Text>
       <Pressable
@@ -65,10 +75,24 @@ export function AppLockGate() {
         ]}
       >
         <Ionicons name="lock-open-outline" size={17} color={colors.onPrimary} />
-        <Text style={{ fontSize: 15, fontFamily: f.bold, color: colors.onPrimary }}>Unlock</Text>
+        <Text
+          style={{ fontSize: 15, fontFamily: f.bold, color: colors.onPrimary }}
+        >
+          Unlock
+        </Text>
       </Pressable>
-      <Pressable onPress={() => signOut()} accessibilityRole="button" accessibilityLabel="Sign out">
-        <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.textMuted }}>
+      <Pressable
+        onPress={() => signOut()}
+        accessibilityRole="button"
+        accessibilityLabel="Sign out"
+      >
+        <Text
+          style={{
+            fontSize: 13.5,
+            fontFamily: f.semibold,
+            color: colors.textMuted,
+          }}
+        >
           Sign out instead
         </Text>
       </Pressable>

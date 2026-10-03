@@ -45,7 +45,9 @@ function useKeyboardHeight(active: boolean): number {
     }
     const show = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hide = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSub = Keyboard.addListener(show, (e) => setHeight(e.endCoordinates?.height ?? 0));
+    const showSub = Keyboard.addListener(show, (e) =>
+      setHeight(e.endCoordinates?.height ?? 0)
+    );
     const hideSub = Keyboard.addListener(hide, () => setHeight(0));
     return () => {
       showSub.remove();
@@ -91,7 +93,10 @@ export function BottomSheet({
       statusBarTranslucent
     >
       <Pressable
-        style={[styles.backdrop, { backgroundColor: colors.backdrop, paddingBottom: keyboardHeight }]}
+        style={[
+          styles.backdrop,
+          { backgroundColor: colors.backdrop, paddingBottom: keyboardHeight },
+        ]}
         onLayout={(e) => setFrameHeight(e.nativeEvent.layout.height)}
         onPress={onClose}
         accessibilityRole="button"
@@ -114,10 +119,14 @@ export function BottomSheet({
             contentStyle,
           ]}
         >
-          <View style={[styles.handle, { backgroundColor: colors.textFaint }]} />
+          <View
+            style={[styles.handle, { backgroundColor: colors.textFaint }]}
+          />
           {title ? (
             <View style={styles.head}>
-              <Text style={[type.heading, { color: colors.text }]}>{title}</Text>
+              <Text style={[type.heading, { color: colors.text }]}>
+                {title}
+              </Text>
               <Pressable
                 onPress={onClose}
                 hitSlop={8}
@@ -129,7 +138,9 @@ export function BottomSheet({
               </Pressable>
             </View>
           ) : null}
-          <SheetFrameContext.Provider value={available}>{children}</SheetFrameContext.Provider>
+          <SheetFrameContext.Provider value={available}>
+            {children}
+          </SheetFrameContext.Provider>
         </Pressable>
       </Pressable>
     </Modal>
@@ -160,5 +171,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
-  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  close: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

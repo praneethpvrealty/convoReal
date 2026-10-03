@@ -119,14 +119,12 @@ export function RequirementAgentShareSheet({
   }
 
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={onBack}
-      title="Share with an agent"
-    >
+    <BottomSheet visible={visible} onClose={onBack} title="Share with an agent">
       <View style={{ flexShrink: 1, gap: spacing.md }}>
         <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
-          <Text style={{ color: colors.textMuted, fontSize: 12.5, lineHeight: 18 }}>
+          <Text
+            style={{ color: colors.textMuted, fontSize: 12.5, lineHeight: 18 }}
+          >
             Select a saved agent contact. ConvoReal shares a masked buyer brief,
             never the buyer’s name or phone number.
           </Text>
@@ -147,7 +145,10 @@ export function RequirementAgentShareSheet({
           keyboardShouldPersistTaps="handled"
         >
           {agents.isPending ? (
-            <ActivityIndicator color={colors.primary} style={{ margin: spacing.xl }} />
+            <ActivityIndicator
+              color={colors.primary}
+              style={{ margin: spacing.xl }}
+            />
           ) : agents.isError ? (
             <Text style={{ color: colors.danger, textAlign: 'center' }}>
               Could not load agent contacts.
@@ -174,8 +175,12 @@ export function RequirementAgentShareSheet({
                   style={[
                     styles.row,
                     {
-                      borderColor: selected ? colors.primary : colors.glassBorder,
-                      backgroundColor: selected ? colors.primarySoft : colors.glass,
+                      borderColor: selected
+                        ? colors.primary
+                        : colors.glassBorder,
+                      backgroundColor: selected
+                        ? colors.primarySoft
+                        : colors.glass,
                     },
                   ]}
                 >
@@ -220,7 +225,11 @@ export function RequirementAgentShareSheet({
                   },
                 ]}
               >
-                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={18}
+                  color={colors.success}
+                />
                 <Text style={{ color: colors.text, flex: 1 }}>
                   Account verified. This brief can be delivered in-app.
                 </Text>
@@ -235,7 +244,11 @@ export function RequirementAgentShareSheet({
                   },
                 ]}
               >
-                <Ionicons name="information-circle" size={18} color={colors.warning} />
+                <Ionicons
+                  name="information-circle"
+                  size={18}
+                  color={colors.warning}
+                />
                 <Text style={{ color: colors.text, flex: 1 }}>
                   No matching ConvoReal account was found. Use the WhatsApp
                   sharing option on the web until they join.

@@ -1,13 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
@@ -26,7 +20,10 @@ function variableCount(body: string): number {
 }
 
 function renderBody(body: string, values: string[]): string {
-  return body.replace(/\{\{(\d+)\}\}/g, (_, n) => values[Number(n) - 1] || `{{${n}}}`);
+  return body.replace(
+    /\{\{(\d+)\}\}/g,
+    (_, n) => values[Number(n) - 1] || `{{${n}}}`
+  );
 }
 
 type TemplateRow = MessageTemplate & {
@@ -50,7 +47,11 @@ export function TemplatePicker({
 }: {
   visible: boolean;
   onClose: () => void;
-  onSend: (template: MessageTemplate, bodyParams: string[], renderedText: string) => void;
+  onSend: (
+    template: MessageTemplate,
+    bodyParams: string[],
+    renderedText: string
+  ) => void;
   sending: boolean;
 }) {
   const { colors, fonts: f } = useTheme();
@@ -84,7 +85,8 @@ export function TemplatePicker({
     () => (selected ? variableCount(selected.body_text) : 0),
     [selected]
   );
-  const allFilled = values.slice(0, varCount).filter((v) => v.trim()).length === varCount;
+  const allFilled =
+    values.slice(0, varCount).filter((v) => v.trim()).length === varCount;
   const preview = selected ? renderBody(selected.body_text, values) : '';
 
   function reset() {
@@ -100,119 +102,156 @@ export function TemplatePicker({
         onClose();
       }}
     >
-          <View style={styles.sheetHeader}>
-            {selected ? (
+      <View style={styles.sheetHeader}>
+        {selected ? (
+          <Pressable
+            onPress={reset}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Back to template list"
+          >
+            <Ionicons name="arrow-back" size={20} color={colors.text} />
+          </Pressable>
+        ) : (
+          <View style={{ width: 20 }} />
+        )}
+        <Text style={{ fontSize: 16, fontFamily: f.bold, color: colors.text }}>
+          {selected ? selected.name : 'Send a template'}
+        </Text>
+        <Pressable
+          onPress={() => {
+            reset();
+            onClose();
+          }}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
+          <Ionicons name="close" size={20} color={colors.text} />
+        </Pressable>
+      </View>
+
+      <Text
+        style={{
+          fontSize: 12.5,
+          color: colors.textMuted,
+          paddingHorizontal: spacing.lg,
+        }}
+      >
+        Templates are the only messages WhatsApp accepts outside the 24-hour
+        service window.
+      </Text>
+
+      {isLoading ? (
+        <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 32 }} />
+      ) : !selected ? (
+        <ScrollView
+          style={[sheetScrollArea, { maxHeight: 420 }]}
+          contentContainerStyle={{ paddingVertical: spacing.sm }}
+        >
+          {(templates ?? []).length === 0 ? (
+            <View style={{ padding: spacing.lg }}>
+              <Banner
+                kind="info"
+                text="No approved text templates. Create and submit templates from the web app's WhatsApp settings."
+              />
+            </View>
+          ) : (
+            (templates ?? []).map((t) => (
               <Pressable
-                onPress={reset}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Back to template list"
+                key={t.id}
+                style={[styles.templateRow, { borderTopColor: colors.border }]}
+                onPress={() => {
+                  setSelected(t);
+                  setValues(Array(variableCount(t.body_text)).fill(''));
+                }}
               >
-                <Ionicons name="arrow-back" size={20} color={colors.text} />
-              </Pressable>
-            ) : (
-              <View style={{ width: 20 }} />
-            )}
-            <Text style={{ fontSize: 16, fontFamily: f.bold, color: colors.text }}>
-              {selected ? selected.name : 'Send a template'}
-            </Text>
-            <Pressable
-              onPress={() => {
-                reset();
-                onClose();
-              }}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-            >
-              <Ionicons name="close" size={20} color={colors.text} />
-            </Pressable>
-          </View>
-
-          <Text style={{ fontSize: 12.5, color: colors.textMuted, paddingHorizontal: spacing.lg }}>
-            Templates are the only messages WhatsApp accepts outside the 24-hour service window.
-          </Text>
-
-          {isLoading ? (
-            <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 32 }} />
-          ) : !selected ? (
-            <ScrollView style={[sheetScrollArea, { maxHeight: 420 }]} contentContainerStyle={{ paddingVertical: spacing.sm }}>
-              {(templates ?? []).length === 0 ? (
-                <View style={{ padding: spacing.lg }}>
-                  <Banner
-                    kind="info"
-                    text="No approved text templates. Create and submit templates from the web app's WhatsApp settings."
-                  />
-                </View>
-              ) : (
-                (templates ?? []).map((t) => (
-                  <Pressable
-                    key={t.id}
-                    style={[styles.templateRow, { borderTopColor: colors.border }]}
-                    onPress={() => {
-                      setSelected(t);
-                      setValues(Array(variableCount(t.body_text)).fill(''));
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text
+                    style={{
+                      fontSize: 14.5,
+                      fontFamily: f.bold,
+                      color: colors.text,
                     }}
                   >
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text }}>
-                        {t.name}
-                      </Text>
-                      <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={2}>
-                        {t.body_text}
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-                  </Pressable>
-                ))
-              )}
-            </ScrollView>
-          ) : (
-            <ScrollView
-              style={[sheetScrollArea, { maxHeight: 420 }]}
-              contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-            >
-              {Array.from({ length: varCount }, (_, i) => (
-                <TextField
-                  key={i}
-                  placeholder={`Value for {{${i + 1}}}`}
-                  value={values[i] ?? ''}
-                  onChangeText={(v) =>
-                    setValues((prev) => {
-                      const next = [...prev];
-                      next[i] = v;
-                      return next;
-                    })
-                  }
+                    {t.name}
+                  </Text>
+                  <Text
+                    style={{ fontSize: 12.5, color: colors.textMuted }}
+                    numberOfLines={2}
+                  >
+                    {t.body_text}
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={colors.textFaint}
                 />
-              ))}
-
-              <View style={[styles.preview, { backgroundColor: colors.surfaceSunken }]}>
-                {selected.header_type === 'text' && selected.header_content ? (
-                  <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.incomingText }}>
-                    {selected.header_content}
-                  </Text>
-                ) : null}
-                <Text style={{ fontSize: 14, lineHeight: 20, color: colors.incomingText }}>
-                  {preview}
-                </Text>
-                {selected.footer_text ? (
-                  <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
-                    {selected.footer_text}
-                  </Text>
-                ) : null}
-              </View>
-
-              <PrimaryButton
-                label="Send message"
-                busy={sending}
-                disabled={!allFilled}
-                onPress={() => onSend(selected, values.slice(0, varCount), preview)}
-              />
-            </ScrollView>
+              </Pressable>
+            ))
           )}
+        </ScrollView>
+      ) : (
+        <ScrollView
+          style={[sheetScrollArea, { maxHeight: 420 }]}
+          contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          {Array.from({ length: varCount }, (_, i) => (
+            <TextField
+              key={i}
+              placeholder={`Value for {{${i + 1}}}`}
+              value={values[i] ?? ''}
+              onChangeText={(v) =>
+                setValues((prev) => {
+                  const next = [...prev];
+                  next[i] = v;
+                  return next;
+                })
+              }
+            />
+          ))}
+
+          <View
+            style={[styles.preview, { backgroundColor: colors.surfaceSunken }]}
+          >
+            {selected.header_type === 'text' && selected.header_content ? (
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontFamily: f.bold,
+                  color: colors.incomingText,
+                }}
+              >
+                {selected.header_content}
+              </Text>
+            ) : null}
+            <Text
+              style={{
+                fontSize: 14,
+                lineHeight: 20,
+                color: colors.incomingText,
+              }}
+            >
+              {preview}
+            </Text>
+            {selected.footer_text ? (
+              <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+                {selected.footer_text}
+              </Text>
+            ) : null}
+          </View>
+
+          <PrimaryButton
+            label="Send message"
+            busy={sending}
+            disabled={!allFilled}
+            onPress={() => onSend(selected, values.slice(0, varCount), preview)}
+          />
+        </ScrollView>
+      )}
     </BottomSheet>
   );
 }

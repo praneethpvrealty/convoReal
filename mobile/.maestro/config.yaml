@@ -1,5 +1,5 @@
 flows:
-  - "flows/*.yaml"
+  - 'flows/*.yaml'
 executionOrder:
   continueOnFailure: false
   flowsOrder:

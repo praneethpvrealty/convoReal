@@ -40,10 +40,7 @@ export function withoutLastInquiredProperty<
 /** Chip text for the active filter. Property codes are short; project
  *  names are not, and the chip sits in a scrolling row beside five
  *  segment pills. */
-export function interestChipLabel(
-  filter: InterestFilter,
-  max = 18
-): string {
+export function interestChipLabel(filter: InterestFilter, max = 18): string {
   const label = filter.label.trim();
   return label.length > max ? `${label.slice(0, max - 1).trimEnd()}…` : label;
 }

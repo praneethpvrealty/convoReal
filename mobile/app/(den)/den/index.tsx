@@ -159,7 +159,12 @@ export default function DenHomeScreen() {
         >
           <Ionicons name="scale-outline" size={20} color={colors.primary} />
           <Text
-            style={{ flex: 1, fontSize: 15, fontFamily: f.bold, color: colors.text }}
+            style={{
+              flex: 1,
+              fontSize: 15,
+              fontFamily: f.bold,
+              color: colors.text,
+            }}
           >
             Find a guidance value
           </Text>

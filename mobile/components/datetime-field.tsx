@@ -58,7 +58,9 @@ export function InlineDateTimePicker({
         accessibilityLabel="Done"
         style={styles.doneButton}
       >
-        <Text style={{ color: colors.primary, fontSize: 15.5, fontFamily: f.bold }}>
+        <Text
+          style={{ color: colors.primary, fontSize: 15.5, fontFamily: f.bold }}
+        >
           Done
         </Text>
       </Pressable>

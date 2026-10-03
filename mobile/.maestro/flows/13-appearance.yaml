@@ -3,19 +3,19 @@ name: appearance
 ---
 - launchApp
 - tapOn:
-    id: "tab-more"
+    id: 'tab-more'
 - scrollUntilVisible:
     element:
-      id: "appearance-light"
+      id: 'appearance-light'
 - tapOn:
-    id: "appearance-light"
+    id: 'appearance-light'
 - takeScreenshot: .maestro/shots/13-appearance-light
 - tapOn:
-    id: "appearance-dark"
+    id: 'appearance-dark'
 - takeScreenshot: .maestro/shots/13-appearance-dark
 # Leave the app on the mode it defaults to, so a later flow's
 # screenshots are not coloured by whatever this one selected last.
 - tapOn:
-    id: "appearance-system"
+    id: 'appearance-system'
 - assertVisible:
-    id: "tab-inbox"
+    id: 'tab-inbox'

@@ -226,10 +226,7 @@ export function ContactRequirementsSheet({
     }
   }
 
-  function confirmDelete(
-    target: 'primary' | 'profile',
-    profileId?: string
-  ) {
+  function confirmDelete(target: 'primary' | 'profile', profileId?: string) {
     show({
       title: 'Delete requirement?',
       message:
@@ -481,9 +478,7 @@ export function ContactRequirementsSheet({
                 icon="save-outline"
                 busy={saving === 'primary'}
                 disabled={
-                  !primaryText.trim() ||
-                  saving !== null ||
-                  deleting !== null
+                  !primaryText.trim() || saving !== null || deleting !== null
                 }
                 onPress={() => saveRequirement('primary', primaryText)}
               />
@@ -606,7 +601,11 @@ export function ContactRequirementsSheet({
                     }}
                   >
                     <Ionicons
-                      name={deleting === profile.id ? 'hourglass-outline' : 'trash-outline'}
+                      name={
+                        deleting === profile.id
+                          ? 'hourglass-outline'
+                          : 'trash-outline'
+                      }
                       size={18}
                       color={colors.danger}
                     />

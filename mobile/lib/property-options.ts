@@ -175,7 +175,14 @@ export const FACING_DIRECTIONS = [
   'South-West',
 ];
 
-export const AREA_UNITS = ['Sq.Ft.', 'Sq.Mtr.', 'Acre', 'Gunta', 'Cent', 'Ground'];
+export const AREA_UNITS = [
+  'Sq.Ft.',
+  'Sq.Mtr.',
+  'Acre',
+  'Gunta',
+  'Cent',
+  'Ground',
+];
 
 export const NEARBY_HIGHLIGHTS_OPTIONS = [
   'Metro Station',

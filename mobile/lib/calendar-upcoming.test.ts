@@ -90,9 +90,24 @@ describe('buildUpcomingCalendarItems', () => {
       now,
       selected,
       [
-        { dealId: 'd', milestoneId: null, kind: 'expected_close' as const, dueDate: '2026-09-14' },
-        { dealId: 'd', milestoneId: 'ms', kind: 'milestone' as const, dueDate: '2026-09-15' },
-        { dealId: 'd', milestoneId: 't', kind: 'payment' as const, dueDate: '2026-09-01' },
+        {
+          dealId: 'd',
+          milestoneId: null,
+          kind: 'expected_close' as const,
+          dueDate: '2026-09-14',
+        },
+        {
+          dealId: 'd',
+          milestoneId: 'ms',
+          kind: 'milestone' as const,
+          dueDate: '2026-09-15',
+        },
+        {
+          dealId: 'd',
+          milestoneId: 't',
+          kind: 'payment' as const,
+          dueDate: '2026-09-01',
+        },
       ]
     );
 

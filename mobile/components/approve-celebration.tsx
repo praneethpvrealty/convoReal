@@ -45,11 +45,15 @@ export function ApproveCelebration({
 
   const message = reengageId
     ? `${name} is in your active contacts. Their 24-hour Engine window has closed — send ${
-        propertyName ? `the details for "${propertyName}"` : 'the property details'
+        propertyName
+          ? `the details for "${propertyName}"`
+          : 'the property details'
       } on WhatsApp, or open the Engine thread to send a template.`
     : outcome?.sent
       ? `The details for ${
-          propertyName ? `"${propertyName}"` : 'the property they inquired about'
+          propertyName
+            ? `"${propertyName}"`
+            : 'the property they inquired about'
         } were sent to ${name} on WhatsApp. Follow up on their reply in the chat inbox.`
       : outcome?.error
         ? `${name} is in your active contacts, but auto-sending the property details failed — check the WhatsApp configuration, then follow up from the chat inbox.`
@@ -93,7 +97,10 @@ export function ApproveCelebration({
               onClose();
               const outcome = await openContactChat(contact);
               if (!outcome.ok && outcome.error) {
-                show({ title: 'Could not open thread', message: outcome.error });
+                show({
+                  title: 'Could not open thread',
+                  message: outcome.error,
+                });
               }
             },
           },

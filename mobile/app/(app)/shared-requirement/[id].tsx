@@ -29,8 +29,7 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 export default function SharedRequirementDetailScreen() {
   const params = useLocalSearchParams<{ id: string; box?: string }>();
   const id = typeof params.id === 'string' ? params.id : '';
-  const box: RequirementShareBox =
-    params.box === 'sent' ? 'sent' : 'received';
+  const box: RequirementShareBox = params.box === 'sent' ? 'sent' : 'received';
   const { colors, fonts: f } = useTheme();
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<string[]>([]);
@@ -130,14 +129,20 @@ export default function SharedRequirementDetailScreen() {
           <View
             style={[
               styles.card,
-              { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+              {
+                backgroundColor: colors.glass,
+                borderColor: colors.glassBorder,
+              },
             ]}
           >
-            <Text style={{ color: colors.text, fontFamily: f.bold, fontSize: 17 }}>
+            <Text
+              style={{ color: colors.text, fontFamily: f.bold, fontSize: 17 }}
+            >
               {data.share.reference}
             </Text>
             <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-              Shared by {[data.share.senderAccountName, data.share.senderName]
+              Shared by{' '}
+              {[data.share.senderAccountName, data.share.senderName]
                 .filter(Boolean)
                 .join(' · ')}
             </Text>
@@ -156,8 +161,14 @@ export default function SharedRequirementDetailScreen() {
             ) : null}
             {data.share.brief.areas.length ? (
               <View style={styles.inline}>
-                <Ionicons name="location-outline" size={15} color={colors.textFaint} />
-                <Text style={{ color: colors.textMuted, fontSize: 12, flex: 1 }}>
+                <Ionicons
+                  name="location-outline"
+                  size={15}
+                  color={colors.textFaint}
+                />
+                <Text
+                  style={{ color: colors.textMuted, fontSize: 12, flex: 1 }}
+                >
                   {data.share.brief.areas.join(', ')}
                 </Text>
               </View>
@@ -175,7 +186,13 @@ export default function SharedRequirementDetailScreen() {
           {box === 'received' ? (
             <>
               <View style={{ gap: spacing.xs }}>
-                <Text style={{ color: colors.text, fontFamily: f.bold, fontSize: 16 }}>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontFamily: f.bold,
+                    fontSize: 16,
+                  }}
+                >
                   Select matching inventory
                 </Text>
                 <Text style={{ color: colors.textMuted, fontSize: 12.5 }}>
@@ -249,7 +266,11 @@ export default function SharedRequirementDetailScreen() {
                   },
                 ]}
               >
-                <Ionicons name="close-outline" size={18} color={colors.danger} />
+                <Ionicons
+                  name="close-outline"
+                  size={18}
+                  color={colors.danger}
+                />
                 <Text style={{ color: colors.danger, fontFamily: f.bold }}>
                   No matching property
                 </Text>
@@ -257,7 +278,9 @@ export default function SharedRequirementDetailScreen() {
             </>
           ) : (
             <>
-              <Text style={{ color: colors.text, fontFamily: f.bold, fontSize: 16 }}>
+              <Text
+                style={{ color: colors.text, fontFamily: f.bold, fontSize: 16 }}
+              >
                 Agent response
               </Text>
               {data.responseProperties.length ? (
@@ -355,7 +378,10 @@ function PropertyText({
       <Text numberOfLines={1} style={{ color: colors.text, fontFamily }}>
         {property.title}
       </Text>
-      <Text numberOfLines={1} style={{ color: colors.textMuted, fontSize: 11.5 }}>
+      <Text
+        numberOfLines={1}
+        style={{ color: colors.textMuted, fontSize: 11.5 }}
+      >
         {[
           property.location,
           property.price ? formatInr(property.price) : null,

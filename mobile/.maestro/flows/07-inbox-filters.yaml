@@ -4,24 +4,24 @@ name: inbox-filters
 - launchApp
 - extendedWaitUntil:
     visible:
-      id: "inbox-search"
+      id: 'inbox-search'
     timeout: 20000
 # Each chip re-filters the same list in place; the search bar staying put
 # is what says the screen survived the switch rather than erroring out.
 - tapOn:
-    id: "inbox-filter-needs-reply"
+    id: 'inbox-filter-needs-reply'
 - assertVisible:
-    id: "inbox-search"
+    id: 'inbox-search'
 - tapOn:
-    id: "inbox-filter-unanswered"
+    id: 'inbox-filter-unanswered'
 - assertVisible:
-    id: "inbox-search"
+    id: 'inbox-search'
 - tapOn:
-    id: "inbox-filter-unread"
+    id: 'inbox-filter-unread'
 - assertVisible:
-    id: "inbox-search"
+    id: 'inbox-search'
 - takeScreenshot: .maestro/shots/07-inbox-filters
 - tapOn:
-    id: "inbox-filter-all"
+    id: 'inbox-filter-all'
 - assertVisible:
-    id: "inbox-search"
+    id: 'inbox-search'

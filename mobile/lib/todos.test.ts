@@ -34,17 +34,37 @@ describe('sortTodos', () => {
   });
 
   it('sorts completed tasks by descending due date after open tasks', () => {
-    const open = makeTodo({ id: 'open', completed: false, due_date: '2026-08-01T09:00:00Z' });
-    const doneAug20 = makeTodo({ id: 'done20', completed: true, due_date: '2026-08-20T09:00:00Z' });
-    const doneAug10 = makeTodo({ id: 'done10', completed: true, due_date: '2026-08-10T09:00:00Z' });
+    const open = makeTodo({
+      id: 'open',
+      completed: false,
+      due_date: '2026-08-01T09:00:00Z',
+    });
+    const doneAug20 = makeTodo({
+      id: 'done20',
+      completed: true,
+      due_date: '2026-08-20T09:00:00Z',
+    });
+    const doneAug10 = makeTodo({
+      id: 'done10',
+      completed: true,
+      due_date: '2026-08-10T09:00:00Z',
+    });
     const sorted = sortTodos([doneAug10, open, doneAug20]);
     expect(sorted.map((t) => t.id)).toEqual(['open', 'done20', 'done10']);
   });
 
   it('handles mixed dated and undated tasks across statuses', () => {
-    const openDated = makeTodo({ id: 'od', completed: false, due_date: '2026-08-15T09:00:00Z' });
+    const openDated = makeTodo({
+      id: 'od',
+      completed: false,
+      due_date: '2026-08-15T09:00:00Z',
+    });
     const openUndated = makeTodo({ id: 'ou', completed: false });
-    const doneDated = makeTodo({ id: 'dd', completed: true, due_date: '2026-08-20T09:00:00Z' });
+    const doneDated = makeTodo({
+      id: 'dd',
+      completed: true,
+      due_date: '2026-08-20T09:00:00Z',
+    });
     const doneUndated = makeTodo({ id: 'du', completed: true });
     const sorted = sortTodos([doneUndated, openUndated, doneDated, openDated]);
     expect(sorted.map((t) => t.id)).toEqual(['od', 'ou', 'dd', 'du']);

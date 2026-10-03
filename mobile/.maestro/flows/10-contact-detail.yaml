@@ -3,19 +3,19 @@ name: contact-detail
 ---
 - launchApp
 - tapOn:
-    id: "tab-contacts"
+    id: 'tab-contacts'
 - extendedWaitUntil:
     visible:
-      id: "contacts-search"
+      id: 'contacts-search'
     timeout: 20000
 - tapOn:
-    id: "contact-row"
+    id: 'contact-row'
     index: 0
 - extendedWaitUntil:
     visible:
-      id: "contact-detail-screen"
+      id: 'contact-detail-screen'
     timeout: 20000
 - takeScreenshot: .maestro/shots/10-contact-detail
 - back
 - assertVisible:
-    id: "contacts-search"
+    id: 'contacts-search'

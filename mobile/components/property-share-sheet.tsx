@@ -950,7 +950,11 @@ function EngineTemplateCard({
           { backgroundColor: colors.surfaceSunken, borderColor: colors.border },
         ]}
       >
-        <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
+        <Ionicons
+          name="alert-circle-outline"
+          size={18}
+          color={colors.warning}
+        />
         <Text
           style={{
             flex: 1,
@@ -959,9 +963,9 @@ function EngineTemplateCard({
             color: colors.textMuted,
           }}
         >
-          Contacts who messaged you in the last 24 hours get your message
-          above. {preview.unsent_reason}, so everyone else cannot be reached
-          from ConvoReal yet.
+          Contacts who messaged you in the last 24 hours get your message above.{' '}
+          {preview.unsent_reason}, so everyone else cannot be reached from
+          ConvoReal yet.
         </Text>
       </View>
     );
@@ -1021,7 +1025,9 @@ function EngineTemplateCard({
           onPress={() => setExpanded((value) => !value)}
           accessibilityRole="button"
           accessibilityLabel={
-            expanded ? 'Collapse the template preview' : 'Expand the template preview'
+            expanded
+              ? 'Collapse the template preview'
+              : 'Expand the template preview'
           }
         >
           <Text

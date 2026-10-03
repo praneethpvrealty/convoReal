@@ -32,7 +32,11 @@ export function buildCheckInMessage({
 
   const title = clean(propertyTitle);
   const code = clean(propertyCode);
-  const subject = title ? (code ? `${title} (${code})` : title) : code || 'the property we discussed';
+  const subject = title
+    ? code
+      ? `${title} (${code})`
+      : title
+    : code || 'the property we discussed';
 
   const stage = clean(stageName);
   const context = stage ? ` We had it at ${stage}.` : '';

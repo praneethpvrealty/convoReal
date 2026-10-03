@@ -30,7 +30,9 @@ function withParam(baseUrl: string, key: string, value: string): string {
 
 /** Showcase link personalized to a contact — their opens and views show
  *  in Pulse under their name (v= attributes, never filters). */
-export async function contactShowcaseShareUrl(contact: Contact): Promise<string> {
+export async function contactShowcaseShareUrl(
+  contact: Contact
+): Promise<string> {
   return withParam(await getShowcaseUrl(), 'v', contact.id);
 }
 
@@ -54,9 +56,12 @@ export async function contactPropertyShareUrl(
 export async function anonymousShowcaseShareUrl(): Promise<string> {
   const base = await getShowcaseUrl();
   try {
-    const res = await apiFetch<{ data: { id: string } }>('/api/showcase-shares', {
-      method: 'POST',
-    });
+    const res = await apiFetch<{ data: { id: string } }>(
+      '/api/showcase-shares',
+      {
+        method: 'POST',
+      }
+    );
     return withParam(base, 's', res.data.id);
   } catch {
     return base;

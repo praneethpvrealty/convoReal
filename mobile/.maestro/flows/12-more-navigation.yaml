@@ -3,54 +3,54 @@ name: more-navigation
 ---
 - launchApp
 - tapOn:
-    id: "tab-more"
+    id: 'tab-more'
 # Each menu row is a route that has to mount without throwing. The
 # pushed screen hides the menu, so waiting for the row to disappear is
 # what proves the navigation happened — several screens carry the same
 # title text as the row that opened them.
 - scrollUntilVisible:
     element:
-      id: "menu-focus"
+      id: 'menu-focus'
 - tapOn:
-    id: "menu-focus"
+    id: 'menu-focus'
 - extendedWaitUntil:
     notVisible:
-      id: "menu-focus"
+      id: 'menu-focus'
     timeout: 20000
 - back
 
 - scrollUntilVisible:
     element:
-      id: "menu-deals"
+      id: 'menu-deals'
 - tapOn:
-    id: "menu-deals"
+    id: 'menu-deals'
 - extendedWaitUntil:
     notVisible:
-      id: "menu-deals"
+      id: 'menu-deals'
     timeout: 20000
 - back
 
 - scrollUntilVisible:
     element:
-      id: "menu-dashboard"
+      id: 'menu-dashboard'
 - tapOn:
-    id: "menu-dashboard"
+    id: 'menu-dashboard'
 - extendedWaitUntil:
     notVisible:
-      id: "menu-dashboard"
+      id: 'menu-dashboard'
     timeout: 20000
 - takeScreenshot: .maestro/shots/12-dashboard
 - back
 
 - scrollUntilVisible:
     element:
-      id: "menu-notifications"
+      id: 'menu-notifications'
 - tapOn:
-    id: "menu-notifications"
+    id: 'menu-notifications'
 - extendedWaitUntil:
     notVisible:
-      id: "menu-notifications"
+      id: 'menu-notifications'
     timeout: 20000
 - back
 - assertVisible:
-    id: "menu-notifications"
+    id: 'menu-notifications'

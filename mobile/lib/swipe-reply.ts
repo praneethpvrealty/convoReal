@@ -27,7 +27,8 @@ export function replyDragOffset(translationX: number): number {
   if (translationX <= REPLY_TRIGGER_DISTANCE) return translationX;
   return Math.min(
     MAX_DRAG,
-    REPLY_TRIGGER_DISTANCE + (translationX - REPLY_TRIGGER_DISTANCE) * OVERSHOOT_RESISTANCE
+    REPLY_TRIGGER_DISTANCE +
+      (translationX - REPLY_TRIGGER_DISTANCE) * OVERSHOOT_RESISTANCE
   );
 }
 

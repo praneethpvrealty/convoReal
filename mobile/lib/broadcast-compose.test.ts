@@ -10,12 +10,19 @@ import {
 
 describe('templateVariableKeys', () => {
   it('finds placeholders in Meta numbering order', () => {
-    expect(templateVariableKeys('Hi {{1}}, {{2}} is available')).toEqual(['1', '2']);
+    expect(templateVariableKeys('Hi {{1}}, {{2}} is available')).toEqual([
+      '1',
+      '2',
+    ]);
   });
 
   it('sorts numerically, not as strings', () => {
     // "10" must come after "2" — a lexical sort would put it first.
-    expect(templateVariableKeys('{{2}} {{10}} {{1}}')).toEqual(['1', '2', '10']);
+    expect(templateVariableKeys('{{2}} {{10}} {{1}}')).toEqual([
+      '1',
+      '2',
+      '10',
+    ]);
   });
 
   it('collapses a placeholder repeated in the body', () => {
@@ -43,7 +50,10 @@ describe('previewBody', () => {
   it('substitutes field and static mappings', () => {
     const out = previewBody(
       'Hi {{1}}, from {{2}}',
-      { '1': { type: 'field', value: 'name' }, '2': { type: 'static', value: 'ConvoReal' } },
+      {
+        '1': { type: 'field', value: 'name' },
+        '2': { type: 'static', value: 'ConvoReal' },
+      },
       sample
     );
     expect(out).toBe('Hi Rahul, from ConvoReal');
@@ -53,7 +63,10 @@ describe('previewBody', () => {
     // An unfilled slot must look unfilled — otherwise it sends as "{{2}}".
     const out = previewBody(
       'Hi {{1}}, from {{2}}',
-      { '1': { type: 'field', value: 'name' }, '2': { type: 'static', value: '   ' } },
+      {
+        '1': { type: 'field', value: 'name' },
+        '2': { type: 'static', value: '   ' },
+      },
       sample
     );
     expect(out).toBe('Hi Rahul, from {{2}}');
@@ -84,7 +97,9 @@ describe('mappingsComplete', () => {
         '2': { type: 'static', value: '  ' },
       })
     ).toBe(false);
-    expect(mappingsComplete(keys, { '1': { type: 'field', value: 'name' } })).toBe(false);
+    expect(
+      mappingsComplete(keys, { '1': { type: 'field', value: 'name' } })
+    ).toBe(false);
   });
 });
 

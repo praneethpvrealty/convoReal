@@ -35,7 +35,9 @@ vi.mock('./api', () => ({
 }));
 
 vi.mock('./supabase', () => ({ supabase: { from: () => ({}) } }));
-vi.mock('./welcome-message', () => ({ getShowcaseUrl: async () => 'https://showcase.test' }));
+vi.mock('./welcome-message', () => ({
+  getShowcaseUrl: async () => 'https://showcase.test',
+}));
 
 import type { Contact } from './types';
 
@@ -48,7 +50,10 @@ const CONTACT: Contact = {
   last_inquired_property_id: 'prop-1',
 } as Contact;
 
-const PROPERTY = { id: 'prop-1', title: '50x80 Residential Plot in BTM Layout' };
+const PROPERTY = {
+  id: 'prop-1',
+  title: '50x80 Residential Plot in BTM Layout',
+};
 
 beforeEach(() => {
   calls = [];
@@ -59,7 +64,8 @@ beforeEach(() => {
       sent: true,
       channel: 'freeform',
       property: PROPERTY,
-      details_message: 'Here are the complete details for the property "50x80 Residential Plot in BTM Layout"',
+      details_message:
+        'Here are the complete details for the property "50x80 Residential Plot in BTM Layout"',
       conversation_id: 'conv-1',
     },
   };
@@ -108,8 +114,14 @@ describe('approveAndSendDetails', () => {
 
     const result = await approveAndSendDetails(CONTACT);
 
-    expect(result).toMatchObject({ ok: true, sent: false, reengageConversationId: 'conv-1' });
-    expect(result.detailsMessage).toContain('50x80 Residential Plot in BTM Layout');
+    expect(result).toMatchObject({
+      ok: true,
+      sent: false,
+      reengageConversationId: 'conv-1',
+    });
+    expect(result.detailsMessage).toContain(
+      '50x80 Residential Plot in BTM Layout'
+    );
   });
 
   it('does not offer a re-engage thread when the details actually went out', async () => {
