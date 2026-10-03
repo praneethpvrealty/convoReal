@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const orFilters: string[] = [];
+const eqCalls: Array<[string, unknown]> = [];
+const neqCalls: Array<[string, unknown]> = [];
 const updates: Array<{ patch: Record<string, unknown>; id: unknown }> = [];
 const ungeocodedRows: Array<Record<string, unknown>> = [];
 
@@ -12,10 +14,14 @@ function propertiesQuery() {
   const query: any = {
     select: chain,
     eq: (column: string, value: unknown) => {
+      eqCalls.push([column, value]);
       if (patch && column === 'id') updates.push({ patch, id: value });
       return query;
     },
-    neq: chain,
+    neq: (column: string, value: unknown) => {
+      neqCalls.push([column, value]);
+      return query;
+    },
     gt: chain,
     gte: chain,
     lte: chain,
@@ -74,6 +80,8 @@ import { GET } from './route';
 
 beforeEach(() => {
   orFilters.length = 0;
+  eqCalls.length = 0;
+  neqCalls.length = 0;
   updates.length = 0;
   ungeocodedRows.length = 0;
   geocodeAddress.mockReset();
@@ -91,6 +99,28 @@ describe('GET /api/properties location filters', () => {
     expect(orFilters).toHaveLength(1);
     expect(orFilters[0]).toContain('location.ilike."%whitefield%"');
     expect(orFilters[0]).toContain('location.ilike."%koramangala%"');
+  });
+});
+
+describe('GET /api/properties listing_source filter', () => {
+  it('[PRP-026] treats owner as anything not agent referred', async () => {
+    const response = await GET(
+      new Request('http://test/api/properties?listing_source=owner')
+    );
+
+    expect(response.status).toBe(200);
+    expect(neqCalls).toContainEqual(['listing_source', 'agent']);
+    expect(eqCalls).not.toContainEqual(['listing_source', 'owner']);
+  });
+
+  it('[PRP-026] matches agent listings exactly', async () => {
+    const response = await GET(
+      new Request('http://test/api/properties?listing_source=agent')
+    );
+
+    expect(response.status).toBe(200);
+    expect(eqCalls).toContainEqual(['listing_source', 'agent']);
+    expect(neqCalls).not.toContainEqual(['listing_source', 'agent']);
   });
 });
 

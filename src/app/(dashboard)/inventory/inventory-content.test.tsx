@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import type { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   render,
@@ -12,6 +13,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import InventoryContent from './inventory-content';
 
 const searchParams = new URLSearchParams();
+
+interface BreakdownRow {
+  status: string;
+  is_published: boolean;
+  agent_referred: boolean;
+  listings: number | string;
+}
+
+let breakdownRows: BreakdownRow[] = [];
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -37,7 +47,13 @@ vi.mock('@/hooks/use-locale', () => ({
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
-    rpc: () => ({
+    rpc: (name: string) => ({
+      then: <T,>(onfulfilled: (value: unknown) => T | PromiseLike<T>) =>
+        Promise.resolve(
+          name === 'inventory_source_breakdown'
+            ? { data: breakdownRows, error: null }
+            : { data: null, error: null }
+        ).then(onfulfilled),
       maybeSingle: async () => ({
         data: {
           total: 0,
@@ -97,11 +113,33 @@ vi.mock('@/components/ui/locality-autocomplete', () => ({
 }));
 
 vi.mock('@/components/inventory/property-list', () => ({
-  PropertyList: () => <div data-testid="property-list" />,
+  PropertyList: ({
+    properties,
+    emptyState,
+  }: {
+    properties: unknown[];
+    emptyState?: ReactNode;
+  }) =>
+    properties.length === 0 && emptyState ? (
+      <>{emptyState}</>
+    ) : (
+      <div data-testid="property-list" />
+    ),
 }));
 
 vi.mock('@/components/inventory/property-table', () => ({
-  PropertyTable: () => <div data-testid="property-table" />,
+  PropertyTable: ({
+    properties,
+    emptyState,
+  }: {
+    properties: unknown[];
+    emptyState?: ReactNode;
+  }) =>
+    properties.length === 0 && emptyState ? (
+      <>{emptyState}</>
+    ) : (
+      <div data-testid="property-table" />
+    ),
 }));
 
 vi.mock('@/components/inventory/property-form', () => ({
@@ -265,6 +303,7 @@ const propertiesCalls = (fetchMock: ReturnType<typeof vi.fn>) =>
     .filter((url) => url.startsWith('/api/properties?'));
 
 beforeEach(() => {
+  breakdownRows = [];
   searchParams.delete('search');
   searchParams.delete('page');
   searchParams.delete('propertyId');
@@ -543,5 +582,112 @@ describe('inventory sort while a location filter is on', () => {
       );
       expect(params.get('near_lat')).toBe('12.93');
     });
+  });
+});
+
+describe('inventory source pills and empty state', () => {
+  const pillTexts = () =>
+    screen
+      .getAllByRole('button', { name: /^(All|Direct|Agent referred) \(\d+\)$/ })
+      .map((button) => button.textContent);
+
+  it('[PRP-026] shows active counts on All Listings and archived counts on the Archived tab', async () => {
+    breakdownRows = [
+      {
+        status: 'Available',
+        is_published: true,
+        agent_referred: false,
+        listings: '40',
+      },
+      {
+        status: 'Available',
+        is_published: true,
+        agent_referred: true,
+        listings: 10,
+      },
+      {
+        status: 'Pending Review',
+        is_published: false,
+        agent_referred: true,
+        listings: 1,
+      },
+      {
+        status: 'Archived',
+        is_published: false,
+        agent_referred: false,
+        listings: 3,
+      },
+    ];
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    await waitFor(() => {
+      expect(pillTexts()).toContain('All (51)');
+    });
+    expect(pillTexts()).toContain('Direct (40)');
+    expect(pillTexts()).toContain('Agent referred (11)');
+
+    const archivedTab = screen.getByRole('button', { name: /^Archived\s*3$/ });
+    fireEvent.click(archivedTab);
+
+    await waitFor(() => {
+      expect(pillTexts()).toContain('All (3)');
+    });
+    expect(pillTexts()).toContain('Direct (3)');
+    expect(pillTexts()).toContain('Agent referred (0)');
+    expect(archivedTab.textContent).toContain('3');
+  });
+
+  it('[PRP-027] explains an empty filtered Archived tab and Clear filters drops listing_source', async () => {
+    breakdownRows = [
+      {
+        status: 'Archived',
+        is_published: false,
+        agent_referred: false,
+        listings: 3,
+      },
+    ];
+    const fetchMock = vi.fn();
+    mockPropertiesFetch(fetchMock);
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/properties?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: [],
+            pagination: { total: 0, totalPages: 0 },
+          }),
+        };
+      }
+      return base(url);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /^Archived\s*3$/ })
+    );
+    fireEvent.click(
+      screen.getAllByRole('button', { name: /^Agent referred \(\d+\)$/ })[0]
+    );
+
+    const empty = await screen.findByTestId('inventory-empty-state');
+    expect(empty.textContent).toContain('No listings match these filters');
+    expect(empty.textContent).toContain('Archived');
+    expect(empty.textContent).toContain('Agent referred');
+    const lastParams = () =>
+      new URLSearchParams(propertiesCalls(fetchMock).at(-1)!.split('?')[1]);
+    expect(lastParams().get('listing_source')).toBe('agent');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+
+    await waitFor(() => {
+      expect(lastParams().get('listing_source')).toBeNull();
+    });
+    expect(
+      (await screen.findByTestId('inventory-empty-state')).textContent
+    ).toContain('Nothing archived');
   });
 });
