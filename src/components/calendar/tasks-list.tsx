@@ -114,7 +114,7 @@ export function TasksList({
     <div className="space-y-3">
       {days.map((day) => (
         <div key={day.dayKey}>
-          <h3 className="mb-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+          <h3 className="mb-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
             {dayHeading(day.dayKey)}
             <span className="ml-2 font-normal text-slate-600 normal-case">
               {day.rows.length} item{day.rows.length === 1 ? '' : 's'}
@@ -186,7 +186,7 @@ export function AppointmentTaskRow({
       </span>
       <span
         className={cn(
-          'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+          'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
           meta.chip
         )}
       >
@@ -211,7 +211,7 @@ export function AppointmentTaskRow({
         >
           {event.title}
         </span>
-        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
           {event.contact?.name && (
             <span className="inline-flex items-center gap-1">
               <User className="h-2.5 w-2.5" />
@@ -265,7 +265,7 @@ export function AppointmentTaskRow({
                     title={`${action.label} — ${APPOINTMENT_STATUS_LABELS[action.status]}`}
                     aria-label={`${action.label}: ${event.title}`}
                     className={cn(
-                      'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold transition-colors',
+                      'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold transition-colors',
                       action.status === 'completed' &&
                         'border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10',
                       action.status === 'cancelled' &&
@@ -289,7 +289,7 @@ export function AppointmentTaskRow({
                       : 'Archive — hide it from the Schedule; it stays on its day in the calendar'
                   }
                   aria-label={`${archived ? 'Unarchive' : 'Archive'}: ${event.title}`}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-slate-800"
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-1.5 py-0.5 text-[11px] font-semibold text-slate-300 transition-colors hover:bg-slate-800"
                 >
                   {archived ? (
                     <ArchiveRestore className="h-3 w-3" />
@@ -329,7 +329,7 @@ export function DealDateTaskRow({
       </span>
       <span
         className={cn(
-          'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+          'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
           DEAL_DATE_META.chip
         )}
       >
@@ -346,7 +346,7 @@ export function DealDateTaskRow({
         <span className="block truncate text-xs font-semibold text-white">
           {dealDate.title}
         </span>
-        <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-slate-500">
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
           <span className="truncate">{dealDate.subject}</span>
           <span
             className={cn(
@@ -372,7 +372,7 @@ export function DealDateTaskRow({
             onClick={() => onDone(dealDate)}
             title="Mark this milestone done on the deal"
             aria-label={`Done: ${dealDate.title}`}
-            className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/10"
+            className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/10"
           >
             <Check className="h-3 w-3" />
             <span className="hidden md:inline">Done</span>
@@ -381,7 +381,7 @@ export function DealDateTaskRow({
           <Link
             href={dealDateHref(dealDate.dealId)}
             aria-label={`Open deal: ${dealDate.subject}`}
-            className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-slate-800"
+            className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-1.5 py-0.5 text-[11px] font-semibold text-slate-300 transition-colors hover:bg-slate-800"
           >
             <ExternalLink className="h-3 w-3" />
             <span className="hidden md:inline">Open deal</span>

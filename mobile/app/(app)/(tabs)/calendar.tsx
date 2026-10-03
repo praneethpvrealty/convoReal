@@ -1,7 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +29,7 @@ import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { EmptyState, FilterChip } from '@/components/ui';
+import { useUndoBar, type UndoBarHandle } from '@/components/undo-bar';
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import {
@@ -76,6 +85,7 @@ import {
   deleteCompletedTodos,
   deleteTodo,
   fetchTodos,
+  restoreTodo,
   setTodoCompleted,
   sortTodos,
   updateTodo,
@@ -106,6 +116,8 @@ const TYPE_META: Record<
 };
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+const UndoBarContext = createContext<UndoBarHandle['show']>(() => {});
 
 function monthStart(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -200,6 +212,15 @@ async function fetchDealDates(
 }
 
 export default function CalendarScreen() {
+  const undo = useUndoBar({ bottomOffset: TAB_BAR_CLEARANCE });
+  return (
+    <UndoBarContext.Provider value={undo.show}>
+      <CalendarContent undoBar={undo.element} />
+    </UndoBarContext.Provider>
+  );
+}
+
+function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
   const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
   const accountId = useAuthStore((s) => s.profile?.account_id);
@@ -629,7 +650,10 @@ export default function CalendarScreen() {
         <View
           style={[
             styles.grid,
-            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+            {
+              backgroundColor: colors.glass,
+              borderColor: colors.glassBorder,
+            },
           ]}
         >
           <View style={styles.weekRow}>
@@ -892,6 +916,7 @@ export default function CalendarScreen() {
           setDismissedEventId(eventId ?? null);
         }}
       />
+      {undoBar}
     </View>
   );
 }
@@ -1175,6 +1200,7 @@ function DoneTodosGroup({
 
 function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
   const { colors, fonts: f } = useTheme();
+  const showUndo = useContext(UndoBarContext);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -1217,6 +1243,10 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
     try {
       await deleteTodo(todo.id);
       queryClient.invalidateQueries({ queryKey: ['todos'] });
+      showUndo(`Deleted "${todo.title}"`, async () => {
+        await restoreTodo(todo as unknown as Record<string, unknown>);
+        queryClient.invalidateQueries({ queryKey: ['todos'] });
+      });
     } catch {
       haptic.warn();
       setError(
@@ -1904,6 +1934,7 @@ function AppointmentDetail({
   onClose: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
+  const showUndo = useContext(UndoBarContext);
   const profile = useAuthStore((s) => s.profile);
   const canEdit = Boolean(
     profile && profile.account_role !== 'viewer' && !profile.is_read_only
@@ -2051,8 +2082,8 @@ function AppointmentDetail({
     }
   }
 
-  async function setStatus(status: Appointment['status']) {
-    if (!appointment) return;
+  async function setStatus(status: Appointment['status']): Promise<boolean> {
+    if (!appointment) return false;
     haptic.tap();
     setBusy(true);
     setError(null);
@@ -2071,7 +2102,7 @@ function AppointmentDetail({
       setError(
         'Could not update this event. Check your connection and try again.'
       );
-      return;
+      return false;
     }
     setBusy(false);
 
@@ -2079,6 +2110,14 @@ function AppointmentDetail({
     queryClient.invalidateQueries({ queryKey: ['appointments'] });
     reset();
     onClose();
+    if (status === 'cancelled') {
+      showUndo('Cancelled — it stays on its day', async () => {
+        if (!(await setStatus('scheduled'))) {
+          throw new Error('Could not reopen this event');
+        }
+      });
+    }
+    return true;
   }
 
   async function setArchived(archived: boolean) {

@@ -103,6 +103,11 @@ import {
   completedTodoIds,
   splitTodosByCompletion,
 } from '@/lib/calendar/todo-groups';
+import {
+  CALENDAR_VIEW_STORAGE_KEY,
+  resolveInitialView,
+  type CalendarViewMode,
+} from '@/lib/calendar/default-view';
 
 const EMPTY_EXTRAS: Record<EventFieldKey, string> = {
   agenda: '',
@@ -164,7 +169,7 @@ interface SimpleProperty {
   images?: string[] | null;
 }
 
-type ViewMode = 'month' | 'week' | 'team' | 'agenda';
+type ViewMode = CalendarViewMode;
 
 /** The event types plus the deal dates pinned alongside them (CAL-008). */
 type CalendarTypeFilter = EventTypeKey | 'all' | 'deal';
@@ -178,6 +183,13 @@ export default function CalendarPage() {
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewMode>('month');
+  const viewResolvedRef = useRef(false);
+  const chooseView = (next: ViewMode) => {
+    setView(next);
+    try {
+      window.localStorage.setItem(CALENDAR_VIEW_STORAGE_KEY, next);
+    } catch {}
+  };
   const [appointments, setAppointments] = useState<CalendarEvent[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -570,6 +582,31 @@ export default function CalendarPage() {
       loadDealDeadlines(supabase, accountId!, todayKey, DEAL_DATE_HORIZON_DAYS),
     enabled: !!accountId,
   });
+  // First visit on this browser: a sparse month opens in the Agenda.
+  useEffect(() => {
+    if (viewResolvedRef.current || loading || dealDatesQuery.isPending) return;
+    viewResolvedRef.current = true;
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(CALENDAR_VIEW_STORAGE_KEY);
+    } catch {}
+    const sameMonth = (d: Date) =>
+      d.getFullYear() === year && d.getMonth() === month;
+    const itemsThisMonth =
+      appointments.filter((a) => sameMonth(new Date(a.start_time))).length +
+      (dealDatesQuery.data ?? []).filter((d) =>
+        sameMonth(dealDateLocalDay(d.dueDate))
+      ).length;
+    setView(resolveInitialView(stored, itemsThisMonth));
+  }, [
+    loading,
+    dealDatesQuery.isPending,
+    dealDatesQuery.data,
+    appointments,
+    year,
+    month,
+  ]);
+
   const showDealDates =
     view !== 'team' && (typeFilter === 'all' || typeFilter === 'deal');
   const visibleDealDates = useMemo(() => {
@@ -730,13 +767,17 @@ export default function CalendarPage() {
             : item
         )
       );
-      toast.success(
-        status === 'completed'
-          ? 'Marked done'
-          : status === 'cancelled'
-            ? 'Cancelled — it stays on its day, struck through'
-            : 'Reopened'
-      );
+      if (status === 'cancelled') {
+        toast.success('Cancelled — it stays on its day, struck through', {
+          duration: 8000,
+          action: {
+            label: 'Undo',
+            onClick: () => void setAppointmentStatus(appt, 'scheduled'),
+          },
+        });
+      } else {
+        toast.success(status === 'completed' ? 'Marked done' : 'Reopened');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || 'Failed to update the event');
@@ -1260,18 +1301,39 @@ export default function CalendarPage() {
     }
   };
 
-  const deleteTodo = async (id: string) => {
+  const restoreTodo = async (todo: Todo) => {
+    try {
+      const row = Object.fromEntries(
+        Object.entries(todo).filter(
+          ([key]) => key !== 'contact' && key !== 'property'
+        )
+      );
+      const { error } = await supabase.from('todos').insert(row);
+      if (error) throw error;
+      toast.success('Restored');
+      loadData();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(errorMessage || 'Failed to restore the to-do');
+    }
+  };
+
+  const deleteTodo = async (todo: Todo) => {
     try {
       const { data, error } = await supabase
         .from('todos')
         .delete()
-        .eq('id', id)
+        .eq('id', todo.id)
         .eq('account_id', accountId)
         .select('id');
 
       if (error) throw error;
       if (!data?.length) throw new Error('That task is no longer there.');
-      loadData();
+      setTodos((current) => current.filter((item) => item.id !== todo.id));
+      toast.success(`Deleted "${todo.title}"`, {
+        duration: 8000,
+        action: { label: 'Undo', onClick: () => void restoreTodo(todo) },
+      });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || 'Failed to delete task');
@@ -1336,7 +1398,7 @@ export default function CalendarPage() {
                   ).map((v) => (
                     <button
                       key={v.key}
-                      onClick={() => setView(v.key)}
+                      onClick={() => chooseView(v.key)}
                       className={cn(
                         'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors',
                         view === v.key
@@ -1391,7 +1453,7 @@ export default function CalendarPage() {
               <button
                 onClick={() => setTypeFilter('all')}
                 className={cn(
-                  'rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
+                  'rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors',
                   effectiveTypeFilter === 'all'
                     ? 'border-primary/50 bg-primary/15 text-primary'
                     : 'border-slate-800 text-slate-400 hover:text-white'
@@ -1408,7 +1470,7 @@ export default function CalendarPage() {
                       setTypeFilter(typeFilter === key ? 'all' : key)
                     }
                     className={cn(
-                      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
+                      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors',
                       typeFilter === key
                         ? meta.chip
                         : 'border-slate-800 text-slate-500 hover:text-white'
@@ -1427,7 +1489,7 @@ export default function CalendarPage() {
                     setTypeFilter(typeFilter === 'deal' ? 'all' : 'deal')
                   }
                   className={cn(
-                    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
+                    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors',
                     typeFilter === 'deal'
                       ? DEAL_DATE_META.chip
                       : 'border-slate-800 text-slate-500 hover:text-white'
@@ -1443,7 +1505,7 @@ export default function CalendarPage() {
                 </button>
               )}
               {calendarAppointments.archivedCount > 0 && (
-                <label className="inline-flex items-center gap-1 rounded-full border border-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                <label className="inline-flex items-center gap-1 rounded-full border border-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-400">
                   <Archive className="h-2.5 w-2.5" />
                   <select
                     value={archivedView}
@@ -1452,7 +1514,7 @@ export default function CalendarPage() {
                     }
                     aria-label={`Archived events (${calendarAppointments.archivedCount})`}
                     title="Grey out keeps archived events on the calendar, dimmed; Hide removes them; List also shows them in Tasks and the Agenda"
-                    className="cursor-pointer bg-transparent text-[10px] font-semibold text-slate-300 focus:outline-none"
+                    className="cursor-pointer bg-transparent text-[11px] font-semibold text-slate-300 focus:outline-none"
                   >
                     {ARCHIVED_VIEWS.map((mode) => (
                       <option key={mode} value={mode} className="bg-slate-950">
@@ -1466,7 +1528,7 @@ export default function CalendarPage() {
                 <select
                   value={memberFilter}
                   onChange={(e) => setMemberFilter(e.target.value)}
-                  className="ml-auto cursor-pointer rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-bold text-slate-400 focus:outline-none"
+                  className="ml-auto cursor-pointer rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 text-[11px] font-bold text-slate-400 focus:outline-none"
                 >
                   <option value="all">Everyone</option>
                   {members.map((m) => (
@@ -1574,7 +1636,7 @@ export default function CalendarPage() {
                     Schedule
                     <InfoHint text="Everything pinned on the days you are looking at: appointments with their status, and deal dates. To-dos live in their own list on the right. Upcoming first puts today at the top, then the days ahead, then past days; Earliest first and Latest first sort strictly by date and time. Mark an event done or cancelled here — a cancelled event stays on its day, struck through. Archive a done or cancelled event to take it off this list; on the calendar it is greyed out, or hidden if you choose Hide archived in the filter row, and List archived brings it back here. A milestone date can be ticked done; it completes the milestone on the deal without moving its stage." />
                   </h2>
-                  <span className="text-[10px] font-semibold text-slate-500">
+                  <span className="text-[11px] font-semibold text-slate-500">
                     {taskRows.length} on{' '}
                     {view === 'week' ? 'this week' : 'this month'}
                   </span>
@@ -1583,7 +1645,7 @@ export default function CalendarPage() {
                   value={taskSort}
                   onChange={(e) => setTaskSort(e.target.value as TaskSortMode)}
                   aria-label="Sort the schedule by date and time"
-                  className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300"
+                  className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[11px] font-semibold text-slate-300"
                 >
                   {TASK_SORT_MODES.map((mode) => (
                     <option key={mode} value={mode}>
@@ -1603,7 +1665,7 @@ export default function CalendarPage() {
                       )
                     }
                     title="Archive every done or cancelled event on these days"
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-0.5 text-[11px] font-semibold text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
                   >
                     {taskBusyKey === 'archive-done' ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -1649,7 +1711,7 @@ export default function CalendarPage() {
                 onChange={(e) =>
                   setTodoFilter(e.target.value as 'all' | 'priority')
                 }
-                className="cursor-pointer rounded border border-slate-800 bg-slate-950 px-2 py-0.5 text-[10px] font-bold text-slate-400 focus:outline-none"
+                className="cursor-pointer rounded border border-slate-800 bg-slate-950 px-2 py-0.5 text-[11px] font-bold text-slate-400 focus:outline-none"
               >
                 <option value="all">All to-dos</option>
                 <option value="priority">Priority only</option>
@@ -1782,7 +1844,7 @@ export default function CalendarPage() {
                       {(todo.due_date ||
                         todo.contact?.name ||
                         todo.property?.title) && (
-                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500">
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
                           {todo.due_date && (
                             <span>
                               {new Date(todo.due_date).toLocaleString('en-IN', {
@@ -1819,7 +1881,7 @@ export default function CalendarPage() {
                       {todo.description && (
                         <p
                           className={cn(
-                            'mt-1 line-clamp-2 text-[10px] leading-relaxed break-words text-slate-400 transition-all duration-300 group-hover:line-clamp-none',
+                            'mt-1 line-clamp-2 text-[11px] leading-relaxed break-words text-slate-400 transition-all duration-300 group-hover:line-clamp-none',
                             todo.completed && 'text-slate-650 line-through'
                           )}
                         >
@@ -1830,7 +1892,7 @@ export default function CalendarPage() {
                         {todo.priority && !todo.completed && (
                           <span
                             className={cn(
-                              'inline-block rounded px-1.5 py-0.5 text-[8px] font-bold uppercase',
+                              'inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase',
                               todo.priority === 'high'
                                 ? 'border border-rose-500/20 bg-rose-500/10 text-rose-400'
                                 : todo.priority === 'medium'
@@ -1845,7 +1907,7 @@ export default function CalendarPage() {
                           <Link
                             href={dealDateHref(todo.deal_id)}
                             className={cn(
-                              'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[8px] font-bold uppercase',
+                              'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase',
                               DEAL_DATE_META.chip
                             )}
                             title="Open the deal this task belongs to"
@@ -1857,7 +1919,7 @@ export default function CalendarPage() {
                       </span>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="flex shrink-0 items-center gap-1.5 opacity-70 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                       {todo.contact_id && (
                         <button
                           onClick={() => openContactChat(todo.contact_id!)}
@@ -1877,7 +1939,7 @@ export default function CalendarPage() {
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button
-                        onClick={() => deleteTodo(todo.id)}
+                        onClick={() => deleteTodo(todo)}
                         className="hover:text-rose-450 p-0.5 text-slate-500 transition-colors"
                         title="Delete task"
                         aria-label="Delete task"
@@ -1979,7 +2041,7 @@ export default function CalendarPage() {
                           type="button"
                           onClick={() => setApptEventType(key)}
                           className={cn(
-                            'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors',
+                            'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors',
                             apptEventType === key
                               ? meta.chip
                               : 'border-slate-800 text-slate-500 hover:text-white'
@@ -2029,14 +2091,14 @@ export default function CalendarPage() {
                       }
                       disabled={pickersQuery.isLoading}
                     />
-                    <p className="mt-1 text-[10px] font-medium text-slate-500">
+                    <p className="mt-1 text-[11px] font-medium text-slate-500">
                       {apptEventType === 'call'
                         ? 'Calls stay internal — only you get the reminder, linked contacts are not messaged.'
                         : 'Reminders go to every linked contact — 7 AM on the day & 1 hour before.'}
                     </p>
                     {selectedAppt && apptContactIds.length > 0 && (
                       <div className="mt-2">
-                        <label className="mb-1 block text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                        <label className="mb-1 block text-[11px] font-bold tracking-wider text-slate-500 uppercase">
                           WhatsApp after saving
                         </label>
                         <select
@@ -2164,7 +2226,7 @@ export default function CalendarPage() {
 
                 {selectedAppt?.transcript && (
                   <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                    <p className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                    <p className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-500 uppercase">
                       <AudioLines className="h-3 w-3" />
                       Logged{' '}
                       {selectedAppt.source === 'voice'
@@ -2321,12 +2383,8 @@ export default function CalendarPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (
-                          confirm('Are you sure you want to delete this task?')
-                        ) {
-                          deleteTodo(selectedTodo!.id);
-                          setIsTodoModalOpen(false);
-                        }
+                        deleteTodo(selectedTodo!);
+                        setIsTodoModalOpen(false);
                       }}
                       className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-400"
                     >

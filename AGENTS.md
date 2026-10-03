@@ -651,26 +651,28 @@ Meta Cloud API
 
 ### Key files
 
-| File                                    | Responsibility                                                             |
-| --------------------------------------- | -------------------------------------------------------------------------- |
-| `src/lib/whatsapp/meta-api.ts`          | Meta Graph API client (messages, templates, media, catalogs, registration) |
-| `src/lib/whatsapp/webhook-handler.ts`   | Main webhook processing business logic                                     |
-| `src/lib/whatsapp/webhook-signature.ts` | HMAC-SHA256 verification                                                   |
-| `src/lib/whatsapp/encryption.ts`        | AES-256-GCM token encryption/decryption                                    |
-| `src/lib/whatsapp/flow-crypto.ts`       | Meta Flows RSA-OAEP + AES-GCM crypto handshake                             |
-| `src/lib/whatsapp/meta-flow-service.ts` | Native Meta Flows lifecycle (create, publish, register keys)               |
-| `src/lib/whatsapp/preference-flow.ts`   | Buyer preference intake native-flow blueprint                              |
-| `src/lib/whatsapp/routing-engine.ts`    | Message routing rules                                                      |
-| `src/lib/whatsapp/reply-bridge.ts`      | Direct replies: agent pings are answerable from the agent's own WhatsApp   |
-| `src/lib/whatsapp/customer-window.ts`   | 24-hour free-form window bookkeeping                                       |
-| `src/lib/whatsapp/template-*.ts`        | Template build, validation, status normalisation, lifecycle, webhooks      |
-| `src/lib/whatsapp/ctwa-attribution.ts`  | Click-to-WhatsApp ad attribution                                           |
-| `src/lib/whatsapp/*-digest-template.ts` | Owner, agent-inventory and property-alert digest templates                 |
-| `src/lib/bot/funnels.ts`                | WhatsApp funnel + catalog-match conversation logic                         |
-| `src/app/api/whatsapp/webhook/route.ts` | Next.js fallback webhook endpoint (also can enqueue to Redis)              |
-| `go-ingress/main.go`                    | Fast webhook ingress                                                       |
-| `src/scripts/queue-worker.ts`           | Redis queue consumer                                                       |
-| `src/scripts/replay-dlq.ts`             | Dead-letter queue recovery                                                 |
+| File                                    | Responsibility                                                                                                                                                    |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/whatsapp/meta-api.ts`          | Meta Graph API client (messages, templates, media, catalogs, registration)                                                                                        |
+| `src/lib/whatsapp/webhook-handler.ts`   | Webhook entry: account resolution, message parsing, contact and conversation upserts, then the inbound chain                                                      |
+| `src/lib/whatsapp/inbound/chain/`       | The inbound chain as an ordered list of steps (`steps/index.ts`) over one context; each step returns `handled` or `continue`                                      |
+| `src/lib/whatsapp/inbound/*.ts`         | Dedicated inbound reply handlers (status updates, reactions, reminder and broadcast replies, enquiry card, property-share taps, preference flow, update sessions) |
+| `src/lib/whatsapp/webhook-signature.ts` | HMAC-SHA256 verification                                                                                                                                          |
+| `src/lib/whatsapp/encryption.ts`        | AES-256-GCM token encryption/decryption                                                                                                                           |
+| `src/lib/whatsapp/flow-crypto.ts`       | Meta Flows RSA-OAEP + AES-GCM crypto handshake                                                                                                                    |
+| `src/lib/whatsapp/meta-flow-service.ts` | Native Meta Flows lifecycle (create, publish, register keys)                                                                                                      |
+| `src/lib/whatsapp/preference-flow.ts`   | Buyer preference intake native-flow blueprint                                                                                                                     |
+| `src/lib/whatsapp/routing-engine.ts`    | Message routing rules                                                                                                                                             |
+| `src/lib/whatsapp/reply-bridge.ts`      | Direct replies: agent pings are answerable from the agent's own WhatsApp                                                                                          |
+| `src/lib/whatsapp/customer-window.ts`   | 24-hour free-form window bookkeeping                                                                                                                              |
+| `src/lib/whatsapp/template-*.ts`        | Template build, validation, status normalisation, lifecycle, webhooks                                                                                             |
+| `src/lib/whatsapp/ctwa-attribution.ts`  | Click-to-WhatsApp ad attribution                                                                                                                                  |
+| `src/lib/whatsapp/*-digest-template.ts` | Owner, agent-inventory and property-alert digest templates                                                                                                        |
+| `src/lib/bot/funnels.ts`                | WhatsApp funnel + catalog-match conversation logic                                                                                                                |
+| `src/app/api/whatsapp/webhook/route.ts` | Next.js fallback webhook endpoint (also can enqueue to Redis)                                                                                                     |
+| `go-ingress/main.go`                    | Fast webhook ingress                                                                                                                                              |
+| `src/scripts/queue-worker.ts`           | Redis queue consumer                                                                                                                                              |
+| `src/scripts/replay-dlq.ts`             | Dead-letter queue recovery                                                                                                                                        |
 
 ### Media handling
 

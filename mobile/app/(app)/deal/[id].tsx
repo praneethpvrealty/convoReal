@@ -6,7 +6,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import * as Sharing from 'expo-sharing';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -62,6 +62,7 @@ import {
   UPDATE_CHANNEL_LABELS,
   UPDATE_STAGE_LABELS,
   defaultSideForRole,
+  formatStakeholderPhone,
   isEligibleRecipient,
   linkState,
   recipientStage,
@@ -152,7 +153,12 @@ import {
   uploadDealDocument,
 } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
-import { auditDate, auditDateTime, formatInr } from '@/lib/format';
+import {
+  auditDate,
+  auditDateTime,
+  formatInr,
+  priceInWords,
+} from '@/lib/format';
 import { recordedLostReason, type LostReasonInput } from '@/lib/lost-reasons';
 import {
   dealStatusForStage,
@@ -163,6 +169,8 @@ import { supabase } from '@/lib/supabase';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { PipelineStage } from '@/lib/types';
+import { CLOSING_RECORD_LABEL } from '@shared/lib/deals/routes';
+import { dealFee, formatDealAmount } from '@shared/lib/pipelines/deal-money';
 
 /** `friendlyError` takes the message text, and a rejected fetch can throw
  *  anything — so narrow it once here rather than at every call site. */
@@ -178,6 +186,9 @@ interface DealHead {
   pipeline_id: string;
   stage_id: string;
   value: number | null;
+  currency: string | null;
+  brokerage_type: 'percentage' | 'fixed' | null;
+  brokerage_value: number | null;
   brokerage_amount: number | null;
   deal_group_id: string | null;
   status: 'open' | 'won' | 'lost' | null;
@@ -236,7 +247,7 @@ export default function DealWorkspaceScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          'id, title, contact_id, property_id, pipeline_id, stage_id, value, brokerage_amount, deal_group_id, status, lost_reason, lost_note, ' +
+          'id, title, contact_id, property_id, pipeline_id, stage_id, value, currency, brokerage_type, brokerage_value, brokerage_amount, deal_group_id, status, lost_reason, lost_note, ' +
             'stage:pipeline_stages(name), contact:contacts(name, second_name), group:deal_groups(id, name)'
         )
         .eq('id', dealId)
@@ -332,7 +343,7 @@ export default function DealWorkspaceScreen() {
     <>
       <Stack.Screen
         options={{
-          title: head?.title ?? 'Transaction',
+          title: head?.title ?? CLOSING_RECORD_LABEL,
           headerRight: () => (
             <Pressable
               onPress={() =>
@@ -411,8 +422,14 @@ export default function DealWorkspaceScreen() {
           ))}
         </ScrollView>
         {tab === 'overview' && (
-          <FinancialsTab dealId={dealId} canEdit={canEdit} />
+          <OverviewTab
+            dealId={dealId}
+            head={head ?? null}
+            canEdit={canEdit}
+            onOpenTab={setTab}
+          />
         )}
+        {tab === 'money' && <FinancialsTab dealId={dealId} canEdit={canEdit} />}
         {tab === 'timeline' && (
           <TimelineTab dealId={dealId} canEdit={canEdit} />
         )}
@@ -540,12 +557,13 @@ export default function DealWorkspaceScreen() {
               }}
             >
               Calculated brokerage:{' '}
-              {formatInr(
+              {formatDealAmount(
                 brokeragePreview(
                   head?.value ?? null,
                   brokerageType,
                   brokerageValue
-                )
+                ),
+                head?.currency ?? 'INR'
               )}
             </Text>
           ) : null}
@@ -906,6 +924,435 @@ function BundleSheet({
   );
 }
 
+function AmountInWords({ value }: { value: string | null | undefined }) {
+  const { colors } = useTheme();
+  const words = value ? priceInWords(value) : '';
+  if (!words) return null;
+  return (
+    <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+      Equivalent to: {words}
+    </Text>
+  );
+}
+
+function OverviewSection({
+  title,
+  openLabel,
+  onOpen,
+  children,
+}: {
+  title: string;
+  openLabel: string;
+  onOpen: () => void;
+  children: ReactNode;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.cardTitle, { color: colors.text, flex: 1 }]}>
+          {title}
+        </Text>
+        <Pressable
+          onPress={onOpen}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${openLabel}`}
+        >
+          <Text style={[styles.actionLabel, { color: colors.primary }]}>
+            Open
+          </Text>
+        </Pressable>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function OverviewFigure({
+  label,
+  value,
+  strong,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.figureRow}>
+      <Text style={[styles.cardMeta, { color: colors.textMuted, flex: 1 }]}>
+        {label}
+      </Text>
+      <Text
+        style={{
+          fontFamily: strong ? fonts.bold : fonts.semibold,
+          fontSize: 13.5,
+          color: colors.text,
+        }}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function OverviewTab({
+  dealId,
+  head,
+  canEdit,
+  onOpenTab,
+}: {
+  dealId: string;
+  head: DealHead | null;
+  canEdit: boolean;
+  onOpenTab: (tab: DealWorkspaceTab) => void;
+}) {
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const dialog = useAppDialog();
+  const [busy, setBusy] = useState<string | null>(null);
+  const enabled = Boolean(dealId);
+
+  const milestonesQuery = useQuery({
+    queryKey: ['deal-milestones', dealId],
+    queryFn: () => fetchDealMilestones(dealId),
+    enabled,
+  });
+  const tasksQuery = useQuery({
+    queryKey: ['deal-tasks', dealId],
+    queryFn: () => fetchDealTasks(dealId),
+    enabled,
+  });
+  const eventsQuery = useQuery({
+    queryKey: ['deal-events', dealId],
+    queryFn: () => fetchDealEvents(dealId),
+    enabled,
+  });
+  const stakeholdersQuery = useQuery({
+    queryKey: ['deal-stakeholders', dealId],
+    queryFn: () => fetchDealStakeholders(dealId),
+    enabled,
+  });
+  const financialsQuery = useQuery({
+    queryKey: ['deal-financials', dealId],
+    queryFn: () => fetchDealFinancials(dealId),
+    enabled,
+  });
+  const tranchesQuery = useQuery({
+    queryKey: ['deal-tranches', dealId],
+    queryFn: () => fetchDealTranches(dealId),
+    enabled,
+  });
+
+  async function run(
+    key: string,
+    action: () => Promise<unknown>,
+    queryKeys: readonly (readonly unknown[])[]
+  ) {
+    setBusy(key);
+    try {
+      await action();
+      await Promise.all(
+        queryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey }))
+      );
+      void haptic.success();
+    } catch (err) {
+      dialog.show({
+        title: 'That did not work',
+        message: friendlyError(errorText(err)),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const label = (id: DealWorkspaceTab) =>
+    DEAL_WORKSPACE_TABS.find((t) => t.id === id)?.label ?? id;
+
+  const milestones = milestonesQuery.data ?? [];
+  const milestonesDone = milestones.filter(
+    (m) => m.status === 'completed' || m.status === 'skipped'
+  ).length;
+  const nextMilestone = milestones.find(
+    (m) => m.status === 'pending' || m.status === 'in_progress'
+  );
+
+  const openTasks = (tasksQuery.data ?? []).filter((t) => !t.completed);
+  const latest = eventsQuery.data?.[0] ?? null;
+
+  const stakeholders = stakeholdersQuery.data ?? [];
+  const sides = (Object.keys(STAKEHOLDER_SIDE_LABELS) as DealSide[])
+    .map((side) => ({
+      side,
+      people: stakeholders.filter((s) => s.side === side),
+    }))
+    .filter((group) => group.people.length > 0);
+
+  const financials = financialsQuery.data ?? null;
+  const brokerage = head
+    ? dealFee({
+        value: head.value,
+        brokerage_type: head.brokerage_type,
+        brokerage_value: head.brokerage_value,
+        brokerage_amount: head.brokerage_amount,
+      })
+    : null;
+  const collected = financials?.brokerage_received_amount ?? null;
+  const tokenSafe = financials?.token_source === 'token_safe';
+  const tokenAmount = tokenSafe
+    ? (financials?.token.amount ?? null)
+    : (financials?.token_amount ?? null);
+  const tranches = tranchesQuery.data?.summary ?? null;
+  const currency = head?.currency ?? 'INR';
+  const money = (amount: number | null | undefined) =>
+    amount ? formatDealAmount(amount, currency) : '—';
+
+  return (
+    <ScrollView contentContainerStyle={styles.list}>
+      <OverviewSection
+        title="Next up"
+        openLabel={label('milestones')}
+        onOpen={() => onOpenTab('milestones')}
+      >
+        {milestonesQuery.isLoading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : milestones.length === 0 ? (
+          <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+            No closing checklist yet
+          </Text>
+        ) : (
+          <>
+            <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+              {milestonesDone} / {milestones.length} done
+            </Text>
+            {nextMilestone ? (
+              <View style={styles.row}>
+                <Pressable
+                  disabled={!canEdit || busy === nextMilestone.id}
+                  onPress={() =>
+                    void run(
+                      nextMilestone.id,
+                      () =>
+                        updateDealMilestone(dealId, nextMilestone.id, {
+                          status: 'completed',
+                        }),
+                      [
+                        ['deal-milestones', dealId],
+                        ['deal-events', dealId],
+                      ]
+                    )
+                  }
+                  hitSlop={10}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: false, disabled: !canEdit }}
+                  accessibilityLabel={`Mark ${nextMilestone.title} completed`}
+                >
+                  <Ionicons
+                    name="ellipse-outline"
+                    size={22}
+                    color={colors.textMuted}
+                  />
+                </Pressable>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, color: colors.text }}>
+                    {nextMilestone.title}
+                  </Text>
+                  {nextMilestone.target_date ? (
+                    <Text
+                      style={[styles.cardMeta, { color: colors.textMuted }]}
+                    >
+                      Due {auditDate(nextMilestone.target_date)}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : (
+              <Text style={[styles.cardMeta, { color: colors.success }]}>
+                Every milestone is done
+              </Text>
+            )}
+          </>
+        )}
+      </OverviewSection>
+
+      <OverviewSection
+        title="Open tasks"
+        openLabel={label('tasks')}
+        onOpen={() => onOpenTab('tasks')}
+      >
+        {tasksQuery.isLoading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : openTasks.length === 0 ? (
+          <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+            Nothing open
+          </Text>
+        ) : (
+          <>
+            {openTasks.slice(0, 3).map((task) => (
+              <View key={task.id} style={styles.row}>
+                <Pressable
+                  disabled={!canEdit || busy === task.id}
+                  onPress={() =>
+                    void run(
+                      task.id,
+                      () => setDealTaskCompleted(task.id, true),
+                      [['deal-tasks', dealId]]
+                    )
+                  }
+                  hitSlop={10}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: false, disabled: !canEdit }}
+                  accessibilityLabel={`Mark ${task.title} done`}
+                >
+                  <Ionicons
+                    name="ellipse-outline"
+                    size={22}
+                    color={colors.textMuted}
+                  />
+                </Pressable>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, color: colors.text }}>
+                    {task.title}
+                  </Text>
+                  {task.due_date ? (
+                    <Text
+                      style={[styles.cardMeta, { color: colors.textMuted }]}
+                    >
+                      Due {auditDate(task.due_date)}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+            {openTasks.length > 3 ? (
+              <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+                and {openTasks.length - 3} more
+              </Text>
+            ) : null}
+          </>
+        )}
+      </OverviewSection>
+
+      <OverviewSection
+        title="Latest on the timeline"
+        openLabel={label('timeline')}
+        onOpen={() => onOpenTab('timeline')}
+      >
+        {eventsQuery.isLoading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : latest ? (
+          <>
+            <Text style={{ fontSize: 14, color: colors.text }}>
+              {latest.event_type === 'note_added' &&
+              typeof latest.metadata?.note === 'string'
+                ? latest.metadata.note
+                : latest.title}
+            </Text>
+            <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+              {DEAL_EVENT_LABELS[latest.event_type] ?? latest.event_type}
+              {latest.actor_name ? ` · ${latest.actor_name}` : ''} ·{' '}
+              {auditDateTime(latest.created_at)}
+            </Text>
+          </>
+        ) : (
+          <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+            Nothing recorded yet
+          </Text>
+        )}
+      </OverviewSection>
+
+      <OverviewSection
+        title="People"
+        openLabel={label('stakeholders')}
+        onOpen={() => onOpenTab('stakeholders')}
+      >
+        {stakeholdersQuery.isLoading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : sides.length === 0 ? (
+          <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+            No stakeholders yet
+          </Text>
+        ) : (
+          sides.map((group) => (
+            <View key={group.side} style={{ gap: spacing.xs }}>
+              <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+                {STAKEHOLDER_SIDE_LABELS[group.side]}
+              </Text>
+              <View style={styles.peopleRow}>
+                {group.people.map((person) => (
+                  <View
+                    key={person.id}
+                    style={[
+                      styles.personChip,
+                      {
+                        backgroundColor: colors.glass,
+                        borderColor: colors.glassBorder,
+                      },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 12.5, color: colors.text }}>
+                      {person.name} · {STAKEHOLDER_ROLE_LABELS[person.role]}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ))
+        )}
+      </OverviewSection>
+
+      <OverviewSection
+        title="Money"
+        openLabel={label('money')}
+        onOpen={() => onOpenTab('money')}
+      >
+        <OverviewFigure label="Deal value" value={money(head?.value)} />
+        <OverviewFigure
+          label="Brokerage"
+          value={brokerage === null ? 'Not set' : money(brokerage)}
+        />
+        <OverviewFigure label="Collected" value={money(collected)} />
+        {brokerage !== null ? (
+          <OverviewFigure
+            label="Outstanding"
+            value={money(Math.max(0, brokerage - (collected ?? 0)))}
+            strong
+          />
+        ) : null}
+        <OverviewFigure
+          label={tokenSafe ? 'Token (Token Safe)' : 'Token'}
+          value={
+            tokenAmount != null
+              ? money(tokenAmount)
+              : tokenSafe && financials?.token.status
+                ? `Escrow ${financials.token.status}`
+                : '—'
+          }
+        />
+        {tranches && tranches.count > 0 ? (
+          <>
+            <OverviewFigure
+              label="Payment schedule received"
+              value={money(tranches.received)}
+            />
+            <OverviewFigure
+              label="Payment schedule outstanding"
+              value={money(tranches.outstanding)}
+            />
+          </>
+        ) : null}
+      </OverviewSection>
+      <AppDialog {...dialog.dialogProps} />
+    </ScrollView>
+  );
+}
+
 const FINANCIAL_FIELDS: {
   key: keyof Omit<DealFinancialsRow, 'token_source' | 'token' | 'tds_status'>;
   label: string;
@@ -1047,17 +1494,21 @@ function FinancialsForm({
         </View>
       ) : null}
       {FINANCIAL_FIELDS.filter((f) => !(tokenSafe && f.token)).map((field) => (
-        <TextField
-          key={field.key}
-          label={field.label}
-          value={draft[field.key] ?? ''}
-          editable={canEdit}
-          multiline={field.kind === 'multiline'}
-          keyboardType={field.kind === 'money' ? 'decimal-pad' : 'default'}
-          onChangeText={(text) =>
-            setDraft((d) => ({ ...d, [field.key]: text }))
-          }
-        />
+        <View key={field.key}>
+          <TextField
+            label={field.label}
+            value={draft[field.key] ?? ''}
+            editable={canEdit}
+            multiline={field.kind === 'multiline'}
+            keyboardType={field.kind === 'money' ? 'decimal-pad' : 'default'}
+            onChangeText={(text) =>
+              setDraft((d) => ({ ...d, [field.key]: text }))
+            }
+          />
+          {field.kind === 'money' ? (
+            <AmountInWords value={draft[field.key]} />
+          ) : null}
+        </View>
       ))}
       <Text style={[styles.cardMeta, { color: colors.textMuted }]}>TDS</Text>
       <View style={styles.chipRow}>
@@ -1288,6 +1739,7 @@ function TranchesSection({
                 onChangeText={setReceivedAmount}
                 keyboardType="decimal-pad"
               />
+              <AmountInWords value={receivedAmount} />
               <TextField
                 label="Instrument / UTR"
                 value={instrument}
@@ -1349,6 +1801,7 @@ function TranchesSection({
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
               />
+              <AmountInWords value={amount} />
               <TextField
                 label="Due on (YYYY-MM-DD)"
                 value={dueDate}
@@ -1684,6 +2137,7 @@ function CoBrokingSection({
                 onChangeText={setEditAmount}
                 keyboardType="decimal-pad"
               />
+              <AmountInWords value={editAmount} />
               <TextField
                 label="Paid on (YYYY-MM-DD, blank = not yet)"
                 value={paidAt}
@@ -1705,6 +2159,7 @@ function CoBrokingSection({
                 onChangeText={setPaidAmount}
                 keyboardType="decimal-pad"
               />
+              <AmountInWords value={paidAmount} />
               <TextField
                 label="Instrument / UTR"
                 value={instrument}
@@ -1800,6 +2255,7 @@ function CoBrokingSection({
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
               />
+              <AmountInWords value={amount} />
               <PrimaryButton
                 label="Add co-broker payout"
                 busy={busy === 'add'}
@@ -2059,11 +2515,22 @@ function MilestonesTab({
           </Text>
           {milestones.map((m) => {
             const isDone = m.status === 'completed' || m.status === 'skipped';
+            const checked = m.status === 'completed';
+            const meta = [
+              m.target_date ? `Due ${auditDate(m.target_date)}` : null,
+              m.completed_at ? `Done ${auditDate(m.completed_at)}` : null,
+              m.status === 'in_progress' || m.status === 'skipped'
+                ? DEAL_MILESTONE_STATUS_LABELS[m.status]
+                : null,
+              m.visibility && m.visibility !== 'internal'
+                ? DEAL_VISIBILITY_LABELS[m.visibility]
+                : null,
+            ]
+              .filter(Boolean)
+              .join(' · ');
             return (
-              <Pressable
+              <View
                 key={m.id}
-                disabled={!canEdit || busy === m.id}
-                onPress={() => chooseStatus(m)}
                 style={[
                   styles.card,
                   styles.row,
@@ -2074,43 +2541,64 @@ function MilestonesTab({
                   },
                 ]}
               >
-                <Ionicons
-                  name={
-                    m.status === 'completed'
-                      ? 'checkmark-circle'
-                      : m.status === 'skipped'
-                        ? 'remove-circle-outline'
-                        : m.status === 'in_progress'
-                          ? 'ellipse-outline'
+                <Pressable
+                  disabled={!canEdit || busy === m.id}
+                  onPress={() =>
+                    void run(m.id, () =>
+                      updateDealMilestone(dealId, m.id, {
+                        status: checked ? 'pending' : 'completed',
+                      })
+                    )
+                  }
+                  hitSlop={10}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{
+                    checked,
+                    disabled: !canEdit || busy === m.id,
+                  }}
+                  accessibilityLabel={
+                    checked ? `Reopen ${m.title}` : `Mark ${m.title} completed`
+                  }
+                >
+                  <Ionicons
+                    name={
+                      checked
+                        ? 'checkmark-circle'
+                        : m.status === 'skipped'
+                          ? 'remove-circle-outline'
                           : 'ellipse-outline'
-                  }
-                  size={22}
-                  color={
-                    m.status === 'completed' ? colors.success : colors.textMuted
-                  }
-                />
-                <View style={{ flex: 1 }}>
+                    }
+                    size={24}
+                    color={checked ? colors.success : colors.textMuted}
+                  />
+                </Pressable>
+                <Pressable
+                  style={{ flex: 1 }}
+                  disabled={!canEdit || busy === m.id}
+                  onPress={() => chooseStatus(m)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`More options for ${m.title}`}
+                >
                   <Text
                     style={[
                       styles.cardTitle,
                       {
                         color: colors.text,
-                        textDecorationLine:
-                          m.status === 'completed' ? 'line-through' : 'none',
+                        textDecorationLine: checked ? 'line-through' : 'none',
                       },
                     ]}
                   >
                     {m.title}
                   </Text>
-                  <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
-                    {DEAL_MILESTONE_STATUS_LABELS[m.status]}
-                    {m.target_date ? ` · due ${m.target_date}` : ''}
-                    {m.visibility && m.visibility !== 'internal'
-                      ? ` · ${DEAL_VISIBILITY_LABELS[m.visibility]}`
-                      : ''}
-                  </Text>
-                </View>
-              </Pressable>
+                  {meta ? (
+                    <Text
+                      style={[styles.cardMeta, { color: colors.textMuted }]}
+                    >
+                      {meta}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              </View>
             );
           })}
           {canEdit ? (
@@ -3206,7 +3694,9 @@ function StakeholdersTab({
             <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
               {STAKEHOLDER_ROLE_LABELS[s.role]} ·{' '}
               {STAKEHOLDER_SIDE_LABELS[s.side]}
-              {s.phone ? ` · +${s.phone}` : ''}
+              {formatStakeholderPhone(s.phone)
+                ? ` · ${formatStakeholderPhone(s.phone)}`
+                : ''}
               {s.email ? ` · ${s.email}` : ''}
             </Text>
             <View style={styles.actions}>
@@ -3968,6 +4458,20 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  figureRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.md },
+  peopleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  personChip: {
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
   expiryInput: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.sm,

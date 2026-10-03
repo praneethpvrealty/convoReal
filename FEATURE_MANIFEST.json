@@ -314,6 +314,10 @@
               "case": "[INB-016]"
             },
             {
+              "file": "src/lib/whatsapp/inbound/chain/steps.test.ts",
+              "case": "[INB-016]"
+            },
+            {
               "file": "src/lib/ai/qualification-lease.test.ts",
               "case": "[INB-016]"
             },
@@ -396,6 +400,16 @@
             {
               "file": "src/lib/whatsapp/share-feedback.test.ts",
               "case": "[INB-022]"
+            }
+          ]
+        },
+        {
+          "id": "INB-023",
+          "rule": "Switching conversations in the web inbox never shows the previous contact's deals, notes or tags under the new contact's name: those sections render placeholders until the new contact's own rows arrive, and a response for the contact that was left is discarded if it lands after the switch.",
+          "tests": [
+            {
+              "file": "src/components/inbox/contact-sidebar.test.tsx",
+              "case": "[INB-023]"
             }
           ]
         }
@@ -785,7 +799,7 @@
         },
         {
           "id": "CAL-009",
-          "rule": "The To-dos list beside the calendar is a lightweight checklist of to-dos alone on web and mobile: appointments are never folded into it, and the quick-add takes a title, an optional due date and a priority without tagging contacts or properties, showing the date and priority only once a title is typed. Open to-dos lead the list; done ones sit in one Done group, collapsed by default, through the shared src/lib/calendar/todo-groups rule, and Clear completed deletes them after a confirmation on both surfaces. A to-do added from a deal's Tasks tab keeps its deal and links back to it, and a contact or property a to-do already carries stays shown and opens the record on both surfaces; the calendar never sets those links.",
+          "rule": "The To-dos list beside the calendar is a lightweight checklist of to-dos alone on web and mobile: appointments are never folded into it, and the quick-add takes a title, an optional due date and a priority without tagging contacts or properties, showing the date and priority only once a title is typed. Open to-dos lead the list; done ones sit in one Done group, collapsed by default, through the shared src/lib/calendar/todo-groups rule, and Clear completed deletes them after a confirmation on both surfaces. Deleting one to-do asks nothing and offers Undo for a few seconds instead (web: a toast, mobile: a bar at the foot of the screen), which puts the row back with its original id and fields; cancelling an appointment offers the same Undo, which reopens it through the Reopen path of CAL-010. A to-do added from a deal's Tasks tab keeps its deal and links back to it, and a contact or property a to-do already carries stays shown and opens the record on both surfaces; the calendar never sets those links.",
           "tests": [
             {
               "file": "src/lib/mobile-parity.test.ts",
@@ -1512,6 +1526,148 @@
             "src/lib/maps/lookup-cache.ts",
             "supabase/migrations/20261002073439_maps_lookup_cache.sql"
           ]
+        },
+        {
+          "id": "PRP-026",
+          "rule": "The inventory listing-party pills count the rows they list on the tab and summary tile in force: on Review and Archived they count only those listings, not the account's active total, and every non-agent listing (owner, WhatsApp and web self-listings) is Direct, so Direct plus Agent referred always equals All.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/list-scope.test.ts",
+              "case": "[PRP-026]"
+            },
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "[PRP-026]"
+            },
+            {
+              "file": "src/app/api/properties/route.test.ts",
+              "case": "[PRP-026]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/list-scope.ts",
+            "supabase/migrations/20261003124400_inventory_source_breakdown.sql"
+          ]
+        },
+        {
+          "id": "PRP-027",
+          "rule": "An empty inventory list says why it is empty: a filtered list names the tab and the filters that match nothing and offers Clear filters, and an unfiltered Review, Archived or All Listings tab explains that tab instead of telling the agent to create records.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/list-scope.test.ts",
+              "case": "[PRP-027]"
+            },
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "[PRP-027]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/list-scope.ts",
+            "src/components/inventory/inventory-empty-state.tsx"
+          ]
+        },
+        {
+          "id": "PRP-028",
+          "rule": "The portal-ads drift banner is a warning, not an error: it says how many portal ads don't match their listings, Review expands the findings, and every finding opens the affected listing on web and mobile, with the Post to Portals dialog offered too wherever it exists (web only today; recorded in FEATURE_ROADMAP.md).",
+          "tests": [
+            {
+              "file": "src/components/inventory/portal-drift-panel.test.tsx",
+              "case": "[PRP-028]"
+            },
+            {
+              "file": "mobile/lib/portal-drift.test.ts",
+              "case": "[PRP-028]"
+            }
+          ],
+          "guards": [
+            "src/components/inventory/portal-drift-panel.tsx",
+            "mobile/components/portal-drift-panel.tsx"
+          ]
+        },
+        {
+          "id": "PRP-029",
+          "rule": "When the Meta ads connection has expired, the Ads tab shows a readable warning with a Reconnect Meta button and marks Spend, Reach, Chats started and Cost/lead as last-sync figures, so a zero there is never read as current.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/ads/ads-content.test.tsx",
+              "case": "[PRP-029]"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/ads/ads-content.tsx"]
+        },
+        {
+          "id": "PRP-030",
+          "rule": "The Needs attention count is the number of Available listings missing photos, a sale or rent price, or a map pin, and filtering by it on web (summary tile) or mobile (filters sheet) lists exactly those listings through the shared needs_attention API filter, with the listing-party pills splitting the same count.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/list-scope.test.ts",
+              "case": "[PRP-030]"
+            },
+            {
+              "file": "src/app/api/properties/route.test.ts",
+              "case": "[PRP-030]"
+            },
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "[PRP-030]"
+            },
+            {
+              "file": "mobile/lib/property-filters.test.ts",
+              "case": "[PRP-030]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/list-scope.ts",
+            "supabase/migrations/20261003133000_inventory_attention_counts.sql"
+          ]
+        },
+        {
+          "id": "PRP-031",
+          "rule": "The Inventory header has one primary action, Add Property, whose menu also holds every other way listings come in (import a shared link, sync from portals, import owner leads), beside Share Showcase Portal; no intake action is a separate header button.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "[PRP-031]"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/inventory/inventory-content.tsx"]
+        },
+        {
+          "id": "PRP-032",
+          "rule": "Meta Ads has one home, the /ads page in the sidebar: Inventory has no Ads tab, an old /inventory?tab=ads link lands on /ads, and a listing card with an active or paused Meta campaign shows an Ad live or Ad paused badge that opens it.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/inventory/page.test.tsx",
+              "case": "[PRP-032]"
+            },
+            {
+              "file": "src/components/inventory/property-list.test.tsx",
+              "case": "[PRP-032]"
+            },
+            {
+              "file": "src/app/api/meta-ads/statuses/route.test.ts",
+              "case": "[PRP-032]"
+            }
+          ],
+          "guards": [
+            "src/app/(dashboard)/ads/page.tsx",
+            "src/app/(dashboard)/inventory/page.tsx"
+          ]
+        },
+        {
+          "id": "PRP-033",
+          "rule": "The add and edit listing form shows a section index (Basics, Location, Area & specs, Photos & documents, Description, Owner & inquiries, Publish) that jumps to each section and ticks the ones filled in, keeps the Publish switch beside the save button in a footer that stays in view, and hides the Matching and Enquired Contacts tabs until the listing is saved.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/property-form-sections.test.ts",
+              "case": "[PRP-033]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/property-form-sections.ts",
+            "src/components/inventory/property-form-section-nav.tsx"
+          ]
         }
       ]
     },
@@ -2041,6 +2197,88 @@
       ]
     },
     {
+      "id": "pipeline-board",
+      "name": "Deals board — every stage in one row, with the wheel kept as a choice",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "PIPE-001",
+          "rule": "The Deals board opens flat on both surfaces: every stage of the pipeline in one row, active stages first in position order and then the won and lost stages at the right edge whatever their stored position, an empty stage folded to a rail that still accepts a drop and opens on a tap. The rotating wheel is a per-device choice behind a Flat / Wheel switch, stored under one key on both surfaces, and never the default.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/board-layout.test.ts",
+              "case": "[PIPE-001]"
+            },
+            {
+              "file": "src/components/pipelines/pipeline-board.test.tsx",
+              "case": "[PIPE-001]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PIPE-001]"
+            }
+          ],
+          "guards": [
+            "src/lib/pipelines/board-layout.ts",
+            "src/hooks/use-board-layout.ts",
+            "src/components/pipelines/pipeline-board.tsx",
+            "mobile/lib/board-layout-preference.ts",
+            "mobile/app/(app)/deals.tsx"
+          ]
+        },
+        {
+          "id": "PIPE-002",
+          "rule": "One fee rule on every board surface: a deal's fee is its saved brokerage amount, else its recorded rate applied to the value, net of co-broker payouts, and a deal with neither has no fee and says \"Fee not set\" — never a guessed 2%. A stage header leads with the deals' value and shows fees only once some are recorded; the first stat tile counts every deal the Focus / All switch is showing, lost ones included. Web and mobile compute these through the same module.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/deal-money.test.ts",
+              "case": "[PIPE-002]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PIPE-002]"
+            }
+          ],
+          "guards": [
+            "src/lib/pipelines/deal-money.ts",
+            "src/components/pipelines/deal-card.tsx",
+            "src/components/pipelines/pipeline-analytics.tsx",
+            "mobile/app/(app)/deals.tsx"
+          ]
+        },
+        {
+          "id": "PIPE-003",
+          "rule": "Every amount on the Deals surfaces — board cards, stage headers, stat tiles, closing-record rows and the deal workspace — prints in one Indian compact notation (₹8.16 Cr, ₹75.05 L, ₹95,000); other currencies render through Intl.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/deal-money.test.ts",
+              "case": "[PIPE-003]"
+            }
+          ],
+          "guards": [
+            "src/lib/pipelines/deal-money.ts",
+            "src/components/deals/deal-workspace.tsx",
+            "src/components/deals/transaction-workspace-index.tsx"
+          ]
+        },
+        {
+          "id": "PIPE-004",
+          "rule": "A deal card names the property and the buyer once: the headline is the property (unit number first when it has one), the contact row names the person, and the deal's own title appears only when it says something the headline does not.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/deal-money.test.ts",
+              "case": "[PIPE-004]"
+            }
+          ],
+          "guards": [
+            "src/lib/pipelines/deal-money.ts",
+            "src/components/pipelines/deal-card.tsx",
+            "mobile/app/(app)/deals.tsx"
+          ]
+        }
+      ]
+    },
+    {
       "id": "transaction-workspace",
       "name": "Transaction Workspace — the closing record for a deal",
       "surfaces": ["web", "mobile", "stakeholder-link"],
@@ -2518,6 +2756,40 @@
             "src/lib/deals/board-focus.ts",
             "src/components/deals/deal-workspace.tsx",
             "mobile/lib/deal-workspace.ts",
+            "mobile/app/(app)/deal/[id].tsx"
+          ]
+        },
+        {
+          "id": "TXW-030",
+          "rule": "A closing record opens on where it stands, not on a form: Overview shows the next pending milestone with a tick that completes it through the milestones route, the open tasks, the latest timeline entry, the people on each side and a money summary (deal value, brokerage, collected, outstanding, token, payment schedule), and the financial forms, payment schedule and co-broking live on a Money tab that sits right after Overview on both surfaces.",
+          "tests": [
+            {
+              "file": "src/components/deals/deal-overview-panel.test.tsx",
+              "case": "[TXW-030]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-030]"
+            }
+          ],
+          "guards": [
+            "src/components/deals/deal-overview-panel.tsx",
+            "src/components/deals/deal-workspace.tsx",
+            "mobile/lib/deal-workspace.ts",
+            "mobile/app/(app)/deal/[id].tsx"
+          ]
+        },
+        {
+          "id": "TXW-031",
+          "rule": "Milestones are a checklist: the tick is the primary control on every row, the meta line reads Due / Done / status / visibility, and a row's status, visibility and due-date controls appear only when its options are opened.",
+          "tests": [
+            {
+              "file": "src/components/deals/deal-milestones-panel.test.tsx",
+              "case": "[TXW-031]"
+            }
+          ],
+          "guards": [
+            "src/components/deals/deal-milestones-panel.tsx",
             "mobile/app/(app)/deal/[id].tsx"
           ]
         }

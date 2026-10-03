@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { inboundChainSource } from '@/lib/whatsapp/inbound/chain/test-source';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -351,8 +352,13 @@ describe('sendPropertyEnquiryCard', () => {
 // enquiry taps only work if they are dispatched before the owner
 // chatbot claims the agent's own message.
 describe('the webhook wires the card up', () => {
-  const source = readFileSync(
-    join(process.cwd(), 'src/lib/whatsapp/webhook-handler.ts'),
+  const source =
+    readFileSync(
+      join(process.cwd(), 'src/lib/whatsapp/webhook-handler.ts'),
+      'utf8'
+    ) + inboundChainSource();
+  const replyHandler = readFileSync(
+    join(process.cwd(), 'src/lib/whatsapp/inbound/enquiry-card-reply.ts'),
     'utf8'
   );
 
@@ -382,8 +388,9 @@ describe('the webhook wires the card up', () => {
     // claiming a buyer who had just named the exact listing — because
     // the enquiry branch was gated on the contact's first-ever message
     // and this buyer had messaged before.
-    const enquiryBranch = source.indexOf('enquiryIsDeliberate &&');
-    const ladder = source.indexOf('processBuyerQualificationMessage(');
+    const chain = inboundChainSource();
+    const enquiryBranch = chain.indexOf('enquiryIsDeliberate &&');
+    const ladder = chain.indexOf('processBuyerQualificationMessage(');
     expect(enquiryBranch).toBeGreaterThan(-1);
     expect(ladder).toBeGreaterThan(-1);
     expect(enquiryBranch).toBeLessThan(ladder);
@@ -414,8 +421,8 @@ describe('the webhook wires the card up', () => {
   });
 
   it('[PRP-014] never sends details or photos of an unavailable listing from an Approve or Photos tap', () => {
-    const handler = source.slice(
-      source.indexOf('async function handleEnquiryCardReply(')
+    const handler = replyHandler.slice(
+      replyHandler.indexOf('async function handleEnquiryCardReply(')
     );
     const guard = handler.indexOf('if (unavailableReply) {');
     expect(handler).toContain(".select('title, status')");
@@ -440,10 +447,10 @@ describe('the webhook wires the card up', () => {
   });
 
   it('confirms each tap back to the agent, like the location card does', () => {
-    expect(source).toContain('✅ Approved — complete details for');
-    expect(source).toContain('was asked to reach your team directly');
+    expect(replyHandler).toContain('✅ Approved — complete details for');
+    expect(replyHandler).toContain('was asked to reach your team directly');
     // The legacy "I'll answer" button alone stays fully silent.
-    expect(source).toContain('❌ Rejected — nothing was sent to');
+    expect(replyHandler).toContain('❌ Rejected — nothing was sent to');
   });
 
   it('tells a rejected buyer where the team is, instead of going quiet', () => {
@@ -451,9 +458,9 @@ describe('the webhook wires the card up', () => {
     // details "shortly", the agent tapped Reject — and the buyer heard
     // nothing, ever. The reject branch must message the buyer's thread,
     // not just flag the agent's.
-    expect(source).toContain(
+    expect(replyHandler).toContain(
       'buildEnquiryRejectText(lead.name, propertyRow?.title, teamPhone)'
     );
-    expect(source).toContain('resolveEnquiryTeamPhone(');
+    expect(replyHandler).toContain('resolveEnquiryTeamPhone(');
   });
 });

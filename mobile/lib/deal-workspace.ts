@@ -217,6 +217,7 @@ export function extractionEntries(
 
 export type DealWorkspaceTab =
   | 'overview'
+  | 'money'
   | 'timeline'
   | 'milestones'
   | 'tasks'
@@ -231,6 +232,7 @@ export const DEAL_WORKSPACE_TABS: ReadonlyArray<{
   label: string;
 }> = [
   { id: 'overview', label: 'Overview' },
+  { id: 'money', label: 'Money' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'milestones', label: 'Milestones' },
   { id: 'tasks', label: 'Tasks' },
@@ -758,6 +760,14 @@ export const STAKEHOLDER_SIDE_LABELS: Record<DealSide, string> = {
   seller: 'Seller side',
   internal: 'Internal',
 };
+
+/** Mirrored from src/lib/deals/stakeholders.ts. */
+export function formatStakeholderPhone(
+  phone: string | null | undefined
+): string | null {
+  const digits = (phone ?? '').replace(/\D/g, '');
+  return digits ? `+${digits}` : null;
+}
 
 /** Mirrored from src/lib/deals/stakeholders.ts. */
 export function defaultSideForRole(role: StakeholderRole): DealSide {

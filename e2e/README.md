@@ -41,8 +41,9 @@ requests cancelled by the next `page.goto`, not failures.
 
 The walk covers the eight sections that own a screen, then the eight paths
 that do not: `/radar`, `/today`, `/pulse`, `/agents`, `/requirements`,
-`/pipelines`, `/flows` and `/ads` each replace themselves with a tab of
-another section. Those are checked against the URL they land on, so a shim
+`/pipelines` and `/flows` each replace themselves with a tab of another
+section, and `/ads` (Meta Ads, off without `NEXT_PUBLIC_META_ADS_APP_ID`)
+falls back to `/inventory`. Those are checked against the URL they land on, so a shim
 that quietly stops redirecting fails rather than screenshotting a page that
 looks fine.
 

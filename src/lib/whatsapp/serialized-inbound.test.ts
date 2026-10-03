@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { inboundChainSource } from '@/lib/whatsapp/inbound/chain/test-source';
 
 interface Lease {
   holder: string;
@@ -368,10 +369,10 @@ describe('webhook inbound chain', () => {
     const end = source.indexOf('\nasync function ', start + 1);
     return source.slice(start, end);
   };
+  const chain = inboundChainSource();
 
   it('[INB-016] runs every inbound handler, qualification included, inside one conversation lease', () => {
     const prelude = bodyOf('async function processMessage(');
-    const chain = bodyOf('async function handleInboundChain(');
 
     expect(prelude).toContain('runSerializedInbound<InboundChainPayload>({');
     expect(prelude).toContain('handleInboundChain(payload, info');
@@ -391,7 +392,6 @@ describe('webhook inbound chain', () => {
   });
 
   it('[INB-016] reads the contact and conversation afresh after waiting, and rechecks the first inbound under the lease', () => {
-    const chain = bodyOf('async function handleInboundChain(');
     expect(chain).toContain("reloadRow('contacts', accountId");
     expect(chain).toContain("reloadRow('conversations', accountId");
     expect(chain).toContain(

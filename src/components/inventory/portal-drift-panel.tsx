@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ChevronDown, ExternalLink, X } from 'lucide-react';
 
@@ -140,24 +141,21 @@ export function PortalDriftPanel() {
   if (!active || active.length === 0 || isDismissed) return null;
 
   return (
-    <div className="rounded-lg border border-rose-500/25 bg-rose-500/5 p-3">
+    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
       <div className="flex items-center gap-2">
-        <AlertTriangle className="size-3.5 shrink-0 text-rose-400" />
-        <span className="text-xs font-bold text-rose-300">
-          {active.length} portal ad{active.length === 1 ? '' : 's'} out of step
-          with your inventory
-        </span>
-        <span className="hidden truncate text-[11px] text-slate-500 md:inline">
-          Spotted from the leads and emails already in the Engine — the row
-          clears itself once the ad and the listing agree again.
+        <AlertTriangle className="size-4 shrink-0 text-amber-400" />
+        <span className="text-sm font-semibold text-amber-200">
+          {active.length === 1
+            ? "1 portal ad doesn't match your listings"
+            : `${active.length} portal ads don't match your listings`}
         </span>
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          className="ml-auto inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-rose-400/30 px-2 text-[11px] font-semibold text-rose-300 transition hover:border-rose-300 hover:bg-rose-500/10"
+          className="ml-auto inline-flex h-7 shrink-0 items-center gap-1 rounded-md bg-amber-500/15 px-3 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/25"
         >
-          {expanded ? 'Hide' : 'Show'}
+          {expanded ? 'Hide' : 'Review'}
           <ChevronDown
             className={`size-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`}
           />
@@ -166,44 +164,60 @@ export function PortalDriftPanel() {
           type="button"
           onClick={hideBanner}
           aria-label="Dismiss portal discrepancy banner"
-          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-rose-400/30 text-rose-300 transition hover:border-rose-300 hover:bg-rose-500/10"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-amber-300/80 transition hover:bg-amber-500/10 hover:text-amber-200"
         >
           <X className="size-3.5" />
         </button>
       </div>
 
       {expanded && (
-        <div className="mt-2 space-y-2">
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-slate-400">
+            Spotted from the leads and emails already in the Engine. Each row
+            clears itself once the ad and the listing agree again.
+          </p>
           {active.map((f) => (
             <div
               key={`${f.portal}:${f.portalListingId}:${f.driftKind}`}
-              className="rounded-md border border-slate-800 bg-slate-900/60 p-2.5"
+              className="rounded-md border border-slate-800 bg-slate-900/60 p-3"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-white">
+                <span className="text-sm font-semibold text-white">
                   {findingHeadline(f)}
                 </span>
                 <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px] font-bold text-slate-300">
                   {portalLabel(f.portal)} ad {f.portalListingId}
                 </span>
-                <span className="truncate text-[11px] text-slate-400">
+                <span className="truncate text-xs text-slate-300">
                   {f.propertyTitle || 'Untitled listing'}
                   {f.propertyCode ? ` (${f.propertyCode})` : ''}
                 </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">{findingDetail(f)}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold">
+                <Link
+                  href={`/inventory?portalPropertyId=${encodeURIComponent(f.propertyId)}`}
+                  className="rounded-md bg-amber-500/15 px-2.5 py-1 text-amber-200 hover:bg-amber-500/25"
+                >
+                  Update portal listing
+                </Link>
+                <Link
+                  href={`/inventory?propertyId=${encodeURIComponent(f.propertyId)}`}
+                  className="text-slate-300 hover:text-white"
+                >
+                  Open listing
+                </Link>
                 {f.listingUrl && (
                   <a
                     href={f.listingUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="ml-auto flex shrink-0 items-center gap-1 text-[11px] font-semibold text-rose-300 hover:text-rose-200"
+                    className="flex items-center gap-1 text-slate-300 hover:text-white"
                   >
                     View ad <ExternalLink className="size-3" />
                   </a>
                 )}
               </div>
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                {findingDetail(f)}
-              </p>
             </div>
           ))}
         </div>

@@ -19,6 +19,117 @@ than a written entry. Newest first.
 
 #### 3 October 2026
 
+- **The Deals board reads as one funnel again.** Every stage sits in one
+  horizontal row, with the won and lost stages at the right edge, so an
+  agent can scan the pipeline without turning a carousel; a stage with no
+  deals folds to a narrow rail that still accepts a drop and opens on a
+  tap. The rotating wheel is still there behind a Flat / Wheel switch next
+  to Focus / All, and each device remembers the choice. Cards name the
+  property once and the buyer once instead of three times, every amount on
+  the board, the stat tiles and the records list prints the same way
+  (₹8.16 Cr, ₹75.05 L, ₹95,000), a deal with no brokerage recorded says
+  "Fee not set" instead of "Fee: ₹0", a stage header leads with the deals'
+  value and shows fees only once some are recorded, and the first stat
+  tile counts the deals the Focus / All switch is showing. Same on mobile,
+  where Flat is one scrolling list of every stage's cards with a chip row
+  to jump between them.
+- **A deal's closing record opens on where it stands, not on a form.**
+  Overview now shows the next milestone with a tick, the open tasks, the
+  latest timeline entry, the people on each side and a money summary
+  (deal value, brokerage, collected, outstanding, token, payment
+  schedule); the financial forms, payment schedule and co-broking moved
+  to a Money tab, and every amount field says what it means as you type
+  ("Equivalent to: ₹8.16 Crore"). The header's third tile shows what has
+  been collected and what is outstanding instead of a hypothetical half
+  share. Milestones are a checklist: tick the circle, and open a row's
+  options only when you need its status, visibility or due date. The
+  three Deals views are Pipeline, Journeys and Closing records on both
+  surfaces, the back link says Closing records, and a stakeholder's
+  number prints one plus sign.
+- **The inbox's contact panel no longer shows the last contact's deals
+  and notes under the next contact's name.** Switching conversations
+  swapped the header at once but left the previous contact's Active
+  Deals, Notes and Tags in place until the new rows arrived. Those
+  sections now show placeholders until the new contact's own rows load,
+  and a slow response for the contact you just left is dropped instead
+  of landing under the new name.
+- **Switching a Contacts quick filter no longer shows the previous
+  list's rows under the new filter's count.** Choosing Transacted, for
+  example, could show "2 contacts" above the rows of the filter you had
+  just left. The rows clear the moment you switch, and the count and
+  rows now update together.
+- **Coming back to the Inbox is instant.** The conversation list is now
+  kept in the app's query cache, so returning from another page shows
+  the last list immediately and refreshes it in the background instead
+  of loading from scratch every time.
+- **The inbox list loads behind placeholder rows instead of a logo
+  splash.** Opening the Inbox used to show a centred ConvoReal logo and
+  "Loading conversations" for the first second, then swap to the list in
+  one jump. The column now shows eight grey rows shaped like
+  conversations until the real ones arrive, so nothing moves when they
+  do.
+- **The inbox keeps its full height, and its contact panel scrolls clear
+  of the AI Assistant button.** The bottom padding that lets every other
+  page scroll past the floating buttons is cancelled on the inbox, so the
+  thread and composer are as tall as before, and the contact panel's
+  notes can be scrolled above the button.
+- **Inventory counts match the list they sit over.** The All / Direct /
+  Agent referred pills showed the account's active totals on every tab, so
+  Archived read "All (223)" over three cards and Review read "All (223)"
+  over an empty list. They now count the listings on the tab and summary
+  tile in force, the Archived tab shows its own count, and owner listings
+  made over WhatsApp or the web count as Direct, so Direct and Agent
+  referred add up to All. The Direct filter on web and mobile now lists
+  those self-listings too. **Migration required:**
+  `20261003124400_inventory_source_breakdown.sql`.
+- **An empty inventory list says why.** Instead of "No listings found —
+  create property records", a filtered list names the tab and the filters
+  that match nothing and offers Clear filters, and an empty Review or
+  Archived tab explains what lands there.
+- **Portal-ad mismatches are easier to read and fix.** The banner on
+  Inventory is now an amber warning that says how many portal ads don't
+  match your listings, and **Review** lists each one with **Update portal
+  listing** and **Open listing**, so you can fix it in one step instead of
+  hunting for the property. Mobile gets the same banner with **Open
+  listing**; updating the portal listing itself stays on web, where Post to
+  Portals lives.
+- **Ads has one home.** Meta ad campaigns live on the Ads page in the
+  sidebar; the Ads Campaigns tab inside Inventory is gone, and old links to
+  it open Ads. A listing with a campaign shows **Ad live** or **Ad paused**
+  on its card, linking to Ads.
+- **The listing form is easier to work through.** On a wide screen the
+  add/edit form is wider and has a section index (Basics, Location, Area &
+  specs, Photos & documents, Description, Owner & inquiries, Publish) that
+  jumps to each section and ticks the ones filled in. The Publish switch now
+  sits beside Create Listing in a footer that stays in view, and the
+  Matching and Enquired Contacts tabs appear once the listing is saved.
+- **One Add Property button instead of five.** Import Owner Leads, Portal
+  Sync and Import Shared now sit in the menu beside **Add Property** (Add
+  manually, Import a shared link, Sync from portals, Import owner leads),
+  next to Share Showcase Portal.
+- **A Needs attention tile shows which listings need work.** It counts
+  available listings missing photos, a price or a map pin (its hint breaks
+  the number down), and clicking it lists only those. The tile you have
+  selected now says it is filtering the list. On mobile, the same filter is
+  in the Filters sheet. **Migration required:**
+  `20261003133000_inventory_attention_counts.sql`.
+- **An expired Meta connection is impossible to miss on Ads.** The warning
+  was dark red on near-black; it is now an amber banner with a **Reconnect
+  Meta** button, and Spend, Reach, Chats started and Cost/lead are marked as
+  last-sync figures so a ₹0 there is not read as current.
+- **Calendar actions undo instead of asking.** Deleting a to-do, from
+  its row or its edit dialog, no longer pops a confirm; the row goes and
+  the toast offers Undo for a few seconds, which puts it back as it was.
+  Cancelling an appointment offers the same Undo, which reopens it. Same
+  on mobile, through a bar at the foot of the Calendar tab. The to-do
+  row's edit and delete controls are now visible without hovering, chip
+  and row text is 11px and badges 10px rather than 10 and 8, and a deal
+  date chip on the month grid names the deal ("Registration · Sidharth…")
+  so two on one day can be told apart. The Calendar opens in the view you
+  last used on that browser; on a first visit a month with fewer than
+  five items opens in the Agenda, where a near-empty grid would show
+  less. Every empty day cell shows a + on hover to say it can be
+  scheduled on.
 - **One loading pattern across the inbox, Contacts, Requirements, Groups
   and Sources.** Each screen used its own idiom: a logo splash, a bare
   "Loading…" sentence, a spinner, or a session badge that literally read

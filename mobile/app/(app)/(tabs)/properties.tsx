@@ -29,6 +29,8 @@ import { EnterRow, PressScale } from '@/components/motion';
 import { PortalDriftPanel } from '@/components/portal-drift-panel';
 import { PropertyApprovals } from '@/components/property-approvals';
 import { PropertyImportsSheet } from '@/components/property-imports-sheet';
+import { useAuthStore } from '@/lib/auth-store';
+import { supabase } from '@/lib/supabase';
 import { PropertyFiltersSheet } from '@/components/property-filters-sheet';
 import { ShowcaseShareSheet } from '@/components/showcase-share-sheet';
 import {
@@ -58,6 +60,7 @@ import {
   EMPTY_PROPERTY_FILTERS,
   propertyFiltersKey,
   statusParam,
+  sumAttentionListings,
   type PropertyFilters,
 } from '@/lib/property-filters';
 import { isStructuredQuery } from '@/lib/search-intent';
@@ -167,6 +170,19 @@ export default function PropertiesScreen() {
     queryFn: () =>
       apiFetch<{ data: ImportCountMap }>('/api/properties/import-counts'),
     select: (r) => r.data ?? {},
+    staleTime: 60_000,
+  });
+  const accountId = useAuthStore((state) => state.profile?.account_id);
+  const { data: attentionCount } = useQuery({
+    queryKey: ['properties', 'attention-count', accountId],
+    enabled: Boolean(accountId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('inventory_attention_counts', {
+        p_account_id: accountId,
+      });
+      if (error) throw error;
+      return sumAttentionListings(data);
+    },
     staleTime: 60_000,
   });
   const insets = useSafeAreaInsets();
@@ -683,6 +699,7 @@ export default function PropertiesScreen() {
         resultCount={total}
         loading={isPlaceholderData}
         hasNear={Boolean(near)}
+        attentionCount={attentionCount}
       />
       <ShowcaseShareSheet
         key={sharePicker ? selectedIds.join(',') || 'showcase' : 'closed'}
