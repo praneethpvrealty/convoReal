@@ -113,6 +113,7 @@ describe('assertSafeFetchUrl', () => {
     'https://www.convoreal.com/brand/app-icon-1024.png',
     'https://example.com:8443/a;b=c/d@e/f,g/$h/i&j/100%25?q=a%2Fb&r=%3F#frag',
     'http://93.184.216.34/path',
+    'https://housing.com/a[b]^c|d/e(f)!g~h*i',
   ])('hands back %s unchanged apart from the fragment', async (raw) => {
     const url = await assertSafeFetchUrl(raw);
     expect(url.href).toBe(raw.split('#')[0]);

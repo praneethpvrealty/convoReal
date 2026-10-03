@@ -113,7 +113,7 @@ export function parseSafeFetchUrl(
   return url;
 }
 
-const PATH_LITERALS = /%(25|24|26|2B|2C|3A|3B|3D|40)/g;
+const PATH_LITERALS = /%(25|24|26|2B|2C|3A|3B|3D|40|5B|5D|5E|7C)/g;
 
 /**
  * The URL to request, written out again from the parts that were checked
