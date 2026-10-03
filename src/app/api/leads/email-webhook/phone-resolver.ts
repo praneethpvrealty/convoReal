@@ -1,3 +1,27 @@
+import {
+  assertSafeFetchUrl,
+  hostMatchesDomain,
+} from '@/lib/http/safe-fetch-url';
+
+// The only hosts a link in a portal email is fetched from. Housing sends
+// its lead links wrapped in an Amazon SES click tracker (awstrack.me) that
+// redirects to housing.com or its hsng.co shortener, which in turn
+// redirects to WhatsApp. A link anywhere else is third-party input and is
+// never requested.
+export const PORTAL_LINK_DOMAINS = [
+  'housing.com',
+  'hsng.co',
+  'magicbricks.com',
+  '99acres.com',
+  'awstrack.me',
+  'wa.me',
+  'whatsapp.com',
+] as const;
+
+function isPortalLink(url: URL): boolean {
+  return hostMatchesDomain(url.hostname, PORTAL_LINK_DOMAINS);
+}
+
 // Helper to follow redirect headers (manual mode) to extract phone number
 export async function resolvePhoneNumberFromUrl(
   url: string,
@@ -20,7 +44,10 @@ export async function resolvePhoneNumberFromUrl(
       return phone;
     }
 
-    const response = await fetch(cleanUrl, {
+    const target = await assertSafeFetchUrl(cleanUrl, {
+      allow: isPortalLink,
+    });
+    const response = await fetch(target.href, {
       method: 'GET',
       redirect: 'manual', // Stop redirecting automatically so we can read headers
       headers: {
