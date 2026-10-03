@@ -1,18 +1,6 @@
 // @vitest-environment happy-dom
 // @vitest-environment-options { "settings": { "disableIframePageLoading": true, "disableJavaScriptFileLoading": true, "disableCSSFileLoading": true } }
 
-// ============================================================
-// The inbox's right-hand contact panel.
-//
-// Switching conversations swaps the header at once but the deals,
-// notes and tags arrive a query later. Until they do, the panel used
-// to keep showing the previous contact's rows under the new contact's
-// name — an agent on a call read another buyer's deals as this one's.
-// The panel now renders placeholders for those sections until the new
-// contact's own rows land, and a slow response for the contact that
-// was just left can never overwrite them.
-// ============================================================
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, cleanup, screen, waitFor } from '@testing-library/react';
 import type { Contact } from '@/types';

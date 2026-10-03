@@ -169,8 +169,6 @@ export function ConversationList({
   );
   const [scopeFilter, setScopeFilter] = useState<ScopeFilterValue>('all');
   const [teams, setTeams] = useState<Team[]>([]);
-  // True once a fetched (or cached) list has been handed to the parent.
-  // Later refetches are silent merges and never bring the skeleton back.
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -241,12 +239,6 @@ export function ConversationList({
     onConversationsLoadedRef.current = onConversationsLoaded;
   });
 
-  // The list is a react-query cache entry keyed by the signed-in user:
-  // coming back to the inbox shows the last fetched list at once and
-  // refetches behind it. staleTime is 0 here (not the 30s default)
-  // because realtime events during the previous visit were merged into
-  // the parent's state, not into this cache, so a remount must always
-  // refresh.
   const conversationsQuery = useQuery({
     queryKey: ['inbox-conversations', user?.id ?? null],
     queryFn: fetchConversations,
@@ -273,9 +265,6 @@ export function ConversationList({
     });
   }, [fetchError]);
 
-  // The parent bumps `resyncToken` when the realtime channel reconnects
-  // or the tab regains focus — catch up on anything sent while the WS
-  // was disconnected or throttled.
   useEffect(() => {
     if (resyncToken === 0) return;
     void refetch();

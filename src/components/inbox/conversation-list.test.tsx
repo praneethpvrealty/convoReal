@@ -1,16 +1,6 @@
 // @vitest-environment happy-dom
 // @vitest-environment-options { "settings": { "disableIframePageLoading": true, "disableJavaScriptFileLoading": true, "disableCSSFileLoading": true } }
 
-// ============================================================
-// The inbox conversation list's fetch is a react-query entry.
-//
-// Opening the inbox used to start from nothing every time: a fresh
-// fetch behind a loading state, even when the agent had left the inbox
-// seconds earlier. The list now hands the cached rows to the page the
-// moment it mounts and refetches behind them, so a return visit is
-// instant and still catches up on anything that changed.
-// ============================================================
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, cleanup, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

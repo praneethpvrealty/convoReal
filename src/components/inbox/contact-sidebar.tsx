@@ -100,10 +100,6 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     []
   );
 
-  // Load on contact change. A switch mid-flight is cancelled so a slow
-  // response for the previous contact can never land under the new
-  // contact's name; until the new contact's rows arrive the sections
-  // below render placeholders instead of the previous contact's data.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCurrency();

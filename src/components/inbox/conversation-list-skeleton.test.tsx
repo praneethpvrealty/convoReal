@@ -1,13 +1,6 @@
 // @vitest-environment happy-dom
 // @vitest-environment-options { "settings": { "disableIframePageLoading": true, "disableJavaScriptFileLoading": true, "disableCSSFileLoading": true } }
 
-// ============================================================
-// The inbox list's loading state. It used to be a centred logo splash
-// that swapped to the list in one jump; it is now rows shaped like the
-// conversations about to appear, so the column keeps its layout while
-// the first fetch runs, and assistive tech hears one busy status.
-// ============================================================
-
 import { afterEach, describe, expect, it } from 'vitest';
 import { render, cleanup, screen } from '@testing-library/react';
 import {
