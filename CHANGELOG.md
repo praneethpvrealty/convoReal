@@ -31,7 +31,8 @@ than a written entry. Newest first.
   "Fee not set" instead of "Fee: ₹0", a stage header leads with the deals'
   value and shows fees only once some are recorded, and the first stat
   tile counts the deals the Focus / All switch is showing. Same on mobile,
-  where Flat lists every stage as chips in one row.
+  where Flat is one scrolling list of every stage's cards with a chip row
+  to jump between them.
 - **A deal's closing record opens on where it stands, not on a form.**
   Overview now shows the next milestone with a tick, the open tasks, the
   latest timeline entry, the people on each side and a money summary
