@@ -19,6 +19,16 @@ than a written entry. Newest first.
 
 #### 3 October 2026
 
+- **One loading pattern across the inbox, Contacts, Requirements, Groups
+  and Sources.** Each screen used its own idiom: a logo splash, a bare
+  "Loading…" sentence, a spinner, or a session badge that literally read
+  "Loading...". Every one of them now shows grey placeholders shaped like
+  the content about to appear, so nothing jumps when the data arrives.
+  The Contacts list no longer shows its page footer while the rows are
+  still loading, the duplicate-check line keeps the height of the banner
+  that replaces it, the Requirements tiles show placeholders instead of
+  four zeros while the list loads, and the Archived filter's empty state
+  says "No archived contacts" rather than "No contacts yet".
 - **The Calendar loads once and fits the screen.** Opening it showed a
   property-card skeleton, then a spinner, before the month appeared; it
   now shows one calendar-shaped skeleton and fetches appointments and

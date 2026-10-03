@@ -56,8 +56,8 @@ import { ForwardMessageDialog } from './forward-message-dialog';
 import { MessageComposer } from './message-composer';
 import { TemplatePicker, type TemplateIntent } from './template-picker';
 import { buildReplyPreview } from './reply-quote';
-import { MessageBubbleLoader } from '@/components/ui/message-bubble-loader';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { MessageThreadSkeleton } from '@/components/inbox/message-thread-skeleton';
+import { Skeleton } from '@/components/dashboard/skeleton';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
 import { stageChatAttachment } from '@/lib/storage/stage-attachment';
@@ -302,7 +302,7 @@ export function MessageThread({
 
   // 24-hour session timer
   const sessionInfo = useMemo(() => {
-    if (loading) return { expired: false, remaining: 'Loading...' };
+    if (loading) return { expired: false, remaining: null };
     if (!messages.length)
       return { expired: true, remaining: 'No customer messages' };
 
@@ -1179,7 +1179,7 @@ export function MessageThread({
             )}
           >
             <Clock className="h-3 w-3" />
-            {sessionInfo.remaining}
+            {sessionInfo.remaining ?? <Skeleton className="h-2.5 w-14" />}
           </Badge>
         </div>
 
@@ -1350,15 +1350,7 @@ export function MessageThread({
       {/* Messages Area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-            <MessageBubbleLoader
-              size={104}
-              label="Loading messages"
-              className="mb-3"
-            />
-            <ConvoRealLoader size={20} className="mb-2" />
-            <p className="text-sm">Loading messages...</p>
-          </div>
+          <MessageThreadSkeleton />
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <p className="text-sm text-slate-500">No messages yet</p>
