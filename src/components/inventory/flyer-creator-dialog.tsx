@@ -24,6 +24,7 @@ import { PropertyBlueprintLoader } from '@/components/ui/property-blueprint-load
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { useTopupModal } from '@/components/layout/topup-modal-context';
 import { Sparkles, Download, Loader2, RefreshCw, Save } from 'lucide-react';
+import { formatCurrency } from '@/lib/format/currency';
 
 interface FlyerCreatorDialogProps {
   open: boolean;
@@ -289,23 +290,7 @@ export function FlyerCreatorDialog({
     };
 
     // Format Price helper
-    const formatPrice = (amount: number) => {
-      if (currency === 'INR') {
-        if (amount >= 10000000) {
-          const cr = amount / 10000000;
-          return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-        } else if (amount >= 100000) {
-          const lakhs = amount / 100000;
-          return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
-        }
-        return `₹${amount.toLocaleString('en-IN')}`;
-      }
-      return new Intl.NumberFormat(undefined, {
-        style: 'currency',
-        currency: currency,
-        maximumFractionDigits: 0,
-      }).format(amount);
-    };
+    const formatPrice = (amount: number) => formatCurrency(amount, currency);
 
     // Truncate text helper using canvas measurement
     const truncateText = (text: string, maxWidth: number) => {

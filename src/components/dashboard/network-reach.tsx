@@ -37,6 +37,13 @@ export function NetworkReach() {
 
   if (!accounts || accounts.length === 0) return null;
 
+  const withReach = accounts
+    .map((account) => ({
+      ...account,
+      properties: account.properties.filter(hasReach),
+    }))
+    .filter((account) => account.properties.length > 0);
+
   return (
     <section className="hover:border-primary/20 relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/45 shadow-md backdrop-blur-sm transition-all duration-300">
       <header className="flex items-center gap-2 border-b border-slate-900/60 px-5 py-4">
@@ -48,46 +55,60 @@ export function NetworkReach() {
           buyers reached via partner consultants
         </span>
       </header>
-      <div className="divide-y divide-slate-900/60">
-        {accounts.map((account) => (
-          <div key={account.accountName} className="space-y-3 px-5 py-4">
-            <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
-              {account.accountName}
-            </p>
-            {account.properties.map((p) => (
-              <div
-                key={p.property_id}
-                className="flex flex-wrap items-center justify-between gap-2"
-              >
-                <span className="max-w-[50%] truncate text-sm text-slate-200">
-                  {p.title}
-                </span>
-                <span className="flex items-center gap-3 text-xs text-slate-400">
-                  <span className="flex items-center gap-1">
-                    <Users className="size-3.5 text-blue-400" />
-                    {p.directBuyers} direct
-                    {p.newDirectBuyers > 0 && (
-                      <span className="text-emerald-400">
-                        +{p.newDirectBuyers} new
-                      </span>
-                    )}
+      {withReach.length === 0 ? (
+        <p className="px-5 py-4 text-xs text-slate-500">No partner reach yet</p>
+      ) : (
+        <div className="divide-y divide-slate-900/60">
+          {withReach.map((account) => (
+            <div key={account.accountName} className="space-y-3 px-5 py-4">
+              <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
+                {account.accountName}
+              </p>
+              {account.properties.map((p) => (
+                <div
+                  key={p.property_id}
+                  className="flex flex-wrap items-center justify-between gap-2"
+                >
+                  <span className="max-w-[50%] truncate text-sm text-slate-200">
+                    {p.title}
                   </span>
-                  <span className="flex items-center gap-1">
-                    <Users className="size-3.5 text-amber-400" />
-                    {p.indirectBuyers} via partners
-                    {p.newIndirectBuyers > 0 && (
-                      <span className="text-emerald-400">
-                        +{p.newIndirectBuyers} new
-                      </span>
-                    )}
+                  <span className="flex items-center gap-3 text-xs text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <Users className="size-3.5 text-blue-400" />
+                      {p.directBuyers} direct
+                      {p.newDirectBuyers > 0 && (
+                        <span className="text-emerald-400">
+                          +{p.newDirectBuyers} new
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Users className="size-3.5 text-amber-400" />
+                      {p.indirectBuyers} via partners
+                      {p.newIndirectBuyers > 0 && (
+                        <span className="text-emerald-400">
+                          +{p.newIndirectBuyers} new
+                        </span>
+                      )}
+                    </span>
+                    <span>{p.agentsReached} partner agents</span>
                   </span>
-                  <span>{p.agentsReached} partner agents</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </section>
+  );
+}
+
+function hasReach(p: PropertyReachStats): boolean {
+  return (
+    p.directBuyers > 0 ||
+    p.newDirectBuyers > 0 ||
+    p.indirectBuyers > 0 ||
+    p.newIndirectBuyers > 0 ||
+    p.agentsReached > 0
   );
 }

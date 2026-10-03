@@ -1,4 +1,5 @@
 import { AREA_UNITS, type Area, type AreaUnit } from './types';
+import { formatInrPlain } from '@/lib/format/currency';
 
 const SQFT_PER_UNIT: Record<AreaUnit, number> = {
   sqft: 1,
@@ -58,11 +59,7 @@ export function parseArea(raw: unknown): Area | null {
 }
 
 export function formatInr(value: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(Math.round(value));
+  return formatInrPlain(value);
 }
 
 export const UNIT_LABELS: Record<AreaUnit, string> = {

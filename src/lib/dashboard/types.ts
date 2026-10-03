@@ -60,6 +60,7 @@ export interface ActivityItem {
   at: string;
   /** Optional deep-link for the whole row (not all items have a target). */
   href?: string;
+  failed?: boolean;
 }
 
 // Org hierarchy (migration 082+) — Leader/Manager-only widgets. Both

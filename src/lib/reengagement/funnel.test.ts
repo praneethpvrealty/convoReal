@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
+  allLeadsMatched,
   funnelStages,
+  maskPhoneLastFour,
   REENGAGEMENT_TEMPLATE_NAMES,
   leadStage,
   requirementSummary,
@@ -170,5 +172,25 @@ describe('REENGAGEMENT_TEMPLATE_NAMES vs is_reengagement_template()', () => {
     for (const name of inSql) {
       expect(REENGAGEMENT_TEMPLATE_NAMES, name).toContain(name);
     }
+  });
+});
+
+describe('maskPhoneLastFour', () => {
+  it('keeps only the last four digits', () => {
+    expect(maskPhoneLastFour('+919876543210')).toBe('•••• 3210');
+  });
+
+  it('hides a number too short to reveal anything and returns null for none', () => {
+    expect(maskPhoneLastFour('123')).toBe('••••');
+    expect(maskPhoneLastFour(null)).toBeNull();
+    expect(maskPhoneLastFour('')).toBeNull();
+  });
+});
+
+describe('allLeadsMatched', () => {
+  it('is true only when every lead has matches', () => {
+    expect(allLeadsMatched(summary({ leads: 6, matched: 6 }))).toBe(true);
+    expect(allLeadsMatched(summary({ leads: 6, matched: 5 }))).toBe(false);
+    expect(allLeadsMatched(summary({ leads: 0, matched: 0 }))).toBe(false);
   });
 });

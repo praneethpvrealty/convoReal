@@ -39,12 +39,9 @@ import {
 } from '@/lib/billing/plan-config';
 import type { Plan, BillingCycle } from '@/lib/billing/types';
 import { REFUND_GUARANTEE_BLURB } from '@/config/refund-policy';
+import { formatInrPlain } from '@/lib/format/currency';
 
 // ── helpers ────────────────────────────────────────────────────────────────
-
-function formatINR(amount: number) {
-  return `₹${amount.toLocaleString('en-IN')}`;
-}
 
 function UsageMeter({
   label,
@@ -173,7 +170,9 @@ function PlanCard({
           ) : (
             <>
               <div className="whitespace-nowrap">
-                <span className="text-2xl font-bold">{formatINR(price)}</span>
+                <span className="text-2xl font-bold">
+                  {formatInrPlain(price)}
+                </span>
                 <span className="text-muted-foreground text-xs">/mo</span>
               </div>
               <div className="text-muted-foreground mt-0.5 text-[10px]">
@@ -181,12 +180,12 @@ function PlanCard({
               </div>
               {cycle === 'annual' && (
                 <div className="text-xs font-medium text-emerald-600">
-                  {formatINR(config.annualPrice)} billed annually
+                  {formatInrPlain(config.annualPrice)} billed annually
                 </div>
               )}
               {cycle === 'quarterly' && (
                 <div className="text-xs font-medium text-emerald-600">
-                  {formatINR(config.quarterlyPrice)} billed quarterly
+                  {formatInrPlain(config.quarterlyPrice)} billed quarterly
                 </div>
               )}
             </>
@@ -645,7 +644,7 @@ export function BillingTab() {
               {isProcessing
                 ? 'Processing…'
                 : selectedIsUpgrade
-                  ? `Upgrade — ${formatINR(
+                  ? `Upgrade — ${formatInrPlain(
                       cycle === 'annual'
                         ? (selectedConfig?.annualPrice ?? 0)
                         : cycle === 'quarterly'

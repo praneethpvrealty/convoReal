@@ -8,7 +8,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Loader2, Send, Users, Filter, MessageSquare } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -20,12 +19,15 @@ import {
   type ReengagementLead,
 } from '@/lib/reengagement/queries';
 import {
+  allLeadsMatched,
   funnelStages,
   leadStage,
+  maskPhoneLastFour,
   requirementSummary,
   LEAD_STAGE_LABELS,
   type LeadStage,
 } from '@/lib/reengagement/funnel';
+import { formatRelative } from '@/lib/format/date';
 import { ShortlistDialog } from './shortlist-dialog';
 
 interface ReengagementOutcomeProps {
@@ -141,21 +143,23 @@ export function ReengagementOutcome({
             ? ` across ${summary.batches} batches`
             : ''}
         </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setOnlyMatched((v) => !v);
-            setPage(0);
-          }}
-          className={`h-8 border-slate-700 text-xs hover:bg-slate-800 ${
-            onlyMatched ? 'text-primary border-primary/40' : 'text-slate-300'
-          }`}
-        >
-          <Filter className="size-3" />
-          {onlyMatched ? 'Showing matched only' : 'Show matched only'}
-        </Button>
+        {(onlyMatched || !summary || !allLeadsMatched(summary)) && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setOnlyMatched((v) => !v);
+              setPage(0);
+            }}
+            className={`h-8 border-slate-700 text-xs hover:bg-slate-800 ${
+              onlyMatched ? 'text-primary border-primary/40' : 'text-slate-300'
+            }`}
+          >
+            <Filter className="size-3" />
+            {onlyMatched ? 'Showing matched only' : 'Show matched only'}
+          </Button>
+        )}
       </div>
 
       {/* Leads */}
@@ -173,7 +177,7 @@ export function ReengagementOutcome({
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-800">
-          <table className="w-full min-w-[720px] text-xs">
+          <table className="w-full min-w-[800px] text-xs">
             <thead>
               <tr className="bg-slate-800/60">
                 <th className="px-3 py-2 text-left font-medium text-slate-400">
@@ -187,6 +191,9 @@ export function ReengagementOutcome({
                 </th>
                 <th className="px-3 py-2 text-left font-medium text-slate-400">
                   Matches
+                </th>
+                <th className="px-3 py-2 text-left font-medium text-slate-400">
+                  Last reply
                 </th>
                 <th className="px-3 py-2 text-right font-medium text-slate-400">
                   Action
@@ -213,9 +220,14 @@ export function ReengagementOutcome({
                           'Unnamed lead'}
                       </Link>
                       <p className="text-[10px] text-slate-500">
-                        {formatDistanceToNow(new Date(lead.batchSentAt), {
-                          addSuffix: true,
-                        })}
+                        {lead.contactName?.trim() &&
+                          maskPhoneLastFour(lead.contactPhone) && (
+                            <>
+                              {maskPhoneLastFour(lead.contactPhone)}
+                              {' · '}
+                            </>
+                          )}
+                        {formatRelative(lead.batchSentAt)}
                       </p>
                     </td>
                     <td className="px-3 py-2">
@@ -233,6 +245,13 @@ export function ReengagementOutcome({
                         <span className="font-semibold text-white">
                           {lead.matchCount}
                         </span>
+                      ) : (
+                        <span className="text-slate-600">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-slate-300">
+                      {lead.repliedAt ? (
+                        formatRelative(lead.repliedAt)
                       ) : (
                         <span className="text-slate-600">—</span>
                       )}

@@ -82,7 +82,14 @@ jobs:
               # Web modules the mobile bundle imports through @shared/;
               # [SHR-003] in src/lib/mobile-parity.test.ts keeps this list whole.
               - 'src/lib/calendar/archive-sort.ts'
+              - 'src/lib/dashboard/approval-order.ts'
+              - 'src/lib/deals/deadline-rules.ts'
+              - 'src/lib/focus/requests.ts'
+              - 'src/lib/format/currency.ts'
+              - 'src/lib/format/date.ts'
               - 'src/lib/pulse/viewed-listings.ts'
+              - 'src/lib/radar/alert-defaults.ts'
+              - 'src/lib/sweep/gap-actions.ts'
               - '.github/workflows/ci.yml'
             go:
               - 'go-ingress/**'

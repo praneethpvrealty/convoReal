@@ -47,6 +47,7 @@ import {
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { AlertsConsentControl } from '@/components/contacts/alerts-consent-control';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import { formatCurrency } from '@/lib/format/currency';
 
 interface ContactFormProps {
   open: boolean;
@@ -1259,12 +1260,7 @@ export function ContactForm({
                               {prop.title}
                             </span>
                             <span className="block truncate text-left text-[10px] text-slate-500">
-                              {prop.location} •{' '}
-                              {prop.price >= 10000000
-                                ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
-                                : prop.price >= 100000
-                                  ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
-                                  : `₹${prop.price.toLocaleString('en-IN')}`}
+                              {prop.location} • {formatCurrency(prop.price)}
                             </span>
                           </div>
                         </label>

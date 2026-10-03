@@ -28,6 +28,7 @@ import { loadEligibleRadarContacts } from '@/lib/radar/manual-contacts';
 import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
 import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
 import type { MatchEvent, MessageTemplate, Property } from '@/types';
+import { formatCurrency } from '@/lib/format/currency';
 
 // POST /api/radar/send
 // Body: { eventId: string, targetIds: string[], manualContactIds?: string[] }
@@ -60,11 +61,7 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
 
 function formatPriceINR(amount: number): string {
   if (!amount || isNaN(amount)) return '';
-  if (amount >= 10000000)
-    return `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (amount >= 100000)
-    return `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
-  return `₹${amount.toLocaleString('en-IN')}`;
+  return formatCurrency(amount);
 }
 
 function propertyMessage(

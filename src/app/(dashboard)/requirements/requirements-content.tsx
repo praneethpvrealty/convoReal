@@ -60,6 +60,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { formatInrCompact } from '@/lib/format/currency';
 
 interface Tag {
   id: string;
@@ -601,14 +602,6 @@ export default function RequirementsPage() {
     }
   };
 
-  const formatCurrency = (val: number) => {
-    if (val >= 10000000)
-      return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-    if (val >= 100000)
-      return `₹${(val / 100000).toFixed(2).replace(/\.00$/, '')} L`;
-    return `₹${val.toLocaleString('en-IN')}`;
-  };
-
   // Filtered Cards list
   const filteredData = useMemo(() => {
     return data.filter((c) => {
@@ -969,7 +962,7 @@ export default function RequirementsPage() {
                             {sourceContact.no_budget
                               ? 'No limit'
                               : budget
-                                ? formatCurrency(budget.value)
+                                ? formatInrCompact(budget.value)
                                 : 'Not specified'}
                             {!sourceContact.no_budget &&
                               budget?.source === 'ai' && (

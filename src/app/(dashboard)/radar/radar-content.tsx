@@ -1,12 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Radar,
   RefreshCw,
   Send,
-  Trash2,
+  X,
   User,
   Building,
   AlertTriangle,
@@ -16,6 +18,11 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { loadMatchEvents } from '@/lib/radar/queries';
+import {
+  DEFAULT_ALERT_MIN_SCORE,
+  defaultSelectedTargetIds,
+  isImplausibleListingPrice,
+} from '@/lib/radar/alert-defaults';
 import {
   buildPropertyAlertTemplatePayload,
   PROPERTY_ALERT_TEMPLATE_NAME,
@@ -27,18 +34,24 @@ import { InfoHint } from '@/components/ui/info-hint';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { DirectOwnerCard } from '@/components/radar/direct-owner-card';
 import { ManualContactPicker } from '@/components/radar/manual-contact-picker';
-import { RadarSweepLoader } from '@/components/ui/radar-sweep-loader';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { TabSkeleton } from '@/components/dashboard/skeleton';
+import { formatInrCompact } from '@/lib/format/currency';
+import { formatDateTime } from '@/lib/format/date';
 
 interface CheckedState {
   /** Event ID -> Set of target IDs. */
   [eventId: string]: Set<string>;
 }
 
+const TARGET_PREVIEW_COUNT = 6;
+
+function defaultSelection(event: MatchEvent): Set<string> {
+  return new Set(defaultSelectedTargetIds(event.matches));
+}
+
 export default function RadarPage() {
   const { accountId } = useAuth();
-  const [events, setEvents] = useState<MatchEvent[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
 
@@ -47,6 +60,9 @@ export default function RadarPage() {
   const [manualContacts, setManualContacts] = useState<{
     [eventId: string]: RadarManualContact[];
   }>({});
+  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(
+    () => new Set()
+  );
 
   // Recipients that couldn't be reached because they're outside the 24h
   // window AND the property-details template isn't approved yet —
@@ -60,77 +76,83 @@ export default function RadarPage() {
   );
   const [submittingAlertTemplate, setSubmittingAlertTemplate] = useState(false);
 
-  const fetchEvents = useCallback(async () => {
-    setLoading(true);
-    try {
-      const db = createClient();
-      const data = await loadMatchEvents(db);
-      setEvents(data);
-
-      // Pre-select all target matches by default
-      const initialChecked: CheckedState = {};
-      data.forEach((evt) => {
-        initialChecked[evt.id] = new Set(evt.matches.map((m) => m.id));
-      });
-      setCheckedTargets(initialChecked);
-      setManualContacts({});
-      setTemplateMissingTargets({});
-    } catch (err: unknown) {
-      console.error('[radar] fetch failed:', err);
-      toast.error('Failed to load Match Radar feed');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const eventsQueryKey = ['match-radar', accountId];
+  const eventsQuery = useQuery({
+    queryKey: eventsQueryKey,
+    queryFn: () => loadMatchEvents(createClient()),
+    enabled: Boolean(accountId),
+    staleTime: 60_000,
+  });
+  const events = eventsQuery.data ?? null;
 
   useEffect(() => {
-    if (accountId) {
-      fetchEvents();
+    if (!eventsQuery.isError) return;
+    console.error('[radar] fetch failed:', eventsQuery.error);
+    toast.error('Failed to load Match Radar feed');
+  }, [eventsQuery.isError, eventsQuery.error]);
+
+  const removeEvent = (eventId: string) =>
+    queryClient.setQueryData<MatchEvent[]>(eventsQueryKey, (prev) =>
+      prev?.filter((e) => e.id !== eventId)
+    );
+
+  const refreshFeed = async () => {
+    const result = await eventsQuery.refetch();
+    if (result.isSuccess) {
+      setCheckedTargets({});
+      setManualContacts({});
+      setTemplateMissingTargets({});
+      setExpandedEvents(new Set());
     }
-  }, [accountId, fetchEvents]);
+  };
+
+  const selectionFor = (event: MatchEvent) =>
+    checkedTargets[event.id] ?? defaultSelection(event);
 
   // Target checkbox toggle
-  const toggleTarget = (eventId: string, targetId: string) => {
+  const toggleTarget = (event: MatchEvent, targetId: string) => {
     setCheckedTargets((prev) => {
-      const current = prev[eventId]
-        ? new Set(prev[eventId])
-        : new Set<string>();
+      const current = new Set(prev[event.id] ?? defaultSelection(event));
       if (current.has(targetId)) {
         current.delete(targetId);
       } else {
         current.add(targetId);
       }
-      return { ...prev, [eventId]: current };
+      return { ...prev, [event.id]: current };
     });
   };
 
   const updateManualContacts = (
-    eventId: string,
+    event: MatchEvent,
     contacts: RadarManualContact[]
   ) => {
-    setManualContacts((prev) => ({ ...prev, [eventId]: contacts }));
+    setManualContacts((prev) => ({ ...prev, [event.id]: contacts }));
     setCheckedTargets((prev) => {
-      const current = new Set(prev[eventId] ?? []);
+      const current = new Set(prev[event.id] ?? defaultSelection(event));
       const nextIds = new Set(contacts.map((contact) => contact.id));
-      for (const oldContact of manualContacts[eventId] ?? []) {
+      for (const oldContact of manualContacts[event.id] ?? []) {
         if (!nextIds.has(oldContact.id)) current.delete(oldContact.id);
       }
       for (const contact of contacts) current.add(contact.id);
-      return { ...prev, [eventId]: current };
+      return { ...prev, [event.id]: current };
     });
   };
 
   // Select/Deselect all targets for a card
-  const toggleSelectAll = (eventId: string, allIds: string[]) => {
+  const toggleSelectAll = (event: MatchEvent, allIds: string[]) => {
     setCheckedTargets((prev) => {
-      const current = prev[eventId]
-        ? new Set(prev[eventId])
-        : new Set<string>();
-      const allChecked = allIds.every((id) => current.has(id));
-      const nextSet = allChecked ? new Set<string>() : new Set(allIds);
-      return { ...prev, [eventId]: nextSet };
+      const current = prev[event.id] ?? defaultSelection(event);
+      const anyChecked = allIds.some((id) => current.has(id));
+      const nextSet = anyChecked ? new Set<string>() : new Set(allIds);
+      return { ...prev, [event.id]: nextSet };
     });
   };
+
+  const selectTargets = (event: MatchEvent, ids: string[]) =>
+    setCheckedTargets((prev) => ({ ...prev, [event.id]: new Set(ids) }));
+
+  const expandTargets = (eventId: string) =>
+    setExpandedEvents((prev) => new Set(prev).add(eventId));
 
   // Dismiss event (Update status to dismissed)
   const handleDismiss = async (eventId: string) => {
@@ -143,7 +165,7 @@ export default function RadarPage() {
         .eq('id', eventId);
       if (error) throw error;
 
-      setEvents((prev) => (prev ? prev.filter((e) => e.id !== eventId) : null));
+      removeEvent(eventId);
       toast.success('Event dismissed');
     } catch (err: unknown) {
       console.error('[radar] dismiss failed:', err);
@@ -155,9 +177,7 @@ export default function RadarPage() {
 
   // Trigger Send Match Alert API
   const handleSend = async (event: MatchEvent) => {
-    const selectedIds = checkedTargets[event.id]
-      ? Array.from(checkedTargets[event.id])
-      : [];
+    const selectedIds = Array.from(selectionFor(event));
     if (selectedIds.length === 0) {
       toast.error('Please select at least one match target to send');
       return;
@@ -233,9 +253,7 @@ export default function RadarPage() {
 
       // If everything was sent successfully, refresh feed (or auto-remove card if status is updated to sent)
       if (sent > 0 && templateMissing === 0) {
-        setEvents((prev) =>
-          prev ? prev.filter((e) => e.id !== event.id) : null
-        );
+        removeEvent(event.id);
       }
     } catch (err: unknown) {
       console.error('[radar] send failed:', err);
@@ -280,11 +298,7 @@ export default function RadarPage() {
   const formatPrice = (p: Property) => {
     const val = Number(p.price);
     if (!val || isNaN(val)) return 'Not specified';
-    if (val >= 10000000)
-      return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-    if (val >= 100000)
-      return `₹${(val / 100000).toFixed(2).replace(/\.00$/, '')} L`;
-    return `₹${val.toLocaleString('en-IN')}`;
+    return formatInrCompact(val);
   };
 
   return (
@@ -305,27 +319,19 @@ export default function RadarPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={fetchEvents}
-          disabled={loading}
+          onClick={() => void refreshFeed()}
+          disabled={!accountId || eventsQuery.isFetching}
           className="shrink-0 cursor-pointer rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-900/40 hover:text-white"
         >
           <RefreshCw
-            className={`mr-1.5 size-3.5 ${loading ? 'animate-spin' : ''}`}
+            className={`mr-1.5 size-3.5 ${eventsQuery.isFetching ? 'animate-spin' : ''}`}
           />
           Refresh Feed
         </Button>
       </div>
 
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-          <RadarSweepLoader
-            size={104}
-            label="Scanning for matches"
-            className="mb-3"
-          />
-          <ConvoRealLoader size={20} className="mb-2" />
-          <p className="text-sm">Scanning for matches...</p>
-        </div>
+      {eventsQuery.isPending ? (
+        <TabSkeleton label="Loading Match Radar" />
       ) : !events || events.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/10 py-16 text-center">
           <Radar className="text-slate-650 mx-auto mb-3 size-12 animate-pulse" />
@@ -371,10 +377,20 @@ export default function RadarPage() {
                 })),
               ];
               const allTargetIds = displayTargets.map((target) => target.id);
-              const selectedIds = checkedTargets[evt.id] || new Set<string>();
-              const isAllChecked = allTargetIds.every((id) =>
-                selectedIds.has(id)
-              );
+              const strongTargetIds = [
+                ...defaultSelectedTargetIds(evt.matches),
+                ...addedContacts.map((contact) => contact.id),
+              ];
+              const selectedIds = selectionFor(evt);
+              const hasWeakTargets =
+                strongTargetIds.length < allTargetIds.length;
+              const isStrongOnly =
+                selectedIds.size === strongTargetIds.length &&
+                strongTargetIds.every((id) => selectedIds.has(id));
+              const expanded = expandedEvents.has(evt.id);
+              const visibleTargets = expanded
+                ? displayTargets
+                : displayTargets.slice(0, TARGET_PREVIEW_COUNT);
 
               return (
                 <div
@@ -396,11 +412,7 @@ export default function RadarPage() {
                           : 'Buyer Preference Update'}
                       </span>
                       <span className="text-[10px] font-bold text-slate-500">
-                        {new Date(evt.created_at).toLocaleDateString()} ·{' '}
-                        {new Date(evt.created_at).toLocaleTimeString([], {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        })}
+                        {formatDateTime(evt.created_at)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -411,9 +423,10 @@ export default function RadarPage() {
                         disabled={
                           dismissingId === evt.id || sendingId === evt.id
                         }
+                        title="Hide this alert"
                         className="h-7 cursor-pointer rounded-lg px-2 text-[11px] font-bold text-slate-400 hover:bg-slate-900 hover:text-rose-400"
                       >
-                        <Trash2 className="mr-1 size-3" />
+                        <X className="mr-1 size-3" />
                         Dismiss
                       </Button>
                     </div>
@@ -462,6 +475,21 @@ export default function RadarPage() {
                                 : ''}
                             </p>
                           </div>
+                          {isImplausibleListingPrice(evt.property) && (
+                            <p className="flex items-start gap-1.5 rounded-lg border border-amber-900/50 bg-amber-950/20 p-2 text-[11px] leading-snug font-semibold text-amber-400">
+                              <AlertTriangle className="mt-px size-3.5 shrink-0" />
+                              <span>
+                                Price looks wrong, check the listing before
+                                alerting.{' '}
+                                <Link
+                                  href={`/inventory?propertyId=${encodeURIComponent(evt.property.id)}`}
+                                  className="font-bold text-amber-300 underline underline-offset-2 hover:text-amber-200"
+                                >
+                                  Open listing
+                                </Link>
+                              </span>
+                            </p>
+                          )}
                         </div>
                       ) : evt.kind === 'buyer_updated' && evt.contact ? (
                         (() => {
@@ -532,24 +560,42 @@ export default function RadarPage() {
                                 matchedCount={evt.matches.length}
                                 value={addedContacts}
                                 onChange={(contacts) =>
-                                  updateManualContacts(evt.id, contacts)
+                                  updateManualContacts(evt, contacts)
                                 }
                               />
                             )}
+                            {hasWeakTargets && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  selectTargets(
+                                    evt,
+                                    isStrongOnly
+                                      ? allTargetIds
+                                      : strongTargetIds
+                                  )
+                                }
+                                className="text-primary cursor-pointer text-[11px] font-extrabold hover:underline"
+                              >
+                                {isStrongOnly
+                                  ? 'Select all'
+                                  : `Select ${DEFAULT_ALERT_MIN_SCORE}%+`}
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() =>
-                                toggleSelectAll(evt.id, allTargetIds)
-                              }
+                              onClick={() => toggleSelectAll(evt, allTargetIds)}
                               className="text-primary cursor-pointer text-[11px] font-extrabold hover:underline"
                             >
-                              {isAllChecked ? 'Deselect All' : 'Select All'}
+                              {selectedIds.size > 0
+                                ? 'Deselect All'
+                                : 'Select All'}
                             </button>
                           </div>
                         </div>
 
-                        <div className="grid max-h-[220px] grid-cols-1 gap-2.5 overflow-y-auto pr-1 sm:grid-cols-2">
-                          {displayTargets.map((match) => (
+                        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                          {visibleTargets.map((match) => (
                             <MatchTargetRow
                               key={match.id}
                               density="compact"
@@ -584,10 +630,20 @@ export default function RadarPage() {
                                 ) : null
                               }
                               selected={selectedIds.has(match.id)}
-                              onToggle={() => toggleTarget(evt.id, match.id)}
+                              onToggle={() => toggleTarget(evt, match.id)}
                             />
                           ))}
                         </div>
+                        {!expanded &&
+                          displayTargets.length > TARGET_PREVIEW_COUNT && (
+                            <button
+                              type="button"
+                              onClick={() => expandTargets(evt.id)}
+                              className="text-primary cursor-pointer text-[11px] font-extrabold hover:underline"
+                            >
+                              Show all {displayTargets.length}
+                            </button>
+                          )}
                       </div>
 
                       {/* One-time template setup — only shows when out-of-window

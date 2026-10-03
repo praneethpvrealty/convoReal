@@ -10,6 +10,7 @@
  */
 
 import type { Disposition } from '@/lib/outreach/dispositions';
+import { formatInrCompact } from '@/lib/format/currency';
 
 export const FLOW_KINDS = ['buyer_qualification', 'owner_onboarding'] as const;
 export type FlowKind = (typeof FLOW_KINDS)[number];
@@ -105,16 +106,12 @@ export function formatBudgetINR(
   min: number | null | undefined,
   max: number | null | undefined
 ): string | null {
-  const asWords = (n: number): string =>
-    n >= 10000000
-      ? `₹${(n / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`
-      : n >= 100000
-        ? `₹${(n / 100000).toFixed(2).replace(/\.?0+$/, '')} L`
-        : `₹${n.toLocaleString('en-IN')}`;
   if (min && max)
-    return min === max ? asWords(max) : `${asWords(min)}–${asWords(max)}`;
-  if (max) return asWords(max);
-  if (min) return asWords(min);
+    return min === max
+      ? formatInrCompact(max)
+      : `${formatInrCompact(min)}–${formatInrCompact(max)}`;
+  if (max) return formatInrCompact(max);
+  if (min) return formatInrCompact(min);
   return null;
 }
 

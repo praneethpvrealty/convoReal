@@ -1,5 +1,21 @@
 import { apiFetch } from '@/lib/api';
 import { withAnalyticsTimeout } from '@/lib/analytics-request';
+import type {
+  DealDeadline,
+  DealDeadlineSummary,
+} from '@shared/lib/deals/deadline-rules';
+import type { FocusUrgency } from '@shared/lib/focus/requests';
+
+export {
+  deadlineLabel,
+  groupDeadlinesByDeal,
+  summarizeDeadlines,
+} from '@shared/lib/deals/deadline-rules';
+export {
+  isStaleRequest,
+  requestBadge,
+  summarizeRequests,
+} from '@shared/lib/focus/requests';
 
 /**
  * Focus — the consultant's landing screen.
@@ -55,8 +71,6 @@ export interface FocusJourney {
 export type FocusRequestKind =
   'inquiry' | 'match' | 'listing_submission' | 'bid';
 
-export type FocusUrgency = 'now' | 'soon' | 'later';
-
 export interface FocusRequest {
   id: string;
   kind: FocusRequestKind;
@@ -70,47 +84,8 @@ export interface FocusRequest {
   href: string;
 }
 
-export type FocusDeadlineKind = 'milestone' | 'payment' | 'expected_close';
-export type FocusDeadlineUrgency = 'overdue' | 'today' | 'soon';
-
-/** Mirrored from src/lib/deals/deadlines.ts (DEAL_DEADLINE_URGENCY_LABELS). */
-export const DEADLINE_URGENCY_LABELS: Record<FocusDeadlineUrgency, string> = {
-  overdue: 'Overdue',
-  today: 'Due today',
-  soon: 'Due soon',
-};
-
-/** Mirrored from src/lib/deals/deadlines.ts (DealDeadline). */
-export interface FocusDeadline {
-  dealId: string;
-  kind: FocusDeadlineKind;
-  milestoneId: string | null;
-  title: string;
-  subject: string;
-  dueDate: string;
-  daysLeft: number;
-  urgency: FocusDeadlineUrgency;
-  assignedTo: string | null;
-  ownerUserId: string | null;
-}
-
-export interface FocusDeadlines {
-  items: FocusDeadline[];
-  total: number;
-  overdue: number;
-  dueToday: number;
-  soon: number;
-}
-
-/** Mirrored from src/lib/deals/deadlines.ts (deadlineLabel). */
-export function deadlineLabel(daysLeft: number): string {
-  if (daysLeft < 0) {
-    const n = -daysLeft;
-    return `Overdue by ${n} day${n === 1 ? '' : 's'}`;
-  }
-  if (daysLeft === 0) return 'Due today';
-  if (daysLeft === 1) return 'Due tomorrow';
-  return `Due in ${daysLeft} days`;
+export interface FocusDeadlines extends DealDeadlineSummary {
+  items: DealDeadline[];
 }
 
 export interface FocusSnapshot {

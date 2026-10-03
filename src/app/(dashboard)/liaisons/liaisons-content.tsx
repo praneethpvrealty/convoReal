@@ -30,14 +30,11 @@ import {
   Edit,
   Trash2,
 } from 'lucide-react';
+import { formatCurrency } from '@/lib/format/currency';
 
 function formatFee(fee: number | null | undefined): string {
   if (fee === null || fee === undefined) return 'Fee varies';
-  if (fee >= 10000000)
-    return `₹${(fee / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (fee >= 100000)
-    return `₹${(fee / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
-  return `₹${fee.toLocaleString('en-IN')}`;
+  return formatCurrency(fee);
 }
 
 function computeMargin(

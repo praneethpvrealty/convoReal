@@ -137,27 +137,19 @@ export default function DashboardContent() {
               icon={MessageSquare}
               highlight={true}
               delta={{
-                sign: metrics.activeConversations.previous,
-                label: deltaLabel(
-                  metrics.activeConversations.previous,
-                  'new today vs yesterday'
-                ),
+                value: metrics.activeConversations.previous,
+                direction: 'neutral',
               }}
-              hint="Open WhatsApp threads with at least one message in the last 24 hours."
+              hint="Open WhatsApp threads with at least one message in the last 24 hours. The comparison counts new conversations started today against yesterday."
             />
             <MetricCard
               title="New Contacts Today"
               value={metrics.newContactsToday.current.toLocaleString()}
               icon={UserPlus}
               delta={{
-                sign:
+                value:
                   metrics.newContactsToday.current -
                   metrics.newContactsToday.previous,
-                label: deltaLabel(
-                  metrics.newContactsToday.current -
-                    metrics.newContactsToday.previous,
-                  'vs yesterday'
-                ),
               }}
               hint="Contacts added to your Engine today — from incoming messages or manual creation."
             />
@@ -173,14 +165,9 @@ export default function DashboardContent() {
               value={metrics.messagesSentToday.current.toLocaleString()}
               icon={Send}
               delta={{
-                sign:
+                value:
                   metrics.messagesSentToday.current -
                   metrics.messagesSentToday.previous,
-                label: deltaLabel(
-                  metrics.messagesSentToday.current -
-                    metrics.messagesSentToday.previous,
-                  'vs yesterday'
-                ),
               }}
               hint="WhatsApp messages (template + session) sent by you and your team since midnight."
             />
@@ -243,10 +230,4 @@ export default function DashboardContent() {
       </div>
     </div>
   );
-}
-
-function deltaLabel(delta: number, suffix: string): string {
-  if (delta === 0) return `No change ${suffix}`;
-  const sign = delta > 0 ? '+' : '';
-  return `${sign}${delta.toLocaleString()} ${suffix}`;
 }
