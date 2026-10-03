@@ -4413,6 +4413,20 @@ describe('[PLS-004] mobile Showcase Pulse lists every viewed listing like web', 
   });
 });
 
+describe('[PLS-005] mobile Showcase Pulse sorts viewed listings like web', () => {
+  it('uses the shared sort options and sends the chosen sort to the database', () => {
+    const fetcher = mobileSource('lib/pulse.ts');
+    expect(fetcher).toContain("from '@shared/lib/pulse/viewed-listings'");
+    expect(fetcher).toContain("rpc('pulse_viewed_properties'");
+    expect(fetcher).toContain('p_sort: sort');
+    const screen = mobileSource('app/(app)/pulse.tsx');
+    expect(screen).toContain('PULSE_LISTING_SORTS.map(');
+    expect(screen).toContain(
+      'Last viewed {formatTimeAgo(listing.lastViewedAt)}'
+    );
+  });
+});
+
 function interfaceFields(source: string, name: string): string[] {
   const match = source.match(
     new RegExp(`export interface ${name} \\{([\\s\\S]*?)\\n\\}`)
@@ -4553,5 +4567,63 @@ describe('mobile/lib/personal-showcase.ts mirrors the showcase style resolver', 
         `swatch: { background: '${design.background}', accent: '${design.accent}' }`
       );
     }
+  });
+});
+
+describe('[CTM-013] the Contacts tab counts come from one SQL aggregate on both surfaces', () => {
+  // Six count=exact HEAD requests per web load and four per mobile load,
+  // each a real COUNT(*) over the account's contacts, with the staff
+  // exclusion and the Transacted rule written differently on each side.
+  const web = webSource('app/(dashboard)/contacts/contacts-content.tsx');
+  const mobile = mobileSource('app/(app)/(tabs)/contacts.tsx');
+  const migration = readFileSync(
+    join(
+      process.cwd(),
+      'supabase/migrations/20261003174500_contacts_tab_counts.sql'
+    ),
+    'utf8'
+  );
+
+  it('both surfaces call contacts_tab_counts and no tab counts a table itself', () => {
+    expect(web).toContain(
+      ".rpc('contacts_tab_counts', { p_account_id: accountId })"
+    );
+    expect(mobile).toContain(
+      ".rpc('contacts_tab_counts', { p_account_id: accountId })"
+    );
+    expect(
+      web.match(/\.select\('id', \{ count: 'exact', head: true \}\)/g)
+    ).toBeNull();
+    expect(
+      mobile.match(/\.select\('id', \{ count: 'exact', head: true \}\)/g)
+    ).toBeNull();
+    expect(mobile).not.toContain("supabase.from('deals').select('contact_id')");
+  });
+
+  it('the aggregate is account-scoped, member-guarded and keeps the tab rules', () => {
+    expect(migration).toContain('SECURITY DEFINER');
+    expect(migration).toContain('WHERE is_account_member(p_account_id)');
+    expect(migration).toContain('AND c.is_merged = false');
+    expect(migration).toContain('AND c.chain_only = false');
+    expect(migration).toContain(
+      "count(*) FILTER (WHERE l.status = 'active' AND NOT l.is_archived)"
+    );
+    expect(migration).toContain(
+      "count(*) FILTER (WHERE l.status = 'pending_review' AND NOT l.is_archived)"
+    );
+    expect(migration).toContain(
+      'count(*) FILTER (WHERE l.is_favorite AND NOT l.is_archived)'
+    );
+    expect(migration).toContain("AND d.status = 'won'");
+    expect(migration).toContain(
+      "AND (l.lead_temp = 'HOT' OR l.last_inquired_property_id IS NOT NULL)"
+    );
+    expect(migration).toContain('count(*) FILTER (WHERE l.is_archived)');
+    expect(migration).toContain(
+      "SELECT 1 FROM staff s WHERE c.phone LIKE '%' || s.suffix"
+    );
+    expect(migration).toContain(
+      'GRANT EXECUTE ON FUNCTION public.contacts_tab_counts(UUID) TO authenticated;'
+    );
   });
 });

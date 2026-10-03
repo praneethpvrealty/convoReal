@@ -33,6 +33,7 @@ vi.mock('@/lib/supabase/client', () => ({
 vi.mock('@/lib/pulse/queries', () => ({
   loadPulseStats: pulse.loadPulseStats,
   loadPulseFeed: pulse.loadPulseFeed,
+  loadPulseViewedListings: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('@/components/pulse/property-viewers-dialog', () => ({
@@ -43,7 +44,6 @@ const stats: PulseStats = {
   totalViews: 42,
   uniqueSessions: 7,
   avgDwellTimeSec: 12,
-  topProperties: [],
 };
 
 function event(id: string, minute: number): HydratedShowcaseEvent {

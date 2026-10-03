@@ -44,6 +44,7 @@ on:
       - 'src/lib/focus/requests.ts'
       - 'src/lib/format/currency.ts'
       - 'src/lib/format/date.ts'
+      - 'src/lib/pulse/viewed-listings.ts'
       - 'src/lib/radar/alert-defaults.ts'
       - 'src/lib/sweep/gap-actions.ts'
   workflow_dispatch:

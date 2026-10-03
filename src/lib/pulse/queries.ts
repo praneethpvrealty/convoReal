@@ -6,6 +6,12 @@ import {
   pulseFeedCursorFilter,
   type PulseFeedCursor,
 } from './feed-page';
+import {
+  toPulseViewedListing,
+  type PulseListingSort,
+  type PulseViewedListing,
+  type PulseViewedListingRow,
+} from './viewed-listings';
 
 type DB = SupabaseClient;
 
@@ -18,16 +24,6 @@ export interface PulseStats {
   totalViews: number;
   uniqueSessions: number;
   avgDwellTimeSec: number;
-  topProperties: Array<{
-    property: {
-      id: string;
-      title: string;
-      property_code: string | null;
-      price: number;
-    };
-    viewsCount: number;
-    uniqueViewsCount: number;
-  }>;
 }
 
 export interface HydratedShowcaseEvent extends Omit<ShowcaseEvent, 'metadata'> {
@@ -51,47 +47,36 @@ export async function loadPulseStats(
   db: DB,
   accountId: string
 ): Promise<PulseStats> {
-  const [statsRes, topRes] = await Promise.all([
-    db.rpc('pulse_stats', { p_account_id: accountId }).maybeSingle(),
-    db.rpc('pulse_top_properties', {
-      p_account_id: accountId,
-      p_limit: PULSE_VIEWED_LISTINGS_LIMIT,
-    }),
-  ]);
+  const { data, error } = await db
+    .rpc('pulse_stats', { p_account_id: accountId })
+    .maybeSingle();
+  if (error) throw error;
 
-  if (statsRes.error) throw statsRes.error;
-  if (topRes.error) throw topRes.error;
-
-  const stats = statsRes.data as {
+  const stats = data as {
     total_views: number;
     unique_sessions: number;
     avg_dwell_sec: number;
   } | null;
 
-  const topRows = (topRes.data ?? []) as {
-    property_id: string;
-    title: string;
-    property_code: string | null;
-    price: number;
-    views_count: number;
-    unique_views_count: number;
-  }[];
-
   return {
     totalViews: stats?.total_views ?? 0,
     uniqueSessions: stats?.unique_sessions ?? 0,
     avgDwellTimeSec: stats?.avg_dwell_sec ?? 0,
-    topProperties: topRows.map((row) => ({
-      property: {
-        id: row.property_id,
-        title: row.title,
-        property_code: row.property_code,
-        price: row.price,
-      },
-      viewsCount: row.views_count,
-      uniqueViewsCount: row.unique_views_count,
-    })),
   };
+}
+
+export async function loadPulseViewedListings(
+  db: DB,
+  accountId: string,
+  sort: PulseListingSort
+): Promise<PulseViewedListing[]> {
+  const { data, error } = await db.rpc('pulse_viewed_properties', {
+    p_account_id: accountId,
+    p_sort: sort,
+    p_limit: PULSE_VIEWED_LISTINGS_LIMIT,
+  });
+  if (error) throw error;
+  return ((data ?? []) as PulseViewedListingRow[]).map(toPulseViewedListing);
 }
 
 export async function loadPulseFeed(

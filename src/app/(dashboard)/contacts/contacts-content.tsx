@@ -1501,111 +1501,38 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
           setTotalCount(count ?? 0);
 
-          // Fetch won deals first
-          const { data: wonDeals } = await supabaseClient
-            .from('deals')
-            .select('contact_id')
-            .eq('status', 'won');
-          const transactedIds = Array.from(
-            new Set(wonDeals?.map((d) => d.contact_id).filter(Boolean) || [])
-          );
-
-          // Fetch tab totals in the background
-          let actQuery = supabaseClient
-            .from('contacts')
-            .select('id', { count: 'exact', head: true })
-            .eq('account_id', accountId)
-            .eq('is_merged', false)
-            .eq('chain_only', false)
-            .eq('status', 'active');
-
-          let revQuery = supabaseClient
-            .from('contacts')
-            .select('id', { count: 'exact', head: true })
-            .eq('account_id', accountId)
-            .eq('is_merged', false)
-            .eq('chain_only', false)
-            .eq('status', 'pending_review');
-
-          let favoritesQuery = supabaseClient
-            .from('contacts')
-            .select('id', { count: 'exact', head: true })
-            .eq('account_id', accountId)
-            .eq('is_merged', false)
-            .eq('chain_only', false)
-            .eq('is_favorite', true);
-
-          let transactedQuery = supabaseClient
-            .from('contacts')
-            .select('id', { count: 'exact', head: true })
-            .eq('account_id', accountId)
-            .eq('is_merged', false)
-            .eq('chain_only', false)
-            .eq('status', 'active')
-            .in(
-              'id',
-              transactedIds.length > 0
-                ? transactedIds
-                : ['00000000-0000-0000-0000-000000000000']
-            );
-
-          let marketActiveQuery = supabaseClient
-            .from('contacts')
-            .select('id', { count: 'exact', head: true })
-            .eq('account_id', accountId)
-            .eq('is_merged', false)
-            .eq('chain_only', false)
-            .eq('status', 'active')
-            .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null');
-
-          // The archived tab is the only one that counts filed contacts;
-          // every other tab counts what is still on the working list.
-          let archivedQuery = supabaseClient
-            .from('contacts')
-            .select('id', { count: 'exact', head: true })
-            .eq('account_id', accountId)
-            .eq('is_merged', false)
-            .eq('chain_only', false)
-            .eq('is_archived', true);
-
-          actQuery = actQuery.eq('is_archived', false);
-          revQuery = revQuery.eq('is_archived', false);
-          favoritesQuery = favoritesQuery.eq('is_archived', false);
-          transactedQuery = transactedQuery.eq('is_archived', false);
-          marketActiveQuery = marketActiveQuery.eq('is_archived', false);
-
-          if (internalContactIds.length > 0) {
-            const notInString = `(${internalContactIds.join(',')})`;
-            actQuery = actQuery.not('id', 'in', notInString);
-            revQuery = revQuery.not('id', 'in', notInString);
-            favoritesQuery = favoritesQuery.not('id', 'in', notInString);
-            transactedQuery = transactedQuery.not('id', 'in', notInString);
-            marketActiveQuery = marketActiveQuery.not('id', 'in', notInString);
-            archivedQuery = archivedQuery.not('id', 'in', notInString);
+          // Six tab counters from one scan of the account's contacts
+          // (migration 20261003174500); the staff and won-deal rules
+          // live in SQL, shared with the mobile tab.
+          const { data: tabCountsRow, error: tabCountsError } =
+            await supabaseClient
+              .rpc('contacts_tab_counts', { p_account_id: accountId })
+              .maybeSingle<{
+                active: number;
+                pending_review: number;
+                favorites: number;
+                transacted: number;
+                market_active: number;
+                archived: number;
+              }>();
+          if (tabCountsError) {
+            console.error('Error loading contact tab counts:', tabCountsError);
           }
+          const tabCounts = {
+            activeCount: tabCountsRow?.active ?? 0,
+            reviewCount: tabCountsRow?.pending_review ?? 0,
+            favoritesCount: tabCountsRow?.favorites ?? 0,
+            transactedCount: tabCountsRow?.transacted ?? 0,
+            marketActiveCount: tabCountsRow?.market_active ?? 0,
+            archivedCount: tabCountsRow?.archived ?? 0,
+          };
 
-          const [
-            actCountRes,
-            revCountRes,
-            favoritesCountRes,
-            transactedCountRes,
-            marketActiveCountRes,
-            archivedCountRes,
-          ] = await Promise.all([
-            actQuery,
-            revQuery,
-            favoritesQuery,
-            transactedQuery,
-            marketActiveQuery,
-            archivedQuery,
-          ]);
-
-          setActiveCount(actCountRes.count ?? 0);
-          setReviewCount(revCountRes.count ?? 0);
-          setFavoritesCount(favoritesCountRes.count ?? 0);
-          setTransactedCount(transactedCountRes.count ?? 0);
-          setMarketActiveCount(marketActiveCountRes.count ?? 0);
-          setArchivedCount(archivedCountRes.count ?? 0);
+          setActiveCount(tabCounts.activeCount);
+          setReviewCount(tabCounts.reviewCount);
+          setFavoritesCount(tabCounts.favoritesCount);
+          setTransactedCount(tabCounts.transactedCount);
+          setMarketActiveCount(tabCounts.marketActiveCount);
+          setArchivedCount(tabCounts.archivedCount);
 
           if (!data || data.length === 0) {
             setContacts([]);
@@ -1637,12 +1564,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           localCache.set(cacheKey, {
             enriched,
             totalCount: count ?? 0,
-            activeCount: actCountRes.count ?? 0,
-            reviewCount: revCountRes.count ?? 0,
-            favoritesCount: favoritesCountRes.count ?? 0,
-            transactedCount: transactedCountRes.count ?? 0,
-            marketActiveCount: marketActiveCountRes.count ?? 0,
-            archivedCount: archivedCountRes.count ?? 0,
+            ...tabCounts,
           });
 
           setContacts(enriched);
