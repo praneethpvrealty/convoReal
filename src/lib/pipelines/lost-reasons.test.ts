@@ -94,6 +94,18 @@ describe('[TXW-025] lost reasons', () => {
   });
 });
 
+describe('[TXW-025] every stage picker reuses a recorded lost reason', () => {
+  it.each([
+    'src/app/(dashboard)/pipelines/pipelines-content.tsx',
+    'src/components/deals/deal-workspace.tsx',
+    'mobile/app/(app)/deals.tsx',
+    'mobile/app/(app)/deal/[id].tsx',
+  ])('%s checks the recorded reason before asking', (path) => {
+    const source = readFileSync(join(process.cwd(), path), 'utf8');
+    expect(source).toContain('recordedLostReason(');
+  });
+});
+
 describe('[TXW-025] the mobile app offers exactly the reasons the server accepts', () => {
   it('keeps the native copy identical to this module', () => {
     const shared = (path: string) => {
