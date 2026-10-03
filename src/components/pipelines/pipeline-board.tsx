@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -19,14 +19,18 @@ import { DealCard } from './deal-card';
 import { StageWheel } from './stage-wheel';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { formatCurrency } from '@/lib/currency-utils';
-import { netOfPayouts } from '@/lib/deals/co-broking';
 import { cn } from '@/lib/utils';
 import {
   isBrokeragePaidStage,
   pipelineOutcomeForStage,
   type PipelineOutcome,
 } from '@/lib/pipelines/stage-semantics';
+import type { BoardLayout } from '@/lib/pipelines/board-layout';
+import {
+  stageTotals,
+  stageTotalsLabel,
+  type StageTotals,
+} from '@/lib/pipelines/deal-money';
 
 interface PipelineBoardProps {
   stages: PipelineStage[];
@@ -35,7 +39,13 @@ interface PipelineBoardProps {
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
   currency?: string;
+  layout: BoardLayout;
 }
+
+const OUTCOME_DIVIDERS: Partial<Record<PipelineOutcome, string>> = {
+  successful: 'Closed won',
+  lost: 'Lost',
+};
 
 export function PipelineBoard({
   stages,
@@ -44,8 +54,12 @@ export function PipelineBoard({
   onAddDeal,
   onEditDeal,
   currency = 'INR',
+  layout,
 }: PipelineBoardProps) {
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
+  const [expandedStageIds, setExpandedStageIds] = useState<Set<string>>(
+    () => new Set()
+  );
 
   const sortedStages = useMemo(
     () => [...stages].sort((a, b) => a.position - b.position),
@@ -99,6 +113,22 @@ export function PipelineBoard({
     setActiveDealId(null);
   }
 
+  function renderStage(stage: PipelineStage, stageLayout: StageLayout) {
+    const stageDeals = dealsByStage.get(stage.id) ?? [];
+    return (
+      <StageColumn
+        key={stage.id}
+        stage={stage}
+        deals={stageDeals}
+        totals={stageTotals(stageDeals)}
+        onAddDeal={onAddDeal}
+        onEditDeal={onEditDeal}
+        currency={currency}
+        layout={stageLayout}
+      />
+    );
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -107,72 +137,85 @@ export function PipelineBoard({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="space-y-5">
-        {(
-          [
-            ['active', 'Active pipeline'],
-            ['successful', 'Successful'],
-            ['lost', 'Lost deals'],
-          ] as const satisfies ReadonlyArray<readonly [PipelineOutcome, string]>
-        ).map(([outcome, label]) => {
-          const outcomeStages = sortedStages.filter(
-            (stage) => pipelineOutcomeForStage(stage) === outcome
-          );
-          if (outcomeStages.length === 0) return null;
-          const renderStage = (stage: PipelineStage, layout: StageLayout) => {
+      {layout === 'flat' ? (
+        <div
+          role="group"
+          aria-label="Pipeline stages"
+          className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:snap-none"
+        >
+          {sortedStages.map((stage, index) => {
+            const outcome = pipelineOutcomeForStage(stage);
+            const divider =
+              OUTCOME_DIVIDERS[outcome] &&
+              sortedStages.findIndex(
+                (other) => pipelineOutcomeForStage(other) === outcome
+              ) === index
+                ? OUTCOME_DIVIDERS[outcome]
+                : null;
             const stageDeals = dealsByStage.get(stage.id) ?? [];
-            const totalValue = stageDeals.reduce(
-              (sum, deal) =>
-                sum +
-                netOfPayouts(
-                  deal.brokerage_amount !== null &&
-                    deal.brokerage_amount !== undefined
-                    ? Number(deal.brokerage_amount)
-                    : Number(deal.value || 0) * 0.02,
-                  deal.co_broker_payout_total
-                ),
-              0
-            );
             return (
-              <StageColumn
-                key={stage.id}
-                stage={stage}
-                deals={stageDeals}
-                totalValue={totalValue}
-                onAddDeal={onAddDeal}
-                onEditDeal={onEditDeal}
-                currency={currency}
-                layout={layout}
-              />
+              <Fragment key={stage.id}>
+                {divider && <OutcomeDivider label={divider} />}
+                {stageDeals.length === 0 && !expandedStageIds.has(stage.id) ? (
+                  <StageRail
+                    stage={stage}
+                    onAddDeal={onAddDeal}
+                    onExpand={() =>
+                      setExpandedStageIds((current) =>
+                        new Set(current).add(stage.id)
+                      )
+                    }
+                  />
+                ) : (
+                  renderStage(stage, 'flat')
+                )}
+              </Fragment>
             );
-          };
-          return (
-            <section key={outcome} aria-label={label}>
-              <div className="mb-2 flex items-center gap-3">
-                <h2 className="text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase">
-                  {label}
-                </h2>
-                <div className="h-px flex-1 bg-slate-800" />
-              </div>
-              {outcome !== 'lost' ? (
-                <StageWheel
-                  stages={outcomeStages}
-                  dealCounts={outcomeStages.map(
-                    (stage) => dealsByStage.get(stage.id)?.length ?? 0
-                  )}
-                  dragging={activeDealId !== null}
-                  label={label}
-                  renderStage={(stage) => renderStage(stage, 'wheel')}
-                />
-              ) : (
-                <div className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:snap-none">
-                  {outcomeStages.map((stage) => renderStage(stage, 'row'))}
+          })}
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {(
+            [
+              ['active', 'Active pipeline'],
+              ['successful', 'Successful'],
+              ['lost', 'Lost deals'],
+            ] as const satisfies ReadonlyArray<
+              readonly [PipelineOutcome, string]
+            >
+          ).map(([outcome, label]) => {
+            const outcomeStages = sortedStages.filter(
+              (stage) => pipelineOutcomeForStage(stage) === outcome
+            );
+            if (outcomeStages.length === 0) return null;
+            return (
+              <section key={outcome} aria-label={label}>
+                <div className="mb-2 flex items-center gap-3">
+                  <h2 className="text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase">
+                    {label}
+                  </h2>
+                  <div className="h-px flex-1 bg-slate-800" />
                 </div>
-              )}
-            </section>
-          );
-        })}
-      </div>
+                {outcome !== 'lost' ? (
+                  <StageWheel
+                    stages={outcomeStages}
+                    dealCounts={outcomeStages.map(
+                      (stage) => dealsByStage.get(stage.id)?.length ?? 0
+                    )}
+                    dragging={activeDealId !== null}
+                    label={label}
+                    renderStage={(stage) => renderStage(stage, 'wheel')}
+                  />
+                ) : (
+                  <div className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:snap-none">
+                    {outcomeStages.map((stage) => renderStage(stage, 'row'))}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      )}
 
       <DragOverlay
         dropAnimation={{
@@ -213,12 +256,12 @@ export function PipelineBoard({
   );
 }
 
-type StageLayout = 'row' | 'wheel';
+type StageLayout = 'row' | 'wheel' | 'flat';
 
 function StageColumn({
   stage,
   deals,
-  totalValue,
+  totals,
   onAddDeal,
   onEditDeal,
   currency,
@@ -226,7 +269,7 @@ function StageColumn({
 }: {
   stage: PipelineStage;
   deals: Deal[];
-  totalValue: number;
+  totals: StageTotals;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
   currency: string;
@@ -244,9 +287,11 @@ function StageColumn({
     <div
       className={cn(
         'flex flex-col rounded-xl border border-slate-800 bg-slate-900/60 p-4',
-        layout === 'wheel'
-          ? 'w-full'
-          : 'w-[85vw] max-w-[320px] min-w-[260px] shrink-0 snap-start lg:w-auto lg:max-w-none lg:flex-1 lg:shrink lg:basis-[260px] lg:snap-none'
+        layout === 'wheel' && 'w-full',
+        layout === 'row' &&
+          'w-[85vw] max-w-[320px] min-w-[260px] shrink-0 snap-start lg:w-auto lg:max-w-none lg:flex-1 lg:shrink lg:basis-[260px] lg:snap-none',
+        layout === 'flat' &&
+          'w-[85vw] max-w-[320px] min-w-[260px] shrink-0 snap-start lg:w-[300px]'
       )}
     >
       {/* 3px colored top border — sits above the column's padding */}
@@ -263,8 +308,10 @@ function StageColumn({
         </span>
       </div>
       <p className="text-xs text-slate-400">
-        {isBrokeragePaidStage(stage) ? 'Brokerage received · ' : ''}
-        {formatCurrency(totalValue, currency)}
+        {stageTotalsLabel(totals, {
+          paid: isBrokeragePaidStage(stage),
+          currency,
+        })}
       </p>
 
       <div
@@ -302,6 +349,81 @@ function StageColumn({
         >
           <Plus className="mr-1 h-3 w-3" />
           Add Deal
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function OutcomeDivider({ label }: { label: string }) {
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label}
+      className="flex shrink-0 flex-col items-center gap-2 py-2"
+    >
+      <div className="w-px flex-1 bg-slate-700" />
+      <span
+        aria-hidden
+        className="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase [writing-mode:vertical-rl]"
+      >
+        {label}
+      </span>
+      <div className="w-px flex-1 bg-slate-700" />
+    </div>
+  );
+}
+
+function StageRail({
+  stage,
+  onAddDeal,
+  onExpand,
+}: {
+  stage: PipelineStage;
+  onAddDeal: (stageId: string) => void;
+  onExpand: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-stage-rail
+      className={cn(
+        'flex min-h-[240px] w-12 shrink-0 snap-start flex-col items-center rounded-xl border border-slate-800 bg-slate-900/60 pb-2 transition-all',
+        isOver &&
+          'bg-primary/5 outline-primary outline outline-2 outline-offset-2 outline-dashed'
+      )}
+    >
+      <div
+        className="h-[3px] w-full rounded-t-xl"
+        style={{ backgroundColor: stage.color }}
+      />
+      <button
+        type="button"
+        aria-expanded={false}
+        aria-label={`Show ${stage.name}, no deals`}
+        title={`Show ${stage.name}`}
+        onClick={onExpand}
+        className="flex min-h-0 flex-1 flex-col items-center gap-2 rounded-lg px-1 pt-3 text-slate-300 hover:text-white"
+      >
+        <span className="shrink-0 rounded-full bg-slate-800 px-1.5 py-0.5 text-[11px] font-medium text-slate-300">
+          0
+        </span>
+        <span className="min-h-0 truncate text-xs font-semibold [writing-mode:vertical-rl]">
+          {stage.name}
+        </span>
+      </button>
+      {!isBrokeragePaidStage(stage) && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Add deal to ${stage.name}`}
+          onClick={() => onAddDeal(stage.id)}
+          className="mt-2 border border-dashed border-slate-700 bg-transparent text-slate-400 hover:border-slate-600 hover:bg-slate-800 hover:text-white"
+        >
+          <Plus className="h-3 w-3" />
         </Button>
       )}
     </div>

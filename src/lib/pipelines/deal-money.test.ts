@@ -33,7 +33,11 @@ describe('[PIPE-002] one fee rule for cards, stage headers and analytics', () =>
       })
     ).toBe(816000);
     expect(
-      dealFee({ value: 81600000, brokerage_type: 'fixed', brokerage_value: 50000 })
+      dealFee({
+        value: 81600000,
+        brokerage_type: 'fixed',
+        brokerage_value: 50000,
+      })
     ).toBe(50000);
   });
 

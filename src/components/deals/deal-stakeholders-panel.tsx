@@ -29,6 +29,7 @@ import {
 } from '@/lib/deals/share-links';
 import {
   defaultSideForRole,
+  formatStakeholderPhone,
   STAKEHOLDER_ROLE_LABELS,
   STAKEHOLDER_ROLES,
   STAKEHOLDER_SIDE_LABELS,
@@ -354,7 +355,7 @@ export function DealStakeholdersPanel({
                     <p className="text-xs text-slate-500">
                       {STAKEHOLDER_ROLE_LABELS[s.role]} ·{' '}
                       {STAKEHOLDER_SIDE_LABELS[s.side]}
-                      {s.phone ? ` · +${s.phone}` : ''}
+                      {s.phone ? ` · ${formatStakeholderPhone(s.phone)}` : ''}
                       {s.email ? ` · ${s.email}` : ''}
                     </p>
                   </div>

@@ -114,9 +114,7 @@ export function stageTotalsLabel(
   }
   const value = formatDealAmount(totals.value, options.currency);
   if (totals.fees <= 0) {
-    return totals.unpriced === totals.count
-      ? `${value} · fees not set`
-      : value;
+    return totals.unpriced === totals.count ? `${value} · fees not set` : value;
   }
   return `${value} · Fees ${formatDealAmount(totals.fees, options.currency)}`;
 }

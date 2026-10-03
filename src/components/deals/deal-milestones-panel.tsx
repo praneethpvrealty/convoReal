@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { format, parseISO } from 'date-fns';
 import {
-  CalendarClock,
   Check,
   ListChecks,
   Loader2,
   Plus,
+  Settings2,
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -33,6 +34,25 @@ interface DealMilestonesPanelProps {
   canEdit: boolean;
 }
 
+function milestoneMeta(m: DealMilestone): string {
+  return [
+    m.target_date
+      ? `Due ${format(parseISO(m.target_date), 'd MMM yyyy')}`
+      : null,
+    m.completed_at
+      ? `Done ${format(parseISO(m.completed_at), 'd MMM yyyy')}`
+      : null,
+    m.status === 'in_progress' || m.status === 'skipped'
+      ? DEAL_MILESTONE_STATUS_LABELS[m.status]
+      : null,
+    m.visibility && m.visibility !== 'internal'
+      ? DEAL_VISIBILITY_LABELS[m.visibility]
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 export function DealMilestonesPanel({
   dealId,
   canEdit,
@@ -41,6 +61,7 @@ export function DealMilestonesPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState('');
+  const [optionsFor, setOptionsFor] = useState<string | null>(null);
 
   const { data: milestones = [], isLoading } = useQuery({
     queryKey: ['deal-milestones', dealId],
@@ -209,89 +230,105 @@ export function DealMilestonesPanel({
         <ol className="space-y-2">
           {milestones.map((m) => {
             const done = m.status === 'completed' || m.status === 'skipped';
+            const meta = milestoneMeta(m);
+            const optionsOpen = optionsFor === m.id;
             return (
               <li
                 key={m.id}
                 className={cn(
-                  'flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3',
-                  done && 'opacity-70'
+                  'rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3',
+                  done && !optionsOpen && 'opacity-70'
                 )}
               >
-                <button
-                  type="button"
-                  disabled={!canEdit || busyId === m.id}
-                  onClick={() =>
-                    patch(m, {
-                      status:
-                        m.status === 'completed' ? 'pending' : 'completed',
-                    })
-                  }
-                  className={cn(
-                    'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors',
-                    m.status === 'completed'
-                      ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                      : 'border-slate-600 text-transparent hover:border-slate-400'
-                  )}
-                  aria-label={
-                    m.status === 'completed' ? 'Reopen' : 'Mark completed'
-                  }
-                >
-                  <Check className="h-3.5 w-3.5" />
-                </button>
-                <div className="min-w-0 flex-1">
-                  <p
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={!canEdit || busyId === m.id}
+                    onClick={() =>
+                      patch(m, {
+                        status:
+                          m.status === 'completed' ? 'pending' : 'completed',
+                      })
+                    }
                     className={cn(
-                      'text-sm font-medium text-white',
-                      m.status === 'completed' && 'line-through'
+                      'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors',
+                      m.status === 'completed'
+                        ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                        : 'border-slate-600 text-transparent hover:border-slate-400'
                     )}
+                    aria-label={
+                      m.status === 'completed' ? 'Reopen' : 'Mark completed'
+                    }
                   >
-                    {m.title}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    {DEAL_MILESTONE_STATUS_LABELS[m.status]}
-                    {m.target_date ? ` · due ${m.target_date}` : ''}
-                    {m.completed_at
-                      ? ` · done ${m.completed_at.slice(0, 10)}`
-                      : ''}
-                  </p>
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={cn(
+                        'text-sm font-medium text-white',
+                        m.status === 'completed' && 'line-through'
+                      )}
+                    >
+                      {m.title}
+                    </p>
+                    {meta && (
+                      <p className="text-[11px] text-slate-500">{meta}</p>
+                    )}
+                  </div>
+                  {canEdit && (
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => setOptionsFor(optionsOpen ? null : m.id)}
+                      aria-label={`Options for ${m.title}`}
+                      aria-expanded={optionsOpen}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
-                {canEdit && (
-                  <div className="flex items-center gap-2">
-                    <select
-                      className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
-                      value={m.status}
-                      disabled={busyId === m.id}
-                      onChange={(e) =>
-                        patch(m, {
-                          status: e.target.value as DealMilestoneStatus,
-                        })
-                      }
-                    >
-                      {DEAL_MILESTONE_STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {DEAL_MILESTONE_STATUS_LABELS[s]}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      aria-label="Visibility"
-                      className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
-                      value={m.visibility ?? 'internal'}
-                      disabled={busyId === m.id}
-                      onChange={(e) =>
-                        patch(m, {
-                          visibility: e.target.value as DealVisibility,
-                        })
-                      }
-                    >
-                      {DEAL_VISIBILITIES.map((v) => (
-                        <option key={v} value={v}>
-                          {DEAL_VISIBILITY_LABELS[v]}
-                        </option>
-                      ))}
-                    </select>
-                    <label className="inline-flex items-center gap-1 text-[11px] text-slate-400">
-                      <CalendarClock className="h-3.5 w-3.5" />
+                {canEdit && optionsOpen && (
+                  <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-slate-800 pt-3">
+                    <label className="grid gap-1 text-[11px] text-slate-400">
+                      Status
+                      <select
+                        className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+                        value={m.status}
+                        disabled={busyId === m.id}
+                        onChange={(e) =>
+                          patch(m, {
+                            status: e.target.value as DealMilestoneStatus,
+                          })
+                        }
+                      >
+                        {DEAL_MILESTONE_STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {DEAL_MILESTONE_STATUS_LABELS[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-[11px] text-slate-400">
+                      Who can see it
+                      <select
+                        className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+                        value={m.visibility ?? 'internal'}
+                        disabled={busyId === m.id}
+                        onChange={(e) =>
+                          patch(m, {
+                            visibility: e.target.value as DealVisibility,
+                          })
+                        }
+                      >
+                        {DEAL_VISIBILITIES.map((v) => (
+                          <option key={v} value={v}>
+                            {DEAL_VISIBILITY_LABELS[v]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-[11px] text-slate-400">
+                      Due
                       <input
                         type="date"
                         className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
@@ -308,9 +345,10 @@ export function DealMilestonesPanel({
                         variant="ghost"
                         onClick={() => remove(m)}
                         disabled={busyId === m.id}
-                        aria-label="Remove milestone"
+                        className="text-slate-400 hover:text-rose-300"
                       >
                         <Trash2 className="h-4 w-4" />
+                        Remove
                       </Button>
                     )}
                   </div>

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   categoryLabel,
   extractionEntries,
+  formatStakeholderPhone,
   isClosingRecord,
   isReadable,
   transactionSubtitle,
@@ -131,5 +132,18 @@ describe('[TXW-016] the deals list names a transaction by buyer and property', (
     expect(
       isClosingRecord({ source_journey_item_id: null, milestones_total: 0 })
     ).toBe(false);
+  });
+});
+
+describe('formatStakeholderPhone', () => {
+  it('prints one plus sign whether or not the stored number kept its own', () => {
+    expect(formatStakeholderPhone('919833902005')).toBe('+919833902005');
+    expect(formatStakeholderPhone('+91 98339 02005')).toBe('+919833902005');
+  });
+
+  it('prints nothing for a blank number', () => {
+    expect(formatStakeholderPhone(null)).toBeNull();
+    expect(formatStakeholderPhone('')).toBeNull();
+    expect(formatStakeholderPhone(' - ')).toBeNull();
   });
 });

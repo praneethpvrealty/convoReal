@@ -20,7 +20,8 @@ import {
   type DealCoBrokerPayout,
   type PayoutSide,
 } from '@/lib/deals/co-broking';
-import { formatIndianDigits } from '@/lib/invoices/pdf-text';
+import { equivalentPriceLabel } from '@/lib/format/currency';
+import { formatDealAmount } from '@/lib/pipelines/deal-money';
 import { cn } from '@/lib/utils';
 
 const STATUS_CLASS: Record<ReturnType<typeof payoutStatus>, string> = {
@@ -54,10 +55,6 @@ async function call(
   } | null;
   if (!res.ok) throw new Error(json?.error || fallback);
   return json?.data;
-}
-
-function rs(n: number): string {
-  return `Rs. ${formatIndianDigits(n, 0)}`;
 }
 
 export function DealCoBrokingPanel({
@@ -259,15 +256,16 @@ export function DealCoBrokingPanel({
         {data && data.payouts.length > 0 && (
           <p className="text-[11px] text-slate-400">
             {data.summary.collected !== null &&
-              `Collected ${rs(data.summary.collected)} · `}
-            Co-brokers {rs(data.summary.payouts)} · Paid out{' '}
-            {rs(data.summary.paid_out)} · Still to pay {rs(data.summary.to_pay)}
+              `Collected ${formatDealAmount(data.summary.collected)} · `}
+            Co-brokers {formatDealAmount(data.summary.payouts)} · Paid out{' '}
+            {formatDealAmount(data.summary.paid_out)} · Still to pay{' '}
+            {formatDealAmount(data.summary.to_pay)}
             {data.summary.net !== null && (
               <>
                 {' '}
                 · Your share{' '}
                 <span className="font-semibold text-white">
-                  {rs(data.summary.net)}
+                  {formatDealAmount(data.summary.net)}
                 </span>
               </>
             )}
@@ -343,7 +341,9 @@ export function DealCoBrokingPanel({
                             : null,
                           p.paid_at
                             ? `paid ${p.paid_at}${
-                                paid < p.amount ? ` (${rs(paid)})` : ''
+                                paid < p.amount
+                                  ? ` (${formatDealAmount(paid)})`
+                                  : ''
                               }`
                             : null,
                           p.instrument_ref,
@@ -353,7 +353,7 @@ export function DealCoBrokingPanel({
                       </span>
                     </span>
                     <span className="shrink-0 text-sm font-semibold text-white">
-                      {rs(p.amount)}
+                      {formatDealAmount(p.amount)}
                     </span>
                     {canEdit && (
                       <span className="flex shrink-0 items-center gap-1">
@@ -497,6 +497,11 @@ export function DealCoBrokingPanel({
                   onChange={(e) => setEditAmount(e.target.value)}
                   className="border-slate-700 bg-slate-950"
                 />
+                {equivalentPriceLabel(editAmount) && (
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    {equivalentPriceLabel(editAmount)}
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="cb-paid-at">Paid on</Label>
@@ -519,6 +524,11 @@ export function DealCoBrokingPanel({
                   onChange={(e) => setPaidAmount(e.target.value)}
                   className="border-slate-700 bg-slate-950"
                 />
+                {equivalentPriceLabel(paidAmount) && (
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    {equivalentPriceLabel(paidAmount)}
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="cb-instrument">Instrument / UTR</Label>
@@ -636,6 +646,11 @@ export function DealCoBrokingPanel({
                     )}
                   </Button>
                 </div>
+                {equivalentPriceLabel(amount) && (
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    {equivalentPriceLabel(amount)}
+                  </p>
+                )}
               </div>
             </div>
           )}

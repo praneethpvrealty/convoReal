@@ -17,7 +17,8 @@ import {
   type DealPaymentTranche,
   type TrancheSummary,
 } from '@/lib/deals/tranches';
-import { formatIndianDigits } from '@/lib/invoices/pdf-text';
+import { equivalentPriceLabel } from '@/lib/format/currency';
+import { formatDealAmount } from '@/lib/pipelines/deal-money';
 import { cn } from '@/lib/utils';
 
 interface ScheduleResponse {
@@ -184,11 +185,10 @@ export function DealTranchesPanel({
         </p>
         {data && data.summary.count > 0 && (
           <p className="text-[11px] text-slate-400">
-            Scheduled Rs. {formatIndianDigits(data.summary.scheduled, 0)} ·
-            Received Rs. {formatIndianDigits(data.summary.received, 0)} ·
-            Outstanding{' '}
+            Scheduled {formatDealAmount(data.summary.scheduled)} · Received{' '}
+            {formatDealAmount(data.summary.received)} · Outstanding{' '}
             <span className="font-semibold text-white">
-              Rs. {formatIndianDigits(data.summary.outstanding, 0)}
+              {formatDealAmount(data.summary.outstanding)}
             </span>
           </p>
         )}
@@ -232,7 +232,7 @@ export function DealTranchesPanel({
                       t.received_at
                         ? `received ${t.received_at}${
                             received < t.amount
-                              ? ` (Rs. ${formatIndianDigits(received, 0)})`
+                              ? ` (${formatDealAmount(received)})`
                               : ''
                           }`
                         : null,
@@ -243,7 +243,7 @@ export function DealTranchesPanel({
                   </span>
                 </span>
                 <span className="shrink-0 text-sm font-semibold text-white">
-                  Rs. {formatIndianDigits(t.amount, 0)}
+                  {formatDealAmount(t.amount)}
                 </span>
                 {canEdit && (
                   <span className="flex shrink-0 items-center gap-1">
@@ -287,7 +287,7 @@ export function DealTranchesPanel({
           <p className="text-xs text-slate-300 sm:col-span-4">
             Receipt for{' '}
             <span className="font-semibold text-white">{receiptFor.label}</span>{' '}
-            (Rs. {formatIndianDigits(receiptFor.amount, 0)})
+            ({formatDealAmount(receiptFor.amount)})
           </p>
           <div>
             <Label htmlFor="tr-received-at">Received on</Label>
@@ -310,6 +310,11 @@ export function DealTranchesPanel({
               onChange={(e) => setReceivedAmount(e.target.value)}
               className="border-slate-700 bg-slate-950"
             />
+            {equivalentPriceLabel(receivedAmount) && (
+              <p className="mt-1 text-[11px] text-slate-400">
+                {equivalentPriceLabel(receivedAmount)}
+              </p>
+            )}
           </div>
           <div>
             <Label htmlFor="tr-instrument">Instrument / UTR</Label>
@@ -368,6 +373,11 @@ export function DealTranchesPanel({
               onChange={(e) => setAmount(e.target.value)}
               className="border-slate-700 bg-slate-950"
             />
+            {equivalentPriceLabel(amount) && (
+              <p className="mt-1 text-[11px] text-slate-400">
+                {equivalentPriceLabel(amount)}
+              </p>
+            )}
           </div>
           <div>
             <Label htmlFor="tr-due">Due on</Label>

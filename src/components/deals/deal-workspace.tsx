@@ -28,9 +28,10 @@ import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { DEAL_SAVED_QUERY_KEYS } from '@/lib/deals/board-focus';
 import { netOfPayouts } from '@/lib/deals/co-broking';
-import { dealsHref } from '@/lib/deals/routes';
-import { formatIndianDigits } from '@/lib/invoices/pdf-text';
+import { CLOSING_RECORDS_LABEL, dealsHref } from '@/lib/deals/routes';
+import { formatInrPlain } from '@/lib/format/currency';
 import { brokerageAmount, type BrokerageType } from '@/lib/pipelines/brokerage';
+import { formatDealAmount } from '@/lib/pipelines/deal-money';
 import {
   dealStatusForStage,
   isLostStage,
@@ -45,16 +46,21 @@ import { cn } from '@/lib/utils';
 
 import { DealBundleDialog } from './deal-bundle-dialog';
 import { DealDocumentsPanel } from './deal-documents-panel';
-import { DealFinancialsPanel } from './deal-financials-panel';
+import {
+  DealFinancialsPanel,
+  type FinancialsResponse,
+} from './deal-financials-panel';
 import { DealInvoicesPanel } from './deal-invoices-panel';
 import { DealMilestonesPanel } from './deal-milestones-panel';
+import { DealOverviewPanel } from './deal-overview-panel';
 import { DealStakeholdersPanel } from './deal-stakeholders-panel';
 import { DealTasksPanel } from './deal-tasks-panel';
 import { DealTimelinePanel } from './deal-timeline-panel';
 import { DealUpdatesPanel } from './deal-updates-panel';
 
-type TabId =
+export type TabId =
   | 'overview'
+  | 'money'
   | 'timeline'
   | 'milestones'
   | 'tasks'
@@ -100,6 +106,7 @@ interface StageOption {
 /** Mirrored in mobile/app/(app)/deal/[id].tsx; guarded by mobile-parity.test.ts. */
 export const DEAL_WORKSPACE_TABS: Array<{ id: TabId; label: string }> = [
   { id: 'overview', label: 'Overview' },
+  { id: 'money', label: 'Money' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'milestones', label: 'Milestones' },
   { id: 'tasks', label: 'Tasks' },
@@ -143,6 +150,18 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
         .maybeSingle();
       if (error) throw new Error(error.message);
       return data as unknown as DealSummary | null;
+    },
+    enabled: Boolean(accountId),
+  });
+
+  const { data: financials } = useQuery({
+    queryKey: ['deal-financials', dealId],
+    queryFn: async (): Promise<FinancialsResponse> => {
+      const response = await fetch(`/api/deals/${dealId}/financials`);
+      const json = await response.json();
+      if (!response.ok)
+        throw new Error(json?.error || 'Could not load financials');
+      return json.data;
     },
     enabled: Boolean(accountId),
   });
@@ -243,8 +262,11 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
         <p className="text-sm text-slate-300">
           This transaction could not be found.
         </p>
-        <Link href="/deals" className="text-primary mt-3 inline-block text-sm">
-          Back to Transactions
+        <Link
+          href={dealsHref('records')}
+          className="text-primary mt-3 inline-block text-sm"
+        >
+          Back to closing records
         </Link>
       </div>
     );
@@ -259,6 +281,8 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
     });
 
   const coBrokerPayouts = Number(deal.co_broker_payout_total ?? 0);
+  const collected = Number(financials?.brokerage_received_amount ?? 0);
+  const currency = deal.currency ?? 'INR';
 
   const contactName = [deal.contact?.name, deal.contact?.second_name]
     .filter(Boolean)
@@ -268,11 +292,11 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
     <div className="space-y-6">
       <div>
         <Link
-          href="/deals"
+          href={dealsHref('records')}
           className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Transactions
+          {CLOSING_RECORDS_LABEL}
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
           {deal.title}
@@ -377,10 +401,15 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <SummaryTile label="Deal value" value={deal.value ?? 0} />
+        <SummaryTile
+          label="Deal value"
+          value={deal.value ?? 0}
+          currency={currency}
+        />
         <SummaryTile
           label={coBrokerPayouts > 0 ? 'Brokerage collected' : 'Brokerage'}
           value={totalBrokerage}
+          currency={currency}
           hint={
             deal.brokerage_type === 'percentage' && deal.brokerage_value
               ? `${deal.brokerage_value}% of the deal`
@@ -391,13 +420,19 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
           <SummaryTile
             label="Your share"
             value={netOfPayouts(totalBrokerage, coBrokerPayouts)}
-            hint={`After Rs. ${formatIndianDigits(coBrokerPayouts, 0)} to co-brokers`}
+            currency={currency}
+            hint={`After ${formatDealAmount(coBrokerPayouts, currency)} to co-brokers`}
           />
         ) : (
           <SummaryTile
-            label="Half share"
-            value={Math.round(totalBrokerage / 2)}
-            hint="If both sides are billed"
+            label="Collected"
+            value={collected}
+            currency={currency}
+            hint={
+              collected > 0
+                ? `Outstanding ${formatDealAmount(Math.max(0, totalBrokerage - collected), currency)}`
+                : 'Nothing recorded yet'
+            }
           />
         )}
       </div>
@@ -420,6 +455,14 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
       </div>
 
       {tab === 'overview' && (
+        <DealOverviewPanel
+          dealId={dealId}
+          deal={deal}
+          canEdit={canEdit}
+          onOpenTab={setTab}
+        />
+      )}
+      {tab === 'money' && (
         <DealFinancialsPanel dealId={dealId} canEdit={canEdit} />
       )}
       {tab === 'timeline' && (
@@ -515,14 +558,14 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
             </div>
             {Number(brokerageValue) > 0 && (
               <p className="text-primary text-[11px] font-semibold">
-                Calculated brokerage: Rs.{' '}
-                {formatIndianDigits(
+                Calculated brokerage:{' '}
+                {formatDealAmount(
                   brokerageAmount({
                     dealValue: deal.value,
                     type: brokerageType,
                     value: brokerageValue,
                   }),
-                  0
+                  currency
                 )}
               </p>
             )}
@@ -553,10 +596,12 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
 function SummaryTile({
   label,
   value,
+  currency,
   hint,
 }: {
   label: string;
   value: number;
+  currency: string;
   hint?: string;
 }) {
   return (
@@ -564,8 +609,11 @@ function SummaryTile({
       <p className="text-[11px] tracking-wide text-slate-500 uppercase">
         {label}
       </p>
-      <p className="mt-1 text-xl font-bold text-white">
-        Rs. {formatIndianDigits(value, 0)}
+      <p
+        className="mt-1 text-xl font-bold text-white"
+        title={formatInrPlain(value)}
+      >
+        {formatDealAmount(value, currency)}
       </p>
       {hint && <p className="mt-0.5 text-[11px] text-slate-500">{hint}</p>}
     </div>

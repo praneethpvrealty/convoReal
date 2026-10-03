@@ -167,11 +167,13 @@ export function FilterChip({
   active,
   onPress,
   testID,
+  accessibilityLabel,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
   testID?: string;
+  accessibilityLabel?: string;
 }) {
   const { colors, fonts: f } = useTheme();
   return (
@@ -180,7 +182,7 @@ export function FilterChip({
       onPress={onPress}
       hitSlop={6}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ selected: active }}
       style={{
         paddingHorizontal: 15,
