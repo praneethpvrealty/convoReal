@@ -182,14 +182,13 @@ describe('fetchPublicUrl', () => {
   });
 
   it('never follows redirects automatically', async () => {
-    const fetcher = vi.fn(async (_url: string, _init: RequestInit) =>
-      response('ok')
-    );
+    const fetcher = vi.fn(async () => response('ok'));
     await fetchPublicUrl('https://housing.com/rd', {
       fetcher,
       resolve: publicResolver,
     });
-    expect(fetcher.mock.calls[0][1]).toMatchObject({ redirect: 'manual' });
+    const [, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(init).toMatchObject({ redirect: 'manual' });
   });
 });
 
