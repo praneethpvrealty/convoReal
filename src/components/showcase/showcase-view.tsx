@@ -112,6 +112,7 @@ import {
   withinBudget,
 } from '@/lib/showcase/deal-floor';
 import './showcase-designs.css';
+import { formatCurrency } from '@/lib/format/currency';
 
 // Dwell-time cap for Pulse view_property events — a tab left open in the
 // background must not report hours of "viewing".
@@ -1171,28 +1172,8 @@ export function ShowcaseView({
   }, [properties]);
 
   // Format price helper
-  const formatPrice = (amount: number) => {
-    const currency = settings?.currency || 'INR';
-    if (currency === 'INR') {
-      if (amount >= 10000000) {
-        const cr = amount / 10000000;
-        return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-      } else if (amount >= 100000) {
-        const lakhs = amount / 100000;
-        return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
-      }
-      return new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR',
-        maximumFractionDigits: 0,
-      }).format(amount);
-    }
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: currency,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatPrice = (amount: number) =>
+    formatCurrency(amount, settings?.currency || 'INR');
 
   // Filter & Sort properties
   const filteredProperties = useMemo(() => {

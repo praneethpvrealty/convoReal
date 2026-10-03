@@ -84,6 +84,7 @@ import {
   type StartPropertyIntakeNodeConfig,
   type KeywordTriggerConfig,
 } from './types';
+import { formatInrCompact } from '@/lib/format/currency';
 
 // ============================================================
 // Pure helpers — extracted so engine.test.ts can exercise them
@@ -1017,11 +1018,9 @@ async function fetchAndFormatPropertyListings(
         ? `${currency}${(p.price / 1000).toFixed(0)}K/month`
         : p.listing_type === 'JV/JD'
           ? 'JV / Joint Development — enquire'
-          : p.price && p.price >= 10000000
-            ? `${currency}${(p.price / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`
-            : p.price
-              ? `${currency}${(p.price / 100000).toFixed(2).replace(/\.?0+$/, '')}L`
-              : 'Price on request';
+          : p.price
+            ? formatInrCompact(p.price)
+            : 'Price on request';
 
     const specs = [
       p.type,
@@ -1105,9 +1104,7 @@ async function sendNextBudgetListings(
       run.contact_id
     );
     const price = property.price
-      ? property.price >= 10_000_000
-        ? `₹${(property.price / 10_000_000).toFixed(2).replace(/\.?0+$/, '')} Cr`
-        : `₹${(property.price / 100_000).toFixed(2).replace(/\.?0+$/, '')}L`
+      ? formatInrCompact(property.price)
       : 'Price on request';
     const specs = [
       property.type,

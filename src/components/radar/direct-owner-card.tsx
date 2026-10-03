@@ -29,6 +29,7 @@ import {
   type TokenEscrow,
 } from '@/components/den/token-safe-panel';
 import type { MatchEvent } from '@/types';
+import { formatInrCompact } from '@/lib/format/currency';
 
 interface UnlockedPayload {
   property: Record<string, unknown>;
@@ -270,10 +271,7 @@ function BidderDealRoom({ bidId }: { bidId: string }) {
 function formatValue(v: unknown): string {
   const n = Number(v);
   if (!n || Number.isNaN(n)) return 'Not specified';
-  if (n >= 10000000)
-    return `₹${(n / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(2).replace(/\.00$/, '')} L`;
-  return `₹${n.toLocaleString('en-IN')}`;
+  return formatInrCompact(n);
 }
 
 export function DirectOwnerCard({

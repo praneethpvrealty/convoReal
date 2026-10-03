@@ -1,3 +1,5 @@
+import { formatInrCompact } from '@shared/lib/format/currency';
+
 /** Formatting helpers shared across screens. */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -90,40 +92,11 @@ export function avatarHue(seed: string): number {
   return h;
 }
 
-/**
- * An amount the way an agent says it out loud: "₹16 Crore", "₹85 Lakhs",
- * "₹45,000" — the readout under every price input.
- *
- * Mirrors `priceInWords` in `src/lib/currency-utils.ts`; the mobile app is
- * a separate Expo project and cannot import from src/. Divergence is
- * caught by `@/lib/mobile-parity.test.ts`. Distinct from `formatInr`
- * below, which is the abbreviated form ("₹1.2 Cr") used in dense lists
- * and cards.
- */
-export function priceInWords(
-  value: string | number | null | undefined
-): string {
-  if (value === null || value === undefined || value === '') return '';
-  const amount = Number(value);
-  if (!Number.isFinite(amount) || amount <= 0) return '';
-  const trim = (n: number) =>
-    n
-      .toFixed(2)
-      .replace(/\.00$/, '')
-      .replace(/\.(\d)0$/, '.$1');
-  if (amount >= 10000000) return `₹${trim(amount / 10000000)} Crore`;
-  if (amount >= 100000) return `₹${trim(amount / 100000)} Lakhs`;
-  return `₹${amount.toLocaleString('en-IN')}`;
-}
+export { priceInWords } from '@shared/lib/format/currency';
 
-/** Indian price notation: ₹85 L, ₹1.2 Cr. */
+/** Indian price notation: ₹85 L, ₹1.2 Cr; an em dash when there is no amount. */
 export function formatInr(n: number | null | undefined): string {
-  if (!n) return '—';
-  if (n >= 1_00_00_000)
-    return `₹${(n / 1_00_00_000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
-  if (n >= 1_00_000)
-    return `₹${(n / 1_00_000).toFixed(1).replace(/\.0$/, '')} L`;
-  return `₹${n.toLocaleString('en-IN')}`;
+  return n ? formatInrCompact(n) : '—';
 }
 
 /** A budget as people say it: "Up to ₹4.4 Cr", "₹2 Cr+", or a range —

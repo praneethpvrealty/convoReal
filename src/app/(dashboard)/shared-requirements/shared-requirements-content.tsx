@@ -29,6 +29,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { areasMatchSearch } from '@/lib/contacts/area-variants';
+import { formatInrCompact } from '@/lib/format/currency';
 
 type Box = 'received' | 'sent';
 type ShareStatus = 'sent' | 'viewed' | 'responded' | 'declined';
@@ -86,13 +87,7 @@ async function readJson<T>(response: Response): Promise<T> {
 
 function money(value: number | null): string | null {
   if (!value) return null;
-  if (value >= 10_000_000) {
-    return `₹${(value / 10_000_000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  }
-  if (value >= 100_000) {
-    return `₹${(value / 100_000).toFixed(2).replace(/\.00$/, '')} L`;
-  }
-  return `₹${Math.round(value).toLocaleString('en-IN')}`;
+  return formatInrCompact(value);
 }
 
 function budget(brief: Brief): string {

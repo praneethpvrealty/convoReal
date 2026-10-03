@@ -17,17 +17,10 @@ import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { areaNearMissLine } from '@/lib/buyer/area-near-misses';
 import type { Contact } from '@/types';
+import { formatInrCompact } from '@/lib/format/currency';
 
 /** Every id this module owns starts with this. */
 export const REQUIREMENT_TWEAK_ID_PREFIX = 'tw_';
-
-function inr(n: number): string {
-  return n >= 10_000_000
-    ? `₹${(n / 10_000_000).toFixed(2).replace(/\.?0+$/, '')} Cr`
-    : n >= 100_000
-      ? `₹${(n / 100_000).toFixed(2).replace(/\.?0+$/, '')} L`
-      : `₹${n.toLocaleString('en-IN')}`;
-}
 
 function budgetLabel(contact: Contact): string | null {
   contact = resolveRequirementSource(contact);
@@ -35,9 +28,10 @@ function budgetLabel(contact: Contact): string | null {
   if (contact.no_budget) return 'no fixed budget';
   const min = contact.pref_budget_min ?? contact.min_budget ?? null;
   const max = contact.pref_budget_max ?? contact.max_budget ?? null;
-  if (min != null && max != null) return `${inr(min)}–${inr(max)}`;
-  if (max != null) return `up to ${inr(max)}`;
-  if (min != null) return `above ${inr(min)}`;
+  if (min != null && max != null)
+    return `${formatInrCompact(min)}–${formatInrCompact(max)}`;
+  if (max != null) return `up to ${formatInrCompact(max)}`;
+  if (min != null) return `above ${formatInrCompact(min)}`;
   return null;
 }
 

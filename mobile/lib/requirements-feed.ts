@@ -15,6 +15,7 @@ import type { Contact } from '@shared/types';
 
 import { areasMatchSearch } from './contact-area-options';
 import { resolveRequirementSource } from './requirements-profile';
+import { formatInrCompact } from '@shared/lib/format/currency';
 
 export interface RequirementRow extends Contact {
   contact_notes?: { note_text: string }[] | null;
@@ -261,11 +262,7 @@ export function filterRequirements(
 }
 
 export function requirementCurrency(value: number): string {
-  if (value >= 10000000)
-    return `₹${(value / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (value >= 100000)
-    return `₹${(value / 100000).toFixed(2).replace(/\.00$/, '')} L`;
-  return `₹${value.toLocaleString('en-IN')}`;
+  return formatInrCompact(value);
 }
 
 export function requirementBudgetLabel(row: RequirementRow): {
