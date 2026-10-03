@@ -1447,7 +1447,7 @@ export function TemplateManager() {
                 <div className="mt-2 space-y-2">
                   <div className="flex gap-2">
                     <Input
-                      placeholder={`https://… (public link to a sample ${form.header_format})`}
+                      placeholder={`Upload a sample ${form.header_format} — its link appears here`}
                       value={form.header_media_url}
                       onChange={(e) =>
                         setForm({ ...form, header_media_url: e.target.value })
@@ -1497,8 +1497,8 @@ export function TemplateManager() {
                     />
                   )}
                   <p className="text-[11px] leading-relaxed text-slate-500">
-                    Paste a public HTTPS link or upload a file. Meta fetches it
-                    once during review, so it needs to stay live for ~24 hrs.
+                    Upload a sample file. It is sent to Meta with the template
+                    for review; a link to another site is not accepted.
                     {form.header_format === 'image' &&
                       ' Recommended: JPEG or PNG, ≥800×418 px, ≤5 MB.'}
                     {form.header_format === 'video' &&

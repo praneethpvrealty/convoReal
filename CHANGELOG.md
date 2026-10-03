@@ -36,6 +36,14 @@ than a written entry. Newest first.
   **Clear completed** action that deletes them after a confirmation, and
   long titles clamp to two lines. Same on mobile, where the Done group
   and Clear completed share the web rule (`src/lib/calendar/todo-groups.ts`).
+- **Re-engagement sorts the whole list, not the page you are on.** The
+  Matches and Last reply headers sort every lead in the batch before the
+  list is split into pages, so "most matches first" is the best of the
+  batch rather than the best of the hundred rows already loaded. Click a
+  header for largest or newest first, again for the reverse, and a third
+  time for the standing order; leads that never replied stay at the
+  bottom either way, and changing the order returns to the first page.
+  **Migration required:** `20261003124115_reengagement_leads_sort.sql`.
 - **The dashboard no longer hides its own rows or reloads itself on
   every tab.** The AI Assistant button shrinks to an icon once you scroll
   and the Help pill is an icon, so the last rows of Re-engagement,

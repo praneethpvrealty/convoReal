@@ -47,6 +47,22 @@ export function storagePublicUrl(value: string | null | undefined): string {
   return `${base()}${PUBLIC_MARKER}${v.replace(/^\/+/, '')}`;
 }
 
+/** True when `url` is a public object on the current project's storage. */
+export function isCurrentStoragePublicUrl(url: URL): boolean {
+  let origin: string;
+  try {
+    origin = new URL(base()).origin;
+  } catch {
+    return false;
+  }
+  return (
+    url.origin === origin &&
+    [PUBLIC_MARKER, RENDER_MARKER].some((marker) =>
+      url.pathname.startsWith(marker)
+    )
+  );
+}
+
 /**
  * Extract the bucket-relative object path ("<bucket>/<...>") from a stored
  * value, whether it is already a relative path or an absolute public URL.

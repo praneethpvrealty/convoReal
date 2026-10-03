@@ -11,7 +11,11 @@ import {
   ENQUIRY_NOTICE_TEMPLATE_NAME,
   LEGACY_ENQUIRY_NOTICE_TEMPLATE_NAMES,
 } from '@/lib/whatsapp/enquiry-notice-template';
-import type { ReengagementLead, ReengagementSummary } from './queries';
+import type {
+  LeadSort,
+  ReengagementLead,
+  ReengagementSummary,
+} from './queries';
 
 /** Names retired by a category re-classification. A batch already sent
  *  on one is still a re-engagement batch, so the report must not drop
@@ -170,6 +174,30 @@ export function readyToShortlist(
   leads: ReengagementLead[]
 ): ReengagementLead[] {
   return leads.filter((l) => l.matchCount > 0 && l.matchEventStatus !== 'sent');
+}
+
+export type LeadSortColumn = 'matches' | 'replied';
+
+/** Which way a column is sorted, or null when another order is active. */
+export function leadSortDirection(
+  sort: LeadSort,
+  column: LeadSortColumn
+): 'asc' | 'desc' | null {
+  if (sort === `${column}_desc`) return 'desc';
+  if (sort === `${column}_asc`) return 'asc';
+  return null;
+}
+
+/**
+ * The order a click on a column header moves to: largest or newest
+ * first, then the reverse, then back to the standing batch order so the
+ * default is never a page reload away.
+ */
+export function nextLeadSort(sort: LeadSort, column: LeadSortColumn): LeadSort {
+  const direction = leadSortDirection(sort, column);
+  if (direction === null) return `${column}_desc`;
+  if (direction === 'desc') return `${column}_asc`;
+  return 'batch';
 }
 
 export function maskPhoneLastFour(phone: string | null): string | null {
