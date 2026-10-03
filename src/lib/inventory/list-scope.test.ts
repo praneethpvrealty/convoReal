@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  attentionHint,
+  attentionSummary,
   inventoryEmptyState,
   partyCounts,
   tabCount,
+  type AttentionCountRow,
   type SourceBreakdownRow,
 } from './list-scope';
 
@@ -182,5 +185,78 @@ describe('inventoryEmptyState', () => {
       tile: 'available',
     });
     expect(onReview.filtered).toBe(false);
+  });
+});
+
+const attentionRows: AttentionCountRow[] = [
+  {
+    agent_referred: false,
+    listings: '5',
+    no_photos: '3',
+    no_price: 1,
+    no_pin: 2,
+  },
+  { agent_referred: true, listings: 2, no_photos: 1, no_price: 0, no_pin: '1' },
+];
+
+describe('attention helpers', () => {
+  it('[PRP-030] attentionSummary sums string and number rows', () => {
+    expect(attentionSummary(attentionRows)).toEqual({
+      listings: 7,
+      noPhotos: 4,
+      noPrice: 1,
+      noPin: 3,
+    });
+    expect(attentionSummary([])).toEqual({
+      listings: 0,
+      noPhotos: 0,
+      noPrice: 0,
+      noPin: 0,
+    });
+  });
+
+  it('[PRP-030] attentionHint lists only the non-zero parts', () => {
+    const hint = attentionHint({
+      listings: 3,
+      noPhotos: 2,
+      noPrice: 0,
+      noPin: 1,
+    });
+    expect(hint).toContain('2 without photos');
+    expect(hint).toContain('1 without a map pin');
+    expect(hint).not.toContain('without a price');
+  });
+
+  it('[PRP-030] attentionHint says everything is fine at zero', () => {
+    expect(
+      attentionHint({ listings: 0, noPhotos: 0, noPrice: 0, noPin: 0 })
+    ).toBe('Every available listing has photos, a price and a map pin.');
+  });
+
+  it('[PRP-030] partyCounts uses the attention rows on All Listings and Direct plus Agent equals All', () => {
+    const counts = partyCounts(rows, 'all', 'attention', attentionRows);
+    expect(counts).toEqual({ All: 7, Owner: 5, Agent: 2 });
+    expect(counts.Owner + counts.Agent).toBe(counts.All);
+  });
+
+  it('[PRP-030] partyCounts ignores the attention rows on the review and archived tabs', () => {
+    expect(partyCounts(rows, 'review', 'attention', attentionRows)).toEqual(
+      partyCounts(rows, 'review', 'all')
+    );
+    expect(partyCounts(rows, 'archived', 'attention', attentionRows)).toEqual(
+      partyCounts(rows, 'archived', 'all')
+    );
+  });
+
+  it('[PRP-030] inventoryEmptyState names Needs attention for that tile', () => {
+    const copy = inventoryEmptyState({
+      tab: 'all',
+      tile: 'attention',
+      party: 'All',
+      search: '',
+      location: null,
+    });
+    expect(copy.filtered).toBe(true);
+    expect(copy.body).toContain('Needs attention');
   });
 });

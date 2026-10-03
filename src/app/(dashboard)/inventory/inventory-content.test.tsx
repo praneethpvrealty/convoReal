@@ -21,7 +21,16 @@ interface BreakdownRow {
   listings: number | string;
 }
 
+interface AttentionRow {
+  agent_referred: boolean;
+  listings: number | string;
+  no_photos: number | string;
+  no_price: number | string;
+  no_pin: number | string;
+}
+
 let breakdownRows: BreakdownRow[] = [];
+let attentionRows: AttentionRow[] = [];
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -52,7 +61,9 @@ vi.mock('@/lib/supabase/client', () => ({
         Promise.resolve(
           name === 'inventory_source_breakdown'
             ? { data: breakdownRows, error: null }
-            : { data: null, error: null }
+            : name === 'inventory_attention_counts'
+              ? { data: attentionRows, error: null }
+              : { data: null, error: null }
         ).then(onfulfilled),
       maybeSingle: async () => ({
         data: {
@@ -155,7 +166,8 @@ vi.mock('@/components/inventory/showcase-share-dialog', () => ({
 }));
 
 vi.mock('@/components/inventory/import-shared-dialog', () => ({
-  ImportSharedDialog: () => null,
+  ImportSharedDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="import-shared-dialog" /> : null,
 }));
 
 vi.mock('@/components/inventory/property-email-share-dialog', () => ({
@@ -304,6 +316,7 @@ const propertiesCalls = (fetchMock: ReturnType<typeof vi.fn>) =>
 
 beforeEach(() => {
   breakdownRows = [];
+  attentionRows = [];
   searchParams.delete('search');
   searchParams.delete('page');
   searchParams.delete('propertyId');
@@ -689,5 +702,135 @@ describe('inventory source pills and empty state', () => {
     expect(
       (await screen.findByTestId('inventory-empty-state')).textContent
     ).toContain('Nothing archived');
+  });
+});
+
+describe('inventory needs attention tile', () => {
+  const pillTexts = () =>
+    screen
+      .getAllByRole('button', { name: /^(All|Direct|Agent referred) \(\d+\)$/ })
+      .map((button) => button.textContent);
+  const attentionTile = () =>
+    screen.getByRole('button', {
+      name: 'Show only listings that need attention',
+    });
+
+  it('[PRP-030] shows the count, filters the list to needs_attention and clears on a second click', async () => {
+    breakdownRows = [
+      {
+        status: 'Available',
+        is_published: true,
+        agent_referred: false,
+        listings: 40,
+      },
+      {
+        status: 'Available',
+        is_published: true,
+        agent_referred: true,
+        listings: 10,
+      },
+    ];
+    attentionRows = [
+      {
+        agent_referred: false,
+        listings: '5',
+        no_photos: 3,
+        no_price: 1,
+        no_pin: 2,
+      },
+      {
+        agent_referred: true,
+        listings: 2,
+        no_photos: 1,
+        no_price: 0,
+        no_pin: 1,
+      },
+    ];
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    await waitFor(() => {
+      expect(attentionTile().textContent).toContain('7');
+    });
+    expect(attentionTile().textContent).toContain('Needs attention');
+    expect(screen.queryByText('Filtering list · click to clear')).toBeNull();
+    const last = () =>
+      new URLSearchParams(propertiesCalls(fetchMock).at(-1)!.split('?')[1]);
+    expect(last().get('needs_attention')).toBeNull();
+    await waitFor(() => {
+      expect(pillTexts()).toContain('All (50)');
+    });
+
+    fireEvent.click(attentionTile());
+
+    await waitFor(() => {
+      expect(last().get('needs_attention')).toBe('true');
+    });
+    expect(last().get('exclude_archived')).toBe('true');
+    expect(last().get('status')).toBeNull();
+    expect(screen.getByText('Filtering list · click to clear')).toBeTruthy();
+    await waitFor(() => {
+      expect(pillTexts()).toContain('All (7)');
+    });
+    expect(pillTexts()).toContain('Direct (5)');
+    expect(pillTexts()).toContain('Agent referred (2)');
+
+    fireEvent.click(attentionTile());
+
+    await waitFor(() => {
+      expect(last().get('needs_attention')).toBeNull();
+    });
+    expect(screen.queryByText('Filtering list · click to clear')).toBeNull();
+    await waitFor(() => {
+      expect(pillTexts()).toContain('All (50)');
+    });
+  });
+});
+
+describe('inventory header add menu', () => {
+  it('[PRP-031] keeps Add Property and Share Showcase Portal and drops the standalone import buttons', async () => {
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    expect(screen.getByRole('button', { name: /Add Property/ })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: /Share Showcase Portal/ })
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'More ways to add listings' })
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: /Import Owner Leads/i })
+    ).toBeNull();
+    expect(screen.queryByRole('button', { name: /Portal Sync/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Import Shared/i })).toBeNull();
+  });
+
+  it('[PRP-031] lists the four ways to add and opens the shared-link import from the menu', async () => {
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    expect(screen.queryByTestId('import-shared-dialog')).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'More ways to add listings' })
+    );
+
+    for (const name of [
+      'Add manually',
+      'Import a shared link',
+      'Sync from portals',
+      'Import owner leads',
+    ]) {
+      expect(await screen.findByRole('menuitem', { name })).toBeTruthy();
+    }
+
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'Import a shared link' })
+    );
+
+    expect(await screen.findByTestId('import-shared-dialog')).toBeTruthy();
   });
 });

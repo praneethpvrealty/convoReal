@@ -77,6 +77,7 @@ vi.mock('@/lib/agents/source-inventory-sync', () => ({
 }));
 
 import { GET } from './route';
+import { NEEDS_ATTENTION_FILTER } from '@/lib/inventory/list-scope';
 
 beforeEach(() => {
   orFilters.length = 0;
@@ -188,5 +189,25 @@ describe('GET /api/properties near-search self-heal', () => {
       longitude: 77.5826,
     });
     expect(updates[0].patch.geocode_attempted_at).toBeUndefined();
+  });
+});
+
+describe('GET /api/properties needs_attention filter', () => {
+  it('[PRP-030] limits to Available listings missing photos, a price or a map pin', async () => {
+    const response = await GET(
+      new Request('http://test/api/properties?needs_attention=true')
+    );
+
+    expect(response.status).toBe(200);
+    expect(eqCalls).toContainEqual(['status', 'Available']);
+    expect(orFilters).toContain(NEEDS_ATTENTION_FILTER);
+  });
+
+  it('[PRP-030] adds neither the status nor the attention filter without the param', async () => {
+    const response = await GET(new Request('http://test/api/properties'));
+
+    expect(response.status).toBe(200);
+    expect(eqCalls).not.toContainEqual(['status', 'Available']);
+    expect(orFilters).not.toContain(NEEDS_ATTENTION_FILTER);
   });
 });
