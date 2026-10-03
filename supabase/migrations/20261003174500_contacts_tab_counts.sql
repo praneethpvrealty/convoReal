@@ -1,26 +1,6 @@
--- ============================================================
 -- 20261003174500_contacts_tab_counts.sql
--- Collapse the Contacts page's six tab counters into one pass over
--- the account's contacts, on web and mobile alike.
---
--- contacts-content.tsx issued six PostgREST `count: 'exact'` HEAD
--- requests on every load (Active, Needs Review, Favourites,
--- Transacted, Active Buyers, Archived), after first fetching every
--- won deal's contact_id to build the Transacted filter. Each HEAD
--- request is a real COUNT(*) over the account's contacts, so one
--- visit scanned them six times. The mobile contacts tab ran its own
--- four, with a different staff-exclusion rule and a Transacted count
--- that ignored archived and merged contacts — the two surfaces could
--- disagree about the same account.
---
--- FILTER aggregates give all six numbers from a single scan, and the
--- staff and won-deal rules live here once.
--- ============================================================
+-- One scan for the Contacts page tab counters on web and mobile.
 
--- SECURITY DEFINER so the aggregate runs without per-row RLS
--- evaluation, with the membership check done once in the WHERE
--- clause: a non-member gets a row of zeros rather than another
--- account's totals (same shape as inventory_stats, migration 168).
 CREATE OR REPLACE FUNCTION public.contacts_tab_counts(p_account_id UUID)
 RETURNS TABLE (
   active BIGINT,
@@ -36,9 +16,6 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   WITH staff AS (
-    -- Team members message the shared number too, which lands their
-    -- own phones in contacts. The web list matches them on the last
-    -- eight digits of each profile phone; so does this.
     SELECT DISTINCT right(regexp_replace(pr.phone, '\D', '', 'g'), 8) AS suffix
     FROM profiles pr
     WHERE pr.account_id = p_account_id

@@ -307,6 +307,7 @@ async function fetchContacts(
     // soft-deleted half of a duplicate — its winner is the row to show.
     .eq('chain_only', false)
     .eq('is_merged', false)
+    .eq('is_archived', false)
     .order(order.column, { ascending: order.ascending, nullsFirst: false })
     .limit(150);
 
