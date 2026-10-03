@@ -18,7 +18,7 @@ The first audit (early 2026) named three items. All three shipped: the WhatsApp 
 
 ### 1. The inbound WhatsApp chain is one function
 
-`src/lib/whatsapp/webhook-handler.ts` is 5,713 lines. `handleInboundChain` (from line 1724) runs for roughly 2,100 lines of sequential branches, 140 of them, with 87 direct table queries in the file and no test importing it. Each reply kind is already its own function (reminder buttons, enquiry card, property-share yes, show more, browse all, update session), so the split is mechanical: move each into `src/lib/whatsapp/inbound/`, make the chain a router keyed on message kind, and test each handler alone.
+`src/lib/whatsapp/webhook-handler.ts` is 3,850 lines after the dedicated reply handlers moved to `src/lib/whatsapp/inbound/` (status updates, reactions, reminder buttons, broadcast replies, the enquiry card, property-share yes/no/browse/show-more/sold-price, preference-flow replies, update sessions). `handleInboundChain` (from line 1500) still runs for roughly 2,100 lines of sequential branches, 44 of them at the top level, over shared locals (`bridged`, `pingedOnWhatsApp`, `flowConsumed`, `automationTriggers`). Thirteen source-shape tests pin the order of those branches by `indexOf`. The next step is to make the chain an ordered list of step functions over one context object, one file per step, so the order is a list the tests can read instead of byte offsets.
 
 ### 2. God components without tests
 
