@@ -1,3 +1,5 @@
+import { formatInrCompact } from '@/lib/format/currency';
+
 /** Compact Indian-market price display: ₹85 L, ₹1.2 Cr, ₹45,000. */
 export function formatINR(value: number | null | undefined): string {
   if (
@@ -7,15 +9,7 @@ export function formatINR(value: number | null | undefined): string {
     value <= 0
   )
     return '—';
-  if (value >= 1_00_00_000) {
-    const cr = value / 1_00_00_000;
-    return `₹${cr % 1 === 0 ? cr.toFixed(0) : cr.toFixed(2)} Cr`;
-  }
-  if (value >= 1_00_000) {
-    const l = value / 1_00_000;
-    return `₹${l % 1 === 0 ? l.toFixed(0) : l.toFixed(1)} L`;
-  }
-  return `₹${value.toLocaleString('en-IN')}`;
+  return formatInrCompact(value);
 }
 
 export const DEAL_MODE_META: Record<

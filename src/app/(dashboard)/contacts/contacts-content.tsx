@@ -127,6 +127,7 @@ import { projectOptions } from '@/lib/contacts/contact-interest';
 import { useT } from '@/hooks/use-locale';
 import { localCache } from '@/lib/cache-store';
 import { formatAuditDateTime } from '@/lib/audit-timestamps';
+import { formatInrCompact } from '@/lib/format/currency';
 
 const PAGE_SIZE = 25;
 
@@ -264,15 +265,6 @@ export default function ContactsPage() {
     );
   };
 
-  const formatBudgetAmount = (amount: number) => {
-    if (amount >= 10000000) {
-      return `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-    } else if (amount >= 100000) {
-      return `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} L`;
-    }
-    return `₹${amount.toLocaleString('en-IN')}`;
-  };
-
   // Explicit field first, AI-extracted fallback (marked ✨) — same
   // merge the matching engine and the Requirements tab use, so a
   // budget typed only into the demands statement still shows here.
@@ -282,7 +274,7 @@ export default function ContactsPage() {
     if (!budget) return '-';
     return (
       <span className="inline-flex items-center gap-1">
-        {formatBudgetAmount(budget.value)}
+        {formatInrCompact(budget.value)}
         {budget.source === 'ai' && (
           <span title="Extracted by AI from requirements text">
             <Sparkles className="text-primary size-3" />

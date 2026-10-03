@@ -1720,37 +1720,24 @@ describe('mobile/lib/rental-yield.ts mirrors rental-yield', () => {
 describe('mobile/lib/format.ts mirrors priceInWords', () => {
   // Both platforms put this readout under every price input, so a drift
   // here shows the same amount two different ways — "₹1.2 Crore" on the
-  // web and something else in the app, for the same field.
+  // web and something else in the app, for the same field. The app
+  // re-exports the web module rather than keeping a copy.
   const source = mobileSource('lib/format.ts');
-  const block = source.slice(
-    source.indexOf('export function priceInWords'),
-    source.indexOf('/** Indian price notation')
-  );
 
-  it('exists', () => {
-    expect(block, 'priceInWords not found in mobile format.ts').toContain(
-      'priceInWords'
+  it('re-exports the web implementation instead of carrying a copy', () => {
+    expect(source).toContain(
+      "export { priceInWords } from '@shared/lib/format/currency';"
     );
-  });
-
-  it('uses the same crore and lakh thresholds and wording', () => {
-    expect(block).toContain('10000000');
-    expect(block).toContain('Crore');
-    expect(block).toContain('100000');
-    expect(block).toContain('Lakhs');
-    expect(block).toContain('en-IN');
-  });
-
-  it('trims trailing zeros the same way, so 12000000 is ₹1.2 Crore', () => {
-    expect(block).toContain(
-      `.toFixed(2)\n      .replace(/\\.00$/, '')\n      .replace(/\\.(\\d)0$/, '.$1');`
+    expect(source).toContain(
+      "import { formatInrCompact } from '@shared/lib/format/currency';"
+    );
+    expect(source).not.toContain('export function priceInWords');
+    expect(webSource('lib/currency-utils.ts')).toContain(
+      "} from '@/lib/format/currency';"
     );
   });
 
   it('agrees with the web output across the range', () => {
-    // The mobile copy is checked as text (the web tsconfig excludes
-    // mobile/), so pin the web side's answers here: these are the strings
-    // the assertions above are guarding.
     expect(priceInWords(160000000)).toBe('₹16 Crore');
     expect(priceInWords(12000000)).toBe('₹1.2 Crore');
     expect(priceInWords(8500000)).toBe('₹85 Lakhs');
@@ -1768,7 +1755,9 @@ describe('mobile/lib/requirement-digest.ts mirrors what leaves the Engine', () =
     formatRequirement: typeof formatRequirement;
     isShareable: typeof isShareable;
     requirementReference: typeof requirementReference;
-  }>('lib/requirement-digest.ts');
+  }>('lib/requirement-digest.ts', {
+    '@shared/lib/format/currency': webSource('lib/format/currency.ts'),
+  });
 
   const briefs: ShareableRequirement[] = [
     {
@@ -1843,6 +1832,7 @@ describe('mobile/lib/requirements-feed.ts mirrors the preference merge', () => {
   }>('lib/requirements-feed.ts', {
     './contact-area-options': mobileSource('lib/contact-area-options.ts'),
     './requirements-profile': mobileSource('lib/requirements-profile.ts'),
+    '@shared/lib/format/currency': webSource('lib/format/currency.ts'),
   });
 
   const contacts = [
@@ -4280,6 +4270,7 @@ describe('mobile/lib/guidance-value.ts mirrors the web rate line', () => {
     {
       './api':
         'export class ApiError extends Error {}\nexport async function apiFetch() {}',
+      '@shared/lib/format/currency': webSource('lib/format/currency.ts'),
     }
   );
 
@@ -4324,6 +4315,7 @@ describe('mobile/lib/guidance-value.ts mirrors the web RTC print line', () => {
     {
       './api':
         'export class ApiError extends Error {}\nexport async function apiFetch() {}',
+      '@shared/lib/format/currency': webSource('lib/format/currency.ts'),
     }
   );
 

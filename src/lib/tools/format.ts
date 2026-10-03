@@ -1,14 +1,4 @@
-export function formatInrCompact(amount: number): string {
-  const value = Math.abs(amount);
-  const sign = amount < 0 ? '-' : '';
-  if (value >= 10_000_000) {
-    return `${sign}₹${(value / 10_000_000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
-  }
-  if (value >= 100_000) {
-    return `${sign}₹${(value / 100_000).toFixed(2).replace(/\.?0+$/, '')} L`;
-  }
-  return `${sign}₹${Math.round(value).toLocaleString('en-IN')}`;
-}
+export { formatInrCompact } from '@/lib/format/currency';
 
 export function parseAmount(raw: string): number {
   const text = raw

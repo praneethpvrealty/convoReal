@@ -20,6 +20,7 @@ import {
 } from '@/lib/matching';
 import { localityRowPrefilter, rowMatchesLocality } from '@/lib/locality-match';
 import { accountPropertiesShowcaseUrl } from '@/lib/showcase/account-showcase-url';
+import { formatInrCompact } from '@/lib/format/currency';
 
 const MAX_LINKED_LISTINGS = 5;
 export const NEAR_MISS_SCAN_LIMIT = 200;
@@ -101,14 +102,6 @@ export function findAreaNearMiss(
   return null;
 }
 
-function inr(n: number): string {
-  return n >= 10_000_000
-    ? `₹${(n / 10_000_000).toFixed(2).replace(/\.?0+$/, '')} Cr`
-    : n >= 100_000
-      ? `₹${(n / 100_000).toFixed(2).replace(/\.?0+$/, '')} L`
-      : `₹${n.toLocaleString('en-IN')}`;
-}
-
 type BudgetBrief = Pick<
   NearMissBrief,
   'budgetMin' | 'budgetMax' | 'listingTypes'
@@ -174,10 +167,10 @@ export function buildAreaNearMissLine(
   const linked = Math.min(count, MAX_LINKED_LISTINGS);
   const perMonth = isRentPriced(nearMiss.listingType) ? ' a month' : '';
   const price = nearMiss.truncated
-    ? `from ${inr(nearMiss.minPrice)}${perMonth}`
+    ? `from ${formatInrCompact(nearMiss.minPrice)}${perMonth}`
     : nearMiss.minPrice === nearMiss.maxPrice
-      ? `at ${inr(nearMiss.minPrice)}${perMonth}`
-      : `at ${inr(nearMiss.minPrice)}–${inr(nearMiss.maxPrice)}${perMonth}`;
+      ? `at ${formatInrCompact(nearMiss.minPrice)}${perMonth}`
+      : `at ${formatInrCompact(nearMiss.minPrice)}–${formatInrCompact(nearMiss.maxPrice)}${perMonth}`;
   const what = nearMiss.truncated
     ? `${count}+ listings in ${nearMiss.area}`
     : count === 1

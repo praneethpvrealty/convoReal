@@ -29,6 +29,7 @@ import { DirectOwnerCard } from '@/components/radar/direct-owner-card';
 import { ManualContactPicker } from '@/components/radar/manual-contact-picker';
 import { RadarSweepLoader } from '@/components/ui/radar-sweep-loader';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { formatInrCompact } from '@/lib/format/currency';
 
 interface CheckedState {
   /** Event ID -> Set of target IDs. */
@@ -280,11 +281,7 @@ export default function RadarPage() {
   const formatPrice = (p: Property) => {
     const val = Number(p.price);
     if (!val || isNaN(val)) return 'Not specified';
-    if (val >= 10000000)
-      return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-    if (val >= 100000)
-      return `₹${(val / 100000).toFixed(2).replace(/\.00$/, '')} L`;
-    return `₹${val.toLocaleString('en-IN')}`;
+    return formatInrCompact(val);
   };
 
   return (
