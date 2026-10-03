@@ -3875,6 +3875,27 @@ describe('[CAL-009] the to-do list is lightweight on both surfaces', () => {
     expect(mobileCalendar).toContain('{title.trim() ? (');
   });
 
+  it('deleting a to-do and cancelling an appointment offer Undo on both surfaces', () => {
+    expect(webCalendar).toContain(
+      "action: { label: 'Undo', onClick: () => void restoreTodo(todo) },"
+    );
+    expect(webCalendar).toContain(
+      "onClick: () => void setAppointmentStatus(appt, 'scheduled'),"
+    );
+    expect(webCalendar).not.toContain(
+      "confirm('Are you sure you want to delete this task?')"
+    );
+    expect(mobileTodos).toContain('export async function restoreTodo(');
+    expect(mobileCalendar).toContain('showUndo(`Deleted "${todo.title}"`');
+    expect(mobileCalendar).toContain(
+      'await restoreTodo(todo as unknown as Record<string, unknown>);'
+    );
+    expect(mobileCalendar).toContain(
+      "showUndo('Cancelled — it stays on its day', async () => {"
+    );
+    expect(mobileCalendar).toContain("if (!(await setStatus('scheduled'))) {");
+  });
+
   it('a deal task links back to its deal on both surfaces', () => {
     expect(mobileTodos).toContain('deal_id: string | null;');
     expect(webCalendar).toContain('href={dealDateHref(todo.deal_id)}');

@@ -243,6 +243,15 @@ export async function deleteTodo(id: string): Promise<void> {
   if (!data?.length) throw new Error('Todo not found');
 }
 
+/** Re-inserts a row read by fetchTodos, keeping its id and every column. */
+export async function restoreTodo(row: Record<string, unknown>): Promise<void> {
+  const columns = { ...row };
+  delete columns.contact;
+  delete columns.property;
+  const { error } = await supabase.from('todos').insert(columns);
+  if (error) throw error;
+}
+
 /** Clears the done group in one call per chunk of ids. Returns how many
  *  rows were actually removed: like deleteTodo, a delete RLS refuses
  *  removes zero rows and reports no error, so the count comes from the
