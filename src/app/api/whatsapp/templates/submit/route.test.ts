@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { buildAnnouncementTemplatePayload } from '@/lib/whatsapp/announcement-template';
 import { buildNumberChangeTemplatePayload } from '@/lib/whatsapp/number-change-template';
 
 /**
@@ -21,6 +22,12 @@ let filters: Array<{ table: string; op: string; args: unknown[] }>;
 let updates: Array<{ table: string; row: Record<string, unknown> }>;
 const submitMessageTemplate = vi.fn();
 const findMessageTemplate = vi.fn();
+const uploadSampleMedia = vi.fn();
+const lookup = vi.fn();
+
+vi.mock('node:dns/promises', () => ({
+  lookup: (...args: unknown[]) => lookup(...args),
+}));
 
 function next(table: string): QueuedResponse {
   return (queues[table] ?? []).shift() ?? { data: null, error: null };
@@ -76,7 +83,7 @@ vi.mock('@/lib/auth/account', () => ({
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   submitMessageTemplate: (...args: unknown[]) => submitMessageTemplate(...args),
   findMessageTemplate: (...args: unknown[]) => findMessageTemplate(...args),
-  uploadSampleMedia: vi.fn(),
+  uploadSampleMedia: (...args: unknown[]) => uploadSampleMedia(...args),
 }));
 
 vi.mock('@/lib/whatsapp/encryption', () => ({
@@ -116,7 +123,16 @@ beforeEach(() => {
     status: 'PENDING',
     category: undefined,
   });
+  uploadSampleMedia.mockReset();
+  uploadSampleMedia.mockResolvedValue('handle-1');
+  lookup.mockReset();
+  lookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
   delete process.env.WHATSAPP_TEMPLATES_DRY_RUN;
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe('POST /api/whatsapp/templates/submit', () => {
@@ -349,5 +365,144 @@ describe('POST /api/whatsapp/templates/submit', () => {
     expect(body.code).toBe('TRANSLATION_REVIEW_REQUIRED');
     expect(submitMessageTemplate).not.toHaveBeenCalled();
     expect(inserts).toHaveLength(0);
+  });
+});
+
+/**
+ * The header sample is fetched by the server and its bytes are uploaded
+ * to Meta, so the URL on the payload decides where the server makes a
+ * request. Only the app's own storage and its own site may be asked.
+ */
+describe('POST /api/whatsapp/templates/submit — header sample URL', () => {
+  const SUPABASE = 'https://proj.supabase.co';
+
+  function mediaPayload(headerMediaUrl: string) {
+    return {
+      ...buildAnnouncementTemplatePayload('https://www.convoreal.com'),
+      header_media_url: headerMediaUrl,
+    };
+  }
+
+  function stubFetch() {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { 'content-type': 'video/mp4' },
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', SUPABASE);
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://www.convoreal.com');
+    queues['message_templates'] = [
+      { data: [] },
+      { data: null },
+      { data: { id: 'row-en', category: 'Marketing' } },
+    ];
+    queues['whatsapp_config'] = [CONFIG];
+  });
+
+  it.each([
+    ['the metadata address', 'http://169.254.169.254/latest/meta-data/'],
+    ['an internal address', 'https://10.0.0.8/sample.mp4'],
+    ['localhost', 'https://localhost:3000/brand/sample.mp4'],
+    ['a URL with credentials', 'https://user:pass@www.convoreal.com/a.mp4'],
+    ['another site', 'https://images.example.com/sample.mp4'],
+    [
+      'the storage host outside public objects',
+      `${SUPABASE}/rest/v1/contacts?select=*`,
+    ],
+    ['the own site over plain http', 'http://www.convoreal.com/a.mp4'],
+  ])('refuses %s with a 400 and fetches nothing', async (_label, url) => {
+    const fetchMock = stubFetch();
+
+    const res = await POST(makeRequest(mediaPayload(url)));
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.code).toBe('HEADER_SAMPLE_URL_NOT_ALLOWED');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(uploadSampleMedia).not.toHaveBeenCalled();
+    expect(submitMessageTemplate).not.toHaveBeenCalled();
+    expect(inserts).toHaveLength(0);
+  });
+
+  it('refuses an own-site name that resolves inside the network', async () => {
+    lookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
+    const fetchMock = stubFetch();
+
+    const res = await POST(
+      makeRequest(mediaPayload('https://www.convoreal.com/brand/sample.mp4'))
+    );
+
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a sample that redirects off the app', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'http://169.254.169.254/latest/meta-data/' },
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await POST(
+      makeRequest(mediaPayload('https://www.convoreal.com/brand/sample.mp4'))
+    );
+
+    expect(res.status).toBe(400);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(uploadSampleMedia).not.toHaveBeenCalled();
+  });
+
+  it('fetches a sample uploaded to the account storage and submits its handle', async () => {
+    const fetchMock = stubFetch();
+    const url = `${SUPABASE}/storage/v1/object/public/property-images/acc-1/template-headers/a.mp4`;
+
+    const res = await POST(makeRequest(mediaPayload(url)));
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(url, { redirect: 'manual' });
+    expect(uploadSampleMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ fileType: 'video/mp4' })
+    );
+    expect(submitMessageTemplate).toHaveBeenCalledTimes(1);
+  });
+
+  it('fetches the built-in sample the deployment serves', async () => {
+    const fetchMock = stubFetch();
+
+    const res = await POST(
+      makeRequest(buildAnnouncementTemplatePayload('https://www.convoreal.com'))
+    );
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://www.convoreal.com/brand/announcement-sample.mp4',
+      { redirect: 'manual' }
+    );
+  });
+
+  it('re-bases a sample stored under a previous project onto the current storage', async () => {
+    const fetchMock = stubFetch();
+
+    const res = await POST(
+      makeRequest(
+        mediaPayload(
+          'https://oldref.supabase.co/storage/v1/object/public/property-images/acc-1/a.mp4'
+        )
+      )
+    );
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${SUPABASE}/storage/v1/object/public/property-images/acc-1/a.mp4`,
+      { redirect: 'manual' }
+    );
   });
 });

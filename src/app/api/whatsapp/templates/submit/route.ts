@@ -17,6 +17,8 @@ import {
 } from '@/lib/whatsapp/template-validators';
 import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components';
 import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons';
+import { fetchTemplateSample } from '@/lib/whatsapp/template-sample-url';
+import { UnsafeUrlError } from '@/lib/http/safe-fetch-url';
 import {
   normalizeCategory,
   normalizeStatus,
@@ -360,7 +362,7 @@ export async function POST(request: Request) {
           !payload.header_handle &&
           payload.header_media_url
         ) {
-          const sample = await fetch(payload.header_media_url);
+          const sample = await fetchTemplateSample(payload.header_media_url);
           if (!sample.ok) {
             throw new Error(
               `Could not fetch the header sample (HTTP ${sample.status}) from ${payload.header_media_url}`
@@ -383,6 +385,16 @@ export async function POST(request: Request) {
         metaStatus = meta.status;
         metaCategory = meta.category ? normalizeCategory(meta.category) : null;
       } catch (e) {
+        if (e instanceof UnsafeUrlError) {
+          return NextResponse.json(
+            {
+              error:
+                'The header sample must be a file uploaded here. Upload the sample in the template editor instead of linking to another site.',
+              code: 'HEADER_SAMPLE_URL_NOT_ALLOWED',
+            },
+            { status: 400 }
+          );
+        }
         const message = e instanceof Error ? e.message : 'Meta submit failed.';
         // "Already exists" is not a failure to record: Meta has the
         // variant, so adopt it. The row ends up exactly as a sync would
