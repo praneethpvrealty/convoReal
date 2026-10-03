@@ -8,7 +8,8 @@ let profiles: Record<string, unknown>[] = [];
 let contacts: Record<string, unknown>[] = [];
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
-  sendWhatsAppMessageAndPersist: (...a: unknown[]) => sendWhatsAppMessageAndPersist(...a),
+  sendWhatsAppMessageAndPersist: (...a: unknown[]) =>
+    sendWhatsAppMessageAndPersist(...a),
 }));
 
 vi.mock('@/lib/notifications/create', () => ({
@@ -59,7 +60,9 @@ beforeEach(() => {
   updates.length = 0;
   sendWhatsAppMessageAndPersist.mockReset();
   createNotification.mockReset().mockResolvedValue(undefined);
-  profiles = [{ user_id: 'agent-1', phone: '+919876543210', full_name: 'Pranav' }];
+  profiles = [
+    { user_id: 'agent-1', phone: '+919876543210', full_name: 'Pranav' },
+  ];
   contacts = [];
   appointments = [
     {
@@ -100,13 +103,19 @@ describe('sendAgentEventReminders channel independence', () => {
   });
 
   it('does not retry forever on a closed window', async () => {
-    sendWhatsAppMessageAndPersist.mockResolvedValue({ success: false, error: 'window closed' });
+    sendWhatsAppMessageAndPersist.mockResolvedValue({
+      success: false,
+      error: 'window closed',
+    });
     await sendAgentEventReminders(NOW);
     expect(updates).toContainEqual({ agent_reminder_sent: true });
   });
 
   it('notifies exactly once when WhatsApp does go through', async () => {
-    sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true, whatsappMessageId: 'wamid.1' });
+    sendWhatsAppMessageAndPersist.mockResolvedValue({
+      success: true,
+      whatsappMessageId: 'wamid.1',
+    });
     await sendAgentEventReminders(NOW);
     expect(createNotification).toHaveBeenCalledTimes(1);
     expect(updates).toContainEqual({ agent_reminder_sent: true });

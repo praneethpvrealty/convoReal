@@ -2,11 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const parseEventsFromInput = vi.fn();
 const burnCredits = vi.fn();
-const getMediaUrl = vi.fn(async () => ({ url: 'https://example.test/a', mimeType: 'audio/ogg' }));
+const getMediaUrl = vi.fn(async () => ({
+  url: 'https://example.test/a',
+  mimeType: 'audio/ogg',
+}));
 
 vi.mock('@/lib/calendar/event-parse', async () => {
-  const actual = await vi.importActual<typeof import('./event-parse')>('./event-parse');
-  return { ...actual, parseEventsFromInput: (...a: unknown[]) => parseEventsFromInput(...a) };
+  const actual =
+    await vi.importActual<typeof import('./event-parse')>('./event-parse');
+  return {
+    ...actual,
+    parseEventsFromInput: (...a: unknown[]) => parseEventsFromInput(...a),
+  };
 });
 
 vi.mock('@/lib/credits/burn', () => ({
@@ -38,7 +45,9 @@ vi.mock('@/lib/whatsapp/meta-api', () => ({
   downloadMedia: vi.fn(async () => ({ buffer: Buffer.from('opus') })),
 }));
 
-vi.mock('@/lib/notifications/create', () => ({ createNotification: vi.fn(async () => {}) }));
+vi.mock('@/lib/notifications/create', () => ({
+  createNotification: vi.fn(async () => {}),
+}));
 
 import { tryHandleOwnerScheduling } from './whatsapp-scheduler';
 
@@ -51,7 +60,11 @@ const baseParams = {
   phoneNumberId: 'pnid',
 };
 
-const voiceMessage = { id: 'm1', type: 'audio', audio: { id: 'media-1', mime_type: 'audio/ogg' } };
+const voiceMessage = {
+  id: 'm1',
+  type: 'audio',
+  audio: { id: 'media-1', mime_type: 'audio/ogg' },
+};
 
 beforeEach(() => {
   parseEventsFromInput.mockReset();
@@ -100,7 +113,9 @@ describe('tryHandleOwnerScheduling voice handling', () => {
     });
 
     expect(getMediaUrl).toHaveBeenCalledTimes(1);
-    expect(parseEventsFromInput.mock.calls[0][0].audio).toMatchObject({ mimeType: 'audio/ogg' });
+    expect(parseEventsFromInput.mock.calls[0][0].audio).toMatchObject({
+      mimeType: 'audio/ogg',
+    });
     expect(burnCredits.mock.calls[0][1]).toBe('voice_event_parse');
     // No transcript to hand on to intake, so the dead end is still the
     // right answer here — and it is answered, not ignored.
@@ -123,7 +138,8 @@ describe('tryHandleOwnerScheduling voice handling', () => {
     const handled = await tryHandleOwnerScheduling({
       ...baseParams,
       message: voiceMessage,
-      contentText: "Today's tasks 1) call the advocate 2) send Sharan the update",
+      contentText:
+        "Today's tasks 1) call the advocate 2) send Sharan the update",
     });
 
     expect(handled).toBe(true);

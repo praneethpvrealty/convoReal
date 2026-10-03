@@ -102,21 +102,35 @@ describe('openOverdueEvents', () => {
     expect(NOW.getTime() - since).toBe(48 * 3600_000);
   });
 
-  it('is the assignee\'s event, not the booker\'s', async () => {
+  it("is the assignee's event, not the booker's", async () => {
     // A manager books, an agent runs it — the nudge went to the
     // assignee, so the answer is the assignee's to give.
-    const rows = [row({ id: 'mine', assigned_to: 'agent-1', user_id: 'manager' })];
+    const rows = [
+      row({ id: 'mine', assigned_to: 'agent-1', user_id: 'manager' }),
+    ];
     expect(
-      (await openOverdueEvents({ db: db(rows), accountId: 'acc', userId: 'agent-1', now: NOW })).map(
-        (e) => e.id,
-      ),
+      (
+        await openOverdueEvents({
+          db: db(rows),
+          accountId: 'acc',
+          userId: 'agent-1',
+          now: NOW,
+        })
+      ).map((e) => e.id)
     ).toEqual(['mine']);
   });
 
-  it('leaves a teammate\'s event alone', async () => {
-    const rows = [row({ id: 'theirs', assigned_to: 'agent-2', user_id: 'agent-2' })];
+  it("leaves a teammate's event alone", async () => {
+    const rows = [
+      row({ id: 'theirs', assigned_to: 'agent-2', user_id: 'agent-2' }),
+    ];
     expect(
-      await openOverdueEvents({ db: db(rows), accountId: 'acc', userId: 'agent-1', now: NOW }),
+      await openOverdueEvents({
+        db: db(rows),
+        accountId: 'acc',
+        userId: 'agent-1',
+        now: NOW,
+      })
     ).toEqual([]);
   });
 
@@ -131,15 +145,21 @@ describe('openOverdueEvents', () => {
           gte: () => b,
           order: () => b,
           limit: () => b,
-          then: (r: (v: { data: null; error: { message: string } }) => unknown) =>
-            r({ data: null, error: { message: 'boom' } }),
+          then: (
+            r: (v: { data: null; error: { message: string } }) => unknown
+          ) => r({ data: null, error: { message: 'boom' } }),
         });
         return b;
       },
     } as never;
     vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(
-      await openOverdueEvents({ db: failing, accountId: 'acc', userId: 'agent-1', now: NOW }),
+      await openOverdueEvents({
+        db: failing,
+        accountId: 'acc',
+        userId: 'agent-1',
+        now: NOW,
+      })
     ).toEqual([]);
   });
 });
@@ -168,7 +188,11 @@ describe('subjectOf', () => {
 describe('openEventLabel', () => {
   it('names the event and when it was, in IST', () => {
     expect(
-      openEventLabel({ id: 'a', title: 'Site visit', start_time: '2026-08-08T04:30:00Z' }),
+      openEventLabel({
+        id: 'a',
+        title: 'Site visit',
+        start_time: '2026-08-08T04:30:00Z',
+      })
     ).toBe('Site visit — Sat, 10:00 am');
   });
 });

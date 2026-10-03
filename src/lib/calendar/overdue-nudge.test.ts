@@ -16,7 +16,8 @@ let appointments: Record<string, unknown>[] = [];
 let profiles: Record<string, unknown>[] = [];
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
-  sendWhatsAppMessageAndPersist: (...a: unknown[]) => sendWhatsAppMessageAndPersist(...a),
+  sendWhatsAppMessageAndPersist: (...a: unknown[]) =>
+    sendWhatsAppMessageAndPersist(...a),
 }));
 
 vi.mock('@/lib/notifications/create', () => ({
@@ -44,7 +45,12 @@ vi.mock('@/lib/automations/admin-client', () => ({
         in: () => builder,
         then: (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
           resolve({
-            data: table === 'appointments' ? appointments : table === 'profiles' ? profiles : [],
+            data:
+              table === 'appointments'
+                ? appointments
+                : table === 'profiles'
+                  ? profiles
+                  : [],
             error: null,
           }),
       });
@@ -62,7 +68,9 @@ beforeEach(() => {
   sendWhatsAppMessageAndPersist.mockReset();
   createNotification.mockReset().mockResolvedValue(undefined);
   recordBotTarget.mockReset().mockResolvedValue(undefined);
-  profiles = [{ user_id: 'agent-1', phone: '+919876543210', full_name: 'Pranav' }];
+  profiles = [
+    { user_id: 'agent-1', phone: '+919876543210', full_name: 'Pranav' },
+  ];
   appointments = [
     {
       id: 'appt-1',
@@ -82,7 +90,10 @@ beforeEach(() => {
 
 describe('sendOverdueNudges', () => {
   it('makes the card answerable by recording its target', async () => {
-    sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true, whatsappMessageId: 'wamid.nudge' });
+    sendWhatsAppMessageAndPersist.mockResolvedValue({
+      success: true,
+      whatsappMessageId: 'wamid.nudge',
+    });
 
     await sendOverdueNudges(NOW);
 
@@ -98,7 +109,10 @@ describe('sendOverdueNudges', () => {
   it('records nothing when the send never reached WhatsApp', async () => {
     // No wamid means no card to quote — a target row keyed on nothing
     // would only ever match another account's reply.
-    sendWhatsAppMessageAndPersist.mockResolvedValue({ success: false, error: 'window closed' });
+    sendWhatsAppMessageAndPersist.mockResolvedValue({
+      success: false,
+      error: 'window closed',
+    });
 
     await sendOverdueNudges(NOW);
 
@@ -107,7 +121,10 @@ describe('sendOverdueNudges', () => {
   });
 
   it('asks for a reply rather than sending the agent to the dashboard', async () => {
-    sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true, whatsappMessageId: 'wamid.nudge' });
+    sendWhatsAppMessageAndPersist.mockResolvedValue({
+      success: true,
+      whatsappMessageId: 'wamid.nudge',
+    });
 
     await sendOverdueNudges(NOW);
 
@@ -117,7 +134,10 @@ describe('sendOverdueNudges', () => {
   });
 
   it('still marks the nudge sent so it cannot loop', async () => {
-    sendWhatsAppMessageAndPersist.mockResolvedValue({ success: false, error: 'window closed' });
+    sendWhatsAppMessageAndPersist.mockResolvedValue({
+      success: false,
+      error: 'window closed',
+    });
     await sendOverdueNudges(NOW);
     expect(updates).toContainEqual({ overdue_nudge_sent: true });
   });

@@ -43,8 +43,16 @@ describe('coerceActionItemEvents', () => {
     const result = coerceActionItemEvents({
       events: [
         { title: '', event_type: 'document', start_time: '2026-08-04T14:00' },
-        { title: 'Follow up on khata transfer', event_type: 'paperwork', start_time: 'tomorrow' },
-        { title: 'Call the registrar', event_type: 'call', start_time: '2026-08-05 11:30' },
+        {
+          title: 'Follow up on khata transfer',
+          event_type: 'paperwork',
+          start_time: 'tomorrow',
+        },
+        {
+          title: 'Call the registrar',
+          event_type: 'call',
+          start_time: '2026-08-05 11:30',
+        },
       ],
       liaison_name: '  ',
       liaison_role: 42,

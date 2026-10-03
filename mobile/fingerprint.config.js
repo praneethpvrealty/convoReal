@@ -18,10 +18,29 @@
  * ios.simulator, the environment a build resolves). Those still need a
  * rebuild; nothing here will prompt for one.
  *
+ * experiments.onDemandFilesystem (set in app.config.js) only changes how
+ * Metro reads files while bundling. The hook drops it from the hashed
+ * Expo config, and an empty experiments object with it, so turning it
+ * off did not move the runtime version off the installed builds.
+ *
  * @type {import('@expo/fingerprint').Config}
  */
+function withoutBundlerOnlyExperiments(contents) {
+  const config = JSON.parse(contents);
+  if (!config.experiments || !('onDemandFilesystem' in config.experiments)) {
+    return contents;
+  }
+  delete config.experiments.onDemandFilesystem;
+  if (Object.keys(config.experiments).length === 0) delete config.experiments;
+  return JSON.stringify(config);
+}
+
 module.exports = {
   ignorePaths: ['eas.json'],
+  fileHookTransform: (source, chunk) =>
+    source.type === 'contents' && source.id === 'expoConfig' && chunk != null
+      ? withoutBundlerOnlyExperiments(chunk.toString())
+      : chunk,
   sourceSkips: ['PackageJsonScriptsAll'],
   extraSources: [
     {

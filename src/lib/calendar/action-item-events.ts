@@ -29,21 +29,30 @@ export interface ActionItemEventsResult {
 }
 
 export function coerceActionItemEvents(raw: unknown): ActionItemEventsResult {
-  const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<
+    string,
+    unknown
+  >;
   const str = (v: unknown): string | null =>
     typeof v === 'string' && v.trim().length > 0 ? v.trim() : null;
 
   const events: ActionItemEventDraft[] = Array.isArray(obj.events)
     ? obj.events
         .map((item) => {
-          const e = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+          const e = (item && typeof item === 'object' ? item : {}) as Record<
+            string,
+            unknown
+          >;
           const title = str(e.title);
           if (!title) return null;
           const start = str(e.start_time);
           return {
             title,
             event_type: normalizeEventType(str(e.event_type)),
-            start_time: start && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(start) ? start : null,
+            start_time:
+              start && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(start)
+                ? start
+                : null,
             notes: str(e.notes),
           };
         })

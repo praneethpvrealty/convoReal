@@ -13,10 +13,18 @@ import {
 
 describe('looksLikeSchedulingText', () => {
   it('accepts explicit scheduling requests', () => {
-    expect(looksLikeSchedulingText('Remind me to call Snigdha tomorrow at 5pm')).toBe(true);
-    expect(looksLikeSchedulingText('Schedule site visit with Varun on Saturday')).toBe(true);
-    expect(looksLikeSchedulingText('site visit at JP Nagar tomorrow 4pm')).toBe(true);
-    expect(looksLikeSchedulingText('Follow up with Maltesh on the EC documents')).toBe(true);
+    expect(
+      looksLikeSchedulingText('Remind me to call Snigdha tomorrow at 5pm')
+    ).toBe(true);
+    expect(
+      looksLikeSchedulingText('Schedule site visit with Varun on Saturday')
+    ).toBe(true);
+    expect(looksLikeSchedulingText('site visit at JP Nagar tomorrow 4pm')).toBe(
+      true
+    );
+    expect(
+      looksLikeSchedulingText('Follow up with Maltesh on the EC documents')
+    ).toBe(true);
     expect(looksLikeSchedulingText('task: send brochure to Rakesh')).toBe(true);
   });
 
@@ -35,33 +43,55 @@ describe('looksLikeSchedulingText', () => {
         'Meet lawyer Kusuma Muniraju regarding Whitefield sharans property on 30th July 2026.'
       )
     ).toBe(true);
-    expect(looksLikeSchedulingText('meeting with the lawyer on 30 July')).toBe(true);
+    expect(looksLikeSchedulingText('meeting with the lawyer on 30 July')).toBe(
+      true
+    );
     expect(looksLikeSchedulingText('call Deepak Aug 3')).toBe(true);
-    expect(looksLikeSchedulingText('registration appointment 12/08/2026')).toBe(true);
+    expect(looksLikeSchedulingText('registration appointment 12/08/2026')).toBe(
+      true
+    );
     expect(looksLikeSchedulingText('meet Suresh on Friday')).toBe(true);
   });
 
   it('does not care whether the WHEN comes before the verb, or on its own line', () => {
     expect(looksLikeSchedulingText('On 30th July, meet the lawyer')).toBe(true);
-    expect(looksLikeSchedulingText('Meet lawyer Kusuma\non 30th July 2026')).toBe(true);
+    expect(
+      looksLikeSchedulingText('Meet lawyer Kusuma\non 30th July 2026')
+    ).toBe(true);
   });
 
   it('lets a request to tell a teammate through, WHEN or no WHEN', () => {
     // A notify carries no time of day at all, so the verb-plus-WHEN gate
     // can never admit one on its own.
-    expect(looksLikeSchedulingText('Send Sharan the update on the Kusumaraju meeting')).toBe(true);
-    expect(looksLikeSchedulingText('let Sharan know the site visit is off')).toBe(true);
-    expect(looksLikeSchedulingText('tell Priya that the advocate is away')).toBe(true);
+    expect(
+      looksLikeSchedulingText(
+        'Send Sharan the update on the Kusumaraju meeting'
+      )
+    ).toBe(true);
+    expect(
+      looksLikeSchedulingText('let Sharan know the site visit is off')
+    ).toBe(true);
+    expect(
+      looksLikeSchedulingText('tell Priya that the advocate is away')
+    ).toBe(true);
     expect(looksLikeSchedulingText('loop Surya in on the HSR deal')).toBe(true);
-    expect(looksLikeSchedulingText('keep Deepak posted on the registration')).toBe(true);
+    expect(
+      looksLikeSchedulingText('keep Deepak posted on the registration')
+    ).toBe(true);
   });
 
   it('keeps questions to the bot and edits out of the notify path', () => {
     // "let me know" and "tell me about X" are addressed to the bot, and
     // they are the most common phrasings of all.
-    expect(looksLikeSchedulingText('let me know when the EC is ready')).toBe(false);
-    expect(looksLikeSchedulingText('tell me about the JP Nagar plot')).toBe(false);
-    expect(looksLikeSchedulingText('update the price to 1.4 crore')).toBe(false);
+    expect(looksLikeSchedulingText('let me know when the EC is ready')).toBe(
+      false
+    );
+    expect(looksLikeSchedulingText('tell me about the JP Nagar plot')).toBe(
+      false
+    );
+    expect(looksLikeSchedulingText('update the price to 1.4 crore')).toBe(
+      false
+    );
     expect(looksLikeSchedulingText('share the brochure')).toBe(false);
   });
 
@@ -71,11 +101,17 @@ describe('looksLikeSchedulingText', () => {
         '3BHK flat for sale in JP Nagar, 1850 sqft, 1.2 crore, east facing, site visit welcome'
       )
     ).toBe(false);
-    expect(looksLikeSchedulingText('2 BHK 1100 sqft rent 25000 HSR layout')).toBe(false);
+    expect(
+      looksLikeSchedulingText('2 BHK 1100 sqft rent 25000 HSR layout')
+    ).toBe(false);
   });
 
   it('rejects plain conversation and lead forwards', () => {
-    expect(looksLikeSchedulingText('Rakesh is interested in the HSR flat, 9880011223')).toBe(false);
+    expect(
+      looksLikeSchedulingText(
+        'Rakesh is interested in the HSR flat, 9880011223'
+      )
+    ).toBe(false);
     expect(looksLikeSchedulingText('ok thanks')).toBe(false);
     expect(looksLikeSchedulingText('')).toBe(false);
   });
@@ -84,16 +120,22 @@ describe('looksLikeSchedulingText', () => {
     // The date cue must not pull portal leads out of ingestion: this is a
     // contact to create, not a meeting to book.
     expect(
-      looksLikeSchedulingText('Gaurav 9880011223 is interested in the HSR plot, call him on Monday')
+      looksLikeSchedulingText(
+        'Gaurav 9880011223 is interested in the HSR plot, call him on Monday'
+      )
     ).toBe(false);
     expect(
-      looksLikeSchedulingText('New lead from MagicBricks — Suresh, wants a site visit 30/07')
+      looksLikeSchedulingText(
+        'New lead from MagicBricks — Suresh, wants a site visit 30/07'
+      )
     ).toBe(false);
   });
 
   it('still lets an outright request through a lead forward', () => {
     expect(
-      looksLikeSchedulingText('Remind me to call Gaurav who is interested in the HSR plot on Monday')
+      looksLikeSchedulingText(
+        'Remind me to call Gaurav who is interested in the HSR plot on Monday'
+      )
     ).toBe(true);
   });
 
@@ -105,23 +147,34 @@ describe('looksLikeSchedulingText', () => {
 
   it('does not read property figures as a date or a time', () => {
     // "2-3 crore" is a budget, "3.50 acres" is a size — neither is a WHEN.
-    expect(looksLikeSchedulingText('met the owner, he wants 2-3 crore')).toBe(false);
-    expect(looksLikeSchedulingText('visit was for the 3.50 acre land')).toBe(false);
+    expect(looksLikeSchedulingText('met the owner, he wants 2-3 crore')).toBe(
+      false
+    );
+    expect(looksLikeSchedulingText('visit was for the 3.50 acre land')).toBe(
+      false
+    );
   });
 
   it('still accepts an explicit "remind me" even with listing words', () => {
     expect(
-      looksLikeSchedulingText('Remind me tomorrow to update the 3BHK 1850 sqft listing price to 1.3 crore')
+      looksLikeSchedulingText(
+        'Remind me tomorrow to update the 3BHK 1850 sqft listing price to 1.3 crore'
+      )
     ).toBe(true);
   });
 });
 
 describe('inbound property visit dialogue', () => {
-  it('recognizes Ramanathan\'s visit request without a date or time', () => {
+  it("recognizes Ramanathan's visit request without a date or time", () => {
     expect(isInboundVisitRequest('Arrange a visit pls')).toBe(true);
-    expect(isInboundVisitRequest('Interested in seeing the property')).toBe(true);
+    expect(isInboundVisitRequest('Interested in seeing the property')).toBe(
+      true
+    );
     expect(looksLikeSchedulingText('Arrange a visit pls')).toBe(true);
-    expect(missingVisitDetails('Arrange a visit pls')).toEqual(['date', 'time']);
+    expect(missingVisitDetails('Arrange a visit pls')).toEqual([
+      'date',
+      'time',
+    ]);
   });
 
   it('collects a relative visit day before asking for the time', () => {
@@ -129,11 +182,15 @@ describe('inbound property visit dialogue', () => {
   });
 
   it('has enough information after the time reply is combined with the carried day', () => {
-    expect(missingVisitDetails('Date already noted: In 2 days. Lead reply: 3 pm')).toEqual([]);
+    expect(
+      missingVisitDetails('Date already noted: In 2 days. Lead reply: 3 pm')
+    ).toEqual([]);
   });
 
   it('does not confuse a question about access with a booking request', () => {
-    expect(isInboundVisitRequest('Can we see inside when we visit tomorrow?')).toBe(false);
+    expect(
+      isInboundVisitRequest('Can we see inside when we visit tomorrow?')
+    ).toBe(false);
   });
 });
 
@@ -159,7 +216,9 @@ describe('looksLikeSchedulingText — a dictated task list', () => {
 
   it('survives a portal name the owner is telling us to post TO', () => {
     expect(
-      looksLikeSchedulingText('Task 1) list the JP Nagar flat on magicbricks 2) call Ravi')
+      looksLikeSchedulingText(
+        'Task 1) list the JP Nagar flat on magicbricks 2) call Ravi'
+      )
     ).toBe(true);
   });
 
@@ -212,7 +271,6 @@ describe('splitTaskList', () => {
     ]);
   });
 });
-
 
 describe('isDictatedTaskList', () => {
   it('is true for a list that says it is one and numbers it', () => {
@@ -303,7 +361,13 @@ describe('formatAgendaMessage', () => {
     const msg = formatAgendaMessage(
       'Wednesday, 5 Aug',
       [],
-      [{ title: 'Follow up on corner properties', priority: 'medium', due_date: null }]
+      [
+        {
+          title: 'Follow up on corner properties',
+          priority: 'medium',
+          due_date: null,
+        },
+      ]
     );
     expect(msg).not.toContain('Nothing scheduled');
     expect(msg).toContain('Follow up on corner properties');
@@ -315,8 +379,16 @@ describe('formatAgendaMessage', () => {
       'Wednesday, 5 Aug',
       [],
       [
-        { title: 'Send EC to Snigdha', priority: 'high', due_date: '2026-08-05T06:00:00.000Z' },
-        { title: 'Follow up on corner properties', priority: 'medium', due_date: null },
+        {
+          title: 'Send EC to Snigdha',
+          priority: 'high',
+          due_date: '2026-08-05T06:00:00.000Z',
+        },
+        {
+          title: 'Follow up on corner properties',
+          priority: 'medium',
+          due_date: null,
+        },
       ]
     );
     const dueIdx = msg.indexOf('Tasks due:');
@@ -379,7 +451,9 @@ describe('formatInboundConfirmation', () => {
 describe('istDayWindow', () => {
   it('spans IST midnight to midnight', () => {
     // 2026-07-14 02:00 IST = 2026-07-13 20:30 UTC
-    const { startIso, endIso, label } = istDayWindow(new Date('2026-07-13T20:30:00.000Z'));
+    const { startIso, endIso, label } = istDayWindow(
+      new Date('2026-07-13T20:30:00.000Z')
+    );
     expect(startIso).toBe('2026-07-13T18:30:00.000Z'); // 14 Jul 00:00 IST
     expect(endIso).toBe('2026-07-14T18:30:00.000Z');
     expect(label).toContain('14');
@@ -414,7 +488,9 @@ describe('splitTaskList — lettered lists', () => {
   });
 
   it('requires the letters to run from a', () => {
-    expect(splitTaskList('see clause b) and clause d) of the deed')).toEqual([]);
+    expect(splitTaskList('see clause b) and clause d) of the deed')).toEqual(
+      []
+    );
   });
 
   it('is empty without a second letter', () => {
@@ -431,6 +507,8 @@ describe('looksLikeSchedulingText — "todo list"', () => {
   });
 
   it('does not fire on the word task in passing', () => {
-    expect(looksLikeSchedulingText('that was a task for the builder')).toBe(false);
+    expect(looksLikeSchedulingText('that was a task for the builder')).toBe(
+      false
+    );
   });
 });

@@ -19,8 +19,16 @@
 
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
-import { sanitizePhoneForMeta, isValidE164, phonesMatch } from '@/lib/whatsapp/phone-utils';
-import { formatAgendaMessage, istDayWindow, istHourOf } from '@/lib/calendar/whatsapp-scheduler';
+import {
+  sanitizePhoneForMeta,
+  isValidE164,
+  phonesMatch,
+} from '@/lib/whatsapp/phone-utils';
+import {
+  formatAgendaMessage,
+  istDayWindow,
+  istHourOf,
+} from '@/lib/calendar/whatsapp-scheduler';
 import { createNotification } from '@/lib/notifications/create';
 import { recordBotTarget } from '@/lib/whatsapp/bot-message-target';
 import {
@@ -66,7 +74,11 @@ interface ReminderAppointment {
   agenda?: string | null;
   contact_ids?: string[] | null;
   contact: { id: string; name: string | null; phone: string | null } | null;
-  property: { id: string; title: string | null; location: string | null } | null;
+  property: {
+    id: string;
+    title: string | null;
+    location: string | null;
+  } | null;
   liaison?: { id: string; name: string | null; phone: string | null } | null;
 }
 
@@ -74,13 +86,18 @@ interface ReminderAppointment {
  *  legacy single contact as fallback — for the assignee's brief. */
 function attendeesOf(
   appt: ReminderAppointment,
-  contactById: Map<string, { id: string; name: string | null; phone: string | null }>
+  contactById: Map<
+    string,
+    { id: string; name: string | null; phone: string | null }
+  >
 ): { id: string; name: string | null; phone: string | null }[] {
   const ids = new Set<string>(appt.contact_ids || []);
   if (appt.contact?.id) ids.add(appt.contact.id);
   return [...ids]
     .map((id) => (appt.contact?.id === id ? appt.contact : contactById.get(id)))
-    .filter((c): c is { id: string; name: string | null; phone: string | null } => !!c);
+    .filter(
+      (c): c is { id: string; name: string | null; phone: string | null } => !!c
+    );
 }
 
 async function loadAssigneePhones(
@@ -104,13 +121,17 @@ async function loadAssigneePhones(
 /** ~1 hour before start: brief the assignee with everything they need
  *  to walk in prepared. Marked sent only on success so transient
  *  failures retry on the next cron tick. */
-export async function sendAgentEventReminders(now: Date = new Date()): Promise<void> {
+export async function sendAgentEventReminders(
+  now: Date = new Date()
+): Promise<void> {
   const admin = supabaseAdmin();
   const windowEnd = new Date(now.getTime() + 60 * 60 * 1000);
 
   const { data: appointments, error } = await admin
     .from('appointments')
-    .select('id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, agenda, contact_ids, contact:contacts(id, name, phone), property:properties(id, title, location), liaison:liaisons(id, name, phone)')
+    .select(
+      'id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, agenda, contact_ids, contact:contacts(id, name, phone), property:properties(id, title, location), liaison:liaisons(id, name, phone)'
+    )
     .eq('status', 'scheduled')
     .eq('agent_reminder_sent', false)
     .gt('start_time', now.toISOString())
@@ -123,16 +144,23 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
   if (!appointments || appointments.length === 0) return;
 
   const rows = appointments as unknown as ReminderAppointment[];
-  const assignees = await loadAssigneePhones(
-    [...new Set(rows.map((a) => a.assigned_to || a.user_id).filter(Boolean))] as string[]
-  );
+  const assignees = await loadAssigneePhones([
+    ...new Set(rows.map((a) => a.assigned_to || a.user_id).filter(Boolean)),
+  ] as string[]);
 
   // Attendees beyond the primary contact (multi-contact events) need
   // their own lookup — the join above only covers contact_id.
   const extraContactIds = [
-    ...new Set(rows.flatMap((a) => (a.contact_ids || []).filter((id) => id !== a.contact?.id))),
+    ...new Set(
+      rows.flatMap((a) =>
+        (a.contact_ids || []).filter((id) => id !== a.contact?.id)
+      )
+    ),
   ];
-  const contactById = new Map<string, { id: string; name: string | null; phone: string | null }>();
+  const contactById = new Map<
+    string,
+    { id: string; name: string | null; phone: string | null }
+  >();
   if (extraContactIds.length > 0) {
     const { data: extraContacts } = await admin
       .from('contacts')
@@ -146,7 +174,10 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
     const assignee = assigneeId ? assignees.get(assigneeId) : undefined;
     if (!assignee) {
       // No reachable phone — mark sent so we don't re-scan it forever.
-      await admin.from('appointments').update({ agent_reminder_sent: true }).eq('id', appt.id);
+      await admin
+        .from('appointments')
+        .update({ agent_reminder_sent: true })
+        .eq('id', appt.id);
       continue;
     }
 
@@ -168,7 +199,9 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
         ? `⚖️ ${appt.liaison.name || 'Liaison'}${appt.liaison.phone ? ` — ${appt.liaison.phone}` : ''}`
         : null,
       appt.property?.title ? `🏠 ${appt.property.title}` : null,
-      appt.location ? `📌 ${appt.location}\n🗺 ${mapsLink(appt.location)}` : null,
+      appt.location
+        ? `📌 ${appt.location}\n🗺 ${mapsLink(appt.location)}`
+        : null,
       appt.agenda ? `📋 *Agenda:* ${appt.agenda}` : null,
       '',
       messageableContacts.length > 0
@@ -227,7 +260,10 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
       // is free-form text, so Meta rejects it outside the service window.
       // An event booked days ahead reaches its reminder with the window
       // long closed, which is the common case rather than the edge one.
-      console.warn(`[Agent Reminder] WhatsApp send failed for appt ${appt.id}:`, result.error);
+      console.warn(
+        `[Agent Reminder] WhatsApp send failed for appt ${appt.id}:`,
+        result.error
+      );
     } else if (result?.success) {
       // Makes the card answerable. Without this a quote-reply on it
       // resolved to no target at all, so "This is already done" fell
@@ -247,9 +283,15 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
     // assignee every channel at once, and the retry it bought could only
     // fail again for the same reason. One attempt, then marked, exactly as
     // sendOverdueNudges does.
-    await admin.from('appointments').update({ agent_reminder_sent: true }).eq('id', appt.id);
+    await admin
+      .from('appointments')
+      .update({ agent_reminder_sent: true })
+      .eq('id', appt.id);
     const quietChannels = quiet.isQuiet
-      ? { ...(await resolveChannels(appt.account_id, 'appointment_reminder')), whatsapp: true }
+      ? {
+          ...(await resolveChannels(appt.account_id, 'appointment_reminder')),
+          whatsapp: true,
+        }
       : undefined;
     await createNotification({
       accountId: appt.account_id,
@@ -271,7 +313,9 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
 /** Morning digest, once per member per IST day, sent during the
  *  morning window. The agent_digest_log unique constraint is the
  *  claim — whoever inserts first sends; racing cron ticks skip. */
-export async function sendDailyScheduleDigests(now: Date = new Date()): Promise<void> {
+export async function sendDailyScheduleDigests(
+  now: Date = new Date()
+): Promise<void> {
   const admin = supabaseAdmin();
 
   const istHour = istHourOf(now);
@@ -281,7 +325,9 @@ export async function sendDailyScheduleDigests(now: Date = new Date()): Promise<
 
   const { data: appointments, error } = await admin
     .from('appointments')
-    .select('id, account_id, user_id, assigned_to, title, event_type, start_time, location, status, contact:contacts(name)')
+    .select(
+      'id, account_id, user_id, assigned_to, title, event_type, start_time, location, status, contact:contacts(name)'
+    )
     .eq('status', 'scheduled')
     .gte('start_time', startIso)
     .lt('start_time', endIso)
@@ -305,7 +351,15 @@ export async function sendDailyScheduleDigests(now: Date = new Date()): Promise<
   type DigestEvent = (typeof appointments)[number];
   type DigestTodo = NonNullable<typeof todos>[number];
 
-  const byAccountUser = new Map<string, { accountId: string; userId: string; events: DigestEvent[]; todos: DigestTodo[] }>();
+  const byAccountUser = new Map<
+    string,
+    {
+      accountId: string;
+      userId: string;
+      events: DigestEvent[];
+      todos: DigestTodo[];
+    }
+  >();
   const bucket = (accountId: string, userId: string) => {
     const key = `${accountId}:${userId}`;
     let entry = byAccountUser.get(key);
@@ -325,7 +379,9 @@ export async function sendDailyScheduleDigests(now: Date = new Date()): Promise<
     if (uid) bucket(todo.account_id as string, uid).todos.push(todo);
   }
 
-  const assignees = await loadAssigneePhones([...new Set([...byAccountUser.values()].map((b) => b.userId))]);
+  const assignees = await loadAssigneePhones([
+    ...new Set([...byAccountUser.values()].map((b) => b.userId)),
+  ]);
   const digestDate = startIso.substring(0, 10);
 
   for (const entry of byAccountUser.values()) {
@@ -375,13 +431,19 @@ export async function sendDailyScheduleDigests(now: Date = new Date()): Promise<
           text,
         });
     if (result && !result.success) {
-      console.warn(`[Daily Digest] send failed for user ${entry.userId}:`, result.error);
+      console.warn(
+        `[Daily Digest] send failed for user ${entry.userId}:`,
+        result.error
+      );
     }
 
     const apptCount = entry.events.length;
     const todoCount = entry.todos.length;
     const quietChannels = quiet.isQuiet
-      ? { ...(await resolveChannels(entry.accountId, 'daily_digest')), whatsapp: true }
+      ? {
+          ...(await resolveChannels(entry.accountId, 'daily_digest')),
+          whatsapp: true,
+        }
       : undefined;
     await createNotification({
       accountId: entry.accountId,
@@ -407,7 +469,9 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
 
   const { data: appointments, error } = await admin
     .from('appointments')
-    .select('id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, contact:contacts(id, name, phone), property:properties(id, title, location)')
+    .select(
+      'id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, contact:contacts(id, name, phone), property:properties(id, title, location)'
+    )
     .eq('status', 'scheduled')
     .eq('overdue_nudge_sent', false)
     .lt('end_time', cutoff.toISOString())
@@ -420,16 +484,19 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
   if (!appointments || appointments.length === 0) return;
 
   const rows = appointments as unknown as ReminderAppointment[];
-  const assignees = await loadAssigneePhones(
-    [...new Set(rows.map((a) => a.assigned_to || a.user_id).filter(Boolean))] as string[]
-  );
+  const assignees = await loadAssigneePhones([
+    ...new Set(rows.map((a) => a.assigned_to || a.user_id).filter(Boolean)),
+  ] as string[]);
 
   for (const appt of rows) {
     const assigneeId = appt.assigned_to || appt.user_id;
     const assignee = assigneeId ? assignees.get(assigneeId) : undefined;
 
     // One attempt only — mark first so a send failure can't loop.
-    await admin.from('appointments').update({ overdue_nudge_sent: true }).eq('id', appt.id);
+    await admin
+      .from('appointments')
+      .update({ overdue_nudge_sent: true })
+      .eq('id', appt.id);
     if (!assignee) continue;
 
     const emoji = EVENT_TYPE_EMOJI[appt.event_type || 'other'] || '🗓';
@@ -437,7 +504,7 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
       `🤔 *How did it go?*`,
       `${emoji} ${appt.title}${appt.contact?.name ? ` with ${appt.contact.name}` : ''} was scheduled for ${istTime(appt.start_time)} and is still open.`,
       '',
-      '_Reply to this message and tell me how it went — I\'ll close it off. Or say when to move it to._',
+      "_Reply to this message and tell me how it went — I'll close it off. Or say when to move it to._",
     ].join('\n');
 
     const quiet = await resolveQuietPeriod(appt.account_id, 'agent', now);
@@ -452,7 +519,10 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
           text,
         });
     if (result && !result.success) {
-      console.warn(`[Overdue Nudge] send failed for appt ${appt.id}:`, result.error);
+      console.warn(
+        `[Overdue Nudge] send failed for appt ${appt.id}:`,
+        result.error
+      );
     } else if (result?.success) {
       // The card that asks "how did it go?" was the one card a reply
       // could not reach: without a target row a quote-reply on it
@@ -470,7 +540,10 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
     }
 
     const quietChannels = quiet.isQuiet
-      ? { ...(await resolveChannels(appt.account_id, 'appointment_overdue')), whatsapp: true }
+      ? {
+          ...(await resolveChannels(appt.account_id, 'appointment_overdue')),
+          whatsapp: true,
+        }
       : undefined;
     await createNotification({
       accountId: appt.account_id,

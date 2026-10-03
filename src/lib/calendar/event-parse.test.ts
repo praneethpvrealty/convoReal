@@ -38,11 +38,15 @@ describe('normalizeEventType', () => {
 
 describe('istLocalToUtcIso', () => {
   it('converts IST wall-clock to UTC', () => {
-    expect(istLocalToUtcIso('2026-07-15T10:00')).toBe('2026-07-15T04:30:00.000Z');
+    expect(istLocalToUtcIso('2026-07-15T10:00')).toBe(
+      '2026-07-15T04:30:00.000Z'
+    );
   });
 
   it('handles midnight rollover across dates', () => {
-    expect(istLocalToUtcIso('2026-07-15T04:00')).toBe('2026-07-14T22:30:00.000Z');
+    expect(istLocalToUtcIso('2026-07-15T04:00')).toBe(
+      '2026-07-14T22:30:00.000Z'
+    );
   });
 
   it('returns null for missing or malformed input', () => {
@@ -118,7 +122,13 @@ describe('resolveByName', () => {
   });
 
   it('matches when query has extra words', () => {
-    expect(resolveByName('snigdha from koramangala'.split(' from ')[0], contacts, (c) => c.name)?.id).toBe('3');
+    expect(
+      resolveByName(
+        'snigdha from koramangala'.split(' from ')[0],
+        contacts,
+        (c) => c.name
+      )?.id
+    ).toBe('3');
   });
 
   it('prefers stronger matches over weak substring hits', () => {
@@ -126,7 +136,9 @@ describe('resolveByName', () => {
       { id: 'a', name: 'JP Nagar plot' },
       { id: 'b', name: 'JP Nagar 18k sqft commercial' },
     ];
-    expect(resolveByName('jp nagar 18k sqft commercial', rows, (r) => r.name)?.id).toBe('b');
+    expect(
+      resolveByName('jp nagar 18k sqft commercial', rows, (r) => r.name)?.id
+    ).toBe('b');
   });
 
   it('returns null instead of guessing', () => {
@@ -162,7 +174,9 @@ describe('resolveByName', () => {
       { id: 'a', name: 'CR-104 JP Nagar villa' },
       { id: 'b', name: 'Whitefield 18k sqft commercial' },
     ];
-    expect(resolveByName('18k sqft commercial', rows, (r) => r.name)?.id).toBe('b');
+    expect(resolveByName('18k sqft commercial', rows, (r) => r.name)?.id).toBe(
+      'b'
+    );
     expect(resolveByName('104', rows, (r) => r.name)?.id).toBe('a');
   });
 });
@@ -188,7 +202,9 @@ describe('coerceEventDrafts', () => {
   });
 
   it('accepts a lone object and a bare array', () => {
-    expect(coerceEventDrafts(request()).map((d) => d.title)).toEqual(['Follow up with the advocate']);
+    expect(coerceEventDrafts(request()).map((d) => d.title)).toEqual([
+      'Follow up with the advocate',
+    ]);
     expect(coerceEventDrafts([request(), request()])).toHaveLength(2);
   });
 
@@ -198,8 +214,12 @@ describe('coerceEventDrafts', () => {
       requests: [request({ intent: 'notify' }), request()],
     });
 
-    expect(drafts[0].transcript).toBe('Send Sharan the update, and follow up after a week.');
-    expect(drafts[1].transcript).toBe('Send Sharan the update, and follow up after a week.');
+    expect(drafts[0].transcript).toBe(
+      'Send Sharan the update, and follow up after a week.'
+    );
+    expect(drafts[1].transcript).toBe(
+      'Send Sharan the update, and follow up after a week.'
+    );
   });
 
   it("does not overwrite a request's own transcript", () => {
@@ -212,10 +232,14 @@ describe('coerceEventDrafts', () => {
   });
 
   it('drops none entries so an empty result means nothing to do', () => {
-    expect(coerceEventDrafts({ requests: [request({ intent: 'none' })] })).toEqual([]);
+    expect(
+      coerceEventDrafts({ requests: [request({ intent: 'none' })] })
+    ).toEqual([]);
     expect(coerceEventDrafts({ requests: [] })).toEqual([]);
     expect(coerceEventDrafts({})).toEqual([]);
-    expect(coerceEventDrafts({ requests: [request({ intent: 'none' }), request()] })).toHaveLength(1);
+    expect(
+      coerceEventDrafts({ requests: [request({ intent: 'none' }), request()] })
+    ).toHaveLength(1);
   });
 
   it('keeps notify as its own intent and carries the recipient', () => {
@@ -241,7 +265,9 @@ describe('parseEventFromInput image branch', () => {
       return {
         ok: true,
         json: async () => ({
-          candidates: [{ content: { parts: [{ text: JSON.stringify(reply) }] } }],
+          candidates: [
+            { content: { parts: [{ text: JSON.stringify(reply) }] } },
+          ],
         }),
       };
     });
@@ -254,21 +280,34 @@ describe('parseEventFromInput image branch', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('sends the image as inlineData alongside a screenshot instruction', async () => {
-    stubGemini({ intent: 'schedule', title: 'Meeting with Kusuma', event_type: 'meeting' });
+    stubGemini({
+      intent: 'schedule',
+      title: 'Meeting with Kusuma',
+      event_type: 'meeting',
+    });
     await parseEventFromInput({
       image: { base64: 'AAAA', mimeType: 'image/jpeg; charset=binary' },
     });
 
-    const parts = captured[0].parts as { text?: string; inlineData?: { mimeType: string; data: string } }[];
-    expect(parts[0].inlineData).toEqual({ mimeType: 'image/jpeg', data: 'AAAA' });
+    const parts = captured[0].parts as {
+      text?: string;
+      inlineData?: { mimeType: string; data: string };
+    }[];
+    expect(parts[0].inlineData).toEqual({
+      mimeType: 'image/jpeg',
+      data: 'AAAA',
+    });
     expect(parts[1].text).toContain('screenshot');
   });
 
   it('warns the model off bubble timestamps and unresolved threads', async () => {
     stubGemini({ intent: 'none' });
-    await parseEventFromInput({ image: { base64: 'AAAA', mimeType: 'image/jpeg' } });
+    await parseEventFromInput({
+      image: { base64: 'AAAA', mimeType: 'image/jpeg' },
+    });
 
-    const instruction = (captured[0].parts as { text?: string }[])[1].text || '';
+    const instruction =
+      (captured[0].parts as { text?: string }[])[1].text || '';
     expect(instruction).toContain('when the MESSAGE was sent');
     expect(instruction).toContain('intent "none"');
   });
@@ -280,7 +319,8 @@ describe('parseEventFromInput image branch', () => {
       event_type: 'meeting',
       start_time: '2026-08-03T17:00',
       contact_name: 'Kusuma',
-      transcript: 'Monday 5 pm the meeting with Kusuma lawyer is confirmed right. / Yes Sharan, its confirmed',
+      transcript:
+        'Monday 5 pm the meeting with Kusuma lawyer is confirmed right. / Yes Sharan, its confirmed',
     });
     const draft = await parseEventFromInput({
       image: { base64: 'AAAA', mimeType: 'image/jpeg' },
@@ -293,7 +333,9 @@ describe('parseEventFromInput image branch', () => {
   });
 
   it('still rejects an input with no text, audio or image', async () => {
-    await expect(parseEventFromInput({})).rejects.toThrow(/requires text, audio or an image/);
+    await expect(parseEventFromInput({})).rejects.toThrow(
+      /requires text, audio or an image/
+    );
   });
 
   it('returns every request a voice note carried', async () => {
@@ -323,7 +365,9 @@ describe('parseEventFromInput image branch', () => {
     expect(drafts[0].intent).toBe('notify');
     expect(drafts[0].recipient_name).toBe('Sharan');
     expect(drafts[1].intent).toBe('task');
-    expect(istLocalToUtcIso(drafts[1].start_time)).toBe('2026-08-20T04:30:00.000Z');
+    expect(istLocalToUtcIso(drafts[1].start_time)).toBe(
+      '2026-08-20T04:30:00.000Z'
+    );
     expect(drafts[0].transcript).toContain('Send Sharan the update');
   });
 
@@ -334,14 +378,19 @@ describe('parseEventFromInput image branch', () => {
         { intent: 'task', title: 'Follow up' },
       ],
     });
-    const draft = await parseEventFromInput({ text: 'let sharan know, then follow up' });
+    const draft = await parseEventFromInput({
+      text: 'let sharan know, then follow up',
+    });
 
     expect(draft.intent).toBe('notify');
     expect(draft.title).toBe('Tell Sharan');
   });
 
   it('hands back a none draft that still carries the transcript', async () => {
-    stubGemini({ transcript: 'Three BHK in Whitefield, 1.2 crore', requests: [] });
+    stubGemini({
+      transcript: 'Three BHK in Whitefield, 1.2 crore',
+      requests: [],
+    });
     const draft = await parseEventFromInput({
       audio: { base64: 'AAAA', mimeType: 'audio/ogg' },
     });
@@ -366,7 +415,9 @@ describe('parseEventFromInput image branch', () => {
       contactNames: ['Supreeth Kumar'],
     });
 
-    expect(captured[0].system).toContain('Team member names for assignee matching: Sharan');
+    expect(captured[0].system).toContain(
+      'Team member names for assignee matching: Sharan'
+    );
     expect(captured[0].system).toContain(
       'Client/contact names for contact matching: Supreeth Kumar'
     );
@@ -508,8 +559,12 @@ describe('alignDraftToNamedWeekday', () => {
         SATURDAY_1_AUG
       );
       const iso = istLocalToUtcIso(fixed.start_time)!;
-      expect(new Date(iso).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long' }))
-        .toBe('Wednesday');
+      expect(
+        new Date(iso).toLocaleDateString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          weekday: 'long',
+        })
+      ).toBe('Wednesday');
       expect(new Date(iso).getTime()).toBeGreaterThan(SATURDAY_1_AUG.getTime());
     }
   });
@@ -528,8 +583,12 @@ describe('counterparty capture', () => {
   });
 
   it('defaults counterparty to null when the source has only one person', () => {
-    expect(coerceEventDraft({ contact_name: 'Varun' }).counterparty_name).toBeNull();
-    expect(coerceEventDraft({ contact_name: 'Varun' }).participant_names).toEqual([]);
+    expect(
+      coerceEventDraft({ contact_name: 'Varun' }).counterparty_name
+    ).toBeNull();
+    expect(
+      coerceEventDraft({ contact_name: 'Varun' }).participant_names
+    ).toEqual([]);
   });
 
   it('resolves the counterparty independently of the person being met', () => {
@@ -540,7 +599,9 @@ describe('counterparty capture', () => {
       { id: 'other-id', name: 'Varun' },
     ];
     expect(resolveByName('Kusuma', contacts, (c) => c.name)).toBeNull();
-    expect(resolveByName('Sharan', contacts, (c) => c.name)?.id).toBe('sharan-id');
+    expect(resolveByName('Sharan', contacts, (c) => c.name)?.id).toBe(
+      'sharan-id'
+    );
   });
 });
 
@@ -556,7 +617,9 @@ describe('service provider capture', () => {
   });
 
   it('leaves the role null for an ordinary client meeting', () => {
-    expect(coerceEventDraft({ contact_name: 'Varun' }).service_provider_role).toBeNull();
+    expect(
+      coerceEventDraft({ contact_name: 'Varun' }).service_provider_role
+    ).toBeNull();
   });
 
   it('resolves a service provider against the liaisons directory', () => {
@@ -567,6 +630,8 @@ describe('service provider capture', () => {
       { id: 'other-id', name: 'Prabhakar' },
     ];
     expect(resolveByName('KusumamuniRaju', contacts, (c) => c.name)).toBeNull();
-    expect(resolveByName('KusumamuniRaju', liaisons, (l) => l.name)?.id).toBe('kusuma-id');
+    expect(resolveByName('KusumamuniRaju', liaisons, (l) => l.name)?.id).toBe(
+      'kusuma-id'
+    );
   });
 });

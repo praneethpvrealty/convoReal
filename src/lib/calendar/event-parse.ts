@@ -14,7 +14,8 @@
 import { generateJsonFromParts, type GeminiPart } from '@/lib/ai/gemini';
 import { INPUT_LANGUAGE_HINT } from '@/lib/languages';
 
-export type EventTypeKey = 'site_visit' | 'call' | 'follow_up' | 'document' | 'meeting' | 'other';
+export type EventTypeKey =
+  'site_visit' | 'call' | 'follow_up' | 'document' | 'meeting' | 'other';
 
 export interface ParsedEventDraft {
   /** "notify" is the odd one out: it writes no calendar row at all. It sends what
@@ -54,16 +55,28 @@ export interface ParsedEventDraft {
   day_of_week: string | null;
 }
 
-const EVENT_TYPE_VALUES: EventTypeKey[] = ['site_visit', 'call', 'follow_up', 'document', 'meeting', 'other'];
+const EVENT_TYPE_VALUES: EventTypeKey[] = [
+  'site_visit',
+  'call',
+  'follow_up',
+  'document',
+  'meeting',
+  'other',
+];
 
 export function normalizeEventType(val?: string | null): EventTypeKey {
   if (!val) return 'other';
-  const cleaned = val.toLowerCase().trim().replace(/[\s-]+/g, '_');
-  if ((EVENT_TYPE_VALUES as string[]).includes(cleaned)) return cleaned as EventTypeKey;
+  const cleaned = val
+    .toLowerCase()
+    .trim()
+    .replace(/[\s-]+/g, '_');
+  if ((EVENT_TYPE_VALUES as string[]).includes(cleaned))
+    return cleaned as EventTypeKey;
   if (/visit|site|show/.test(cleaned)) return 'site_visit';
   if (/call|phone|ring/.test(cleaned)) return 'call';
   if (/follow/.test(cleaned)) return 'follow_up';
-  if (/doc|paper|agreement|ec\b|khata|registration/.test(cleaned)) return 'document';
+  if (/doc|paper|agreement|ec\b|khata|registration/.test(cleaned))
+    return 'document';
   if (/meet|appointment|discussion/.test(cleaned)) return 'meeting';
   return 'other';
 }
@@ -93,19 +106,31 @@ export function nowInIst(now: Date = new Date()): string {
 
 /** Normalizes arbitrary model JSON into a safe ParsedEventDraft. */
 export function coerceEventDraft(raw: unknown): ParsedEventDraft {
-  const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<
+    string,
+    unknown
+  >;
   const str = (v: unknown): string | null =>
     typeof v === 'string' && v.trim().length > 0 ? v.trim() : null;
   const num = (v: unknown): number | null =>
     typeof v === 'number' && isFinite(v) && v > 0 ? Math.round(v) : null;
   const strings = (v: unknown): string[] =>
     Array.isArray(v)
-      ? [...new Set(v.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean))]
+      ? [
+          ...new Set(
+            v
+              .filter((item): item is string => typeof item === 'string')
+              .map((item) => item.trim())
+              .filter(Boolean)
+          ),
+        ]
       : [];
 
   const intentRaw = str(obj.intent)?.toLowerCase();
   const intent: ParsedEventDraft['intent'] =
-    intentRaw === 'schedule' || intentRaw === 'task' || intentRaw === 'notify' ? intentRaw : 'none';
+    intentRaw === 'schedule' || intentRaw === 'task' || intentRaw === 'notify'
+      ? intentRaw
+      : 'none';
 
   const priorityRaw = str(obj.priority)?.toLowerCase();
   const priority: ParsedEventDraft['priority'] =
@@ -158,11 +183,14 @@ function readTranscript(raw: unknown): string | null {
  * callers need no second check.
  */
 export function coerceEventDrafts(raw: unknown): ParsedEventDraft[] {
-  const envelope = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<
-    string,
-    unknown
-  >;
-  const list = Array.isArray(raw) ? raw : Array.isArray(envelope.requests) ? envelope.requests : [raw];
+  const envelope = (
+    raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  ) as Record<string, unknown>;
+  const list = Array.isArray(raw)
+    ? raw
+    : Array.isArray(envelope.requests)
+      ? envelope.requests
+      : [raw];
   const transcript = readTranscript(raw);
 
   return list
@@ -196,7 +224,10 @@ export function normalizeWeekday(val?: string | null): number | null {
 function localDateParts(local: string): { base: number; rest: string } | null {
   const m = local.match(/^(\d{4})-(\d{2})-(\d{2})([T ].*)?$/);
   if (!m) return null;
-  return { base: Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])), rest: m[4] || '' };
+  return {
+    base: Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])),
+    rest: m[4] || '',
+  };
 }
 
 function shiftLocalDays(local: string, days: number): string {
@@ -239,7 +270,9 @@ export function alignDraftToNamedWeekday(
   return {
     ...draft,
     start_time: shiftLocalDays(draft.start_time, delta),
-    end_time: draft.end_time ? shiftLocalDays(draft.end_time, delta) : draft.end_time,
+    end_time: draft.end_time
+      ? shiftLocalDays(draft.end_time, delta)
+      : draft.end_time,
   };
 }
 
@@ -280,15 +313,24 @@ export interface ParsedSchedulingResult {
 }
 
 export function coerceCompletedItems(raw: unknown): ParsedCompletedItem[] {
-  const envelope = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
-  const list = Array.isArray(envelope.completed_items) ? envelope.completed_items : [];
+  const envelope = (
+    raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  ) as Record<string, unknown>;
+  const list = Array.isArray(envelope.completed_items)
+    ? envelope.completed_items
+    : [];
   const result: ParsedCompletedItem[] = [];
   for (const item of list) {
-    const obj = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+    const obj = (item && typeof item === 'object' ? item : {}) as Record<
+      string,
+      unknown
+    >;
     const id = typeof obj.id === 'string' ? obj.id.trim() : '';
     if (!id) continue;
-    const type: 'appointment' | 'todo' = obj.type === 'todo' ? 'todo' : 'appointment';
-    const status: 'completed' | 'cancelled' = obj.status === 'cancelled' ? 'cancelled' : 'completed';
+    const type: 'appointment' | 'todo' =
+      obj.type === 'todo' ? 'todo' : 'appointment';
+    const status: 'completed' | 'cancelled' =
+      obj.status === 'cancelled' ? 'cancelled' : 'completed';
     const outcome = typeof obj.outcome === 'string' ? obj.outcome.trim() : '';
     const title = typeof obj.title === 'string' ? obj.title.trim() : undefined;
     result.push({ id, type, status, outcome, ...(title ? { title } : {}) });
@@ -296,19 +338,35 @@ export function coerceCompletedItems(raw: unknown): ParsedCompletedItem[] {
   return result;
 }
 
-export function coerceUpdatedItems(raw: unknown, now: Date = new Date()): ParsedUpdatedItem[] {
-  const envelope = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
-  const list = Array.isArray(envelope.updated_items) ? envelope.updated_items : [];
+export function coerceUpdatedItems(
+  raw: unknown,
+  now: Date = new Date()
+): ParsedUpdatedItem[] {
+  const envelope = (
+    raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  ) as Record<string, unknown>;
+  const list = Array.isArray(envelope.updated_items)
+    ? envelope.updated_items
+    : [];
   const result: ParsedUpdatedItem[] = [];
   for (const item of list) {
-    const obj = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+    const obj = (item && typeof item === 'object' ? item : {}) as Record<
+      string,
+      unknown
+    >;
     const id = typeof obj.id === 'string' ? obj.id.trim() : '';
     if (!id) continue;
-    const type: 'appointment' | 'todo' = obj.type === 'todo' ? 'todo' : 'appointment';
-    const start_time = typeof obj.start_time === 'string' ? obj.start_time.trim() : null;
-    const due_date = typeof obj.due_date === 'string' ? obj.due_date.trim() : null;
-    const day_of_week_str = typeof obj.day_of_week === 'string' ? obj.day_of_week.trim() : null;
-    const day_of_week = day_of_week_str ? normalizeWeekday(day_of_week_str) : null;
+    const type: 'appointment' | 'todo' =
+      obj.type === 'todo' ? 'todo' : 'appointment';
+    const start_time =
+      typeof obj.start_time === 'string' ? obj.start_time.trim() : null;
+    const due_date =
+      typeof obj.due_date === 'string' ? obj.due_date.trim() : null;
+    const day_of_week_str =
+      typeof obj.day_of_week === 'string' ? obj.day_of_week.trim() : null;
+    const day_of_week = day_of_week_str
+      ? normalizeWeekday(day_of_week_str)
+      : null;
     const title = typeof obj.title === 'string' ? obj.title.trim() : undefined;
 
     const res: ParsedUpdatedItem = {
@@ -323,7 +381,11 @@ export function coerceUpdatedItems(raw: unknown, now: Date = new Date()): Parsed
     if (day_of_week !== null && (start_time || due_date)) {
       const timeField = start_time || due_date;
       const fakeDraft = alignDraftToNamedWeekday(
-        { ...coerceEventDraft({}), start_time: timeField, day_of_week: day_of_week_str },
+        {
+          ...coerceEventDraft({}),
+          start_time: timeField,
+          day_of_week: day_of_week_str,
+        },
         now
       );
       if (start_time) res.start_time = fakeDraft.start_time;
@@ -351,7 +413,9 @@ function buildSystemPrompt(
       contextBlock += 'Candidate schedule items for this agent:\n';
       for (const item of candidateItems) {
         const timeOrDue = item.start_time || item.due_date || '';
-        const who = [item.contact_name, item.counterparty_name].filter(Boolean).join(' · ');
+        const who = [item.contact_name, item.counterparty_name]
+          .filter(Boolean)
+          .join(' · ');
         contextBlock += `- [ID: ${item.id}] Type: ${item.type} | Title: "${item.title}"${who ? ` | Person: ${who}` : ''}${timeOrDue ? ` | Time: ${timeOrDue}` : ''}\n`;
       }
       contextBlock += '\n';
@@ -456,10 +520,16 @@ export interface EventParseInput {
  * Parses full scheduling interaction including outcome reports on candidate items,
  * reschedules, and newly created drafts.
  */
-export async function parseEventsFromInput(input: EventParseInput): Promise<ParsedEventDraft[]> {
+export async function parseEventsFromInput(
+  input: EventParseInput
+): Promise<ParsedEventDraft[]> {
   const res = await runEventParse(input);
   const drafts = res.drafts;
-  Object.defineProperty(drafts, '_fullResult', { value: res, enumerable: false, configurable: true });
+  Object.defineProperty(drafts, '_fullResult', {
+    value: res,
+    enumerable: false,
+    configurable: true,
+  });
   return drafts;
 }
 
@@ -467,12 +537,17 @@ export async function parseSchedulingInteraction(
   input: EventParseInput
 ): Promise<ParsedSchedulingResult> {
   const drafts = await parseEventsFromInput(input);
-  const full = (drafts as unknown as { _fullResult?: ParsedSchedulingResult })?._fullResult;
+  const full = (drafts as unknown as { _fullResult?: ParsedSchedulingResult })
+    ?._fullResult;
   if (full) return full;
   return {
     drafts: drafts || [],
-    completedItems: (drafts as unknown as { completedItems?: ParsedCompletedItem[] })?.completedItems || [],
-    updatedItems: (drafts as unknown as { updatedItems?: ParsedUpdatedItem[] })?.updatedItems || [],
+    completedItems:
+      (drafts as unknown as { completedItems?: ParsedCompletedItem[] })
+        ?.completedItems || [],
+    updatedItems:
+      (drafts as unknown as { updatedItems?: ParsedUpdatedItem[] })
+        ?.updatedItems || [],
     transcript: drafts?.[0]?.transcript || null,
   };
 }
@@ -482,14 +557,14 @@ export async function parseSchedulingInteraction(
  * The transcript survives an empty result — a caller that found no request
  * still wants to show the agent what was heard.
  */
-export async function parseEventFromInput(input: EventParseInput): Promise<ParsedEventDraft> {
+export async function parseEventFromInput(
+  input: EventParseInput
+): Promise<ParsedEventDraft> {
   const { drafts, transcript } = await runEventParse(input);
   return drafts[0] || { ...coerceEventDraft({}), transcript };
 }
 
-async function runEventParse(
-  input: EventParseInput
-): Promise<{
+async function runEventParse(input: EventParseInput): Promise<{
   drafts: ParsedEventDraft[];
   completedItems: ParsedCompletedItem[];
   updatedItems: ParsedUpdatedItem[];
@@ -581,7 +656,9 @@ export interface EventUpdateInput {
  * weekday alignment runs afterwards, since a correction naming a day is
  * exactly where the model's date arithmetic slipped in the first place.
  */
-export async function parseEventUpdate(input: EventUpdateInput): Promise<ParsedEventDraft> {
+export async function parseEventUpdate(
+  input: EventUpdateInput
+): Promise<ParsedEventDraft> {
   const now = input.now || new Date();
   const system =
     'You are the scheduling assistant inside a sales platform used by Indian real-estate agents. ' +
@@ -592,7 +669,9 @@ export async function parseEventUpdate(input: EventUpdateInput): Promise<ParsedE
     'Set intent to "schedule" whenever the event still has a date/time, "task" when it has become a plain to-do, and "none" only when the instruction is not a correction at all.\n' +
     'The day_of_week rule is unchanged: copy a weekday word the instruction actually uses, else null.\n\n' +
     `Existing event:\n${JSON.stringify(input.current, null, 2)}\n\n` +
-    (input.memberNames?.length ? `Team member names: ${input.memberNames.join(', ')}.\n` : '') +
+    (input.memberNames?.length
+      ? `Team member names: ${input.memberNames.join(', ')}.\n`
+      : '') +
     'Respond with ONLY the JSON object.';
 
   const raw = await generateJsonFromParts(
@@ -633,12 +712,13 @@ const MIN_FRAGMENT = 3;
  */
 function containsFragment(haystack: string, needle: string): boolean {
   if (needle.length < MIN_FRAGMENT) return false;
-  for (let from = 0; ; ) {
+  for (let from = 0; ;) {
     const at = haystack.indexOf(needle, from);
     if (at < 0) return false;
     const startsWord = at === 0 || !/[a-z0-9]/i.test(haystack[at - 1]);
     const end = at + needle.length;
-    const endsWord = end === haystack.length || !/[a-z0-9]/i.test(haystack[end]);
+    const endsWord =
+      end === haystack.length || !/[a-z0-9]/i.test(haystack[end]);
     if (startsWord && endsWord) return true;
     from = at + 1;
   }
@@ -646,16 +726,23 @@ function containsFragment(haystack: string, needle: string): boolean {
 
 function prefixEndsAtWord(longer: string, prefix: string): boolean {
   if (!longer.startsWith(prefix)) return false;
-  return longer.length === prefix.length || !/[a-z0-9]/i.test(longer[prefix.length]);
+  return (
+    longer.length === prefix.length || !/[a-z0-9]/i.test(longer[prefix.length])
+  );
 }
 
 function nameMatchScore(label: string, query: string): number {
   if (label === query) return 5;
-  if (prefixEndsAtWord(label, query) || prefixEndsAtWord(query, label)) return 4;
-  if (containsFragment(label, query) || containsFragment(query, label)) return 3;
+  if (prefixEndsAtWord(label, query) || prefixEndsAtWord(query, label))
+    return 4;
+  if (containsFragment(label, query) || containsFragment(query, label))
+    return 3;
 
-  const words = query.split(/\s+/).filter((word) => word.length >= MIN_FRAGMENT);
-  if (words.length > 0 && words.every((word) => containsFragment(label, word))) return 2;
+  const words = query
+    .split(/\s+/)
+    .filter((word) => word.length >= MIN_FRAGMENT);
+  if (words.length > 0 && words.every((word) => containsFragment(label, word)))
+    return 2;
 
   // Keep support for a shortened compound name such as "Kusuma" matching
   // "KusumamuniRaju", but rank it below a complete word such as "Prabha Rao".
