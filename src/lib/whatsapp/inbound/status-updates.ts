@@ -4,6 +4,7 @@ import {
   laterSuppression,
 } from '@/lib/whatsapp/delivery-failure';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { logText } from './log-text';
 
 const RECIPIENT_STATUS_LADDER = [
   'pending',
@@ -50,11 +51,11 @@ export async function handleStatusUpdate(status: {
   }>;
 }) {
   console.log(
-    `[webhook] Received status update: ${status.id} -> ${status.status}`
+    `[webhook] Received status update: ${logText(status.id)} -> ${logText(status.status)}`
   );
   if (status.status === 'failed' || status.errors) {
     console.error(
-      `[webhook] Status FAILED for message ${status.id} to recipient ${status.recipient_id}. Errors:`,
+      `[webhook] Status FAILED for message ${logText(status.id)} to recipient ${logText(status.recipient_id)}. Errors:`,
       JSON.stringify(status.errors, null, 2)
     );
   }
@@ -87,11 +88,11 @@ export async function handleStatusUpdate(status: {
     console.error('Error updating message status:', msgErr);
   } else if (!updatedMsg || updatedMsg.length === 0) {
     console.warn(
-      `[webhook] Message with message_id ${status.id} not found in DB messages table.`
+      `[webhook] Message with message_id ${logText(status.id)} not found in DB messages table.`
     );
   } else {
     console.log(
-      `[webhook] Updated message status in DB for message_id ${status.id} to ${status.status}`
+      `[webhook] Updated message status in DB for message_id ${logText(status.id)} to ${logText(status.status)}`
     );
   }
 

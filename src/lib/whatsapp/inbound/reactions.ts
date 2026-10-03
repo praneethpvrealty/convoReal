@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { logText } from './log-text';
 import type { WhatsAppMessage } from '@/lib/whatsapp/webhook-handler';
 
 export async function lookupInternalIdByMetaId(
@@ -33,7 +34,7 @@ export async function handleReaction(
   if (!targetInternalId) {
     console.warn(
       '[webhook] reaction target message not found; skipping',
-      reaction.message_id
+      logText(reaction.message_id)
     );
     return;
   }
