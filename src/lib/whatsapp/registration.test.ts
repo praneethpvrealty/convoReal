@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  assertGraphId,
+  checkWhatsAppPermissions,
   getSubscribedApps,
+  isGraphId,
   registerPhoneNumber,
   subscribeWabaToApp,
+  verifyPhoneNumber,
 } from './meta-api';
+import { fetchPhoneRegistrationState } from './registration-state';
 
 function okResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -31,13 +36,13 @@ describe('registerPhoneNumber', () => {
 
   it('POSTs to /{phone_number_id}/register with messaging_product + pin', async () => {
     const result = await registerPhoneNumber({
-      phoneNumberId: 'PNID_123',
+      phoneNumberId: '1029384756',
       accessToken: 'tok',
       pin: '123456',
     });
     expect(result).toEqual({ success: true, alreadyRegistered: false });
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toContain('/PNID_123/register');
+    expect(url).toContain('/1029384756/register');
     expect(init.method).toBe('POST');
     expect(init.headers.Authorization).toBe('Bearer tok');
     expect(JSON.parse(init.body)).toEqual({
@@ -60,7 +65,7 @@ describe('registerPhoneNumber', () => {
       })
     );
     const result = await registerPhoneNumber({
-      phoneNumberId: 'PNID_123',
+      phoneNumberId: '1029384756',
       accessToken: 'tok',
       pin: '123456',
     });
@@ -79,7 +84,7 @@ describe('registerPhoneNumber', () => {
     );
     await expect(
       registerPhoneNumber({
-        phoneNumberId: 'P',
+        phoneNumberId: '1029384756',
         accessToken: 't',
         pin: '000000',
       })
@@ -94,7 +99,7 @@ describe('registerPhoneNumber', () => {
     );
     await expect(
       registerPhoneNumber({
-        phoneNumberId: 'P',
+        phoneNumberId: '1029384756',
         accessToken: 't',
         pin: '123456',
       })
@@ -113,9 +118,9 @@ describe('subscribeWabaToApp', () => {
   });
 
   it('POSTs to /{waba_id}/subscribed_apps with bearer token', async () => {
-    await subscribeWabaToApp({ wabaId: 'WABA_1', accessToken: 'tok' });
+    await subscribeWabaToApp({ wabaId: '5647382910', accessToken: 'tok' });
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toContain('/WABA_1/subscribed_apps');
+    expect(url).toContain('/5647382910/subscribed_apps');
     expect(init.method).toBe('POST');
     expect(init.headers.Authorization).toBe('Bearer tok');
   });
@@ -125,7 +130,7 @@ describe('subscribeWabaToApp', () => {
       errorResponse(403, { error: { message: 'Insufficient permissions' } })
     );
     await expect(
-      subscribeWabaToApp({ wabaId: 'WABA_1', accessToken: 'tok' })
+      subscribeWabaToApp({ wabaId: '5647382910', accessToken: 'tok' })
     ).rejects.toThrow(/Insufficient permissions/);
   });
 });
@@ -155,7 +160,7 @@ describe('getSubscribedApps', () => {
       })
     );
     const apps = await getSubscribedApps({
-      wabaId: 'WABA_1',
+      wabaId: '5647382910',
       accessToken: 'tok',
     });
     expect(apps).toHaveLength(1);
@@ -165,7 +170,7 @@ describe('getSubscribedApps', () => {
   it('returns empty array when Meta returns no data field', async () => {
     fetchMock.mockResolvedValueOnce(okResponse({}));
     const apps = await getSubscribedApps({
-      wabaId: 'WABA_1',
+      wabaId: '5647382910',
       accessToken: 'tok',
     });
     expect(apps).toEqual([]);
@@ -176,7 +181,102 @@ describe('getSubscribedApps', () => {
       errorResponse(401, { error: { message: 'Invalid OAuth token' } })
     );
     await expect(
-      getSubscribedApps({ wabaId: 'WABA_1', accessToken: 'tok' })
+      getSubscribedApps({ wabaId: '5647382910', accessToken: 'tok' })
     ).rejects.toThrow(/Invalid OAuth token/);
+  });
+});
+
+describe('[WAN-007] Graph id validation', () => {
+  const malformed = [
+    '123/../456',
+    '123?fields=access_token',
+    '123#',
+    'me',
+    ' 123',
+    '123 ',
+    '12a3',
+    '',
+  ];
+  let fetchMock: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    fetchMock = vi.fn().mockResolvedValue(okResponse({ id: '1029384756' }));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('accepts digit-only ids and returns them unchanged', () => {
+    expect(isGraphId('1029384756')).toBe(true);
+    expect(assertGraphId('1029384756', 'Phone Number ID')).toBe('1029384756');
+  });
+
+  it.each(malformed)('rejects %j', (id) => {
+    expect(isGraphId(id)).toBe(false);
+    expect(() => assertGraphId(id, 'Phone Number ID')).toThrow(
+      'Phone Number ID must contain digits only.'
+    );
+  });
+
+  it('rejects a value that is not a string', () => {
+    expect(isGraphId(1029384756)).toBe(false);
+    expect(() =>
+      assertGraphId(1029384756 as unknown as string, 'Phone Number ID')
+    ).toThrow(/digits only/);
+  });
+
+  it.each(malformed)(
+    'never calls Meta for a malformed phone number id %j',
+    async (id) => {
+      await expect(
+        verifyPhoneNumber({ phoneNumberId: id, accessToken: 'tok' })
+      ).rejects.toThrow(/Phone Number ID must contain digits only/);
+      await expect(
+        registerPhoneNumber({
+          phoneNumberId: id,
+          accessToken: 'tok',
+          pin: '123456',
+        })
+      ).rejects.toThrow(/Phone Number ID must contain digits only/);
+      await expect(
+        fetchPhoneRegistrationState({ phoneNumberId: id, accessToken: 'tok' })
+      ).resolves.toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(malformed)(
+    'never calls Meta for a malformed WABA id %j',
+    async (id) => {
+      await expect(
+        subscribeWabaToApp({ wabaId: id, accessToken: 'tok' })
+      ).rejects.toThrow(
+        /WhatsApp Business Account ID must contain digits only/
+      );
+      await expect(
+        getSubscribedApps({ wabaId: id, accessToken: 'tok' })
+      ).rejects.toThrow(
+        /WhatsApp Business Account ID must contain digits only/
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it('reports a malformed WABA id as a permission issue without requesting it', async () => {
+    const result = await checkWhatsAppPermissions('tok', '123/../456');
+    expect(result.issues).toContain('Failed to verify WABA access');
+    const urls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(urls.some((url) => url.includes('456'))).toBe(false);
+  });
+
+  it('still verifies a numeric phone number id', async () => {
+    const info = await verifyPhoneNumber({
+      phoneNumberId: '1029384756',
+      accessToken: 'tok',
+    });
+    expect(info.id).toBe('1029384756');
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      '/1029384756?fields=id'
+    );
   });
 });

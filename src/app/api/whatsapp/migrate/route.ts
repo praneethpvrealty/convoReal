@@ -5,6 +5,7 @@ import {
   registerPhoneNumber,
   subscribeWabaToApp,
   sendTemplateMessage,
+  isGraphId,
 } from '@/lib/whatsapp/meta-api';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
 import { getSandboxSystemConfig } from '@/lib/system-settings';
@@ -61,6 +62,19 @@ export async function POST(request: Request) {
           error:
             'Phone Number ID and Access Token are required for Official API.',
         },
+        { status: 400 }
+      );
+    }
+
+    if (!isGraphId(phone_number_id.trim())) {
+      return NextResponse.json(
+        { error: 'Phone Number ID must contain digits only.' },
+        { status: 400 }
+      );
+    }
+    if (waba_id?.trim() && !isGraphId(waba_id.trim())) {
+      return NextResponse.json(
+        { error: 'WhatsApp Business Account ID must contain digits only.' },
         { status: 400 }
       );
     }
