@@ -22,6 +22,7 @@ import {
 } from '@/lib/property-interests';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import type { Contact } from '@/types';
+import { formatInrCompact } from '@/lib/format/currency';
 
 export const PREFERENCE_FLOW_KEY = 'preference_intake';
 export const PREFERENCE_FLOW_NAME = 'Buyer Preference Intake';
@@ -382,13 +383,6 @@ export function preferenceFormToContactUpdate(
 
 // ── Chat helpers ──────────────────────────────────────────────────
 
-const formatInr = (n: number) =>
-  n >= 10_000_000
-    ? `₹${(n / 10_000_000).toFixed(2).replace(/\.?0+$/, '')} Cr`
-    : n >= 100_000
-      ? `₹${(n / 100_000).toFixed(2).replace(/\.?0+$/, '')} Lakh`
-      : `₹${n.toLocaleString('en-IN')}`;
-
 function compactList(values: string[]): string {
   const shown = values.slice(0, 3);
   const remaining = values.length - shown.length;
@@ -403,8 +397,10 @@ export function summarizePreferenceUpdate(
 ): string {
   const lines: string[] = [];
   if (update.min_budget !== undefined || update.max_budget !== undefined) {
-    const min = update.min_budget != null ? formatInr(update.min_budget) : null;
-    const max = update.max_budget != null ? formatInr(update.max_budget) : null;
+    const min =
+      update.min_budget != null ? formatInrCompact(update.min_budget) : null;
+    const max =
+      update.max_budget != null ? formatInrCompact(update.max_budget) : null;
     if (min && max) lines.push(`${min}–${max} budget`);
     else if (min) lines.push(`budget from ${min}`);
     else if (max) lines.push(`budget up to ${max}`);

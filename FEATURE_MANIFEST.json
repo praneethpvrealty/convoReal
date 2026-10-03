@@ -654,6 +654,19 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "CTM-013",
+          "rule": "The Contacts tab counters on web (Active, Needs Review, Favourites, Transacted, Active Buyers, Archived) and mobile (the same less Archived) are read from the one account-scoped SQL aggregate contacts_tab_counts, never from per-tab count queries: it guards with is_account_member, skips merged and chain-only contacts and the team's own numbers (last eight digits of a profile phone), counts every tab but Archived over unarchived contacts, counts Transacted as active contacts with a won deal of the account, and Active Buyers as active contacts that are HOT or have enquired about a listing, so both surfaces show the same numbers for the same account.",
+          "tests": [
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-013]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261003174500_contacts_tab_counts.sql"
+          ]
         }
       ]
     },
@@ -2584,6 +2597,33 @@
           "guards": [
             "supabase/migrations/20260919043000_whatsapp_retired_number_autoreply.sql"
           ]
+        },
+        {
+          "id": "WAN-007",
+          "rule": "A phone number id or WABA id is digits only. The settings save, the sandbox upgrade and the admin sandbox routes answer 400 for anything else before Meta or the database is touched, and the Graph helpers that address a number or a WABA by id (verify, register, subscribe, subscribed apps, registration state, permission check, and the free-form text send) refuse a malformed id without sending a request.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/registration.test.ts",
+              "case": "[WAN-007]"
+            },
+            {
+              "file": "src/app/api/whatsapp/config/route.test.ts",
+              "case": "[WAN-007]"
+            },
+            {
+              "file": "src/app/api/whatsapp/migrate/route.test.ts",
+              "case": "[WAN-007]"
+            },
+            {
+              "file": "src/app/api/admin/sandbox-config/route.test.ts",
+              "case": "[WAN-007]"
+            },
+            {
+              "file": "src/app/api/admin/sandbox-tenants/route.test.ts",
+              "case": "[WAN-007]"
+            }
+          ],
+          "guards": ["src/lib/whatsapp/meta-api.ts"]
         }
       ]
     },
@@ -3275,6 +3315,14 @@
             { "file": "src/lib/pulse/queries.test.ts", "case": "[PLS-004]" },
             { "file": "mobile/lib/pulse-feed.test.ts", "case": "[PLS-004]" },
             { "file": "src/lib/mobile-parity.test.ts", "case": "[PLS-004]" }
+          ]
+        },
+        {
+          "id": "PLS-005",
+          "rule": "The viewed listings panel on web and mobile can be sorted by most views, fewest views, latest viewed or earliest viewed; the database applies the order before the listing bound, and every listing shows when it was last viewed.",
+          "tests": [
+            { "file": "src/lib/pulse/queries.test.ts", "case": "[PLS-005]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[PLS-005]" }
           ]
         }
       ]

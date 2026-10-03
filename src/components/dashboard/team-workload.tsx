@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Users } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { AgentLoadEntry } from '@/lib/dashboard/types';
@@ -51,13 +52,15 @@ export function TeamWorkload({
           <span className="text-xs font-medium text-slate-400">
             Unassigned queue
           </span>
-          <span
-            className={`text-sm font-black tabular-nums ${
+          <Link
+            href="/inbox"
+            aria-label={`Open inbox: ${unassignedCount} unassigned conversations`}
+            className={`text-sm font-black tabular-nums underline-offset-2 hover:underline ${
               unassignedCount > 0 ? 'text-amber-400' : 'text-slate-500'
             }`}
           >
             {unassignedCount}
-          </span>
+          </Link>
         </div>
       </div>
 

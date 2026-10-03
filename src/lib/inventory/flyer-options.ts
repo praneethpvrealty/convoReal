@@ -1,3 +1,5 @@
+import { formatCurrency } from '@/lib/format/currency';
+
 export const FLYER_TEMPLATES = [
   'minimalist',
   'glassmorphism',
@@ -88,23 +90,8 @@ export function parseFlyerOptions(
 }
 
 export function formatFlyerPrice(amount: number, currency: string): string {
-  if (currency === 'INR') {
-    if (amount >= 10000000) {
-      const cr = amount / 10000000;
-      return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-    }
-    if (amount >= 100000) {
-      const lakhs = amount / 100000;
-      return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
-    }
-    return `₹${amount.toLocaleString('en-IN')}`;
-  }
   try {
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount);
+    return formatCurrency(amount, currency);
   } catch {
     return `${currency} ${amount.toLocaleString()}`;
   }

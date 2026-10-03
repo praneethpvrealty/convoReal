@@ -262,7 +262,7 @@ describe('summarizePreferenceUpdate', () => {
       min_roi: 4.5,
       requires_tenanted: true,
     });
-    expect(text).toContain('₹50 Lakh');
+    expect(text).toContain('₹50 L');
     expect(text).toContain('₹2 Cr');
     expect(text).toContain('JP Nagar');
     expect(text).toContain('Vacant plot');

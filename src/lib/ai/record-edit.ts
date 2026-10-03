@@ -21,6 +21,7 @@ import {
 } from '@/lib/inventory/floor-tenancies';
 import { rentalYieldPercent } from '@/lib/inventory/rental-yield';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { formatInrPlain } from '@/lib/format/currency';
 
 export type EditableEntity = 'contact' | 'property';
 
@@ -108,16 +109,12 @@ export function buildRecordPatch(
   return patch;
 }
 
-function formatRupees(value: number): string {
-  return `₹${value.toLocaleString('en-IN')}`;
-}
-
 function formatTenancy(row: FloorTenancy): string {
   return [
     row.floor || 'Unspecified floor',
     row.tenant_name,
     row.monthly_rent !== null
-      ? `${formatRupees(row.monthly_rent)}/month`
+      ? `${formatInrPlain(row.monthly_rent)}/month`
       : null,
     row.lock_in_months !== null ? `${row.lock_in_months}-month lock-in` : null,
     row.notes,

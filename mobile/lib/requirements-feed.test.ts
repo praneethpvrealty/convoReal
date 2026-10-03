@@ -218,7 +218,7 @@ describe('preference merge', () => {
       ai: false,
     });
     expect(requirementBudgetLabel(row({ pref_budget_max: 15000000 }))).toEqual({
-      text: '₹1.50 Cr',
+      text: '₹1.5 Cr',
       ai: true,
     });
     expect(requirementBudgetLabel(row({ max_budget: 4500000 }))).toEqual({

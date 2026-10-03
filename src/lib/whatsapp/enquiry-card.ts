@@ -24,6 +24,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 // rather than rewritten so both cards reach the same person.
 import { resolveOwnerWhatsAppContact } from '@/lib/inventory/location-requests';
 import { listingStatusAgentLine } from '@/lib/inventory/listing-status';
+import { formatInrCompact } from '@/lib/format/currency';
 
 export const ENQUIRY_APPROVE_PREFIX = 'enq_approve:';
 export const ENQUIRY_REJECT_PREFIX = 'enq_reject:';
@@ -79,11 +80,7 @@ export interface EnquiryCardProperty {
 
 function inr(amount?: number | null): string {
   if (!amount || !Number.isFinite(amount)) return '';
-  if (amount >= 10000000)
-    return `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (amount >= 100000)
-    return `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} L`;
-  return `₹${amount.toLocaleString('en-IN')}`;
+  return formatInrCompact(amount);
 }
 
 /**

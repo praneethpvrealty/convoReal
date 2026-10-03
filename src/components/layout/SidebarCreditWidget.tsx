@@ -40,7 +40,7 @@ export function SidebarCreditWidget() {
       </div>
       <p className="text-lg leading-tight font-black text-white">
         {credits.total.toLocaleString()}
-        <span className="ml-1 text-xs font-medium text-slate-500">cr</span>
+        <span className="ml-1 text-xs font-medium text-slate-500">credits</span>
       </p>
       <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-slate-800">
         <div
