@@ -155,7 +155,7 @@ export function DocumentApprovalsPanel() {
               )}
             </div>
             {row.status === 'pending' && (
-              <div className="flex gap-2 pt-1">
+              <div className="flex items-center gap-2 pt-1">
                 <Button
                   size="sm"
                   className="h-7 flex-1 text-[11px]"
@@ -166,8 +166,8 @@ export function DocumentApprovalsPanel() {
                 </Button>
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-7 flex-1 border-red-500/30 text-[11px] text-red-400 hover:bg-red-500/10"
+                  variant="ghost"
+                  className="h-7 shrink-0 px-3 text-[11px] text-red-400/80 hover:bg-red-500/10 hover:text-red-400"
                   disabled={processingId === row.id}
                   onClick={() => void act(row, 'reject')}
                 >

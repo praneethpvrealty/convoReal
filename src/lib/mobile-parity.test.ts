@@ -31,6 +31,7 @@ import {
 import { TOURS } from '@/lib/copilot/tours';
 import { AGENCY_SHOWCASE_DESIGNS, SHOWCASE_STYLES } from '@/lib/showcase/style';
 import { JOURNEY_ITEM_SOURCE_LABELS } from '@/lib/journey/captured';
+import { splitLocationApprovals } from '@/lib/dashboard/approval-order';
 import { MESSAGES } from '@/lib/i18n/messages';
 import {
   MEDIA_SIZE_LIMITS,
@@ -485,6 +486,56 @@ describe('contact merge remains available on both surfaces', () => {
     expect(mobileMerge).toContain("'/api/contacts/merge'");
     expect(mobileMerge).toContain('Keep this record');
     expect(webMerge).toContain("'/api/contacts/merge'");
+  });
+});
+
+describe('Overview approvals read the same on web and mobile', () => {
+  it('orders location approvals with one shared rule and tucks approved ones away', () => {
+    const webPanel = webSource(
+      'components/dashboard/location-approvals-panel.tsx'
+    );
+    const mobilePanel = mobileSource('components/location-approvals.tsx');
+    const output = ts.transpileModule(mobileSource('lib/approval-order.ts'), {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ES2022,
+      },
+    }).outputText;
+    const sandboxModule: { exports: Record<string, unknown> } = {
+      exports: {},
+    };
+    runInNewContext(output, {
+      module: sandboxModule,
+      exports: sandboxModule.exports,
+    });
+    const mobileSplit = sandboxModule.exports
+      .splitLocationApprovals as typeof splitLocationApprovals;
+    const rows = [
+      { id: 'a1', status: 'approved' },
+      { id: 'w', status: 'pending', pending_consent_contact_name: 'Ravi' },
+      { id: 'r', status: 'rejected' },
+      { id: 'p1', status: 'pending', pending_consent_contact_name: null },
+      { id: 'a2', status: 'approved' },
+      { id: 'p2', status: 'pending' },
+      { id: 'x', status: 'expired' },
+    ];
+    expect(JSON.stringify(mobileSplit(rows))).toBe(
+      JSON.stringify(splitLocationApprovals(rows))
+    );
+
+    expect(webPanel).toContain('splitLocationApprovals(rows)');
+    expect(mobilePanel).toContain('splitLocationApprovals(rows)');
+    expect(webPanel).toContain('Recently approved ({approved.length})');
+    expect(mobilePanel).toContain('Recently approved ({approved.length})');
+  });
+
+  it('labels the document approval action Approve & send on both surfaces', () => {
+    expect(
+      webSource('components/dashboard/document-approvals-panel.tsx')
+    ).toContain('Approve &amp; send');
+    expect(mobileSource('components/document-approvals.tsx')).toContain(
+      'Approve & send'
+    );
   });
 });
 

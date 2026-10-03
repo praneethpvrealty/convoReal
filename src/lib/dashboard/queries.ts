@@ -356,7 +356,7 @@ export async function loadActivity(
     db
       .from('automation_logs')
       .select(
-        'id, trigger_event, status, created_at, automation:automations(name), contact:contacts(name, phone)'
+        'id, automation_id, trigger_event, status, created_at, automation:automations(name), contact:contacts(name, phone)'
       )
       .order('created_at', { ascending: false })
       .limit(10),
@@ -460,6 +460,7 @@ export async function loadActivity(
 
   for (const l of (autoLogs.data ?? []) as unknown as Array<{
     id: string;
+    automation_id: string | null;
     trigger_event: string;
     status: string;
     created_at: string;
@@ -475,11 +476,14 @@ export async function loadActivity(
     const contact = Array.isArray(l.contact) ? l.contact[0] : l.contact;
     const who = contact?.name || contact?.phone || 'a contact';
     const autoName = automation?.name || 'Automation';
+    const failed = l.status === 'failed';
     items.push({
       id: `auto-${l.id}`,
       kind: 'automation',
-      text: `Automation "${autoName}" ${l.status === 'failed' ? 'failed for' : 'triggered for'} ${who}`,
+      text: `Automation "${autoName}" ${failed ? 'failed for' : 'triggered for'} ${who}`,
       at: l.created_at,
+      href: l.automation_id ? `/automations/${l.automation_id}` : undefined,
+      failed,
     });
   }
 

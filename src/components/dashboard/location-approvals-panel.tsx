@@ -12,9 +12,11 @@ import {
   ArrowUp,
   User,
   Loader2,
+  ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { splitLocationApprovals } from '@/lib/dashboard/approval-order';
 
 interface ConsentHop {
   contact_id: string;
@@ -166,6 +168,122 @@ export function LocationApprovalsPanel() {
   // clean for accounts that never use guarded locations.
   if (rows === null || rows.length === 0) return null;
 
+  const { open, approved } = splitLocationApprovals(rows);
+
+  const renderRow = (row: LocationApprovalRow) => (
+    <div
+      key={row.id}
+      className="border-slate-850 space-y-2 rounded-xl border bg-slate-950/40 p-3.5 text-xs"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 space-y-0.5">
+          <p className="truncate font-bold text-white">
+            {row.property_title}
+            {row.property_code && (
+              <span className="ml-1.5 font-mono text-[10px] font-medium text-slate-500">
+                {row.property_code}
+              </span>
+            )}
+          </p>
+          <p className="flex items-center gap-1.5 text-slate-400">
+            <User className="size-3 shrink-0" />
+            {row.requester_name} · {row.requester_phone}
+            {row.identity_protected && (
+              <span
+                className="inline-flex items-center gap-0.5 text-[10px] text-amber-400/90"
+                title="Came through a co-broker share — identity stays with the co-broker"
+              >
+                <Lock className="size-2.5" /> protected
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="shrink-0">{statusChip(row)}</div>
+      </div>
+
+      {/* Consent journey */}
+      <div className="border-slate-850 space-y-1 border-t pt-2">
+        <p className="text-[10px] text-slate-500">
+          Requested {formatWhen(row.created_at)}
+          {row.via_contact_name
+            ? ` · via ${row.via_contact_name}'s link`
+            : ' · direct'}
+        </p>
+        {row.consent_chain.map((hop, i) => {
+          const label = hopLabel(hop.decision);
+          return (
+            <p
+              key={`${hop.contact_id}-${i}`}
+              className="flex items-center gap-1.5 text-[11px] text-slate-400"
+            >
+              <ArrowUp className="size-3 shrink-0 text-slate-600" />
+              <span className="font-semibold text-slate-300">
+                {hop.contact_name}
+              </span>
+              <span className={`font-bold ${label.className}`}>
+                {label.text}
+              </span>
+              <span className="text-slate-600">{formatWhen(hop.at)}</span>
+            </p>
+          );
+        })}
+        {row.status === 'pending' && row.pending_consent_contact_name && (
+          <p className="flex items-center gap-1.5 text-[11px] text-sky-400">
+            <Clock className="size-3 shrink-0" />
+            Waiting on {row.pending_consent_contact_name}
+            {row.consent_requested_at
+              ? ` since ${formatWhen(row.consent_requested_at)} (2h window)`
+              : ''}
+          </p>
+        )}
+        {row.status === 'approved' && (
+          <p className="flex items-center gap-1.5 text-[11px] text-emerald-400">
+            <CheckCircle className="size-3 shrink-0" />
+            Approved
+            {row.approved_at ? ` ${formatWhen(row.approved_at)}` : ''}
+            {row.share_sent_at ? ' · link sent via WhatsApp' : ''}
+            {row.view_count > 0 && (
+              <span className="text-primary ml-1 flex items-center gap-1">
+                <Eye className="size-3" />
+                {row.view_count > 1 ? `opened ${row.view_count}×` : 'opened'}
+              </span>
+            )}
+          </p>
+        )}
+      </div>
+
+      {row.status === 'pending' && !row.pending_consent_contact_name && (
+        <div className="border-slate-850 flex gap-2 border-t pt-2">
+          <Button
+            type="button"
+            size="sm"
+            disabled={processingId === row.id}
+            onClick={() => handleAction(row, 'approve')}
+            className="h-7 flex-1 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
+          >
+            {processingId === row.id ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <CheckCircle className="size-3" />
+            )}
+            Approve
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={processingId === row.id}
+            onClick={() => handleAction(row, 'reject')}
+            className="h-7 flex-1 border-red-900/50 text-xs font-bold text-red-400 hover:bg-red-950/20 hover:text-red-400"
+          >
+            <XCircle className="size-3" />
+            Reject
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
       <div className="mb-4 flex items-center justify-between">
@@ -198,121 +316,18 @@ export function LocationApprovalsPanel() {
       </div>
 
       <div className="max-h-96 space-y-2.5 overflow-y-auto pr-1">
-        {rows.map((row) => (
-          <div
-            key={row.id}
-            className="border-slate-850 space-y-2 rounded-xl border bg-slate-950/40 p-3.5 text-xs"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 space-y-0.5">
-                <p className="truncate font-bold text-white">
-                  {row.property_title}
-                  {row.property_code && (
-                    <span className="ml-1.5 font-mono text-[10px] font-medium text-slate-500">
-                      {row.property_code}
-                    </span>
-                  )}
-                </p>
-                <p className="flex items-center gap-1.5 text-slate-400">
-                  <User className="size-3 shrink-0" />
-                  {row.requester_name} · {row.requester_phone}
-                  {row.identity_protected && (
-                    <span
-                      className="inline-flex items-center gap-0.5 text-[10px] text-amber-400/90"
-                      title="Came through a co-broker share — identity stays with the co-broker"
-                    >
-                      <Lock className="size-2.5" /> protected
-                    </span>
-                  )}
-                </p>
-              </div>
-              <div className="shrink-0">{statusChip(row)}</div>
-            </div>
-
-            {/* Consent journey */}
-            <div className="border-slate-850 space-y-1 border-t pt-2">
-              <p className="text-[10px] text-slate-500">
-                Requested {formatWhen(row.created_at)}
-                {row.via_contact_name
-                  ? ` · via ${row.via_contact_name}'s link`
-                  : ' · direct'}
-              </p>
-              {row.consent_chain.map((hop, i) => {
-                const label = hopLabel(hop.decision);
-                return (
-                  <p
-                    key={`${hop.contact_id}-${i}`}
-                    className="flex items-center gap-1.5 text-[11px] text-slate-400"
-                  >
-                    <ArrowUp className="size-3 shrink-0 text-slate-600" />
-                    <span className="font-semibold text-slate-300">
-                      {hop.contact_name}
-                    </span>
-                    <span className={`font-bold ${label.className}`}>
-                      {label.text}
-                    </span>
-                    <span className="text-slate-600">{formatWhen(hop.at)}</span>
-                  </p>
-                );
-              })}
-              {row.status === 'pending' && row.pending_consent_contact_name && (
-                <p className="flex items-center gap-1.5 text-[11px] text-sky-400">
-                  <Clock className="size-3 shrink-0" />
-                  Waiting on {row.pending_consent_contact_name}
-                  {row.consent_requested_at
-                    ? ` since ${formatWhen(row.consent_requested_at)} (2h window)`
-                    : ''}
-                </p>
-              )}
-              {row.status === 'approved' && (
-                <p className="flex items-center gap-1.5 text-[11px] text-emerald-400">
-                  <CheckCircle className="size-3 shrink-0" />
-                  Approved
-                  {row.approved_at ? ` ${formatWhen(row.approved_at)}` : ''}
-                  {row.share_sent_at ? ' · link sent via WhatsApp' : ''}
-                  {row.view_count > 0 && (
-                    <span className="text-primary ml-1 flex items-center gap-1">
-                      <Eye className="size-3" />
-                      {row.view_count > 1
-                        ? `opened ${row.view_count}×`
-                        : 'opened'}
-                    </span>
-                  )}
-                </p>
-              )}
-            </div>
-
-            {row.status === 'pending' && !row.pending_consent_contact_name && (
-              <div className="border-slate-850 flex gap-2 border-t pt-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={processingId === row.id}
-                  onClick={() => handleAction(row, 'approve')}
-                  className="h-7 flex-1 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
-                >
-                  {processingId === row.id ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    <CheckCircle className="size-3" />
-                  )}
-                  Approve
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={processingId === row.id}
-                  onClick={() => handleAction(row, 'reject')}
-                  className="h-7 flex-1 border-red-900/50 text-xs font-bold text-red-400 hover:bg-red-950/20 hover:text-red-400"
-                >
-                  <XCircle className="size-3" />
-                  Reject
-                </Button>
-              </div>
-            )}
-          </div>
-        ))}
+        {open.map(renderRow)}
+        {approved.length > 0 && (
+          <details className="group/approved">
+            <summary className="cursor-pointer list-none py-1 text-[11px] font-semibold text-slate-400 hover:text-white">
+              <span className="inline-flex items-center gap-1">
+                <ChevronRight className="size-3 transition-transform group-open/approved:rotate-90" />
+                Recently approved ({approved.length})
+              </span>
+            </summary>
+            <div className="mt-2 space-y-2.5">{approved.map(renderRow)}</div>
+          </details>
+        )}
       </div>
     </div>
   );

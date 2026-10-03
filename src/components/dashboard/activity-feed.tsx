@@ -9,6 +9,7 @@ import {
   Radio,
   Zap,
   Inbox,
+  AlertTriangle,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { ActivityItem, ActivityKind } from '@/lib/dashboard/types';
@@ -29,6 +30,11 @@ interface KindTheme {
   /** Tailwind classes for the round icon badge + label color. */
   badge: string;
 }
+
+const FAILED_THEME: KindTheme = {
+  icon: AlertTriangle,
+  badge: 'bg-red-500/15 text-red-400',
+};
 
 const KIND_THEME: Record<ActivityKind, KindTheme> = {
   message: { icon: MessageSquare, badge: 'bg-blue-500/10 text-blue-400' },
@@ -83,8 +89,10 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
         <>
           <ul className="divide-y divide-slate-900/60">
             {visible.map((it, i) => {
-              const theme = KIND_THEME[it.kind];
+              const failed = it.kind === 'automation' && it.failed;
+              const theme = failed ? FAILED_THEME : KIND_THEME[it.kind];
               const Icon = theme.icon;
+              const href = failed ? (it.href ?? '/automations') : it.href;
               // Alternating row background for scanability — dark-theme
               // translation of the spec's white / #f9fafb stripes.
               const stripe = i % 2 === 0 ? 'bg-transparent' : 'bg-slate-900/40';
@@ -98,7 +106,12 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
                   >
                     <Icon className="h-3.5 w-3.5" />
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-slate-200">
+                  <span
+                    className={cn(
+                      'min-w-0 flex-1 truncate text-sm',
+                      failed ? 'text-red-300' : 'text-slate-200'
+                    )}
+                  >
                     {it.text}
                   </span>
                   <span className="flex-shrink-0 text-xs text-slate-500 tabular-nums">
@@ -114,8 +127,8 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
                     'transition-colors hover:bg-slate-800/40'
                   )}
                 >
-                  {it.href ? (
-                    <Link href={it.href} className="block">
+                  {href ? (
+                    <Link href={href} className="block">
                       {row}
                     </Link>
                   ) : (
