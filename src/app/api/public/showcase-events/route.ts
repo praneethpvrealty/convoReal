@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getCurrentAccount } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { resolveSellerPage } from '@/lib/showcase/seller-page';
@@ -18,13 +18,6 @@ import { resolveSellerPage } from '@/lib/showcase/seller-page';
 //     visitor as a guest referred by that contact, never as the contact
 //   - batch capped, event types whitelisted, metadata size-clamped
 // No IP or user-agent is stored.
-
-function adminClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 const EVENT_TYPES = new Set([
   'open',
@@ -105,7 +98,7 @@ export async function POST(request: NextRequest) {
       return new NextResponse(null, { status: 204 });
     }
 
-    const db = adminClient();
+    const db = supabaseAdmin();
 
     const { data: account } = await db
       .from('accounts')

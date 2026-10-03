@@ -130,7 +130,7 @@ function makeBuilder(table: string) {
   return builder;
 }
 
-vi.mock('@/lib/automations/admin-client', () => ({
+vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({ from: (table: string) => makeBuilder(table) }),
 }));
 

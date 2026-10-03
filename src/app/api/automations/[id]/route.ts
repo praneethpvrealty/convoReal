@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentAccount } from '@/lib/auth/account'
 import { hasMinRole } from '@/lib/auth/roles'
-import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import {
   loadStepsTree,
   replaceSteps,

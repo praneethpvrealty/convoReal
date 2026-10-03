@@ -10,7 +10,7 @@
 // paths (chatbot soft-burn) should not `await` these.
 // ============================================================
 
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 
 interface ManagerProfile {
@@ -20,7 +20,7 @@ interface ManagerProfile {
 }
 
 async function getOrgManagerProfile(accountId: string): Promise<ManagerProfile | null> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
   const { data, error } = await supabase
     .from('profiles')
     .select('user_id, phone, full_name')

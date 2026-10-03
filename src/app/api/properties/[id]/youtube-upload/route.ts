@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import Redis from 'ioredis';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
  * Queue a manual YouTube upload of a property's rendered listing

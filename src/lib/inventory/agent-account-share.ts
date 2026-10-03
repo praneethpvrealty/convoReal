@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 import type { AccountContext } from '@/lib/auth/account';
 import { UserFacingError } from '@/lib/auth/account';
@@ -57,10 +58,7 @@ export async function lookupAgentShareTarget(
     );
   }
 
-  const admin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const admin = supabaseAdmin();
   const { data: recipientRows, error } = await admin.rpc(
     'find_agent_profile_accounts',
     { p_phone_last10: phoneLast10 }

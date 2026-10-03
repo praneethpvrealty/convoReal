@@ -58,7 +58,7 @@ const mockCandidates: Partial<Property>[] = [
 ];
 
 // Mock the admin client
-vi.mock('@/lib/automations/admin-client', () => {
+vi.mock('@/lib/supabase/admin', () => {
   const mockSupabase = {
     from: vi.fn().mockImplementation(() => {
       const builder = {

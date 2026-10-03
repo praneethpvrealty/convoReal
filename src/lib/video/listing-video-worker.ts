@@ -20,7 +20,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { syncPropertyVideoToYouTube } from '@/lib/youtube/upload';
 import { refundCredits } from '@/lib/credits/burn';

@@ -15,7 +15,7 @@ import type {
   AssignConversationStepConfig,
 } from '@/types'
 import { findConversation } from '@/lib/conversations/resolve'
-import { supabaseAdmin } from './admin-client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { engineSendText, engineSendTemplate } from './meta-send'
 import {
   loadTemplateForContact,

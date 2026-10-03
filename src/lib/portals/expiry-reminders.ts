@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notifications/create';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 

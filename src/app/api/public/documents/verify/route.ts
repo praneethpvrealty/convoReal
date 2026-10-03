@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/automations/admin-client";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { parsePropertyDocuments } from "@/lib/inventory/documents";
 import { trackDocumentView } from "@/lib/documents/track-view";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";

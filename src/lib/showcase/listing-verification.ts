@@ -16,7 +16,8 @@
 // ============================================================
 
 import { randomInt } from 'node:crypto';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { parseListingFromImageOrText } from '@/lib/ai/gemini';
 import {
   validateDraft,
@@ -30,17 +31,6 @@ import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { recordRequirementResponse } from '@/lib/requirements/respond';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
-
-let _admin: SupabaseClient | null = null;
-function admin(): SupabaseClient {
-  if (!_admin) {
-    _admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-  }
-  return _admin;
-}
 
 /** Download a submitted brochure from our own storage. Bounded and
  *  non-fatal: a missing or oversized object degrades to the text-only
@@ -114,7 +104,7 @@ export async function processListingVerification(
   const code = extractSubmissionCode(contentText);
   if (!code) return false;
 
-  const db = admin();
+  const db = supabaseAdmin();
 
   const { data: submission } = await db
     .from('public_listing_submissions')

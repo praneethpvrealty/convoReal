@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
@@ -62,10 +62,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    // eslint-disable-next-line convoreal/no-inline-service-role-client -- verifies the reset token, not a client
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseServiceKey) {
       return NextResponse.json(
         { error: 'Server configuration error' },
         { status: 500 }
@@ -81,14 +81,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    const admin = supabaseAdmin();
 
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    const { error } = await admin.auth.admin.updateUserById(userId, {
       password,
     });
 

@@ -45,7 +45,7 @@ function makeAdmin() {
   };
 }
 
-vi.mock('@/lib/automations/admin-client', () => ({ supabaseAdmin: () => makeAdmin() }));
+vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: () => makeAdmin() }));
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: () => ({ success: true }),
   rateLimitResponse: () => new Response(null, { status: 429 }),

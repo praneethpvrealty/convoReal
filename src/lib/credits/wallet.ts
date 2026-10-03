@@ -5,7 +5,7 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { CreditWallet } from './types';
 
 function generateReferralCode(seed: string): string {
@@ -29,7 +29,7 @@ export async function getOrCreateWallet(
   // user-supplied input, since RLS no longer scopes this to one account.
   client?: SupabaseClient,
 ): Promise<CreditWallet> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
   if (client) {
     // Suppress lint warning for unused parameter while preserving signature compatibility
   }

@@ -1,5 +1,5 @@
 import Redis from 'ioredis';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import {
   isAuthError,

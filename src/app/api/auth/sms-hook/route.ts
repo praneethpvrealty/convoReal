@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api';
 import { getSandboxSystemConfig } from '@/lib/system-settings';
@@ -152,11 +152,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Verification code not found' }, { status: 400 });
     }
 
-    // Initialize Supabase Admin client
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const supabase = supabaseAdmin();
 
     // ─────────────────────────────────────────────────────────────
     // OTP Sender Resolution: Always use the admin/super_admin

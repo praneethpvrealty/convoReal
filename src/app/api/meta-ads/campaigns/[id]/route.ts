@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { setObjectStatus, setAdSetDailyBudget, isTokenError } from '@/lib/meta-ads/client';
 import { inrToPaise, validateDailyBudgetInr } from '@/lib/meta-ads/campaign-build';

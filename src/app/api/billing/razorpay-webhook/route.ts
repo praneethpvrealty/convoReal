@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { Plan } from '@/lib/billing/types';
 import { creditPurchase, grantSubscriptionCredits } from '@/lib/credits/grant';
 import { processReferralConversion } from '@/lib/credits/referral';
@@ -23,7 +23,7 @@ function verifyRazorpaySignature(body: string, signature: string, secret: string
 // Maps Razorpay plan IDs back to our internal plan name.
 // Built from the same env vars used in create-subscription.
 async function handleMarketplacePayment(
-  admin: ReturnType<typeof billingAdmin>,
+  admin: ReturnType<typeof supabaseAdmin>,
   orderId: string,
   paymentId: string,
 ): Promise<NextResponse> {
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const admin = billingAdmin();
+  const admin = supabaseAdmin();
   const eventType: string = event.event;
   const payload = event.payload as Record<string, Record<string, unknown>>;
 

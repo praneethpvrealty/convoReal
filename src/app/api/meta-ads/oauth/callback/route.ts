@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { requireRole } from '@/lib/auth/account';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import { verifyOAuthState } from '@/lib/meta-ads/oauth-state';
 import {

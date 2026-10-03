@@ -17,7 +17,7 @@
 // can retry).
 // ============================================================
 
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import {
   sanitizePhoneForMeta,

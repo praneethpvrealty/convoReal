@@ -12,7 +12,7 @@ const h = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/lib/billing/admin-client', () => {
+vi.mock('@/lib/supabase/admin', () => {
   const { state } = h;
 
   function builder(table: string) {
@@ -63,7 +63,7 @@ vi.mock('@/lib/billing/admin-client', () => {
   }
 
   return {
-    billingAdmin: () => ({
+    supabaseAdmin: () => ({
       from: (table: string) => builder(table),
       rpc: (fn: string, args: Record<string, unknown>) => {
         state.rpcCalls.push({ fn, args });

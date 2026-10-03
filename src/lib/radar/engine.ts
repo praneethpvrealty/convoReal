@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { Contact, Property, MatchEventTarget } from '@/types';
 import {
   compareForBuyer,
@@ -20,15 +21,8 @@ import {
 // Lazy service-role client for callers that only hold an RLS-scoped
 // client (match_events has no member INSERT policy — writes are
 // engine-only by design).
-let _adminClient: SupabaseClient | null = null;
 export function radarAdminClient(): SupabaseClient {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-  }
-  return _adminClient;
+  return supabaseAdmin();
 }
 
 /**

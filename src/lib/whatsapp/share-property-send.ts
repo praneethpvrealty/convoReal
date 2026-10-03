@@ -1,7 +1,5 @@
-import {
-  createClient as createServiceClient,
-  type SupabaseClient,
-} from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import {
   findConversation,
@@ -41,13 +39,6 @@ import type { MessageTemplate, Property } from '@/types';
 // Extracted from /api/whatsapp/share-property so the approve route can
 // run the same send without a second HTTP hop from the client — these
 // rules are subtle enough that a second copy would drift.
-
-function adminClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -232,7 +223,7 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
 /** The contact's conversation (newest first) and whether the 24-hour
  *  window is open — one shape so both send paths share the lookup. */
 async function sessionState(
-  db: ReturnType<typeof adminClient>,
+  db: SupabaseClient,
   accountId: string,
   contactId: string
 ): Promise<{ conversationId: string | null; open: boolean }> {
@@ -279,7 +270,7 @@ export async function sendPropertyToContact(opts: {
   const chosenHeader = opts.headerImage
     ? storagePublicUrl(opts.headerImage)
     : null;
-  const db = adminClient();
+  const db = supabaseAdmin();
   const { conversationId: existingConvId, open } = await sessionState(
     db,
     accountId,

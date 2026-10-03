@@ -28,7 +28,7 @@ vi.mock('@/lib/auth/account', () => ({
   toErrorResponse: (err: unknown) => Response.json({ error: String(err) }, { status: 403 }),
 }));
 
-vi.mock('@/lib/automations/admin-client', () => ({ supabaseAdmin: () => ({}) }));
+vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: () => ({}) }));
 vi.mock('@/lib/appointments/update-notification', () => ({
   sendAppointmentUpdateNotifications: async () => ({ sent: 0, failed: 0, recipients: 0 }),
 }));

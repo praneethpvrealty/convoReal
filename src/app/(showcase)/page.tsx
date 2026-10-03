@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { ShowcaseView } from '@/components/showcase/showcase-view';
 import { AuthorityLinks } from '@/components/showcase/authority-links';
 import { MarketingLanding } from '@/components/landing/marketing-landing';

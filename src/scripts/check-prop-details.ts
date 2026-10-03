@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../lib/automations/admin-client';
+import { supabaseAdmin } from '../lib/supabase/admin';
 
 async function checkDetails() {
   const supabase = supabaseAdmin();

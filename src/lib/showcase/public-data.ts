@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { toPublicListingView } from '@/lib/inventory/showcase-visibility';
 import type { GrantedReveals } from '@/lib/inventory/share-grants';
 import type {

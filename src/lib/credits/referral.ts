@@ -14,7 +14,7 @@
 // pending state needed.
 // ============================================================
 
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getOrCreateWallet } from './wallet';
 import { notifyManagerReferralConverted, notifyReferrerPendingVoided } from './notify';
 import {
@@ -41,7 +41,7 @@ export async function processReferralSignup(
   refereeAccountId: string,
   referralCode: string,
 ): Promise<{ created: boolean; reason?: string }> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
 
   const { data: referrerWallet } = await supabase
     .from('credit_wallets')
@@ -123,7 +123,7 @@ export async function processReferralSignup(
  * and processes it. Called at the start of the activation cron.
  */
 export async function processUnclaimedReferralSignups(): Promise<{ processed: number; checked: number }> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
 
   const { data: candidates, error } = await supabase
     .from('accounts')
@@ -152,7 +152,7 @@ export async function processUnclaimedReferralSignups(): Promise<{ processed: nu
 /** Promotes one referral's pending reward to spendable after its
  *  7-day activation window is confirmed. */
 export async function activateReferral(referral: Referral): Promise<void> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
 
   const { error: promoteErr } = await supabase.rpc('promote_pending_referral_tx', {
     p_account_id: referral.referrer_account_id,
@@ -179,7 +179,7 @@ export async function activateReferral(referral: Referral): Promise<void> {
  * abuse-prevention rule).
  */
 export async function activatePendingReferrals(): Promise<{ activated: number; checked: number }> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
   const cutoff = new Date(Date.now() - ACTIVATION_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: candidates, error } = await supabase
@@ -219,7 +219,7 @@ export async function activatePendingReferrals(): Promise<{ activated: number; c
 /** Called when a referral is confirmed as abuse before activation —
  *  voids the pending reward and notifies the referrer. */
 export async function voidPendingReferral(referral: Referral, reason: string): Promise<void> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
 
   const { error: voidErr } = await supabase.rpc('void_pending_referral_tx', {
     p_account_id: referral.referrer_account_id,
@@ -249,7 +249,7 @@ export async function processReferralConversion(
   refereeAccountId: string,
   newPlan: SubscriptionPlanForCredits,
 ): Promise<void> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
 
   const { data: referral } = await supabase
     .from('referrals')
@@ -323,7 +323,7 @@ export async function payoutPassiveEarn(referral: Referral): Promise<{ paid: boo
   }
   if (!referral.referee_plan || !(referral.referee_plan in MONTHLY_GRANT)) return { paid: false };
 
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
   const { data: wallet } = await supabase
     .from('credit_wallets')
     .select('referral_tier')
@@ -353,7 +353,7 @@ export async function payoutPassiveEarn(referral: Referral): Promise<{ paid: boo
 
 /** Batch job for the monthly passive-earn cron. */
 export async function payoutPassiveEarnAll(): Promise<{ paid: number; checked: number }> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
   const now = new Date().toISOString();
 
   const { data: candidates, error } = await supabase

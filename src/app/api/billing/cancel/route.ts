@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getPlanLimits } from '@/lib/billing/gates';
 
 // POST /api/billing/cancel
@@ -43,7 +43,7 @@ export async function POST() {
       );
     }
 
-    const admin = billingAdmin();
+    const admin = supabaseAdmin();
     await admin
       .from('subscriptions')
       .update({ status: 'canceled', canceled_at: new Date().toISOString() })

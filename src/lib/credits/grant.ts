@@ -4,7 +4,7 @@
 // `subscription.activated` / `subscription.charged`.
 // ============================================================
 
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getOrCreateWallet } from './wallet';
 import { notifyManagerCreditsAdded } from './notify';
 import {
@@ -38,7 +38,7 @@ export async function grantSubscriptionCredits(
   cycle: BillingCycleForCredits,
   opts: GrantSubscriptionOptions,
 ): Promise<void> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
   await getOrCreateWallet(accountId, supabase);
 
   const monthlyAmount = MONTHLY_GRANT[plan];
@@ -83,7 +83,7 @@ export interface CreditPurchaseInput {
 export async function creditPurchase(
   input: CreditPurchaseInput,
 ): Promise<{ credited: boolean; credits: number }> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
 
   const { data: existingTx } = await supabase
     .from('credit_transactions')
@@ -144,7 +144,7 @@ export async function getPackagePrice(
   packageKey: string,
   currency: string,
 ): Promise<{ pkg: CreditPackage; price: CreditPackagePrice } | null> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
 
   const { data: pkg } = await supabase
     .from('credit_packages')

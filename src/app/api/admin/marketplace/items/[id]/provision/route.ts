@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/flows/admin-client";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 /**
  * POST /api/admin/marketplace/items/[id]/provision

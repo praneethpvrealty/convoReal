@@ -83,7 +83,7 @@ function makeAdmin() {
   };
 }
 
-vi.mock('@/lib/automations/admin-client', () => ({
+vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => makeAdmin(),
 }));
 vi.mock('@/lib/rate-limit', () => ({

@@ -12,7 +12,7 @@ const state = {
   catalogueError: null as Error | null,
 };
 
-vi.mock('@/lib/automations/admin-client', () => {
+vi.mock('@/lib/supabase/admin', () => {
   const builder = (table: string) => {
     let isVersionProbe = false;
 

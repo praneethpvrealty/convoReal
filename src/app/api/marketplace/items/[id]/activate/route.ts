@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentAccount } from "@/lib/auth/account";
-import { supabaseAdmin } from "@/lib/flows/admin-client";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 /**
  * POST /api/marketplace/items/[id]/activate

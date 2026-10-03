@@ -7,7 +7,7 @@
 // breaks the in-app / WhatsApp channels.
 // ============================================================
 
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const EXPO_PUSH_ENDPOINT = 'https://exp.host/--/api/v2/push/send';
 

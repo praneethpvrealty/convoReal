@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { sendTransactionalEmail } from '@/lib/email';
 import crypto from 'crypto';
@@ -28,26 +28,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    // eslint-disable-next-line convoreal/no-inline-service-role-client -- signs the reset token, not a client
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseServiceKey) {
       return NextResponse.json(
         { error: 'Supabase admin client is not configured' },
         { status: 500 }
       );
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    const admin = supabaseAdmin();
 
     // Look up the user by email so we can embed their ID in the token
     const { data: userList, error: listError } =
-      await supabaseAdmin.auth.admin.listUsers();
+      await admin.auth.admin.listUsers();
 
     if (listError) {
       return NextResponse.json({ error: listError.message }, { status: 500 });

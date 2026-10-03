@@ -13,8 +13,8 @@ const h = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/lib/billing/admin-client', () => ({
-  billingAdmin: () => ({
+vi.mock('@/lib/supabase/admin', () => ({
+  supabaseAdmin: () => ({
     rpc: (fn: string, args: Record<string, unknown>) => {
       h.state.rpcCalls.push({ fn, args });
       return Promise.resolve({ data: [h.state.rpcResponse], error: null });

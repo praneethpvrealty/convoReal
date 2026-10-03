@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentAccount } from '@/lib/auth/account'
 import { hasMinRole, type AccountRole } from '@/lib/auth/roles'
-import { supabaseAdmin } from '@/lib/flows/admin-client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 /**
  * GET   /api/flows/[id]  — fetch one flow with its nodes.

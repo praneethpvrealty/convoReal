@@ -3,6 +3,7 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import supabaseWriteGuard from "./eslint-rules/supabase-write-guard.cjs";
 import noEnvLocalInUnitTests from "./eslint-rules/no-env-local-in-unit-tests.cjs";
+import noInlineServiceRoleClient from "./eslint-rules/no-inline-service-role-client.cjs";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -13,6 +14,7 @@ const eslintConfig = defineConfig([
         rules: {
           "supabase-write-guard": supabaseWriteGuard,
           "no-env-local-in-unit-tests": noEnvLocalInUnitTests,
+          "no-inline-service-role-client": noInlineServiceRoleClient,
         },
       },
     },
@@ -40,6 +42,18 @@ const eslintConfig = defineConfig([
     // credentials on purpose, and `npm test` never runs them.
     files: ["**/*.integration.test.ts"],
     rules: { "convoreal/no-env-local-in-unit-tests": "off" },
+  },
+  {
+    // One service-role factory, one mock path: every RLS-bypassing
+    // module calls supabaseAdmin() rather than reading the key itself.
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    ignores: [
+      "src/lib/supabase/admin.ts",
+      "src/scripts/**",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+    ],
+    rules: { "convoreal/no-inline-service-role-client": "error" },
   },
   {
     rules: { "@next/next/no-location-assign-relative-destination": "error" },
