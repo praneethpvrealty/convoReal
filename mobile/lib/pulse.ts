@@ -1,5 +1,6 @@
 import {
   PULSE_FEED_PAGE_SIZE,
+  PULSE_VIEWED_LISTINGS_LIMIT,
   pulseFeedCursorFilter,
   type PulseEvent,
   type PulseFeedCursor,
@@ -83,7 +84,7 @@ async function fetchPulseTopPropertiesUnbounded(
 ): Promise<PulseTopProperty[]> {
   const { data, error } = await supabase.rpc('pulse_top_properties', {
     p_account_id: accountId,
-    p_limit: 5,
+    p_limit: PULSE_VIEWED_LISTINGS_LIMIT,
   });
   if (error) throw error;
   return (

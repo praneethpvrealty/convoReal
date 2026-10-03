@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ShowcaseEvent, Property, Contact } from '@/types';
 import {
   PULSE_FEED_PAGE_SIZE,
+  PULSE_VIEWED_LISTINGS_LIMIT,
   pulseFeedCursorFilter,
   type PulseFeedCursor,
 } from './feed-page';
@@ -52,7 +53,10 @@ export async function loadPulseStats(
 ): Promise<PulseStats> {
   const [statsRes, topRes] = await Promise.all([
     db.rpc('pulse_stats', { p_account_id: accountId }).maybeSingle(),
-    db.rpc('pulse_top_properties', { p_account_id: accountId, p_limit: 5 }),
+    db.rpc('pulse_top_properties', {
+      p_account_id: accountId,
+      p_limit: PULSE_VIEWED_LISTINGS_LIMIT,
+    }),
   ]);
 
   if (statsRes.error) throw statsRes.error;

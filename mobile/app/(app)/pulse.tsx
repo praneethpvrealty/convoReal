@@ -7,6 +7,7 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -40,6 +41,8 @@ import {
   pulseVisitorLabel,
   groupEventsByVisitor,
   nextPulseFeedCursor,
+  nextRenderedListingCount,
+  PULSE_LISTINGS_RENDER_STEP,
   visitorContactRoute,
   type DedupedPulseEvent,
   type PulseFeedCursor,
@@ -76,6 +79,9 @@ export default function PulseScreen() {
   const [filter, setFilter] = useState<FeedFilter>('all');
   const [expandedVisitors, setExpandedVisitors] = useState<Set<string>>(
     new Set()
+  );
+  const [renderedListings, setRenderedListings] = useState(
+    PULSE_LISTINGS_RENDER_STEP
   );
   const [viewersFor, setViewersFor] = useState<{
     id: string;
@@ -182,11 +188,17 @@ export default function PulseScreen() {
               <InlineStatus text="Some engagement data could not be loaded. Pull to retry." />
             ) : null}
 
-            <SectionLabel text="Top listings" />
+            <SectionLabel
+              text={
+                top.data && top.data.length > 0
+                  ? `Viewed listings (${top.data.length})`
+                  : 'Viewed listings'
+              }
+            />
             {top.isLoading ? (
-              <InlineStatus text="Loading top listings…" loading />
+              <InlineStatus text="Loading viewed listings…" loading />
             ) : top.isError ? (
-              <InlineStatus text="Top listings unavailable. Pull to retry." />
+              <InlineStatus text="Viewed listings unavailable. Pull to retry." />
             ) : !top.data || top.data.length === 0 ? (
               <Text
                 style={[
@@ -197,8 +209,24 @@ export default function PulseScreen() {
                 No properties viewed yet.
               </Text>
             ) : (
-              <View style={{ gap: spacing.sm }}>
-                {top.data.map((p) => (
+              <ScrollView
+                nestedScrollEnabled
+                style={styles.listingScroller}
+                contentContainerStyle={{ gap: spacing.sm }}
+                accessibilityLabel="Viewed listings"
+                scrollEventThrottle={100}
+                onScroll={({ nativeEvent }) => {
+                  const total = top.data.length;
+                  setRenderedListings((rendered) =>
+                    nextRenderedListingCount(rendered, total, {
+                      offsetY: nativeEvent.contentOffset.y,
+                      viewportHeight: nativeEvent.layoutMeasurement.height,
+                      contentHeight: nativeEvent.contentSize.height,
+                    })
+                  );
+                }}
+              >
+                {top.data.slice(0, renderedListings).map((p) => (
                   <TopListingCard
                     key={p.propertyId}
                     listing={p}
@@ -207,7 +235,7 @@ export default function PulseScreen() {
                     }
                   />
                 ))}
-              </View>
+              </ScrollView>
             )}
 
             <SectionLabel
@@ -690,6 +718,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     textAlign: 'center',
   },
+  listingScroller: { maxHeight: 440, flexGrow: 0 },
   listing: {
     borderWidth: 1,
     borderRadius: radius.lg,
