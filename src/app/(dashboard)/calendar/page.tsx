@@ -34,8 +34,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { CalendarLoader } from '@/components/ui/calendar-loader';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { CalendarGridSkeleton } from '@/components/calendar/calendar-skeleton';
+import { MonthCell } from '@/components/calendar/month-cell';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { SearchableContactMultiSelect } from '@/components/ui/searchable-contact-multi-select';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
@@ -56,26 +56,21 @@ import { TasksList } from '@/components/calendar/tasks-list';
 import {
   CalendarEvent,
   TeamMember,
-  ARCHIVED_EVENT_CHIP,
   DEAL_DATE_META,
   EVENT_TYPES,
   EVENT_TYPE_KEYS,
   EventTypeKey,
   EventFieldKey,
   eventTypeFields,
-  eventTypeMeta,
-  memberInitials,
 } from '@/components/calendar/event-types';
 import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from '@/lib/copilot/actions';
 import {
-  deadlineLabel,
   loadDealDeadlines,
   todayDateKey,
   type DealDeadline,
 } from '@/lib/deals/deadlines';
 import {
   DEAL_DATE_HORIZON_DAYS,
-  DEAL_DATE_KIND_LABELS,
   dealDateHref,
   dealDatesForMember,
   dealDateKey,
@@ -101,6 +96,13 @@ import {
   type ArchivedView,
   type TaskSortMode,
 } from '@/lib/calendar/tasks-view';
+import {
+  CLEAR_COMPLETED_LABEL,
+  DONE_TODOS_LABEL,
+  clearCompletedPrompt,
+  completedTodoIds,
+  splitTodosByCompletion,
+} from '@/lib/calendar/todo-groups';
 
 const EMPTY_EXTRAS: Record<EventFieldKey, string> = {
   agenda: '',
@@ -178,8 +180,6 @@ export default function CalendarPage() {
   const [view, setView] = useState<ViewMode>('month');
   const [appointments, setAppointments] = useState<CalendarEvent[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [contacts, setContacts] = useState<SimpleContact[]>([]);
-  const [properties, setProperties] = useState<SimpleProperty[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -233,7 +233,10 @@ export default function CalendarPage() {
     'medium'
   );
 
-  // Tasks list under the calendar (CAL-010)
+  const [doneTodosOpen, setDoneTodosOpen] = useState(false);
+  const [clearingTodos, setClearingTodos] = useState(false);
+
+  // Schedule list under the calendar (CAL-010)
   const [tasksOpen, setTasksOpen] = useState(true);
   const archivedViewWrites = useRef<Promise<void>>(Promise.resolve());
   const archivedViewLatest = useRef(0);
@@ -270,43 +273,27 @@ export default function CalendarPage() {
     try {
       setLoading(true);
 
-      const { data: appts, error: apptError } = await supabase
-        .from('appointments')
-        .select(
-          '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
-        )
-        .eq('account_id', accountId)
-        .order('start_time', { ascending: true });
+      const [apptResult, todoResult] = await Promise.all([
+        supabase
+          .from('appointments')
+          .select(
+            '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
+          )
+          .eq('account_id', accountId)
+          .order('start_time', { ascending: true }),
+        supabase
+          .from('todos')
+          .select(
+            '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
+          )
+          .eq('account_id', accountId)
+          .order('created_at', { ascending: true }),
+      ]);
 
-      if (apptError) throw apptError;
-      setAppointments((appts || []) as CalendarEvent[]);
-
-      const { data: todoList, error: todoError } = await supabase
-        .from('todos')
-        .select(
-          '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
-        )
-        .eq('account_id', accountId)
-        .order('created_at', { ascending: true });
-
-      if (todoError) throw todoError;
-      setTodos(todoList || []);
-
-      const { data: contactsList } = await supabase
-        .from('contacts')
-        .select('id, name, phone, last_inquired_property_id, name_tag')
-        .eq('account_id', accountId)
-        .order('name');
-      setContacts(contactsList || []);
-
-      const { data: propsList } = await supabase
-        .from('properties')
-        .select(
-          'id, title, property_code, location, sublocality, tags, price, type, bedrooms, area_sqft, area_unit, images'
-        )
-        .eq('account_id', accountId)
-        .order('title');
-      setProperties(propsList || []);
+      if (apptResult.error) throw apptResult.error;
+      if (todoResult.error) throw todoResult.error;
+      setAppointments((apptResult.data || []) as CalendarEvent[]);
+      setTodos(todoResult.data || []);
     } catch (err) {
       console.error('[CALENDAR PAGE] loadData caught error:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -321,6 +308,44 @@ export default function CalendarPage() {
       loadData();
     }
   }, [accountId, loadData]);
+
+  // The schedule dialog's contact and property pickers load on first
+  // open rather than with the page: both lists grow with the account.
+  const pickersQuery = useQuery({
+    queryKey: ['calendar-pickers', accountId],
+    enabled: !!accountId && isApptModalOpen,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const [contactResult, propertyResult] = await Promise.all([
+        supabase
+          .from('contacts')
+          .select('id, name, phone, last_inquired_property_id, name_tag')
+          .eq('account_id', accountId)
+          .order('name'),
+        supabase
+          .from('properties')
+          .select(
+            'id, title, property_code, location, sublocality, tags, price, type, bedrooms, area_sqft, area_unit, images'
+          )
+          .eq('account_id', accountId)
+          .order('title'),
+      ]);
+      if (contactResult.error) throw contactResult.error;
+      if (propertyResult.error) throw propertyResult.error;
+      return {
+        contacts: (contactResult.data || []) as SimpleContact[],
+        properties: (propertyResult.data || []) as SimpleProperty[],
+      };
+    },
+  });
+  const contacts = useMemo(
+    () => pickersQuery.data?.contacts ?? [],
+    [pickersQuery.data]
+  );
+  const properties = useMemo(
+    () => pickersQuery.data?.properties ?? [],
+    [pickersQuery.data]
+  );
 
   useEffect(() => {
     const syncCompletedAppointment = (event: Event) => {
@@ -468,6 +493,10 @@ export default function CalendarPage() {
       return dateA - dateB;
     });
   }, [todos, todoFilter]);
+  const { open: openTodos, done: doneTodos } = useMemo(
+    () => splitTodosByCompletion(visibleTodos),
+    [visibleTodos]
+  );
 
   const calendarAppointments = useMemo(
     () =>
@@ -637,7 +666,7 @@ export default function CalendarPage() {
           ? changed.size === 1
             ? 'Archived'
             : `${changed.size} archived`
-          : 'Unarchived — back in Tasks'
+          : 'Unarchived — back in Schedule'
       );
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -1203,6 +1232,34 @@ export default function CalendarPage() {
     }
   };
 
+  const clearCompletedTodos = async () => {
+    const ids = completedTodoIds(doneTodos);
+    if (ids.length === 0 || !confirm(clearCompletedPrompt(ids.length))) return;
+    setClearingTodos(true);
+    try {
+      let removed = 0;
+      for (const chunk of chunkIds(ids)) {
+        const { data, error } = await supabase
+          .from('todos')
+          .delete()
+          .in('id', chunk)
+          .eq('account_id', accountId)
+          .select('id');
+        if (error) throw error;
+        removed += data?.length ?? 0;
+      }
+      toast.success(
+        removed === 1 ? 'Cleared 1 to-do' : `Cleared ${removed} to-dos`
+      );
+      loadData();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(errorMessage || 'Failed to clear the done to-dos');
+    } finally {
+      setClearingTodos(false);
+    }
+  };
+
   const deleteTodo = async (id: string) => {
     try {
       const { data, error } = await supabase
@@ -1239,21 +1296,7 @@ export default function CalendarPage() {
           });
 
   return (
-    <div className="relative flex h-full flex-col space-y-6 overflow-hidden">
-      {/* Header */}
-      <div className="relative z-10 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent text-white">
-            Calendar
-          </h1>
-          <p className="mt-1.5 text-xs leading-relaxed font-medium text-slate-400 sm:text-sm">
-            Log site visits, calls, and follow-ups by typing or speaking — and
-            see the whole team&apos;s day at a glance.
-          </p>
-        </div>
-        <FavoriteButton label="Calendar" href="/calendar" icon="Calendar" />
-      </div>
-
+    <div className="relative flex h-full flex-col space-y-4 overflow-hidden">
       {/* Smart quick-add (text + voice) */}
       <div className="relative z-30">
         <SmartAddBar onConfirm={handleSmartConfirm} />
@@ -1265,175 +1308,179 @@ export default function CalendarPage() {
             pane is only kept from bleeding by the ancestor's
             overflow-hidden — self-cap it so inner truncate engages. */}
         <div className="flex min-h-[560px] min-w-0 flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur lg:min-h-0 lg:overflow-y-auto">
-          {/* Calendar Header Nav */}
-          <div className="mb-4 flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
-            <div className="flex items-center gap-3">
-              <CalendarIcon className="text-primary h-6 w-6" />
-              <h1 className="flex items-center text-xl font-bold text-white sm:text-2xl">
-                {headerLabel}
-                <InfoHint text="Navigate and schedule site visits, client appointments, or phone calls. Deal dates — registration, payments and expected close — are pinned from the deal record and open it. Use the Team view to see every member's lane for the day." />
-              </h1>
+          <div className="sticky top-0 z-20 -mx-6 -mt-6 mb-3 bg-slate-900/95 px-6 pt-5 pb-1 backdrop-blur">
+            {/* Calendar Header Nav */}
+            <div className="mb-3 flex flex-col justify-between gap-3 xl:flex-row xl:items-center">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="text-primary h-6 w-6" />
+                <h1 className="flex items-center text-xl font-bold text-white sm:text-2xl">
+                  {headerLabel}
+                  <InfoHint text="Navigate and schedule site visits, client appointments, or phone calls. Deal dates — registration, payments and expected close — are pinned from the deal record and open it. Use the Team view to see every member's lane for the day." />
+                </h1>
+                <FavoriteButton
+                  label="Calendar"
+                  href="/calendar"
+                  icon="Calendar"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {/* View switcher */}
+                <div className="flex items-center rounded-lg border border-slate-800 bg-slate-950 p-0.5">
+                  {(
+                    [
+                      { key: 'month', label: 'Month', icon: LayoutGrid },
+                      { key: 'week', label: 'Week', icon: Columns3 },
+                      { key: 'team', label: 'Team', icon: Users },
+                      { key: 'agenda', label: 'Agenda', icon: List },
+                    ] as { key: ViewMode; label: string; icon: typeof Users }[]
+                  ).map((v) => (
+                    <button
+                      key={v.key}
+                      onClick={() => setView(v.key)}
+                      className={cn(
+                        'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors',
+                        view === v.key
+                          ? 'bg-primary/15 text-primary'
+                          : 'text-slate-400 hover:text-white'
+                      )}
+                    >
+                      <v.icon className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">{v.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {view !== 'agenda' && (
+                  <>
+                    <button
+                      onClick={handleToday}
+                      className="hover:bg-slate-850 rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white"
+                    >
+                      Today
+                    </button>
+                    <div className="flex items-center rounded-lg border border-slate-800 bg-slate-950 p-1">
+                      <button
+                        onClick={handlePrev}
+                        aria-label="Previous"
+                        className="hover:bg-slate-850 rounded p-1 text-slate-400 hover:text-white"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={handleNext}
+                        aria-label="Next"
+                        className="hover:bg-slate-850 rounded p-1 text-slate-400 hover:text-white"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </>
+                )}
+                <button
+                  onClick={() => openNewApptModal()}
+                  className="bg-primary text-primary-foreground flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold hover:opacity-90"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Schedule
+                </button>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* View switcher */}
-              <div className="flex items-center rounded-lg border border-slate-800 bg-slate-950 p-0.5">
-                {(
-                  [
-                    { key: 'month', label: 'Month', icon: LayoutGrid },
-                    { key: 'week', label: 'Week', icon: Columns3 },
-                    { key: 'team', label: 'Team', icon: Users },
-                    { key: 'agenda', label: 'Agenda', icon: List },
-                  ] as { key: ViewMode; label: string; icon: typeof Users }[]
-                ).map((v) => (
+
+            {/* Type legend + member filter */}
+            <div className="mb-2 flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => setTypeFilter('all')}
+                className={cn(
+                  'rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
+                  effectiveTypeFilter === 'all'
+                    ? 'border-primary/50 bg-primary/15 text-primary'
+                    : 'border-slate-800 text-slate-400 hover:text-white'
+                )}
+              >
+                All
+              </button>
+              {EVENT_TYPE_KEYS.map((key) => {
+                const meta = EVENT_TYPES[key];
+                return (
                   <button
-                    key={v.key}
-                    onClick={() => setView(v.key)}
+                    key={key}
+                    onClick={() =>
+                      setTypeFilter(typeFilter === key ? 'all' : key)
+                    }
                     className={cn(
-                      'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors',
-                      view === v.key
-                        ? 'bg-primary/15 text-primary'
-                        : 'text-slate-400 hover:text-white'
+                      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
+                      typeFilter === key
+                        ? meta.chip
+                        : 'border-slate-800 text-slate-500 hover:text-white'
                     )}
                   >
-                    <v.icon className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">{v.label}</span>
+                    <span
+                      className={cn('h-1.5 w-1.5 rounded-full', meta.dot)}
+                    />
+                    {meta.label}
                   </button>
-                ))}
-              </div>
-
-              {view !== 'agenda' && (
-                <>
-                  <button
-                    onClick={handleToday}
-                    className="hover:bg-slate-850 rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white"
-                  >
-                    Today
-                  </button>
-                  <div className="flex items-center rounded-lg border border-slate-800 bg-slate-950 p-1">
-                    <button
-                      onClick={handlePrev}
-                      aria-label="Previous"
-                      className="hover:bg-slate-850 rounded p-1 text-slate-400 hover:text-white"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={handleNext}
-                      aria-label="Next"
-                      className="hover:bg-slate-850 rounded p-1 text-slate-400 hover:text-white"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                </>
-              )}
-              <button
-                onClick={() => openNewApptModal()}
-                className="bg-primary text-primary-foreground flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold hover:opacity-90"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Schedule
-              </button>
-            </div>
-          </div>
-
-          {/* Type legend + member filter */}
-          <div className="mb-4 flex flex-wrap items-center gap-1.5">
-            <button
-              onClick={() => setTypeFilter('all')}
-              className={cn(
-                'rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
-                effectiveTypeFilter === 'all'
-                  ? 'border-primary/50 bg-primary/15 text-primary'
-                  : 'border-slate-800 text-slate-400 hover:text-white'
-              )}
-            >
-              All
-            </button>
-            {EVENT_TYPE_KEYS.map((key) => {
-              const meta = EVENT_TYPES[key];
-              return (
+                );
+              })}
+              {view !== 'team' && (
                 <button
-                  key={key}
                   onClick={() =>
-                    setTypeFilter(typeFilter === key ? 'all' : key)
+                    setTypeFilter(typeFilter === 'deal' ? 'all' : 'deal')
                   }
                   className={cn(
                     'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
-                    typeFilter === key
-                      ? meta.chip
+                    typeFilter === 'deal'
+                      ? DEAL_DATE_META.chip
                       : 'border-slate-800 text-slate-500 hover:text-white'
                   )}
                 >
-                  <span className={cn('h-1.5 w-1.5 rounded-full', meta.dot)} />
-                  {meta.label}
+                  <span
+                    className={cn(
+                      'h-1.5 w-1.5 rounded-full',
+                      DEAL_DATE_META.dot
+                    )}
+                  />
+                  {DEAL_DATE_META.label}
                 </button>
-              );
-            })}
-            {view !== 'team' && (
-              <button
-                onClick={() =>
-                  setTypeFilter(typeFilter === 'deal' ? 'all' : 'deal')
-                }
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
-                  typeFilter === 'deal'
-                    ? DEAL_DATE_META.chip
-                    : 'border-slate-800 text-slate-500 hover:text-white'
-                )}
-              >
-                <span
-                  className={cn('h-1.5 w-1.5 rounded-full', DEAL_DATE_META.dot)}
-                />
-                {DEAL_DATE_META.label}
-              </button>
-            )}
-            {calendarAppointments.archivedCount > 0 && (
-              <label className="inline-flex items-center gap-1 rounded-full border border-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
-                <Archive className="h-2.5 w-2.5" />
+              )}
+              {calendarAppointments.archivedCount > 0 && (
+                <label className="inline-flex items-center gap-1 rounded-full border border-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                  <Archive className="h-2.5 w-2.5" />
+                  <select
+                    value={archivedView}
+                    onChange={(e) =>
+                      changeArchivedView(toArchivedView(e.target.value))
+                    }
+                    aria-label={`Archived events (${calendarAppointments.archivedCount})`}
+                    title="Grey out keeps archived events on the calendar, dimmed; Hide removes them; List also shows them in Tasks and the Agenda"
+                    className="cursor-pointer bg-transparent text-[10px] font-semibold text-slate-300 focus:outline-none"
+                  >
+                    {ARCHIVED_VIEWS.map((mode) => (
+                      <option key={mode} value={mode} className="bg-slate-950">
+                        {`${ARCHIVED_VIEW_LABELS[mode]} (${calendarAppointments.archivedCount})`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {members.length > 1 && (
                 <select
-                  value={archivedView}
-                  onChange={(e) =>
-                    changeArchivedView(toArchivedView(e.target.value))
-                  }
-                  aria-label={`Archived events (${calendarAppointments.archivedCount})`}
-                  title="Grey out keeps archived events on the calendar, dimmed; Hide removes them; List also shows them in Tasks and the Agenda"
-                  className="cursor-pointer bg-transparent text-[10px] font-semibold text-slate-300 focus:outline-none"
+                  value={memberFilter}
+                  onChange={(e) => setMemberFilter(e.target.value)}
+                  className="ml-auto cursor-pointer rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-bold text-slate-400 focus:outline-none"
                 >
-                  {ARCHIVED_VIEWS.map((mode) => (
-                    <option key={mode} value={mode} className="bg-slate-950">
-                      {`${ARCHIVED_VIEW_LABELS[mode]} (${calendarAppointments.archivedCount})`}
+                  <option value="all">Everyone</option>
+                  {members.map((m) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.full_name}
                     </option>
                   ))}
                 </select>
-              </label>
-            )}
-            {members.length > 1 && (
-              <select
-                value={memberFilter}
-                onChange={(e) => setMemberFilter(e.target.value)}
-                className="ml-auto cursor-pointer rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-bold text-slate-400 focus:outline-none"
-              >
-                <option value="all">Everyone</option>
-                {members.map((m) => (
-                  <option key={m.user_id} value={m.user_id}>
-                    {m.full_name}
-                  </option>
-                ))}
-              </select>
-            )}
+              )}
+            </div>
           </div>
 
           {loading ? (
-            <div className="flex flex-1 flex-col items-center justify-center text-slate-400">
-              <CalendarLoader
-                size={104}
-                label="Loading calendar"
-                className="mb-3"
-              />
-              <ConvoRealLoader size={20} className="mb-2" />
-              <p className="text-sm">Loading calendar...</p>
-            </div>
+            <CalendarGridSkeleton />
           ) : view === 'team' ? (
             <TeamView
               events={calendarAppointments.visible}
@@ -1484,110 +1531,30 @@ export default function CalendarPage() {
               </div>
 
               {/* Calendar Day Grid */}
-              <div className="mt-1 grid min-h-[420px] flex-1 grid-cols-7 grid-rows-6 gap-px bg-slate-800/40">
+              <div className="mt-1 grid grid-cols-7 gap-px bg-slate-800/40">
                 {calendarCells.map((cell, idx) => {
                   const dateStr = cell.date.toDateString();
-                  const cellAppts = appointmentsByDate[dateStr] || [];
-                  const cellDealDates = dealDatesByDate[dateStr] || [];
-                  const isToday = new Date().toDateString() === dateStr;
-
                   return (
-                    <div
+                    <MonthCell
                       key={idx}
-                      onClick={() => openNewApptModal(cell.date)}
-                      className={cn(
-                        'group relative flex min-h-[70px] cursor-pointer flex-col overflow-hidden bg-slate-950 p-2 transition-colors hover:bg-slate-900/60',
-                        !cell.isCurrentMonth && 'opacity-45'
-                      )}
-                    >
-                      {/* Day Number Label */}
-                      <span
-                        className={cn(
-                          'mb-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold',
-                          isToday
-                            ? 'bg-primary text-primary-foreground font-black'
-                            : 'text-slate-400 group-hover:text-white'
-                        )}
-                      >
-                        {cell.day}
-                      </span>
-
-                      {/* Appointments indicators inside cell */}
-                      <div className="flex max-h-[80px] flex-col gap-1 overflow-y-auto">
-                        {cellAppts.map((appt) => {
-                          const meta = eventTypeMeta(appt.event_type);
-                          const assignee =
-                            memberByUserId[appt.assigned_to || appt.user_id];
-                          return (
-                            <div
-                              key={appt.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditApptModal(appt);
-                              }}
-                              className={cn(
-                                'flex cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] leading-snug transition-colors',
-                                meta.chip,
-                                appt.status === 'completed' && 'opacity-60',
-                                appt.status === 'cancelled' &&
-                                  'line-through opacity-50',
-                                isArchivedAppointment(appt) &&
-                                  ARCHIVED_EVENT_CHIP
-                              )}
-                            >
-                              <meta.icon className="h-2.5 w-2.5 shrink-0" />
-                              <span className="flex-1 truncate">
-                                {appt.title}
-                              </span>
-                              {appt.reschedule_requested_at && (
-                                <RefreshCcw
-                                  className="h-2.5 w-2.5 shrink-0 text-amber-400"
-                                  aria-label="Reschedule requested"
-                                />
-                              )}
-                              {!appt.reschedule_requested_at &&
-                                appt.client_confirmed_at && (
-                                  <CheckCircle
-                                    className="h-2.5 w-2.5 shrink-0 text-emerald-400"
-                                    aria-label="Client confirmed"
-                                  />
-                                )}
-                              {members.length > 1 && assignee && (
-                                <span
-                                  className="shrink-0 rounded bg-slate-900/70 px-1 text-[8px] font-bold"
-                                  title={assignee.full_name}
-                                >
-                                  {memberInitials(assignee.full_name)}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })}
-                        {cellDealDates.map((d) => (
-                          <Link
-                            key={dealDateKey(d)}
-                            href={dealDateHref(d.dealId)}
-                            onClick={(e) => e.stopPropagation()}
-                            title={`${DEAL_DATE_KIND_LABELS[d.kind]} · ${d.subject} · ${deadlineLabel(d.daysLeft)}`}
-                            className={cn(
-                              'flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] leading-snug transition-colors',
-                              DEAL_DATE_META.chip,
-                              d.urgency === 'overdue' && 'border-rose-500/50'
-                            )}
-                          >
-                            <DEAL_DATE_META.icon className="h-2.5 w-2.5 shrink-0" />
-                            <span className="flex-1 truncate">{d.title}</span>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
+                      day={cell.day}
+                      date={cell.date}
+                      isCurrentMonth={cell.isCurrentMonth}
+                      isToday={todayKey === localDateKey(cell.date)}
+                      appointments={appointmentsByDate[dateStr] || []}
+                      dealDates={dealDatesByDate[dateStr] || []}
+                      memberByUserId={memberByUserId}
+                      showAssignee={members.length > 1}
+                      onSelectDay={openNewApptModal}
+                      onEventClick={openEditApptModal}
+                    />
                   );
                 })}
               </div>
             </>
           )}
 
-          {/* Tasks pinned on the visible days (CAL-010) */}
+          {/* Schedule: everything pinned on the visible days (CAL-010) */}
           {!loading && (view === 'month' || view === 'week') && (
             <div className="mt-4 shrink-0 border-t border-slate-800 pt-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -1604,8 +1571,8 @@ export default function CalendarPage() {
                     )}
                   />
                   <h2 className="flex items-center text-sm font-bold text-white">
-                    Tasks
-                    <InfoHint text="Everything pinned on the days you are looking at: appointments with their status, and deal dates. Upcoming first puts today at the top, then the days ahead, then past days; Earliest first and Latest first sort strictly by date and time. Mark an event done or cancelled here — a cancelled event stays on its day, struck through. Archive a done or cancelled event to take it off this list; on the calendar it is greyed out, or hidden if you choose Hide archived in the filter row, and List archived brings it back here. A milestone date can be ticked done; it completes the milestone on the deal without moving its stage." />
+                    Schedule
+                    <InfoHint text="Everything pinned on the days you are looking at: appointments with their status, and deal dates. To-dos live in their own list on the right. Upcoming first puts today at the top, then the days ahead, then past days; Earliest first and Latest first sort strictly by date and time. Mark an event done or cancelled here — a cancelled event stays on its day, struck through. Archive a done or cancelled event to take it off this list; on the calendar it is greyed out, or hidden if you choose Hide archived in the filter row, and List archived brings it back here. A milestone date can be ticked done; it completes the milestone on the deal without moving its stage." />
                   </h2>
                   <span className="text-[10px] font-semibold text-slate-500">
                     {taskRows.length} on{' '}
@@ -1615,7 +1582,7 @@ export default function CalendarPage() {
                 <select
                   value={taskSort}
                   onChange={(e) => setTaskSort(e.target.value as TaskSortMode)}
-                  aria-label="Sort tasks by date and time"
+                  aria-label="Sort the schedule by date and time"
                   className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300"
                 >
                   {TASK_SORT_MODES.map((mode) => (
@@ -1648,7 +1615,7 @@ export default function CalendarPage() {
                 )}
               </div>
               {tasksOpen && (
-                <div className="mt-3 max-h-80 overflow-y-auto pr-1">
+                <div className="mt-3 pr-1">
                   <TasksList
                     rows={taskRows}
                     members={members}
@@ -1673,8 +1640,8 @@ export default function CalendarPage() {
               <div className="flex items-center gap-2">
                 <ListTodo className="text-primary h-5 w-5" />
                 <h2 className="flex items-center text-sm font-bold text-white">
-                  To-Do Task List
-                  <InfoHint text="A lightweight checklist: a title, an optional due date and a priority. Appointments and deal dates live on the calendar and in Tasks beneath it, not here. A task added from a deal's Tasks tab links back to that deal." />
+                  To-dos
+                  <InfoHint text="A lightweight checklist: a title, an optional due date and a priority. Appointments and deal dates live on the calendar and in the Schedule beneath it, not here. A to-do added from a deal's Tasks tab links back to that deal. Done to-dos collapse into their own group; Clear completed deletes them." />
                 </h2>
               </div>
               <select
@@ -1684,8 +1651,8 @@ export default function CalendarPage() {
                 }
                 className="cursor-pointer rounded border border-slate-800 bg-slate-950 px-2 py-0.5 text-[10px] font-bold text-slate-400 focus:outline-none"
               >
-                <option value="all">All Tasks</option>
-                <option value="priority">Priority Only</option>
+                <option value="all">All to-dos</option>
+                <option value="priority">Priority only</option>
               </select>
             </div>
 
@@ -1696,45 +1663,91 @@ export default function CalendarPage() {
             >
               <input
                 type="text"
-                placeholder="Add new task..."
+                placeholder="Add a to-do…"
+                aria-label="New to-do"
                 value={todoTitle}
                 onChange={(e) => setTodoTitle(e.target.value)}
                 className="focus:border-primary w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none"
               />
-              <DateTimePicker
-                value={todoDueDate}
-                onChange={(val) => setTodoDueDate(val)}
-                align="left"
-              />
-              <div className="flex gap-2">
-                <select
-                  value={todoPriority}
-                  onChange={(e) =>
-                    setTodoPriority(e.target.value as 'low' | 'medium' | 'high')
-                  }
-                  className="focus:border-primary flex-1 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none"
-                >
-                  <option value="low">Low Priority</option>
-                  <option value="medium">Medium Priority</option>
-                  <option value="high">High Priority</option>
-                </select>
-                <button
-                  type="submit"
-                  className="bg-primary text-primary-foreground rounded-lg px-3 py-1.5 text-xs font-semibold hover:opacity-90"
-                >
-                  Add
-                </button>
-              </div>
+              {todoTitle.trim() && (
+                <>
+                  <DateTimePicker
+                    value={todoDueDate}
+                    onChange={(val) => setTodoDueDate(val)}
+                    align="left"
+                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={todoPriority}
+                      onChange={(e) =>
+                        setTodoPriority(
+                          e.target.value as 'low' | 'medium' | 'high'
+                        )
+                      }
+                      aria-label="Priority"
+                      className="focus:border-primary flex-1 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none"
+                    >
+                      <option value="low">Low priority</option>
+                      <option value="medium">Medium priority</option>
+                      <option value="high">High priority</option>
+                    </select>
+                    <button
+                      type="submit"
+                      className="bg-primary text-primary-foreground rounded-lg px-3 py-1.5 text-xs font-semibold hover:opacity-90"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </>
+              )}
             </form>
 
-            {/* Task checklist */}
+            {/* To-do checklist: open first, done in a collapsed group */}
             <div className="flex-1 space-y-2 overflow-y-auto pr-1">
-              {visibleTodos.length === 0 ? (
-                <div className="flex h-32 flex-col items-center justify-center text-center text-slate-500">
-                  <p className="text-xs">No pending tasks!</p>
+              {openTodos.length === 0 && (
+                <div className="flex h-24 flex-col items-center justify-center text-center text-slate-500">
+                  <p className="text-xs">
+                    {doneTodos.length === 0
+                      ? 'Nothing to do. Add one above.'
+                      : 'All done.'}
+                  </p>
                 </div>
-              ) : (
-                visibleTodos.map((todo) => (
+              )}
+              {doneTodos.length > 0 && (
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setDoneTodosOpen((open) => !open)}
+                    aria-expanded={doneTodosOpen}
+                    className="flex items-center gap-1 text-[11px] font-bold tracking-wider text-slate-500 uppercase hover:text-white"
+                  >
+                    <ChevronDown
+                      className={cn(
+                        'h-3.5 w-3.5 transition-transform',
+                        !doneTodosOpen && '-rotate-90'
+                      )}
+                    />
+                    {DONE_TODOS_LABEL} ({doneTodos.length})
+                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={clearCompletedTodos}
+                      disabled={clearingTodos}
+                      className="inline-flex items-center gap-1 rounded-md border border-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-400 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-50"
+                    >
+                      {clearingTodos ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
+                      {CLEAR_COMPLETED_LABEL}
+                    </button>
+                  )}
+                </div>
+              )}
+              {[...openTodos, ...(doneTodosOpen ? doneTodos : [])].map(
+                (todo) => (
                   <div
                     key={todo.id}
                     className={cn(
@@ -1757,8 +1770,9 @@ export default function CalendarPage() {
 
                     <div className="min-w-0 flex-1">
                       <p
+                        title={todo.title}
                         className={cn(
-                          'text-xs leading-normal font-semibold break-words text-white',
+                          'line-clamp-2 text-xs leading-normal font-semibold break-words text-white',
                           todo.completed &&
                             'font-normal text-slate-500 line-through'
                         )}
@@ -1872,7 +1886,7 @@ export default function CalendarPage() {
                       </button>
                     </div>
                   </div>
-                ))
+                )
               )}
             </div>
           </div>
@@ -2008,7 +2022,12 @@ export default function CalendarPage() {
                       contacts={contacts}
                       value={apptContactIds}
                       onChange={handleApptContactsChange}
-                      placeholder="Search contacts..."
+                      placeholder={
+                        pickersQuery.isLoading
+                          ? 'Loading contacts…'
+                          : 'Search contacts...'
+                      }
+                      disabled={pickersQuery.isLoading}
                     />
                     <p className="mt-1 text-[10px] font-medium text-slate-500">
                       {apptEventType === 'call'
@@ -2049,7 +2068,12 @@ export default function CalendarPage() {
                       properties={properties}
                       value={apptPropertyId || null}
                       onChange={handleApptPropertyChange}
-                      placeholder="Search by title or ID..."
+                      placeholder={
+                        pickersQuery.isLoading
+                          ? 'Loading properties…'
+                          : 'Search by title or ID...'
+                      }
+                      disabled={pickersQuery.isLoading}
                     />
                   </div>
                 </div>

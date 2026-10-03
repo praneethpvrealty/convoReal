@@ -212,7 +212,7 @@ export function SmartAddBar({ onConfirm }: SmartAddBarProps) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           disabled={recording || parsing}
-          placeholder='Try "Site visit with Varun at JP Nagar plot tomorrow 4pm" — or tap the mic and say it'
+          placeholder='Log a site visit, call or follow-up — try "Site visit with Varun at JP Nagar plot tomorrow 4pm", or tap the mic and say it'
           className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
         />
         {parsing ? (

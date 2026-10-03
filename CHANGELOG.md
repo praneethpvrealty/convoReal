@@ -63,6 +63,23 @@ than a written entry. Newest first.
   was dark red on near-black; it is now an amber banner with a **Reconnect
   Meta** button, and Spend, Reach, Chats started and Cost/lead are marked as
   last-sync figures so a ₹0 there is not read as current.
+- **The Calendar loads once and fits the screen.** Opening it showed a
+  property-card skeleton, then a spinner, before the month appeared; it
+  now shows one calendar-shaped skeleton and fetches appointments and
+  to-dos together, loading contacts and properties only when the
+  Schedule dialog opens. The page-level title and subtitle are gone (the
+  top bar already says Calendar; the smart-add bar carries the hint), so
+  the whole month fits a laptop screen. The month toolbar and filter
+  chips stay pinned while you scroll, a busy day shows two chips and a
+  "+N more" that opens the whole day instead of scrolling inside its
+  cell, and the list beneath the grid, now called **Schedule** (it was
+  Tasks), scrolls with the page rather than in its own box.
+- **The To-dos rail is about open work.** Renamed from To-Do Task List,
+  it shows one "Add a to-do" field until you type, when the date and
+  priority appear. Done to-dos collapse into a **Done (N)** group with a
+  **Clear completed** action that deletes them after a confirmation, and
+  long titles clamp to two lines. Same on mobile, where the Done group
+  and Clear completed share the web rule (`src/lib/calendar/todo-groups.ts`).
 - **Re-engagement sorts the whole list, not the page you are on.** The
   Matches and Last reply headers sort every lead in the batch before the
   list is split into pages, so "most matches first" is the best of the
