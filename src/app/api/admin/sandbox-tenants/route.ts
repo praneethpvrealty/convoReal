@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { toErrorResponse } from '@/lib/auth/account';
 import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
 import { encrypt } from '@/lib/whatsapp/encryption';
-import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api';
+import { isAbsentOrGraphId, verifyPhoneNumber } from '@/lib/whatsapp/meta-api';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
@@ -127,6 +127,21 @@ export async function POST(request: Request) {
     if (!Array.isArray(tenant_account_ids) || tenant_account_ids.length === 0) {
       return NextResponse.json(
         { error: 'tenant_account_ids array required' },
+        { status: 400 }
+      );
+    }
+
+    const trimmed = (value: unknown) =>
+      typeof value === 'string' ? value.trim() : value;
+    if (!isAbsentOrGraphId(trimmed(phone_number_id))) {
+      return NextResponse.json(
+        { error: 'phone_number_id must contain digits only' },
+        { status: 400 }
+      );
+    }
+    if (!isAbsentOrGraphId(trimmed(waba_id))) {
+      return NextResponse.json(
+        { error: 'waba_id must contain digits only' },
         { status: 400 }
       );
     }

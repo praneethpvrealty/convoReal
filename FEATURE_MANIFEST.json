@@ -2597,6 +2597,33 @@
           "guards": [
             "supabase/migrations/20260919043000_whatsapp_retired_number_autoreply.sql"
           ]
+        },
+        {
+          "id": "WAN-007",
+          "rule": "A phone number id or WABA id is digits only. The settings save, the sandbox upgrade and the admin sandbox routes answer 400 for anything else before Meta or the database is touched, and the Graph helpers that address a number or a WABA by id (verify, register, subscribe, subscribed apps, registration state, permission check, and the free-form text send) refuse a malformed id without sending a request.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/registration.test.ts",
+              "case": "[WAN-007]"
+            },
+            {
+              "file": "src/app/api/whatsapp/config/route.test.ts",
+              "case": "[WAN-007]"
+            },
+            {
+              "file": "src/app/api/whatsapp/migrate/route.test.ts",
+              "case": "[WAN-007]"
+            },
+            {
+              "file": "src/app/api/admin/sandbox-config/route.test.ts",
+              "case": "[WAN-007]"
+            },
+            {
+              "file": "src/app/api/admin/sandbox-tenants/route.test.ts",
+              "case": "[WAN-007]"
+            }
+          ],
+          "guards": ["src/lib/whatsapp/meta-api.ts"]
         }
       ]
     },
