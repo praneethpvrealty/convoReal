@@ -3344,6 +3344,27 @@ describe('[SHR-003] the web modules the mobile bundle runs are dependency-free',
         `but import something other than a src/ file by relative path, ` +
         `which mobile/metro.config.js refuses: ${problems.join('; ')}`
     ).toEqual([]);
+
+    const ciMobileFilter = readFileSync(
+      join(process.cwd(), '.github/workflows/ci.yml'),
+      'utf8'
+    ).match(/\n {12}mobile:\n((?: {14}(?:- .*|#.*)\n)+)/)?.[1];
+    const otaTrigger = readFileSync(
+      join(process.cwd(), '.github/workflows/eas-update.yml'),
+      'utf8'
+    ).match(/\n {4}paths:\n((?: {6}(?:- .*|#.*)\n)+)/)?.[1];
+    expect(ciMobileFilter, 'ci.yml mobile path filter').toBeDefined();
+    expect(otaTrigger, 'eas-update.yml push paths').toBeDefined();
+    for (const file of [...seen].map(rel).sort()) {
+      expect(
+        ciMobileFilter,
+        `${file} ships in the mobile bundle, so ci.yml's mobile filter must run the mobile job when it changes`
+      ).toContain(`- '${file}'`);
+      expect(
+        otaTrigger,
+        `${file} ships in the mobile bundle, so eas-update.yml must publish when it changes`
+      ).toContain(`- '${file}'`);
+    }
   });
 });
 

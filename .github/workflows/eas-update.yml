@@ -36,6 +36,9 @@ on:
       # Docs do not change the bundle, and every publish costs build
       # minutes and an update group.
       - '!mobile/**.md'
+      # Web modules the bundle imports through @shared/; [SHR-003] in
+      # src/lib/mobile-parity.test.ts keeps this list whole.
+      - 'src/lib/calendar/archive-sort.ts'
   workflow_dispatch:
     inputs:
       channel:
