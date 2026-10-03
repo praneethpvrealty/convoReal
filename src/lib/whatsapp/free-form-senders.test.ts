@@ -30,7 +30,8 @@ const ALLOWED_DIRECT_SENDERS = [
   // construction, since the inbound message is what invoked these.
   'src/lib/ai/chatbot-engine.ts',
   'src/lib/ai/buyer-qualification.ts',
-  'src/lib/whatsapp/webhook-handler.ts',
+  'src/lib/whatsapp/inbound/chain/steps/calendar-query.ts',
+  'src/lib/whatsapp/inbound/chain/steps/shared-contacts.ts',
   'src/lib/calendar/whatsapp-scheduler.ts',
   // Reply from a RETIRED saved number to whoever just messaged it. The
   // window is open by construction, and the dispatcher cannot be used:

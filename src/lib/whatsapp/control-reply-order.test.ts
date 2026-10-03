@@ -1,6 +1,9 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+
+import {
+  inboundChainSource,
+  inboundStepOrder,
+} from '@/lib/whatsapp/inbound/chain/test-source';
 
 // The webhook has three consumers that will each happily claim an
 // inbound reply: the Engine control dispatch, the reply bridge, and the
@@ -15,10 +18,8 @@ import { describe, expect, it } from 'vitest';
 // reading of the architecture rather than of the message the owner
 // actually got — which is why the order is pinned here now, for every
 // interceptor at once, rather than left to whoever edits this next.
-const source = readFileSync(
-  join(process.cwd(), 'src/lib/whatsapp/webhook-handler.ts'),
-  'utf8'
-);
+const source = inboundChainSource();
+const order = inboundStepOrder();
 
 describe('webhook control-reply dispatch order', () => {
   const controlDispatch = source.indexOf(
@@ -33,6 +34,13 @@ describe('webhook control-reply dispatch order', () => {
     expect(ownerChatbot).toBeGreaterThan(-1);
     expect(controlDispatch).toBeLessThan(bridge);
     expect(controlDispatch).toBeLessThan(ownerChatbot);
+    expect(order.indexOf('controlReply')).toBeGreaterThan(-1);
+    expect(order.indexOf('controlReply')).toBeLessThan(
+      order.indexOf('bridgedAgentReply')
+    );
+    expect(order.indexOf('bridgedAgentReply')).toBeLessThan(
+      order.indexOf('ownerChatbot')
+    );
   });
 
   it('still routes owner and consent decisions to their handlers', () => {

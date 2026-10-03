@@ -654,7 +654,8 @@ Meta Cloud API
 | File                                    | Responsibility                                                                                                                                                    |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/lib/whatsapp/meta-api.ts`          | Meta Graph API client (messages, templates, media, catalogs, registration)                                                                                        |
-| `src/lib/whatsapp/webhook-handler.ts`   | Main webhook processing business logic                                                                                                                            |
+| `src/lib/whatsapp/webhook-handler.ts`   | Webhook entry: account resolution, message parsing, contact and conversation upserts, then the inbound chain                                                      |
+| `src/lib/whatsapp/inbound/chain/`       | The inbound chain as an ordered list of steps (`steps/index.ts`) over one context; each step returns `handled` or `continue`                                      |
 | `src/lib/whatsapp/inbound/*.ts`         | Dedicated inbound reply handlers (status updates, reactions, reminder and broadcast replies, enquiry card, property-share taps, preference flow, update sessions) |
 | `src/lib/whatsapp/webhook-signature.ts` | HMAC-SHA256 verification                                                                                                                                          |
 | `src/lib/whatsapp/encryption.ts`        | AES-256-GCM token encryption/decryption                                                                                                                           |

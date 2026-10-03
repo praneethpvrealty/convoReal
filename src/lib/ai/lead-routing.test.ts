@@ -184,7 +184,9 @@ describe('the live handlers still route through here', () => {
   });
 
   it("the webhook's photo arm matches the route the router assigns", () => {
-    const source = read('src/lib/whatsapp/webhook-handler.ts');
+    const source = read(
+      'src/lib/whatsapp/inbound/chain/steps/lead-question.ts'
+    );
     expect(source).toContain(
       'requestsPropertyPhotos(leadText) && !requestsHumanContact(leadText)'
     );

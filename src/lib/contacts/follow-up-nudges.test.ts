@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { inboundChainSource } from '@/lib/whatsapp/inbound/chain/test-source';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Property } from '@/types';
@@ -735,7 +736,7 @@ describe('the radar is wired up', () => {
   const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 
   it('the webhook dispatches a radar tap before the owner chatbot', () => {
-    const source = read('src/lib/whatsapp/webhook-handler.ts');
+    const source = inboundChainSource();
     const tap = source.indexOf('const followUpAction = parseFollowUpReply(');
     const ownerChatbot = source.indexOf('processOwnerChatbotMessage(');
     expect(tap).toBeGreaterThan(-1);
@@ -744,7 +745,7 @@ describe('the radar is wired up', () => {
   });
 
   it('the webhook records a reply before the enquiry branch can consume it', () => {
-    const source = read('src/lib/whatsapp/webhook-handler.ts');
+    const source = inboundChainSource();
     const heat = source.indexOf('maybeAutoHeatContact({');
     const enquiryBranch = source.indexOf('enquiryIsDeliberate &&\n');
     const heatBlock = source.slice(heat, enquiryBranch);
