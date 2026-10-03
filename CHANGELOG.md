@@ -17,6 +17,17 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 3 October 2026
+
+- **A template's header sample has to be a file uploaded here.** Submitting
+  a template with an image, video or document header made the server
+  download the sample from whatever link the request named, so a signed-in
+  manager could point it at an internal address. The server now downloads a
+  sample only from this project's storage (where Upload puts it) or the
+  app's own brand assets, over https, and does not follow a redirect to any
+  other host. A link to another site is refused with a clear message; use
+  Upload in the template dialog instead.
+
 #### 2 October 2026
 
 - **A deal you create shows up on the Deals board straight away.** The

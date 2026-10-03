@@ -21,6 +21,8 @@ let filters: Array<{ table: string; op: string; args: unknown[] }>;
 let updates: Array<{ table: string; row: Record<string, unknown> }>;
 const submitMessageTemplate = vi.fn();
 const findMessageTemplate = vi.fn();
+const uploadSampleMedia = vi.fn();
+const fetchMock = vi.fn();
 
 function next(table: string): QueuedResponse {
   return (queues[table] ?? []).shift() ?? { data: null, error: null };
@@ -76,7 +78,7 @@ vi.mock('@/lib/auth/account', () => ({
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   submitMessageTemplate: (...args: unknown[]) => submitMessageTemplate(...args),
   findMessageTemplate: (...args: unknown[]) => findMessageTemplate(...args),
-  uploadSampleMedia: vi.fn(),
+  uploadSampleMedia: (...args: unknown[]) => uploadSampleMedia(...args),
 }));
 
 vi.mock('@/lib/whatsapp/encryption', () => ({
@@ -116,8 +118,43 @@ beforeEach(() => {
     status: 'PENDING',
     category: undefined,
   });
+  uploadSampleMedia.mockReset();
+  uploadSampleMedia.mockResolvedValue('handle-1');
+  fetchMock.mockReset();
+  vi.stubGlobal('fetch', fetchMock);
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://proj.supabase.co';
+  process.env.NEXT_PUBLIC_SITE_URL = 'https://www.convoreal.com';
+  delete process.env.NEXT_PUBLIC_APP_URL;
   delete process.env.WHATSAPP_TEMPLATES_DRY_RUN;
 });
+
+function mediaPayload(headerMediaUrl: string, extra: object = {}) {
+  return {
+    name: 'photo_update',
+    category: 'Marketing',
+    language: 'en_US',
+    header_type: 'image',
+    header_media_url: headerMediaUrl,
+    body_text: 'A new photo is ready for you.',
+    ...extra,
+  };
+}
+
+function sampleResponse() {
+  return new Response(new Uint8Array([1, 2, 3]), {
+    status: 200,
+    headers: { 'content-type': 'image/png' },
+  });
+}
+
+function queueSuccessfulSubmit() {
+  queues['message_templates'] = [
+    { data: [] },
+    { data: null },
+    { data: { id: 'row-media' } },
+  ];
+  queues['whatsapp_config'] = [CONFIG];
+}
 
 describe('POST /api/whatsapp/templates/submit', () => {
   it('[CLG-003] submits a translation under the category Meta already holds for the name', async () => {
@@ -349,5 +386,167 @@ describe('POST /api/whatsapp/templates/submit', () => {
     expect(body.code).toBe('TRANSLATION_REVIEW_REQUIRED');
     expect(submitMessageTemplate).not.toHaveBeenCalled();
     expect(inserts).toHaveLength(0);
+  });
+
+  it('fetches a header sample from this project storage and never follows redirects itself', async () => {
+    queueSuccessfulSubmit();
+    fetchMock.mockResolvedValue(sampleResponse());
+    const url =
+      'https://proj.supabase.co/storage/v1/object/public/property-images/acc-1/template-headers/a.png';
+
+    const res = await POST(makeRequest(mediaPayload(url)));
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(url, { redirect: 'manual' });
+    expect(uploadSampleMedia.mock.calls[0][0]).toMatchObject({
+      fileType: 'image/png',
+    });
+    expect(inserts[0].row).toMatchObject({
+      header_media_url: url,
+      header_handle: 'handle-1',
+    });
+  });
+
+  it('fetches an engine-template sample from the app brand assets', async () => {
+    queueSuccessfulSubmit();
+    fetchMock.mockResolvedValue(sampleResponse());
+
+    const res = await POST(
+      makeRequest(
+        mediaPayload('https://www.convoreal.com/brand/app-icon-1024.png')
+      )
+    );
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://www.convoreal.com/brand/app-icon-1024.png',
+      { redirect: 'manual' }
+    );
+  });
+
+  it.each([
+    ['an arbitrary host', 'https://evil.example/a.png'],
+    ['the cloud metadata address', 'http://169.254.169.254/latest/meta-data/'],
+    ['loopback', 'https://127.0.0.1/storage/v1/object/public/a.png'],
+    [
+      'plain http on the storage host',
+      'http://proj.supabase.co/storage/v1/object/public/b/a.png',
+    ],
+    [
+      'another port on the storage host',
+      'https://proj.supabase.co:8443/storage/v1/object/public/b/a.png',
+    ],
+    [
+      'a non-public path on the storage host',
+      'https://proj.supabase.co/rest/v1/contacts',
+    ],
+    [
+      'a path that climbs out of public storage',
+      'https://proj.supabase.co/storage/v1/object/public/../../../auth/v1/admin/users',
+    ],
+    [
+      'an API route on the app host',
+      'https://www.convoreal.com/api/cron/owner-digest',
+    ],
+    [
+      'a lookalike host',
+      'https://proj.supabase.co.evil.example/storage/v1/object/public/a.png',
+    ],
+    [
+      'an allowed host in the userinfo',
+      'https://proj.supabase.co@evil.example/storage/v1/object/public/a.png',
+    ],
+  ])(
+    'refuses a header sample on %s without fetching it',
+    async (_label, url) => {
+      queueSuccessfulSubmit();
+
+      const res = await POST(makeRequest(mediaPayload(url)));
+      const body = await res.json();
+
+      expect(res.status).toBe(400);
+      expect(body.code).toBe('HEADER_SAMPLE_URL_NOT_ALLOWED');
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(uploadSampleMedia).not.toHaveBeenCalled();
+      expect(submitMessageTemplate).not.toHaveBeenCalled();
+      expect(inserts).toHaveLength(0);
+    }
+  );
+
+  it('refuses a disallowed header sample in dry-run mode too', async () => {
+    process.env.WHATSAPP_TEMPLATES_DRY_RUN = 'true';
+    queueSuccessfulSubmit();
+
+    const res = await POST(
+      makeRequest(mediaPayload('https://evil.example/a.png'))
+    );
+
+    expect(res.status).toBe(400);
+    expect(inserts).toHaveLength(0);
+  });
+
+  it('refuses a header sample that redirects to another host', async () => {
+    queueSuccessfulSubmit();
+    fetchMock.mockResolvedValue(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'http://169.254.169.254/latest/meta-data/' },
+      })
+    );
+
+    const res = await POST(
+      makeRequest(
+        mediaPayload(
+          'https://proj.supabase.co/storage/v1/object/public/b/a.png'
+        )
+      )
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.code).toBe('HEADER_SAMPLE_URL_NOT_ALLOWED');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(uploadSampleMedia).not.toHaveBeenCalled();
+    expect(submitMessageTemplate).not.toHaveBeenCalled();
+    expect(inserts).toHaveLength(0);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('follows a redirect between allowed app hosts', async () => {
+    queueSuccessfulSubmit();
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 308,
+          headers: {
+            location: 'https://www.convoreal.com/brand/app-icon-1024.png',
+          },
+        })
+      )
+      .mockResolvedValueOnce(sampleResponse());
+
+    const res = await POST(
+      makeRequest(mediaPayload('https://convoreal.com/brand/app-icon-1024.png'))
+    );
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      'https://www.convoreal.com/brand/app-icon-1024.png'
+    );
+  });
+
+  it('does not fetch at all when the payload already carries an upload handle', async () => {
+    queueSuccessfulSubmit();
+
+    const res = await POST(
+      makeRequest(
+        mediaPayload('https://evil.example/a.png', { header_handle: 'h-1' })
+      )
+    );
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

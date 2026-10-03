@@ -25,6 +25,11 @@ import { stampFor } from '@/lib/whatsapp/copy-revision-stamp';
 import { withMetaHeldCategory } from '@/lib/whatsapp/template-category-lock';
 import { metaTemplatePayloadFields } from '@/lib/whatsapp/meta-template-row';
 import {
+  fetchHeaderSample,
+  HeaderSampleUrlError,
+  resolveHeaderSampleUrl,
+} from '@/lib/whatsapp/template-header-sample';
+import {
   requiresTranslationReview,
   isTranslationReviewed,
   TRANSLATION_REVIEW_REQUIRED_MESSAGE,
@@ -248,6 +253,31 @@ export async function POST(request: Request) {
       );
     }
 
+    // The sample for a media header is downloaded by this server, so
+    // its URL is checked before anything else happens: only this
+    // project's storage and the app's own brand assets are fetched —
+    // see template-header-sample.ts.
+    const needsHeaderSample = Boolean(
+      payload.header_type &&
+      payload.header_type !== 'text' &&
+      !payload.header_handle &&
+      payload.header_media_url
+    );
+    if (needsHeaderSample && payload.header_media_url) {
+      try {
+        resolveHeaderSampleUrl(payload.header_media_url);
+      } catch (e) {
+        return NextResponse.json(
+          {
+            error:
+              e instanceof Error ? e.message : 'Invalid header sample URL.',
+            code: 'HEADER_SAMPLE_URL_NOT_ALLOWED',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // One name, one category. Meta fixes a template name's category
     // the first time any language of it reaches review, and refuses a
     // later language under a different one ("The category UTILITY
@@ -354,13 +384,8 @@ export async function POST(request: Request) {
         // is rejected with "Missing sample parameter". When the payload
         // carries only a URL, fetch the sample and upload it for the
         // handle before building the components.
-        if (
-          payload.header_type &&
-          payload.header_type !== 'text' &&
-          !payload.header_handle &&
-          payload.header_media_url
-        ) {
-          const sample = await fetch(payload.header_media_url);
+        if (needsHeaderSample && payload.header_media_url) {
+          const sample = await fetchHeaderSample(payload.header_media_url);
           if (!sample.ok) {
             throw new Error(
               `Could not fetch the header sample (HTTP ${sample.status}) from ${payload.header_media_url}`
@@ -383,6 +408,12 @@ export async function POST(request: Request) {
         metaStatus = meta.status;
         metaCategory = meta.category ? normalizeCategory(meta.category) : null;
       } catch (e) {
+        if (e instanceof HeaderSampleUrlError) {
+          return NextResponse.json(
+            { error: e.message, code: 'HEADER_SAMPLE_URL_NOT_ALLOWED' },
+            { status: 400 }
+          );
+        }
         const message = e instanceof Error ? e.message : 'Meta submit failed.';
         // "Already exists" is not a failure to record: Meta has the
         // variant, so adopt it. The row ends up exactly as a sync would
