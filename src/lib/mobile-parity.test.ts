@@ -4612,7 +4612,7 @@ describe('[CTM-013] the Contacts tab counts come from one SQL aggregate on both 
     );
     expect(migration).toContain('count(*) FILTER (WHERE l.is_archived)');
     expect(migration).toContain(
-      "SELECT 1 FROM staff s WHERE c.phone LIKE '%' || s.suffix"
+      "WHERE regexp_replace(c.phone, '\\D', '', 'g') LIKE '%' || s.suffix"
     );
     expect(migration).toContain(
       'GRANT EXECUTE ON FUNCTION public.contacts_tab_counts(UUID) TO authenticated;'

@@ -29,7 +29,8 @@ AS $$
       AND c.is_merged = false
       AND c.chain_only = false
       AND NOT EXISTS (
-        SELECT 1 FROM staff s WHERE c.phone LIKE '%' || s.suffix
+        SELECT 1 FROM staff s
+        WHERE regexp_replace(c.phone, '\D', '', 'g') LIKE '%' || s.suffix
       )
   )
   SELECT
