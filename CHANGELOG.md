@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 3 October 2026
 
+- **The Contacts table scans in one rhythm.** Every row is one line
+  tall: the Areas, Categories and Tags columns show at most two chips
+  and fold the rest into a "+N" whose tooltip names them, the HOT and
+  COLD badge sits beside the name instead of under it, and the two
+  WhatsApp buttons next to a phone number no longer look identical (the
+  filled one opens a chat, the outlined one sends the welcome message).
+  The page also drops its repeated "Contacts" heading, since the top bar
+  already carries it, so the first row of the table starts higher.
 - **The Calendar loads once and fits the screen.** Opening it showed a
   property-card skeleton, then a spinner, before the month appeared; it
   now shows one calendar-shaped skeleton and fetches appointments and

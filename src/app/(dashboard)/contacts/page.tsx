@@ -32,20 +32,13 @@ export default function ContactsPage() {
 
   return (
     <div className="relative space-y-6 overflow-hidden">
-      {/* Header — no page-level Favorite button: Contacts is already a
-          main sidebar entry, so pinning it there is a no-op for the user. */}
-      <div className="relative z-10">
-        <h1 className="bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent text-white">
-          Contacts
-        </h1>
-        <p className="mt-1.5 text-xs leading-relaxed font-medium text-slate-400 sm:text-sm">
-          Manage buyers, assign agents, verify leads, and track stated
-          requirements.
-        </p>
-      </div>
-
-      {/* Sleek Tab Bar */}
-      <div className="relative z-10 flex gap-2 border-b border-slate-800/80">
+      {/* No page heading: the top bar already says "Contacts", and no
+          page-level Favorite button either, since Contacts is a main
+          sidebar entry. The tab bar is the first row. */}
+      <div
+        className="relative z-10 flex gap-2 border-b border-slate-800/80"
+        title="Manage buyers, assign agents, verify leads, and track stated requirements."
+      >
         {TABS.map((tab) => (
           <button
             key={tab.id}
