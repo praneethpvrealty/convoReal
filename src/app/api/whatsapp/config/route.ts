@@ -6,6 +6,7 @@ import {
   verifyPhoneNumber,
   checkWhatsAppPermissions,
   isGraphId,
+  isAbsentOrGraphId,
 } from '@/lib/whatsapp/meta-api';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -228,7 +229,7 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      if (waba_id && !isGraphId(waba_id)) {
+      if (!isAbsentOrGraphId(waba_id)) {
         return NextResponse.json(
           { error: 'WhatsApp Business Account ID must contain digits only.' },
           { status: 400 }

@@ -52,17 +52,30 @@ describe('[WAN-007] POST /api/admin/sandbox-config', () => {
     }
   );
 
-  it('answers 400 for a malformed waba_id before anything is stored', async () => {
-    const res = await post({
-      phone_number_id: '1029384756',
-      waba_id: 'waba-1',
-      access_token: 'tok',
-    });
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe(
-      'WhatsApp Business Account ID must contain digits only.'
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(db.touched).toBe(false);
-  });
+  it.each(['waba-1', 5647382910, {}, 0, false])(
+    'answers 400 for the malformed waba_id %j before anything is stored',
+    async (waba_id) => {
+      const res = await post({
+        phone_number_id: '1029384756',
+        waba_id,
+        access_token: 'tok',
+      });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe(
+        'WhatsApp Business Account ID must contain digits only.'
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(db.touched).toBe(false);
+    }
+  );
+
+  it.each([1029384756, 0, false])(
+    'answers 400 for the non-string phone_number_id %j',
+    async (phone_number_id) => {
+      const res = await post({ phone_number_id, access_token: 'tok' });
+      expect(res.status).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(db.touched).toBe(false);
+    }
+  );
 });

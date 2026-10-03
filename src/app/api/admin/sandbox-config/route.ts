@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { toErrorResponse } from '@/lib/auth/account';
 import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
-import { isGraphId, verifyPhoneNumber } from '@/lib/whatsapp/meta-api';
+import { isAbsentOrGraphId, verifyPhoneNumber } from '@/lib/whatsapp/meta-api';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export async function GET() {
@@ -78,13 +78,13 @@ export async function POST(request: Request) {
       enabled,
     } = body;
 
-    if (phone_number_id && !isGraphId(phone_number_id)) {
+    if (!isAbsentOrGraphId(phone_number_id)) {
       return NextResponse.json(
         { error: 'Phone Number ID must contain digits only.' },
         { status: 400 }
       );
     }
-    if (waba_id && !isGraphId(waba_id)) {
+    if (!isAbsentOrGraphId(waba_id)) {
       return NextResponse.json(
         { error: 'WhatsApp Business Account ID must contain digits only.' },
         { status: 400 }

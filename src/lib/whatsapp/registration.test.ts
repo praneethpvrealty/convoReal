@@ -4,7 +4,9 @@ import {
   checkWhatsAppPermissions,
   getSubscribedApps,
   isGraphId,
+  isAbsentOrGraphId,
   registerPhoneNumber,
+  sendTextMessage,
   subscribeWabaToApp,
   verifyPhoneNumber,
 } from './meta-api';
@@ -218,6 +220,16 @@ describe('[WAN-007] Graph id validation', () => {
     );
   });
 
+  it('treats an omitted or cleared id as absent, and nothing else', () => {
+    for (const absent of [undefined, null, '']) {
+      expect(isAbsentOrGraphId(absent)).toBe(true);
+    }
+    expect(isAbsentOrGraphId('1029384756')).toBe(true);
+    for (const wrong of [0, false, 1029384756, {}, ' ', 'waba-1']) {
+      expect(isAbsentOrGraphId(wrong)).toBe(false);
+    }
+  });
+
   it('rejects a value that is not a string', () => {
     expect(isGraphId(1029384756)).toBe(false);
     expect(() =>
@@ -241,6 +253,14 @@ describe('[WAN-007] Graph id validation', () => {
       await expect(
         fetchPhoneRegistrationState({ phoneNumberId: id, accessToken: 'tok' })
       ).resolves.toBeNull();
+      await expect(
+        sendTextMessage({
+          phoneNumberId: id,
+          accessToken: 'tok',
+          to: '919900000000',
+          text: 'hello',
+        })
+      ).rejects.toThrow(/Phone Number ID must contain digits only/);
       expect(fetchMock).not.toHaveBeenCalled();
     }
   );

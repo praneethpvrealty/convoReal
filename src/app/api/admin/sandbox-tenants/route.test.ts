@@ -54,15 +54,29 @@ describe('[WAN-007] POST /api/admin/sandbox-tenants', () => {
     }
   );
 
-  it('answers 400 for a malformed waba_id without calling Meta', async () => {
+  it.each(['5647382910/subscribed_apps', 5647382910, {}, 0, false])(
+    'answers 400 for the malformed waba_id %j without calling Meta',
+    async (waba_id) => {
+      const res = await post({
+        tenant_account_ids: ['acct-1'],
+        phone_number_id: '1029384756',
+        waba_id,
+        access_token: 'tok',
+      });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/waba_id.*digits only/);
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(db.touched).toBe(false);
+    }
+  );
+
+  it('answers 400 for a phone_number_id that is not a string', async () => {
     const res = await post({
       tenant_account_ids: ['acct-1'],
-      phone_number_id: '1029384756',
-      waba_id: '5647382910/subscribed_apps',
+      phone_number_id: 1029384756,
       access_token: 'tok',
     });
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/waba_id.*digits only/);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(db.touched).toBe(false);
   });

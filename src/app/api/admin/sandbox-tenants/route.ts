@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import { toErrorResponse } from '@/lib/auth/account';
 import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
 import { encrypt } from '@/lib/whatsapp/encryption';
-import { isGraphId, verifyPhoneNumber } from '@/lib/whatsapp/meta-api';
+import {
+  isAbsentOrGraphId,
+  isGraphId,
+  verifyPhoneNumber,
+} from '@/lib/whatsapp/meta-api';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
@@ -131,7 +135,12 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!phone_number_id?.trim() || !access_token?.trim()) {
+    if (
+      typeof phone_number_id !== 'string' ||
+      typeof access_token !== 'string' ||
+      !phone_number_id.trim() ||
+      !access_token.trim()
+    ) {
       return NextResponse.json(
         { error: 'phone_number_id and access_token required for migration' },
         { status: 400 }
@@ -144,7 +153,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    if (waba_id?.trim() && !isGraphId(waba_id.trim())) {
+    if (
+      !isAbsentOrGraphId(typeof waba_id === 'string' ? waba_id.trim() : waba_id)
+    ) {
       return NextResponse.json(
         { error: 'waba_id must contain digits only' },
         { status: 400 }

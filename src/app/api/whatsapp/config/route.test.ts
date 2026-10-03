@@ -67,18 +67,21 @@ describe('[WAN-007] POST /api/whatsapp/config', () => {
     }
   );
 
-  it('answers 400 for a malformed waba_id without calling Meta', async () => {
-    const res = await post({
-      phone_number_id: '1029384756',
-      waba_id: 'waba-1',
-      access_token: 'tok',
-    });
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe(
-      'WhatsApp Business Account ID must contain digits only.'
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(db.tables).toEqual(['profiles']);
-    expect(db.adminTouched).toBe(false);
-  });
+  it.each(['waba-1', 5647382910, {}, 0, false])(
+    'answers 400 for the malformed waba_id %j without calling Meta',
+    async (waba_id) => {
+      const res = await post({
+        phone_number_id: '1029384756',
+        waba_id,
+        access_token: 'tok',
+      });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe(
+        'WhatsApp Business Account ID must contain digits only.'
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(db.tables).toEqual(['profiles']);
+      expect(db.adminTouched).toBe(false);
+    }
+  );
 });

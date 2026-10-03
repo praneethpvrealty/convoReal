@@ -22,6 +22,12 @@ export function isGraphId(value: unknown): value is string {
   return typeof value === 'string' && GRAPH_ID_PATTERN.test(value);
 }
 
+export function isAbsentOrGraphId(value: unknown): boolean {
+  return (
+    value === undefined || value === null || value === '' || isGraphId(value)
+  );
+}
+
 /**
  * Phone number ids and WABA ids are numeric strings. They are
  * interpolated into the Graph URL path, so anything else is rejected
@@ -570,14 +576,8 @@ function sendBase(recipientType: RecipientType | undefined): string {
 export async function sendTextMessage(
   args: SendTextMessageArgs
 ): Promise<MetaSendResult> {
-  const {
-    phoneNumberId,
-    accessToken,
-    to,
-    text,
-    contextMessageId,
-    recipientType,
-  } = args;
+  const { accessToken, to, text, contextMessageId, recipientType } = args;
+  const phoneNumberId = assertGraphId(args.phoneNumberId, 'Phone Number ID');
   const url = `${sendBase(recipientType)}/${phoneNumberId}/messages`;
   const body: Record<string, unknown> = {
     messaging_product: 'whatsapp',
