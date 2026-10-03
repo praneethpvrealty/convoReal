@@ -7,6 +7,7 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -182,11 +183,17 @@ export default function PulseScreen() {
               <InlineStatus text="Some engagement data could not be loaded. Pull to retry." />
             ) : null}
 
-            <SectionLabel text="Top listings" />
+            <SectionLabel
+              text={
+                top.data && top.data.length > 0
+                  ? `Viewed listings (${top.data.length})`
+                  : 'Viewed listings'
+              }
+            />
             {top.isLoading ? (
-              <InlineStatus text="Loading top listings…" loading />
+              <InlineStatus text="Loading viewed listings…" loading />
             ) : top.isError ? (
-              <InlineStatus text="Top listings unavailable. Pull to retry." />
+              <InlineStatus text="Viewed listings unavailable. Pull to retry." />
             ) : !top.data || top.data.length === 0 ? (
               <Text
                 style={[
@@ -197,7 +204,12 @@ export default function PulseScreen() {
                 No properties viewed yet.
               </Text>
             ) : (
-              <View style={{ gap: spacing.sm }}>
+              <ScrollView
+                nestedScrollEnabled
+                style={styles.listingScroller}
+                contentContainerStyle={{ gap: spacing.sm }}
+                accessibilityLabel="Viewed listings"
+              >
                 {top.data.map((p) => (
                   <TopListingCard
                     key={p.propertyId}
@@ -207,7 +219,7 @@ export default function PulseScreen() {
                     }
                   />
                 ))}
-              </View>
+              </ScrollView>
             )}
 
             <SectionLabel
@@ -690,6 +702,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     textAlign: 'center',
   },
+  listingScroller: { maxHeight: 440, flexGrow: 0 },
   listing: {
     borderWidth: 1,
     borderRadius: radius.lg,

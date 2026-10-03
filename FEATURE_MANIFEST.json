@@ -3267,6 +3267,14 @@
             { "file": "mobile/lib/pulse-feed.test.ts", "case": "[PLS-003]" },
             { "file": "src/lib/mobile-parity.test.ts", "case": "[PLS-003]" }
           ]
+        },
+        {
+          "id": "PLS-004",
+          "rule": "The viewed listings panel on web and mobile lists every property with at least one showcase view, most viewed first, up to the shared 500-listing bound, inside its own scroller with the listing count in its heading; each listing still opens its viewers.",
+          "tests": [
+            { "file": "src/lib/pulse/queries.test.ts", "case": "[PLS-004]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[PLS-004]" }
+          ]
         }
       ]
     },

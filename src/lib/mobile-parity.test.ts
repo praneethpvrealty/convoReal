@@ -54,6 +54,7 @@ import {
 } from '@/lib/calendar/tasks-view';
 import {
   PULSE_FEED_PAGE_SIZE,
+  PULSE_VIEWED_LISTINGS_LIMIT,
   nextPulseFeedCursor,
   pulseFeedCursorFilter,
 } from '@/lib/pulse/feed-page';
@@ -4391,6 +4392,24 @@ describe('[PLS-001] mobile Showcase Pulse feed paging matches web', () => {
         nextPulseFeedCursor(rows)
       );
     }
+  });
+});
+
+describe('[PLS-004] mobile Showcase Pulse lists every viewed listing like web', () => {
+  const mobile = mobileModule<{ PULSE_VIEWED_LISTINGS_LIMIT: number }>(
+    'lib/pulse-feed.ts'
+  );
+
+  it('requests the same listing limit and scrolls the whole list', () => {
+    expect(mobile.PULSE_VIEWED_LISTINGS_LIMIT).toBe(
+      PULSE_VIEWED_LISTINGS_LIMIT
+    );
+    expect(mobileSource('lib/pulse.ts')).toContain(
+      'p_limit: PULSE_VIEWED_LISTINGS_LIMIT'
+    );
+    const screen = mobileSource('app/(app)/pulse.tsx');
+    expect(screen).toMatch(/<ScrollView\s+nestedScrollEnabled/);
+    expect(screen).toContain('{top.data.map(');
   });
 });
 

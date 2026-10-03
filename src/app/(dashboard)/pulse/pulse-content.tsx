@@ -581,11 +581,16 @@ export default function PulsePage() {
               <div>
                 <h2 className="flex items-center gap-2 text-sm font-black tracking-wider text-white uppercase">
                   <Building className="text-primary size-4" />
-                  Top Listings
-                  <InfoHint text="Properties that received the most client views across all shared Showcase links." />
+                  Viewed Listings
+                  {stats?.topProperties && stats.topProperties.length > 0 && (
+                    <span className="text-slate-500">
+                      ({stats.topProperties.length})
+                    </span>
+                  )}
+                  <InfoHint text="Every property that received client views across all shared Showcase links, most viewed first." />
                 </h2>
                 <p className="mt-0.5 text-[11px] text-slate-500">
-                  Most viewed properties on client showcases.
+                  All viewed properties on client showcases, most viewed first.
                 </p>
               </div>
 
@@ -597,7 +602,7 @@ export default function PulsePage() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="max-h-[560px] space-y-3 overflow-y-auto pr-1">
                   {stats.topProperties.map(
                     ({ property, viewsCount, uniqueViewsCount }) => (
                       <button

@@ -127,6 +127,8 @@ export function formatTimeAgo(iso: string): string {
 /** Web parity: src/lib/pulse/feed-page.ts. */
 export const PULSE_FEED_PAGE_SIZE = 200;
 
+export const PULSE_VIEWED_LISTINGS_LIMIT = 500;
+
 export interface PulseFeedCursor {
   createdAt: string;
   id: string;

@@ -1,5 +1,7 @@
 export const PULSE_FEED_PAGE_SIZE = 200;
 
+export const PULSE_VIEWED_LISTINGS_LIMIT = 500;
+
 export interface PulseFeedCursor {
   createdAt: string;
   id: string;
