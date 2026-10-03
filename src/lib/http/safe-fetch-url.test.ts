@@ -104,6 +104,32 @@ describe('assertSafeFetchUrl', () => {
     expect(lookup).toHaveBeenCalledWith('housing.com', { all: true });
   });
 
+  it.each([
+    'https://housing.com/',
+    'https://housing.com/leads/whatsapp?lead_id=12345',
+    'https://8czw49zf.r.ap-southeast-1.awstrack.me/L0/https:%2F%2Fhsng.co%2Fabc%3Fx=1/1/0100019a-b1c2/Zx9_Q-k=407',
+    'https://pahal.housing.com/lead/cta/whatsapp?phone=+919000000000&userName=Test+Buyer',
+    'https://proj.supabase.co/storage/v1/object/public/property-images/acc-1/template-headers/1759-ab12c.mp4',
+    'https://www.convoreal.com/brand/app-icon-1024.png',
+    'https://example.com:8443/a;b=c/d@e/f,g/$h/i&j/100%25?q=a%2Fb&r=%3F#frag',
+    'http://93.184.216.34/path',
+  ])('hands back %s unchanged apart from the fragment', async (raw) => {
+    const url = await assertSafeFetchUrl(raw);
+    expect(url.href).toBe(raw.split('#')[0]);
+  });
+
+  it('keeps a crafted path segment from adding structure to the request', async () => {
+    const url = await assertSafeFetchUrl('https://example.com/a%2F..%2Fb/c d');
+    expect(url.pathname).toBe('/a%2F..%2Fb/c%20d');
+    expect(url.hostname).toBe('example.com');
+  });
+
+  it('refuses an IPv6 literal even when it is a public address', async () => {
+    await expect(
+      assertSafeFetchUrl('https://[2606:4700::1111]/')
+    ).rejects.toBeInstanceOf(UnsafeUrlError);
+  });
+
   it('refuses a public host the caller did not allow, before resolving it', async () => {
     await expect(
       assertSafeFetchUrl('https://evil.example.com/', {

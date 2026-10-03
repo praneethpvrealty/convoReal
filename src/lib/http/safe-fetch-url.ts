@@ -104,7 +104,7 @@ export function parseSafeFetchUrl(
   if (!host || host === 'localhost' || host.endsWith('.localhost')) {
     throw new UnsafeUrlError('That host is not reachable from here.');
   }
-  if (isIP(host) !== 0 && isInternalAddress(host)) {
+  if (isIP(host) === 6 || (isIP(host) === 4 && isInternalAddress(host))) {
     throw new UnsafeUrlError('That address is not reachable from here.');
   }
   if (options.allow && !options.allow(url)) {
@@ -113,14 +113,47 @@ export function parseSafeFetchUrl(
   return url;
 }
 
-/** `parseSafeFetchUrl`, then refuse a name that resolves inside the network. */
+const PATH_LITERALS = /%(25|24|26|2B|2C|3A|3B|3D|40)/g;
+
+/**
+ * The URL to request, written out again from the parts that were checked
+ * rather than passed through as the caller's string.
+ *
+ * Each part goes through `encodeURIComponent`, so nothing in it can add
+ * a path separator, a query or a second host. The characters a URL path
+ * already carries literally (and its existing percent-escapes) are put
+ * back, which keeps the request byte-for-byte what a portal's tracking
+ * link expects. This is also the one shape CodeQL's request-forgery
+ * query accepts: it has no notion of a guard function, only of encoded
+ * components and of input placed after a `?`.
+ */
+function requestHref(url: URL): string {
+  const scheme = url.protocol === 'https:' ? 'https' : 'http';
+  const host = encodeURIComponent(url.hostname);
+  const port = url.port ? `:${encodeURIComponent(url.port)}` : '';
+  const path = url.pathname
+    .split('/')
+    .map((segment) =>
+      encodeURIComponent(segment).replace(PATH_LITERALS, (_, hex: string) =>
+        String.fromCharCode(parseInt(hex, 16))
+      )
+    )
+    .join('/');
+  const base = `${scheme}://${host}${port}${path}`;
+  return url.search ? `${base}?${url.search.slice(1)}` : base;
+}
+
+/**
+ * `parseSafeFetchUrl`, then refuse a name that resolves inside the
+ * network. Returns the URL to hand to `fetch`.
+ */
 export async function assertSafeFetchUrl(
   raw: string,
   options: SafeFetchUrlOptions = {}
 ): Promise<URL> {
   const url = parseSafeFetchUrl(raw, options);
   const host = bareHostname(url);
-  if (isIP(host) !== 0) return url;
+  if (isIP(host) !== 0) return new URL(requestHref(url));
 
   let addresses: { address: string }[];
   try {
@@ -134,7 +167,7 @@ export async function assertSafeFetchUrl(
   ) {
     throw new UnsafeUrlError('That host is not reachable from here.');
   }
-  return url;
+  return new URL(requestHref(url));
 }
 
 /**
