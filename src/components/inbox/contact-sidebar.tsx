@@ -60,49 +60,62 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
 
-  const fetchContactData = useCallback(async () => {
-    if (!contact) return;
+  const [loadedContactId, setLoadedContactId] = useState<string | null>(null);
 
-    const supabase = createClient();
+  const loadContactData = useCallback(
+    async (contactId: string, isCurrent: () => boolean) => {
+      const supabase = createClient();
 
-    // Fetch deals, notes, and tags in parallel
-    const [dealsRes, notesRes, tagsRes] = await Promise.all([
-      supabase
-        .from('deals')
-        .select('*, stage:pipeline_stages(*)')
-        .eq('contact_id', contact.id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('contact_notes')
-        .select('*')
-        .eq('contact_id', contact.id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('contact_tags')
-        .select('id, tag_id, tags(*)')
-        .eq('contact_id', contact.id),
-    ]);
+      const [dealsRes, notesRes, tagsRes] = await Promise.all([
+        supabase
+          .from('deals')
+          .select('*, stage:pipeline_stages(*)')
+          .eq('contact_id', contactId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('contact_notes')
+          .select('*')
+          .eq('contact_id', contactId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('contact_tags')
+          .select('id, tag_id, tags(*)')
+          .eq('contact_id', contactId),
+      ]);
 
-    if (dealsRes.data) setDeals(dealsRes.data);
-    if (notesRes.data) setNotes(notesRes.data);
-    if (tagsRes.data) {
-      const mapped = tagsRes.data
-        .filter((ct: Record<string, unknown>) => ct.tags)
-        .map((ct: Record<string, unknown>) => ({
-          ...(ct.tags as Tag),
-          contact_tag_id: ct.id as string,
-        }));
-      setTags(mapped);
-    }
-  }, [contact]);
+      if (!isCurrent()) return;
 
-  // Load on contact change. setContactData/setTags run inside async
-  // Supabase callbacks, not synchronously in the effect body.
+      setDeals(dealsRes.data ?? []);
+      setNotes(notesRes.data ?? []);
+      setTags(
+        (tagsRes.data ?? [])
+          .filter((ct: Record<string, unknown>) => ct.tags)
+          .map((ct: Record<string, unknown>) => ({
+            ...(ct.tags as Tag),
+            contact_tag_id: ct.id as string,
+          }))
+      );
+      setLoadedContactId(contactId);
+    },
+    []
+  );
+
+  // Load on contact change. A switch mid-flight is cancelled so a slow
+  // response for the previous contact can never land under the new
+  // contact's name; until the new contact's rows arrive the sections
+  // below render placeholders instead of the previous contact's data.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCurrency();
-    fetchContactData();
-  }, [fetchCurrency, fetchContactData]);
+    if (!contact) return;
+    let cancelled = false;
+    void loadContactData(contact.id, () => !cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [contact, fetchCurrency, loadContactData]);
+
+  const ready = contact !== null && loadedContactId === contact.id;
 
   const handleCopyPhone = useCallback(async () => {
     if (!contact?.phone) return;
@@ -197,10 +210,10 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
       if (error || !data?.length) {
         toast.error('Failed to save note');
         // Refetch to restore true state
-        fetchContactData();
+        if (contact) void loadContactData(contact.id, () => true);
       }
     },
-    [editingText, fetchContactData]
+    [editingText, contact, loadContactData]
   );
 
   const handleDeleteNote = useCallback(async (note: ContactNote) => {
@@ -269,7 +282,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   return (
     <div className="flex h-full w-70 flex-col border-l border-slate-900/60 bg-slate-950/45 backdrop-blur-xl">
       <ScrollArea className="flex-1">
-        <div className="p-4">
+        <div className="p-4 pb-28">
           {/* Contact Info */}
           <div className="flex flex-col items-center text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-700 text-lg font-semibold text-white">
@@ -333,7 +346,9 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               Tags
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
-              {tags.length === 0 ? (
+              {!ready ? (
+                <SectionPlaceholder className="h-4 w-24 rounded-full" />
+              ) : tags.length === 0 ? (
                 <p className="px-1 text-xs text-slate-600">No tags</p>
               ) : (
                 tags.map((tag) => (
@@ -364,7 +379,9 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               Active Deals
             </div>
             <div className="mt-2 space-y-2">
-              {deals.length === 0 ? (
+              {!ready ? (
+                <SectionPlaceholder className="h-12 w-full rounded-lg" />
+              ) : deals.length === 0 ? (
                 <p className="px-1 text-xs text-slate-600">No deals</p>
               ) : (
                 deals.map((deal) => (
@@ -436,29 +453,42 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
               {/* Notes list */}
               <div className="mt-2 space-y-2">
-                {notes.length === 0 && (
+                {!ready && (
+                  <SectionPlaceholder className="h-16 w-full rounded-lg" />
+                )}
+                {ready && notes.length === 0 && (
                   <p className="px-1 text-xs text-slate-600">No notes yet</p>
                 )}
-                {notes.map((note) => (
-                  <NoteCard
-                    key={note.id}
-                    note={note}
-                    isEditing={editingNoteId === note.id}
-                    editingText={editingText}
-                    onEditingTextChange={setEditingText}
-                    onStartEdit={handleStartEdit}
-                    onCancelEdit={handleCancelEdit}
-                    onSaveEdit={handleSaveEdit}
-                    onToggleComplete={handleToggleComplete}
-                    onDelete={handleDeleteNote}
-                  />
-                ))}
+                {ready &&
+                  notes.map((note) => (
+                    <NoteCard
+                      key={note.id}
+                      note={note}
+                      isEditing={editingNoteId === note.id}
+                      editingText={editingText}
+                      onEditingTextChange={setEditingText}
+                      onStartEdit={handleStartEdit}
+                      onCancelEdit={handleCancelEdit}
+                      onSaveEdit={handleSaveEdit}
+                      onToggleComplete={handleToggleComplete}
+                      onDelete={handleDeleteNote}
+                    />
+                  ))}
               </div>
             </div>
           </div>
         </div>
       </ScrollArea>
     </div>
+  );
+}
+
+function SectionPlaceholder({ className }: { className: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn('animate-pulse bg-slate-800/70', className)}
+    />
   );
 }
 
