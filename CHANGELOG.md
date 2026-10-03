@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 3 October 2026
 
+- **The showcase share message reads like the message the client gets.**
+  Share Showcase Portal shows the pitch with the contact's first name and
+  the real portal link filled in and highlighted, instead of `{name}` and
+  `{portalUrl}`; **Edit message** opens the template. The link button is
+  now **Copy link**, so **Copy Message** is the one primary action. Same on
+  mobile.
+- **Faint text is easier to read.** Secondary grey text in dark mode now
+  meets the WCAG AA contrast ratio on every surface, and the helper text
+  under the listing form's switches and on Projects cards is a size larger.
+  Mobile's faint text is darker in light mode and lighter in dark mode to
+  match.
 - **The Deals board reads as one funnel again.** Every stage sits in one
   horizontal row, with the won and lost stages at the right edge, so an
   agent can scan the pipeline without turning a carousel; a stage with no

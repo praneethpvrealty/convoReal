@@ -43,6 +43,7 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, PropertiesResponse, Property } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 import { getShowcaseUrl } from '@/lib/welcome-message';
+import { previewSegments } from '@shared/lib/showcase/message-preview';
 
 interface EngineTemplate {
   name: string;
@@ -144,6 +145,7 @@ export function ShowcaseShareSheet({
   const [recipients, setRecipients] = useState(false);
   const [sending, setSending] = useState(false);
   const [messageMode, setMessageMode] = useState<'pitch' | 'list'>('pitch');
+  const [editingPitch, setEditingPitch] = useState(false);
   const [digestDraft, setDigestDraft] = useState<{
     base: string;
     text: string;
@@ -416,6 +418,25 @@ export function ShowcaseShareSheet({
     show({
       title: 'Link copied',
       message: `It opens ${scopeLabel}.`,
+      actions: [{ label: 'OK', variant: 'primary', onPress: close }],
+    });
+  }
+
+  async function copyMessage() {
+    haptic.tap();
+    await Clipboard.setStringAsync(
+      portfolioContact
+        ? messageFor(
+            withShowcaseVisitor(link, portfolioContact.id),
+            portfolioContact.name
+          )
+        : messageFor(await anonymousScopedLink())
+    );
+    show({
+      title: 'Message copied',
+      message: portfolioContact
+        ? `Ready to paste for ${portfolioContact.name?.trim().split(/\s+/)[0] || 'them'}.`
+        : `It links to ${scopeLabel}.`,
       actions: [{ label: 'OK', variant: 'primary', onPress: close }],
     });
   }
@@ -878,6 +899,49 @@ export function ShowcaseShareSheet({
           <Text style={{ fontSize: 12, color: colors.textMuted }}>
             Nothing to list in this selection yet.
           </Text>
+        ) : messageMode === 'pitch' && !editingPitch ? (
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: colors.glassBorder,
+              borderRadius: radius.md,
+              padding: spacing.md,
+              minHeight: 120,
+            }}
+          >
+            <Text style={{ fontSize: 14, lineHeight: 21, color: colors.text }}>
+              {previewSegments(
+                portfolioContact?.name
+                  ? pitch.replace(
+                      /^Hi!/,
+                      `Hi ${portfolioContact.name.trim().split(/\s+/)[0]}!`
+                    )
+                  : pitch,
+                {
+                  name: portfolioContact?.name ?? null,
+                  portalUrl: portfolioContact
+                    ? withShowcaseVisitor(link, portfolioContact.id)
+                    : link,
+                }
+              ).map((segment, index) =>
+                segment.kind === 'text' ? (
+                  <Text key={index}>{segment.text}</Text>
+                ) : (
+                  <Text
+                    key={index}
+                    numberOfLines={segment.kind === 'link' ? 1 : undefined}
+                    style={{
+                      color: colors.primary,
+                      backgroundColor: colors.primarySoft,
+                      fontFamily: f.bold,
+                    }}
+                  >
+                    {segment.text}
+                  </Text>
+                )
+              )}
+            </Text>
+          </View>
         ) : (
           <TextField
             value={message}
@@ -890,13 +954,59 @@ export function ShowcaseShareSheet({
             style={{ minHeight: messageMode === 'list' ? 180 : 120 }}
           />
         )}
+        {messageMode === 'pitch' ? (
+          <Pressable
+            onPress={() => setEditingPitch((value) => !value)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: editingPitch }}
+            accessibilityLabel={editingPitch ? 'Done editing' : 'Edit message'}
+            style={{ alignSelf: 'flex-start', paddingVertical: spacing.xs }}
+          >
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
+              {editingPitch ? 'Done' : 'Edit message'}
+            </Text>
+          </Pressable>
+        ) : null}
         <Text style={{ fontSize: 11, color: colors.textFaint }}>
-          {messageMode === 'list'
-            ? `A WhatsApp-ready digest of the ${digest.data?.count ?? 0} listings this link opens, grouped by category.`
-            : `{portalUrl} is replaced with the recipient's own tracked link, so their opens show by name in Pulse.`}
+          {messageMode === 'pitch' && !editingPitch
+            ? 'This is what they receive, with their own tracked link so their opens show by name in Pulse.'
+            : messageMode === 'list'
+              ? `A WhatsApp-ready digest of the ${digest.data?.count ?? 0} listings this link opens, grouped by category.`
+              : `{portalUrl} is replaced with the recipient's own tracked link, so their opens show by name in Pulse.`}
         </Text>
 
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <Pressable
+            onPress={() => void copyMessage()}
+            disabled={!ready}
+            accessibilityRole="button"
+            accessibilityLabel="Copy message"
+            style={[
+              styles.secondary,
+              {
+                borderColor: colors.primary,
+                backgroundColor: colors.primary,
+                opacity: ready ? 1 : 0.5,
+              },
+            ]}
+          >
+            <Ionicons name="copy-outline" size={16} color={colors.onPrimary} />
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: f.bold,
+                color: colors.onPrimary,
+              }}
+            >
+              Copy message
+            </Text>
+          </Pressable>
           <Pressable
             onPress={() => void copyLink()}
             disabled={!ready}

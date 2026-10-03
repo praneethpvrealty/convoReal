@@ -1658,6 +1658,28 @@
             "src/lib/inventory/property-form-sections.ts",
             "src/components/inventory/property-form-section-nav.tsx"
           ]
+        },
+        {
+          "id": "PRP-034",
+          "rule": "The showcase share message is shown as the recipient will read it, with the contact's first name (or \"there\") and the real portal link filled in and marked, on web and mobile; the raw {name} and {portalUrl} template is only shown while editing it, and Copy Message is the primary action.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/message-preview.test.ts",
+              "case": "[PRP-034]"
+            }
+          ],
+          "guards": ["src/lib/showcase/message-preview.ts"]
+        },
+        {
+          "id": "PRP-035",
+          "rule": "Secondary text in dark mode (text-slate-500 on the page, card and slate-800/900 surfaces, in the default and verdant themes) meets WCAG AA contrast of 4.5:1, and the slate ramp stays ordered from 400 through 500.",
+          "tests": [
+            {
+              "file": "src/app/text-contrast.test.ts",
+              "case": "[PRP-035]"
+            }
+          ],
+          "guards": ["src/app/globals.css", "mobile/lib/theme.ts"]
         }
       ]
     },

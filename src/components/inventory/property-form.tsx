@@ -6216,7 +6216,7 @@ export function PropertyForm({
                           >
                             Guard exact location
                           </Label>
-                          <p className="text-[10px] leading-normal text-slate-500">
+                          <p className="text-xs leading-normal text-slate-400">
                             {guardedByType
                               ? 'On by default for this property type — buyers and co-brokers see locality only until you approve a reveal.'
                               : 'Off by default for this property type — turn on to hide the street address, map pin and coordinates until you approve a reveal.'}
@@ -6244,7 +6244,7 @@ export function PropertyForm({
                           >
                             Confidential listing
                           </Label>
-                          <p className="text-[10px] leading-normal text-slate-500">
+                          <p className="text-xs leading-normal text-slate-400">
                             Anyone opening the public link sees only the type,
                             locality and a price band until you approve them.
                             Link previews and search engines get nothing, and
@@ -6278,7 +6278,7 @@ export function PropertyForm({
                           className="min-h-[80px] resize-y border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500"
                           rows={3}
                         />
-                        <p className="text-[10px] leading-normal text-slate-500">
+                        <p className="text-xs leading-normal text-slate-400">
                           Location landmarks, access info, owner contact
                           preferences — searchable in the Engine but private to
                           your team.
@@ -6397,7 +6397,7 @@ export function PropertyForm({
                               ))}
                           </div>
                         )}
-                        <p className="text-[10px] leading-normal text-slate-500">
+                        <p className="text-xs leading-normal text-slate-400">
                           Builder names, campaigns, deal nicknames — typing any
                           part of a tag finds this property in Inventory search
                           and property pickers.
