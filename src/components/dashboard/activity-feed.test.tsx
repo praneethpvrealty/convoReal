@@ -18,7 +18,7 @@ describe('ActivityFeed', () => {
         kind: 'automation',
         text: 'Automation "initial" failed for Praneeth',
         at: AT,
-        href: '/automations/auto-uuid',
+        href: '/automations/auto-uuid/logs',
         failed: true,
       },
     ];
@@ -27,7 +27,7 @@ describe('ActivityFeed', () => {
     const text = screen.getByText('Automation "initial" failed for Praneeth');
     expect(text.className).toContain('text-red-300');
     expect(text.closest('a')?.getAttribute('href')).toBe(
-      '/automations/auto-uuid'
+      '/automations/auto-uuid/logs'
     );
     const badge = text.previousElementSibling!;
     expect(badge.className).toContain('text-red-400');

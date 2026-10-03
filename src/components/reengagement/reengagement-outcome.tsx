@@ -5,20 +5,11 @@
 // across every batch on /reengagement. `broadcastId === null` means all
 // batches, which is exactly what the RPCs take.
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  Loader2,
-  Send,
-  Users,
-  Filter,
-  MessageSquare,
-} from 'lucide-react';
+import { Loader2, Send, Users, Filter, MessageSquare } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import {
@@ -33,11 +24,8 @@ import {
   leadStage,
   maskPhoneLastFour,
   requirementSummary,
-  sortLeads,
   LEAD_STAGE_LABELS,
-  type LeadSortKey,
   type LeadStage,
-  type SortDirection,
 } from '@/lib/reengagement/funnel';
 import { formatRelative } from '@/lib/format/date';
 import { ShortlistDialog } from './shortlist-dialog';
@@ -66,10 +54,6 @@ export function ReengagementOutcome({
 
   const [onlyMatched, setOnlyMatched] = useState(false);
   const [page, setPage] = useState(0);
-  const [sort, setSort] = useState<{
-    key: LeadSortKey;
-    direction: SortDirection;
-  } | null>(null);
   const [shortlistLead, setShortlistLead] = useState<ReengagementLead | null>(
     null
   );
@@ -94,52 +78,13 @@ export function ReengagementOutcome({
     enabled,
   });
 
-  function toggleSort(key: LeadSortKey) {
-    setSort((current) =>
-      current?.key === key
-        ? { key, direction: current.direction === 'desc' ? 'asc' : 'desc' }
-        : { key, direction: 'desc' }
-    );
-  }
-
-  function sortHeader(key: LeadSortKey, label: string) {
-    const active = sort?.key === key ? sort.direction : null;
-    const Icon =
-      active === 'desc' ? ArrowDown : active === 'asc' ? ArrowUp : ArrowUpDown;
-    return (
-      <th
-        aria-sort={
-          active === 'desc'
-            ? 'descending'
-            : active === 'asc'
-              ? 'ascending'
-              : 'none'
-        }
-        className="px-3 py-2 text-left font-medium text-slate-400"
-      >
-        <button
-          type="button"
-          onClick={() => toggleSort(key)}
-          className="inline-flex cursor-pointer items-center gap-1 hover:text-slate-200"
-        >
-          {label}
-          <Icon className="size-3" />
-        </button>
-      </th>
-    );
-  }
-
   function refresh() {
     summaryQuery.refetch();
     leadsQuery.refetch();
   }
 
   const summary = summaryQuery.data;
-  const fetchedLeads = leadsQuery.data?.leads;
-  const leads = useMemo(() => {
-    const rows = fetchedLeads ?? [];
-    return sort ? sortLeads(rows, sort.key, sort.direction) : rows;
-  }, [fetchedLeads, sort]);
+  const leads = leadsQuery.data?.leads ?? [];
   const total = leadsQuery.data?.total ?? 0;
   const pageCount = Math.ceil(total / LEADS_PAGE_SIZE);
 
@@ -244,8 +189,12 @@ export function ReengagementOutcome({
                 <th className="px-3 py-2 text-left font-medium text-slate-400">
                   Latest requirement
                 </th>
-                {sortHeader('matches', 'Matches')}
-                {sortHeader('repliedAt', 'Last reply')}
+                <th className="px-3 py-2 text-left font-medium text-slate-400">
+                  Matches
+                </th>
+                <th className="px-3 py-2 text-left font-medium text-slate-400">
+                  Last reply
+                </th>
                 <th className="px-3 py-2 text-right font-medium text-slate-400">
                   Action
                 </th>

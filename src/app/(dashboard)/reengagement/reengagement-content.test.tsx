@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type {
   ReengagementLead,
@@ -127,7 +127,7 @@ describe('ReengagementContent', () => {
     expect(screen.queryByText(/9876543210/)).toBeNull();
   });
 
-  it('shows the last reply and sorts by it and by matches', async () => {
+  it('shows the last reply for each lead', async () => {
     setup(
       [
         lead({
@@ -142,26 +142,13 @@ describe('ReengagementContent', () => {
           matchCount: 9,
           repliedAt: null,
         }),
-        lead({
-          contactId: 'c',
-          contactName: 'Chitra',
-          matchCount: 5,
-          repliedAt: '2026-09-01T00:00:00Z',
-        }),
       ],
-      summary({ leads: 3, matched: 3 })
+      summary({ leads: 2, matched: 2 })
     );
     await screen.findByText('Asha');
-    expect(screen.getByRole('button', { name: /Last reply/ })).toBeTruthy();
-    expect(rowOrder()).toEqual(['Asha', 'Bala', 'Chitra']);
-
-    fireEvent.click(screen.getByRole('button', { name: /Matches/ }));
-    expect(rowOrder()).toEqual(['Bala', 'Chitra', 'Asha']);
-    fireEvent.click(screen.getByRole('button', { name: /Matches/ }));
-    expect(rowOrder()).toEqual(['Asha', 'Chitra', 'Bala']);
-
-    fireEvent.click(screen.getByRole('button', { name: /Last reply/ }));
-    expect(rowOrder()).toEqual(['Chitra', 'Asha', 'Bala']);
+    expect(screen.getByText('Last reply')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Last reply/ })).toBeNull();
+    expect(rowOrder()).toEqual(['Asha', 'Bala']);
   });
 
   it('hides the matched-only filter when every lead is matched', async () => {

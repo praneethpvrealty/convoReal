@@ -4,7 +4,6 @@ import {
   allLeadsMatched,
   funnelStages,
   maskPhoneLastFour,
-  sortLeads,
   REENGAGEMENT_TEMPLATE_NAMES,
   leadStage,
   requirementSummary,
@@ -173,52 +172,6 @@ describe('REENGAGEMENT_TEMPLATE_NAMES vs is_reengagement_template()', () => {
     for (const name of inSql) {
       expect(REENGAGEMENT_TEMPLATE_NAMES, name).toContain(name);
     }
-  });
-});
-
-describe('sortLeads', () => {
-  const rows = [
-    lead({ contactId: 'a', matchCount: 2, repliedAt: '2026-08-10T00:00:00Z' }),
-    lead({ contactId: 'b', matchCount: 12, repliedAt: null }),
-    lead({ contactId: 'c', matchCount: 0, repliedAt: '2026-09-01T00:00:00Z' }),
-    lead({ contactId: 'd', matchCount: 12, repliedAt: '2026-08-20T00:00:00Z' }),
-  ];
-  const ids = (list: ReengagementLead[]) => list.map((l) => l.contactId);
-
-  it('sorts by matches in either direction, keeping ties in place', () => {
-    expect(ids(sortLeads(rows, 'matches', 'desc'))).toEqual([
-      'b',
-      'd',
-      'a',
-      'c',
-    ]);
-    expect(ids(sortLeads(rows, 'matches', 'asc'))).toEqual([
-      'c',
-      'a',
-      'b',
-      'd',
-    ]);
-  });
-
-  it('sorts by last reply and always puts leads that never replied last', () => {
-    expect(ids(sortLeads(rows, 'repliedAt', 'desc'))).toEqual([
-      'c',
-      'd',
-      'a',
-      'b',
-    ]);
-    expect(ids(sortLeads(rows, 'repliedAt', 'asc'))).toEqual([
-      'a',
-      'd',
-      'c',
-      'b',
-    ]);
-  });
-
-  it('does not mutate its input', () => {
-    const before = ids(rows);
-    sortLeads(rows, 'matches', 'asc');
-    expect(ids(rows)).toEqual(before);
   });
 });
 

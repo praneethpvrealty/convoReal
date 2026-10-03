@@ -482,7 +482,9 @@ export async function loadActivity(
       kind: 'automation',
       text: `Automation "${autoName}" ${failed ? 'failed for' : 'triggered for'} ${who}`,
       at: l.created_at,
-      href: l.automation_id ? `/automations/${l.automation_id}` : undefined,
+      href: l.automation_id
+        ? `/automations/${l.automation_id}/${failed ? 'logs' : 'edit'}`
+        : undefined,
       failed,
     });
   }
