@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
+import { formatInrPlain } from '@/lib/format/currency';
 
 interface CampaignRow {
   id: string;
@@ -41,10 +42,6 @@ interface CampaignRow {
   } | null;
   leadsInEngine: number;
   costPerLeadInr: number | null;
-}
-
-function formatINR(n: number): string {
-  return `₹${n.toLocaleString('en-IN')}`;
 }
 
 function statusVariant(
@@ -306,7 +303,7 @@ export default function AdsPage() {
                         }
                         className="hover:underline disabled:cursor-not-allowed disabled:no-underline"
                       >
-                        {formatINR(c.dailyBudgetInr)}/day
+                        {formatInrPlain(c.dailyBudgetInr)}/day
                       </button>
                     )}
                   </td>
@@ -317,7 +314,7 @@ export default function AdsPage() {
                           c.insights.stale ? 'text-muted-foreground' : ''
                         }
                       >
-                        {formatINR(Math.round(c.insights.spend))}
+                        {formatInrPlain(Math.round(c.insights.spend))}
                         {c.insights.stale && (
                           <span className="ml-1 text-[10px]">(stale)</span>
                         )}
@@ -335,7 +332,7 @@ export default function AdsPage() {
                   <td className="p-3 font-medium">{c.leadsInEngine}</td>
                   <td className="p-3">
                     {c.costPerLeadInr !== null
-                      ? formatINR(c.costPerLeadInr)
+                      ? formatInrPlain(c.costPerLeadInr)
                       : '—'}
                   </td>
                   <td className="p-3">

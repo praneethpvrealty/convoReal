@@ -51,6 +51,7 @@ import { hasPhone } from '@/lib/contacts/reachability';
 import type { Contact } from '@/types';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from '@/lib/copilot/actions';
+import { formatInrCompact } from '@/lib/format/currency';
 
 const HOUR_MS = 3_600_000;
 
@@ -117,14 +118,6 @@ interface TodayPageProps {
 // ------------------------------------------------------------
 // Formatting helpers
 // ------------------------------------------------------------
-
-function formatBudget(val: number) {
-  if (val >= 10000000)
-    return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (val >= 100000)
-    return `₹${(val / 100000).toFixed(2).replace(/\.00$/, '')} L`;
-  return `₹${val.toLocaleString('en-IN')}`;
-}
 
 function countdownLabel(expiresAt: string, nowMs: number) {
   const diff = new Date(expiresAt).getTime() - nowMs;
@@ -769,7 +762,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
                           {source.no_budget
                             ? 'Budget: no limit'
                             : budgetMax
-                              ? `Budget: ${formatBudget(budgetMax)}`
+                              ? `Budget: ${formatInrCompact(budgetMax)}`
                               : 'Budget: not specified'}
                         </p>
                         {areaHints.length > 0 && (

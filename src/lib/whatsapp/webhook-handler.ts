@@ -280,6 +280,7 @@ import {
   logListingsSent,
   logPropertyShare,
 } from '@/lib/whatsapp/share-property-send';
+import { formatCurrency, formatInrCompact } from '@/lib/format/currency';
 
 export interface WhatsAppMessage {
   id: string;
@@ -4284,25 +4285,7 @@ export async function handlePropertyShareYesReply(
     const amount = Number(typedProperty.price);
     let formattedPrice = '';
     if (!isNaN(amount) && amount > 0) {
-      if (currency === 'INR') {
-        if (amount >= 10000000) {
-          formattedPrice = `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-        } else if (amount >= 100000) {
-          formattedPrice = `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
-        } else {
-          formattedPrice = new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            maximumFractionDigits: 0,
-          }).format(amount);
-        }
-      } else {
-        formattedPrice = new Intl.NumberFormat(undefined, {
-          style: 'currency',
-          currency: currency,
-          maximumFractionDigits: 0,
-        }).format(amount);
-      }
+      formattedPrice = formatCurrency(amount, currency);
     }
 
     const isLand =
@@ -4706,13 +4689,7 @@ export async function handleBrowseAllProperties(
       let priceStr = '';
       const amount = Number(prop.price);
       if (!isNaN(amount) && amount > 0) {
-        if (amount >= 10000000) {
-          priceStr = `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-        } else if (amount >= 100000) {
-          priceStr = `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} L`;
-        } else {
-          priceStr = `₹${amount}`;
-        }
+        priceStr = formatInrCompact(amount);
       }
 
       const areaStr = prop.area_sqft
@@ -5606,25 +5583,7 @@ export async function handleShowMoreProperties(
       const amount = Number(typedProp.price);
       let formattedPrice = '';
       if (!isNaN(amount) && amount > 0) {
-        if (currency === 'INR') {
-          if (amount >= 10000000) {
-            formattedPrice = `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-          } else if (amount >= 100000) {
-            formattedPrice = `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
-          } else {
-            formattedPrice = new Intl.NumberFormat('en-IN', {
-              style: 'currency',
-              currency: 'INR',
-              maximumFractionDigits: 0,
-            }).format(amount);
-          }
-        } else {
-          formattedPrice = new Intl.NumberFormat(undefined, {
-            style: 'currency',
-            currency: currency,
-            maximumFractionDigits: 0,
-          }).format(amount);
-        }
+        formattedPrice = formatCurrency(amount, currency);
       }
 
       const isLand =

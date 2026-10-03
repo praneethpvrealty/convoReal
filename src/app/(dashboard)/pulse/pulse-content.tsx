@@ -47,6 +47,7 @@ import {
 import { HeartbeatLoader } from '@/components/ui/heartbeat-loader';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { PropertyViewersDialog } from '@/components/pulse/property-viewers-dialog';
+import { formatInrCompact } from '@/lib/format/currency';
 
 type FeedFilter = 'all' | 'property_views' | 'identified';
 
@@ -243,11 +244,7 @@ export default function PulsePage() {
   const formatPrice = (price?: string | number) => {
     const val = Number(price);
     if (!val || isNaN(val)) return '₹0';
-    if (val >= 10000000)
-      return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-    if (val >= 100000)
-      return `₹${(val / 100000).toFixed(2).replace(/\.00$/, '')} L`;
-    return `₹${val.toLocaleString('en-IN')}`;
+    return formatInrCompact(val);
   };
 
   const formatTimeAgo = (isoString: string) => {

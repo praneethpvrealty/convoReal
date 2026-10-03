@@ -96,6 +96,7 @@ import {
 } from 'lucide-react';
 import { hasPhone } from '@/lib/contacts/reachability';
 import { rankContactSearchResults } from '@/lib/contacts/contact-search-rank';
+import { formatCurrency } from '@/lib/format/currency';
 
 /** A live grant as the list endpoint returns it, with the recipient
  *  joined when the grant was minted for a named contact. */
@@ -499,25 +500,7 @@ export function PropertyShareDialog({
     if (!property) return '';
     const amount = Number(property.price);
     if (isNaN(amount) || amount <= 0) return '';
-    if (currency === 'INR') {
-      if (amount >= 10000000) {
-        const cr = amount / 10000000;
-        return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-      } else if (amount >= 100000) {
-        const lakhs = amount / 100000;
-        return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
-      }
-      return new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR',
-        maximumFractionDigits: 0,
-      }).format(amount);
-    }
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: currency,
-      maximumFractionDigits: 0,
-    }).format(amount);
+    return formatCurrency(amount, currency);
   }, [property, currency]);
 
   // Composed outbound message for the active tab, rebuilt from the

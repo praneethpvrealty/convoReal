@@ -1,3 +1,5 @@
+import { formatInrCompact } from '@shared/lib/format/currency';
+
 /**
  * What leaves the Engine when an agent passes a brief to a co-broker —
  * ported, not aliased, because `@shared/` is a types-only alias here
@@ -26,18 +28,6 @@ export interface ShareableRequirement {
   responseUrl?: string | null;
 }
 
-function compactINR(value: number): string {
-  if (value >= 1_00_00_000) {
-    const cr = value / 1_00_00_000;
-    return `₹${cr % 1 === 0 ? cr.toFixed(0) : cr.toFixed(2).replace(/0$/, '')} Cr`;
-  }
-  if (value >= 1_00_000) {
-    const l = value / 1_00_000;
-    return `₹${l % 1 === 0 ? l.toFixed(0) : l.toFixed(2).replace(/0$/, '')} L`;
-  }
-  return `₹${Math.round(value).toLocaleString('en-IN')}`;
-}
-
 export function requirementReference(id: string): string {
   return `REQ-${id.replace(/-/g, '').slice(0, 4).toUpperCase()}`;
 }
@@ -48,9 +38,10 @@ function budgetLine(r: ShareableRequirement): string {
     r.min_budget && Number(r.min_budget) > 0 ? Number(r.min_budget) : null;
   const max =
     r.max_budget && Number(r.max_budget) > 0 ? Number(r.max_budget) : null;
-  if (min && max) return `Budget: ${compactINR(min)} – ${compactINR(max)}`;
-  if (max) return `Budget: up to ${compactINR(max)}`;
-  if (min) return `Budget: from ${compactINR(min)}`;
+  if (min && max)
+    return `Budget: ${formatInrCompact(min)} – ${formatInrCompact(max)}`;
+  if (max) return `Budget: up to ${formatInrCompact(max)}`;
+  if (min) return `Budget: from ${formatInrCompact(min)}`;
   return 'Budget: Not specified';
 }
 

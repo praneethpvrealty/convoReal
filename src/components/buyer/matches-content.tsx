@@ -28,6 +28,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { formatInrCompact } from '@/lib/format/currency';
 
 interface MatchProperty {
   id: string;
@@ -81,11 +82,7 @@ interface MatchFeed {
 
 function formatPrice(value: number | null): string | null {
   if (value == null || value <= 0) return null;
-  if (value >= 10000000)
-    return `₹${(value / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
-  if (value >= 100000)
-    return `₹${(value / 100000).toFixed(2).replace(/\.?0+$/, '')} L`;
-  return `₹${Math.round(value).toLocaleString('en-IN')}`;
+  return formatInrCompact(value);
 }
 
 export function BuyerMatchesContent() {

@@ -34,6 +34,7 @@ import {
   Users,
 } from 'lucide-react';
 import { readStored, writeStored } from '@/lib/safe-storage';
+import { formatCurrency } from '@/lib/format/currency';
 
 export default function AgentsPage() {
   const supabase = createClient();
@@ -620,11 +621,7 @@ export default function AgentsPage() {
                                 {prop.location}
                               </p>
                               <div className="text-primary mt-2 text-xs font-bold">
-                                {prop.price >= 10000000
-                                  ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
-                                  : prop.price >= 100000
-                                    ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
-                                    : `₹${prop.price.toLocaleString('en-IN')}`}
+                                {formatCurrency(prop.price)}
                               </div>
                             </div>
 

@@ -1,3 +1,5 @@
+import { formatInrCompact } from '@/lib/format/currency';
+
 export interface ComparableContact {
   phone?: string | null;
   email?: string | null;
@@ -40,21 +42,11 @@ const FIELDS: { key: keyof ComparableContact; label: string }[] = [
 // toFixed always leaves two decimals, so trim what they do not earn:
 // 14.70 → 14.7, 15.00 → 15. Safe only because the decimal point is
 // always present, which keeps this off the integer digits.
-function trimZeros(value: number): string {
-  return value.toFixed(2).replace(/\.?0+$/, '');
-}
-
-function formatBudget(value: number): string {
-  if (value >= 1e7) return `₹${trimZeros(value / 1e7)} Cr`;
-  if (value >= 1e5) return `₹${trimZeros(value / 1e5)} L`;
-  return `₹${value.toLocaleString('en-IN')}`;
-}
-
 function display(key: keyof ComparableContact, value: unknown): string {
   if (value === null || value === undefined || value === '') return '';
   if (Array.isArray(value)) return value.length ? value.join(', ') : '';
   if (key === 'min_budget' || key === 'max_budget')
-    return formatBudget(Number(value));
+    return formatInrCompact(Number(value));
   if (key === 'last_contacted_at') {
     return new Date(String(value)).toLocaleDateString('en-IN');
   }
