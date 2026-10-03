@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { format } from 'date-fns';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Radar,
   RefreshCw,
   Send,
-  Trash2,
+  X,
   User,
   Building,
   AlertTriangle,
@@ -17,6 +19,11 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { loadMatchEvents } from '@/lib/radar/queries';
+import {
+  DEFAULT_ALERT_MIN_SCORE,
+  defaultSelectedTargetIds,
+  isImplausibleListingPrice,
+} from '@/lib/radar/alert-defaults';
 import {
   buildPropertyAlertTemplatePayload,
   PROPERTY_ALERT_TEMPLATE_NAME,
@@ -35,8 +42,10 @@ interface CheckedState {
   [eventId: string]: Set<string>;
 }
 
+const TARGET_PREVIEW_COUNT = 6;
+
 function defaultSelection(event: MatchEvent): Set<string> {
-  return new Set(event.matches.map((m) => m.id));
+  return new Set(defaultSelectedTargetIds(event.matches));
 }
 
 export default function RadarPage() {
@@ -50,6 +59,9 @@ export default function RadarPage() {
   const [manualContacts, setManualContacts] = useState<{
     [eventId: string]: RadarManualContact[];
   }>({});
+  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(
+    () => new Set()
+  );
 
   // Recipients that couldn't be reached because they're outside the 24h
   // window AND the property-details template isn't approved yet —
@@ -89,6 +101,7 @@ export default function RadarPage() {
       setCheckedTargets({});
       setManualContacts({});
       setTemplateMissingTargets({});
+      setExpandedEvents(new Set());
     }
   };
 
@@ -128,11 +141,17 @@ export default function RadarPage() {
   const toggleSelectAll = (event: MatchEvent, allIds: string[]) => {
     setCheckedTargets((prev) => {
       const current = prev[event.id] ?? defaultSelection(event);
-      const allChecked = allIds.every((id) => current.has(id));
-      const nextSet = allChecked ? new Set<string>() : new Set(allIds);
+      const anyChecked = allIds.some((id) => current.has(id));
+      const nextSet = anyChecked ? new Set<string>() : new Set(allIds);
       return { ...prev, [event.id]: nextSet };
     });
   };
+
+  const selectTargets = (event: MatchEvent, ids: string[]) =>
+    setCheckedTargets((prev) => ({ ...prev, [event.id]: new Set(ids) }));
+
+  const expandTargets = (eventId: string) =>
+    setExpandedEvents((prev) => new Set(prev).add(eventId));
 
   // Dismiss event (Update status to dismissed)
   const handleDismiss = async (eventId: string) => {
@@ -361,10 +380,20 @@ export default function RadarPage() {
                 })),
               ];
               const allTargetIds = displayTargets.map((target) => target.id);
+              const strongTargetIds = [
+                ...defaultSelectedTargetIds(evt.matches),
+                ...addedContacts.map((contact) => contact.id),
+              ];
               const selectedIds = selectionFor(evt);
-              const isAllChecked = allTargetIds.every((id) =>
-                selectedIds.has(id)
-              );
+              const hasWeakTargets =
+                strongTargetIds.length < allTargetIds.length;
+              const isStrongOnly =
+                selectedIds.size === strongTargetIds.length &&
+                strongTargetIds.every((id) => selectedIds.has(id));
+              const expanded = expandedEvents.has(evt.id);
+              const visibleTargets = expanded
+                ? displayTargets
+                : displayTargets.slice(0, TARGET_PREVIEW_COUNT);
 
               return (
                 <div
@@ -386,11 +415,7 @@ export default function RadarPage() {
                           : 'Buyer Preference Update'}
                       </span>
                       <span className="text-[10px] font-bold text-slate-500">
-                        {new Date(evt.created_at).toLocaleDateString()} ·{' '}
-                        {new Date(evt.created_at).toLocaleTimeString([], {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        })}
+                        {format(new Date(evt.created_at), 'd MMM, h:mm aaa')}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -401,9 +426,10 @@ export default function RadarPage() {
                         disabled={
                           dismissingId === evt.id || sendingId === evt.id
                         }
+                        title="Hide this alert"
                         className="h-7 cursor-pointer rounded-lg px-2 text-[11px] font-bold text-slate-400 hover:bg-slate-900 hover:text-rose-400"
                       >
-                        <Trash2 className="mr-1 size-3" />
+                        <X className="mr-1 size-3" />
                         Dismiss
                       </Button>
                     </div>
@@ -452,6 +478,21 @@ export default function RadarPage() {
                                 : ''}
                             </p>
                           </div>
+                          {isImplausibleListingPrice(evt.property) && (
+                            <p className="flex items-start gap-1.5 rounded-lg border border-amber-900/50 bg-amber-950/20 p-2 text-[11px] leading-snug font-semibold text-amber-400">
+                              <AlertTriangle className="mt-px size-3.5 shrink-0" />
+                              <span>
+                                Price looks wrong, check the listing before
+                                alerting.{' '}
+                                <Link
+                                  href={`/inventory?propertyId=${encodeURIComponent(evt.property.id)}`}
+                                  className="font-bold text-amber-300 underline underline-offset-2 hover:text-amber-200"
+                                >
+                                  Open listing
+                                </Link>
+                              </span>
+                            </p>
+                          )}
                         </div>
                       ) : evt.kind === 'buyer_updated' && evt.contact ? (
                         (() => {
@@ -526,18 +567,38 @@ export default function RadarPage() {
                                 }
                               />
                             )}
+                            {hasWeakTargets && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  selectTargets(
+                                    evt,
+                                    isStrongOnly
+                                      ? allTargetIds
+                                      : strongTargetIds
+                                  )
+                                }
+                                className="text-primary cursor-pointer text-[11px] font-extrabold hover:underline"
+                              >
+                                {isStrongOnly
+                                  ? 'Select all'
+                                  : `Select ${DEFAULT_ALERT_MIN_SCORE}%+`}
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => toggleSelectAll(evt, allTargetIds)}
                               className="text-primary cursor-pointer text-[11px] font-extrabold hover:underline"
                             >
-                              {isAllChecked ? 'Deselect All' : 'Select All'}
+                              {selectedIds.size > 0
+                                ? 'Deselect All'
+                                : 'Select All'}
                             </button>
                           </div>
                         </div>
 
-                        <div className="grid max-h-[220px] grid-cols-1 gap-2.5 overflow-y-auto pr-1 sm:grid-cols-2">
-                          {displayTargets.map((match) => (
+                        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                          {visibleTargets.map((match) => (
                             <MatchTargetRow
                               key={match.id}
                               density="compact"
@@ -576,6 +637,16 @@ export default function RadarPage() {
                             />
                           ))}
                         </div>
+                        {!expanded &&
+                          displayTargets.length > TARGET_PREVIEW_COUNT && (
+                            <button
+                              type="button"
+                              onClick={() => expandTargets(evt.id)}
+                              className="text-primary cursor-pointer text-[11px] font-extrabold hover:underline"
+                            >
+                              Show all {displayTargets.length}
+                            </button>
+                          )}
                       </div>
 
                       {/* One-time template setup — only shows when out-of-window

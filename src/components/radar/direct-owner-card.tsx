@@ -17,7 +17,7 @@ import {
   MapPin,
   Phone,
   Sparkles,
-  Trash2,
+  X,
   Unlock,
 } from 'lucide-react';
 
@@ -372,9 +372,10 @@ export function DirectOwnerCard({
           size="sm"
           onClick={() => onDismiss(event.id)}
           disabled={dismissing}
+          title="Hide this alert"
           className="h-7 cursor-pointer rounded-lg px-2 text-[11px] font-bold text-slate-400 hover:bg-slate-900 hover:text-rose-400"
         >
-          <Trash2 className="mr-1 size-3" />
+          <X className="mr-1 size-3" />
           Dismiss
         </Button>
       </div>
