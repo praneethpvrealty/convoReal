@@ -422,6 +422,25 @@ export function ShowcaseShareSheet({
     });
   }
 
+  async function copyMessage() {
+    haptic.tap();
+    await Clipboard.setStringAsync(
+      portfolioContact
+        ? messageFor(
+            withShowcaseVisitor(link, portfolioContact.id),
+            portfolioContact.name
+          )
+        : messageFor(await anonymousScopedLink())
+    );
+    show({
+      title: 'Message copied',
+      message: portfolioContact
+        ? `Ready to paste for ${portfolioContact.name?.trim().split(/\s+/)[0] || 'them'}.`
+        : `It links to ${scopeLabel}.`,
+      actions: [{ label: 'OK', variant: 'primary', onPress: close }],
+    });
+  }
+
   async function personalWhatsApp(contacts: Contact[]) {
     const [first, ...rest] = contacts.filter((c) => c.phone);
     if (!first) return;
@@ -898,7 +917,12 @@ export function ShowcaseShareSheet({
                       `Hi ${portfolioContact.name.trim().split(/\s+/)[0]}!`
                     )
                   : pitch,
-                { name: portfolioContact?.name ?? null, portalUrl: link }
+                {
+                  name: portfolioContact?.name ?? null,
+                  portalUrl: portfolioContact
+                    ? withShowcaseVisitor(link, portfolioContact.id)
+                    : link,
+                }
               ).map((segment, index) =>
                 segment.kind === 'text' ? (
                   <Text key={index}>{segment.text}</Text>
@@ -958,6 +982,31 @@ export function ShowcaseShareSheet({
         </Text>
 
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <Pressable
+            onPress={() => void copyMessage()}
+            disabled={!ready}
+            accessibilityRole="button"
+            accessibilityLabel="Copy message"
+            style={[
+              styles.secondary,
+              {
+                borderColor: colors.primary,
+                backgroundColor: colors.primary,
+                opacity: ready ? 1 : 0.5,
+              },
+            ]}
+          >
+            <Ionicons name="copy-outline" size={16} color={colors.onPrimary} />
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: f.bold,
+                color: colors.onPrimary,
+              }}
+            >
+              Copy message
+            </Text>
+          </Pressable>
           <Pressable
             onPress={() => void copyLink()}
             disabled={!ready}

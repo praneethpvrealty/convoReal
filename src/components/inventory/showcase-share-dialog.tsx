@@ -1159,7 +1159,10 @@ Best regards`;
                           selectedContacts.length === 1
                             ? selectedContacts[0].name
                             : null,
-                        portalUrl: generatedLink,
+                        portalUrl:
+                          selectedContacts.length === 1
+                            ? personalizedLink(selectedContacts[0].id)
+                            : generatedLink,
                       }).map((segment, index) =>
                         segment.kind === 'text' ? (
                           <span key={index}>{segment.text}</span>
