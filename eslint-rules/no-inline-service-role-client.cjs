@@ -1,5 +1,5 @@
 /**
- * Flags any read of `process.env.SUPABASE_SERVICE_ROLE_KEY` outside
+ * Flags any read of `SUPABASE_SERVICE_ROLE_KEY` outside
  * `src/lib/supabase/admin.ts` and `src/scripts/`.
  *
  * Every server module that needs to bypass RLS gets its client from
@@ -10,21 +10,16 @@
  * failure rather than as the configuration error it is, and a test had
  * to know which of six module paths to mock. One factory, one mock path.
  *
+ * The key is matched by name wherever it can be read from, so
+ * `process.env.SUPABASE_SERVICE_ROLE_KEY`, `process.env['…']`,
+ * `const { SUPABASE_SERVICE_ROLE_KEY } = process.env` and a read through
+ * an alias of `process.env` are all reported.
+ *
  * Scripts under `src/scripts/` run outside Next.js with their own env
  * loading, so they keep constructing clients directly.
  */
 
 const KEY = 'SUPABASE_SERVICE_ROLE_KEY';
-
-function isProcessEnv(node) {
-  return (
-    node.type === 'MemberExpression' &&
-    node.object.type === 'Identifier' &&
-    node.object.name === 'process' &&
-    ((node.property.type === 'Identifier' && node.property.name === 'env') ||
-      (node.property.type === 'Literal' && node.property.value === 'env'))
-  );
-}
 
 module.exports = {
   meta: {
@@ -40,17 +35,29 @@ module.exports = {
     },
   },
   create(context) {
+    const report = (node) =>
+      context.report({ node, messageId: 'inline', data: { key: KEY } });
     return {
       MemberExpression(node) {
-        if (!isProcessEnv(node.object)) return;
-        const name =
-          node.property.type === 'Identifier' && !node.computed
-            ? node.property.name
-            : node.property.type === 'Literal'
-              ? node.property.value
-              : null;
-        if (name !== KEY) return;
-        context.report({ node, messageId: 'inline', data: { key: KEY } });
+        if (node.computed) {
+          if (node.property.type === 'Literal' && node.property.value === KEY) {
+            report(node);
+          }
+          return;
+        }
+        if (node.property.type === 'Identifier' && node.property.name === KEY) {
+          report(node);
+        }
+      },
+      Property(node) {
+        if (node.parent.type !== 'ObjectPattern') return;
+        const key = node.key;
+        if (
+          (key.type === 'Identifier' && !node.computed && key.name === KEY) ||
+          (key.type === 'Literal' && key.value === KEY)
+        ) {
+          report(node);
+        }
       },
     };
   },
