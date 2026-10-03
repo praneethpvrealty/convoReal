@@ -40,6 +40,8 @@ describe('assertSafeFetchUrl', () => {
       'http://[::ffff:169.254.169.254]/',
     ],
     ['a unique-local IPv6 address', 'http://[fd00:ec2::254]/'],
+    ['loopback as an IPv4-compatible IPv6 address', 'http://[::127.0.0.1]/'],
+    ['an internal address wrapped in 6to4', 'http://[2002:a00:5::1]/'],
     ['localhost', 'http://localhost:3000/api'],
     ['localhost with a trailing dot', 'http://localhost./api'],
     ['a localhost subdomain', 'http://app.localhost/'],
