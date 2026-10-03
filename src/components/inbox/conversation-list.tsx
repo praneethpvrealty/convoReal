@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import type { PostgrestError } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { storagePublicUrl } from '@/lib/storage/url';
@@ -134,6 +136,18 @@ function scopeOptionsFor(
   return [{ label: 'Mine', value: 'mine' }];
 }
 
+async function fetchConversations(): Promise<Conversation[]> {
+  const { data, error } = await createClient()
+    .from('conversations')
+    .select('*, contact:contacts(*)')
+    // Message-less conversation rows (opened by a flow whose send was
+    // blocked, e.g. outside the 24-hour window) have nothing to show.
+    .not('last_message_at', 'is', null)
+    .order('last_message_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Conversation[];
+}
+
 export function ConversationList({
   activeConversationId,
   onSelect,
@@ -155,11 +169,9 @@ export function ConversationList({
   );
   const [scopeFilter, setScopeFilter] = useState<ScopeFilterValue>('all');
   const [teams, setTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
-  // True once the very first fetch has completed — subsequent resyncs
-  // are silent merges and must NOT reset loading to true (that would
-  // replace the visible list with a spinner on every tab focus / reconnect).
-  const initialLoadDoneRef = useRef(false);
+  // True once a fetched (or cached) list has been handed to the parent.
+  // Later refetches are silent merges and never bring the skeleton back.
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const filterParam = searchParams.get('filter') as FilterValue;
@@ -229,67 +241,47 @@ export function ConversationList({
     onConversationsLoadedRef.current = onConversationsLoaded;
   });
 
+  // The list is a react-query cache entry keyed by the signed-in user:
+  // coming back to the inbox shows the last fetched list at once and
+  // refetches behind it. staleTime is 0 here (not the 30s default)
+  // because realtime events during the previous visit were merged into
+  // the parent's state, not into this cache, so a remount must always
+  // refresh.
+  const conversationsQuery = useQuery({
+    queryKey: ['inbox-conversations', user?.id ?? null],
+    queryFn: fetchConversations,
+    staleTime: 0,
+  });
+  const { data: fetched, error: fetchError, refetch } = conversationsQuery;
+
   useEffect(() => {
-    const supabase = createClient();
-    let cancelled = false;
+    if (!fetched) return;
+    onConversationsLoadedRef.current(fetched);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReady(true);
+  }, [fetched]);
 
-    const isResync = initialLoadDoneRef.current;
+  useEffect(() => {
+    if (!fetchError) return;
+    const err = fetchError as PostgrestError;
+    // Supabase errors have non-enumerable properties — log fields explicitly
+    console.error('Failed to fetch conversations:', {
+      message: err.message,
+      details: err.details,
+      hint: err.hint,
+      code: err.code,
+    });
+  }, [fetchError]);
 
-    (async () => {
-      const { data, error } = await supabase
-        .from('conversations')
-        .select('*, contact:contacts(*)')
-        // Message-less conversation rows (opened by a flow whose send was
-        // blocked, e.g. outside the 24-hour window) have nothing to show.
-        .not('last_message_at', 'is', null)
-        .order('last_message_at', { ascending: false });
+  // The parent bumps `resyncToken` when the realtime channel reconnects
+  // or the tab regains focus — catch up on anything sent while the WS
+  // was disconnected or throttled.
+  useEffect(() => {
+    if (resyncToken === 0) return;
+    void refetch();
+  }, [resyncToken, refetch]);
 
-      if (cancelled) return;
-
-      if (error) {
-        // Supabase errors have non-enumerable properties — log fields explicitly
-        console.error('Failed to fetch conversations:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        });
-        setLoading(false);
-        return;
-      }
-
-      let fetched = data ?? [];
-
-      if (profile?.phone) {
-        const userPhoneDigits = profile.phone.replace(/\D/g, '');
-        fetched = fetched.filter(
-          (c) =>
-            !c.contact?.phone ||
-            c.contact.phone.replace(/\D/g, '') !== userPhoneDigits
-        );
-      }
-
-      if (isResync) {
-        // Silent merge: update changed rows and prepend brand-new ones.
-        // This avoids replacing the entire list (and triggering a full
-        // re-render / flicker) every time the tab regains focus or the
-        // realtime channel reconnects.
-        onConversationsLoadedRef.current(fetched);
-      } else {
-        // First load — hand the full list to the parent as before.
-        onConversationsLoadedRef.current(fetched);
-        initialLoadDoneRef.current = true;
-        setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // `resyncToken` is included so the parent can force a refetch when
-    // the realtime channel reconnects or the tab regains focus — catches
-    // up on any events sent while the WS was disconnected or throttled.
-  }, [resyncToken, profile?.phone]);
+  const loading = !ready && !fetchError;
 
   const userPhoneDigits = profile?.phone
     ? profile.phone.replace(/\D/g, '')

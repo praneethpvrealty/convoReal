@@ -31,6 +31,10 @@ than a written entry. Newest first.
   example, could show "2 contacts" above the rows of the filter you had
   just left. The rows clear the moment you switch, and the count and
   rows now update together.
+- **Coming back to the Inbox is instant.** The conversation list is now
+  kept in the app's query cache, so returning from another page shows
+  the last list immediately and refreshes it in the background instead
+  of loading from scratch every time.
 - **The inbox list loads behind placeholder rows instead of a logo
   splash.** Opening the Inbox used to show a centred ConvoReal logo and
   "Loading conversations" for the first second, then swap to the list in
