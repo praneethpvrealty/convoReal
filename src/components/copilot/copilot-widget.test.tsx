@@ -94,4 +94,25 @@ describe('CopilotWidget', () => {
     expect(launcher.style.bottom).toBe(`${window.innerHeight - 80 - 48}px`);
     expect(launcher.style.right).toBe('16px');
   });
+
+  it('collapses to an icon-only button once the main content is scrolled and expands back at the top', () => {
+    const { container } = render(
+      <>
+        <main data-testid="main" />
+        <CopilotWidget />
+      </>
+    );
+    const main = container.querySelector('main') as HTMLElement;
+    const launcher = screen.getByRole('button', { name: 'Open the helper' });
+    expect(launcher.textContent).toContain('AI Assistant');
+
+    main.scrollTop = 200;
+    fireEvent.scroll(main);
+    expect(launcher.textContent).toBe('');
+    expect(launcher.className).toContain('w-12');
+
+    main.scrollTop = 0;
+    fireEvent.scroll(main);
+    expect(launcher.textContent).toContain('AI Assistant');
+  });
 });
