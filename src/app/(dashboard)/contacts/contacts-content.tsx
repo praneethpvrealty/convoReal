@@ -25,8 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ContactCardLoader } from '@/components/ui/contact-card-loader';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { ContactsTableSkeleton } from '@/components/contacts/contacts-table-skeleton';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -2545,16 +2544,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             </Button>
           </div>
         ) : loading ? (
-          <div className="flex flex-col items-center py-12 text-slate-400">
-            <ContactCardLoader
-              size={104}
-              label="Loading contacts"
-              className="mb-3"
-            />
-            <ConvoRealLoader size={20} className="mb-2" />
-            <p className="text-sm">Loading contacts...</p>
+          <div className="flex flex-col text-slate-400">
+            <ContactsTableSkeleton />
             {slowLoad && (
-              <div className="mt-4 flex flex-col items-center gap-2">
+              <div className="flex flex-col items-center gap-2 py-6">
                 <p className="text-xs text-slate-500">
                   This is taking longer than usual — the connection may have
                   stalled.
@@ -2602,7 +2595,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       ? 'No transacted contacts found.'
                       : activeTab === 'market_active'
                         ? 'No active buyers found.'
-                        : 'No contacts yet.'}
+                        : activeTab === 'archived'
+                          ? 'No archived contacts.'
+                          : 'No contacts yet.'}
             </p>
             {!search && activeTab === 'active' && (
               <Button
@@ -2955,7 +2950,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      {totalPages > 1 && !loading && (
         <div className="flex items-center justify-between">
           <p className="text-xs text-slate-500">
             Showing {page * PAGE_SIZE + 1}-

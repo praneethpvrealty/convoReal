@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/dashboard/skeleton';
 import { Input } from '@/components/ui/input';
 import { MAX_GROUP_PARTICIPANTS } from '@/lib/whatsapp/groups';
 import { cn } from '@/lib/utils';
@@ -172,9 +173,25 @@ export default function GroupsContent() {
       ) : null}
 
       {isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-slate-400">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading groups…
+        <div
+          role="status"
+          aria-label="Loading groups"
+          aria-busy="true"
+          className="space-y-3"
+        >
+          {Array.from({ length: 3 }, (_, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900/50 p-4"
+            >
+              <Skeleton className="size-10 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-40" />
+                <Skeleton className="h-3 w-64" />
+              </div>
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+          ))}
         </div>
       ) : error ? (
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
