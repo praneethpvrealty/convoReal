@@ -160,7 +160,8 @@ export default function MarketContent() {
           <p className="max-w-lg text-sm text-slate-400">
             Market cells are computed nightly and only published once at least
             five different consultants share data for the same locality and
-            month. Check back after more consultants in your area enable sharing.
+            month. Check back after more consultants in your area enable
+            sharing.
           </p>
           {data.isOwner && (
             <button

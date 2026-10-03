@@ -73,7 +73,12 @@ interface LiaisonFormProps {
   onSaved: () => void;
 }
 
-export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFormProps) {
+export function LiaisonForm({
+  open,
+  onOpenChange,
+  liaison,
+  onSaved,
+}: LiaisonFormProps) {
   const isEdit = !!liaison;
 
   const [name, setName] = useState('');
@@ -102,7 +107,7 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
 
   const updateService = (index: number, patch: Partial<ServiceRow>) => {
     setServices((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+      prev.map((row, i) => (i === index ? { ...row, ...patch } : row))
     );
   };
 
@@ -118,7 +123,8 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
   };
 
   const suggestionsLeft = SERVICE_SUGGESTIONS.filter(
-    (s) => !services.some((row) => row.name.trim().toLowerCase() === s.toLowerCase()),
+    (s) =>
+      !services.some((row) => row.name.trim().toLowerCase() === s.toLowerCase())
   );
 
   const handleSubmit = async () => {
@@ -164,7 +170,9 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
       onSaved();
     } catch (err) {
       console.error('Error saving liaison:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to save liaison');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to save liaison'
+      );
     } finally {
       setSaving(false);
     }
@@ -172,19 +180,20 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-slate-700 bg-slate-900 text-slate-200 sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-white">
             {isEdit ? 'Edit Liaison' : 'Add Liaison'}
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Who they are, how to reach them, and what they charge for each service.
+            Who they are, how to reach them, and what they charge for each
+            service.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* Identity */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="liaison-name" className="text-xs text-slate-300">
                 Name <span className="text-red-400">*</span>
@@ -194,11 +203,14 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Shiv"
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="liaison-office-area" className="text-xs text-slate-300">
+              <Label
+                htmlFor="liaison-office-area"
+                className="text-xs text-slate-300"
+              >
                 Office / Area
               </Label>
               <Input
@@ -206,7 +218,7 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
                 value={officeArea}
                 onChange={(e) => setOfficeArea(e.target.value)}
                 placeholder="e.g. BBMP Bommanahalli, SRO Jayanagar"
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
             <div className="space-y-1.5">
@@ -218,11 +230,14 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="e.g. 9876543210"
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="liaison-alt-phone" className="text-xs text-slate-300">
+              <Label
+                htmlFor="liaison-alt-phone"
+                className="text-xs text-slate-300"
+              >
                 Alternate Phone
               </Label>
               <Input
@@ -230,7 +245,7 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
                 value={altPhone}
                 onChange={(e) => setAltPhone(e.target.value)}
                 placeholder="Optional"
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
@@ -243,7 +258,7 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Optional"
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
           </div>
@@ -257,7 +272,7 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
                 size="sm"
                 variant="outline"
                 onClick={() => addService()}
-                className="h-7 text-xs border-slate-700 text-slate-300 hover:bg-slate-800 gap-1 cursor-pointer"
+                className="h-7 cursor-pointer gap-1 border-slate-700 text-xs text-slate-300 hover:bg-slate-800"
               >
                 <Plus className="size-3" />
                 Add service
@@ -271,7 +286,7 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
                     key={s}
                     type="button"
                     onClick={() => addService(s)}
-                    className="rounded-full border border-slate-700 bg-slate-800/60 px-2.5 py-1 text-[10px] font-semibold text-slate-400 hover:text-white hover:border-primary/40 hover:bg-primary/10 transition-colors cursor-pointer"
+                    className="hover:border-primary/40 hover:bg-primary/10 cursor-pointer rounded-full border border-slate-700 bg-slate-800/60 px-2.5 py-1 text-[10px] font-semibold text-slate-400 transition-colors hover:text-white"
                   >
                     + {s}
                   </button>
@@ -280,7 +295,7 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
             )}
 
             {services.length === 0 ? (
-              <p className="text-[11px] text-slate-500 py-2">
+              <p className="py-2 text-[11px] text-slate-500">
                 No services added yet — tap a suggestion above or add your own.
               </p>
             ) : (
@@ -296,9 +311,11 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
                       <div className="flex items-center gap-2">
                         <Input
                           value={row.name}
-                          onChange={(e) => updateService(index, { name: e.target.value })}
+                          onChange={(e) =>
+                            updateService(index, { name: e.target.value })
+                          }
                           placeholder="Service, e.g. Khata transfer"
-                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs flex-1"
+                          className="h-8 flex-1 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                         />
                         <Button
                           type="button"
@@ -306,12 +323,12 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
                           variant="ghost"
                           onClick={() => removeService(index)}
                           aria-label="Remove service"
-                          className="h-8 w-8 p-0 text-slate-500 hover:text-red-400 hover:bg-slate-800 cursor-pointer shrink-0"
+                          className="h-8 w-8 shrink-0 cursor-pointer p-0 text-slate-500 hover:bg-slate-800 hover:text-red-400"
                         >
                           <Trash2 className="size-3.5" />
                         </Button>
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-[8rem_8rem_1fr] gap-2 items-center">
+                      <div className="grid grid-cols-2 items-center gap-2 sm:grid-cols-[8rem_8rem_1fr]">
                         <Input
                           value={row.fee}
                           onChange={(e) =>
@@ -321,22 +338,25 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
                           }
                           placeholder="Their fee ₹"
                           inputMode="numeric"
-                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                          className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                         />
                         <Input
                           value={row.client_charge}
                           onChange={(e) =>
                             updateService(index, {
-                              client_charge: e.target.value.replace(/[^\d.]/g, ''),
+                              client_charge: e.target.value.replace(
+                                /[^\d.]/g,
+                                ''
+                              ),
                             })
                           }
                           placeholder="Client charge ₹"
                           inputMode="numeric"
-                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                          className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                         />
                         {preview && (
                           <span
-                            className={`text-[11px] font-semibold col-span-2 sm:col-span-1 ${
+                            className={`col-span-2 text-[11px] font-semibold sm:col-span-1 ${
                               negative ? 'text-red-400' : 'text-emerald-400'
                             }`}
                           >
@@ -346,9 +366,11 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
                       </div>
                       <Input
                         value={row.fee_note}
-                        onChange={(e) => updateService(index, { fee_note: e.target.value })}
+                        onChange={(e) =>
+                          updateService(index, { fee_note: e.target.value })
+                        }
                         placeholder="Fee note, e.g. excl. govt charges"
-                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                        className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                       />
                     </div>
                   );
@@ -367,7 +389,7 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Turnaround times, documents they need, who referred them..."
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-20 resize-none"
+              className="h-20 resize-none border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
             />
           </div>
 
@@ -375,8 +397,9 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
             <div className="flex items-center justify-between border-t border-slate-800 pt-4">
               <div>
                 <Label className="text-xs text-slate-300">Active</Label>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Turn off if they&apos;ve stopped taking work — the entry stays for reference.
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  Turn off if they&apos;ve stopped taking work — the entry stays
+                  for reference.
                 </p>
               </div>
               <Switch checked={isActive} onCheckedChange={setIsActive} />
@@ -384,7 +407,7 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
           )}
         </div>
 
-        <DialogFooter className="bg-slate-900 border-slate-700">
+        <DialogFooter className="border-slate-700 bg-slate-900">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

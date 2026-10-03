@@ -96,13 +96,16 @@ function formatWhen(value: string | null): string {
  *  the same two conditions resolveApiKey() applies server-side. */
 function isLive(key: ApiKeyRow): boolean {
   if (key.revoked_at) return false;
-  if (key.expires_at && new Date(key.expires_at).getTime() <= Date.now()) return false;
+  if (key.expires_at && new Date(key.expires_at).getTime() <= Date.now())
+    return false;
   return true;
 }
 
 function statusOf(key: ApiKeyRow): { label: string; tone: string } {
-  if (key.revoked_at) return { label: 'Revoked', tone: 'bg-slate-800 text-slate-400' };
-  if (!isLive(key)) return { label: 'Expired', tone: 'bg-amber-950 text-amber-300' };
+  if (key.revoked_at)
+    return { label: 'Revoked', tone: 'bg-slate-800 text-slate-400' };
+  if (!isLive(key))
+    return { label: 'Expired', tone: 'bg-amber-950 text-amber-300' };
   return { label: 'Active', tone: 'bg-emerald-950 text-emerald-300' };
 }
 
@@ -123,7 +126,9 @@ export function ApiKeysTab() {
 
   const revoke = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/account/api-keys/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/account/api-keys/${id}`, {
+        method: 'DELETE',
+      });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? 'Failed to revoke key');
     },
@@ -137,7 +142,7 @@ export function ApiKeysTab() {
 
   if (!canManage) {
     return (
-      <Card className="bg-slate-900/50 border-slate-800">
+      <Card className="border-slate-800 bg-slate-900/50">
         <CardContent className="py-10 text-center text-sm text-slate-400">
           API keys are managed by workspace admins and owners.
         </CardContent>
@@ -149,19 +154,19 @@ export function ApiKeysTab() {
 
   return (
     <div className="space-y-5">
-      <Card className="bg-slate-900/50 border-slate-800">
-        <CardContent className="p-5 space-y-1">
+      <Card className="border-slate-800 bg-slate-900/50">
+        <CardContent className="space-y-1 p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-slate-100">
                 <KeyRound className="size-4 text-violet-400" />
                 API keys
               </h3>
-              <p className="text-sm text-slate-400 max-w-xl">
-                Let a tool outside ConvoReal read this workspace — the MCP server for
-                Claude and other AI clients, an automation platform, or your own
-                scripts. Each key belongs to this workspace alone and can be revoked
-                at any time.
+              <p className="max-w-xl text-sm text-slate-400">
+                Let a tool outside ConvoReal read this workspace — the MCP
+                server for Claude and other AI clients, an automation platform,
+                or your own scripts. Each key belongs to this workspace alone
+                and can be revoked at any time.
               </p>
             </div>
             <RequireRole min="admin">
@@ -179,17 +184,20 @@ export function ApiKeysTab() {
       </Card>
 
       {!hasApiAccess && !planLoading && (
-        <Card className="bg-amber-950/20 border-amber-900/40">
-          <CardContent className="p-5 flex items-start gap-3">
-            <Sparkles className="size-4 text-amber-400 mt-0.5 shrink-0" />
+        <Card className="border-amber-900/40 bg-amber-950/20">
+          <CardContent className="flex items-start gap-3 p-5">
+            <Sparkles className="mt-0.5 size-4 shrink-0 text-amber-400" />
             <div className="space-y-2 text-sm">
-              <p className="text-amber-200 font-medium">
+              <p className="font-medium text-amber-200">
                 API access is on the Agency plan
               </p>
               <p className="text-slate-400">
                 Existing keys stay listed here, but they stop working while the
                 workspace is on a plan without API access.{' '}
-                <a href={upgradeUrl} className="underline font-medium text-amber-200">
+                <a
+                  href={upgradeUrl}
+                  className="font-medium text-amber-200 underline"
+                >
                   See plans
                 </a>
                 .
@@ -199,10 +207,10 @@ export function ApiKeysTab() {
         </Card>
       )}
 
-      <Card className="bg-slate-900/50 border-slate-800">
+      <Card className="border-slate-800 bg-slate-900/50">
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="py-12 flex justify-center">
+            <div className="flex justify-center py-12">
               <Loader2 className="size-5 animate-spin text-slate-500" />
             </div>
           ) : error ? (
@@ -210,7 +218,7 @@ export function ApiKeysTab() {
               {(error as Error).message}
             </div>
           ) : keys.length === 0 ? (
-            <div className="py-12 text-center space-y-1">
+            <div className="space-y-1 py-12 text-center">
               <p className="text-sm text-slate-300">No API keys yet</p>
               <p className="text-xs text-slate-500">
                 Create one to connect an AI client or automation tool.
@@ -221,28 +229,35 @@ export function ApiKeysTab() {
               {keys.map((key) => {
                 const status = statusOf(key);
                 return (
-                  <li key={key.id} className="p-4 flex items-start justify-between gap-4">
+                  <li
+                    key={key.id}
+                    className="flex items-start justify-between gap-4 p-4"
+                  >
                     <div className="min-w-0 space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-slate-100 truncate">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-sm font-medium text-slate-100">
                           {key.name}
                         </span>
-                        <Badge className={cn('text-[10px] border-0', status.tone)}>
+                        <Badge
+                          className={cn('border-0 text-[10px]', status.tone)}
+                        >
                           {status.label}
                         </Badge>
                         {key.scopes.includes('write') && (
-                          <Badge className="text-[10px] border-0 bg-violet-950 text-violet-300">
+                          <Badge className="border-0 bg-violet-950 text-[10px] text-violet-300">
                             write
                           </Badge>
                         )}
                       </div>
-                      <code className="block text-xs text-slate-500 font-mono">
+                      <code className="block font-mono text-xs text-slate-500">
                         {key.key_prefix}…
                       </code>
                       <p className="text-xs text-slate-500">
                         Created {formatWhen(key.created_at)} · Last used{' '}
                         {formatWhen(key.last_used_at)}
-                        {key.expires_at ? ` · Expires ${formatWhen(key.expires_at)}` : ''}
+                        {key.expires_at
+                          ? ` · Expires ${formatWhen(key.expires_at)}`
+                          : ''}
                       </p>
                     </div>
                     {!key.revoked_at && (
@@ -250,7 +265,7 @@ export function ApiKeysTab() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="shrink-0 text-slate-400 hover:text-rose-400 gap-1.5"
+                          className="shrink-0 gap-1.5 text-slate-400 hover:text-rose-400"
                           onClick={() => setRevoking(key)}
                         >
                           <Ban className="size-3.5" />
@@ -267,10 +282,11 @@ export function ApiKeysTab() {
       </Card>
 
       {liveCount > 0 && (
-        <p className="text-xs text-slate-500 flex items-center gap-1.5">
+        <p className="flex items-center gap-1.5 text-xs text-slate-500">
           <ShieldCheck className="size-3.5" />
-          {liveCount} active {liveCount === 1 ? 'key' : 'keys'}. Anyone holding one can
-          read this workspace&apos;s inventory and contacts — treat them like passwords.
+          {liveCount} active {liveCount === 1 ? 'key' : 'keys'}. Anyone holding
+          one can read this workspace&apos;s inventory and contacts — treat them
+          like passwords.
         </p>
       )}
 
@@ -285,8 +301,8 @@ export function ApiKeysTab() {
           <DialogHeader>
             <DialogTitle>Revoke “{revoking?.name}”?</DialogTitle>
             <DialogDescription>
-              Any tool using this key stops working on its next request. This cannot be
-              undone — if you need access again, create a new key.
+              Any tool using this key stops working on its next request. This
+              cannot be undone — if you need access again, create a new key.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -383,26 +399,35 @@ function CreateKeyDialog({
             <DialogHeader>
               <DialogTitle>Copy your key now</DialogTitle>
               <DialogDescription>
-                This is the only time it will be shown. ConvoReal stores only a hash of
-                it, so it cannot be recovered later — if you lose it, revoke this key and
-                create another.
+                This is the only time it will be shown. ConvoReal stores only a
+                hash of it, so it cannot be recovered later — if you lose it,
+                revoke this key and create another.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <code className="flex-1 min-w-0 select-all break-all rounded-lg bg-slate-950 border border-slate-800 px-3 py-2.5 text-xs font-mono text-violet-300">
+                <code className="min-w-0 flex-1 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 font-mono text-xs break-all text-violet-300 select-all">
                   {secret}
                 </code>
-                <Button onClick={copy} variant="outline" size="sm" className="shrink-0 gap-1.5">
-                  {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                <Button
+                  onClick={copy}
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1.5"
+                >
+                  {copied ? (
+                    <Check className="size-3.5" />
+                  ) : (
+                    <Copy className="size-3.5" />
+                  )}
                   {copied ? 'Copied' : 'Copy'}
                 </Button>
               </div>
-              <p className="text-xs text-slate-500 flex items-start gap-1.5">
-                <AlertTriangle className="size-3.5 mt-0.5 shrink-0 text-amber-500" />
-                Anyone with this key can read this workspace. Keep it out of shared
-                documents, screenshots and version control.
+              <p className="flex items-start gap-1.5 text-xs text-slate-500">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+                Anyone with this key can read this workspace. Keep it out of
+                shared documents, screenshots and version control.
               </p>
             </div>
 
@@ -417,8 +442,8 @@ function CreateKeyDialog({
             <DialogHeader>
               <DialogTitle>New API key</DialogTitle>
               <DialogDescription>
-                Give each tool its own key, so you can revoke one without disturbing the
-                others.
+                Give each tool its own key, so you can revoke one without
+                disturbing the others.
               </DialogDescription>
             </DialogHeader>
 
@@ -435,7 +460,7 @@ function CreateKeyDialog({
                 />
               </div>
 
-              <label className="flex items-start gap-3 rounded-lg border border-slate-800 p-3 cursor-pointer">
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-800 p-3">
                 <Switch
                   checked={allowWrite}
                   onCheckedChange={(v) => setAllowWrite(v === true)}
@@ -443,11 +468,13 @@ function CreateKeyDialog({
                   aria-label="Allow writes"
                 />
                 <span className="space-y-1">
-                  <span className="block text-sm text-slate-200">Allow writes</span>
+                  <span className="block text-sm text-slate-200">
+                    Allow writes
+                  </span>
                   <span className="block text-xs text-slate-500">
-                    Lets the tool add contacts, append notes and create tasks. It can
-                    never send WhatsApp messages, run broadcasts, or delete anything.
-                    Leave this off unless you need it.
+                    Lets the tool add contacts, append notes and create tasks.
+                    It can never send WhatsApp messages, run broadcasts, or
+                    delete anything. Leave this off unless you need it.
                   </span>
                 </span>
               </label>
@@ -462,7 +489,9 @@ function CreateKeyDialog({
                 disabled={!name.trim() || create.isPending}
                 className="gap-2"
               >
-                {create.isPending && <Loader2 className="size-4 animate-spin" />}
+                {create.isPending && (
+                  <Loader2 className="size-4 animate-spin" />
+                )}
                 Create key
               </Button>
             </DialogFooter>

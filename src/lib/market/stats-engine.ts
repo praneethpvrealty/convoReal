@@ -97,11 +97,39 @@ function monthBucket(iso: string): string {
   return `${iso.slice(0, 7)}-01`;
 }
 
-function cellKey(c: Pick<Cell, 'period_month' | 'side' | 'city' | 'locality' | 'property_type' | 'listing_type'>): string {
-  return [c.period_month, c.side, c.city, c.locality, c.property_type, c.listing_type].join('|');
+function cellKey(
+  c: Pick<
+    Cell,
+    | 'period_month'
+    | 'side'
+    | 'city'
+    | 'locality'
+    | 'property_type'
+    | 'listing_type'
+  >
+): string {
+  return [
+    c.period_month,
+    c.side,
+    c.city,
+    c.locality,
+    c.property_type,
+    c.listing_type,
+  ].join('|');
 }
 
-function getCell(cells: Map<string, Cell>, dims: Pick<Cell, 'period_month' | 'side' | 'city' | 'locality' | 'property_type' | 'listing_type'>): Cell {
+function getCell(
+  cells: Map<string, Cell>,
+  dims: Pick<
+    Cell,
+    | 'period_month'
+    | 'side'
+    | 'city'
+    | 'locality'
+    | 'property_type'
+    | 'listing_type'
+  >
+): Cell {
   const key = cellKey(dims);
   let cell = cells.get(key);
   if (!cell) {
@@ -125,7 +153,7 @@ function getCell(cells: Map<string, Cell>, dims: Pick<Cell, 'period_month' | 'si
 export async function runMarketStats(
   admin: SupabaseClient,
   config: MarketStatsConfig,
-  now: Date = new Date(),
+  now: Date = new Date()
 ): Promise<StatsSummary> {
   const summary: StatsSummary = {
     consentingAccounts: 0,
@@ -150,7 +178,11 @@ export async function runMarketStats(
 
   const currentMonth = monthBucket(now.toISOString());
   const windowStart = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (config.months_back - 1), 1),
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth() - (config.months_back - 1),
+      1
+    )
   );
   const windowStartIso = windowStart.toISOString();
   const windowStartMonth = monthBucket(windowStartIso);
@@ -161,7 +193,10 @@ export async function runMarketStats(
       .delete()
       .gte('period_month', windowStartMonth);
     if (delErr) {
-      console.error('[market-stats] window delete failed on empty accounts:', delErr.message);
+      console.error(
+        '[market-stats] window delete failed on empty accounts:',
+        delErr.message
+      );
       summary.errors++;
     }
     return summary;
@@ -190,7 +225,7 @@ export async function runMarketStats(
   if (createdRes.error || soldRes.error) {
     console.error(
       '[market-stats] supply query failed:',
-      createdRes.error?.message ?? soldRes.error?.message,
+      createdRes.error?.message ?? soldRes.error?.message
     );
     summary.errors++;
     return summary;
@@ -198,7 +233,8 @@ export async function runMarketStats(
 
   const dimsFor = (row: PropertyRow, month: string) => {
     const city = normalizeToken(row.city);
-    const locality = normalizeToken(row.locality_canonical) ?? normalizeToken(row.sublocality);
+    const locality =
+      normalizeToken(row.locality_canonical) ?? normalizeToken(row.sublocality);
     const type = normalizeToken(row.type);
     if (!city || !locality || !type) return null; // can't place geographically
     return {
@@ -218,8 +254,10 @@ export async function runMarketStats(
     const cell = getCell(cells, dims);
     cell.listingsCount++;
     cell.accounts.add(row.account_id);
-    if (typeof row.price === 'number' && row.price > 0) cell.prices.push(row.price);
-    if (typeof row.area_sqft === 'number' && row.area_sqft > 0) cell.areas.push(row.area_sqft);
+    if (typeof row.price === 'number' && row.price > 0)
+      cell.prices.push(row.price);
+    if (typeof row.area_sqft === 'number' && row.area_sqft > 0)
+      cell.areas.push(row.area_sqft);
   }
 
   // Sale outcomes bucket by the month the status flipped to Sold
@@ -235,7 +273,9 @@ export async function runMarketStats(
       cell.soldPrices.push(row.sold_price);
     }
     const days =
-      (new Date(row.status_changed_at).getTime() - new Date(row.created_at).getTime()) / DAY_MS;
+      (new Date(row.status_changed_at).getTime() -
+        new Date(row.created_at).getTime()) /
+      DAY_MS;
     if (days >= 0) cell.daysToSell.push(Math.round(days));
   }
 
@@ -245,7 +285,7 @@ export async function runMarketStats(
   const { data: contacts, error: contactErr } = await admin
     .from('contacts')
     .select(
-      'account_id, min_budget, max_budget, pref_budget_min, pref_budget_max, areas_of_interest, pref_areas, property_interests, pref_property_types',
+      'account_id, min_budget, max_budget, pref_budget_min, pref_budget_max, areas_of_interest, pref_areas, property_interests, pref_property_types'
     )
     .in('account_id', accountIds)
     .eq('status', 'active');
@@ -258,13 +298,13 @@ export async function runMarketStats(
     const areas = new Set(
       [...(row.areas_of_interest ?? []), ...(row.pref_areas ?? [])]
         .map(normalizeToken)
-        .filter(Boolean) as string[],
+        .filter(Boolean) as string[]
     );
     if (areas.size === 0) continue;
     const types = new Set(
       [...(row.property_interests ?? []), ...(row.pref_property_types ?? [])]
         .map(normalizeToken)
-        .filter(Boolean) as string[],
+        .filter(Boolean) as string[]
     );
     if (types.size === 0) types.add('any');
 

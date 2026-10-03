@@ -60,7 +60,8 @@ export function GreetingsGeneratorDialog({
   }, [open]);
 
   const handleGenerate = async () => {
-    const finalOccasion = selectedOccasion === 'Custom' ? customOccasion : selectedOccasion;
+    const finalOccasion =
+      selectedOccasion === 'Custom' ? customOccasion : selectedOccasion;
     if (!finalOccasion.trim()) {
       toast.error('Please select or specify an occasion.');
       return;
@@ -94,7 +95,9 @@ export function GreetingsGeneratorDialog({
       toast.success('AI Greeting generated successfully!');
     } catch (err) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : 'Error generating greeting');
+      toast.error(
+        err instanceof Error ? err.message : 'Error generating greeting'
+      );
     } finally {
       setGenerating(false);
     }
@@ -149,7 +152,9 @@ export function GreetingsGeneratorDialog({
       if (generatedImageUrl) {
         // Convert base64 to File object if supported
         const blob = await fetch(generatedImageUrl).then((res) => res.blob());
-        const file = new File([blob], 'festive-card.jpg', { type: 'image/jpeg' });
+        const file = new File([blob], 'festive-card.jpg', {
+          type: 'image/jpeg',
+        });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           shareData.files = [file];
         }
@@ -165,30 +170,33 @@ export function GreetingsGeneratorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md bg-slate-900 border border-slate-800 text-white rounded-2xl shadow-2xl p-6 overflow-y-auto max-h-[90vh]">
+      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-6 text-white shadow-2xl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <span>🎉</span> AI Greetings &amp; Cards Generator
           </DialogTitle>
-          <DialogDescription className="text-slate-400 text-xs mt-1">
-            Generate warm personal greetings using Gemini and beautiful festive graphics using Hugging Face.
+          <DialogDescription className="mt-1 text-xs text-slate-400">
+            Generate warm personal greetings using Gemini and beautiful festive
+            graphics using Hugging Face.
           </DialogDescription>
         </DialogHeader>
 
         {!generatedText && !generating ? (
-          <div className="space-y-5 mt-4">
+          <div className="mt-4 space-y-5">
             <div className="space-y-2">
-              <Label className="text-slate-300 text-xs font-semibold">Select Occasion</Label>
+              <Label className="text-xs font-semibold text-slate-300">
+                Select Occasion
+              </Label>
               <div className="grid grid-cols-2 gap-2">
                 {PRESET_OCCASIONS.map((preset) => (
                   <button
                     key={preset.name}
                     type="button"
                     onClick={() => setSelectedOccasion(preset.name)}
-                    className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+                    className={`flex cursor-pointer items-center gap-2 rounded-lg border p-2.5 text-xs font-semibold transition-all ${
                       selectedOccasion === preset.name
-                        ? 'bg-rose-500/10 border-rose-500 text-rose-400 shadow-sm'
-                        : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800'
+                        ? 'border-rose-500 bg-rose-500/10 text-rose-400 shadow-sm'
+                        : 'border-slate-800 bg-slate-800/40 text-slate-300 hover:bg-slate-800'
                     }`}
                   >
                     <span>{preset.emoji}</span>
@@ -198,10 +206,10 @@ export function GreetingsGeneratorDialog({
                 <button
                   type="button"
                   onClick={() => setSelectedOccasion('Custom')}
-                  className={`col-span-2 flex items-center justify-center gap-2 p-2.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+                  className={`col-span-2 flex cursor-pointer items-center justify-center gap-2 rounded-lg border p-2.5 text-xs font-semibold transition-all ${
                     selectedOccasion === 'Custom'
-                      ? 'bg-rose-500/10 border-rose-500 text-rose-400 shadow-sm'
-                      : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800'
+                      ? 'border-rose-500 bg-rose-500/10 text-rose-400 shadow-sm'
+                      : 'border-slate-800 bg-slate-800/40 text-slate-300 hover:bg-slate-800'
                   }`}
                 >
                   ⚙️ Custom Occasion
@@ -210,82 +218,103 @@ export function GreetingsGeneratorDialog({
             </div>
 
             {selectedOccasion === 'Custom' && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                <Label htmlFor="custom-occasion" className="text-slate-300 text-xs">Specify Occasion</Label>
+              <div className="animate-in fade-in slide-in-from-top-1 space-y-2 duration-200">
+                <Label
+                  htmlFor="custom-occasion"
+                  className="text-xs text-slate-300"
+                >
+                  Specify Occasion
+                </Label>
                 <Input
                   id="custom-occasion"
                   placeholder="e.g., Happy Diwali, Anniversary..."
                   value={customOccasion}
                   onChange={(e) => setCustomOccasion(e.target.value)}
-                  className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 text-xs"
+                  className="border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                 />
               </div>
             )}
 
-            <div className="flex items-center justify-between p-3 bg-slate-950/40 border border-slate-800 rounded-xl">
+            <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/40 p-3">
               <div className="space-y-0.5">
-                <Label htmlFor="gen-image" className="text-slate-200 text-xs font-semibold cursor-pointer">
+                <Label
+                  htmlFor="gen-image"
+                  className="cursor-pointer text-xs font-semibold text-slate-200"
+                >
                   Generate Graphic Card
                 </Label>
-                <p className="text-[10px] text-slate-500 leading-none">Create a matching festive image card</p>
+                <p className="text-[10px] leading-none text-slate-500">
+                  Create a matching festive image card
+                </p>
               </div>
               <input
                 id="gen-image"
                 type="checkbox"
                 checked={generateImage}
                 onChange={(e) => setGenerateImage(e.target.checked)}
-                className="size-4 rounded accent-rose-500 border-slate-700 bg-slate-800 text-rose-500 cursor-pointer"
+                className="size-4 cursor-pointer rounded border-slate-700 bg-slate-800 text-rose-500 accent-rose-500"
               />
             </div>
 
-            <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-850 text-slate-400 text-[10px] flex items-center gap-2">
+            <div className="border-slate-850 flex items-center gap-2 rounded-xl border bg-slate-950/60 p-3 text-[10px] text-slate-400">
               <span>💡</span>
-              <span>This operation consumes <strong>10 credits</strong> from your wallet.</span>
+              <span>
+                This operation consumes <strong>10 credits</strong> from your
+                wallet.
+              </span>
             </div>
 
             <Button
               type="button"
               onClick={handleGenerate}
-              className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold h-10 rounded-xl shadow-lg shadow-rose-500/10 cursor-pointer transition-all"
+              className="h-10 w-full cursor-pointer rounded-xl bg-rose-500 font-bold text-white shadow-lg shadow-rose-500/10 transition-all hover:bg-rose-600"
             >
               Generate AI Greeting
             </Button>
           </div>
         ) : generating ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3 mt-4">
+          <div className="mt-4 flex flex-col items-center justify-center gap-3 py-16">
             <Loader2 className="size-8 animate-spin text-rose-500" />
             <div className="text-center">
-              <p className="text-sm font-semibold text-slate-200">Generating creative assets...</p>
-              <p className="text-[11px] text-slate-500 mt-1">Personalizing text greeting and rendering design cards</p>
+              <p className="text-sm font-semibold text-slate-200">
+                Generating creative assets...
+              </p>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Personalizing text greeting and rendering design cards
+              </p>
             </div>
           </div>
         ) : (
-          <div className="space-y-5 mt-4">
+          <div className="mt-4 space-y-5">
             <div className="space-y-1.5">
-              <Label className="text-slate-300 text-xs font-semibold">Message Preview</Label>
+              <Label className="text-xs font-semibold text-slate-300">
+                Message Preview
+              </Label>
               <Textarea
                 value={generatedText}
                 onChange={(e) => setGeneratedText(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-slate-100 text-xs min-h-[100px] leading-relaxed resize-none focus-visible:ring-1 focus-visible:ring-rose-500 focus-visible:border-rose-500"
+                className="min-h-[100px] resize-none border-slate-700 bg-slate-800 text-xs leading-relaxed text-slate-100 focus-visible:border-rose-500 focus-visible:ring-1 focus-visible:ring-rose-500"
               />
             </div>
 
             {generatedImageUrl && (
               <div className="space-y-2">
-                <Label className="text-slate-300 text-xs font-semibold">Graphic Card Card</Label>
-                <div className="relative group border border-slate-800 rounded-xl overflow-hidden bg-slate-950 aspect-video flex items-center justify-center">
+                <Label className="text-xs font-semibold text-slate-300">
+                  Graphic Card Card
+                </Label>
+                <div className="group relative flex aspect-video items-center justify-center overflow-hidden rounded-xl border border-slate-800 bg-slate-950">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={generatedImageUrl}
                     alt="Festive greeting card"
-                    className="object-contain w-full h-full"
+                    className="h-full w-full object-contain"
                   />
-                  <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <div className="absolute inset-0 flex items-center justify-center gap-2 bg-slate-950/60 opacity-0 transition-opacity group-hover:opacity-100">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={handleDownload}
-                      className="border-slate-700 bg-slate-900 text-white hover:bg-slate-800 gap-1.5 h-8 text-[11px]"
+                      className="h-8 gap-1.5 border-slate-700 bg-slate-900 text-[11px] text-white hover:bg-slate-800"
                     >
                       <Download className="size-3.5" />
                       Download Card
@@ -299,7 +328,7 @@ export function GreetingsGeneratorDialog({
               <Button
                 variant="outline"
                 onClick={handleCopy}
-                className="border-slate-800 hover:bg-slate-800 text-slate-300 font-semibold gap-1.5 h-9 rounded-lg text-xs"
+                className="h-9 gap-1.5 rounded-lg border-slate-800 text-xs font-semibold text-slate-300 hover:bg-slate-800"
               >
                 <Copy className="size-3.5" />
                 Copy Greeting
@@ -308,7 +337,7 @@ export function GreetingsGeneratorDialog({
                 <Button
                   variant="outline"
                   onClick={handleNativeShare}
-                  className="border-slate-800 hover:bg-slate-800 text-slate-300 font-semibold gap-1.5 h-9 rounded-lg text-xs"
+                  className="h-9 gap-1.5 rounded-lg border-slate-800 text-xs font-semibold text-slate-300 hover:bg-slate-800"
                 >
                   <Share2 className="size-3.5" />
                   Share System
@@ -318,7 +347,7 @@ export function GreetingsGeneratorDialog({
                   variant="outline"
                   onClick={handleDownload}
                   disabled={!generatedImageUrl}
-                  className="border-slate-800 hover:bg-slate-800 text-slate-300 font-semibold gap-1.5 h-9 rounded-lg text-xs disabled:opacity-50"
+                  className="h-9 gap-1.5 rounded-lg border-slate-800 text-xs font-semibold text-slate-300 hover:bg-slate-800 disabled:opacity-50"
                 >
                   <Download className="size-3.5" />
                   Download Card
@@ -326,7 +355,7 @@ export function GreetingsGeneratorDialog({
               )}
               <Button
                 onClick={handleWhatsAppShare}
-                className="col-span-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold gap-2 h-10 rounded-xl transition-all shadow-lg shadow-emerald-500/10 cursor-pointer"
+                className="col-span-2 h-10 cursor-pointer gap-2 rounded-xl bg-emerald-500 font-bold text-slate-950 shadow-lg shadow-emerald-500/10 transition-all hover:bg-emerald-600"
               >
                 <MessageSquare className="size-4 fill-slate-950" />
                 Send Greeting via WhatsApp
@@ -339,7 +368,7 @@ export function GreetingsGeneratorDialog({
                 setGeneratedText('');
                 setGeneratedImageUrl('');
               }}
-              className="w-full text-slate-500 hover:text-slate-400 text-xs h-8 cursor-pointer"
+              className="h-8 w-full cursor-pointer text-xs text-slate-500 hover:text-slate-400"
             >
               ← Back / Generate Another
             </Button>

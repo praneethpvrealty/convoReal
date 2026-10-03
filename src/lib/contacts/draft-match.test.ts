@@ -10,7 +10,11 @@ import {
   type BookContact,
 } from './draft-match';
 
-const c = (id: string, name: string | null, phone: string | null = null): BookContact => ({
+const c = (
+  id: string,
+  name: string | null,
+  phone: string | null = null
+): BookContact => ({
   id,
   name,
   phone,
@@ -19,13 +23,19 @@ const c = (id: string, name: string | null, phone: string | null = null): BookCo
 describe('matchContactByName', () => {
   const book = [
     c('vas', 'Vasundhara', '+919972225992'),
-    c('durga', 'Durga Prasad (Debi Prasad) Purva Atmosphere Seller', '+918422948781'),
+    c(
+      'durga',
+      'Durga Prasad (Debi Prasad) Purva Atmosphere Seller',
+      '+918422948781'
+    ),
   ];
 
   it('finds the contact a forwarded chat title is about', () => {
     // The reported case. The phonebook name carries the project and a
     // status word; the Engine row is just the person.
-    expect(matchContactByName('Vasundhara Purva Atmosphere', book)?.id).toBe('vas');
+    expect(matchContactByName('Vasundhara Purva Atmosphere', book)?.id).toBe(
+      'vas'
+    );
   });
 
   it('matches in the other direction too', () => {
@@ -68,7 +78,9 @@ describe('matchContactByExactName', () => {
   });
 
   it('does not guess for a prefix or duplicate exact names', () => {
-    expect(matchContactByExactName('Sandeep', [c('s', 'Sandeep Kotecha')])).toBeNull();
+    expect(
+      matchContactByExactName('Sandeep', [c('s', 'Sandeep Kotecha')])
+    ).toBeNull();
     expect(
       matchContactByExactName('Sandeep Kotecha', [
         c('a', 'Sandeep Kotecha'),
@@ -84,7 +96,12 @@ describe('matchContactByPhone', () => {
   it('matches however the number was written', () => {
     // The same person saved from a webhook and by hand is +91… against
     // the bare 10 digits.
-    for (const p of ['+919972225992', '9972225992', '+91 99722 25992', '0919972225992']) {
+    for (const p of [
+      '+919972225992',
+      '9972225992',
+      '+91 99722 25992',
+      '0919972225992',
+    ]) {
       expect(matchContactByPhone(p, book)?.id, p).toBe('vas');
     }
   });
@@ -101,7 +118,10 @@ describe('enrichmentFor', () => {
     // The whole point: this used to be reported as a skipped duplicate
     // and the budget went in the bin.
     const out = enrichmentFor(
-      { requirements: '4BHK or spacious 3BHK, North along the metro, around 4cr' },
+      {
+        requirements:
+          '4BHK or spacious 3BHK, North along the metro, around 4cr',
+      },
       { requirements: '' }
     );
     expect(out.requirements).toContain('4cr');
@@ -156,7 +176,10 @@ describe('enrichmentFor', () => {
 describe('sameDraftSubject', () => {
   it('is true for a second screenshot of the same person', () => {
     expect(
-      sameDraftSubject({ name: 'Vasundhara', phone: null }, { name: 'Vasundhara Purva Atmosphere', phone: null })
+      sameDraftSubject(
+        { name: 'Vasundhara', phone: null },
+        { name: 'Vasundhara Purva Atmosphere', phone: null }
+      )
     ).toBe(true);
   });
 
@@ -164,16 +187,25 @@ describe('sameDraftSubject', () => {
     // The failure positional merging could not see: same name, two
     // different people. A number on both sides is decisive.
     expect(
-      sameDraftSubject({ name: 'Ravi Kumar', phone: '9845012345' }, { name: 'Ravi Kumar', phone: '9880011223' })
+      sameDraftSubject(
+        { name: 'Ravi Kumar', phone: '9845012345' },
+        { name: 'Ravi Kumar', phone: '9880011223' }
+      )
     ).toBe(false);
     expect(
-      sameDraftSubject({ name: 'Ravi', phone: '+919845012345' }, { name: 'Someone Else', phone: '9845012345' })
+      sameDraftSubject(
+        { name: 'Ravi', phone: '+919845012345' },
+        { name: 'Someone Else', phone: '9845012345' }
+      )
     ).toBe(true);
   });
 
   it('falls back to the name only when a side has no number', () => {
     expect(
-      sameDraftSubject({ name: 'Shiv Jayanagar', phone: null }, { name: 'Vasundhara', phone: '9845012345' })
+      sameDraftSubject(
+        { name: 'Shiv Jayanagar', phone: null },
+        { name: 'Vasundhara', phone: '9845012345' }
+      )
     ).toBe(false);
   });
 
@@ -186,35 +218,53 @@ describe('sameDraftSubject', () => {
 describe('suggestPhoneLink', () => {
   const book = [
     c('vas', 'Vasundhara', '+919972225992'),
-    c('durga', 'Durga Prasad (Debi Prasad) Purva Atmosphere Seller', '+918422948781'),
+    c(
+      'durga',
+      'Durga Prasad (Debi Prasad) Purva Atmosphere Seller',
+      '+918422948781'
+    ),
   ];
 
   it('offers the contact a phoneless forwarded chat is about', () => {
     // The reported dead end: name from the chat header, no number, so
     // the draft could never be confirmed.
-    const out = suggestPhoneLink([{ name: 'Vasundhara Purva Atmosphere', phone: null }], book);
+    const out = suggestPhoneLink(
+      [{ name: 'Vasundhara Purva Atmosphere', phone: null }],
+      book
+    );
     expect(out?.contact.id).toBe('vas');
     expect(out?.index).toBe(0);
   });
 
   it('says nothing when the draft already has a number', () => {
     expect(
-      suggestPhoneLink([{ name: 'Vasundhara Purva Atmosphere', phone: '9972225992' }], book)
+      suggestPhoneLink(
+        [{ name: 'Vasundhara Purva Atmosphere', phone: '9972225992' }],
+        book
+      )
     ).toBeNull();
   });
 
   it('says nothing when the match is ambiguous', () => {
-    const ravis = [c('a', 'Ravi Kumar', '9000000001'), c('b', 'Ravi Shankar', '9000000002')];
+    const ravis = [
+      c('a', 'Ravi Kumar', '9000000001'),
+      c('b', 'Ravi Shankar', '9000000002'),
+    ];
     expect(suggestPhoneLink([{ name: 'Ravi', phone: null }], ravis)).toBeNull();
   });
 
   it('skips a book row that has no number to lend', () => {
-    expect(suggestPhoneLink([{ name: 'Gopi', phone: null }], [c('g', 'Gopi', null)])).toBeNull();
+    expect(
+      suggestPhoneLink([{ name: 'Gopi', phone: null }], [c('g', 'Gopi', null)])
+    ).toBeNull();
   });
 
   it('points at the first phoneless contact, not the first contact', () => {
     const out = suggestPhoneLink(
-      [{ name: 'Someone', phone: '9000000009' }, { name: 'Vasundhara', phone: null }],
+      [
+        { name: 'Someone', phone: '9000000009' },
+        { name: 'Vasundhara', phone: null },
+      ],
       book
     );
     expect(out?.index).toBe(1);
@@ -222,18 +272,29 @@ describe('suggestPhoneLink', () => {
   });
 
   it('offers nothing for an unknown name', () => {
-    expect(suggestPhoneLink([{ name: 'Shiv Jayanagar', phone: null }], book)).toBeNull();
+    expect(
+      suggestPhoneLink([{ name: 'Shiv Jayanagar', phone: null }], book)
+    ).toBeNull();
   });
 });
 
 describe('phoneLinkButtonTitle', () => {
-  it('fits WhatsApp\'s 20-character button limit', () => {
-    for (const name of ['Vasundhara', 'Durga Prasad (Debi Prasad) Purva Atmosphere Seller', null]) {
-      expect(phoneLinkButtonTitle(name).length, String(name)).toBeLessThanOrEqual(20);
+  it("fits WhatsApp's 20-character button limit", () => {
+    for (const name of [
+      'Vasundhara',
+      'Durga Prasad (Debi Prasad) Purva Atmosphere Seller',
+      null,
+    ]) {
+      expect(
+        phoneLinkButtonTitle(name).length,
+        String(name)
+      ).toBeLessThanOrEqual(20);
     }
   });
 
   it('uses the first name so the button reads as a person', () => {
-    expect(phoneLinkButtonTitle('Vasundhara Purva Atmosphere')).toContain('Vasundhara');
+    expect(phoneLinkButtonTitle('Vasundhara Purva Atmosphere')).toContain(
+      'Vasundhara'
+    );
   });
 });

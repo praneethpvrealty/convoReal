@@ -31,7 +31,9 @@ describe('resolveChannels', () => {
   });
 
   it('applies a saved override', async () => {
-    maybeSingle.mockResolvedValue({ data: { app_enabled: false, whatsapp_enabled: true } });
+    maybeSingle.mockResolvedValue({
+      data: { app_enabled: false, whatsapp_enabled: true },
+    });
     expect(await resolveChannels('acc', 'first_inbound_message')).toEqual({
       inApp: false,
       push: false,

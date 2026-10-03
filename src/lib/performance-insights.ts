@@ -1,7 +1,8 @@
 import type { BeforeSendMiddleware } from '@vercel/speed-insights';
 
 export const sanitizePerformanceEvent: BeforeSendMiddleware = (event) => {
-  if (!event.route?.startsWith('/') || event.route.startsWith('//')) return null;
+  if (!event.route?.startsWith('/') || event.route.startsWith('//'))
+    return null;
 
   try {
     const url = new URL(event.url);

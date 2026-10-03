@@ -126,6 +126,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: npm run format:check
 
   typecheck:
     name: Typecheck
@@ -237,7 +238,6 @@ jobs:
       # graph RESOLVES, not whether the app is configured.
       - name: Bundle
         run: npx expo export --output-dir "$RUNNER_TEMP/expo-bundle" --platform android
-
 
   go-ingress:
     name: Go ingress test

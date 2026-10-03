@@ -17,10 +17,15 @@ export async function GET() {
 
     if (error) {
       console.error('[GET /api/billing/credits/referral] query error:', error);
-      return NextResponse.json({ error: 'Failed to load referral data' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to load referral data' },
+        { status: 500 }
+      );
     }
 
-    const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/+$/, '');
+    const baseUrl = (
+      process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    ).replace(/\/+$/, '');
     const passiveEarnTotal = (referrals ?? [])
       .filter((r) => r.status === 'converted')
       .reduce((sum, r) => sum + r.passive_earn_months, 0);

@@ -155,17 +155,22 @@ export async function loadConflicts(
     .order('created_at', { ascending: false })
     .limit(MAX_PER_SOURCE);
   if (propertyId) {
-    factQuery = factQuery.eq('entity_type', 'property').eq('entity_id', propertyId);
+    factQuery = factQuery
+      .eq('entity_type', 'property')
+      .eq('entity_id', propertyId);
   }
 
   let portalQuery = db
     .from('portal_import_items')
-    .select('portal, listing_url, price, area_sqft, bedrooms, matched_property_id')
+    .select(
+      'portal, listing_url, price, area_sqft, bedrooms, matched_property_id'
+    )
     .eq('account_id', accountId)
     .not('matched_property_id', 'is', null)
     .in('match_status', ['linked', 'auto_matched', 'imported'])
     .limit(MAX_PER_SOURCE);
-  if (propertyId) portalQuery = portalQuery.eq('matched_property_id', propertyId);
+  if (propertyId)
+    portalQuery = portalQuery.eq('matched_property_id', propertyId);
 
   const [{ data: facts }, { data: portalRows }] = await Promise.all([
     factQuery,
@@ -178,7 +183,9 @@ export async function loadConflicts(
   const propertyIds = new Set<string>();
   const contactIds = new Set<string>();
   for (const row of (facts ?? []) as FactRow[]) {
-    (row.entity_type === 'property' ? propertyIds : contactIds).add(row.entity_id);
+    (row.entity_type === 'property' ? propertyIds : contactIds).add(
+      row.entity_id
+    );
   }
   for (const row of portalRows ?? []) {
     propertyIds.add(row.matched_property_id as string);

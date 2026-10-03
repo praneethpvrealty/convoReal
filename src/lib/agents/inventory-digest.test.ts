@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vitest';
 import {
   hasReachUpdates,
   reachTotals,
@@ -9,9 +9,11 @@ import {
   buildDashboardPointerLine,
   type AgentInventoryDigest,
   type PropertyReachStats,
-} from './inventory-digest'
+} from './inventory-digest';
 
-function stats(overrides: Partial<PropertyReachStats> = {}): PropertyReachStats {
+function stats(
+  overrides: Partial<PropertyReachStats> = {}
+): PropertyReachStats {
   return {
     property_id: 'p1',
     title: 'Sunrise Villa',
@@ -21,29 +23,46 @@ function stats(overrides: Partial<PropertyReachStats> = {}): PropertyReachStats 
     newIndirectBuyers: 0,
     agentsReached: 0,
     ...overrides,
-  }
+  };
 }
 
-function digest(properties: PropertyReachStats[], name: string | null = 'Deepak Sharma'): AgentInventoryDigest {
-  return { contactId: 'c1', name, properties }
+function digest(
+  properties: PropertyReachStats[],
+  name: string | null = 'Deepak Sharma'
+): AgentInventoryDigest {
+  return { contactId: 'c1', name, properties };
 }
 
 describe('hasReachUpdates', () => {
   it('is false when nothing new happened in the period', () => {
-    expect(hasReachUpdates(digest([stats({ directBuyers: 5, indirectBuyers: 2 })]))).toBe(false)
-  })
+    expect(
+      hasReachUpdates(digest([stats({ directBuyers: 5, indirectBuyers: 2 })]))
+    ).toBe(false);
+  });
 
   it('is true when the period added a direct or indirect buyer', () => {
-    expect(hasReachUpdates(digest([stats({ newDirectBuyers: 1 })]))).toBe(true)
-    expect(hasReachUpdates(digest([stats({ newIndirectBuyers: 1 })]))).toBe(true)
-  })
-})
+    expect(hasReachUpdates(digest([stats({ newDirectBuyers: 1 })]))).toBe(true);
+    expect(hasReachUpdates(digest([stats({ newIndirectBuyers: 1 })]))).toBe(
+      true
+    );
+  });
+});
 
 describe('reachTotals / buildAgentReachSummaryLine', () => {
   const d = digest([
-    stats({ property_id: 'p1', directBuyers: 2, newDirectBuyers: 2, agentsReached: 1 }),
-    stats({ property_id: 'p2', directBuyers: 1, indirectBuyers: 1, newIndirectBuyers: 1 }),
-  ])
+    stats({
+      property_id: 'p1',
+      directBuyers: 2,
+      newDirectBuyers: 2,
+      agentsReached: 1,
+    }),
+    stats({
+      property_id: 'p2',
+      directBuyers: 1,
+      indirectBuyers: 1,
+      newIndirectBuyers: 1,
+    }),
+  ]);
 
   it('sums across properties', () => {
     expect(reachTotals(d)).toEqual({
@@ -52,42 +71,51 @@ describe('reachTotals / buildAgentReachSummaryLine', () => {
       indirectBuyers: 1,
       newIndirectBuyers: 1,
       agentsReached: 1,
-    })
-  })
+    });
+  });
 
   it('mentions new buyers and cumulative reach in one line', () => {
-    const line = buildAgentReachSummaryLine(d)
-    expect(line).toContain('2 new direct buyers received the listing')
-    expect(line).toContain('1 new buyer received it via partner agents')
-    expect(line).toContain('3 direct / 1 indirect recipients so far')
-    expect(line).not.toMatch(/\n/)
-  })
+    const line = buildAgentReachSummaryLine(d);
+    expect(line).toContain('2 new direct buyers received the listing');
+    expect(line).toContain('1 new buyer received it via partner agents');
+    expect(line).toContain('3 direct / 1 indirect recipients so far');
+    expect(line).not.toMatch(/\n/);
+  });
 
   it('still reports cumulative totals when nothing is new', () => {
     const line = buildAgentReachSummaryLine(
       digest([stats({ directBuyers: 4, indirectBuyers: 2 })])
-    )
-    expect(line).toBe('4 direct / 2 indirect recipients so far')
-  })
-})
+    );
+    expect(line).toBe('4 direct / 2 indirect recipients so far');
+  });
+});
 
 describe('buildAgentDigestNextStepLine', () => {
   it('asks for a reply and never carries a promotional CTA', () => {
-    const withNew = buildAgentDigestNextStepLine(digest([stats({ newDirectBuyers: 2 })]))
-    const withoutNew = buildAgentDigestNextStepLine(digest([stats({ directBuyers: 4 })]))
-    expect(withNew).toContain('who received the listing')
-    expect(withoutNew).toContain('per-listing breakdown')
+    const withNew = buildAgentDigestNextStepLine(
+      digest([stats({ newDirectBuyers: 2 })])
+    );
+    const withoutNew = buildAgentDigestNextStepLine(
+      digest([stats({ directBuyers: 4 })])
+    );
+    expect(withNew).toContain('who received the listing');
+    expect(withoutNew).toContain('per-listing breakdown');
     for (const line of [withNew, withoutNew]) {
-      expect(line).not.toMatch(/https?:\/\/|sign ?up/i)
+      expect(line).not.toMatch(/https?:\/\/|sign ?up/i);
     }
-  })
-})
+  });
+});
 
 describe('buildAgentInventoryDigestMessage', () => {
   it('greets by first name and breaks down each active property', () => {
     const msg = buildAgentInventoryDigestMessage(
       digest([
-        stats({ property_id: 'p1', title: 'Sunrise Villa', directBuyers: 2, newDirectBuyers: 1 }),
+        stats({
+          property_id: 'p1',
+          title: 'Sunrise Villa',
+          directBuyers: 2,
+          newDirectBuyers: 1,
+        }),
         stats({
           property_id: 'p2',
           title: 'Lake View Plot',
@@ -98,32 +126,36 @@ describe('buildAgentInventoryDigestMessage', () => {
       ]),
       'today',
       buildSignupInviteLine('https://www.convoreal.com')
-    )
-    expect(msg).toContain('Hi Deepak')
-    expect(msg).toContain('*Sunrise Villa*')
-    expect(msg).toContain('sent directly to 2 buyers (1 new)')
-    expect(msg).toContain('*Lake View Plot*')
-    expect(msg).toContain('sent to 3 buyers via partner agents (2 new)')
-    expect(msg).toContain('shared with 2 partner agents')
-    expect(msg).toContain('https://www.convoreal.com/signup')
-    expect(msg).toContain('STOP UPDATES')
-  })
+    );
+    expect(msg).toContain('Hi Deepak');
+    expect(msg).toContain('*Sunrise Villa*');
+    expect(msg).toContain('sent directly to 2 buyers (1 new)');
+    expect(msg).toContain('*Lake View Plot*');
+    expect(msg).toContain('sent to 3 buyers via partner agents (2 new)');
+    expect(msg).toContain('shared with 2 partner agents');
+    expect(msg).toContain('https://www.convoreal.com/signup');
+    expect(msg).toContain('STOP UPDATES');
+  });
 
   it('skips properties with no reach and falls back on the greeting', () => {
     const msg = buildAgentInventoryDigestMessage(
       digest(
         [
           stats({ property_id: 'p1', title: 'Silent Listing' }),
-          stats({ property_id: 'p2', title: 'Active Listing', directBuyers: 1 }),
+          stats({
+            property_id: 'p2',
+            title: 'Active Listing',
+            directBuyers: 1,
+          }),
         ],
         null
       ),
       'this week',
       buildDashboardPointerLine('https://www.convoreal.com')
-    )
-    expect(msg).toContain('Hi there')
-    expect(msg).not.toContain('Silent Listing')
-    expect(msg).toContain('Active Listing')
-    expect(msg).toContain('/dashboard')
-  })
-})
+    );
+    expect(msg).toContain('Hi there');
+    expect(msg).not.toContain('Silent Listing');
+    expect(msg).toContain('Active Listing');
+    expect(msg).toContain('/dashboard');
+  });
+});

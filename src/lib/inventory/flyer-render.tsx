@@ -22,12 +22,16 @@ const FONT_CSS_URL =
 let fontsPromise: Promise<FlyerFont[]> | null = null;
 
 async function fetchInterFonts(): Promise<FlyerFont[]> {
-  const cssRes = await fetch(FONT_CSS_URL, { signal: AbortSignal.timeout(5000) });
+  const cssRes = await fetch(FONT_CSS_URL, {
+    signal: AbortSignal.timeout(5000),
+  });
   if (!cssRes.ok) throw new Error(`Font CSS fetch failed (${cssRes.status})`);
   const css = await cssRes.text();
 
   const byWeight = new Map<number, string>();
-  for (const match of css.matchAll(/font-weight:\s*(\d+);[^}]*?src:\s*url\(([^)]+)\)/g)) {
+  for (const match of css.matchAll(
+    /font-weight:\s*(\d+);[^}]*?src:\s*url\(([^)]+)\)/g
+  )) {
     const weight = Number(match[1]);
     if ([400, 700, 800].includes(weight) && !byWeight.has(weight)) {
       byWeight.set(weight, match[2]);
@@ -99,7 +103,11 @@ export async function renderFlyer({
   const showLocation = options.showLocation && Boolean(property.location);
   const categoryText = (property.type || 'Property').toUpperCase();
 
-  const locationRow = (fontSize: number, color: string, weight: 400 | 700 | 800) => (
+  const locationRow = (
+    fontSize: number,
+    color: string,
+    weight: 400 | 700 | 800
+  ) => (
     <div
       style={{
         display: 'flex',
@@ -110,7 +118,12 @@ export async function renderFlyer({
     >
       {icon(ICON_PIN, s(fontSize + 4), color)}
       <span
-        style={{ color, fontSize: s(fontSize), fontWeight: weight, lineClamp: 1 }}
+        style={{
+          color,
+          fontSize: s(fontSize),
+          fontWeight: weight,
+          lineClamp: 1,
+        }}
       >
         {property.location}
       </span>
@@ -120,7 +133,16 @@ export async function renderFlyer({
   let overlay = null;
   if (options.template === 'minimalist') {
     overlay = (
-      <div style={{ display: 'flex', position: 'absolute', top: 0, left: 0, width: size, height: size }}>
+      <div
+        style={{
+          display: 'flex',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: size,
+          height: size,
+        }}
+      >
         <div
           style={{
             display: 'flex',
@@ -179,7 +201,9 @@ export async function renderFlyer({
                   borderRadius: s(16),
                 }}
               >
-                <span style={{ color: '#ffffff', fontSize: s(48), fontWeight: 700 }}>
+                <span
+                  style={{ color: '#ffffff', fontSize: s(48), fontWeight: 700 }}
+                >
                   {priceLabel}
                 </span>
               </div>
@@ -204,13 +228,29 @@ export async function renderFlyer({
               backgroundColor: 'rgba(255,255,255,0.08)',
             }}
           >
-            <span style={{ color: '#38bdf8', fontSize: s(24), fontWeight: 700, lineClamp: 1 }}>
+            <span
+              style={{
+                color: '#38bdf8',
+                fontSize: s(24),
+                fontWeight: 700,
+                lineClamp: 1,
+              }}
+            >
               {options.brandName}
             </span>
             {options.brandContact ? (
-              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: s(10),
+                }}
+              >
                 {icon(ICON_PHONE, s(26), '#f8fafc')}
-                <span style={{ color: '#f8fafc', fontSize: s(24), fontWeight: 700 }}>
+                <span
+                  style={{ color: '#f8fafc', fontSize: s(24), fontWeight: 700 }}
+                >
                   {options.brandContact}
                 </span>
               </div>
@@ -259,7 +299,12 @@ export async function renderFlyer({
           </span>
           {showPrice ? (
             <span
-              style={{ flexShrink: 0, color: '#34d399', fontSize: s(44), fontWeight: 700 }}
+              style={{
+                flexShrink: 0,
+                color: '#34d399',
+                fontSize: s(44),
+                fontWeight: 700,
+              }}
             >
               {priceLabel}
             </span>
@@ -277,11 +322,20 @@ export async function renderFlyer({
               paddingTop: s(20),
             }}
           >
-            <span style={{ color: '#a5b4fc', fontSize: s(22), fontWeight: 700, lineClamp: 1 }}>
+            <span
+              style={{
+                color: '#a5b4fc',
+                fontSize: s(22),
+                fontWeight: 700,
+                lineClamp: 1,
+              }}
+            >
               {options.brandName}
             </span>
             {options.brandContact ? (
-              <span style={{ color: '#ffffff', fontSize: s(22), fontWeight: 700 }}>
+              <span
+                style={{ color: '#ffffff', fontSize: s(22), fontWeight: 700 }}
+              >
                 {`Contact: ${options.brandContact}`}
               </span>
             ) : null}
@@ -291,7 +345,16 @@ export async function renderFlyer({
     );
   } else {
     overlay = (
-      <div style={{ display: 'flex', position: 'absolute', top: 0, left: 0, width: size, height: size }}>
+      <div
+        style={{
+          display: 'flex',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: size,
+          height: size,
+        }}
+      >
         <div
           style={{
             display: 'flex',
@@ -341,17 +404,31 @@ export async function renderFlyer({
           >
             {property.title}
           </span>
-          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: s(20) }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: s(20),
+            }}
+          >
             {icon(ICON_STAR, s(28), '#fbbf24')}
             <span
-              style={{ color: '#fbbf24', fontSize: s(28), fontWeight: 700, letterSpacing: s(4) }}
+              style={{
+                color: '#fbbf24',
+                fontSize: s(28),
+                fontWeight: 700,
+                letterSpacing: s(4),
+              }}
             >
               {categoryText}
             </span>
             {icon(ICON_STAR, s(28), '#fbbf24')}
           </div>
           {showPrice ? (
-            <span style={{ color: '#ffffff', fontSize: s(68), fontWeight: 800 }}>
+            <span
+              style={{ color: '#ffffff', fontSize: s(68), fontWeight: 800 }}
+            >
               {priceLabel}
             </span>
           ) : null}
@@ -370,11 +447,20 @@ export async function renderFlyer({
               gap: s(16),
             }}
           >
-            <span style={{ color: '#f59e0b', fontSize: s(26), fontWeight: 700, lineClamp: 1 }}>
+            <span
+              style={{
+                color: '#f59e0b',
+                fontSize: s(26),
+                fontWeight: 700,
+                lineClamp: 1,
+              }}
+            >
               {options.brandName}
             </span>
             {options.brandContact ? (
-              <span style={{ color: '#ffffff', fontSize: s(24), fontWeight: 700 }}>
+              <span
+                style={{ color: '#ffffff', fontSize: s(24), fontWeight: 700 }}
+              >
                 {`Direct Hotline: ${options.brandContact}`}
               </span>
             ) : null}
@@ -385,94 +471,92 @@ export async function renderFlyer({
   }
 
   return new ImageResponse(
-    (
-      <div
-        style={{
-          display: 'flex',
-          position: 'relative',
-          width: size,
-          height: size,
-          backgroundColor: '#0f172a',
-          fontFamily: fonts.length > 0 ? 'Inter' : undefined,
-        }}
-      >
-        {background ? (
-          // eslint-disable-next-line @next/next/no-img-element -- satori element, not DOM
-          <img
-            alt=""
-            src={background}
-            width={size}
-            height={size}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: size,
-              height: size,
-              objectFit: 'cover',
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              display: 'flex',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: size,
-              height: size,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundImage:
-                'radial-gradient(circle at 50% 50%, #1e293b 0%, #020617 100%)',
-            }}
-          >
-            {icon(ICON_HOUSE, s(320), 'rgba(255,255,255,0.05)')}
-          </div>
-        )}
-        {overlay}
-        {options.showCode && property.property_code ? (
-          <div
-            style={{
-              display: 'flex',
-              position: 'absolute',
-              top: s(48),
-              left: s(48),
-              width: s(220),
-              height: s(56),
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: '#6366f1',
-              borderRadius: s(12),
-            }}
-          >
-            <span style={{ color: '#ffffff', fontSize: s(24), fontWeight: 700 }}>
-              {property.property_code}
-            </span>
-          </div>
-        ) : null}
+    <div
+      style={{
+        display: 'flex',
+        position: 'relative',
+        width: size,
+        height: size,
+        backgroundColor: '#0f172a',
+        fontFamily: fonts.length > 0 ? 'Inter' : undefined,
+      }}
+    >
+      {background ? (
+        // eslint-disable-next-line @next/next/no-img-element -- satori element, not DOM
+        <img
+          alt=""
+          src={background}
+          width={size}
+          height={size}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: size,
+            height: size,
+            objectFit: 'cover',
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: size,
+            height: size,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundImage:
+              'radial-gradient(circle at 50% 50%, #1e293b 0%, #020617 100%)',
+          }}
+        >
+          {icon(ICON_HOUSE, s(320), 'rgba(255,255,255,0.05)')}
+        </div>
+      )}
+      {overlay}
+      {options.showCode && property.property_code ? (
         <div
           style={{
             display: 'flex',
             position: 'absolute',
             top: s(48),
-            right: s(48),
+            left: s(48),
+            width: s(220),
             height: s(56),
             alignItems: 'center',
             justifyContent: 'center',
-            paddingLeft: s(20),
-            paddingRight: s(20),
-            backgroundColor: 'rgba(15,23,42,0.85)',
-            border: `${s(2)}px solid rgba(255,255,255,0.15)`,
+            backgroundColor: '#6366f1',
             borderRadius: s(12),
           }}
         >
-          <span style={{ color: '#38bdf8', fontSize: s(20), fontWeight: 700 }}>
-            {categoryText}
+          <span style={{ color: '#ffffff', fontSize: s(24), fontWeight: 700 }}>
+            {property.property_code}
           </span>
         </div>
+      ) : null}
+      <div
+        style={{
+          display: 'flex',
+          position: 'absolute',
+          top: s(48),
+          right: s(48),
+          height: s(56),
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingLeft: s(20),
+          paddingRight: s(20),
+          backgroundColor: 'rgba(15,23,42,0.85)',
+          border: `${s(2)}px solid rgba(255,255,255,0.15)`,
+          borderRadius: s(12),
+        }}
+      >
+        <span style={{ color: '#38bdf8', fontSize: s(20), fontWeight: 700 }}>
+          {categoryText}
+        </span>
       </div>
-    ),
+    </div>,
     {
       width: size,
       height: size,

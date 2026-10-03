@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { continueRender, delayRender, useCurrentFrame, useVideoConfig } from 'remotion';
+import {
+  continueRender,
+  delayRender,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
 import { injectFonts } from './fonts';
 
 export const DURATION_MS = 33200;
@@ -68,19 +73,34 @@ function analyzeLines(): Line[] {
     const nodes: Node[] = [];
     for (let i = 0; i <= NX; i++)
       nodes.push({ x: xAt(i), z: zAt(j), hole: inHole(xAt(i), zAt(j)) });
-    lines.push({ nodes, mid: Math.abs(zAt(j) - HOLE.z), broken: false, gapA: 0, gapB: 0, weaveStart: 0 });
+    lines.push({
+      nodes,
+      mid: Math.abs(zAt(j) - HOLE.z),
+      broken: false,
+      gapA: 0,
+      gapB: 0,
+      weaveStart: 0,
+    });
   }
   for (let i = 0; i <= NX; i++) {
     const nodes: Node[] = [];
     for (let j = 0; j <= NZ; j++)
       nodes.push({ x: xAt(i), z: zAt(j), hole: inHole(xAt(i), zAt(j)) });
-    lines.push({ nodes, mid: Math.abs(xAt(i) - HOLE.x), broken: false, gapA: 0, gapB: 0, weaveStart: 0 });
+    lines.push({
+      nodes,
+      mid: Math.abs(xAt(i) - HOLE.x),
+      broken: false,
+      gapA: 0,
+      gapB: 0,
+      weaveStart: 0,
+    });
   }
   for (const ln of lines) {
     const first = ln.nodes.findIndex((n) => n.hole);
     if (first === -1) continue;
     let last = first;
-    for (let k = first; k < ln.nodes.length; k++) if (ln.nodes[k].hole) last = k;
+    for (let k = first; k < ln.nodes.length; k++)
+      if (ln.nodes[k].hole) last = k;
     ln.broken = true;
     ln.gapA = first - 1;
     ln.gapB = last + 1;
@@ -128,12 +148,54 @@ for (const ln of LINES) {
 }
 
 const LOST_RAW = [
-  { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', wx: -250, wz: 185 },
-  { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', wx: 245, wz: 205 },
-  { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', wx: -175, wz: 335 },
-  { type: 'Villa', title: '3 BHK Villa', loc: 'Sarjapur Road', spec: '₹1.9 Cr · 2,400 sqft', wx: 175, wz: 345 },
-  { type: 'Flat', title: '1 BHK Flat', loc: 'BTM Layout', spec: '₹52 L · 650 sqft', wx: -85, wz: 148 },
-  { type: 'House', title: 'Duplex House', loc: 'JP Nagar', spec: '₹1.6 Cr · 1,600 sqft', wx: 60, wz: 380 },
+  {
+    type: 'House',
+    title: '3 BHK House',
+    loc: 'Koramangala',
+    spec: '₹2.4 Cr · 1,850 sqft',
+    wx: -250,
+    wz: 185,
+  },
+  {
+    type: 'Plot',
+    title: 'Vacant Plot',
+    loc: 'HSR Layout',
+    spec: '2,400 sqft · East facing',
+    wx: 245,
+    wz: 205,
+  },
+  {
+    type: 'Flat',
+    title: '2 BHK Flat',
+    loc: 'Indiranagar',
+    spec: '₹95 L · 1,120 sqft',
+    wx: -175,
+    wz: 335,
+  },
+  {
+    type: 'Villa',
+    title: '3 BHK Villa',
+    loc: 'Sarjapur Road',
+    spec: '₹1.9 Cr · 2,400 sqft',
+    wx: 175,
+    wz: 345,
+  },
+  {
+    type: 'Flat',
+    title: '1 BHK Flat',
+    loc: 'BTM Layout',
+    spec: '₹52 L · 650 sqft',
+    wx: -85,
+    wz: 148,
+  },
+  {
+    type: 'House',
+    title: 'Duplex House',
+    loc: 'JP Nagar',
+    spec: '₹1.6 Cr · 1,600 sqft',
+    wx: 60,
+    wz: 380,
+  },
 ];
 const LOST = LOST_RAW.map((l, i) => {
   let thrRp = 1;
@@ -154,10 +216,38 @@ const LOST = LOST_RAW.map((l, i) => {
 });
 
 const CAUGHT = [
-  { type: 'Flat', title: '3 BHK Flat', loc: 'Koramangala', spec: '₹1.35 Cr · 1,540 sqft', wx: -185, wz: 235, matches: '3 buyer matches' },
-  { type: 'Plot', title: 'Corner Plot', loc: 'HSR Layout', spec: '2,000 sqft · North', wx: 5, wz: 268, matches: '5 buyer matches' },
-  { type: 'Villa', title: '4 BHK Villa', loc: 'Whitefield', spec: '₹3.1 Cr · 3,200 sqft', wx: 195, wz: 232, matches: '2 buyer matches' },
-].map((l, i) => ({ ...l, t0: S3 + 600 + i * 2000, impact: S3 + 600 + i * 2000 + 1300 }));
+  {
+    type: 'Flat',
+    title: '3 BHK Flat',
+    loc: 'Koramangala',
+    spec: '₹1.35 Cr · 1,540 sqft',
+    wx: -185,
+    wz: 235,
+    matches: '3 buyer matches',
+  },
+  {
+    type: 'Plot',
+    title: 'Corner Plot',
+    loc: 'HSR Layout',
+    spec: '2,000 sqft · North',
+    wx: 5,
+    wz: 268,
+    matches: '5 buyer matches',
+  },
+  {
+    type: 'Villa',
+    title: '4 BHK Villa',
+    loc: 'Whitefield',
+    spec: '₹3.1 Cr · 3,200 sqft',
+    wx: 195,
+    wz: 232,
+    matches: '2 buyer matches',
+  },
+].map((l, i) => ({
+  ...l,
+  t0: S3 + 600 + i * 2000,
+  impact: S3 + 600 + i * 2000 + 1300,
+}));
 
 const REQ_LABELS = [
   { text: '3 BHK · Koramangala', wx: -250, wz: 310 },
@@ -202,15 +292,40 @@ function netY(x: number, z: number, t: number) {
     const age = t - r.t0;
     if (age < 0 || age > 2600) continue;
     const d = Math.hypot(x - r.x, z - r.z);
-    y += r.A * Math.sin(age * 0.014 - d * 0.05) * Math.exp(-d / 160) * Math.exp(-age / 700);
+    y +=
+      r.A *
+      Math.sin(age * 0.014 - d * 0.05) *
+      Math.exp(-d / 160) *
+      Math.exp(-age / 700);
   }
   return y;
 }
 
 const RINGS = [
-  { x: 0, z: 260, t0: S2 + 1400, rmax: 330, dur: 1100, color: 'rgba(139,92,246,0.85)' },
-  { x: 0, z: 260, t0: S2 + 5600, rmax: 360, dur: 1300, color: 'rgba(167,139,250,0.7)' },
-  ...CAUGHT.map((l) => ({ x: l.wx, z: l.wz, t0: l.impact, rmax: 130, dur: 750, color: 'rgba(245,192,68,0.9)' })),
+  {
+    x: 0,
+    z: 260,
+    t0: S2 + 1400,
+    rmax: 330,
+    dur: 1100,
+    color: 'rgba(139,92,246,0.85)',
+  },
+  {
+    x: 0,
+    z: 260,
+    t0: S2 + 5600,
+    rmax: 360,
+    dur: 1300,
+    color: 'rgba(167,139,250,0.7)',
+  },
+  ...CAUGHT.map((l) => ({
+    x: l.wx,
+    z: l.wz,
+    t0: l.impact,
+    rmax: 130,
+    dur: 750,
+    color: 'rgba(245,192,68,0.9)',
+  })),
 ];
 
 interface Burst {
@@ -227,15 +342,34 @@ const BURSTS: Burst[] = [];
 for (const ln of LINES) {
   if (!ln.broken) continue;
   const end = ln.nodes[ln.gapB];
-  BURSTS.push({ t0: ln.weaveStart + 950, wx: end.x, wz: end.z, yOff: 0, n: 7, color: '#c4b5fd', size: 2.5, grav: 0 });
+  BURSTS.push({
+    t0: ln.weaveStart + 950,
+    wx: end.x,
+    wz: end.z,
+    yOff: 0,
+    n: 7,
+    color: '#c4b5fd',
+    size: 2.5,
+    grav: 0,
+  });
 }
 for (const l of CAUGHT) {
-  BURSTS.push({ t0: l.impact, wx: l.wx, wz: l.wz, yOff: 40, n: 26, color: '#ffe9ad', size: 2.6, grav: 0.16 });
+  BURSTS.push({
+    t0: l.impact,
+    wx: l.wx,
+    wz: l.wz,
+    yOff: 40,
+    n: 26,
+    color: '#ffe9ad',
+    size: 2.6,
+    grav: 0.16,
+  });
 }
 
 const retract = (t: number) => clamp01((t - (S2 + 1400)) / 1200);
 const energize = (t: number) => clamp01((t - (S2 + 5600)) / 800);
-const weaveProgress = (ln: Line, t: number) => easeOut(clamp01((t - ln.weaveStart) / 950));
+const weaveProgress = (ln: Line, t: number) =>
+  easeOut(clamp01((t - ln.weaveStart) / 950));
 const threadColor = (e: number) =>
   `rgb(${Math.round(lerp(70, 116, e))},${Math.round(lerp(83, 100, e))},${Math.round(lerp(107, 195, e))})`;
 
@@ -270,7 +404,11 @@ function drawPartial(ctx: Ctx, pts: Pt[], p: number) {
       target -= segs[k - 1];
     } else {
       const f = target / segs[k - 1];
-      end = { x: lerp(pts[k - 1].x, pts[k].x, f), y: lerp(pts[k - 1].y, pts[k].y, f), s: pts[k].s };
+      end = {
+        x: lerp(pts[k - 1].x, pts[k].x, f),
+        y: lerp(pts[k - 1].y, pts[k].y, f),
+        s: pts[k].s,
+      };
       ctx.lineTo(end.x, end.y);
       break;
     }
@@ -375,7 +513,11 @@ function renderNet(ctx: Ctx, t: number) {
       for (let k = 0; k <= 5; k++) {
         const f = k / 5;
         pts.push(
-          project(s.x + s.ux * inNow * f + sway * f * f, yTop - lenNow * Math.pow(f, 1.35), s.z + s.uz * inNow * f)
+          project(
+            s.x + s.ux * inNow * f + sway * f * f,
+            yTop - lenNow * Math.pow(f, 1.35),
+            s.z + s.uz * inNow * f
+          )
         );
       }
       ctx.lineWidth = (2 * pts[0].s) / 0.8;
@@ -449,7 +591,13 @@ function renderParticles(ctx: Ctx, t: number) {
     ctx.shadowColor = '#a78bfa';
     ctx.shadowBlur = 6;
     ctx.beginPath();
-    ctx.arc(target.x + Math.cos(a) * d, target.y + Math.sin(a) * d * 0.7, 2.2, 0, Math.PI * 2);
+    ctx.arc(
+      target.x + Math.cos(a) * d,
+      target.y + Math.sin(a) * d * 0.7,
+      2.2,
+      0,
+      Math.PI * 2
+    );
     ctx.fill();
   }
   ctx.shadowBlur = 0;
@@ -512,8 +660,12 @@ function caughtCardState(l: (typeof CAUGHT)[number], t: number) {
   const p = clamp01(age / 1300);
   const netYs = netY(l.wx, l.wz, t) + 3;
   const bt = Math.max(0, age - 1300);
-  const y = p < 1 ? lerp(Y_START, netYs, Math.pow(p, 1.7)) : netYs + 24 * Math.exp(-bt / 360) * Math.cos(bt * 0.019);
-  const rotZ = p < 1 ? -2 + p * 3 : 1.2 * Math.exp(-bt / 500) * Math.sin(bt * 0.012);
+  const y =
+    p < 1
+      ? lerp(Y_START, netYs, Math.pow(p, 1.7))
+      : netYs + 24 * Math.exp(-bt / 360) * Math.cos(bt * 0.019);
+  const rotZ =
+    p < 1 ? -2 + p * 3 : 1.2 * Math.exp(-bt / 500) * Math.sin(bt * 0.012);
   const op = p < 0.05 ? p * 20 : 1;
   const chipP = clamp01((age - 1540) / 350);
   return { x: l.wx, y, z: l.wz, rotX: 12, rotZ, op, caught: p >= 1, chipP };
@@ -528,7 +680,14 @@ interface CardText {
 
 function drawCard(
   ctx: Ctx,
-  st: { x: number; y: number; z: number; rotX: number; rotZ: number; op: number },
+  st: {
+    x: number;
+    y: number;
+    z: number;
+    rotX: number;
+    rotZ: number;
+    op: number;
+  },
   card: CardText,
   opts: { caught?: boolean; chipP?: number; matches?: string } = {}
 ) {
@@ -715,10 +874,30 @@ function renderEngine(ctx: Ctx, t: number) {
 }
 
 const CAPTIONS = [
-  { t0: 100, tone: '', eyebrow: '01 · Today', head: 'Listings land all over the net… and every one slips through the tear.' },
-  { t0: S2, tone: 'violet', eyebrow: '02 · The ConvoReal engine', head: 'Buyer requirements are woven back into the net.' },
-  { t0: S3, tone: 'gold', eyebrow: '03 · After ConvoReal', head: 'Every new listing is caught — and matched.' },
-  { t0: S3 + 7400, tone: 'gold', eyebrow: 'ConvoReal', head: 'The WhatsApp deal engine that never lets a listing slip.' },
+  {
+    t0: 100,
+    tone: '',
+    eyebrow: '01 · Today',
+    head: 'Listings land all over the net… and every one slips through the tear.',
+  },
+  {
+    t0: S2,
+    tone: 'violet',
+    eyebrow: '02 · The ConvoReal engine',
+    head: 'Buyer requirements are woven back into the net.',
+  },
+  {
+    t0: S3,
+    tone: 'gold',
+    eyebrow: '03 · After ConvoReal',
+    head: 'Every new listing is caught — and matched.',
+  },
+  {
+    t0: S3 + 7400,
+    tone: 'gold',
+    eyebrow: 'ConvoReal',
+    head: 'The WhatsApp deal engine that never lets a listing slip.',
+  },
 ];
 
 function wrapText(ctx: Ctx, text: string, maxW: number) {
@@ -747,11 +926,17 @@ function renderCaption(ctx: Ctx, t: number) {
   let alpha = clamp01((t - cap.t0 - 420) / 450);
   const next = CAPTIONS[idx + 1];
   if (next) alpha = Math.min(alpha, 1 - clamp01((t - next.t0) / 1) * 0);
-  if (next && t > next.t0 - 420) alpha = Math.min(alpha, clamp01((next.t0 - t) / 420));
+  if (next && t > next.t0 - 420)
+    alpha = Math.min(alpha, clamp01((next.t0 - t) / 420));
   if (alpha <= 0) return;
   ctx.save();
   ctx.globalAlpha = alpha;
-  const eyeColor = cap.tone === 'gold' ? '#f5c044' : cap.tone === 'violet' ? '#a78bfa' : '#8d99b2';
+  const eyeColor =
+    cap.tone === 'gold'
+      ? '#f5c044'
+      : cap.tone === 'violet'
+        ? '#a78bfa'
+        : '#8d99b2';
   ctx.font = font(700, 23);
   const lines = wrapText(ctx, cap.head, 430);
   const headH = lines.length * 28;
@@ -796,7 +981,6 @@ function renderBrand(ctx: Ctx) {
   ctx.restore();
   ctx.textBaseline = 'alphabetic';
 }
-
 
 function drawCTA(ctx: Ctx, t: number, T0: number, kicker: string) {
   const p = clamp01((t - T0) / 700);
@@ -891,7 +1075,12 @@ function draw(ctx: Ctx, t: number) {
   }
   for (const l of CAUGHT) {
     const st = caughtCardState(l, t);
-    if (st) drawCard(ctx, st, l, { caught: st.caught, chipP: st.chipP, matches: l.matches });
+    if (st)
+      drawCard(ctx, st, l, {
+        caught: st.caught,
+        chipP: st.chipP,
+        matches: l.matches,
+      });
   }
 
   renderEngine(ctx, t);
@@ -916,7 +1105,11 @@ export const NetVideo = () => {
       setFontsReady(true);
       continueRender(handle);
     };
-    Promise.all(['400', '600', '700', '800'].map((w) => document.fonts.load(`${w} 16px Manrope`)))
+    Promise.all(
+      ['400', '600', '700', '800'].map((w) =>
+        document.fonts.load(`${w} 16px Manrope`)
+      )
+    )
       .then(finish)
       .catch(finish);
     const to = setTimeout(finish, 5000);
@@ -930,5 +1123,12 @@ export const NetVideo = () => {
     ctx.clearRect(0, 0, 1920, 1080);
     draw(ctx, (frame / fps) * 1000);
   }, [frame, fps, fontsReady]);
-  return <canvas ref={ref} width={1920} height={1080} style={{ width: '100%', height: '100%' }} />;
+  return (
+    <canvas
+      ref={ref}
+      width={1920}
+      height={1080}
+      style={{ width: '100%', height: '100%' }}
+    />
+  );
 };

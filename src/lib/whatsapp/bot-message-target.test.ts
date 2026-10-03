@@ -11,7 +11,11 @@ interface Row {
 }
 
 let messages: Row[] = [];
-let targets: Array<{ entity_type: string; entity_id: string; wa_message_id: string }> = [];
+let targets: Array<{
+  entity_type: string;
+  entity_id: string;
+  wa_message_id: string;
+}> = [];
 let messageFilters: Record<string, unknown>;
 let targetFilters: Record<string, unknown>;
 
@@ -44,7 +48,10 @@ const db = {
         return builder;
       },
       then: (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
-        resolve({ data: table === 'messages' ? messages : targets, error: null }),
+        resolve({
+          data: table === 'messages' ? messages : targets,
+          error: null,
+        }),
     });
     return builder;
   },
@@ -59,15 +66,23 @@ beforeEach(() => {
 
 describe('latestBotTarget', () => {
   it('finds the appointment card the agent just answered', async () => {
-    messages = [{ message_id: 'wamid.nudge', created_at: '2026-08-08T13:01:00Z' }];
-    targets = [{ entity_type: 'appointment', entity_id: 'appt-1', wa_message_id: 'wamid.nudge' }];
+    messages = [
+      { message_id: 'wamid.nudge', created_at: '2026-08-08T13:01:00Z' },
+    ];
+    targets = [
+      {
+        entity_type: 'appointment',
+        entity_id: 'appt-1',
+        wa_message_id: 'wamid.nudge',
+      },
+    ];
 
     expect(
       await latestBotTarget({
         accountId: 'acc',
         conversationId: 'conv-1',
         entityType: 'appointment',
-      }),
+      })
     ).toEqual({ entityType: 'appointment', entityId: 'appt-1' });
   });
 
@@ -79,24 +94,53 @@ describe('latestBotTarget', () => {
       { message_id: 'wamid.old', created_at: '2026-08-07T09:00:00Z' },
     ];
     targets = [
-      { entity_type: 'appointment', entity_id: 'appt-old', wa_message_id: 'wamid.old' },
-      { entity_type: 'appointment', entity_id: 'appt-new', wa_message_id: 'wamid.new' },
+      {
+        entity_type: 'appointment',
+        entity_id: 'appt-old',
+        wa_message_id: 'wamid.old',
+      },
+      {
+        entity_type: 'appointment',
+        entity_id: 'appt-new',
+        wa_message_id: 'wamid.new',
+      },
     ];
 
     expect(
-      (await latestBotTarget({ accountId: 'acc', conversationId: 'conv-1', entityType: 'appointment' }))
-        ?.entityId,
+      (
+        await latestBotTarget({
+          accountId: 'acc',
+          conversationId: 'conv-1',
+          entityType: 'appointment',
+        })
+      )?.entityId
     ).toBe('appt-new');
   });
 
   it('scopes to the conversation, the account and bot messages only', async () => {
     messages = [{ message_id: 'wamid.a', created_at: '2026-08-08T13:00:00Z' }];
-    targets = [{ entity_type: 'appointment', entity_id: 'appt-1', wa_message_id: 'wamid.a' }];
+    targets = [
+      {
+        entity_type: 'appointment',
+        entity_id: 'appt-1',
+        wa_message_id: 'wamid.a',
+      },
+    ];
 
-    await latestBotTarget({ accountId: 'acc', conversationId: 'conv-1', entityType: 'appointment' });
+    await latestBotTarget({
+      accountId: 'acc',
+      conversationId: 'conv-1',
+      entityType: 'appointment',
+    });
 
-    expect(messageFilters).toMatchObject({ conversation_id: 'conv-1', sender_type: 'bot' });
-    expect(targetFilters).toMatchObject({ account_id: 'acc', entity_type: 'appointment' });
+    expect(messageFilters).toMatchObject({
+      conversation_id: 'conv-1',
+      sender_type: 'bot',
+    });
+    expect(targetFilters).toMatchObject({
+      account_id: 'acc',
+      entity_type: 'appointment',
+    });
   });
 
   it('bounds the search so a stray "done" cannot reach an old card', async () => {
@@ -121,22 +165,40 @@ describe('latestBotTarget', () => {
     targets = [];
 
     expect(
-      await latestBotTarget({ accountId: 'acc', conversationId: 'conv-1', entityType: 'appointment' }),
+      await latestBotTarget({
+        accountId: 'acc',
+        conversationId: 'conv-1',
+        entityType: 'appointment',
+      })
     ).toBeNull();
   });
 
   it('is null on a thread with no bot messages at all', async () => {
     expect(
-      await latestBotTarget({ accountId: 'acc', conversationId: 'conv-1', entityType: 'appointment' }),
+      await latestBotTarget({
+        accountId: 'acc',
+        conversationId: 'conv-1',
+        entityType: 'appointment',
+      })
     ).toBeNull();
   });
 
   it('ignores a bot message that never got a wamid', async () => {
     messages = [{ message_id: null, created_at: '2026-08-08T13:00:00Z' }];
-    targets = [{ entity_type: 'appointment', entity_id: 'appt-1', wa_message_id: 'wamid.a' }];
+    targets = [
+      {
+        entity_type: 'appointment',
+        entity_id: 'appt-1',
+        wa_message_id: 'wamid.a',
+      },
+    ];
 
     expect(
-      await latestBotTarget({ accountId: 'acc', conversationId: 'conv-1', entityType: 'appointment' }),
+      await latestBotTarget({
+        accountId: 'acc',
+        conversationId: 'conv-1',
+        entityType: 'appointment',
+      })
     ).toBeNull();
   });
 });

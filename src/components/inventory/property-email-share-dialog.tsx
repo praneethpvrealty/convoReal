@@ -18,7 +18,18 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
-import { Loader2, Mail, X, Copy, Check, ExternalLink, Paperclip, Search, ImageIcon, Sparkles } from 'lucide-react';
+import {
+  Loader2,
+  Mail,
+  X,
+  Copy,
+  Check,
+  ExternalLink,
+  Paperclip,
+  Search,
+  ImageIcon,
+  Sparkles,
+} from 'lucide-react';
 import { buildPropertyShareEmailContent } from '@/lib/email/property-share-email';
 import { recordPropertyShares } from '@/lib/inventory/share-log';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
@@ -50,7 +61,11 @@ function hasDocumentUrl(raw: string): boolean {
   }
 }
 
-export function PropertyEmailShareDialog({ open, onOpenChange, property }: PropertyEmailShareDialogProps) {
+export function PropertyEmailShareDialog({
+  open,
+  onOpenChange,
+  property,
+}: PropertyEmailShareDialogProps) {
   const supabase = createClient();
   const { accountId, profile, user } = useAuth();
 
@@ -75,7 +90,10 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
     () => (property?.documents || []).filter(hasDocumentUrl).length,
     [property?.documents]
   );
-  const imageCount = useMemo(() => (property?.images || []).filter(Boolean).length, [property?.images]);
+  const imageCount = useMemo(
+    () => (property?.images || []).filter(Boolean).length,
+    [property?.images]
+  );
 
   const fetchContacts = useCallback(async () => {
     if (!accountId) return;
@@ -89,7 +107,11 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
         .not('email', 'is', null)
         .order('name');
       if (error) throw error;
-      setContacts((data || []).filter((c) => c.email && EMAIL_PATTERN.test(c.email)) as Contact[]);
+      setContacts(
+        (data || []).filter(
+          (c) => c.email && EMAIL_PATTERN.test(c.email)
+        ) as Contact[]
+      );
     } catch {
       toast.error('Could not load contacts');
     } finally {
@@ -112,7 +134,8 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
     const { subject: s, body: b } = buildPropertyShareEmailContent(property, {
       agentName: profile?.full_name || null,
       agentPhone: profile?.phone || null,
-      showcaseBaseUrl: typeof window !== 'undefined' ? window.location.origin : null,
+      showcaseBaseUrl:
+        typeof window !== 'undefined' ? window.location.origin : null,
     });
     setSubject(s);
     setBody(b);
@@ -127,7 +150,8 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
       recipientNames: recipients.map((r) => firstName(r.name)),
       agentName: profile?.full_name || null,
       agentPhone: profile?.phone || null,
-      showcaseBaseUrl: typeof window !== 'undefined' ? window.location.origin : null,
+      showcaseBaseUrl:
+        typeof window !== 'undefined' ? window.location.origin : null,
     });
     setBody(b);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -137,7 +161,9 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
     const q = contactSearch.trim().toLowerCase();
     const pool = q
       ? contacts.filter(
-          (c) => c.name?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q)
+          (c) =>
+            c.name?.toLowerCase().includes(q) ||
+            c.email?.toLowerCase().includes(q)
         )
       : contacts;
     return pool.filter((c) => !recipients.some((r) => r.id === c.id));
@@ -145,7 +171,14 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
 
   function addContactRecipient(contact: Contact) {
     if (!contact.email) return;
-    setRecipients((prev) => [...prev, { id: contact.id, name: contact.name || contact.email!, email: contact.email! }]);
+    setRecipients((prev) => [
+      ...prev,
+      {
+        id: contact.id,
+        name: contact.name || contact.email!,
+        email: contact.email!,
+      },
+    ]);
     setContactSearch('');
   }
 
@@ -160,7 +193,10 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
       toast.error('That address is already added');
       return;
     }
-    setRecipients((prev) => [...prev, { id: `manual:${email}`, name: email.split('@')[0], email }]);
+    setRecipients((prev) => [
+      ...prev,
+      { id: `manual:${email}`, name: email.split('@')[0], email },
+    ]);
     setManualEmailInput('');
   }
 
@@ -197,7 +233,8 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
         .filter((r) => !r.id.startsWith('manual:'))
         .map((r) => ({
           contactId: r.id,
-          classification: contacts.find((c) => c.id === r.id)?.classification ?? null,
+          classification:
+            contacts.find((c) => c.id === r.id)?.classification ?? null,
         })),
     [recipients, contacts]
   );
@@ -205,7 +242,9 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
   async function confirmSent() {
     if (!property || !accountId) return;
     if (contactRecipients.length === 0) {
-      toast.success('Noted. Typed-in addresses aren’t contacts, so there’s nothing to log.');
+      toast.success(
+        'Noted. Typed-in addresses aren’t contacts, so there’s nothing to log.'
+      );
       onOpenChange(false);
       return;
     }
@@ -253,7 +292,9 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
         return;
       }
       if (!res.ok || !data.draft) {
-        toast.error(data.error || 'Could not draft the email. Please try again.');
+        toast.error(
+          data.error || 'Could not draft the email. Please try again.'
+        );
         return;
       }
       setSubject(data.draft.subject);
@@ -282,18 +323,19 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-800 text-white sm:max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <DialogContent className="max-h-[90vh] overflow-x-hidden overflow-y-auto border-slate-800 bg-slate-900 text-white sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Mail className="size-5 text-primary" /> Share via Email
+            <Mail className="text-primary size-5" /> Share via Email
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Prefills a draft from this listing&apos;s details. Review, then open it in Gmail or your mail app to send.
+            Prefills a draft from this listing&apos;s details. Review, then open
+            it in Gmail or your mail app to send.
           </DialogDescription>
         </DialogHeader>
 
         {!property ? (
-          <div className="py-10 flex justify-center">
+          <div className="flex justify-center py-10">
             <Loader2 className="size-6 animate-spin text-slate-500" />
           </div>
         ) : (
@@ -306,13 +348,16 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
                   {recipients.map((r) => (
                     <Badge
                       key={r.id}
-                      className="bg-slate-800 text-slate-200 border border-slate-700 font-medium gap-1.5 pr-1 py-1 max-w-full"
+                      className="max-w-full gap-1.5 border border-slate-700 bg-slate-800 py-1 pr-1 font-medium text-slate-200"
                     >
-                      <span className="truncate">{r.name}</span> <span className="text-slate-500 truncate">({r.email})</span>
+                      <span className="truncate">{r.name}</span>{' '}
+                      <span className="truncate text-slate-500">
+                        ({r.email})
+                      </span>
                       <button
                         type="button"
                         onClick={() => removeRecipient(r.id)}
-                        className="ml-1 rounded-full hover:bg-slate-700 p-0.5"
+                        className="ml-1 rounded-full p-0.5 hover:bg-slate-700"
                       >
                         <X className="size-3" />
                       </button>
@@ -322,35 +367,40 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
               )}
 
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-slate-500" />
+                <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-slate-500" />
                 <Input
                   value={contactSearch}
                   onChange={(e) => setContactSearch(e.target.value)}
                   placeholder="Search contacts by name or email..."
-                  className="pl-8 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                  className="h-9 border-slate-700 bg-slate-800 pl-8 text-white placeholder:text-slate-500"
                 />
               </div>
               {contactSearch.trim() && (
-                <div className="border border-slate-800 rounded-md max-h-40 overflow-y-auto divide-y divide-slate-800">
+                <div className="max-h-40 divide-y divide-slate-800 overflow-y-auto rounded-md border border-slate-800">
                   {loadingContacts ? (
-                    <div className="p-3 text-xs text-slate-500 flex items-center gap-2">
-                      <Loader2 className="size-3.5 animate-spin" /> Loading contacts...
+                    <div className="flex items-center gap-2 p-3 text-xs text-slate-500">
+                      <Loader2 className="size-3.5 animate-spin" /> Loading
+                      contacts...
                     </div>
                   ) : filteredContacts.length === 0 ? (
-                    <div className="p-3 text-xs text-slate-500">No matching contacts with an email on file.</div>
+                    <div className="p-3 text-xs text-slate-500">
+                      No matching contacts with an email on file.
+                    </div>
                   ) : (
                     filteredContacts.slice(0, 8).map((c) => (
                       <button
                         key={c.id}
                         type="button"
                         onClick={() => addContactRecipient(c)}
-                        className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 flex items-center justify-between gap-2"
+                        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs hover:bg-slate-800"
                       >
-                        <span className="text-slate-200 font-medium truncate flex items-center gap-1.5">
+                        <span className="flex items-center gap-1.5 truncate font-medium text-slate-200">
                           {c.name}
                           <NameTagBadge tag={c.name_tag} />
                         </span>
-                        <span className="text-slate-500 truncate">{c.email}</span>
+                        <span className="truncate text-slate-500">
+                          {c.email}
+                        </span>
                       </button>
                     ))
                   )}
@@ -368,9 +418,15 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
                     }
                   }}
                   placeholder="Or type any other email address..."
-                  className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                  className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                 />
-                <Button type="button" variant="outline" size="sm" onClick={addManualEmail} className="h-9 border-slate-700">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addManualEmail}
+                  className="h-9 border-slate-700"
+                >
                   Add
                 </Button>
               </div>
@@ -378,28 +434,38 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
 
             {/* Subject */}
             <div className="space-y-1.5">
-              <Label htmlFor="email-share-subject" className="text-slate-300">Subject</Label>
+              <Label htmlFor="email-share-subject" className="text-slate-300">
+                Subject
+              </Label>
               <Input
                 id="email-share-subject"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-white"
+                className="border-slate-700 bg-slate-800 text-white"
               />
             </div>
 
             {/* Body */}
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-                <Label htmlFor="email-share-body" className="text-slate-300">Body</Label>
+                <Label htmlFor="email-share-body" className="text-slate-300">
+                  Body
+                </Label>
                 <button
                   type="button"
                   onClick={draftWithAi}
                   disabled={drafting}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 disabled:opacity-50 transition-colors shrink-0"
+                  className="text-primary hover:text-primary/80 flex shrink-0 items-center gap-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
                 >
-                  {drafting ? <Loader2 className="size-3.5 animate-spin shrink-0" /> : <Sparkles className="size-3.5 shrink-0" />}
-                  <span className="whitespace-nowrap">{drafting ? 'Drafting...' : 'Draft with AI'}</span>
-                  <span className="text-[10px] font-mono text-slate-500 border border-slate-800 rounded px-1 py-0.5 whitespace-nowrap">
+                  {drafting ? (
+                    <Loader2 className="size-3.5 shrink-0 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-3.5 shrink-0" />
+                  )}
+                  <span className="whitespace-nowrap">
+                    {drafting ? 'Drafting...' : 'Draft with AI'}
+                  </span>
+                  <span className="rounded border border-slate-800 px-1 py-0.5 font-mono text-[10px] whitespace-nowrap text-slate-500">
                     {AI_FEATURE_COSTS.share_email} cr
                   </span>
                 </button>
@@ -415,7 +481,7 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
                 // field-sizing-fixed: the base Textarea's field-sizing-content
                 // sizes intrinsic width to the longest unbroken line — a long
                 // storage URL blows the dialog past the viewport on mobile.
-                className="bg-slate-800 border-slate-700 text-white font-mono text-xs leading-relaxed min-h-72 field-sizing-fixed w-full [overflow-wrap:anywhere]"
+                className="field-sizing-fixed min-h-72 w-full border-slate-700 bg-slate-800 font-mono text-xs leading-relaxed [overflow-wrap:anywhere] text-white"
               />
             </div>
 
@@ -423,16 +489,16 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
                 attachments, so photos and documents are inlined as clickable
                 links in the body instead. */}
             {imageCount > 0 && (
-              <div className="flex items-start gap-2 p-3 rounded-lg border border-slate-800 bg-slate-950/30 text-xs text-slate-400">
-                <ImageIcon className="size-3.5 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-950/30 p-3 text-xs text-slate-400">
+                <ImageIcon className="mt-0.5 size-3.5 shrink-0" />
                 <div className="min-w-0 break-words">
                   {`${imageCount} photo${imageCount === 1 ? '' : 's'} linked in the body above — the recipient can click through to view ${imageCount === 1 ? 'it' : 'them'}.`}
                 </div>
               </div>
             )}
             {documentCount > 0 && (
-              <div className="flex items-start gap-2 p-3 rounded-lg border border-slate-800 bg-slate-950/30 text-xs text-slate-400">
-                <Paperclip className="size-3.5 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-950/30 p-3 text-xs text-slate-400">
+                <Paperclip className="mt-0.5 size-3.5 shrink-0" />
                 <div className="min-w-0 break-words">
                   {`${documentCount} document${documentCount === 1 ? '' : 's'} linked in the body above — the recipient can click through to view ${documentCount === 1 ? 'it' : 'them'}.`}
                 </div>
@@ -440,15 +506,33 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
             )}
 
             {/* Actions */}
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-800">
-              <Button type="button" onClick={openInGmail} className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5">
+            <div className="flex flex-wrap gap-2 border-t border-slate-800 pt-2">
+              <Button
+                type="button"
+                onClick={openInGmail}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
+              >
                 <ExternalLink className="size-4" /> Open in Gmail
               </Button>
-              <Button type="button" variant="outline" onClick={openInMailApp} className="border-slate-700 hover:bg-slate-800 gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={openInMailApp}
+                className="gap-1.5 border-slate-700 hover:bg-slate-800"
+              >
                 <Mail className="size-4" /> Open in Mail App
               </Button>
-              <Button type="button" variant="outline" onClick={copyBody} className="border-slate-700 hover:bg-slate-800 gap-1.5">
-                {copied ? <Check className="size-4 text-emerald-400" /> : <Copy className="size-4" />}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={copyBody}
+                className="gap-1.5 border-slate-700 hover:bg-slate-800"
+              >
+                {copied ? (
+                  <Check className="size-4 text-emerald-400" />
+                ) : (
+                  <Copy className="size-4" />
+                )}
                 {copied ? 'Copied' : 'Copy Body'}
               </Button>
             </div>
@@ -458,9 +542,11 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
                 logged on the handoff alone would count drafts the agent
                 closed without sending. */}
             {handedOff && (
-              <div className="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="border-primary/30 bg-primary/5 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-white">Did you send it?</p>
+                  <p className="text-sm font-bold text-white">
+                    Did you send it?
+                  </p>
                   <p className="mt-0.5 text-xs text-slate-400">
                     {contactRecipients.length > 0
                       ? `Confirming logs this listing as shared with ${contactRecipients.length} contact${contactRecipients.length === 1 ? '' : 's'} and adds it to their journey.`
@@ -481,9 +567,13 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
                     type="button"
                     onClick={confirmSent}
                     disabled={logging}
-                    className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
                   >
-                    {logging ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                    {logging ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Check className="size-4" />
+                    )}
                     Yes, sent
                   </Button>
                 </div>

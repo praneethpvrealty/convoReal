@@ -46,17 +46,21 @@ const redis = new Redis(redisUrl, {
 
 async function runReplay() {
   console.log('[Replay DLQ] Connecting to Redis...');
-  
+
   try {
     const dlqLength = await redis.llen('whatsapp-webhooks-dlq');
     if (dlqLength === 0) {
-      console.log('[Replay DLQ] Dead Letter Queue is empty. No messages to replay.');
+      console.log(
+        '[Replay DLQ] Dead Letter Queue is empty. No messages to replay.'
+      );
       redis.disconnect();
       return;
     }
 
     console.log(`[Replay DLQ] Found ${dlqLength} items in Dead Letter Queue.`);
-    console.log('[Replay DLQ] Commencing re-queuing to main queue ("whatsapp-webhooks")...');
+    console.log(
+      '[Replay DLQ] Commencing re-queuing to main queue ("whatsapp-webhooks")...'
+    );
 
     let successCount = 0;
     let failCount = 0;
@@ -69,9 +73,10 @@ async function runReplay() {
       try {
         const dlqItem = JSON.parse(dlqItemStr);
         // Original payload could be an object or a string
-        const payloadStr = typeof dlqItem.payload === 'string' 
-          ? dlqItem.payload 
-          : JSON.stringify(dlqItem.payload);
+        const payloadStr =
+          typeof dlqItem.payload === 'string'
+            ? dlqItem.payload
+            : JSON.stringify(dlqItem.payload);
 
         if (!payloadStr) {
           throw new Error('DLQ item missing payload');
@@ -82,7 +87,10 @@ async function runReplay() {
         successCount++;
       } catch (err) {
         failCount++;
-        console.error(`[Replay DLQ] Error parsing/processing DLQ item at index ${i}:`, err);
+        console.error(
+          `[Replay DLQ] Error parsing/processing DLQ item at index ${i}:`,
+          err
+        );
         // Put the item back into DLQ so it's not lost
         await redis.rpush('whatsapp-webhooks-dlq', dlqItemStr);
       }

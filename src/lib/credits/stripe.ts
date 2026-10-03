@@ -38,7 +38,9 @@ export interface StripeCheckoutResult {
   checkoutUrl: string;
 }
 
-export async function createStripeCheckoutSession(input: StripeCheckoutInput): Promise<StripeCheckoutResult> {
+export async function createStripeCheckoutSession(
+  input: StripeCheckoutInput
+): Promise<StripeCheckoutResult> {
   const stripe = getStripeClient();
   if (!stripe) {
     throw new Error('Stripe is not configured. Add STRIPE_SECRET_KEY.');
@@ -68,7 +70,11 @@ export async function createStripeCheckoutSession(input: StripeCheckoutInput): P
   return { sessionId: session.id, checkoutUrl: session.url };
 }
 
-export function verifyStripeWebhookSignature(rawBody: string, signature: string, secret: string): Stripe.Event {
+export function verifyStripeWebhookSignature(
+  rawBody: string,
+  signature: string,
+  secret: string
+): Stripe.Event {
   const stripe = getStripeClient();
   if (!stripe) {
     throw new Error('Stripe is not configured.');

@@ -32,22 +32,26 @@
 // and buy nothing.
 // ============================================================
 
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { NextResponse, type NextRequest } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { NextResponse, type NextRequest } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   AccountArchivedError,
   ForbiddenError,
   UnauthorizedError,
   toErrorResponse,
-} from "@/lib/auth/account";
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
-import { accountHasApiAccess } from "@/lib/billing/gates";
+} from '@/lib/auth/account';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
+import { accountHasApiAccess } from '@/lib/billing/gates';
 
 /** Distinguishes a key from a Supabase JWT in the same header slot. */
-export const API_KEY_PREFIX = "cvr_sk_";
+export const API_KEY_PREFIX = 'cvr_sk_';
 
 /** Characters of the random segment kept in `key_prefix` for display. */
 const DISPLAY_CHARS = 6;
@@ -57,12 +61,18 @@ const DISPLAY_CHARS = 6;
  *  of a read-only surface, so it is refreshed at most this often. */
 const LAST_USED_THROTTLE_MS = 60_000;
 
-export type ApiKeyScope = "read" | "write";
+export type ApiKeyScope = 'read' | 'write';
 
-export const API_KEY_SCOPES: readonly ApiKeyScope[] = ["read", "write"] as const;
+export const API_KEY_SCOPES: readonly ApiKeyScope[] = [
+  'read',
+  'write',
+] as const;
 
 export function isApiKeyScope(value: unknown): value is ApiKeyScope {
-  return typeof value === "string" && (API_KEY_SCOPES as readonly string[]).includes(value);
+  return (
+    typeof value === 'string' &&
+    (API_KEY_SCOPES as readonly string[]).includes(value)
+  );
 }
 
 export interface ApiKeyContext {
@@ -91,10 +101,10 @@ export function requireApiKeyAuthor(ctx: ApiKeyContext): string | NextResponse {
   return NextResponse.json(
     {
       error:
-        "The user who created this API key is no longer a member of this workspace, so records created through it cannot be attributed. Re-issue the key.",
-      code: "orphaned_api_key",
+        'The user who created this API key is no longer a member of this workspace, so records created through it cannot be attributed. Re-issue the key.',
+      code: 'orphaned_api_key',
     },
-    { status: 409 },
+    { status: 409 }
   );
 }
 
@@ -112,7 +122,7 @@ export interface GeneratedApiKey {
  * support ticket.
  */
 export function generateApiKey(): GeneratedApiKey {
-  const random = randomBytes(32).toString("base64url");
+  const random = randomBytes(32).toString('base64url');
   const secret = `${API_KEY_PREFIX}${random}`;
   return {
     secret,
@@ -122,7 +132,7 @@ export function generateApiKey(): GeneratedApiKey {
 }
 
 export function hashApiKey(secret: string): string {
-  return createHash("sha256").update(secret, "utf8").digest("hex");
+  return createHash('sha256').update(secret, 'utf8').digest('hex');
 }
 
 /**
@@ -136,14 +146,14 @@ export function hashApiKey(secret: string): string {
  * than being hashed and looked up.
  */
 export function extractApiKey(req: NextRequest): string | null {
-  const header = req.headers.get("authorization");
+  const header = req.headers.get('authorization');
   if (header) {
     const match = /^Bearer\s+(.+)$/i.exec(header.trim());
     const candidate = match?.[1]?.trim();
     if (candidate && candidate.startsWith(API_KEY_PREFIX)) return candidate;
   }
 
-  const direct = req.headers.get("x-api-key")?.trim();
+  const direct = req.headers.get('x-api-key')?.trim();
   if (direct && direct.startsWith(API_KEY_PREFIX)) return direct;
 
   return null;
@@ -175,53 +185,56 @@ interface ApiKeyRow {
  */
 export async function resolveApiKey(secret: string): Promise<ApiKeyContext> {
   if (!secret.startsWith(API_KEY_PREFIX)) {
-    throw new UnauthorizedError("Invalid API key");
+    throw new UnauthorizedError('Invalid API key');
   }
 
   const db = supabaseAdmin();
   const hash = hashApiKey(secret);
 
   const { data, error } = await db
-    .from("account_api_keys")
+    .from('account_api_keys')
     .select(
-      "id, account_id, name, created_by_user_id, scopes, key_hash, expires_at, revoked_at, last_used_at, account:accounts!inner(id, name, status)",
+      'id, account_id, name, created_by_user_id, scopes, key_hash, expires_at, revoked_at, last_used_at, account:accounts!inner(id, name, status)'
     )
-    .eq("key_hash", hash)
-    .is("revoked_at", null)
+    .eq('key_hash', hash)
+    .is('revoked_at', null)
     .maybeSingle<ApiKeyRow>();
 
   if (error) {
-    console.error("[resolveApiKey] lookup error:", error);
-    throw new UnauthorizedError("Could not verify API key");
+    console.error('[resolveApiKey] lookup error:', error);
+    throw new UnauthorizedError('Could not verify API key');
   }
   if (!data) {
-    throw new UnauthorizedError("Invalid API key");
+    throw new UnauthorizedError('Invalid API key');
   }
 
   // The lookup above already matched on the unique hash; this is a
   // belt-and-braces equality check that does not short-circuit, so no
   // information about the stored digest leaks through response timing.
-  const presented = Buffer.from(hash, "utf8");
-  const stored = Buffer.from(data.key_hash, "utf8");
-  if (presented.length !== stored.length || !timingSafeEqual(presented, stored)) {
-    throw new UnauthorizedError("Invalid API key");
+  const presented = Buffer.from(hash, 'utf8');
+  const stored = Buffer.from(data.key_hash, 'utf8');
+  if (
+    presented.length !== stored.length ||
+    !timingSafeEqual(presented, stored)
+  ) {
+    throw new UnauthorizedError('Invalid API key');
   }
 
   if (data.expires_at && new Date(data.expires_at).getTime() <= Date.now()) {
-    throw new UnauthorizedError("API key has expired");
+    throw new UnauthorizedError('API key has expired');
   }
 
   const account = Array.isArray(data.account) ? data.account[0] : data.account;
   if (!account) {
-    throw new UnauthorizedError("API key is not linked to a workspace");
+    throw new UnauthorizedError('API key is not linked to a workspace');
   }
-  if (account.status === "archived") {
+  if (account.status === 'archived') {
     throw new AccountArchivedError();
   }
 
   const scopes = (data.scopes ?? []).filter(isApiKeyScope);
   if (scopes.length === 0) {
-    throw new ForbiddenError("API key has no scopes");
+    throw new ForbiddenError('API key has no scopes');
   }
 
   void touchLastUsed(db, data.id, data.last_used_at);
@@ -240,25 +253,28 @@ export async function resolveApiKey(secret: string): Promise<ApiKeyContext> {
 async function touchLastUsed(
   db: SupabaseClient,
   keyId: string,
-  lastUsedAt: string | null,
+  lastUsedAt: string | null
 ): Promise<void> {
-  if (lastUsedAt && Date.now() - new Date(lastUsedAt).getTime() < LAST_USED_THROTTLE_MS) {
+  if (
+    lastUsedAt &&
+    Date.now() - new Date(lastUsedAt).getTime() < LAST_USED_THROTTLE_MS
+  ) {
     return;
   }
   const { error } = await db
-    .from("account_api_keys")
+    .from('account_api_keys')
     .update({ last_used_at: new Date().toISOString() })
-    .eq("id", keyId);
+    .eq('id', keyId);
   if (error) {
     // Never fail a request over usage bookkeeping.
-    console.error("[touchLastUsed] update error:", error);
+    console.error('[touchLastUsed] update error:', error);
   }
 }
 
 type ApiKeyHandler = (
   ctx: ApiKeyContext,
   req: NextRequest,
-  routeCtx: { params: Promise<Record<string, string>> },
+  routeCtx: { params: Promise<Record<string, string>> }
 ) => Promise<NextResponse>;
 
 /**
@@ -268,10 +284,13 @@ type ApiKeyHandler = (
  * `requiredScope` is 'read' for GETs and 'write' for the mutating
  * routes; a read-only key is rejected before the handler runs.
  */
-export function withApiKeyAuth(requiredScope: ApiKeyScope, handler: ApiKeyHandler) {
+export function withApiKeyAuth(
+  requiredScope: ApiKeyScope,
+  handler: ApiKeyHandler
+) {
   return async (
     req: NextRequest,
-    routeCtx: { params: Promise<Record<string, string>> },
+    routeCtx: { params: Promise<Record<string, string>> }
   ): Promise<NextResponse> => {
     try {
       const secret = extractApiKey(req);
@@ -280,9 +299,9 @@ export function withApiKeyAuth(requiredScope: ApiKeyScope, handler: ApiKeyHandle
           {
             error:
               "Missing API key. Send it as 'Authorization: Bearer cvr_sk_…' or 'X-API-Key: cvr_sk_…'.",
-            code: "missing_api_key",
+            code: 'missing_api_key',
           },
-          { status: 401 },
+          { status: 401 }
         );
       }
 
@@ -290,7 +309,10 @@ export function withApiKeyAuth(requiredScope: ApiKeyScope, handler: ApiKeyHandle
       // the plaintext never reaches the limiter's key space, and so an
       // attacker rotating candidate keys still shares one budget per
       // candidate rather than getting a fresh one each attempt.
-      const limit = await checkRateLimit(`v1:${hashApiKey(secret)}`, RATE_LIMITS.apiKeyV1);
+      const limit = await checkRateLimit(
+        `v1:${hashApiKey(secret)}`,
+        RATE_LIMITS.apiKeyV1
+      );
       if (!limit.success) return rateLimitResponse(limit);
 
       const ctx = await resolveApiKey(secret);
@@ -303,10 +325,10 @@ export function withApiKeyAuth(requiredScope: ApiKeyScope, handler: ApiKeyHandle
           {
             error:
               "API access is included on the Agency plan. This workspace's current plan does not include it, so its API keys are inactive.",
-            code: "plan_upgrade_required",
-            upgradeRequired: "agency",
+            code: 'plan_upgrade_required',
+            upgradeRequired: 'agency',
           },
-          { status: 402 },
+          { status: 402 }
         );
       }
 
@@ -314,9 +336,9 @@ export function withApiKeyAuth(requiredScope: ApiKeyScope, handler: ApiKeyHandle
         return NextResponse.json(
           {
             error: `This API key lacks the '${requiredScope}' scope. Create a key with write access in Settings → API keys.`,
-            code: "insufficient_scope",
+            code: 'insufficient_scope',
           },
-          { status: 403 },
+          { status: 403 }
         );
       }
 

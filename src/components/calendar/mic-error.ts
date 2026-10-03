@@ -13,17 +13,17 @@ export function microphoneErrorMessage(err: unknown): string {
   const name = err instanceof DOMException ? err.name : null;
 
   switch (name) {
-    case "NotAllowedError":
-    case "SecurityError":
-      return "Microphone blocked for this site. Click the padlock/site-info icon next to the address bar, allow Microphone, then reload the page.";
-    case "NotFoundError":
-    case "OverconstrainedError":
+    case 'NotAllowedError':
+    case 'SecurityError':
+      return 'Microphone blocked for this site. Click the padlock/site-info icon next to the address bar, allow Microphone, then reload the page.';
+    case 'NotFoundError':
+    case 'OverconstrainedError':
       return "No microphone found. Connect a microphone (or check your OS's default input device) and try again.";
-    case "NotReadableError":
-    case "TrackStartError":
+    case 'NotReadableError':
+    case 'TrackStartError':
       return "Couldn't access the microphone — it may be in use by another app or tab. Close it and try again.";
-    case "AbortError":
-      return "Microphone access was interrupted. Try again.";
+    case 'AbortError':
+      return 'Microphone access was interrupted. Try again.';
     default:
       return "Couldn't start the microphone. Allow the mic to log events by voice.";
   }

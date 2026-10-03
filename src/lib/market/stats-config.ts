@@ -27,7 +27,8 @@ export const DEFAULT_MARKET_STATS_CONFIG: MarketStatsConfig = {
 };
 
 export async function getMarketStatsConfig(): Promise<MarketStatsConfig> {
-  const stored =
-    await getSystemSetting<Partial<MarketStatsConfig>>('market_stats_config');
+  const stored = await getSystemSetting<Partial<MarketStatsConfig>>(
+    'market_stats_config'
+  );
   return { ...DEFAULT_MARKET_STATS_CONFIG, ...(stored ?? {}) };
 }

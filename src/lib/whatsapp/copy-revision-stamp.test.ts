@@ -21,7 +21,7 @@ function shipped(language: 'en' | 'kn' | 'hi') {
 describe('stampFor', () => {
   it('stamps the shipped revision for a row built from shipped copy', () => {
     expect(stampFor('listing_details_notice', 'kn', shipped('kn'))).toBe(
-      copyRevision(KEY, 'kn'),
+      copyRevision(KEY, 'kn')
     );
   });
 
@@ -46,7 +46,7 @@ describe('stampFor', () => {
 
   it('matches the name case-insensitively, as Meta template names are', () => {
     expect(stampFor('Listing_Details_Notice', 'kn', shipped('kn'))).toBe(
-      copyRevision(KEY, 'kn'),
+      copyRevision(KEY, 'kn')
     );
   });
 
@@ -65,9 +65,9 @@ describe('stampFor', () => {
     const stamp = stampFor('listing_details_notice', 'kn', older, origin);
 
     expect(stamp).toBe(origin);
-    expect(resolveCopyDrift({ ...older, copy_revision: stamp }, KEY, 'kn')).toBe(
-      'update_available',
-    );
+    expect(
+      resolveCopyDrift({ ...older, copy_revision: stamp }, KEY, 'kn')
+    ).toBe('update_available');
   });
 
   // Their edit, re-submitted. Origin preserved, body no longer matches
@@ -78,9 +78,9 @@ describe('stampFor', () => {
 
     const stamp = stampFor('listing_details_notice', 'kn', edited, origin);
 
-    expect(resolveCopyDrift({ ...edited, copy_revision: stamp }, KEY, 'kn')).toBe(
-      'customised',
-    );
+    expect(
+      resolveCopyDrift({ ...edited, copy_revision: stamp }, KEY, 'kn')
+    ).toBe('customised');
   });
 
   // First write of diverging content with nothing recorded: today's
@@ -92,16 +92,16 @@ describe('stampFor', () => {
     const stamp = stampFor('listing_details_notice', 'kn', edited);
 
     expect(stamp).toBe(copyRevision(KEY, 'kn'));
-    expect(resolveCopyDrift({ ...edited, copy_revision: stamp }, KEY, 'kn')).toBe(
-      'customised',
-    );
+    expect(
+      resolveCopyDrift({ ...edited, copy_revision: stamp }, KEY, 'kn')
+    ).toBe('customised');
   });
 
   it('round-trips a freshly created row to in_sync', () => {
     const row = shipped('hi');
     const stamp = stampFor('listing_details_notice', 'hi', row);
     expect(resolveCopyDrift({ ...row, copy_revision: stamp }, KEY, 'hi')).toBe(
-      'in_sync',
+      'in_sync'
     );
   });
 });

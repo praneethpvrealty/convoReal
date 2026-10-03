@@ -16,7 +16,9 @@ export const PORTAL_LEAD_PLACEHOLDER = 'Portal Lead';
 
 /** The placeholder to file a lead under, named after its portal. */
 export function placeholderLeadName(source?: string | null): string {
-  return source && source !== 'Others' ? `${source} Lead` : PORTAL_LEAD_PLACEHOLDER;
+  return source && source !== 'Others'
+    ? `${source} Lead`
+    : PORTAL_LEAD_PLACEHOLDER;
 }
 
 const PORTAL = 'portal|housing|99acres|magic\\s*bricks|others';
@@ -28,7 +30,7 @@ const PORTAL = 'portal|housing|99acres|magic\\s*bricks|others';
 // waiting to happen.
 const PLACEHOLDER_NAME = new RegExp(
   `^(?:(?:${PORTAL})\\s+(?:lead|user)|mb\\s*user|user|unknown|guest|customer|anonymous)$`,
-  'i',
+  'i'
 );
 
 /** Whether this name is a placeholder rather than a person. Blank counts:

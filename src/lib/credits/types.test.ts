@@ -72,8 +72,8 @@ describe('plan/cycle constant tables stay in sync with the design doc', () => {
   it('commitment bonus percentages match the documented cycle incentives', () => {
     expect(COMMITMENT_BONUS_PCT.monthly).toBe(0);
     expect(COMMITMENT_BONUS_PCT['3month']).toBeCloseTo(0.15);
-    expect(COMMITMENT_BONUS_PCT['6month']).toBeCloseTo(0.30);
-    expect(COMMITMENT_BONUS_PCT.annual).toBeCloseTo(0.50);
+    expect(COMMITMENT_BONUS_PCT['6month']).toBeCloseTo(0.3);
+    expect(COMMITMENT_BONUS_PCT.annual).toBeCloseTo(0.5);
   });
 
   it('computes the documented Solo Pro Annual example: 500x12 base + 50% bonus = 9000cr', () => {

@@ -102,9 +102,7 @@ export async function stagedDealDocument(
   if (!row) return null;
 
   const metadata = row.metadata as
-    | { size?: number; mimetype?: string }
-    | null
-    | undefined;
+    { size?: number; mimetype?: string } | null | undefined;
 
   return {
     size: Number(metadata?.size ?? 0),

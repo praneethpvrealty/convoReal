@@ -310,7 +310,10 @@ export const CLAIM_GRACE_MS = 20 * 60 * 1000;
 
 type ReminderRecipient = { contact_id: string } | { liaison_id: string };
 
-function sameInstant(a: string | null | undefined, b: string | null | undefined) {
+function sameInstant(
+  a: string | null | undefined,
+  b: string | null | undefined
+) {
   if (!a || !b) return !a && !b;
   return new Date(a).getTime() === new Date(b).getTime();
 }
@@ -375,7 +378,8 @@ async function claimReminder(
     console.error('[Reminder Cron] claim insert failed:', claimErr);
     return 'failed';
   }
-  const recipientColumn = 'contact_id' in recipient ? 'contact_id' : 'liaison_id';
+  const recipientColumn =
+    'contact_id' in recipient ? 'contact_id' : 'liaison_id';
   const recipientId =
     'contact_id' in recipient ? recipient.contact_id : recipient.liaison_id;
   const { data: existing, error: readErr } = await admin

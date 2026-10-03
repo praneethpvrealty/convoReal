@@ -15,10 +15,7 @@ import { Building2, Loader2, MapPin, Plus, Layers } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
-import {
-  listProjects,
-  type ProjectWithStats,
-} from '@/lib/inventory/projects';
+import { listProjects, type ProjectWithStats } from '@/lib/inventory/projects';
 import {
   projectAvailabilityLine,
   projectBhkRange,
@@ -46,7 +43,9 @@ function ProjectCard({
     <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 backdrop-blur-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-base font-bold text-white">{project.name}</h3>
+          <h3 className="truncate text-base font-bold text-white">
+            {project.name}
+          </h3>
           {where && (
             <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
               <MapPin className="size-3 shrink-0" />
@@ -67,7 +66,7 @@ function ProjectCard({
         </span>
         {/* The line the agent asked for. Empty when no available unit
             has both a price and an area, rather than showing ₹0. */}
-        {rate && <span className="text-sm text-primary">{rate}</span>}
+        {rate && <span className="text-primary text-sm">{rate}</span>}
         {bhk && <span className="text-xs text-slate-400">{bhk}</span>}
       </div>
 
@@ -156,7 +155,9 @@ export default function ProjectsContent() {
       {projects.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-800 py-16 text-center">
           <Building2 className="mx-auto size-8 text-slate-700" />
-          <p className="mt-3 text-sm font-medium text-slate-300">No projects yet</p>
+          <p className="mt-3 text-sm font-medium text-slate-300">
+            No projects yet
+          </p>
           <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">
             Create one for a tower or development, then attach the listings that
             belong to it. Units can have different owners and different prices.

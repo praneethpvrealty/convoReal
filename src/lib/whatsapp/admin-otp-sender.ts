@@ -12,9 +12,9 @@
 // approved template carries a one-tap copy button.
 // ============================================================
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendTemplateMessage, sendTextMessage } from "@/lib/whatsapp/meta-api";
-import { resolvePlatformSender } from "@/lib/whatsapp/platform-sender";
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { sendTemplateMessage, sendTextMessage } from '@/lib/whatsapp/meta-api';
+import { resolvePlatformSender } from '@/lib/whatsapp/platform-sender';
 
 /**
  * Sends a 6-digit code to `toPhone` over WhatsApp. Returns false (never
@@ -23,14 +23,14 @@ import { resolvePlatformSender } from "@/lib/whatsapp/platform-sender";
  */
 export async function sendAdminOtpCode(
   admin: SupabaseClient,
-  args: { toPhone: string; code: string },
+  args: { toPhone: string; code: string }
 ): Promise<boolean> {
   try {
     const sender = await resolvePlatformSender(admin);
     if (!sender) return false;
 
     const { phoneNumberId, accessToken } = sender;
-    const cleanPhone = args.toPhone.replace("+", "");
+    const cleanPhone = args.toPhone.replace('+', '');
 
     try {
       try {
@@ -38,8 +38,8 @@ export async function sendAdminOtpCode(
           phoneNumberId,
           accessToken,
           to: cleanPhone,
-          templateName: "whatsapp_otp",
-          language: "en",
+          templateName: 'whatsapp_otp',
+          language: 'en',
           messageParams: {
             body: [args.code],
             buttonParams: { 0: args.code },
@@ -47,23 +47,23 @@ export async function sendAdminOtpCode(
         });
       } catch (buttonError) {
         console.warn(
-          "[admin-otp-sender] template with button param failed, retrying body-only:",
-          buttonError,
+          '[admin-otp-sender] template with button param failed, retrying body-only:',
+          buttonError
         );
         await sendTemplateMessage({
           phoneNumberId,
           accessToken,
           to: cleanPhone,
-          templateName: "whatsapp_otp",
-          language: "en",
+          templateName: 'whatsapp_otp',
+          language: 'en',
           params: [args.code],
         });
       }
       return true;
     } catch (templateError) {
       console.warn(
-        "[admin-otp-sender] template send failed, falling back to free-form text:",
-        templateError,
+        '[admin-otp-sender] template send failed, falling back to free-form text:',
+        templateError
       );
       try {
         await sendTextMessage({
@@ -74,12 +74,15 @@ export async function sendAdminOtpCode(
         });
         return true;
       } catch (fallbackError) {
-        console.error("[admin-otp-sender] fallback text send failed:", fallbackError);
+        console.error(
+          '[admin-otp-sender] fallback text send failed:',
+          fallbackError
+        );
         return false;
       }
     }
   } catch (err) {
-    console.error("[admin-otp-sender] unexpected error:", err);
+    console.error('[admin-otp-sender] unexpected error:', err);
     return false;
   }
 }

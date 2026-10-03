@@ -54,7 +54,9 @@ describe('buildRecordPatch', () => {
   });
 
   it('ignores a numeric field the model returned as junk', () => {
-    expect(buildRecordPatch('property', property, { price: 'call for price' })).toEqual({});
+    expect(
+      buildRecordPatch('property', property, { price: 'call for price' })
+    ).toEqual({});
   });
 
   it('trims strings and drops ones blanked to empty', () => {
@@ -66,7 +68,9 @@ describe('buildRecordPatch', () => {
   });
 
   it('allows an explicit null to clear a nullable field', () => {
-    expect(buildRecordPatch('property', property, { price: null })).toEqual({ price: null });
+    expect(buildRecordPatch('property', property, { price: null })).toEqual({
+      price: null,
+    });
   });
 
   it('returns nothing when the model echoed the record back', () => {
@@ -74,7 +78,12 @@ describe('buildRecordPatch', () => {
   });
 
   it('scopes the whitelist per entity', () => {
-    const contact = { name: 'Ravi', email: null, classification: 'Buyer', phone: '+919876543210' };
+    const contact = {
+      name: 'Ravi',
+      email: null,
+      classification: 'Buyer',
+      phone: '+919876543210',
+    };
     const patch = buildRecordPatch('contact', contact, {
       name: 'Ravi Kumar',
       phone: '+910000000000',
@@ -144,24 +153,34 @@ describe('buildRecordPatch', () => {
   });
 
   it('does not clear a valid rent roll when the model returns malformed rows', () => {
-    const existing = [{ floor: 'Ground Floor', tenant_name: 'Bank', monthly_rent: 400000 }];
-    expect(buildRecordPatch('property', { ...property, floor_tenancies: existing }, {
-      floor_tenancies: ['not a tenancy row'],
-    })).toEqual({});
+    const existing = [
+      { floor: 'Ground Floor', tenant_name: 'Bank', monthly_rent: 400000 },
+    ];
+    expect(
+      buildRecordPatch(
+        'property',
+        { ...property, floor_tenancies: existing },
+        {
+          floor_tenancies: ['not a tenancy row'],
+        }
+      )
+    ).toEqual({});
   });
 
   it('formats structured tenant updates as readable WhatsApp lines', () => {
-    expect(formatRecordUpdateResult({
-      floor_tenancies: [
-        {
-          floor: 'Ground Floor',
-          tenant_name: 'ICICI Bank',
-          monthly_rent: 400000,
-          lock_in_months: 96,
-          notes: '4 years completed',
-        },
-      ],
-    })).toEqual({
+    expect(
+      formatRecordUpdateResult({
+        floor_tenancies: [
+          {
+            floor: 'Ground Floor',
+            tenant_name: 'ICICI Bank',
+            monthly_rent: 400000,
+            lock_in_months: 96,
+            notes: '4 years completed',
+          },
+        ],
+      })
+    ).toEqual({
       floor_tenancies:
         '1 lease\n– Ground Floor · ICICI Bank · ₹4,00,000/month · 96-month lock-in · 4 years completed',
     });
@@ -170,16 +189,20 @@ describe('buildRecordPatch', () => {
   it('explains that an unchanged listing is already up to date', () => {
     expect(formatRecordUnchangedReply('property')).toBe(
       '✅ No changes needed — this listing is already up to date.\n\n' +
-      '_If you intended a different change, tell me what to set._'
+        '_If you intended a different change, tell me what to set._'
     );
-    expect(formatRecordUnchangedReply('contact')).toContain('this contact is already up to date');
+    expect(formatRecordUnchangedReply('contact')).toContain(
+      'this contact is already up to date'
+    );
   });
 
   it('does not describe an update failure as an unchanged record', () => {
     expect(formatRecordUpdateFailureReply('property')).toBe(
       "⚠️ I couldn't update this listing right now. Please try again in a moment."
     );
-    expect(formatRecordUpdateFailureReply('contact')).toContain("couldn't update this contact");
+    expect(formatRecordUpdateFailureReply('contact')).toContain(
+      "couldn't update this contact"
+    );
   });
 
   it('returns unchanged when the requested values already match the stored record', async () => {
@@ -195,21 +218,27 @@ describe('buildRecordPatch', () => {
     const select = vi.fn().mockReturnValue({ eq: idFilter });
     const from = vi.fn().mockReturnValue({ select });
 
-    vi.mocked(supabaseAdmin).mockReturnValue({ from } as unknown as ReturnType<typeof supabaseAdmin>);
-    vi.mocked(generateJsonFromParts).mockResolvedValue(JSON.stringify({
-      title: row.title,
-      price: row.price,
-      location: row.location,
-      bedrooms: row.bedrooms,
-      floor_tenancies: row.floor_tenancies,
-      rental_income: row.rental_income,
-    }));
+    vi.mocked(supabaseAdmin).mockReturnValue({ from } as unknown as ReturnType<
+      typeof supabaseAdmin
+    >);
+    vi.mocked(generateJsonFromParts).mockResolvedValue(
+      JSON.stringify({
+        title: row.title,
+        price: row.price,
+        location: row.location,
+        bedrooms: row.bedrooms,
+        floor_tenancies: row.floor_tenancies,
+        rental_income: row.rental_income,
+      })
+    );
 
-    await expect(applyRecordUpdate({
-      entityType: 'property',
-      entityId: row.id,
-      accountId: row.account_id,
-      instruction: 'Repeat the same tenant details',
-    })).resolves.toBe('unchanged');
+    await expect(
+      applyRecordUpdate({
+        entityType: 'property',
+        entityId: row.id,
+        accountId: row.account_id,
+        instruction: 'Repeat the same tenant details',
+      })
+    ).resolves.toBe('unchanged');
   });
 });

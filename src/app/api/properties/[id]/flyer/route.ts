@@ -1,10 +1,17 @@
-import { NextResponse } from "next/server";
-import { requireRole, toErrorResponse } from "@/lib/auth/account";
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
-import { parseFlyerOptions } from "@/lib/inventory/flyer-options";
-import { renderFlyer } from "@/lib/inventory/flyer-render";
-import { isLocationGuarded, localityLabel } from "@/lib/inventory/location-guard";
-import { storagePublicUrl } from "@/lib/storage/url";
+import { NextResponse } from 'next/server';
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
+import { parseFlyerOptions } from '@/lib/inventory/flyer-options';
+import { renderFlyer } from '@/lib/inventory/flyer-render';
+import {
+  isLocationGuarded,
+  localityLabel,
+} from '@/lib/inventory/location-guard';
+import { storagePublicUrl } from '@/lib/storage/url';
 
 // POST /api/properties/[id]/flyer
 // Renders a marketing flyer for a property server-side (next/og), so
@@ -17,7 +24,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ctx = await requireRole("agent");
+    const ctx = await requireRole('agent');
 
     const limit = await checkRateLimit(
       `agent:renderFlyer:${ctx.userId}`,
@@ -28,37 +35,37 @@ export async function POST(
     const { id } = await params;
     if (!id) {
       return NextResponse.json(
-        { error: "Property ID is required" },
+        { error: 'Property ID is required' },
         { status: 400 }
       );
     }
 
     const body = await request.json().catch(() => null);
     const parsed = parseFlyerOptions(body);
-    if ("error" in parsed) {
+    if ('error' in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
     const { options } = parsed;
 
     const { data: raw, error } = await ctx.supabase
-      .from("properties")
+      .from('properties')
       .select(
-        "id, title, property_code, type, price, location, location_privacy, sublocality, city, state, images"
+        'id, title, property_code, type, price, location, location_privacy, sublocality, city, state, images'
       )
-      .eq("id", id)
-      .eq("account_id", ctx.accountId)
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
       .maybeSingle();
 
     if (error) {
-      console.error("[POST /api/properties/[id]/flyer] Select error:", error);
+      console.error('[POST /api/properties/[id]/flyer] Select error:', error);
       return NextResponse.json(
-        { error: "Failed to fetch property" },
+        { error: 'Failed to fetch property' },
         { status: 500 }
       );
     }
     if (!raw) {
       return NextResponse.json(
-        { error: "Property not found" },
+        { error: 'Property not found' },
         { status: 404 }
       );
     }
@@ -70,17 +77,17 @@ export async function POST(
       : raw;
 
     const { data: settings } = await ctx.supabase
-      .from("showcase_settings")
-      .select("currency")
-      .eq("account_id", ctx.accountId)
+      .from('showcase_settings')
+      .select('currency')
+      .eq('account_id', ctx.accountId)
       .maybeSingle();
-    const currency = settings?.currency || "INR";
+    const currency = settings?.currency || 'INR';
 
     const currentImages = Array.isArray(property.images)
-      ? property.images.filter((u): u is string => typeof u === "string")
+      ? property.images.filter((u): u is string => typeof u === 'string')
       : [];
     const background =
-      options.imageSource === "ai"
+      options.imageSource === 'ai'
         ? options.aiImage
         : currentImages[0]
           ? storagePublicUrl(currentImages[0])
@@ -88,19 +95,27 @@ export async function POST(
 
     let png: Buffer;
     try {
-      const image = await renderFlyer({ property, options, currency, background });
+      const image = await renderFlyer({
+        property,
+        options,
+        currency,
+        background,
+      });
       png = Buffer.from(await image.arrayBuffer());
     } catch (renderErr) {
-      console.error("[POST /api/properties/[id]/flyer] Render error:", renderErr);
+      console.error(
+        '[POST /api/properties/[id]/flyer] Render error:',
+        renderErr
+      );
       return NextResponse.json(
-        { error: "Failed to render flyer" },
+        { error: 'Failed to render flyer' },
         { status: 500 }
       );
     }
 
     if (!options.save) {
       return NextResponse.json({
-        data: { image: `data:image/png;base64,${png.toString("base64")}` },
+        data: { image: `data:image/png;base64,${png.toString('base64')}` },
       });
     }
 
@@ -108,43 +123,52 @@ export async function POST(
     const path = `${ctx.accountId}/flyer-${Date.now()}-${randomStr}.png`;
 
     const { error: uploadError } = await ctx.supabase.storage
-      .from("property-images")
+      .from('property-images')
       .upload(path, png, {
-        cacheControl: "3600",
+        cacheControl: '3600',
         upsert: true,
-        contentType: "image/png",
+        contentType: 'image/png',
       });
 
     if (uploadError) {
-      console.error("[POST /api/properties/[id]/flyer] Upload error:", uploadError);
+      console.error(
+        '[POST /api/properties/[id]/flyer] Upload error:',
+        uploadError
+      );
       return NextResponse.json(
-        { error: "Failed to upload flyer" },
+        { error: 'Failed to upload flyer' },
         { status: 500 }
       );
     }
 
     const storedPath = `property-images/${path}`;
 
-    const updatedImages = [storedPath, ...currentImages.filter((u) => u !== storedPath)];
+    const updatedImages = [
+      storedPath,
+      ...currentImages.filter((u) => u !== storedPath),
+    ];
 
     const { data: saved, error: updateError } = await ctx.supabase
-      .from("properties")
+      .from('properties')
       .update({ images: updatedImages, updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .eq("account_id", ctx.accountId)
-      .select("id");
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
+      .select('id');
 
     if (!updateError && !saved?.length) {
       return NextResponse.json(
-        { error: "Property not found, or you cannot change it" },
+        { error: 'Property not found, or you cannot change it' },
         { status: 404 }
       );
     }
 
     if (updateError) {
-      console.error("[POST /api/properties/[id]/flyer] Update error:", updateError);
+      console.error(
+        '[POST /api/properties/[id]/flyer] Update error:',
+        updateError
+      );
       return NextResponse.json(
-        { error: "Failed to save flyer to property" },
+        { error: 'Failed to save flyer to property' },
         { status: 500 }
       );
     }

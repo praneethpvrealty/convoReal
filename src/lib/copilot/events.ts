@@ -18,10 +18,7 @@ import type { CopilotPlatform, MobileCoverage } from './platform';
  */
 
 export type CopilotEventKind =
-  | 'chat'
-  | 'tour_start'
-  | 'tour_complete'
-  | 'support_ticket';
+  'chat' | 'tour_start' | 'tour_complete' | 'support_ticket';
 
 export function logCopilotEvent(input: {
   accountId: string | null;

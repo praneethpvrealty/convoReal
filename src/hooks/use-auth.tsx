@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -8,9 +8,9 @@ import {
   useCallback,
   useMemo,
   type ReactNode,
-} from "react";
-import { createClient } from "@/lib/supabase/client";
-import type { User } from "@supabase/supabase-js";
+} from 'react';
+import { createClient } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
 import {
   canEditSettings as canEditSettingsFor,
   canManageMembers as canManageMembersFor,
@@ -21,9 +21,9 @@ import {
   hasMinOrgRole,
   type AccountRole,
   type OrgRole,
-} from "@/lib/auth/roles";
-import type { ShowcaseStyle } from "@/lib/showcase/style";
-import { reloadTo } from "@/lib/navigation";
+} from '@/lib/auth/roles';
+import type { ShowcaseStyle } from '@/lib/showcase/style';
+import { reloadTo } from '@/lib/navigation';
 
 interface Profile {
   id: string;
@@ -202,33 +202,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const attemptFetch = async () => {
       const { data, error } = await supabase
-        .from("profiles")
+        .from('profiles')
         .select(
           // `account:accounts!inner(id, name)` — explicit join on the
           // single FK profiles.account_id → accounts.id. `!inner` so a
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, ui_languages, active_ui_language, showcase_style, showcase_3d_enabled, account:accounts!inner(id, name, status, default_language, journey_compartment_scope)",
+          'id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, ui_languages, active_ui_language, showcase_style, showcase_3d_enabled, account:accounts!inner(id, name, status, default_language, journey_compartment_scope)'
         )
-        .eq("user_id", userId)
+        .eq('user_id', userId)
         .maybeSingle();
 
       if (error) {
         // Backward-compatible fallback for forks that haven't applied the
         // account migrations yet (no profiles.account_id -> accounts FK).
         if (
-          error.code === "PGRST200" &&
-          error.message.includes("relationship between 'profiles' and 'accounts'")
+          error.code === 'PGRST200' &&
+          error.message.includes(
+            "relationship between 'profiles' and 'accounts'"
+          )
         ) {
           const { data: legacyData, error: legacyError } = await supabase
-            .from("profiles")
-            .select("id, full_name, email, phone, avatar_url, role, beta_features")
-            .eq("user_id", userId)
+            .from('profiles')
+            .select(
+              'id, full_name, email, phone, avatar_url, role, beta_features'
+            )
+            .eq('user_id', userId)
             .maybeSingle();
 
           if (legacyError) {
-            console.error("[AuthProvider] legacy fetchProfile error:", {
+            console.error('[AuthProvider] legacy fetchProfile error:', {
               message: legacyError.message,
               details: legacyError.details,
               hint: legacyError.hint,
@@ -263,7 +267,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        console.error("[AuthProvider] fetchProfile error:", {
+        console.error('[AuthProvider] fetchProfile error:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -278,7 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // the schema's inferred cardinality — normalise to the object
         // form before reading.
         const accountRow = Array.isArray(data.account)
-          ? data.account[0] ?? null
+          ? (data.account[0] ?? null)
           : (data.account as AccountSummary | null);
 
         // Narrow the DB enum into our AccountRole union. The DB
@@ -339,7 +343,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       Promise.race([
         attemptFetch(),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`profile fetch timed out after ${ms}ms`)), ms),
+          setTimeout(
+            () => reject(new Error(`profile fetch timed out after ${ms}ms`)),
+            ms
+          )
         ),
       ]);
 
@@ -353,7 +360,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await attemptWithTimeout(10_000);
       } catch (err) {
-        console.error("[AuthProvider] fetchProfile failed after retry:", err);
+        console.error('[AuthProvider] fetchProfile failed after retry:', err);
         setProfileError(true);
       }
     } finally {
@@ -367,7 +374,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const safetyTimer = setTimeout(() => {
       if (mounted) {
-        console.warn("[AuthProvider] getSession() timed out after 3s");
+        console.warn('[AuthProvider] getSession() timed out after 3s');
         setLoading(false);
         setProfileLoading(false);
       }
@@ -380,7 +387,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           error,
         } = await supabase.auth.getSession();
 
-        if (error) console.error("[AuthProvider] getSession error:", error.message);
+        if (error)
+          console.error('[AuthProvider] getSession error:', error.message);
 
         if (!mounted) return;
         const currentUser = session?.user ?? null;
@@ -400,7 +408,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfileLoading(false);
         }
       } catch (err) {
-        console.error("[AuthProvider] init threw:", err);
+        console.error('[AuthProvider] init threw:', err);
       } finally {
         if (mounted) setLoading(false);
         clearTimeout(safetyTimer);
@@ -442,15 +450,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // if Supabase is having an outage.
       await Promise.race([
         supabase.auth.signOut(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Signout timeout')), 2000))
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Signout timeout')), 2000)
+        ),
       ]);
     } catch (err) {
-      console.warn("[signOut] Supabase network signout failed or timed out:", err);
+      console.warn(
+        '[signOut] Supabase network signout failed or timed out:',
+        err
+      );
     }
     setUser(null);
     setProfile(null);
     setAccount(null);
-    reloadTo("/login");
+    reloadTo('/login');
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -472,43 +485,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       accountRole: role,
       accountId: profile?.account_id ?? null,
       isAccountArchived: accountStatus === 'archived',
-      isOwner: role === "owner",
-      isAdmin: role === "admin",
-      isAgent: role === "agent",
-      isViewer: role === "viewer",
+      isOwner: role === 'owner',
+      isAdmin: role === 'admin',
+      isAgent: role === 'agent',
+      isViewer: role === 'viewer',
       orgRole,
       teamId: profile?.team_id ?? null,
       isReadOnly: profile?.is_read_only ?? false,
-      isOrgManager: orgRole === "org_manager",
-      isOrgLeader: orgRole === "org_leader",
-      isOrgCoordinator: orgRole === "org_coordinator",
-      isOrgAgent: orgRole === "org_agent",
+      isOrgManager: orgRole === 'org_manager',
+      isOrgLeader: orgRole === 'org_leader',
+      isOrgCoordinator: orgRole === 'org_coordinator',
+      isOrgAgent: orgRole === 'org_agent',
       // Capability predicates read orgRole when available (source of
       // truth going forward), falling back to the legacy accountRole
       // for any profile that somehow lacks it (shouldn't happen
       // post-082, but fails closed rather than throwing).
       canManageMembers: orgRole
-        ? hasMinOrgRole(orgRole, "org_leader")
+        ? hasMinOrgRole(orgRole, 'org_leader')
         : role
           ? canManageMembersFor(role)
           : false,
       canEditSettings: orgRole
-        ? hasMinOrgRole(orgRole, "org_leader")
+        ? hasMinOrgRole(orgRole, 'org_leader')
         : role
           ? canEditSettingsFor(role)
           : false,
       canSendMessages: orgRole
-        ? hasMinOrgRole(orgRole, "org_agent")
+        ? hasMinOrgRole(orgRole, 'org_agent')
         : role
           ? canSendMessagesFor(role)
           : false,
       canViewGuardedLocations: orgRole
-        ? hasMinOrgRole(orgRole, "org_leader")
+        ? hasMinOrgRole(orgRole, 'org_leader')
         : role
           ? canViewGuardedLocationFor(role)
           : false,
     };
-  }, [profile?.account_role, profile?.account_id, profile?.org_role, profile?.team_id, profile?.is_read_only, account]);
+  }, [
+    profile?.account_role,
+    profile?.account_id,
+    profile?.org_role,
+    profile?.team_id,
+    profile?.is_read_only,
+    account,
+  ]);
 
   return (
     <AuthContext.Provider
@@ -547,7 +567,7 @@ export function useAuth(): AuthContextValue {
       profileLoading: false,
       profileError: false,
       signOut: async () => {
-        reloadTo("/login");
+        reloadTo('/login');
       },
       refreshProfile: async () => {},
       account: null,

@@ -5,7 +5,7 @@ These are every word ConvoReal sends to a client in Tamil. They were drafted by 
 ## What to look for
 
 1. **Does it read naturally**, or like translated English?
-2. **Keep it flat and factual.** These are deliberately dry — labelled fields, no emoji, no "don't miss out". That dryness is what lets WhatsApp classify them as *Utility* messages, which reach people who have hit their marketing limit. Adding warmth or urgency can get the message re-classified, and that cannot be undone. Please do not make it more persuasive.
+2. **Keep it flat and factual.** These are deliberately dry — labelled fields, no emoji, no "don't miss out". That dryness is what lets WhatsApp classify them as _Utility_ messages, which reach people who have hit their marketing limit. Adding warmth or urgency can get the message re-classified, and that cannot be undone. Please do not make it more persuasive.
 3. **Leave every `{{1}}`, `{{2}}` … exactly as they are.** They are filled in with real names and prices when the message is sent. You may move one within the sentence, but do not delete one, add one, or let two sit next to each other with only a comma between.
 4. **Buttons must stay under 25 characters** — WhatsApp refuses longer ones.
 
@@ -17,31 +17,31 @@ Write your correction in the last column / block. Leave it blank if the current 
 
 The tappable options underneath a message.
 
-| # | English | தமிழ் (current) | Length | Your correction |
-|---|---------|---------------------|--------|-----------------|
-| 1 | Send more details | மேலும் விவரம் | 13/25 | |
-| 2 | Send full list | முழு பட்டியல் | 13/25 | |
-| 3 | Book a site visit | தள வருகை பதிவு | 14/25 | |
-| 4 | Update my preferences | விருப்பம் புதுப்பி | 18/25 | |
-| 5 | Close my enquiry | விசாரணையை மூடு | 14/25 | |
-| 6 | Still considering it | இன்னும் பரிசீலனை | 16/25 | |
-| 7 | Today itself | இன்றே | 5/25 | |
-| 8 | In 2 days | 2 நாட்களில் | 11/25 | |
-| 9 | Yes, send them | ஆம், அனுப்புங்கள் | 17/25 | |
-| 10 | Paperwork on track | ஆவணப் பணி சரி | 13/25 | |
-| 11 | Something is pending | ஏதோ நிலுவையில் உள்ளது | 21/25 | |
-| 12 | Approve request | கோரிக்கையை ஏற்கவும் | 19/25 | |
-| 13 | Decline request | கோரிக்கையை நிராகரி | 18/25 | |
-| 14 | Approve access | அணுகலை ஏற்கவும் | 15/25 | |
-| 15 | It's perfect | இது சரியானது | 12/25 | |
-| 16 | Not interested | ஆர்வம் இல்லை | 12/25 | |
-| 17 | Reject access | அணுகலை நிராகரி | 14/25 | |
-| 18 | Can't say yet | இப்போது சொல்ல முடியாது | 22/25 | |
-| 19 | View full details | முழு விவரம் காண்க | 17/25 | |
-| 20 | View location | இடத்தைக் காண்க | 14/25 | |
-| 21 | Browse showcase | பட்டியலைக் காண்க | 16/25 | |
-| 22 | Sign in to Portfolio | Portfolio உள்நுழைவு | 19/25 | |
-| 23 | Noted, thanks | சரி, நன்றி | 10/25 | |
+| #   | English               | தமிழ் (current)        | Length | Your correction |
+| --- | --------------------- | ---------------------- | ------ | --------------- |
+| 1   | Send more details     | மேலும் விவரம்          | 13/25  |                 |
+| 2   | Send full list        | முழு பட்டியல்          | 13/25  |                 |
+| 3   | Book a site visit     | தள வருகை பதிவு         | 14/25  |                 |
+| 4   | Update my preferences | விருப்பம் புதுப்பி     | 18/25  |                 |
+| 5   | Close my enquiry      | விசாரணையை மூடு         | 14/25  |                 |
+| 6   | Still considering it  | இன்னும் பரிசீலனை       | 16/25  |                 |
+| 7   | Today itself          | இன்றே                  | 5/25   |                 |
+| 8   | In 2 days             | 2 நாட்களில்            | 11/25  |                 |
+| 9   | Yes, send them        | ஆம், அனுப்புங்கள்      | 17/25  |                 |
+| 10  | Paperwork on track    | ஆவணப் பணி சரி          | 13/25  |                 |
+| 11  | Something is pending  | ஏதோ நிலுவையில் உள்ளது  | 21/25  |                 |
+| 12  | Approve request       | கோரிக்கையை ஏற்கவும்    | 19/25  |                 |
+| 13  | Decline request       | கோரிக்கையை நிராகரி     | 18/25  |                 |
+| 14  | Approve access        | அணுகலை ஏற்கவும்        | 15/25  |                 |
+| 15  | It's perfect          | இது சரியானது           | 12/25  |                 |
+| 16  | Not interested        | ஆர்வம் இல்லை           | 12/25  |                 |
+| 17  | Reject access         | அணுகலை நிராகரி         | 14/25  |                 |
+| 18  | Can't say yet         | இப்போது சொல்ல முடியாது | 22/25  |                 |
+| 19  | View full details     | முழு விவரம் காண்க      | 17/25  |                 |
+| 20  | View location         | இடத்தைக் காண்க         | 14/25  |                 |
+| 21  | Browse showcase       | பட்டியலைக் காண்க       | 16/25  |                 |
+| 22  | Sign in to Portfolio  | Portfolio உள்நுழைவு    | 19/25  |                 |
+| 23  | Noted, thanks         | சரி, நன்றி             | 10/25  |                 |
 
 ---
 
@@ -49,7 +49,7 @@ The tappable options underneath a message.
 
 ### 1. Number change notice — the brokerage now messages from a different WhatsApp number
 
-*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name · `{{3}}` = previous WhatsApp number
+_Placeholders:_ `{{1}}` = contact first name · `{{2}}` = brokerage name · `{{3}}` = previous WhatsApp number
 
 **English**
 
@@ -67,7 +67,7 @@ The tappable options underneath a message.
 >
 > உங்கள் விசாரணைகள் குறித்த புதுப்பிப்புகளைத் தொடர்ந்து பெற இந்த எண்ணைச் சேமிக்கவும். உறுதிப்படுத்த இங்கே பதிலளிக்கவும்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -75,7 +75,7 @@ The tappable options underneath a message.
 
 ### 2. Property share feedback — follow up to see if a shared property matched
 
-*Placeholders:* `{{1}}` = buyer first name
+_Placeholders:_ `{{1}}` = buyer first name
 
 **English**
 
@@ -89,7 +89,7 @@ The tappable options underneath a message.
 >
 > இது உங்கள் தேவைக்கு பொருந்துகிறதா?
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -97,7 +97,7 @@ The tappable options underneath a message.
 
 ### 3. Portfolio access — a buyer or owner is sent their Portfolio sign-in link
 
-*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name
+_Placeholders:_ `{{1}}` = contact first name · `{{2}}` = brokerage name
 
 **English**
 
@@ -115,7 +115,7 @@ The tappable options underneath a message.
 >
 > உள்நுழைய கீழே உள்ள பொத்தானை அழுத்தி, இந்த எண்ணுக்கு அனுப்பப்பட்ட ஒருமுறை குறியீட்டை உள்ளிடவும்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -123,7 +123,7 @@ The tappable options underneath a message.
 
 ### 4. Requirement review — verify the property search recorded for an enquiry
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name
+_Placeholders:_ `{{1}}` = buyer first name · `{{2}}` = brokerage name
 
 **English**
 
@@ -137,7 +137,7 @@ The tappable options underneath a message.
 >
 > சொத்து வகைகள், விருப்பமான இடங்கள் மற்றும் பட்ஜெட்டை சரிபார்த்து தேவையெனில் திருத்தவும். நீங்கள் சமர்ப்பிக்கும் விவரங்கள் உங்கள் விசாரணைப் பதிவை புதுப்பிக்கும்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -145,7 +145,7 @@ The tappable options underneath a message.
 
 ### 5. Property details — sent when a buyer asks about a listing
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality
+_Placeholders:_ `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality
 
 **English**
 
@@ -167,7 +167,7 @@ The tappable options underneath a message.
 >
 > இந்த விசாரணை குறித்து மேலும் தகவல் தேவைப்பட்டால் இந்தச் செய்திக்கு பதிலளிக்கவும்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -175,7 +175,7 @@ The tappable options underneath a message.
 
 ### 6. Property photos — the same, led by a photo
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality · `{{6}}` = Google Maps link
+_Placeholders:_ `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality · `{{6}}` = Google Maps link
 
 **English**
 
@@ -199,7 +199,7 @@ The tappable options underneath a message.
 >
 > இந்த விசாரணை குறித்து மேலும் தகவல் தேவைப்பட்டால் இந்தச் செய்திக்கு பதிலளிக்கவும்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -207,11 +207,11 @@ The tappable options underneath a message.
 
 ### 7. Location reveal — approved request for an exact address
 
-*Placeholders:* `{{1}}` = requester first name · `{{2}}` = listing title
+_Placeholders:_ `{{1}}` = requester first name · `{{2}}` = listing title
 
 **English**
 
-> 📍 *Location Request Approved*
+> 📍 _Location Request Approved_
 >
 > Hi {{1}}, your request for the exact location of {{2}} has been approved by the listing team.
 >
@@ -222,7 +222,7 @@ The tappable options underneath a message.
 
 **தமிழ் — current**
 
-> 📍 *இட கோரிக்கை அங்கீகரிக்கப்பட்டது*
+> 📍 _இட கோரிக்கை அங்கீகரிக்கப்பட்டது_
 >
 > வணக்கம் {{1}}, நீங்கள் சரியான இடம் கேட்ட சொத்து — {{2}} — பட்டியல் குழுவால் அங்கீகரிக்கப்பட்டது.
 >
@@ -231,7 +231,7 @@ The tappable options underneath a message.
 >
 > முகவரி, வரைபடம் மற்றும் அனைத்து புகைப்படங்களையும் காண கீழே உள்ள பொத்தானை அழுத்தவும். இந்த இணைப்பு 48 மணி நேரம் செல்லுபடியாகும்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -239,11 +239,11 @@ The tappable options underneath a message.
 
 ### 8. Listing access approved — approved request to view the full listing
 
-*Placeholders:* `{{1}}` = requester first name · `{{2}}` = listing title · `{{3}}` = listing specs
+_Placeholders:_ `{{1}}` = requester first name · `{{2}}` = listing title · `{{3}}` = listing specs
 
 **English**
 
-> 🔓 *Listing Access Approved*
+> 🔓 _Listing Access Approved_
 >
 > Hi {{1}}, your request to view the full listing of {{2}} has been approved by the listing team.
 >
@@ -253,7 +253,7 @@ The tappable options underneath a message.
 
 **தமிழ் — current**
 
-> 🔓 *பட்டியல் அணுகல் அங்கீகரிக்கப்பட்டது*
+> 🔓 _பட்டியல் அணுகல் அங்கீகரிக்கப்பட்டது_
 >
 > வணக்கம் {{1}}, நீங்கள் முழு பட்டியலைப் பார்க்கக் கேட்ட சொத்து — {{2}} — பட்டியல் குழுவால் அங்கீகரிக்கப்பட்டது.
 >
@@ -261,7 +261,7 @@ The tappable options underneath a message.
 >
 > அனைத்து புகைப்படங்கள், முகவரி மற்றும் வரைபடத்துடன் பட்டியலைத் திறக்க கீழே உள்ள பொத்தானை அழுத்தவும். இந்த இணைப்பு 7 நாட்கள் செல்லுபடியாகும். இணைப்பையோ புகைப்படங்களையோ பகிர வேண்டாம்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -269,7 +269,7 @@ The tappable options underneath a message.
 
 ### 9. Location consent request — a co-broker decides whether a protected request can advance
 
-*Placeholders:* `{{1}}` = co-broker first name · `{{2}}` = listing title · `{{3}}` = masked requester identity
+_Placeholders:_ `{{1}}` = co-broker first name · `{{2}}` = listing title · `{{3}}` = masked requester identity
 
 **English**
 
@@ -291,7 +291,7 @@ The tappable options underneath a message.
 >
 > அவரது அடையாளம் பட்டியல் தரப்பிலிருந்து மறைக்கப்படும். அடுத்த ஒப்புதல் படிக்கு அனுப்ப ஏற்கவும் அல்லது மூட நிராகரிக்கவும்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -299,7 +299,7 @@ The tappable options underneath a message.
 
 ### 10. Location owner decision — the listing side approves or rejects protected access
 
-*Placeholders:* `{{1}}` = request type · `{{2}}` = listing title and code · `{{3}}` = requester identity or masked identity · `{{4}}` = access being requested
+_Placeholders:_ `{{1}}` = request type · `{{2}}` = listing title and code · `{{3}}` = requester identity or masked identity · `{{4}}` = access being requested
 
 **English**
 
@@ -321,7 +321,7 @@ The tappable options underneath a message.
 >
 > இந்த நபருக்கு {{4}} வழங்க ஏற்கவும் அல்லது கோரிக்கையை மூட நிராகரிக்கவும். டாஷ்போர்டிலும் முடிவு செய்யலாம்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -329,11 +329,11 @@ The tappable options underneath a message.
 
 ### 11. Inventory update — a refreshed catalogue snapshot
 
-*Placeholders:* `{{1}}` = contact first name · `{{2}}` = residential summary · `{{3}}` = commercial summary · `{{4}}` = farm & land summary
+_Placeholders:_ `{{1}}` = contact first name · `{{2}}` = residential summary · `{{3}}` = commercial summary · `{{4}}` = farm & land summary
 
 **English**
 
-> 🏠 *Selected Property Options*
+> 🏠 _Selected Property Options_
 >
 > Hi {{1}}! I've selected these properties based on what you're looking for:
 >
@@ -341,11 +341,11 @@ The tappable options underneath a message.
 >
 > Reply to this message for photos, exact locations, or to book a site visit — I answer personally on this number.
 
-*Footer:* Reply STOP to unsubscribe
+_Footer:_ Reply STOP to unsubscribe
 
 **தமிழ் — current**
 
-> 🏠 *தேர்ந்தெடுக்கப்பட்ட சொத்து வாய்ப்புகள்*
+> 🏠 _தேர்ந்தெடுக்கப்பட்ட சொத்து வாய்ப்புகள்_
 >
 > வணக்கம் {{1}}! உங்கள் தேவைக்கு ஏற்ப இந்த சொத்துகளைத் தேர்ந்தெடுத்துள்ளேன்:
 >
@@ -353,9 +353,9 @@ The tappable options underneath a message.
 >
 > புகைப்படங்கள், சரியான இடம் அல்லது தள வருகைக்கு இந்தச் செய்திக்கு பதிலளிக்கவும் — இதே எண்ணில் நானே பதிலளிக்கிறேன்.
 
-*Footer:* நிறுத்த STOP அனுப்பவும்
+_Footer:_ நிறுத்த STOP அனுப்பவும்
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -363,7 +363,7 @@ The tappable options underneath a message.
 
 ### 12. Enquiry status — the listing they asked about is gone
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name
 
 **English**
 
@@ -381,7 +381,7 @@ The tappable options underneath a message.
 >
 > விசாரணையைத் தொடர கீழே உங்கள் தேவையைப் புதுப்பிக்கவும் அல்லது இப்போது என்ன தேவை என்று பதிலளிக்கவும். முடிக்க "விசாரணையை மூடு" தேர்ந்தெடுக்கவும், பின் எந்த புதுப்பிப்பும் அனுப்பப்படாது.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -389,7 +389,7 @@ The tappable options underneath a message.
 
 ### 13. Enquiry notice — the same, naming the listing
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
 **English**
 
@@ -411,7 +411,7 @@ The tappable options underneath a message.
 >
 > விசாரணையைத் தொடர கீழே உங்கள் தேவையைப் புதுப்பிக்கவும் அல்லது இப்போது என்ன தேவை என்று பதிலளிக்கவும். முடிக்க "விசாரணையை மூடு" தேர்ந்தெடுக்கவும், பின் எந்த புதுப்பிப்பும் அனுப்பப்படாது.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -419,7 +419,7 @@ The tappable options underneath a message.
 
 ### 14. Listing availability — the listing is not available right now; we will update you if it frees up
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = listing status, e.g. Under contract
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = listing status, e.g. Under contract
 
 **English**
 
@@ -443,7 +443,7 @@ The tappable options underneath a message.
 >
 > விசாரணையைத் தொடர கீழே உங்கள் தேவையைப் புதுப்பிக்கவும் அல்லது உங்கள் தேவைகளையும் பட்ஜெட்டையும் பதிலளிக்கவும். முடிக்க "விசாரணையை மூடு" தேர்ந்தெடுக்கவும், பின் எந்த புதுப்பிப்பும் அனுப்பப்படாது.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -451,7 +451,7 @@ The tappable options underneath a message.
 
 ### 15. Enquiry check-in — is this still under consideration?
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
 **English**
 
@@ -473,7 +473,7 @@ The tappable options underneath a message.
 >
 > இது இன்னும் பரிசீலனையில் இருந்தால் பதிலளித்து உறுதிப்படுத்தவும். விசாரணையை முடிக்க "விசாரணையை மூடு" தேர்ந்தெடுக்கவும், பின் எந்த புதுப்பிப்பும் அனுப்பப்படாது.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -481,7 +481,7 @@ The tappable options underneath a message.
 
 ### 16. Enquiry timeline — when should we check back with you?
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
 **English**
 
@@ -503,7 +503,7 @@ The tappable options underneath a message.
 >
 > நாங்கள் எப்போது மீண்டும் தொடர்பு கொள்ள வேண்டும் என்பதைத் தேர்ந்தெடுக்கவும்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -511,7 +511,7 @@ The tappable options underneath a message.
 
 ### 17. Enquiry follow-up reminder — confirm or move the scheduled follow-up date
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = scheduled follow-up date
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = scheduled follow-up date
 
 **English**
 
@@ -531,7 +531,7 @@ The tappable options underneath a message.
 >
 > இந்த தேதியை உறுதிப்படுத்த அல்லது மாற்ற கீழே உள்ள பொத்தானை அழுத்தவும். "இப்போது சொல்ல முடியாது" எனத் தேர்ந்தெடுத்தால், திட்டமிட்ட தொடர்பு நீக்கப்பட்டு விசாரணை திறந்தே இருக்கும்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -539,7 +539,7 @@ The tappable options underneath a message.
 
 ### 18. Purchase progress — where does the paperwork stand on a deal already at legal?
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = property being bought · `{{4}}` = stage the purchase is recorded at
+_Placeholders:_ `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = property being bought · `{{4}}` = stage the purchase is recorded at
 
 **English**
 
@@ -559,7 +559,7 @@ The tappable options underneath a message.
 >
 > எங்கள் பதிவுகளில் இந்தப் படி இன்னும் திறந்திருப்பதாக உள்ளது. ஆவணப் பணி எந்த நிலையில் உள்ளது, அல்லது எங்கள் பக்கம் என்ன நிலுவையில் உள்ளது என்பதைத் தெரிவிக்க இங்கே பதிலளிக்கவும்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -567,7 +567,7 @@ The tappable options underneath a message.
 
 ### 19. Audio announcement — a voice-note update, delivered as a playable video
 
-*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name
+_Placeholders:_ `{{1}}` = contact first name · `{{2}}` = brokerage name
 
 **English**
 
@@ -581,7 +581,7 @@ The tappable options underneath a message.
 >
 > மேலும் அறிய இங்கே பதிலளிக்கவும், அல்லது இந்தப் புதுப்பிப்புகளை நிறுத்த STOP என பதிலளிக்கவும்.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -589,7 +589,7 @@ The tappable options underneath a message.
 
 ### 20. Post-call options — after a qualification call, offer the matching listings
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = stated requirement (budget / areas)
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = stated requirement (budget / areas)
 
 **English**
 
@@ -607,7 +607,7 @@ The tappable options underneath a message.
 >
 > இந்தத் தேவைக்குப் பொருந்தும் தற்போதைய சொத்துகளைப் பெற "ஆம், அனுப்புங்கள்" தேர்ந்தெடுக்கவும். இல்லையெனில் இந்த அழைப்பு குறித்து வேறு செய்தி அனுப்பப்படாது.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 

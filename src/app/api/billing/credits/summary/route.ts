@@ -3,8 +3,10 @@ import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
 
 function rangeStart(range: string): Date {
   const now = new Date();
-  if (range === '30d') return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  if (range === '3m') return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+  if (range === '30d')
+    return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  if (range === '3m')
+    return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
   // default: 'month' — start of current calendar month
   return new Date(now.getFullYear(), now.getMonth(), 1);
 }
@@ -27,7 +29,10 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error('[GET /api/billing/credits/summary] query error:', error);
-      return NextResponse.json({ error: 'Failed to load spend summary' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to load spend summary' },
+        { status: 500 }
+      );
     }
 
     const byFeature = new Map<string, number>();
@@ -43,7 +48,8 @@ export async function GET(request: Request) {
       .map(([feature, credits]) => ({
         feature,
         credits,
-        percentage: totalSpent > 0 ? Math.round((credits / totalSpent) * 100) : 0,
+        percentage:
+          totalSpent > 0 ? Math.round((credits / totalSpent) * 100) : 0,
       }))
       .sort((a, b) => b.credits - a.credits);
 

@@ -29,10 +29,10 @@ export interface ApprovedTemplateCandidate {
 
 export function pickApprovedTemplate<T extends ApprovedTemplateCandidate>(
   rows: T[],
-  orderedNames: readonly string[],
+  orderedNames: readonly string[]
 ): T | null {
   const approved = rows.filter(
-    (t) => t.status === 'APPROVED' && orderedNames.includes(t.name),
+    (t) => t.status === 'APPROVED' && orderedNames.includes(t.name)
   );
   if (!approved.length) return null;
 

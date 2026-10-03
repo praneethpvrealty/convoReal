@@ -60,7 +60,9 @@ describe('extractReferral', () => {
 describe('formatReferrerLabel', () => {
   const base = extractReferral({ source_id: 'x' })!;
   it('includes the headline when present', () => {
-    expect(formatReferrerLabel({ ...base, headline: 'Cozy 2BHK' })).toBe('Meta Ad — "Cozy 2BHK"');
+    expect(formatReferrerLabel({ ...base, headline: 'Cozy 2BHK' })).toBe(
+      'Meta Ad — "Cozy 2BHK"'
+    );
   });
   it('falls back to a plain label without a headline', () => {
     expect(formatReferrerLabel({ ...base, headline: null })).toBe('Meta Ad');
@@ -80,8 +82,12 @@ describe('deriveContactUpgrade', () => {
 
   it('never overwrites an existing source or referrer', () => {
     const out = deriveContactUpgrade(
-      { source: 'Website Showcase', referrer: 'Existing ref', classification: 'Others' },
-      ref,
+      {
+        source: 'Website Showcase',
+        referrer: 'Existing ref',
+        classification: 'Others',
+      },
+      ref
     );
     expect(out.source).toBeUndefined();
     expect(out.referrer).toBeUndefined();
@@ -94,9 +100,15 @@ describe('deriveContactUpgrade', () => {
   });
 
   it('promotes only the generic Others classification', () => {
-    expect(deriveContactUpgrade({ classification: 'Others' }, ref).classification).toBe('Buyer');
-    expect(deriveContactUpgrade({ classification: null }, ref).classification).toBe('Buyer');
-    expect(deriveContactUpgrade({ classification: 'Buyer' }, ref).classification).toBeUndefined();
+    expect(
+      deriveContactUpgrade({ classification: 'Others' }, ref).classification
+    ).toBe('Buyer');
+    expect(
+      deriveContactUpgrade({ classification: null }, ref).classification
+    ).toBe('Buyer');
+    expect(
+      deriveContactUpgrade({ classification: 'Buyer' }, ref).classification
+    ).toBeUndefined();
   });
 });
 
@@ -129,14 +141,24 @@ describe('processCtwaReferral', () => {
     conversationId: 'conv-1',
     messageId: 'wamid-1',
     referral: { source_id: 'ad-1', headline: 'Villa Plot' },
-    contact: { source: 'WhatsApp', referrer: 'Existing', classification: 'Buyer' },
+    contact: {
+      source: 'WhatsApp',
+      referrer: 'Existing',
+      classification: 'Buyer',
+    },
   };
 
   it('[CTM-009] links the ad listing to an existing contact without moving them to Needs Review', async () => {
     const { admin, contactUpdates } = fakeAdmin();
-    const result = await processCtwaReferral({ ...args, admin, contactWasCreated: false });
+    const result = await processCtwaReferral({
+      ...args,
+      admin,
+      contactWasCreated: false,
+    });
     expect(result.linkedPropertyId).toBe('prop-1');
-    const link = contactUpdates.find((u) => u.last_inquired_property_id === 'prop-1');
+    const link = contactUpdates.find(
+      (u) => u.last_inquired_property_id === 'prop-1'
+    );
     expect(link).toBeDefined();
     expect(link).not.toHaveProperty('status');
   });
@@ -144,7 +166,9 @@ describe('processCtwaReferral', () => {
   it('[CTM-009] sends a contact the ad click created to Needs Review', async () => {
     const { admin, contactUpdates } = fakeAdmin();
     await processCtwaReferral({ ...args, admin, contactWasCreated: true });
-    const link = contactUpdates.find((u) => u.last_inquired_property_id === 'prop-1');
+    const link = contactUpdates.find(
+      (u) => u.last_inquired_property_id === 'prop-1'
+    );
     expect(link?.status).toBe('pending_review');
   });
 });

@@ -56,15 +56,31 @@ export function excludeKnownPortalAliases<T extends PortalIdentity>(
 }
 
 const STOP_TOKENS = new Set([
-  'the', 'and', 'for', 'with', 'near', 'main', 'road', 'layout', 'nagar',
-  'phase', 'stage', 'block', 'sector', 'extension', 'ext', 'cross',
+  'the',
+  'and',
+  'for',
+  'with',
+  'near',
+  'main',
+  'road',
+  'layout',
+  'nagar',
+  'phase',
+  'stage',
+  'block',
+  'sector',
+  'extension',
+  'ext',
+  'cross',
 ]);
 
 export function normalizeToken(t: string): string {
   return t.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-export function locationTokens(...parts: Array<string | null | undefined>): Set<string> {
+export function locationTokens(
+  ...parts: Array<string | null | undefined>
+): Set<string> {
   const tokens = new Set<string>();
   for (const part of parts) {
     if (!part) continue;
@@ -83,7 +99,10 @@ function tokenOverlap(a: Set<string>, b: Set<string>): number {
   return hits / Math.min(a.size, b.size);
 }
 
-function propertyPrice(p: Property, listingFor: 'Sale' | 'Rent'): number | null {
+function propertyPrice(
+  p: Property,
+  listingFor: 'Sale' | 'Rent'
+): number | null {
   if (listingFor === 'Rent') return p.rent_per_month ?? null;
   return p.price > 0 ? p.price : null;
 }
@@ -95,7 +114,14 @@ function priceDelta(a: number, b: number): number {
 
 function normalizeUrl(url: string | null | undefined): string | null {
   if (!url) return null;
-  return url.trim().toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/[?#].*$/, '').replace(/\/+$/, '') || null;
+  return (
+    url
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\/(www\.)?/, '')
+      .replace(/[?#].*$/, '')
+      .replace(/\/+$/, '') || null
+  );
 }
 
 export interface ScoreBreakdown {
@@ -105,35 +131,78 @@ export interface ScoreBreakdown {
   locationSignal: boolean;
 }
 
-export function scoreListingAgainstProperty(listing: ParsedListing, property: Property): ScoreBreakdown {
+export function scoreListingAgainstProperty(
+  listing: ParsedListing,
+  property: Property
+): ScoreBreakdown {
   const reasons: string[] = [];
 
   // ── Type gate ──
-  const listingCategory = listing.propertyType ? categoryForType(listing.propertyType) : null;
+  const listingCategory = listing.propertyType
+    ? categoryForType(listing.propertyType)
+    : null;
   const propertyCategory = categoryForType(property.type);
   let typeGatePassed = true;
   let typeScore = 0;
-  if (listingCategory && listingCategory !== 'Other' && propertyCategory !== 'Other') {
+  if (
+    listingCategory &&
+    listingCategory !== 'Other' &&
+    propertyCategory !== 'Other'
+  ) {
     if (listingCategory !== propertyCategory) {
-      return { score: 0, reasons: [`category mismatch (${listingCategory} vs ${propertyCategory})`], typeGatePassed: false, locationSignal: false };
+      return {
+        score: 0,
+        reasons: [
+          `category mismatch (${listingCategory} vs ${propertyCategory})`,
+        ],
+        typeGatePassed: false,
+        locationSignal: false,
+      };
     }
     typeScore = listing.propertyType === property.type ? 0.25 : 0.15;
-    reasons.push(listing.propertyType === property.type ? 'exact type match' : 'same category');
+    reasons.push(
+      listing.propertyType === property.type
+        ? 'exact type match'
+        : 'same category'
+    );
   } else {
     typeGatePassed = false;
     typeScore = 0.05;
   }
 
   const propListingFor =
-    property.listing_type === 'Rent' || property.listing_type === 'Built to Suit' ? 'Rent' : 'Sale';
+    property.listing_type === 'Rent' ||
+    property.listing_type === 'Built to Suit'
+      ? 'Rent'
+      : 'Sale';
   if (listing.listingFor !== propListingFor) {
-    return { score: 0, reasons: [`listing purpose mismatch (${listing.listingFor} vs ${propListingFor})`], typeGatePassed, locationSignal: false };
+    return {
+      score: 0,
+      reasons: [
+        `listing purpose mismatch (${listing.listingFor} vs ${propListingFor})`,
+      ],
+      typeGatePassed,
+      locationSignal: false,
+    };
   }
 
   // ── Location ──
-  const listingLoc = locationTokens(listing.locality, listing.city, listing.title);
-  const propertyLoc = locationTokens(property.sublocality, property.location, property.city, property.locality_canonical, property.project);
-  const locOverlap = tokenOverlap(locationTokens(listing.locality, listing.city), propertyLoc);
+  const listingLoc = locationTokens(
+    listing.locality,
+    listing.city,
+    listing.title
+  );
+  const propertyLoc = locationTokens(
+    property.sublocality,
+    property.location,
+    property.city,
+    property.locality_canonical,
+    property.project
+  );
+  const locOverlap = tokenOverlap(
+    locationTokens(listing.locality, listing.city),
+    propertyLoc
+  );
   const titleOverlap = tokenOverlap(listingLoc, propertyLoc);
   const locationSignal = locOverlap >= 0.5 || titleOverlap >= 0.5;
   let locationScore = 0;
@@ -183,7 +252,10 @@ export function scoreListingAgainstProperty(listing: ParsedListing, property: Pr
       detailScore -= 0.15;
     }
   }
-  const titleSim = tokenOverlap(locationTokens(listing.title), locationTokens(property.title));
+  const titleSim = tokenOverlap(
+    locationTokens(listing.title),
+    locationTokens(property.title)
+  );
   if (titleSim >= 0.6) {
     detailScore += 0.1;
     reasons.push('title similarity');
@@ -199,7 +271,12 @@ export function scoreListingAgainstProperty(listing: ParsedListing, property: Pr
     score = Math.min(score, AUTO_MATCH_THRESHOLD - 0.01);
   }
 
-  return { score: Math.max(0, Math.min(1, score)), reasons, typeGatePassed, locationSignal };
+  return {
+    score: Math.max(0, Math.min(1, score)),
+    reasons,
+    typeGatePassed,
+    locationSignal,
+  };
 }
 
 export function matchListing(
@@ -209,7 +286,10 @@ export function matchListing(
 ): MatchResult {
   // Tier 0 — portal identity already linked to a property.
   const byId = existingLinks.find(
-    (l) => l.portal === listing.portal && l.portal_listing_id && l.portal_listing_id === listing.portalListingId
+    (l) =>
+      l.portal === listing.portal &&
+      l.portal_listing_id &&
+      l.portal_listing_id === listing.portalListingId
   );
   const listingUrlNorm = normalizeUrl(listing.listingUrl);
   const byUrl = listingUrlNorm
@@ -221,7 +301,11 @@ export function matchListing(
       bucket: 'linked',
       propertyId: identity.property_id,
       confidence: 1,
-      reasons: [byId ? 'portal listing id already linked' : 'listing URL already linked'],
+      reasons: [
+        byId
+          ? 'portal listing id already linked'
+          : 'listing URL already linked',
+      ],
       candidates: [],
       batchGroup: null,
     };
@@ -237,15 +321,36 @@ export function matchListing(
     .slice(0, 3);
 
   if (scored.length === 0) {
-    return { bucket: 'new', propertyId: null, confidence: 0, reasons: ['no plausible match in inventory'], candidates: [], batchGroup: null };
+    return {
+      bucket: 'new',
+      propertyId: null,
+      confidence: 0,
+      reasons: ['no plausible match in inventory'],
+      candidates: [],
+      batchGroup: null,
+    };
   }
 
   const [best, second] = scored;
   const unambiguous = !second || best.score - second.score >= AMBIGUITY_GAP;
   if (best.score >= AUTO_MATCH_THRESHOLD && unambiguous) {
-    return { bucket: 'auto_matched', propertyId: best.propertyId, confidence: best.score, reasons: best.reasons, candidates: scored, batchGroup: null };
+    return {
+      bucket: 'auto_matched',
+      propertyId: best.propertyId,
+      confidence: best.score,
+      reasons: best.reasons,
+      candidates: scored,
+      batchGroup: null,
+    };
   }
-  return { bucket: 'review', propertyId: null, confidence: best.score, reasons: best.reasons, candidates: scored, batchGroup: null };
+  return {
+    bucket: 'review',
+    propertyId: null,
+    confidence: best.score,
+    reasons: best.reasons,
+    candidates: scored,
+    batchGroup: null,
+  };
 }
 
 /** Groups listings that describe the same physical property —
@@ -255,7 +360,8 @@ export function groupCrossPortalDuplicates(
   listings: Array<{ key: string; parsed: ParsedListing }>
 ): Map<string, string> {
   const groups = new Map<string, string>();
-  const assigned: Array<{ key: string; parsed: ParsedListing; group: string }> = [];
+  const assigned: Array<{ key: string; parsed: ParsedListing; group: string }> =
+    [];
 
   for (const item of listings) {
     let group: string | null = null;
@@ -265,7 +371,8 @@ export function groupCrossPortalDuplicates(
         break;
       }
     }
-    if (!group) group = `grp:${item.parsed.portal}:${item.parsed.portalListingId}`;
+    if (!group)
+      group = `grp:${item.parsed.portal}:${item.parsed.portalListingId}`;
     groups.set(item.key, group);
     assigned.push({ ...item, group });
   }
@@ -273,7 +380,8 @@ export function groupCrossPortalDuplicates(
 }
 
 function sameListing(a: ParsedListing, b: ParsedListing): boolean {
-  if (a.portal === b.portal && a.portalListingId === b.portalListingId) return true;
+  if (a.portal === b.portal && a.portalListingId === b.portalListingId)
+    return true;
   if (a.listingFor !== b.listingFor) return false;
 
   const catA = a.propertyType ? categoryForType(a.propertyType) : null;

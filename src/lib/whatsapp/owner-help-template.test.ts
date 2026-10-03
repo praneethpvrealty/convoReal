@@ -7,7 +7,18 @@ import {
 
 describe('isOwnerHelpCommand', () => {
   it('matches help words and greetings, case- and punctuation-insensitively', () => {
-    for (const t of ['help', 'HELP', 'Help!', 'menu', 'commands', 'start', 'hi', 'Hello.', 'hey', 'namaste']) {
+    for (const t of [
+      'help',
+      'HELP',
+      'Help!',
+      'menu',
+      'commands',
+      'start',
+      'hi',
+      'Hello.',
+      'hey',
+      'namaste',
+    ]) {
       expect(isOwnerHelpCommand(t)).toBe(true);
     }
   });
@@ -80,7 +91,9 @@ describe('buildOwnerFallbackMessage', () => {
   });
 
   it('quotes the transcript when the message was spoken', () => {
-    const spoken = buildOwnerFallbackMessage('Send Sharan the update on the meeting');
+    const spoken = buildOwnerFallbackMessage(
+      'Send Sharan the update on the meeting'
+    );
     expect(spoken).toContain('I heard:');
     expect(spoken).toContain('Send Sharan the update on the meeting');
     expect(spoken).toContain("couldn't tell what that was");

@@ -4,11 +4,17 @@ const h = vi.hoisted(() => ({
   state: {
     walletsByCode: {} as Record<string, { account_id: string }>,
     existingReferralByReferee: {} as Record<string, { id: string }>,
-    profilesByAccount: {} as Record<string, { phone: string | null; full_name?: string | null; user_id?: string }>,
+    profilesByAccount: {} as Record<
+      string,
+      { phone: string | null; full_name?: string | null; user_id?: string }
+    >,
     walletsByAccount: {} as Record<string, Record<string, unknown>>,
     insertedReferrals: [] as Record<string, unknown>[],
     rpcCalls: [] as { fn: string; args: Record<string, unknown> }[],
-    accountsWithReferredByCode: [] as { id: string; referred_by_code: string }[],
+    accountsWithReferredByCode: [] as {
+      id: string;
+      referred_by_code: string;
+    }[],
   },
 }));
 
@@ -16,7 +22,10 @@ vi.mock('@/lib/supabase/admin', () => {
   const { state } = h;
 
   function builder(table: string) {
-    const ops: { type: string; filters: [string, unknown][] } = { type: 'select', filters: [] };
+    const ops: { type: string; filters: [string, unknown][] } = {
+      type: 'select',
+      filters: [],
+    };
     const b: Record<string, unknown> = {
       select: () => b,
       eq: (col: string, val: unknown) => {
@@ -32,29 +41,49 @@ vi.mock('@/lib/supabase/admin', () => {
       update: () => ({ eq: () => Promise.resolve({ error: null }) }),
       maybeSingle: () => {
         if (table === 'credit_wallets') {
-          const code = ops.filters.find(([c]) => c === 'referral_code')?.[1] as string | undefined;
-          return Promise.resolve({ data: code ? state.walletsByCode[code] ?? null : null, error: null });
+          const code = ops.filters.find(([c]) => c === 'referral_code')?.[1] as
+            string | undefined;
+          return Promise.resolve({
+            data: code ? (state.walletsByCode[code] ?? null) : null,
+            error: null,
+          });
         }
         if (table === 'referrals') {
-          const referee = ops.filters.find(([c]) => c === 'referee_account_id')?.[1] as string | undefined;
-          return Promise.resolve({ data: (referee && state.existingReferralByReferee[referee]) ?? null, error: null });
+          const referee = ops.filters.find(
+            ([c]) => c === 'referee_account_id'
+          )?.[1] as string | undefined;
+          return Promise.resolve({
+            data: (referee && state.existingReferralByReferee[referee]) ?? null,
+            error: null,
+          });
         }
         if (table === 'profiles') {
-          const acct = ops.filters.find(([c]) => c === 'account_id')?.[1] as string | undefined;
-          return Promise.resolve({ data: (acct && state.profilesByAccount[acct]) ?? null, error: null });
+          const acct = ops.filters.find(([c]) => c === 'account_id')?.[1] as
+            string | undefined;
+          return Promise.resolve({
+            data: (acct && state.profilesByAccount[acct]) ?? null,
+            error: null,
+          });
         }
         return Promise.resolve({ data: null, error: null });
       },
       single: () => {
         if (table === 'credit_wallets') {
-          const acct = ops.filters.find(([c]) => c === 'account_id')?.[1] as string | undefined;
-          return Promise.resolve({ data: (acct && state.walletsByAccount[acct]) ?? null, error: null });
+          const acct = ops.filters.find(([c]) => c === 'account_id')?.[1] as
+            string | undefined;
+          return Promise.resolve({
+            data: (acct && state.walletsByAccount[acct]) ?? null,
+            error: null,
+          });
         }
         return Promise.resolve({ data: null, error: null });
       },
       then: (resolve: (v: { data: unknown; error: unknown }) => unknown) => {
         if (table === 'accounts') {
-          return Promise.resolve({ data: state.accountsWithReferredByCode, error: null }).then(resolve);
+          return Promise.resolve({
+            data: state.accountsWithReferredByCode,
+            error: null,
+          }).then(resolve);
         }
         return Promise.resolve({ data: null, error: null }).then(resolve);
       },
@@ -82,7 +111,11 @@ vi.mock('./notify', () => ({
   notifyReferrerPendingVoided: vi.fn(() => Promise.resolve()),
 }));
 
-const { processReferralSignup, payoutPassiveEarn, processUnclaimedReferralSignups } = await import('./referral');
+const {
+  processReferralSignup,
+  payoutPassiveEarn,
+  processUnclaimedReferralSignups,
+} = await import('./referral');
 
 describe('processReferralSignup', () => {
   beforeEach(() => {
@@ -126,11 +159,21 @@ describe('processReferralSignup', () => {
       referee_phone_verified: true,
     });
 
-    const refereeGrant = h.state.rpcCalls.find((c) => c.fn === 'grant_referral_credits_tx');
-    expect(refereeGrant?.args).toMatchObject({ p_account_id: 'referee-acct', p_amount: 200 });
+    const refereeGrant = h.state.rpcCalls.find(
+      (c) => c.fn === 'grant_referral_credits_tx'
+    );
+    expect(refereeGrant?.args).toMatchObject({
+      p_account_id: 'referee-acct',
+      p_amount: 200,
+    });
 
-    const referrerPending = h.state.rpcCalls.find((c) => c.fn === 'grant_pending_referral_tx');
-    expect(referrerPending?.args).toMatchObject({ p_account_id: 'referrer-acct', p_amount: 200 });
+    const referrerPending = h.state.rpcCalls.find(
+      (c) => c.fn === 'grant_pending_referral_tx'
+    );
+    expect(referrerPending?.args).toMatchObject({
+      p_account_id: 'referrer-acct',
+      p_amount: 200,
+    });
   });
 });
 
@@ -145,7 +188,9 @@ describe('processUnclaimedReferralSignups', () => {
   });
 
   it('processes an account with a captured referred_by_code and no existing referral row', async () => {
-    h.state.accountsWithReferredByCode = [{ id: 'referee-acct', referred_by_code: 'REF123' }];
+    h.state.accountsWithReferredByCode = [
+      { id: 'referee-acct', referred_by_code: 'REF123' },
+    ];
 
     const result = await processUnclaimedReferralSignups();
 
@@ -154,8 +199,12 @@ describe('processUnclaimedReferralSignups', () => {
   });
 
   it('skips accounts that already have a referrals row (idempotent)', async () => {
-    h.state.accountsWithReferredByCode = [{ id: 'referee-acct', referred_by_code: 'REF123' }];
-    h.state.existingReferralByReferee['referee-acct'] = { id: 'already-processed' };
+    h.state.accountsWithReferredByCode = [
+      { id: 'referee-acct', referred_by_code: 'REF123' },
+    ];
+    h.state.existingReferralByReferee['referee-acct'] = {
+      id: 'already-processed',
+    };
 
     const result = await processUnclaimedReferralSignups();
 
@@ -175,7 +224,9 @@ describe('payoutPassiveEarn', () => {
     h.state.walletsByAccount = { 'referrer-acct': { referral_tier: 'bronze' } };
   });
 
-  function baseReferral(overrides: Partial<Parameters<typeof payoutPassiveEarn>[0]> = {}) {
+  function baseReferral(
+    overrides: Partial<Parameters<typeof payoutPassiveEarn>[0]> = {}
+  ) {
     return {
       id: 'ref-1',
       referrer_account_id: 'referrer-acct',
@@ -194,37 +245,49 @@ describe('payoutPassiveEarn', () => {
   }
 
   it('is idempotent — refuses to pay once 12 months have already been paid', async () => {
-    const result = await payoutPassiveEarn(baseReferral({ passive_earn_months: 12 }));
+    const result = await payoutPassiveEarn(
+      baseReferral({ passive_earn_months: 12 })
+    );
     expect(result.paid).toBe(false);
     expect(h.state.rpcCalls).toHaveLength(0);
   });
 
   it('refuses to pay once the 12-month window has expired', async () => {
     const result = await payoutPassiveEarn(
-      baseReferral({ passive_earn_expires_at: '2020-01-01T00:00:00Z' }),
+      baseReferral({ passive_earn_expires_at: '2020-01-01T00:00:00Z' })
     );
     expect(result.paid).toBe(false);
     expect(h.state.rpcCalls).toHaveLength(0);
   });
 
   it('refuses to pay when the referee has no recognized plan', async () => {
-    const result = await payoutPassiveEarn(baseReferral({ referee_plan: null }));
+    const result = await payoutPassiveEarn(
+      baseReferral({ referee_plan: null })
+    );
     expect(result.paid).toBe(false);
   });
 
   it('pays 10% of the monthly grant for a Team-plan referee at bronze tier', async () => {
     const result = await payoutPassiveEarn(baseReferral());
     expect(result.paid).toBe(true);
-    const call = h.state.rpcCalls.find((c) => c.fn === 'grant_referral_credits_tx');
+    const call = h.state.rpcCalls.find(
+      (c) => c.fn === 'grant_referral_credits_tx'
+    );
     // Team monthly grant is 2000 -> 10% = 200, bronze multiplier = 1x
-    expect(call?.args).toMatchObject({ p_account_id: 'referrer-acct', p_amount: 200, p_type: 'referral_passive' });
+    expect(call?.args).toMatchObject({
+      p_account_id: 'referrer-acct',
+      p_amount: 200,
+      p_type: 'referral_passive',
+    });
   });
 
   it('applies the referrer tier multiplier to the passive payout', async () => {
     h.state.walletsByAccount['referrer-acct'] = { referral_tier: 'gold' };
     const result = await payoutPassiveEarn(baseReferral());
     expect(result.paid).toBe(true);
-    const call = h.state.rpcCalls.find((c) => c.fn === 'grant_referral_credits_tx');
+    const call = h.state.rpcCalls.find(
+      (c) => c.fn === 'grant_referral_credits_tx'
+    );
     // 2000 * 10% * 1.25 (gold) = 250
     expect(call?.args.p_amount).toBe(250);
   });

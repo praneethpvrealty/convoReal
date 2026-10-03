@@ -79,4 +79,3 @@ export async function writeJourneyEvent({
     error: error.message,
   };
 }
-

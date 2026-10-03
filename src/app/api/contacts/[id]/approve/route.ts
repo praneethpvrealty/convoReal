@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   buildInquiryDetailsMessage,
@@ -31,7 +35,10 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     const { id: contactId } = await params;
     const ctx = await requireRole('agent');
 
-    const limit = await checkRateLimit(`contact:approve:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const limit = await checkRateLimit(
+      `contact:approve:${ctx.userId}`,
+      RATE_LIMITS.adminAction
+    );
     if (!limit.success) return rateLimitResponse(limit);
 
     const { data: contact, error: contactErr } = await ctx.supabase
@@ -41,7 +48,8 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       .eq('account_id', ctx.accountId)
       .maybeSingle();
     if (contactErr) throw contactErr;
-    if (!contact) return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
+    if (!contact)
+      return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
 
     const { data: approved, error: updateErr } = await ctx.supabase
       .from('contacts')
@@ -58,7 +66,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       // would be worse than stopping here.
       return NextResponse.json(
         { error: 'You do not have permission to approve this contact.' },
-        { status: 403 },
+        { status: 403 }
       );
     }
 
@@ -70,19 +78,20 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     }
 
     // Independent of each other, so they overlap rather than queue.
-    const [{ data: property, error: propertyErr }, { data: settings }] = await Promise.all([
-      ctx.supabase
-        .from('properties')
-        .select('*')
-        .eq('id', propertyId)
-        .eq('account_id', ctx.accountId)
-        .maybeSingle(),
-      ctx.supabase
-        .from('showcase_settings')
-        .select('subdomain, currency')
-        .eq('account_id', ctx.accountId)
-        .maybeSingle(),
-    ]);
+    const [{ data: property, error: propertyErr }, { data: settings }] =
+      await Promise.all([
+        ctx.supabase
+          .from('properties')
+          .select('*')
+          .eq('id', propertyId)
+          .eq('account_id', ctx.accountId)
+          .maybeSingle(),
+        ctx.supabase
+          .from('showcase_settings')
+          .select('subdomain, currency')
+          .eq('account_id', ctx.accountId)
+          .maybeSingle(),
+      ]);
     if (propertyErr) throw propertyErr;
     if (!property) {
       // The inquiry points at a listing that no longer exists — the
@@ -94,7 +103,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     const base = showcaseBaseUrl(
       fallbackSiteUrl(),
       (settings?.subdomain as string | null) ?? null,
-      ctx.accountId,
+      ctx.accountId
     );
     const detailsMessage = buildInquiryDetailsMessage({
       property: typedProperty,
@@ -132,7 +141,9 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
         property: typedProperty,
         details_message: detailsMessage,
         conversation_id: outcome.conversationId,
-        ...(outcome.sent ? {} : { template_status: outcome.templateStatus ?? 'NONE' }),
+        ...(outcome.sent
+          ? {}
+          : { template_status: outcome.templateStatus ?? 'NONE' }),
         // A hard send failure is reported alongside the approval rather
         // than as a 5xx: the contact IS active now, and telling the
         // client "approve failed" would invite a retry that re-sends.

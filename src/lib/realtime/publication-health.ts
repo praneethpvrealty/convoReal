@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
  * The tables that must be members of the `supabase_realtime`
@@ -15,12 +15,12 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
  * rather than leaving a silent monitoring blind spot.
  */
 export const REALTIME_TABLES = [
-  "conversations",
-  "credit_wallets",
-  "flow_runs",
-  "message_reactions",
-  "messages",
-  "notifications",
+  'conversations',
+  'credit_wallets',
+  'flow_runs',
+  'message_reactions',
+  'messages',
+  'notifications',
 ] as const;
 
 export interface RealtimePublicationHealth {
@@ -30,7 +30,9 @@ export interface RealtimePublicationHealth {
 }
 
 export async function checkRealtimePublication(): Promise<RealtimePublicationHealth> {
-  const { data, error } = await supabaseAdmin().rpc("realtime_publication_tables");
+  const { data, error } = await supabaseAdmin().rpc(
+    'realtime_publication_tables'
+  );
   if (error) {
     throw new Error(`realtime_publication_tables failed: ${error.message}`);
   }

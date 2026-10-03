@@ -12,7 +12,9 @@ describe('mediaIdFromUrl', () => {
     expect(
       mediaIdFromUrl('https://xyz.supabase.co/storage/v1/object/public/x.jpg')
     ).toBeNull();
-    expect(mediaIdFromUrl('https://lookaside.fbsbx.com/whatsapp/123')).toBeNull();
+    expect(
+      mediaIdFromUrl('https://lookaside.fbsbx.com/whatsapp/123')
+    ).toBeNull();
     expect(mediaIdFromUrl(null)).toBeNull();
     expect(mediaIdFromUrl('')).toBeNull();
   });
@@ -49,10 +51,18 @@ describe('isReplayable', () => {
 
   it('refuses a message with nothing to re-read', () => {
     expect(
-      isReplayable({ content_type: 'text', content_text: '   ', media_url: null })
+      isReplayable({
+        content_type: 'text',
+        content_text: '   ',
+        media_url: null,
+      })
     ).toBe(false);
     expect(
-      isReplayable({ content_type: 'image', content_text: null, media_url: null })
+      isReplayable({
+        content_type: 'image',
+        content_text: null,
+        media_url: null,
+      })
     ).toBe(false);
   });
 
@@ -87,9 +97,9 @@ describe('replayText', () => {
   it('carries a correction typed on the reply', () => {
     // The whole reason both travel: the reply is where "but it is 1.2cr
     // now" arrives.
-    expect(replayText('3BHK in HSR, 1.4 Cr', "save it, but it's 1.2cr now")).toContain(
-      "1.2cr now"
-    );
+    expect(
+      replayText('3BHK in HSR, 1.4 Cr', "save it, but it's 1.2cr now")
+    ).toContain('1.2cr now');
   });
 
   it('is just the original when the reply carried no words', () => {

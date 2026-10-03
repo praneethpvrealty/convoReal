@@ -21,7 +21,9 @@ export async function GET() {
 
     const { data: config, error } = await ctx.supabase
       .from('whatsapp_config')
-      .select('phone_number_id, access_token, status, integration_type, sandbox_code')
+      .select(
+        'phone_number_id, access_token, status, integration_type, sandbox_code'
+      )
       .eq('account_id', ctx.accountId)
       .maybeSingle();
 
@@ -29,7 +31,8 @@ export async function GET() {
     if (!config || config.status !== 'connected') {
       return NextResponse.json(
         {
-          error: 'No WhatsApp number is connected yet. Connect one in Settings → WhatsApp.',
+          error:
+            'No WhatsApp number is connected yet. Connect one in Settings → WhatsApp.',
           code: 'NOT_CONNECTED',
         },
         { status: 409 }
@@ -42,13 +45,19 @@ export async function GET() {
         .select('value')
         .eq('key', 'sandbox_config')
         .maybeSingle();
-      const sandbox = (setting as { value?: Record<string, unknown> } | null)?.value;
+      const sandbox = (setting as { value?: Record<string, unknown> } | null)
+        ?.value;
       const phone =
-        sandbox?.enabled && sandbox?.phone_number_id ? String(sandbox.phone_number_id) : null;
+        sandbox?.enabled && sandbox?.phone_number_id
+          ? String(sandbox.phone_number_id)
+          : null;
 
       if (!phone) {
         return NextResponse.json(
-          { error: 'The shared sandbox number is not available right now.', code: 'NO_SANDBOX_NUMBER' },
+          {
+            error: 'The shared sandbox number is not available right now.',
+            code: 'NO_SANDBOX_NUMBER',
+          },
           { status: 409 }
         );
       }
@@ -64,7 +73,10 @@ export async function GET() {
 
     if (!config.access_token) {
       return NextResponse.json(
-        { error: 'The connected number has no saved access token.', code: 'NO_TOKEN' },
+        {
+          error: 'The connected number has no saved access token.',
+          code: 'NO_TOKEN',
+        },
         { status: 409 }
       );
     }
@@ -76,9 +88,15 @@ export async function GET() {
         accessToken: decrypt(config.access_token),
       });
     } catch (lookupErr) {
-      console.error('[GET /api/whatsapp/engine-number] Meta lookup failed:', lookupErr);
+      console.error(
+        '[GET /api/whatsapp/engine-number] Meta lookup failed:',
+        lookupErr
+      );
       return NextResponse.json(
-        { error: 'Could not read the connected number from Meta.', code: 'LOOKUP_FAILED' },
+        {
+          error: 'Could not read the connected number from Meta.',
+          code: 'LOOKUP_FAILED',
+        },
         { status: 502 }
       );
     }
@@ -86,7 +104,10 @@ export async function GET() {
     // verifyPhoneNumber falls back to the phone_number_id when Meta
     // withholds display_phone_number (test numbers), and that is an id,
     // not something anyone can message.
-    if (!info.display_phone_number || info.display_phone_number === config.phone_number_id) {
+    if (
+      !info.display_phone_number ||
+      info.display_phone_number === config.phone_number_id
+    ) {
       return NextResponse.json(
         {
           error: 'Meta does not expose a dialable number for this connection.',

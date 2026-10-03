@@ -15,15 +15,16 @@
 // changes a one-file diff.
 // ============================================================
 
-export type AccountRole = "owner" | "admin" | "coordinator" | "agent" | "viewer";
+export type AccountRole =
+  'owner' | 'admin' | 'coordinator' | 'agent' | 'viewer';
 
 /** Ordered list of every valid role, lowest privilege first. */
 export const ACCOUNT_ROLES: readonly AccountRole[] = [
-  "viewer",
-  "agent",
-  "coordinator",
-  "admin",
-  "owner",
+  'viewer',
+  'agent',
+  'coordinator',
+  'admin',
+  'owner',
 ] as const;
 
 /**
@@ -40,15 +41,15 @@ export const ACCOUNT_ROLES: readonly AccountRole[] = [
  */
 export function roleRank(role: AccountRole): number {
   switch (role) {
-    case "owner":
+    case 'owner':
       return 4;
-    case "admin":
+    case 'admin':
       return 3;
-    case "coordinator":
+    case 'coordinator':
       return 2;
-    case "agent":
+    case 'agent':
       return 2;
-    case "viewer":
+    case 'viewer':
       return 1;
   }
 }
@@ -64,7 +65,7 @@ export function hasMinRole(role: AccountRole, min: AccountRole): boolean {
 /** Type-narrow an unknown string into a valid `AccountRole`. */
 export function isAccountRole(value: unknown): value is AccountRole {
   return (
-    typeof value === "string" &&
+    typeof value === 'string' &&
     (ACCOUNT_ROLES as readonly string[]).includes(value)
   );
 }
@@ -79,7 +80,7 @@ export function isAccountRole(value: unknown): value is AccountRole {
 
 /** Owner / admin: invite, remove, change roles. */
 export function canManageMembers(role: AccountRole): boolean {
-  return hasMinRole(role, "admin");
+  return hasMinRole(role, 'admin');
 }
 
 /**
@@ -88,7 +89,7 @@ export function canManageMembers(role: AccountRole): boolean {
  * name). Excludes per-user settings like avatar or own password.
  */
 export function canEditSettings(role: AccountRole): boolean {
-  return hasMinRole(role, "admin");
+  return hasMinRole(role, 'admin');
 }
 
 /**
@@ -97,7 +98,7 @@ export function canEditSettings(role: AccountRole): boolean {
  * Viewers are read-only.
  */
 export function canSendMessages(role: AccountRole): boolean {
-  return hasMinRole(role, "agent");
+  return hasMinRole(role, 'agent');
 }
 
 /**
@@ -106,7 +107,7 @@ export function canSendMessages(role: AccountRole): boolean {
  * shows the "Read-only" tooltip without inverting `canSendMessages`).
  */
 export function canViewOnly(role: AccountRole): boolean {
-  return role === "viewer";
+  return role === 'viewer';
 }
 
 /**
@@ -116,17 +117,17 @@ export function canViewOnly(role: AccountRole): boolean {
  * `canViewExactLocation` (src/lib/inventory/location-guard.ts).
  */
 export function canViewGuardedLocation(role: AccountRole): boolean {
-  return hasMinRole(role, "admin");
+  return hasMinRole(role, 'admin');
 }
 
 /** Owner only: irreversible destructive operations. */
 export function canDeleteAccount(role: AccountRole): boolean {
-  return role === "owner";
+  return role === 'owner';
 }
 
 /** Owner only: hand the account to another member. */
 export function canTransferOwnership(role: AccountRole): boolean {
-  return role === "owner";
+  return role === 'owner';
 }
 
 // ============================================================
@@ -142,17 +143,14 @@ export function canTransferOwnership(role: AccountRole): boolean {
 // ============================================================
 
 export type OrgRole =
-  | "org_manager"
-  | "org_leader"
-  | "org_coordinator"
-  | "org_agent";
+  'org_manager' | 'org_leader' | 'org_coordinator' | 'org_agent';
 
 /** Ordered list of every valid org role, lowest privilege first. */
 export const ORG_ROLES: readonly OrgRole[] = [
-  "org_agent",
-  "org_coordinator",
-  "org_leader",
-  "org_manager",
+  'org_agent',
+  'org_coordinator',
+  'org_leader',
+  'org_manager',
 ] as const;
 
 /**
@@ -168,13 +166,13 @@ export const ORG_ROLES: readonly OrgRole[] = [
  */
 export function orgRoleRank(role: OrgRole): number {
   switch (role) {
-    case "org_manager":
+    case 'org_manager':
       return 4;
-    case "org_leader":
+    case 'org_leader':
       return 3;
-    case "org_coordinator":
+    case 'org_coordinator':
       return 2;
-    case "org_agent":
+    case 'org_agent':
       return 2;
   }
 }
@@ -191,6 +189,7 @@ export function hasMinOrgRole(role: OrgRole, min: OrgRole): boolean {
 /** Type-narrow an unknown string into a valid `OrgRole`. */
 export function isOrgRole(value: unknown): value is OrgRole {
   return (
-    typeof value === "string" && (ORG_ROLES as readonly string[]).includes(value)
+    typeof value === 'string' &&
+    (ORG_ROLES as readonly string[]).includes(value)
   );
 }

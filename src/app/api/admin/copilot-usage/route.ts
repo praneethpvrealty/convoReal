@@ -15,7 +15,6 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const WINDOW_DAYS = 30;
 
-
 export interface CopilotUsageRow {
   event: string;
   platform: string;

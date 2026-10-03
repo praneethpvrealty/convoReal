@@ -184,9 +184,7 @@ export function Step2SelectAudience({
       }
 
       if (baseIds) {
-        const effective = [...baseIds].filter(
-          (id) => !excludeSet?.has(id),
-        );
+        const effective = [...baseIds].filter((id) => !excludeSet?.has(id));
         setEstimatedCount(effective.length);
       } else {
         // "All" — fetch the total, then subtract exclude set if any.
@@ -194,7 +192,9 @@ export function Step2SelectAudience({
           .from('contacts')
           .select('*', { count: 'exact', head: true });
         const total = count ?? 0;
-        setEstimatedCount(excludeSet ? Math.max(0, total - excludeSet.size) : total);
+        setEstimatedCount(
+          excludeSet ? Math.max(0, total - excludeSet.size) : total
+        );
       }
     } finally {
       setLoadingCount(false);
@@ -238,7 +238,9 @@ export function Step2SelectAudience({
 
   const isValid =
     audience.type === 'all' ||
-    (audience.type === 'tags' && audience.tagIds && audience.tagIds.length > 0) ||
+    (audience.type === 'tags' &&
+      audience.tagIds &&
+      audience.tagIds.length > 0) ||
     (audience.type === 'custom_field' &&
       !!audience.customField?.fieldId &&
       audience.customField.value.length > 0) ||
@@ -279,7 +281,7 @@ export function Step2SelectAudience({
               }
               className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
                 isSelected
-                  ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
+                  ? 'border-primary bg-primary/5 ring-primary/30 ring-1'
                   : 'border-slate-800 bg-slate-900/50 hover:border-slate-700'
               }`}
             >
@@ -307,7 +309,7 @@ export function Step2SelectAudience({
         <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
           <p className="mb-3 text-sm font-medium text-white">Select Tags</p>
           {loadingTags ? (
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <Loader2 className="text-primary h-5 w-5 animate-spin" />
           ) : tags.length === 0 ? (
             <p className="text-xs text-slate-400">
               No tags found. Create tags in Settings.
@@ -343,7 +345,7 @@ export function Step2SelectAudience({
         <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
           <p className="text-sm font-medium text-white">Custom Field Filter</p>
           {loadingFields ? (
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <Loader2 className="text-primary h-5 w-5 animate-spin" />
           ) : customFields.length === 0 ? (
             <p className="text-xs text-slate-400">
               No custom fields defined. Create one in Settings → Custom Fields.
@@ -353,7 +355,7 @@ export function Step2SelectAudience({
               <select
                 value={audience.customField?.fieldId ?? ''}
                 onChange={(e) => updateCustomField({ fieldId: e.target.value })}
-                className="h-9 rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="focus:border-primary focus:ring-primary h-9 rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:ring-1"
               >
                 <option value="">Select field…</option>
                 {customFields.map((f) => (
@@ -369,7 +371,7 @@ export function Step2SelectAudience({
                     operator: e.target.value as CustomFieldOperator,
                   })
                 }
-                className="h-9 rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="focus:border-primary focus:ring-primary h-9 rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:ring-1"
               >
                 {OPERATOR_OPTIONS.map((op) => (
                   <option key={op.value} value={op.value}>
@@ -382,7 +384,7 @@ export function Step2SelectAudience({
                 value={audience.customField?.value ?? ''}
                 onChange={(e) => updateCustomField({ value: e.target.value })}
                 placeholder="Value"
-                className="h-9 rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-primary focus:ring-1 focus:ring-primary"
+                className="focus:border-primary focus:ring-primary h-9 rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:ring-1"
               />
             </div>
           )}
@@ -431,12 +433,12 @@ export function Step2SelectAudience({
         <p className="mb-2 text-sm font-medium text-white">Audience Summary</p>
         {loadingCount ? (
           <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <Loader2 className="text-primary h-4 w-4 animate-spin" />
             <span className="text-xs text-slate-400">Calculating…</span>
           </div>
         ) : estimatedCount !== null ? (
           <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" />
+            <Users className="text-primary h-4 w-4" />
             <span className="text-sm text-white">
               {estimatedCount.toLocaleString()}
             </span>

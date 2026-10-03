@@ -42,7 +42,8 @@ export const DEFAULT_IMAGE_CLEANUP_CONFIG: ImageCleanupConfig = {
 };
 
 export async function getImageCleanupConfig(): Promise<ImageCleanupConfig> {
-  const stored =
-    await getSystemSetting<Partial<ImageCleanupConfig>>('image_cleanup_config');
+  const stored = await getSystemSetting<Partial<ImageCleanupConfig>>(
+    'image_cleanup_config'
+  );
   return { ...DEFAULT_IMAGE_CLEANUP_CONFIG, ...(stored ?? {}) };
 }

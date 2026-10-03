@@ -21,14 +21,14 @@ A high uncached ratio is expected rather than suspicious: `next.config.ts` sets 
 
 ## Plan notes (Free)
 
-| Capability | Free plan |
-|---|---|
-| Cloudflare Rules | 70 |
-| WAF custom rules | 5 |
-| Bot Fight Mode | Available (on/off toggle, not customisable) |
-| DDoS protection | Unmetered, all plans |
-| Security Events retention | 24 hours, sampled |
-| Security Analytics retention | 7 days |
+| Capability                   | Free plan                                   |
+| ---------------------------- | ------------------------------------------- |
+| Cloudflare Rules             | 70                                          |
+| WAF custom rules             | 5                                           |
+| Bot Fight Mode               | Available (on/off toggle, not customisable) |
+| DDoS protection              | Unmetered, all plans                        |
+| Security Events retention    | 24 hours, sampled                           |
+| Security Analytics retention | 7 days                                      |
 
 Two of the five WAF rule slots are used below.
 
@@ -89,13 +89,13 @@ On older zones `ip.src.country` may appear as `ip.geoip.country`; both refer to 
 
 Each exempted path is a live integration whose traffic legitimately originates outside India. Removing any of them breaks a feature silently — the request is challenged, the caller is not a browser, and nothing surfaces an error.
 
-| Path | Why it must be exempt |
-|---|---|
-| `/api/whatsapp/webhook` | Meta posts from US IPs. Challenging it stops inbound messages reaching the shared inbox. Safe to exempt: `verifySignature()` already authenticates every payload with HMAC-SHA256. |
-| `/api/whatsapp/flows/endpoint/*` | Meta calls this without a browser session, using its own RSA-OAEP + AES-GCM handshake. `AGENTS.md` already flags the same carve-out for `proxy.ts`. |
-| `/api/cron/*`, `/api/appointments/cron` | Vercel crons fire from US regions. Already gated by `CRON_SECRET` / `AUTOMATION_CRON_SECRET`. |
-| `/api/webhooks/*` | Stripe posts from the US. |
-| `/.well-known/*` | Apple and Google fetch the app-link association files from US infrastructure. |
+| Path                                    | Why it must be exempt                                                                                                                                                              |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/whatsapp/webhook`                 | Meta posts from US IPs. Challenging it stops inbound messages reaching the shared inbox. Safe to exempt: `verifySignature()` already authenticates every payload with HMAC-SHA256. |
+| `/api/whatsapp/flows/endpoint/*`        | Meta calls this without a browser session, using its own RSA-OAEP + AES-GCM handshake. `AGENTS.md` already flags the same carve-out for `proxy.ts`.                                |
+| `/api/cron/*`, `/api/appointments/cron` | Vercel crons fire from US regions. Already gated by `CRON_SECRET` / `AUTOMATION_CRON_SECRET`.                                                                                      |
+| `/api/webhooks/*`                       | Stripe posts from the US.                                                                                                                                                          |
+| `/.well-known/*`                        | Apple and Google fetch the app-link association files from US infrastructure.                                                                                                      |
 
 ### The `cf.client.bot` decision
 

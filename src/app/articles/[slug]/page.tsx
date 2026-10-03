@@ -105,26 +105,33 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
           ← Back to Showcase
         </Link>
         <p className="mt-10 text-sm font-medium tracking-wider text-blue-700 uppercase">
-          {businessName} • {new Date(article.published_at || article.updated_at).toLocaleDateString()}
+          {businessName} •{' '}
+          {new Date(
+            article.published_at || article.updated_at
+          ).toLocaleDateString()}
         </p>
         <h1 className="mt-3 text-4xl font-bold tracking-tight md:text-5xl">
           {article.title}
         </h1>
-        
+
         {article.image_url && (
           <div className="mt-10 overflow-hidden rounded-2xl bg-slate-200">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img 
-              src={article.image_url} 
+            <img
+              src={article.image_url}
               alt={article.title}
-              className="w-full h-auto max-h-[500px] object-cover"
+              className="h-auto max-h-[500px] w-full object-cover"
             />
           </div>
         )}
 
         {article.content && (
-          <article className="mt-12 rounded-2xl border bg-white p-7 prose prose-slate max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: article.content.replace(/\n/g, '<br />') }} />
+          <article className="prose prose-slate mt-12 max-w-none rounded-2xl border bg-white p-7">
+            <div
+              dangerouslySetInnerHTML={{
+                __html: article.content.replace(/\n/g, '<br />'),
+              }}
+            />
           </article>
         )}
       </div>

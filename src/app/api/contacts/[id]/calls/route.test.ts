@@ -30,7 +30,10 @@ function makeDb() {
           updates.push({ table, row });
           return builder;
         },
-        single: () => Promise.resolve((queues[table] ?? []).shift() ?? { data: null, error: null }),
+        single: () =>
+          Promise.resolve(
+            (queues[table] ?? []).shift() ?? { data: null, error: null }
+          ),
         then: (resolve: unknown, reject: unknown) =>
           Promise.resolve({ data: null, error: null }).then(
             resolve as (v: unknown) => unknown,
@@ -49,7 +52,10 @@ vi.mock('@/lib/auth/account', () => ({
     userId: 'user-1',
   }),
   toErrorResponse: (err: unknown) =>
-    Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 }),
+    Response.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    ),
 }));
 
 import { POST } from './route';
@@ -74,7 +80,9 @@ describe('POST /api/contacts/[id]/calls', () => {
     queues['contacts'] = [{ data: { id: 'c-1', last_contacted_at: null } }];
     queues['contact_call_logs'] = [{ data: { id: 'call-1' } }];
 
-    const res = await POST(makeRequest({ outcome: 'connected' }) as never, { params });
+    const res = await POST(makeRequest({ outcome: 'connected' }) as never, {
+      params,
+    });
     expect(res.status).toBe(201);
     expect(inserts).toHaveLength(1);
     expect(updates).toHaveLength(1);
@@ -105,7 +113,10 @@ describe('POST /api/contacts/[id]/calls', () => {
     queues['contact_call_logs'] = [{ data: { id: 'call-1' } }];
 
     const res = await POST(
-      makeRequest({ outcome: 'connected', called_at: '2026-01-01T00:00:00.000Z' }) as never,
+      makeRequest({
+        outcome: 'connected',
+        called_at: '2026-01-01T00:00:00.000Z',
+      }) as never,
       { params }
     );
     expect(res.status).toBe(201);
@@ -114,7 +125,9 @@ describe('POST /api/contacts/[id]/calls', () => {
   });
 
   it('rejects an unknown outcome before touching the database', async () => {
-    const res = await POST(makeRequest({ outcome: 'ghosted' }) as never, { params });
+    const res = await POST(makeRequest({ outcome: 'ghosted' }) as never, {
+      params,
+    });
     expect(res.status).toBe(400);
     expect(inserts).toHaveLength(0);
     expect(updates).toHaveLength(0);

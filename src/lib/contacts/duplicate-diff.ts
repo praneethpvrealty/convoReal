@@ -53,7 +53,8 @@ function formatBudget(value: number): string {
 function display(key: keyof ComparableContact, value: unknown): string {
   if (value === null || value === undefined || value === '') return '';
   if (Array.isArray(value)) return value.length ? value.join(', ') : '';
-  if (key === 'min_budget' || key === 'max_budget') return formatBudget(Number(value));
+  if (key === 'min_budget' || key === 'max_budget')
+    return formatBudget(Number(value));
   if (key === 'last_contacted_at') {
     return new Date(String(value)).toLocaleDateString('en-IN');
   }

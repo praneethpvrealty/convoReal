@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Drop-in journey for other pages (agent directory tab, future
@@ -7,19 +7,19 @@
  * view" link to the /journey page.
  */
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Expand } from "lucide-react";
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Expand } from 'lucide-react';
 
-import { dealsHref } from "@/lib/deals/routes";
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { useCan } from "@/hooks/use-can";
-import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
-import type { JourneyStage } from "@/types";
-import { ensureJourneyStages } from "@/lib/journey/capture";
-import { JourneySection } from "./journey-section";
-import type { JourneyMode } from "./shared";
+import { dealsHref } from '@/lib/deals/routes';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import { useCan } from '@/hooks/use-can';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import type { JourneyStage } from '@/types';
+import { ensureJourneyStages } from '@/lib/journey/capture';
+import { JourneySection } from './journey-section';
+import type { JourneyMode } from './shared';
 
 export function JourneyEmbed({
   mode,
@@ -30,10 +30,10 @@ export function JourneyEmbed({
 }) {
   const supabase = createClient();
   const { accountId } = useAuth();
-  const canEdit = useCan("send-messages");
+  const canEdit = useCan('send-messages');
 
   const [stages, setStages] = useState<JourneyStage[]>([]);
-  const [currency, setCurrency] = useState("INR");
+  const [currency, setCurrency] = useState('INR');
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -43,9 +43,9 @@ export function JourneyEmbed({
       const [stageList, cur] = await Promise.all([
         ensureJourneyStages(accountId),
         supabase
-          .from("showcase_settings")
-          .select("currency")
-          .eq("account_id", accountId)
+          .from('showcase_settings')
+          .select('currency')
+          .eq('account_id', accountId)
           .maybeSingle(),
       ]);
       if (cancelled) return;
@@ -67,7 +67,7 @@ export function JourneyEmbed({
   }
 
   const fullHref =
-    mode === "buyer"
+    mode === 'buyer'
       ? dealsHref('journey', { contact: subjectId })
       : dealsHref('journey', { property: subjectId });
 

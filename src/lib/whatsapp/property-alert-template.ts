@@ -8,8 +8,15 @@
 
 import type { Property } from '@/types';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
-import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
-import { templateBody, templateButtonLabel } from '@/lib/whatsapp/template-copy';
+import {
+  DEFAULT_LANGUAGE,
+  metaLanguageCode,
+  type LanguageCode,
+} from '@/lib/languages';
+import {
+  templateBody,
+  templateButtonLabel,
+} from '@/lib/whatsapp/template-copy';
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
@@ -76,7 +83,7 @@ export function pickPropertyAlertTemplate<T extends ApprovedTemplateCandidate>(
 
 export function buildPropertyAlertTemplatePayload(
   origin: string,
-  language: LanguageCode = DEFAULT_LANGUAGE,
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): TemplatePayload {
   return {
     name: PROPERTY_ALERT_TEMPLATE_NAME,
@@ -96,7 +103,10 @@ export function buildPropertyAlertTemplatePayload(
       // Quick reply first (Meta rule). A tap opens the 24h window, so
       // the follow-up conversation continues free-form in the Engine
       // Inbox; the URL carries the requested listing details.
-      { type: 'QUICK_REPLY', text: templateButtonLabel('send_more_details', language) },
+      {
+        type: 'QUICK_REPLY',
+        text: templateButtonLabel('send_more_details', language),
+      },
       {
         type: 'URL',
         text: templateButtonLabel('view_full_details', language),
@@ -126,9 +136,13 @@ function specsSegment(p: Property): string {
     if (price) bits.push(price);
   }
   if (p.land_area && p.land_area > 0) {
-    bits.push(`${p.land_area.toLocaleString('en-IN')} ${p.land_area_unit || 'Sq.Ft.'}`);
+    bits.push(
+      `${p.land_area.toLocaleString('en-IN')} ${p.land_area_unit || 'Sq.Ft.'}`
+    );
   } else if (p.area_sqft && p.area_sqft > 0) {
-    bits.push(`${p.area_sqft.toLocaleString('en-IN')} ${p.area_unit || 'Sq.Ft.'}`);
+    bits.push(
+      `${p.area_sqft.toLocaleString('en-IN')} ${p.area_unit || 'Sq.Ft.'}`
+    );
   }
   if (p.bedrooms && p.bedrooms > 0) bits.push(`${p.bedrooms} BHK`);
   return bits.join(' · ');
@@ -147,15 +161,23 @@ function specsSegment(p: Property): string {
 export function buildPropertyAlertParams(
   contactName: string | null | undefined,
   property: Property,
-  brandName?: string | null,
-): [name: string, brand: string, title: string, specs: string, location: string] {
+  brandName?: string | null
+): [
+  name: string,
+  brand: string,
+  title: string,
+  specs: string,
+  location: string,
+] {
   // A lead filed under "Housing Lead" would be greeted "Hi Housing," —
   // the placeholder is a filing name, never a form of address.
   const firstName = isPlaceholderLeadName(contactName)
     ? 'there'
     : contactName!.trim().split(/\s+/)[0];
   const location =
-    [property.sublocality?.trim(), property.city?.trim()].filter(Boolean).join(', ') ||
+    [property.sublocality?.trim(), property.city?.trim()]
+      .filter(Boolean)
+      .join(', ') ||
     property.location?.trim() ||
     'Location shared on request';
   return [

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Journey — page container and router.
@@ -17,8 +17,8 @@
  * per-journey lives in JourneySection.
  */
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -26,30 +26,27 @@ import {
   ChevronDown,
   UserRound,
   Waypoints,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { useCan } from "@/hooks/use-can";
-import { Button } from "@/components/ui/button";
-import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import { useCan } from '@/hooks/use-can';
+import { Button } from '@/components/ui/button';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { FavoriteButton } from "@/components/layout/favorite-button";
-import { dealsHref } from "@/lib/deals/routes";
-import { pushUrl } from "@/lib/navigation";
-import type { JourneyStage } from "@/types";
-import { ensureJourneyStages } from "@/lib/journey/capture";
-import { JourneySection } from "@/components/journey/journey-section";
-import { JourneyOverview } from "@/components/journey/journey-overview";
-import {
-  navigateJourney,
-  type JourneyMode,
-} from "@/components/journey/shared";
+} from '@/components/ui/dropdown-menu';
+import { FavoriteButton } from '@/components/layout/favorite-button';
+import { dealsHref } from '@/lib/deals/routes';
+import { pushUrl } from '@/lib/navigation';
+import type { JourneyStage } from '@/types';
+import { ensureJourneyStages } from '@/lib/journey/capture';
+import { JourneySection } from '@/components/journey/journey-section';
+import { JourneyOverview } from '@/components/journey/journey-overview';
+import { navigateJourney, type JourneyMode } from '@/components/journey/shared';
 
 export default function JourneyPage({
   embedded = false,
@@ -60,31 +57,30 @@ export default function JourneyPage({
   const searchParams = useSearchParams();
   const router = useRouter();
   const { accountId } = useAuth();
-  const canEdit = useCan("send-messages");
+  const canEdit = useCan('send-messages');
 
   // Focused subject (deep link) — absent on the overview.
-  const contactParam = searchParams.get("contact");
-  const propertyParam = searchParams.get("property");
+  const contactParam = searchParams.get('contact');
+  const propertyParam = searchParams.get('property');
   const subjectId = propertyParam ?? contactParam;
-  const focusedMode: JourneyMode = propertyParam ? "property" : "buyer";
+  const focusedMode: JourneyMode = propertyParam ? 'property' : 'buyer';
 
   // Overview tab — ?journeys=properties flips to property journeys.
   const overviewMode: JourneyMode =
-    searchParams.get("journeys") === "properties" ? "property" : "buyer";
+    searchParams.get('journeys') === 'properties' ? 'property' : 'buyer';
 
   const [stages, setStages] = useState<JourneyStage[]>([]);
   const [stagesLoading, setStagesLoading] = useState(true);
-  const [currency, setCurrency] = useState("INR");
-
+  const [currency, setCurrency] = useState('INR');
 
   useEffect(() => {
     if (!accountId) return;
     let cancelled = false;
     (async () => {
       const { data } = await supabase
-        .from("showcase_settings")
-        .select("currency")
-        .eq("account_id", accountId)
+        .from('showcase_settings')
+        .select('currency')
+        .eq('account_id', accountId)
         .maybeSingle();
       if (!cancelled && data?.currency) setCurrency(data.currency);
     })();
@@ -124,13 +120,13 @@ export default function JourneyPage({
         <div>
           {!embedded && (
             <h1 className="flex items-center gap-2.5 text-3xl font-extrabold tracking-tight">
-              <Waypoints className="h-7 w-7 text-primary" />
+              <Waypoints className="text-primary h-7 w-7" />
               <span className="bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
                 Journey
               </span>
               <FavoriteButton
                 label="Journey"
-                href={dealsHref("journey")}
+                href={dealsHref('journey')}
                 icon="Waypoints"
               />
             </h1>
@@ -139,7 +135,7 @@ export default function JourneyPage({
             <p className="mt-1 text-sm text-slate-400">
               {subjectId
                 ? "One relationship's full funnel — where it stands, and where the rest fell off."
-                : overviewMode === "buyer"
+                : overviewMode === 'buyer'
                   ? "Every buyer's funnel in one place — expand a journey to work it inline."
                   : "Every property's funnel in one place — who's still in the race for each listing."}
             </p>
@@ -153,9 +149,9 @@ export default function JourneyPage({
               size="sm"
               onClick={() =>
                 navigateJourney(
-                  focusedMode === "property"
-                    ? dealsHref("journey", { journeys: "properties" })
-                    : dealsHref("journey"),
+                  focusedMode === 'property'
+                    ? dealsHref('journey', { journeys: 'properties' })
+                    : dealsHref('journey')
                 )
               }
             >
@@ -165,17 +161,22 @@ export default function JourneyPage({
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger className="inline-flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-100 transition-colors hover:bg-slate-800">
-                {overviewMode === "buyer" ? (
-                  <UserRound className="h-3.5 w-3.5 text-primary" />
+                {overviewMode === 'buyer' ? (
+                  <UserRound className="text-primary h-3.5 w-3.5" />
                 ) : (
-                  <Building2 className="h-3.5 w-3.5 text-primary" />
+                  <Building2 className="text-primary h-3.5 w-3.5" />
                 )}
-                {overviewMode === "buyer" ? "Buyer journeys" : "Property journeys"}
+                {overviewMode === 'buyer'
+                  ? 'Buyer journeys'
+                  : 'Property journeys'}
                 <ChevronDown className="h-3 w-3 text-slate-400" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="border-slate-700 bg-slate-900">
+              <DropdownMenuContent
+                align="end"
+                className="border-slate-700 bg-slate-900"
+              >
                 <DropdownMenuItem
-                  onClick={() => navigateJourney(dealsHref("journey"))}
+                  onClick={() => navigateJourney(dealsHref('journey'))}
                 >
                   <UserRound className="h-3.5 w-3.5" />
                   Buyer journeys
@@ -183,7 +184,7 @@ export default function JourneyPage({
                 <DropdownMenuItem
                   onClick={() =>
                     navigateJourney(
-                      dealsHref("journey", { journeys: "properties" }),
+                      dealsHref('journey', { journeys: 'properties' })
                     )
                   }
                 >
@@ -199,7 +200,7 @@ export default function JourneyPage({
               size="sm"
               title="Journey stages mirror the Board's pipeline stages; edit them there"
               onClick={() =>
-                pushUrl(router, dealsHref("board", { settings: "1" }))
+                pushUrl(router, dealsHref('board', { settings: '1' }))
               }
             >
               Edit stages on the Board

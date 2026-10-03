@@ -19,11 +19,7 @@ export function isUpdateChannel(v: unknown): v is UpdateChannel {
 }
 
 export type AnnouncementDelivery =
-  | 'audio'
-  | 'text'
-  | 'video_template'
-  | 'skipped_voice_pref'
-  | 'skipped_window';
+  'audio' | 'text' | 'video_template' | 'skipped_voice_pref' | 'skipped_window';
 
 /**
  * How one recipient receives an announcement. An explicit contact

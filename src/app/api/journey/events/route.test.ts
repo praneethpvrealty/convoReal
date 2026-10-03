@@ -22,7 +22,10 @@ const USER_ID = 'user-1';
 function makeDb() {
   return {
     from(table: string) {
-      const response = (queues[table] ?? []).shift() ?? { data: null, error: null };
+      const response = (queues[table] ?? []).shift() ?? {
+        data: null,
+        error: null,
+      };
       const builder: { [k: string]: (...args: unknown[]) => unknown } = {
         select: () => builder,
         eq: () => builder,
@@ -41,8 +44,7 @@ vi.mock('@/lib/auth/account', () => ({
     accountId: ACCOUNT_ID,
     userId: USER_ID,
   }),
-  toErrorResponse: () =>
-    Response.json({ error: 'forbidden' }, { status: 403 }),
+  toErrorResponse: () => Response.json({ error: 'forbidden' }, { status: 403 }),
 }));
 
 vi.mock('@/lib/journey/events', () => ({
@@ -51,7 +53,11 @@ vi.mock('@/lib/journey/events', () => ({
 
 const { POST } = await import('./route');
 
-function post(body: { item_id: string; message: string; source: 'web' | 'mobile' }) {
+function post(body: {
+  item_id: string;
+  message: string;
+  source: 'web' | 'mobile';
+}) {
   return POST(
     new Request('http://localhost/api/journey/events', {
       method: 'POST',

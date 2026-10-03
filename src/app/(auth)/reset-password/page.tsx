@@ -81,7 +81,8 @@ export default function ResetPasswordPage() {
             </div>
             <CardTitle className="text-xl text-white">Invalid Link</CardTitle>
             <CardDescription className="text-slate-400">
-              This password reset link is invalid or has expired. Please request a new one.
+              This password reset link is invalid or has expired. Please request
+              a new one.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center">
@@ -106,9 +107,12 @@ export default function ResetPasswordPage() {
             <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10">
               <CheckCircle className="h-6 w-6 text-green-500" />
             </div>
-            <CardTitle className="text-xl text-white">Password Updated</CardTitle>
+            <CardTitle className="text-xl text-white">
+              Password Updated
+            </CardTitle>
             <CardDescription className="text-slate-400">
-              Your password has been changed successfully. You will be redirected to the login page.
+              Your password has been changed successfully. You will be
+              redirected to the login page.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -120,10 +124,12 @@ export default function ResetPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
       <Card className="w-full max-w-md border-slate-800 bg-slate-900">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Lock className="h-6 w-6 text-primary" />
+          <div className="bg-primary/10 mb-2 flex h-12 w-12 items-center justify-center rounded-xl">
+            <Lock className="text-primary h-6 w-6" />
           </div>
-          <CardTitle className="text-xl text-white">Choose New Password</CardTitle>
+          <CardTitle className="text-xl text-white">
+            Choose New Password
+          </CardTitle>
           <CardDescription className="text-slate-400">
             Enter your new secure password below to regain full access
           </CardDescription>
@@ -132,7 +138,7 @@ export default function ResetPasswordPage() {
           <form onSubmit={handleUpdatePassword} className="flex flex-col gap-4">
             {error && (
               <div className="flex items-start gap-2.5 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{error}</span>
               </div>
             )}
@@ -148,7 +154,7 @@ export default function ResetPasswordPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
+                className="focus-visible:border-primary focus-visible:ring-primary/20 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
 
@@ -163,14 +169,14 @@ export default function ResetPasswordPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
+                className="focus-visible:border-primary focus-visible:ring-primary/20 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
 
             <Button
               type="submit"
               disabled={loading}
-              className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2 h-10 w-full disabled:opacity-50"
             >
               {loading ? 'Updating...' : 'Update Password'}
             </Button>

@@ -10,38 +10,38 @@
 //      still shows the event, we just don't have a channel to push
 // ============================================================
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { MessageTemplate } from "@/types";
-import { sendWhatsAppMessageAndPersist } from "@/lib/whatsapp/meta-api-dispatcher";
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { MessageTemplate } from '@/types';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import {
   narrowToLanguage,
   resolveSendLanguage,
   isLanguageFallback,
   warnLanguageFallback,
-} from "@/lib/whatsapp/template-language";
-import type { LanguageCode } from "@/lib/languages";
+} from '@/lib/whatsapp/template-language';
+import type { LanguageCode } from '@/lib/languages';
 
 export const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export async function isSessionOpen(
   db: SupabaseClient,
   accountId: string,
-  contactId: string,
+  contactId: string
 ): Promise<boolean> {
   const { data: conv } = await db
-    .from("conversations")
-    .select("id")
-    .eq("account_id", accountId)
-    .eq("contact_id", contactId)
+    .from('conversations')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
     .maybeSingle();
   if (!conv) return false;
   const since = new Date(Date.now() - SESSION_WINDOW_MS).toISOString();
   const { count } = await db
-    .from("messages")
-    .select("id", { count: "exact", head: true })
-    .eq("conversation_id", conv.id)
-    .eq("sender_type", "customer")
-    .gte("created_at", since);
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('conversation_id', conv.id)
+    .eq('sender_type', 'customer')
+    .gte('created_at', since);
   return (count ?? 0) > 0;
 }
 
@@ -65,20 +65,20 @@ export async function approvedTemplate(
    * text, Utility over Marketing) still applies — within their
    * language. Omit and this behaves exactly as it always did.
    */
-  language?: LanguageCode,
+  language?: LanguageCode
 ): Promise<MessageTemplate | null> {
   const names = Array.isArray(templateName) ? templateName : [templateName];
   const { data: rows } = await db
-    .from("message_templates")
-    .select("*")
-    .eq("account_id", accountId)
-    .in("name", names)
-    .order("last_submitted_at", { ascending: false });
+    .from('message_templates')
+    .select('*')
+    .eq('account_id', accountId)
+    .in('name', names)
+    .order('last_submitted_at', { ascending: false });
   const all = (rows || []) as MessageTemplate[];
   const templates = language ? narrowToLanguage(all, language) : all;
   if (pick) return pick(templates);
   const template = templates[0] ?? null;
-  return template?.status === "APPROVED" ? template : null;
+  return template?.status === 'APPROVED' ? template : null;
 }
 
 /**
@@ -105,11 +105,13 @@ export async function sendDenNotification(
      *  the button's index — same reason buildParams exists over a
      *  fixed array: the button's index depends on which template
      *  `pickTemplate` lands on. */
-    buildButtonParams?: (template: MessageTemplate) => Record<number, string> | undefined;
+    buildButtonParams?: (
+      template: MessageTemplate
+    ) => Record<number, string> | undefined;
     /** Media-header image, resolved to a URL Meta can fetch. Ignored by
      *  a template with a text header, so callers can pass it blind. */
     headerMediaUrl?: string | null;
-  },
+  }
 ): Promise<boolean> {
   try {
     const open = await isSessionOpen(db, args.accountId, args.contactId);
@@ -117,8 +119,8 @@ export async function sendDenNotification(
       const res = await sendWhatsAppMessageAndPersist({
         accountId: args.accountId,
         contactId: args.contactId,
-        kind: "text",
-        senderType: "bot",
+        kind: 'text',
+        senderType: 'bot',
         text: args.text,
       });
       return res.success;
@@ -132,18 +134,18 @@ export async function sendDenNotification(
     const language = await resolveSendLanguage(
       db,
       args.accountId,
-      args.contactId ?? null,
+      args.contactId ?? null
     );
     const template = await approvedTemplate(
       db,
       args.accountId,
       args.templateName,
       args.pickTemplate,
-      language,
+      language
     );
     if (!template) return false;
     if (isLanguageFallback(template, language)) {
-      warnLanguageFallback("den-notify", args.accountId, language, template);
+      warnLanguageFallback('den-notify', args.accountId, language, template);
     }
     const params = args.buildParams
       ? args.buildParams(template)
@@ -153,14 +155,16 @@ export async function sendDenNotification(
     const res = await sendWhatsAppMessageAndPersist({
       accountId: args.accountId,
       contactId: args.contactId,
-      kind: "template",
-      senderType: "bot",
+      kind: 'template',
+      senderType: 'bot',
       templateName: template.name,
-      templateLanguage: template.language || "en_US",
+      templateLanguage: template.language || 'en_US',
       templateParams: params,
       messageParams: {
         body: params,
-        ...(buttonParams && Object.keys(buttonParams).length > 0 ? { buttonParams } : {}),
+        ...(buttonParams && Object.keys(buttonParams).length > 0
+          ? { buttonParams }
+          : {}),
         ...(args.headerMediaUrl ? { headerMediaUrl: args.headerMediaUrl } : {}),
       },
       templateRow: template,
@@ -168,7 +172,7 @@ export async function sendDenNotification(
     });
     return res.success;
   } catch (err) {
-    console.error("[den-notify] send failed (non-fatal):", err);
+    console.error('[den-notify] send failed (non-fatal):', err);
     return false;
   }
 }

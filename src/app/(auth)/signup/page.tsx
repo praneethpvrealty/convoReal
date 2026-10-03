@@ -1,27 +1,27 @@
-"use client";
+'use client';
 
-import { Suspense, useEffect, useState } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { recordSignupAttempt, signupGate } from "@/lib/auth/signup-attempt";
+import { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { recordSignupAttempt, signupGate } from '@/lib/auth/signup-attempt';
 import {
   fetchSignupRefusalReason,
   isOpaqueSignupError,
   signupRefusalMessage,
-} from "@/lib/auth/signup-eligibility";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from '@/lib/auth/signup-eligibility';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { MessageSquare, CheckCircle, UsersRound } from "lucide-react";
-import { WaitlistForm } from "@/components/beta/waitlist-form";
+} from '@/components/ui/card';
+import { MessageSquare, CheckCircle, UsersRound } from 'lucide-react';
+import { WaitlistForm } from '@/components/beta/waitlist-form';
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -40,7 +40,7 @@ function SignupPageInner() {
   // verification → redirect round-trip. `emailRedirectTo` below
   // points back at /join/<token> so the user lands on the redeem
   // step after verifying instead of being dropped on /dashboard.
-  const inviteToken = searchParams.get("invite");
+  const inviteToken = searchParams.get('invite');
   // Referral code from a shared `?ref=CODE` link (see /join route
   // collision note — referral codes use `?ref=` on /signup rather
   // than reusing the /join/[token] path, which is team-invite only).
@@ -48,19 +48,19 @@ function SignupPageInner() {
   // (migration 088); a reconciliation cron later turns this into a
   // `referrals` row via processReferralSignup(), since there's no
   // active session yet to call an authed API route from here.
-  const referredByCode = searchParams.get("ref");
+  const referredByCode = searchParams.get('ref');
   // Beta invite token from /i/<token> → "Claim my seat". Distinct
   // from `invite` above, which is a TEAM invite: that one adds you to
   // someone's existing account, this one authorizes creating your own.
   // Both are passed to signUp() as metadata and validated by
   // handle_new_user() (migration 189) — the UI check below is a
   // courtesy, the trigger is the actual gate.
-  const betaToken = searchParams.get("beta");
+  const betaToken = searchParams.get('beta');
 
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -77,7 +77,7 @@ function SignupPageInner() {
   // without ever submitting anything. Re-runs when the gate changes so
   // tapping the escape hatch reads as reaching the form.
   useEffect(() => {
-    recordSignupAttempt({ stage: "landed", gate });
+    recordSignupAttempt({ stage: 'landed', gate });
   }, [gate]);
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -85,29 +85,29 @@ function SignupPageInner() {
     setError(null);
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError('Passwords do not match');
       recordSignupAttempt({
-        stage: "failed",
+        stage: 'failed',
         gate,
         email,
-        errorMessage: "Passwords do not match",
+        errorMessage: 'Passwords do not match',
       });
       return;
     }
 
     if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+      setError('Password must be at least 6 characters');
       recordSignupAttempt({
-        stage: "failed",
+        stage: 'failed',
         gate,
         email,
-        errorMessage: "Password must be at least 6 characters",
+        errorMessage: 'Password must be at least 6 characters',
       });
       return;
     }
 
     setLoading(true);
-    recordSignupAttempt({ stage: "submitted", gate, email });
+    recordSignupAttempt({ stage: 'submitted', gate, email });
 
     // If we have an invite token, point Supabase's verification
     // email back at the join page so the user can accept after
@@ -140,12 +140,15 @@ function SignupPageInner() {
       // told their link expired rather than that the database broke.
       const message = isOpaqueSignupError(error.message)
         ? signupRefusalMessage(
-            await fetchSignupRefusalReason({ betaToken, teamToken: inviteToken })
+            await fetchSignupRefusalReason({
+              betaToken,
+              teamToken: inviteToken,
+            })
           )
         : error.message;
       setError(message);
       recordSignupAttempt({
-        stage: "failed",
+        stage: 'failed',
         gate,
         email,
         errorMessage: message,
@@ -154,7 +157,7 @@ function SignupPageInner() {
       return;
     }
 
-    recordSignupAttempt({ stage: "succeeded", gate, email });
+    recordSignupAttempt({ stage: 'succeeded', gate, email });
     setSuccess(true);
     setLoading(false);
   };
@@ -168,24 +171,27 @@ function SignupPageInner() {
       <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
         <Card className="w-full max-w-md border-slate-800 bg-slate-900">
           <CardHeader className="items-center text-center">
-            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <UsersRound className="h-6 w-6 text-primary" />
+            <div className="bg-primary/10 mb-2 flex h-12 w-12 items-center justify-center rounded-xl">
+              <UsersRound className="text-primary h-6 w-6" />
             </div>
             <CardTitle className="text-xl text-white">
               ConvoReal is invite-only
             </CardTitle>
             <CardDescription className="text-slate-400">
-              We&apos;re opening to 100 property consultants this month, each invited by
-              someone already using it. Leave your number and we&apos;ll come
-              to you when a seat frees up.
+              We&apos;re opening to 100 property consultants this month, each
+              invited by someone already using it. Leave your number and
+              we&apos;ll come to you when a seat frees up.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             <WaitlistForm inviteState="no_invite" cta="Add me to the list" />
 
             <p className="text-center text-sm text-slate-400">
-              Already have an account?{" "}
-              <Link href="/login" className="text-primary hover:text-primary/80">
+              Already have an account?{' '}
+              <Link
+                href="/login"
+                className="text-primary hover:text-primary/80"
+              >
                 Sign in
               </Link>
             </p>
@@ -208,14 +214,14 @@ function SignupPageInner() {
       <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
         <Card className="w-full max-w-md border-slate-800 bg-slate-900">
           <CardHeader className="items-center text-center">
-            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <CheckCircle className="h-6 w-6 text-primary" />
+            <div className="bg-primary/10 mb-2 flex h-12 w-12 items-center justify-center rounded-xl">
+              <CheckCircle className="text-primary h-6 w-6" />
             </div>
             <CardTitle className="text-xl text-white">
               Check your email
             </CardTitle>
             <CardDescription className="text-slate-400">
-              We&apos;ve sent a confirmation link to{" "}
+              We&apos;ve sent a confirmation link to{' '}
               <span className="text-white">{email}</span>. Please check your
               inbox and click the link to verify your account.
             </CardDescription>
@@ -225,7 +231,7 @@ function SignupPageInner() {
               href={
                 inviteToken
                   ? `/login?invite=${encodeURIComponent(inviteToken)}`
-                  : "/login"
+                  : '/login'
               }
             >
               <Button
@@ -245,20 +251,20 @@ function SignupPageInner() {
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
       <Card className="w-full max-w-md border-slate-800 bg-slate-900">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+          <div className="bg-primary/10 mb-2 flex h-12 w-12 items-center justify-center rounded-xl">
             {inviteToken ? (
-              <UsersRound className="h-6 w-6 text-primary" />
+              <UsersRound className="text-primary h-6 w-6" />
             ) : (
-              <MessageSquare className="h-6 w-6 text-primary" />
+              <MessageSquare className="text-primary h-6 w-6" />
             )}
           </div>
           <CardTitle className="text-xl text-white">
-            {inviteToken ? "Create account & join" : "Create account"}
+            {inviteToken ? 'Create account & join' : 'Create account'}
           </CardTitle>
           <CardDescription className="text-slate-400">
             {inviteToken
-              ? "Verify your email, then accept the invitation to join your team."
-              : "Get started with the ConvoReal Engine"}
+              ? 'Verify your email, then accept the invitation to join your team.'
+              : 'Get started with the ConvoReal Engine'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -280,7 +286,7 @@ function SignupPageInner() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
+                className="focus-visible:border-primary focus-visible:ring-primary/20 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
 
@@ -295,7 +301,7 @@ function SignupPageInner() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
+                className="focus-visible:border-primary focus-visible:ring-primary/20 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
 
@@ -310,7 +316,7 @@ function SignupPageInner() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
+                className="focus-visible:border-primary focus-visible:ring-primary/20 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
 
@@ -325,26 +331,26 @@ function SignupPageInner() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
+                className="focus-visible:border-primary focus-visible:ring-primary/20 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
 
             <Button
               type="submit"
               disabled={loading}
-              className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2 h-10 w-full disabled:opacity-50"
             >
-              {loading ? "Creating account..." : "Create account"}
+              {loading ? 'Creating account...' : 'Create account'}
             </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-slate-400">
-            Already have an account?{" "}
+            Already have an account?{' '}
             <Link
               href={
                 inviteToken
                   ? `/login?invite=${encodeURIComponent(inviteToken)}`
-                  : "/login"
+                  : '/login'
               }
               className="text-primary hover:text-primary/80"
             >
@@ -353,8 +359,9 @@ function SignupPageInner() {
           </p>
 
           <p className="mt-3 text-center text-[11px] font-medium text-slate-500">
-            After signup you&apos;ll verify your WhatsApp number — ConvoReal is a WhatsApp-based
-            platform, it&apos;s how your enquiries and alerts reach you.
+            After signup you&apos;ll verify your WhatsApp number — ConvoReal is
+            a WhatsApp-based platform, it&apos;s how your enquiries and alerts
+            reach you.
           </p>
 
           {/* Property owners get their own portal — the Owners Den. */}
@@ -365,7 +372,9 @@ function SignupPageInner() {
             <span className="text-xs font-bold text-amber-400">
               Own a property? List &amp; manage it in your Portfolio
             </span>
-            <span className="shrink-0 text-xs font-black text-amber-400">→</span>
+            <span className="shrink-0 text-xs font-black text-amber-400">
+              →
+            </span>
           </Link>
         </CardContent>
       </Card>

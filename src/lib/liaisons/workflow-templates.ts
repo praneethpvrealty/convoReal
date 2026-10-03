@@ -94,7 +94,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     key: 'builder_reassignment',
-    service_name: 'Flat re-assignment through builder (under-construction resale)',
+    service_name:
+      'Flat re-assignment through builder (under-construction resale)',
     description:
       'When a flat in an under-construction project is resold before registration, the seller has no sale deed yet — ownership moves by re-assigning the builder allotment to you.',
     stages: [
@@ -273,13 +274,15 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
         name: 'File Form 27Q',
         authority: 'Buyer',
         duration_days: 7,
-        description: 'The quarterly TDS return (Form 27Q) is filed after the quarter ends.',
+        description:
+          'The quarterly TDS return (Form 27Q) is filed after the quarter ends.',
       },
       {
         name: 'Issue Form 16A to seller',
         authority: 'Buyer',
         duration_days: 7,
-        description: 'The TDS certificate is generated from TRACES and given to the seller.',
+        description:
+          'The TDS certificate is generated from TRACES and given to the seller.',
       },
       {
         name: 'Repatriation of proceeds',
@@ -350,7 +353,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
         name: 'SRO search & processing',
         authority: 'SRO',
         duration_days: 4,
-        description: 'The sub-registrar office runs the search across its records.',
+        description:
+          'The sub-registrar office runs the search across its records.',
       },
       {
         name: 'EC issued',

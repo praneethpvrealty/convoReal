@@ -60,20 +60,22 @@ export function DefaultLanguageCard() {
         description: 'Contacts without their own language will use it.',
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update default language');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update default language'
+      );
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Card className="bg-slate-900/40 border-slate-800">
+    <Card className="border-slate-800 bg-slate-900/40">
       <CardHeader>
         <CardTitle className="text-white">Default message language</CardTitle>
         <CardDescription className="text-slate-400">
           The language outbound WhatsApp messages use when a contact has no
-          language of their own. Set a contact&apos;s Preferred Language on their
-          record to override this for them.
+          language of their own. Set a contact&apos;s Preferred Language on
+          their record to override this for them.
         </CardDescription>
       </CardHeader>
 
@@ -88,7 +90,7 @@ export function DefaultLanguageCard() {
               value={language}
               onChange={(e) => setLanguage(e.target.value as LanguageCode)}
               disabled={saving || !account || !canEditSettings}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none disabled:opacity-50"
+              className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none disabled:opacity-50"
             >
               {LANGUAGE_CODES.map((code) => (
                 <option key={code} value={code}>

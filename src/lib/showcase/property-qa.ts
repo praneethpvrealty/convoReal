@@ -15,14 +15,40 @@ import { REPLY_LANGUAGE_RULE } from '@/lib/languages';
  *  is a superset of this, so callers can pass the full row. */
 export type QaProperty = Pick<
   Property,
-  | 'title' | 'type' | 'listing_type' | 'price' | 'rent_per_month'
-  | 'maintenance' | 'advance' | 'gst' | 'location' | 'sublocality'
-  | 'city' | 'state' | 'bedrooms' | 'bathrooms' | 'area_sqft'
-  | 'area_unit' | 'super_built_area' | 'land_area' | 'land_area_unit'
-  | 'facing_direction' | 'features' | 'nearby_highlights'
-  | 'property_code' | 'project' | 'rental_income' | 'roi' | 'dimensions'
-  | 'jv_structure' | 'owner_share_percent' | 'builder_share_percent' | 'goodwill_amount'
-  | 'bts_lease_years' | 'bts_lock_in_years' | 'bts_escalation_percent'
+  | 'title'
+  | 'type'
+  | 'listing_type'
+  | 'price'
+  | 'rent_per_month'
+  | 'maintenance'
+  | 'advance'
+  | 'gst'
+  | 'location'
+  | 'sublocality'
+  | 'city'
+  | 'state'
+  | 'bedrooms'
+  | 'bathrooms'
+  | 'area_sqft'
+  | 'area_unit'
+  | 'super_built_area'
+  | 'land_area'
+  | 'land_area_unit'
+  | 'facing_direction'
+  | 'features'
+  | 'nearby_highlights'
+  | 'property_code'
+  | 'project'
+  | 'rental_income'
+  | 'roi'
+  | 'dimensions'
+  | 'jv_structure'
+  | 'owner_share_percent'
+  | 'builder_share_percent'
+  | 'goodwill_amount'
+  | 'bts_lease_years'
+  | 'bts_lock_in_years'
+  | 'bts_escalation_percent'
 >;
 
 export interface QaResult {
@@ -52,12 +78,16 @@ function priceAnswer(p: QaProperty): string | null {
   if (isJV(p)) {
     const parts: string[] = [];
     if (p.owner_share_percent && p.builder_share_percent) {
-      parts.push(`the proposed share is ${p.owner_share_percent}:${p.builder_share_percent} (owner:builder)${p.jv_structure ? `, ${p.jv_structure}` : ''}`);
+      parts.push(
+        `the proposed share is ${p.owner_share_percent}:${p.builder_share_percent} (owner:builder)${p.jv_structure ? `, ${p.jv_structure}` : ''}`
+      );
     }
     if (p.price) parts.push(`estimated project value is ${inr(p.price)}`);
     if (p.goodwill_amount) parts.push(`goodwill of ${inr(p.goodwill_amount)}`);
     if (p.advance) parts.push(`refundable advance of ${inr(p.advance)}`);
-    return parts.length ? `This is a Joint Venture/Development deal — ${parts.join(', ')}.` : null;
+    return parts.length
+      ? `This is a Joint Venture/Development deal — ${parts.join(', ')}.`
+      : null;
   }
   if (isRentLike(p)) {
     if (!p.rent_per_month) return null;
@@ -75,9 +105,18 @@ function priceAnswer(p: QaProperty): string | null {
 
 function areaAnswer(p: QaProperty): string | null {
   const parts: string[] = [];
-  if (p.area_sqft) parts.push(`${p.area_sqft.toLocaleString('en-IN')} ${p.area_unit || 'sq.ft.'} built-up`);
-  if (p.super_built_area) parts.push(`${p.super_built_area.toLocaleString('en-IN')} sq.ft. super built-up`);
-  if (p.land_area) parts.push(`${p.land_area.toLocaleString('en-IN')} ${p.land_area_unit || 'sq.ft.'} land area`);
+  if (p.area_sqft)
+    parts.push(
+      `${p.area_sqft.toLocaleString('en-IN')} ${p.area_unit || 'sq.ft.'} built-up`
+    );
+  if (p.super_built_area)
+    parts.push(
+      `${p.super_built_area.toLocaleString('en-IN')} sq.ft. super built-up`
+    );
+  if (p.land_area)
+    parts.push(
+      `${p.land_area.toLocaleString('en-IN')} ${p.land_area_unit || 'sq.ft.'} land area`
+    );
   return parts.length ? `Size: ${parts.join(', ')}.` : null;
 }
 
@@ -86,7 +125,9 @@ function bedroomsAnswer(p: QaProperty): string | null {
 }
 
 function bathroomsAnswer(p: QaProperty): string | null {
-  return p.bathrooms ? `It has ${p.bathrooms} bathroom${p.bathrooms > 1 ? 's' : ''}.` : null;
+  return p.bathrooms
+    ? `It has ${p.bathrooms} bathroom${p.bathrooms > 1 ? 's' : ''}.`
+    : null;
 }
 
 function locationAnswer(p: QaProperty): string | null {
@@ -137,7 +178,8 @@ function codeAnswer(p: QaProperty): string | null {
 
 function roiAnswer(p: QaProperty): string | null {
   const parts: string[] = [];
-  if (p.rental_income) parts.push(`expected rental income ${inr(p.rental_income)}/month`);
+  if (p.rental_income)
+    parts.push(`expected rental income ${inr(p.rental_income)}/month`);
   if (p.roi) parts.push(`ROI/yield ${p.roi}%`);
   return parts.length ? `Investment: ${parts.join(', ')}.` : null;
 }
@@ -161,19 +203,77 @@ const ESCALATE_PATTERN =
 // specific intents come first. Patterns are leading-boundary-anchored
 // only (no trailing \b) so plurals and suffixes still match
 // ("bedroom" → "bedrooms", "amenit" → "amenities").
-const MATCHERS: { intent: string; pattern: RegExp; respond: (p: QaProperty) => string | null }[] = [
-  { intent: 'roi', pattern: /\b(roi|yield|rental income|return on|investment return)/i, respond: roiAnswer },
-  { intent: 'price', pattern: /\b(price|cost|rate|how much|budget|rent|deposit|advance|maintenance)/i, respond: priceAnswer },
-  { intent: 'bedrooms', pattern: /\b(bedroom|bhk|how many rooms)/i, respond: bedroomsAnswer },
-  { intent: 'bathrooms', pattern: /\b(bathroom|bath|toilet|washroom)/i, respond: bathroomsAnswer },
-  { intent: 'area', pattern: /\b(area|size|sq\.?\s?ft|square feet|sqft|built.?up|carpet|how big)/i, respond: areaAnswer },
-  { intent: 'dimensions', pattern: /\b(dimension|plot size|length|breadth)/i, respond: dimensionsAnswer },
-  { intent: 'nearby', pattern: /\b(nearby|near by|close to|distance|metro|school|hospital|airport|station|landmark)/i, respond: nearbyAnswer },
-  { intent: 'location', pattern: /\b(where|located|location|address|which area|what area|locality|city)/i, respond: locationAnswer },
-  { intent: 'amenities', pattern: /\b(amenit|facilit|feature|gym|pool|parking|lift|clubhouse|security|power backup)/i, respond: amenitiesAnswer },
-  { intent: 'facing', pattern: /\b(facing|direction|vastu|east|west|north|south)/i, respond: facingAnswer },
-  { intent: 'type', pattern: /\b(type|kind of|apartment|villa|plot|flat|house|is it for (sale|rent)|sale or rent)/i, respond: typeAnswer },
-  { intent: 'code', pattern: /\b(property code|reference (number|no)|listing id|ref no)/i, respond: codeAnswer },
+const MATCHERS: {
+  intent: string;
+  pattern: RegExp;
+  respond: (p: QaProperty) => string | null;
+}[] = [
+  {
+    intent: 'roi',
+    pattern: /\b(roi|yield|rental income|return on|investment return)/i,
+    respond: roiAnswer,
+  },
+  {
+    intent: 'price',
+    pattern:
+      /\b(price|cost|rate|how much|budget|rent|deposit|advance|maintenance)/i,
+    respond: priceAnswer,
+  },
+  {
+    intent: 'bedrooms',
+    pattern: /\b(bedroom|bhk|how many rooms)/i,
+    respond: bedroomsAnswer,
+  },
+  {
+    intent: 'bathrooms',
+    pattern: /\b(bathroom|bath|toilet|washroom)/i,
+    respond: bathroomsAnswer,
+  },
+  {
+    intent: 'area',
+    pattern:
+      /\b(area|size|sq\.?\s?ft|square feet|sqft|built.?up|carpet|how big)/i,
+    respond: areaAnswer,
+  },
+  {
+    intent: 'dimensions',
+    pattern: /\b(dimension|plot size|length|breadth)/i,
+    respond: dimensionsAnswer,
+  },
+  {
+    intent: 'nearby',
+    pattern:
+      /\b(nearby|near by|close to|distance|metro|school|hospital|airport|station|landmark)/i,
+    respond: nearbyAnswer,
+  },
+  {
+    intent: 'location',
+    pattern:
+      /\b(where|located|location|address|which area|what area|locality|city)/i,
+    respond: locationAnswer,
+  },
+  {
+    intent: 'amenities',
+    pattern:
+      /\b(amenit|facilit|feature|gym|pool|parking|lift|clubhouse|security|power backup)/i,
+    respond: amenitiesAnswer,
+  },
+  {
+    intent: 'facing',
+    pattern: /\b(facing|direction|vastu|east|west|north|south)/i,
+    respond: facingAnswer,
+  },
+  {
+    intent: 'type',
+    pattern:
+      /\b(type|kind of|apartment|villa|plot|flat|house|is it for (sale|rent)|sale or rent)/i,
+    respond: typeAnswer,
+  },
+  {
+    intent: 'code',
+    pattern: /\b(property code|reference (number|no)|listing id|ref no)/i,
+    respond: codeAnswer,
+  },
 ];
 
 /**
@@ -183,7 +283,10 @@ const MATCHERS: { intent: string; pattern: RegExp; respond: (p: QaProperty) => s
  * matches one whose data is absent — all signal the caller to escalate
  * to the AI path.
  */
-export function answerFromPropertyData(question: string, property: QaProperty): QaResult {
+export function answerFromPropertyData(
+  question: string,
+  property: QaProperty
+): QaResult {
   const q = (question || '').trim();
   if (!q) return { answer: null, intent: null };
   if (ESCALATE_PATTERN.test(q)) return { answer: null, intent: null };
@@ -238,18 +341,33 @@ export function buildPropertyContext(property: QaProperty): string {
   } else {
     add('Price', p.price ? inr(p.price) : null);
   }
-  add('Location', [p.location, p.sublocality, p.city, p.state].filter(Boolean).join(', '));
+  add(
+    'Location',
+    [p.location, p.sublocality, p.city, p.state].filter(Boolean).join(', ')
+  );
   add('Project', p.project);
   add('Bedrooms (BHK)', p.bedrooms ?? null);
   add('Bathrooms', p.bathrooms ?? null);
-  add('Built-up area', p.area_sqft ? `${p.area_sqft} ${p.area_unit || 'sq.ft.'}` : null);
-  add('Super built-up area', p.super_built_area ? `${p.super_built_area} sq.ft.` : null);
-  add('Land area', p.land_area ? `${p.land_area} ${p.land_area_unit || 'sq.ft.'}` : null);
+  add(
+    'Built-up area',
+    p.area_sqft ? `${p.area_sqft} ${p.area_unit || 'sq.ft.'}` : null
+  );
+  add(
+    'Super built-up area',
+    p.super_built_area ? `${p.super_built_area} sq.ft.` : null
+  );
+  add(
+    'Land area',
+    p.land_area ? `${p.land_area} ${p.land_area_unit || 'sq.ft.'}` : null
+  );
   add('Dimensions', p.dimensions);
   add('Facing', p.facing_direction);
   add('Amenities', p.features);
   add('Nearby highlights', p.nearby_highlights);
-  add('Rental income (per month)', p.rental_income ? inr(p.rental_income) : null);
+  add(
+    'Rental income (per month)',
+    p.rental_income ? inr(p.rental_income) : null
+  );
   add('ROI/Yield (%)', p.roi ?? null);
   add('Property code', p.property_code);
 

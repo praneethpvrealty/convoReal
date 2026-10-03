@@ -9,7 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
@@ -30,8 +36,10 @@ export function AgencyArticlesManager() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  
-  const [selectedArticle, setSelectedArticle] = useState<AgencyArticle | null>(null);
+
+  const [selectedArticle, setSelectedArticle] = useState<AgencyArticle | null>(
+    null
+  );
 
   // Form State
   const [title, setTitle] = useState('');
@@ -142,7 +150,8 @@ export function AgencyArticlesManager() {
           .eq('id', selectedArticle.id)
           .select('id');
         if (error) throw error;
-        if (!data?.length) throw new Error('Update refused or record not found.');
+        if (!data?.length)
+          throw new Error('Update refused or record not found.');
         toast.success('Article updated');
       } else {
         // Insert
@@ -252,10 +261,14 @@ export function AgencyArticlesManager() {
                   className="flex items-center justify-between py-4"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="mt-1 flex size-12 shrink-0 overflow-hidden items-center justify-center rounded-xl bg-slate-800 text-slate-300">
+                    <div className="mt-1 flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-800 text-slate-300">
                       {article.image_url ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={article.image_url} alt="" className="h-full w-full object-cover opacity-75" />
+                        <img
+                          src={article.image_url}
+                          alt=""
+                          className="h-full w-full object-cover opacity-75"
+                        />
                       ) : (
                         <ImageIcon className="size-5 opacity-50" />
                       )}
@@ -273,7 +286,10 @@ export function AgencyArticlesManager() {
                         {article.excerpt}
                       </p>
                       <p className="mt-1 text-[10px] text-slate-500">
-                        Published {article.published_at ? new Date(article.published_at).toLocaleDateString() : 'N/A'}
+                        Published{' '}
+                        {article.published_at
+                          ? new Date(article.published_at).toLocaleDateString()
+                          : 'N/A'}
                       </p>
                     </div>
                   </div>
@@ -327,7 +343,11 @@ export function AgencyArticlesManager() {
                 <Input
                   placeholder="e.g. my-first-article (auto-generated if empty)"
                   value={slug}
-                  onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  onChange={(e) =>
+                    setSlug(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+                    )
+                  }
                   className="border-slate-800 bg-slate-900 text-slate-200 placeholder:text-slate-500"
                 />
               </div>
@@ -359,7 +379,9 @@ export function AgencyArticlesManager() {
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-slate-300">SEO Description (Optional)</Label>
+                <Label className="text-slate-300">
+                  SEO Description (Optional)
+                </Label>
                 <Textarea
                   placeholder="Meta description for search results..."
                   value={metaDescription}
@@ -368,9 +390,9 @@ export function AgencyArticlesManager() {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-4">
-              <div className="space-y-2 h-full flex flex-col">
+              <div className="flex h-full flex-col space-y-2">
                 <Label className="text-slate-300">Content</Label>
                 <Textarea
                   placeholder="Full article content (Markdown supported on display)..."
@@ -423,10 +445,13 @@ export function AgencyArticlesManager() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="max-w-sm border-slate-800 bg-slate-950 sm:rounded-xl">
           <DialogHeader>
-            <DialogTitle className="text-slate-200">Delete Article?</DialogTitle>
+            <DialogTitle className="text-slate-200">
+              Delete Article?
+            </DialogTitle>
           </DialogHeader>
           <div className="py-2 text-sm text-slate-400">
-            Are you sure you want to remove &quot;{selectedArticle?.title}&quot;? This cannot be undone.
+            Are you sure you want to remove &quot;{selectedArticle?.title}
+            &quot;? This cannot be undone.
           </div>
           <DialogFooter>
             <Button

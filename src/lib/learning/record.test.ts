@@ -4,11 +4,9 @@ import { prepareFacts } from './record';
 describe('prepareFacts', () => {
   it('accepts a well-formed new property fact and marks it for review', () => {
     expect(
-      prepareFacts(
-        'property',
-        { seller_final_price_per_sqft: null },
-        [{ field: 'seller_final_price_per_sqft', value: 10500 }]
-      )
+      prepareFacts('property', { seller_final_price_per_sqft: null }, [
+        { field: 'seller_final_price_per_sqft', value: 10500 },
+      ])
     ).toEqual([
       {
         field: 'seller_final_price_per_sqft',
@@ -48,11 +46,9 @@ describe('prepareFacts', () => {
 
   it('drops a fact the record already states', () => {
     expect(
-      prepareFacts(
-        'property',
-        { seller_final_price_per_sqft: 10500 },
-        [{ field: 'seller_final_price_per_sqft', value: 10500 }]
-      )
+      prepareFacts('property', { seller_final_price_per_sqft: 10500 }, [
+        { field: 'seller_final_price_per_sqft', value: 10500 },
+      ])
     ).toEqual([]);
   });
 
@@ -145,8 +141,20 @@ describe('prepareFacts — unsupported list removals', () => {
     // location. The areas simply stopped matching and nobody saw it.
     const out = prepareFacts(
       'contact',
-      { pref_areas: ['Hrbr Layout', 'Kalyan Nagar', 'Outer Ring Road', 'Bangalore'] },
-      [{ field: 'pref_areas', value: ['Hrbr Layout', 'Kalyan Nagar', 'Outer Ring Road'] }],
+      {
+        pref_areas: [
+          'Hrbr Layout',
+          'Kalyan Nagar',
+          'Outer Ring Road',
+          'Bangalore',
+        ],
+      },
+      [
+        {
+          field: 'pref_areas',
+          value: ['Hrbr Layout', 'Kalyan Nagar', 'Outer Ring Road'],
+        },
+      ],
       'only commercial plots and building'
     );
     // Nothing survives: with Bangalore restored the list is unchanged,

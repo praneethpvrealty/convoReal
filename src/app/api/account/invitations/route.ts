@@ -17,45 +17,45 @@
 // revoke and re-issue.
 // ============================================================
 
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from "@/lib/auth/account";
-import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 import {
   clampExpiryDays,
   generateInviteToken,
   inviteExpiresAt,
   inviteUrl,
-} from "@/lib/auth/invitations";
-import { inviteBaseUrl } from "@/lib/auth/invite-base-url";
-import { isAccountRole } from "@/lib/auth/roles";
+} from '@/lib/auth/invitations';
+import { inviteBaseUrl } from '@/lib/auth/invite-base-url';
+import { isAccountRole } from '@/lib/auth/roles';
 import {
   checkRateLimit,
   rateLimitResponse,
   RATE_LIMITS,
-} from "@/lib/rate-limit";
+} from '@/lib/rate-limit';
 
 const MAX_LABEL_LEN = 80;
 
 export async function GET() {
   try {
-    const ctx = await requireRole("admin");
+    const ctx = await requireRole('admin');
 
     const { data, error } = await ctx.supabase
-      .from("account_invitations")
+      .from('account_invitations')
       .select(
-        "id, role, label, created_by_user_id, created_at, expires_at, accepted_at, accepted_by_user_id",
+        'id, role, label, created_by_user_id, created_at, expires_at, accepted_at, accepted_by_user_id'
       )
-      .eq("account_id", ctx.accountId)
-      .is("accepted_at", null)
-      .gt("expires_at", new Date().toISOString())
-      .order("created_at", { ascending: false });
+      .eq('account_id', ctx.accountId)
+      .is('accepted_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false });
 
     if (error) {
-      console.error("[GET /api/account/invitations] fetch error:", error);
+      console.error('[GET /api/account/invitations] fetch error:', error);
       return NextResponse.json(
-        { error: "Failed to load invitations" },
-        { status: 500 },
+        { error: 'Failed to load invitations' },
+        { status: 500 }
       );
     }
 
@@ -67,7 +67,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const ctx = await requireRole("admin");
+    const ctx = await requireRole('admin');
 
     // 30/min per user. The Members tab is a clicks-only UI so any
     // legitimate admin is far below this; the cap exists to keep
@@ -75,26 +75,28 @@ export async function POST(request: Request) {
     // flooding `account_invitations` with rows.
     const limit = await checkRateLimit(
       `admin:inviteCreate:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
 
     // Plan gate: check user seat limit before issuing the invite
-    const gate = await checkPlanLimit(ctx, "users");
+    const gate = await checkPlanLimit(ctx, 'users');
     if (!gate.allowed) return gateResponse(gate);
     if (!limit.success) return rateLimitResponse(limit);
 
-    const body = (await request.json().catch(() => null)) as
-      | { role?: unknown; expiresInDays?: unknown; label?: unknown }
-      | null;
+    const body = (await request.json().catch(() => null)) as {
+      role?: unknown;
+      expiresInDays?: unknown;
+      label?: unknown;
+    } | null;
 
     const role = body?.role;
-    if (!isAccountRole(role) || role === "owner") {
+    if (!isAccountRole(role) || role === 'owner') {
       // The DB CHECK already rejects 'owner', but failing fast
       // here gives a clearer 400 than the eventual constraint
       // violation surfaced as a 500.
       return NextResponse.json(
         { error: "'role' must be one of admin, agent, viewer" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -103,26 +105,26 @@ export async function POST(request: Request) {
     // collapsing to the safe default, so we just pass the raw
     // value through after a type narrow.
     const expiresInDays =
-      typeof expiresInDaysRaw === "number" ? expiresInDaysRaw : undefined;
+      typeof expiresInDaysRaw === 'number' ? expiresInDaysRaw : undefined;
     const expiryDays = clampExpiryDays(expiresInDays);
     const expiresAt = inviteExpiresAt(expiryDays);
 
     let label: string | null = null;
-    if (typeof body?.label === "string") {
+    if (typeof body?.label === 'string') {
       const trimmed = body.label.trim();
       if (trimmed.length > MAX_LABEL_LEN) {
         return NextResponse.json(
           { error: `Label must be ${MAX_LABEL_LEN} characters or fewer` },
-          { status: 400 },
+          { status: 400 }
         );
       }
-      label = trimmed === "" ? null : trimmed;
+      label = trimmed === '' ? null : trimmed;
     }
 
     const { token, hash } = generateInviteToken();
 
     const { data, error } = await ctx.supabase
-      .from("account_invitations")
+      .from('account_invitations')
       .insert({
         account_id: ctx.accountId,
         token_hash: hash,
@@ -131,14 +133,14 @@ export async function POST(request: Request) {
         label,
         expires_at: expiresAt.toISOString(),
       })
-      .select("id, role, label, expires_at, created_at")
+      .select('id, role, label, expires_at, created_at')
       .single();
 
     if (error || !data) {
-      console.error("[POST /api/account/invitations] insert error:", error);
+      console.error('[POST /api/account/invitations] insert error:', error);
       return NextResponse.json(
-        { error: "Failed to create invitation" },
-        { status: 500 },
+        { error: 'Failed to create invitation' },
+        { status: 500 }
       );
     }
 
@@ -147,10 +149,13 @@ export async function POST(request: Request) {
         invitation: data,
         // Plaintext payload — visible to the admin exactly once.
         token,
-        url: inviteUrl(token, inviteBaseUrl(request, "POST /api/account/invitations")),
+        url: inviteUrl(
+          token,
+          inviteBaseUrl(request, 'POST /api/account/invitations')
+        ),
         expiresInDays: expiryDays,
       },
-      { status: 201 },
+      { status: 201 }
     );
   } catch (err) {
     return toErrorResponse(err);

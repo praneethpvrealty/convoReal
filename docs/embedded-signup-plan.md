@@ -9,7 +9,7 @@
 >
 > **Verify before you build.** Meta renames endpoints, fields and event names, and this area is
 > actively changing (see §1.3). Treat every Graph API field name, event name and endpoint below as
-> *design intent*, and check it against the live docs at implementation time rather than trusting
+> _design intent_, and check it against the live docs at implementation time rather than trusting
 > this doc or training data. Primary sources are linked in §11.
 
 ---
@@ -49,15 +49,15 @@ Two things make the official path competitive:
 a popup, and comes back with a WABA and a working phone number. No developer console, no token
 copy-paste, no manual webhook config.
 
-**Coexistence** — a feature type *inside* Embedded Signup, GA worldwide since May 2025. The
+**Coexistence** — a feature type _inside_ Embedded Signup, GA worldwide since May 2025. The
 business scans a QR from their existing WhatsApp Business app and gets Cloud API on the **same
 number** while continuing to use the app on their phone. Up to 180 days of 1:1 chat history and
 their full contact list sync into our inbox, and messages they send from the app fire webhooks so
 we can display them.
 
-The decisive detail, from Meta's docs: *"Messages sent from the WhatsApp Business app are not
+The decisive detail, from Meta's docs: _"Messages sent from the WhatsApp Business app are not
 subject to the customer service window and do not create, extend, or affect Cloud API conversation
-windows."* The human agent keeps free-form, unlimited, template-free messaging from their phone —
+windows."_ The human agent keeps free-form, unlimited, template-free messaging from their phone —
 the exact capability competitors sell — while our automation runs under normal Cloud API rules on
 the same number. This is the sanctioned version of the thing we are being undercut on.
 
@@ -74,11 +74,11 @@ the same number. This is the sanctioned version of the thing we are being underc
 
 Offer **two** onboarding paths and retire nothing:
 
-| Path | For | Result |
-|---|---|---|
-| **Coexistence** (recommended default) | A brokerage already running their business from the WhatsApp Business app | Same number, keeps the app, history + contacts import, Cloud API automation |
-| **Embedded Signup (new number)** | A brokerage starting fresh, or one that wants a dedicated line | Clean WABA, API-only number, full throughput |
-| Manual credentials (existing) | Self-hosters, Meta-savvy customers, anyone we cannot onboard under our own Tech Provider app | Unchanged — do not remove |
+| Path                                  | For                                                                                          | Result                                                                      |
+| ------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Coexistence** (recommended default) | A brokerage already running their business from the WhatsApp Business app                    | Same number, keeps the app, history + contacts import, Cloud API automation |
+| **Embedded Signup (new number)**      | A brokerage starting fresh, or one that wants a dedicated line                               | Clean WABA, API-only number, full throughput                                |
+| Manual credentials (existing)         | Self-hosters, Meta-savvy customers, anyone we cannot onboard under our own Tech Provider app | Unchanged — do not remove                                                   |
 
 Sandbox (`integration_type = 'sandbox'`) is unaffected and stays as the pre-signup trial.
 
@@ -155,19 +155,19 @@ the directory before writing the file — the count drifts.
 
 More of this is built than it looks. The Embedded Signup shape maps almost 1:1 onto existing code.
 
-| Requirement | Already in the repo |
-|---|---|
-| Signed OAuth state + one-time nonce cookie | `src/lib/meta-ads/oauth-state.ts` — `signOAuthState` / `verifyOAuthState` / `generateNonce`, unit tested |
-| Complete OAuth start → callback → encrypt → store flow to copy | `src/app/api/meta-ads/oauth/{start,callback}/route.ts`, including the account-mismatch replay guard at callback lines 74-84 |
-| `POST /{phone_number_id}/register` | `src/lib/whatsapp/meta-api.ts:379` — already handles already-registered and Meta test-number cases |
-| `POST /{waba_id}/subscribed_apps` | `src/lib/whatsapp/meta-api.ts:442`; read-back at `:474` |
-| Token encryption at rest (AES-256-GCM) | `src/lib/whatsapp/encryption.ts` |
-| Registration state tracking + diagnostics | Migration `015` (`registered_at`, `subscribed_apps_at`, `last_registration_error`); probe endpoint `src/app/api/whatsapp/config/verify-registration/route.ts` |
-| Webhook → tenant routing by `phone_number_id` | `src/lib/whatsapp/webhook-handler.ts:360-379` — already the correct shape for one shared Meta app across many tenants, including the multi-match drop guard at `:373` |
-| Template submission to Meta | `src/lib/whatsapp/meta-api.ts:799` (`submitMessageTemplate`), sample media upload at `:843` |
-| Engine template definitions + gap detection | `src/lib/whatsapp/engine-templates.ts` — 7 builders in `ENGINE_TEMPLATES` plus `missingEngineTemplates()` |
-| Auth + role gating + error mapping | `src/lib/auth/account.ts` — `requireRole`, `getCurrentAccount`, `toErrorResponse` |
-| Rate limiting | `src/lib/rate-limit.ts` — `checkRateLimit` / `rateLimitResponse` |
+| Requirement                                                    | Already in the repo                                                                                                                                                   |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Signed OAuth state + one-time nonce cookie                     | `src/lib/meta-ads/oauth-state.ts` — `signOAuthState` / `verifyOAuthState` / `generateNonce`, unit tested                                                              |
+| Complete OAuth start → callback → encrypt → store flow to copy | `src/app/api/meta-ads/oauth/{start,callback}/route.ts`, including the account-mismatch replay guard at callback lines 74-84                                           |
+| `POST /{phone_number_id}/register`                             | `src/lib/whatsapp/meta-api.ts:379` — already handles already-registered and Meta test-number cases                                                                    |
+| `POST /{waba_id}/subscribed_apps`                              | `src/lib/whatsapp/meta-api.ts:442`; read-back at `:474`                                                                                                               |
+| Token encryption at rest (AES-256-GCM)                         | `src/lib/whatsapp/encryption.ts`                                                                                                                                      |
+| Registration state tracking + diagnostics                      | Migration `015` (`registered_at`, `subscribed_apps_at`, `last_registration_error`); probe endpoint `src/app/api/whatsapp/config/verify-registration/route.ts`         |
+| Webhook → tenant routing by `phone_number_id`                  | `src/lib/whatsapp/webhook-handler.ts:360-379` — already the correct shape for one shared Meta app across many tenants, including the multi-match drop guard at `:373` |
+| Template submission to Meta                                    | `src/lib/whatsapp/meta-api.ts:799` (`submitMessageTemplate`), sample media upload at `:843`                                                                           |
+| Engine template definitions + gap detection                    | `src/lib/whatsapp/engine-templates.ts` — 7 builders in `ENGINE_TEMPLATES` plus `missingEngineTemplates()`                                                             |
+| Auth + role gating + error mapping                             | `src/lib/auth/account.ts` — `requireRole`, `getCurrentAccount`, `toErrorResponse`                                                                                     |
+| Rate limiting                                                  | `src/lib/rate-limit.ts` — `checkRateLimit` / `rateLimitResponse`                                                                                                      |
 
 **What is genuinely new:** the token-exchange call, the client-side Facebook JS SDK component, the
 `postMessage` listener, and the Coexistence sync calls. Everything else is assembly.
@@ -176,10 +176,10 @@ More of this is built than it looks. The Embedded Signup shape maps almost 1:1 o
 
 - `integration_type` CHECK is `('sandbox', 'web_qr', 'official_api')` — migration `068:7`. No value
   represents an Embedded Signup or Coexistence connection.
-- No `business_id`, no `token_expires_at`, no record of *how* an account was onboarded.
+- No `business_id`, no `token_expires_at`, no record of _how_ an account was onboarded.
 - **Two-step PIN ownership inverts.** Today the PIN comes from user input and registration only
   runs when they typed one — `src/app/api/whatsapp/config/route.ts:289-290`
-  (`const needsRegistration = hasPin`). Under Embedded Signup *we* generate, store and own the PIN.
+  (`const needsRegistration = hasPin`). Under Embedded Signup _we_ generate, store and own the PIN.
 - `UNIQUE(phone_number_id)` (migration `013`) plus `UNIQUE(account_id)` on `whatsapp_config` means
   strictly one number per account. Embedded Signup can return multiple phone numbers under one
   WABA, and the `FINISH` event carries a `waba_ids` array in the multi-WABA case. Punting is fine
@@ -284,20 +284,20 @@ Then fix the two other places that narrow the same union:
 
 ```ts
 export interface EmbeddedSignupSession {
-  phoneNumberId: string
-  wabaId: string
-  businessId: string
-  additionalWabaIds?: string[]
-  sessionId?: string
+  phoneNumberId: string;
+  wabaId: string;
+  businessId: string;
+  additionalWabaIds?: string[];
+  sessionId?: string;
 }
 
 export async function exchangeSignupCode(params: {
-  code: string
-  appId: string
-  appSecret: string
-}): Promise<{ accessToken: string; expiresIn: number | null }>
+  code: string;
+  appId: string;
+  appSecret: string;
+}): Promise<{ accessToken: string; expiresIn: number | null }>;
 
-export function generateTwoStepPin(): string
+export function generateTwoStepPin(): string;
 ```
 
 Notes for the implementer:
@@ -357,18 +357,18 @@ FB.login(callback, {
   response_type: 'code',
   override_default_response_type: true,
   extras: { setup: {} },
-})
+});
 ```
 
 Listen for `window.message` events where `type === 'WA_EMBEDDED_SIGNUP'`:
 
-| `event` | Meaning | Action |
-|---|---|---|
-| `FINISH` | New-number signup complete | POST to `/complete` with `coexistence: false` |
-| `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING` | Coexistence complete | POST with `coexistence: true` |
-| `FINISH_ONLY_WABA` | WABA shared, no phone number | Save the WABA, tell the user to add a number |
-| `FINISH_OBO_MIGRATION` / `FINISH_GRANT_ONLY_API_ACCESS` | Out of scope for v1 | Log and show a "contact support" path |
-| `CANCEL` | Abandoned or errored | Payload carries `current_step`, or `error_message`/`error_code`/`session_id`. Surface the message; keep the session id for support |
+| `event`                                                 | Meaning                      | Action                                                                                                                             |
+| ------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `FINISH`                                                | New-number signup complete   | POST to `/complete` with `coexistence: false`                                                                                      |
+| `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING`               | Coexistence complete         | POST with `coexistence: true`                                                                                                      |
+| `FINISH_ONLY_WABA`                                      | WABA shared, no phone number | Save the WABA, tell the user to add a number                                                                                       |
+| `FINISH_OBO_MIGRATION` / `FINISH_GRANT_ONLY_API_ACCESS` | Out of scope for v1          | Log and show a "contact support" path                                                                                              |
+| `CANCEL`                                                | Abandoned or errored         | Payload carries `current_step`, or `error_message`/`error_code`/`session_id`. Surface the message; keep the session id for support |
 
 The success payload carries `{ phone_number_id, waba_id, business_id }` plus conditional
 `ad_account_ids`, `page_ids`, `catalog_ids`, `instagram_account_ids`, `dataset_ids`, and `waba_ids`
@@ -401,8 +401,8 @@ Coexistence number is at best a no-op and at worst disruptive. Branch on the `co
 §5.2 step 5.
 
 **The sync is a one-shot with a hard deadline.** Contacts and message history are requested via the
-SMB App Data API. Per Meta: *"You have 24 hours to synchronize their messaging history, otherwise
-they must be offboarded and they must complete the flow again."* History arrives in three phases
+SMB App Data API. Per Meta: _"You have 24 hours to synchronize their messaging history, otherwise
+they must be offboarded and they must complete the flow again."_ History arrives in three phases
 (day 0–1, day 1–90, day 90–180) covering up to 180 days of 1:1 messages plus roughly two weeks of
 media. Record `coex_contacts_sync_at` / `coex_history_sync_at` and treat a NULL on either as a
 support-visible warning, not a silent gap.
@@ -416,8 +416,8 @@ support-visible warning, not a silent gap.
 - Up to four companion devices (excluding Windows and WearOS).
 
 **Billing and windows.** Messages the agent sends from the WhatsApp Business app stay free and are
-*not* subject to the customer service window; messages we send via Cloud API are billed at Cloud
-API rates and *are*. Critically, app-sent messages **do not create or extend the Cloud API
+_not_ subject to the customer service window; messages we send via Cloud API are billed at Cloud
+API rates and _are_. Critically, app-sent messages **do not create or extend the Cloud API
 window** — so `isWithinCustomerWindow()` (`src/lib/whatsapp/customer-window.ts:16`) stays correct
 as written and must **not** be relaxed for Coexistence accounts. An agent replying from their phone
 does not open a free-form window for our automation. Get this wrong and sends fail at Meta with the
@@ -485,15 +485,15 @@ Manual, against a test WABA in dev mode (before App Review):
 
 ## 10. Risks and open questions
 
-| Risk | Handling |
-|---|---|
-| Tech Provider standing unresolved | **Blocks everything.** §2.1 — resolve before scoping. |
-| App Review rejected or slow | Ship behind `WHATSAPP_ESU_ENABLED`; manual path stays live. |
-| Meta reshapes the `postMessage` payload | Validate defensively; treat missing `phone_number_id`/`waba_id` as CANCEL rather than crashing. Log `session_id` always. |
-| v21.0 too old for Embedded Signup v4 | Verify early (§3.1). Bumping `META_API_VERSION` touches both `meta-api.ts:12` and `meta-ads/client.ts:15` and needs a regression pass on the whole send path. |
-| Coexistence 20 mps cap vs. broadcasts | Audit `src/app/api/whatsapp/broadcast/` batching before enabling Coexistence for accounts that broadcast heavily. |
-| One-number-per-account assumption | `UNIQUE(account_id)` + `UNIQUE(phone_number_id)`. v1 keeps it; store `additional_waba_ids` so a future multi-number feature is not blind. |
-| History sync 24h deadline missed | `coex_history_sync_at` NULL is a support-visible state, not a silent one. |
+| Risk                                    | Handling                                                                                                                                                      |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tech Provider standing unresolved       | **Blocks everything.** §2.1 — resolve before scoping.                                                                                                         |
+| App Review rejected or slow             | Ship behind `WHATSAPP_ESU_ENABLED`; manual path stays live.                                                                                                   |
+| Meta reshapes the `postMessage` payload | Validate defensively; treat missing `phone_number_id`/`waba_id` as CANCEL rather than crashing. Log `session_id` always.                                      |
+| v21.0 too old for Embedded Signup v4    | Verify early (§3.1). Bumping `META_API_VERSION` touches both `meta-api.ts:12` and `meta-ads/client.ts:15` and needs a regression pass on the whole send path. |
+| Coexistence 20 mps cap vs. broadcasts   | Audit `src/app/api/whatsapp/broadcast/` batching before enabling Coexistence for accounts that broadcast heavily.                                             |
+| One-number-per-account assumption       | `UNIQUE(account_id)` + `UNIQUE(phone_number_id)`. v1 keeps it; store `additional_waba_ids` so a future multi-number feature is not blind.                     |
+| History sync 24h deadline missed        | `coex_history_sync_at` NULL is a support-visible state, not a silent one.                                                                                     |
 
 ## 11. Sources
 

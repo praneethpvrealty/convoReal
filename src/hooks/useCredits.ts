@@ -124,12 +124,20 @@ export function useCredits(): CreditState & { refresh: () => Promise<void> } {
       .channel(topic)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'credit_wallets', filter: `account_id=eq.${accountId}` },
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'credit_wallets',
+          filter: `account_id=eq.${accountId}`,
+        },
         (payload) => {
           // Written straight into the cache, so every mount of this
           // hook re-renders from one event without a refetch.
-          queryClient.setQueryData(queryKey, fromWalletRow(payload.new as CreditWalletRow));
-        },
+          queryClient.setQueryData(
+            queryKey,
+            fromWalletRow(payload.new as CreditWalletRow)
+          );
+        }
       )
       .subscribe();
 

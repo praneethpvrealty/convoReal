@@ -328,7 +328,9 @@ export function ShowcaseLeadBot({
               isEngine
                 ? "Perfect — the ConvoReal team will reach out on WhatsApp shortly. Want to see it running on your own inventory? They'll set up a walkthrough."
                 : 'Done — the agent has your requirement and will send matching listings on WhatsApp, including the ones that never go public.',
-              isEngine ? (whatsappCard ?? undefined) : showcaseUrlCard ?? undefined
+              isEngine
+                ? (whatsappCard ?? undefined)
+                : (showcaseUrlCard ?? undefined)
             );
             if (!isEngine) {
               api.pushBot(
@@ -338,7 +340,9 @@ export function ShowcaseLeadBot({
           } catch {
             api.pushBot(
               'I could not save that just now. Please reach the team on WhatsApp and they will pick it up.',
-              isEngine ? (whatsappCard ?? undefined) : showcaseUrlCard ?? undefined
+              isEngine
+                ? (whatsappCard ?? undefined)
+                : (showcaseUrlCard ?? undefined)
             );
           } finally {
             api.setLoading(false);
@@ -349,7 +353,13 @@ export function ShowcaseLeadBot({
 
       return null;
     },
-    [showMatches, showcaseUrlCard, submitBuyer, submitEngineProspect, whatsappCard]
+    [
+      showMatches,
+      showcaseUrlCard,
+      submitBuyer,
+      submitEngineProspect,
+      whatsappCard,
+    ]
   );
 
   const handleQuestion = useCallback(

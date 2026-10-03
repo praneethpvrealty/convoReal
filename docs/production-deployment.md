@@ -7,6 +7,7 @@ This guide outlines the steps to deploy your decoupled WhatsApp Engine webhook i
 ## 1. Managed Redis Setup (Upstash Redis)
 
 For production scaling and simple serverless billing, use **Upstash Serverless Redis**:
+
 1. Sign up/log in at [Upstash Console](https://console.upstash.com).
 2. Create a new **Redis Database**:
    - **Primary Region**: Select **AWS - Sydney, Australia (`ap-southeast-2`)** to match your Supabase database region (which is hosted in Sydney).
@@ -23,6 +24,7 @@ For production scaling and simple serverless billing, use **Upstash Serverless R
 The Go Ingress Service should be deployed as a public web server using [go-ingress/Dockerfile](./go-ingress/Dockerfile).
 
 ### Option A: Railway (Recommended)
+
 1. Push your repository to GitHub.
 2. Go to [Railway Dashboard](https://railway.app) and create a **New Project**.
 3. Choose **Deploy from GitHub repository** and select your project.
@@ -31,10 +33,10 @@ The Go Ingress Service should be deployed as a public web server using [go-ingre
 6. Add the required **Environment Variables** in the Railway service settings:
    - `PORT`: `8080` (Railway will automatically map incoming HTTP port)
    - `REDIS_URL`: `rediss://default:password@host:port` (Your secure Upstash connection string)
-   - `META_APP_SECRET`: *(Your Meta App Secret)*
-   - `WHATSAPP_VERIFY_TOKEN`: *(Your custom webhook verify token)*
+   - `META_APP_SECRET`: _(Your Meta App Secret)_
+   - `WHATSAPP_VERIFY_TOKEN`: _(Your custom webhook verify token)_
    - `NEXT_PUBLIC_SITE_URL`: `https://your-nextjs-app.com` (Main Next.js dashboard URL used for proxying GET challenges)
-   - `SENTRY_DSN`: *(DSN of the `convoreal-ingress` Sentry project — Settings → Client Keys)*
+   - `SENTRY_DSN`: _(DSN of the `convoreal-ingress` Sentry project — Settings → Client Keys)_
    - `SENTRY_ENVIRONMENT`: `production`
 7. Enable a **Public Domain** in the Railway service networking settings. This will give you an HTTPS URL like `https://go-ingress-production.up.railway.app`.
 
@@ -45,25 +47,26 @@ The Go Ingress Service should be deployed as a public web server using [go-ingre
 The Queue Worker is deployed as a background daemon container (no public web endpoint needed) using [Dockerfile.worker](./Dockerfile.worker).
 
 ### Deployment Steps (Railway):
+
 1. In the same Railway project, return to the main canvas (click the **`X`** in the top-right of any open service panel).
 2. Add a new service by clicking the **`+`** button on the bottom-left toolbar, right-clicking on the canvas, or pressing **`Cmd + K`** and selecting **`New Service`**.
 3. Choose **`Deploy from GitHub repo`** and select the same **`convoreal`** repository.
 4. Click on this new service block to open its settings and configure:
    - **Service Name**: Rename it to **`queue-worker`** under settings.
    - **Docker File Path**: Under **Settings** ➔ **Build** ➔ scroll to the **Docker** section, and set **Dockerfile Path** to `Dockerfile.worker`. Leave the root directory empty/default `/` (since the Dockerfile is in the main directory).
-   - *Do not expose any ports or domains* (it runs strictly as a background daemon).
+   - _Do not expose any ports or domains_ (it runs strictly as a background daemon).
 5. Add the **Environment Variables** required to process messages:
    - `REDIS_URL`: `rediss://default:password@host:port` (Same secure Upstash URL)
-   - `NEXT_PUBLIC_SUPABASE_URL`: *(Your Supabase URL)*
-   - `SUPABASE_SERVICE_ROLE_KEY`: *(Your Supabase service role API key)*
-   - `ENCRYPTION_KEY`: *(Your 64 hex characters encryption key)*
-   - `GEMINI_API_KEY`: *(Your Google Gemini API key)*
-   - `GEMINI_FALLBACK_API_KEYS`: *(Optional, and only a fallback: once keys are added in Admin → AI keys, both this worker and Vercel read them from the database and the environment keys are ignored. Comma-separated spares, `label=key` allowed. Image generation still uses `GEMINI_API_KEY` alone.)*
+   - `NEXT_PUBLIC_SUPABASE_URL`: _(Your Supabase URL)_
+   - `SUPABASE_SERVICE_ROLE_KEY`: _(Your Supabase service role API key)_
+   - `ENCRYPTION_KEY`: _(Your 64 hex characters encryption key)_
+   - `GEMINI_API_KEY`: _(Your Google Gemini API key)_
+   - `GEMINI_FALLBACK_API_KEYS`: _(Optional, and only a fallback: once keys are added in Admin → AI keys, both this worker and Vercel read them from the database and the environment keys are ignored. Comma-separated spares, `label=key` allowed. Image generation still uses `GEMINI_API_KEY` alone.)_
    - `NEXT_PUBLIC_SITE_URL`: `https://your-nextjs-app.com`
    - `NEXT_PUBLIC_DEFAULT_WEBSITE_NAME`: `ConvoReal`
    - `NEXT_PUBLIC_DEFAULT_WEBSITE_URL`: `https://www.convoreal.com`
    - `NEXT_PUBLIC_BASE_DOMAIN`: `convoreal.com`
-   - `SENTRY_DSN`: *(DSN of the `convoreal-worker` Sentry project — Settings → Client Keys)*
+   - `SENTRY_DSN`: _(DSN of the `convoreal-worker` Sentry project — Settings → Client Keys)_
    - `SENTRY_ENVIRONMENT`: `production`
 
 Both services initialise Sentry only when `SENTRY_DSN` is set — the Go
@@ -81,8 +84,8 @@ messages rather than a visibly broken page.
 1. Locate your Go Ingress service's **actual public domain** on Railway:
    - Open your `go-ingress` service on Railway.
    - Go to the **Settings** tab and scroll to **Networking** (or click **Networking** on the side settings menu).
-   - Under **Public Networking**, copy the generated domain (it will look like `https://go-ingress-production-xxxx.up.railway.app`). 
-   - *Note: If no domain is present, click **Generate Domain** first.*
+   - Under **Public Networking**, copy the generated domain (it will look like `https://go-ingress-production-xxxx.up.railway.app`).
+   - _Note: If no domain is present, click **Generate Domain** first._
 2. Log into the [Meta Developer Console](https://developers.facebook.com).
 3. Navigate to **WhatsApp → Configuration** (or **Webhooks**).
 4. Click **Edit Webhook Settings**:
@@ -92,7 +95,9 @@ messages rather than a visibly broken page.
 6. Under Webhook Fields, ensure you subscribe to `messages` events.
 
 ### Troubleshooting Webhook Verification Failures:
-If you see the error *"The callback URL or verify token couldn't be validated"* on the Meta dashboard:
+
+If you see the error _"The callback URL or verify token couldn't be validated"_ on the Meta dashboard:
+
 1. Open your `go-ingress` service on Railway.
 2. Go to the **Console** tab to view the live build/runtime logs.
 3. Click **Verify and Save** again in Meta and inspect the logs:
@@ -105,6 +110,7 @@ If you see the error *"The callback URL or verify token couldn't be validated"* 
 ## 5. Enable Queueing in Next.js Server
 
 Once the worker and Go ingress are online:
+
 1. Set the `REDIS_URL` environment variable on your primary Next.js deployment hosting platform (e.g. Vercel):
    ```env
    REDIS_URL=rediss://default:password@host:port
@@ -138,7 +144,9 @@ To prevent message loss during worker downtime or backend database disruptions, 
 - **Dead Letter Queue (DLQ)**: If a job fails all 3 attempts (or is completely malformed), the worker moves the payload into a Redis list named `whatsapp-webhooks-dlq` along with error details, stack traces, and failure timestamps.
 
 ### Checking the DLQ size:
+
 You can check if there are any failed messages in your Upstash Redis database:
+
 - **Via Upstash CLI / redis-cli**:
   ```bash
   LLEN whatsapp-webhooks-dlq
@@ -146,7 +154,9 @@ You can check if there are any failed messages in your Upstash Redis database:
 - **Via Upstash Console**: Under the **Data Browser** tab of your Upstash Redis database page, look for the list key `whatsapp-webhooks-dlq`.
 
 ### Replaying failed messages:
+
 Once worker sanity or database connectivity is restored, you can replay all messages in the DLQ back to the main processing queue:
+
 1. Run the following command from the project root:
    ```bash
    npm run queue:replay-dlq
@@ -156,4 +166,3 @@ Once worker sanity or database connectivity is restored, you can replay all mess
    - Re-enqueue it into the main `whatsapp-webhooks` list.
    - Log a success summary.
 3. The queue worker will immediately pick up and re-process the re-queued jobs.
-

@@ -33,7 +33,10 @@ describe('resolveCopyDrift', () => {
   // Their words. Never overwrite these — the whole point of the
   // account-level edit added alongside the review gate.
   it('reports customised when the account reworded it', () => {
-    const row = { ...freshRow(), body_text: 'ಬೇರೆ ಪದಗಳು {{1}} {{2}} {{3}} {{4}} {{5}} ಇಲ್ಲಿ' };
+    const row = {
+      ...freshRow(),
+      body_text: 'ಬೇರೆ ಪದಗಳು {{1}} {{2}} {{3}} {{4}} {{5}} ಇಲ್ಲಿ',
+    };
     expect(resolveCopyDrift(row, KEY, LANG)).toBe('customised');
   });
 
@@ -45,7 +48,8 @@ describe('resolveCopyDrift', () => {
     // shipped revision — and its stamp says so. Nothing about it is
     // the account's own, so today's better wording is safe to offer.
     const old = {
-      body_text: 'ಹಳೆಯ ಪಠ್ಯ {{1}} ಮತ್ತು {{2}} ಜೊತೆ {{3}} ಹಾಗೂ {{4}} ಕೊನೆಗೆ {{5}} ಇದೆ',
+      body_text:
+        'ಹಳೆಯ ಪಠ್ಯ {{1}} ಮತ್ತು {{2}} ಜೊತೆ {{3}} ಹಾಗೂ {{4}} ಕೊನೆಗೆ {{5}} ಇದೆ',
       footer_text: null,
     };
     const stamped: DriftableRow = {
@@ -116,4 +120,3 @@ describe('shippedCopy', () => {
     });
   });
 });
-

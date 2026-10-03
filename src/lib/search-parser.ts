@@ -1,43 +1,39 @@
-import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
+import { SQFT_PER_AREA_UNIT } from '@/lib/inventory/property-options';
 
 export const CATEGORY_SUBTYPES: Record<string, string[]> = {
   Residential: [
-    "Residential",
-    "Flat/ Apartment",
-    "Residential House",
-    "Villa",
-    "Builder Floor Apartment",
+    'Residential',
+    'Flat/ Apartment',
+    'Residential House',
+    'Villa',
+    'Builder Floor Apartment',
     // Both halves of the post-split vocabulary plus the legacy value it
     // replaced, or a plot listed after the split falls out of every
     // "residential" search and category filter.
-    "Residential Plot",
-    "Residential Land",
-    "Residential Land/ Plot",
-    "Penthouse",
-    "Studio Apartment",
-    "Residential PG building",
-    "PG/ Hostel",
-    "Farm House",
+    'Residential Plot',
+    'Residential Land',
+    'Residential Land/ Plot',
+    'Penthouse',
+    'Studio Apartment',
+    'Residential PG building',
+    'PG/ Hostel',
+    'Farm House',
   ],
   Commercial: [
-    "Commercial",
-    "Commercial Office Space",
-    "Office in IT Park/ SEZ",
-    "Commercial Shop",
-    "Commercial Showroom",
-    "Commercial Building",
-    "Commercial Plot",
-    "Commercial Land",
-    "Warehouse/ Godown",
-    "Industrial Land",
-    "Industrial Building",
-    "Industrial Shed",
+    'Commercial',
+    'Commercial Office Space',
+    'Office in IT Park/ SEZ',
+    'Commercial Shop',
+    'Commercial Showroom',
+    'Commercial Building',
+    'Commercial Plot',
+    'Commercial Land',
+    'Warehouse/ Godown',
+    'Industrial Land',
+    'Industrial Building',
+    'Industrial Shed',
   ],
-  Agricultural: [
-    "Agricultural",
-    "Agricultural Land",
-    "Farm House",
-  ],
+  Agricultural: ['Agricultural', 'Agricultural Land', 'Farm House'],
 };
 
 export interface ParsedQuery {
@@ -60,9 +56,9 @@ export interface ParsedQuery {
 
 function parsePriceUnit(val: number, unit: string): number {
   const u = unit.toLowerCase().replace(/\s+/g, '');
-  if (u.startsWith('cr'))  return val * 10_000_000;
+  if (u.startsWith('cr')) return val * 10_000_000;
   if (u.startsWith('l') || u === 'lac' || u === 'lacs') return val * 100_000;
-  if (u.startsWith('k'))   return val * 1_000;
+  if (u.startsWith('k')) return val * 1_000;
   return val;
 }
 
@@ -70,10 +66,10 @@ function parseAreaUnit(val: number, unit: string): number {
   const u = unit.toLowerCase().replace(/\s+/g, '');
   // Free-text units from a search box, resolved onto the same factors
   // the property form and /api/properties convert with.
-  if (u.includes('acre'))   return val * SQFT_PER_AREA_UNIT['Acre'];
-  if (u.includes('gunta'))  return val * SQFT_PER_AREA_UNIT['Gunta'];
+  if (u.includes('acre')) return val * SQFT_PER_AREA_UNIT['Acre'];
+  if (u.includes('gunta')) return val * SQFT_PER_AREA_UNIT['Gunta'];
   if (u.includes('ground')) return val * SQFT_PER_AREA_UNIT['Ground'];
-  if (u.includes('cent'))   return val * SQFT_PER_AREA_UNIT['Cent'];
+  if (u.includes('cent')) return val * SQFT_PER_AREA_UNIT['Cent'];
   if (u.startsWith('sqm') || u.includes('meter') || u.includes('mtr')) {
     return val * SQFT_PER_AREA_UNIT['Sq.Mtr.'];
   }
@@ -88,9 +84,19 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   let q = searchQuery.toLowerCase().trim();
 
   if (!q) {
-    return { minPrice: null, maxPrice: null, minArea: null, maxArea: null,
-             bedrooms: null, types: [], listingType: null, rentYielding: false,
-             listingSource: null, locations: [], remainingSearch: '' };
+    return {
+      minPrice: null,
+      maxPrice: null,
+      minArea: null,
+      maxArea: null,
+      bedrooms: null,
+      types: [],
+      listingType: null,
+      rentYielding: false,
+      listingSource: null,
+      locations: [],
+      remainingSearch: '',
+    };
   }
 
   let minPrice: number | null = null;
@@ -104,7 +110,8 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   // "rent yielding commercial > 10 cr" is a sale of an income-producing
   // asset — consume the phrase before listing-type detection so "rent"
   // doesn't misclassify the query as a Rent listing.
-  const rentYieldPattern = /\b(?:rent(?:al)?[\s-]?yield(?:ing)?|rent(?:al)?[\s-]?income|income[\s-]?(?:generating|producing|yielding)|revenue[\s-]?generating|pre[\s-]?(?:leased|rented)|tenanted|leased[\s-]?out)\b/gi;
+  const rentYieldPattern =
+    /\b(?:rent(?:al)?[\s-]?yield(?:ing)?|rent(?:al)?[\s-]?income|income[\s-]?(?:generating|producing|yielding)|revenue[\s-]?generating|pre[\s-]?(?:leased|rented)|tenanted|leased[\s-]?out)\b/gi;
   const rentYielding = rentYieldPattern.test(q);
   if (rentYielding) q = q.replace(rentYieldPattern, ' ');
 
@@ -112,8 +119,10 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   // "direct listing" / "by owner" / "no broker" → owner listings;
   // "agent listing" / "through broker" → agent listings. Owner phrases are
   // tested first so "no broker" isn't consumed as an agent signal.
-  const ownerSourcePattern = /\b(?:direct|owner)\s+listings?\b|\bdirect\s+(?:owner|deal|sale)s?\b|\bowner\s+direct\b|\b(?:by|from)\s+(?:the\s+)?owner\b|\b(?:no|without|zero)\s+broker(?:age)?\b|\bdirect\b/gi;
-  const agentSourcePattern = /\b(?:agent|broker)\s+listings?\b|\b(?:through|via|by|from)\s+(?:an?\s+)?(?:agent|broker)\b|\bbrokered\b|\bagents?\b|\bbrokers?\b/gi;
+  const ownerSourcePattern =
+    /\b(?:direct|owner)\s+listings?\b|\bdirect\s+(?:owner|deal|sale)s?\b|\bowner\s+direct\b|\b(?:by|from)\s+(?:the\s+)?owner\b|\b(?:no|without|zero)\s+broker(?:age)?\b|\bdirect\b/gi;
+  const agentSourcePattern =
+    /\b(?:agent|broker)\s+listings?\b|\b(?:through|via|by|from)\s+(?:an?\s+)?(?:agent|broker)\b|\bbrokered\b|\bagents?\b|\bbrokers?\b/gi;
 
   let listingSource: 'owner' | 'agent' | null = null;
   if (ownerSourcePattern.test(q)) {
@@ -127,7 +136,9 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   // ── Listing type ──────────────────────────────────────────────────────────
   if (/\bfor\s+rent\b|\bto\s+rent\b|\brent(?:al)?\b|\blease\b/i.test(q)) {
     listingType = 'Rent';
-  } else if (/\bfor\s+sale\b|\bto\s+(?:buy|sell)\b|\bsale\b|\bsell\b/i.test(q)) {
+  } else if (
+    /\bfor\s+sale\b|\bto\s+(?:buy|sell)\b|\bsale\b|\bsell\b/i.test(q)
+  ) {
     listingType = 'Sale';
   } else if (rentYielding) {
     listingType = 'Sale';
@@ -144,20 +155,23 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   // ── Price parsing ─────────────────────────────────────────────────────────
 
   // Operator style: > 20 cr, >= 50 lakhs, < 1.5 cr, <= 80L
-  const opPricePattern = /([><]=?)\s*(?:rs\.?\s*|inr\s*|₹\s*)?(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)\b/gi;
+  const opPricePattern =
+    /([><]=?)\s*(?:rs\.?\s*|inr\s*|₹\s*)?(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)\b/gi;
   let opPriceMatch;
   while ((opPriceMatch = opPricePattern.exec(q)) !== null) {
-    const op  = opPriceMatch[1];
+    const op = opPriceMatch[1];
     const val = parsePriceUnit(parseFloat(opPriceMatch[2]), opPriceMatch[3]);
-    if (op === '>'  || op === '>=') minPrice = op === '>=' ? val : val + 1;
-    if (op === '<'  || op === '<=') maxPrice = op === '<=' ? val : val - 1;
+    if (op === '>' || op === '>=') minPrice = op === '>=' ? val : val + 1;
+    if (op === '<' || op === '<=') maxPrice = op === '<=' ? val : val - 1;
     q = q.replace(opPriceMatch[0], ' ');
   }
 
   if (minPrice === null && maxPrice === null) {
     // Range: "50L to 1 cr", "between 1 cr and 2 cr", "1-2 cr"
-    const rangeBoth = /(?:between\s+)?(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)\s*(?:to|and|-)\s*(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)/gi;
-    const rangeSingle = /(?:between\s+)?(\d+(?:\.\d+)?)\s*(?:to|and|-)\s*(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)/gi;
+    const rangeBoth =
+      /(?:between\s+)?(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)\s*(?:to|and|-)\s*(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)/gi;
+    const rangeSingle =
+      /(?:between\s+)?(\d+(?:\.\d+)?)\s*(?:to|and|-)\s*(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)/gi;
 
     let m = rangeBoth.exec(q);
     if (m) {
@@ -175,16 +189,25 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
 
     if (minPrice === null && maxPrice === null) {
       // Natural language bounds
-      const maxKeyword = /(?:under|below|less\s+than|max(?:imum)?|upto?|up\s+to|within)\s+(?:rs\.?\s*|inr\s*|₹\s*)?(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)/gi;
-      const minKeyword = /(?:above|more\s+than|greater\s+than|min(?:imum)?|starting\s+(?:from|at)|at\s+least|from)\s+(?:rs\.?\s*|inr\s*|₹\s*)?(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)/gi;
-      const approxKeyword = /(?:around|about|approx(?:imate(?:ly)?)?|~)?\s*(?:rs\.?\s*|inr\s*|₹\s*)?(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)\b/gi;
+      const maxKeyword =
+        /(?:under|below|less\s+than|max(?:imum)?|upto?|up\s+to|within)\s+(?:rs\.?\s*|inr\s*|₹\s*)?(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)/gi;
+      const minKeyword =
+        /(?:above|more\s+than|greater\s+than|min(?:imum)?|starting\s+(?:from|at)|at\s+least|from)\s+(?:rs\.?\s*|inr\s*|₹\s*)?(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)/gi;
+      const approxKeyword =
+        /(?:around|about|approx(?:imate(?:ly)?)?|~)?\s*(?:rs\.?\s*|inr\s*|₹\s*)?(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lakh?s?|lacs?|k)\b/gi;
 
       let mm = maxKeyword.exec(q);
-      if (mm) { maxPrice = parsePriceUnit(parseFloat(mm[1]), mm[2]); q = q.replace(mm[0], ' '); }
+      if (mm) {
+        maxPrice = parsePriceUnit(parseFloat(mm[1]), mm[2]);
+        q = q.replace(mm[0], ' ');
+      }
 
       maxKeyword.lastIndex = 0;
       mm = minKeyword.exec(q);
-      if (mm) { minPrice = parsePriceUnit(parseFloat(mm[1]), mm[2]); q = q.replace(mm[0], ' '); }
+      if (mm) {
+        minPrice = parsePriceUnit(parseFloat(mm[1]), mm[2]);
+        q = q.replace(mm[0], ' ');
+      }
 
       if (minPrice === null && maxPrice === null) {
         approxKeyword.lastIndex = 0;
@@ -202,18 +225,20 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   // ── Area parsing ──────────────────────────────────────────────────────────
 
   // "> 2000 sqft", "< 1 acre"
-  const opAreaPattern = /([><]=?)\s*(\d+(?:\.\d+)?)\s*(sq\.?\s*(?:ft|feet|meter|mtr|m)|sqft|sqm|acres?|guntas?|grounds?|cents?)\b/gi;
+  const opAreaPattern =
+    /([><]=?)\s*(\d+(?:\.\d+)?)\s*(sq\.?\s*(?:ft|feet|meter|mtr|m)|sqft|sqm|acres?|guntas?|grounds?|cents?)\b/gi;
   let opAreaMatch;
   while ((opAreaMatch = opAreaPattern.exec(q)) !== null) {
-    const op  = opAreaMatch[1];
+    const op = opAreaMatch[1];
     const val = parseAreaUnit(parseFloat(opAreaMatch[2]), opAreaMatch[3]);
-    if (op === '>'  || op === '>=') minArea = op === '>=' ? val : val + 1;
-    if (op === '<'  || op === '<=') maxArea = op === '<=' ? val : val - 1;
+    if (op === '>' || op === '>=') minArea = op === '>=' ? val : val + 1;
+    if (op === '<' || op === '<=') maxArea = op === '<=' ? val : val - 1;
     q = q.replace(opAreaMatch[0], ' ');
   }
 
   if (minArea === null && maxArea === null) {
-    const areaRange = /(\d+(?:\.\d+)?)\s*(?:to|-)\s*(\d+(?:\.\d+)?)\s*(sq\.?\s*(?:ft|feet|meter|mtr|m)|sqft|sqm|acres?|guntas?|grounds?|cents?)\b/gi;
+    const areaRange =
+      /(\d+(?:\.\d+)?)\s*(?:to|-)\s*(\d+(?:\.\d+)?)\s*(sq\.?\s*(?:ft|feet|meter|mtr|m)|sqft|sqm|acres?|guntas?|grounds?|cents?)\b/gi;
     const am = areaRange.exec(q);
     if (am) {
       minArea = parseAreaUnit(parseFloat(am[1]), am[3]);
@@ -225,17 +250,28 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   if (minArea === null && maxArea === null) {
     // Natural language bounds, mirroring the price keywords above:
     // "above 30000 sqft", "under 2 acres", "at least 5 guntas"
-    const areaUnit = '(sq\\.?\\s*(?:ft|feet|meter|mtr|m)|sqft|sqm|acres?|guntas?|grounds?|cents?)';
+    const areaUnit =
+      '(sq\\.?\\s*(?:ft|feet|meter|mtr|m)|sqft|sqm|acres?|guntas?|grounds?|cents?)';
     const maxAreaKeyword = new RegExp(
-      `(?:under|below|less\\s+than|max(?:imum)?|upto?|up\\s+to|within)\\s+(\\d+(?:\\.\\d+)?)\\s*${areaUnit}\\b`, 'gi');
+      `(?:under|below|less\\s+than|max(?:imum)?|upto?|up\\s+to|within)\\s+(\\d+(?:\\.\\d+)?)\\s*${areaUnit}\\b`,
+      'gi'
+    );
     const minAreaKeyword = new RegExp(
-      `(?:above|over|more\\s+than|greater\\s+than|min(?:imum)?|at\\s+least|starting\\s+(?:from|at)|from)\\s+(\\d+(?:\\.\\d+)?)\\s*${areaUnit}\\b`, 'gi');
+      `(?:above|over|more\\s+than|greater\\s+than|min(?:imum)?|at\\s+least|starting\\s+(?:from|at)|from)\\s+(\\d+(?:\\.\\d+)?)\\s*${areaUnit}\\b`,
+      'gi'
+    );
 
     let am = maxAreaKeyword.exec(q);
-    if (am) { maxArea = parseAreaUnit(parseFloat(am[1]), am[2]); q = q.replace(am[0], ' '); }
+    if (am) {
+      maxArea = parseAreaUnit(parseFloat(am[1]), am[2]);
+      q = q.replace(am[0], ' ');
+    }
 
     am = minAreaKeyword.exec(q);
-    if (am) { minArea = parseAreaUnit(parseFloat(am[1]), am[2]); q = q.replace(am[0], ' '); }
+    if (am) {
+      minArea = parseAreaUnit(parseFloat(am[1]), am[2]);
+      q = q.replace(am[0], ' ');
+    }
   }
 
   // ── Property type detection ───────────────────────────────────────────────
@@ -243,37 +279,129 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   const types: string[] = [];
 
   const TYPE_RULES: Array<{ pattern: RegExp; types: string[] }> = [
-    { pattern: /\bresidential\s+(?:land|plot)s?\b/i,        types: ['Residential Land/ Plot'] },
-    { pattern: /\bcommercial\s+plots?\b/i,                 types: ['Commercial Plot'] },
-    { pattern: /\bcommercial\s+lands?\b/i,                 types: ['Commercial Land'] },
-    { pattern: /\bindustrial\s+(?:land|plot)s?\b/i,         types: ['Industrial Land'] },
-    { pattern: /\bagricultur(?:al|e)\s+(?:land|plot|farm)s?\b|\bagri[\s-]?(?:land|plot)s?\b|\bfarm[\s-]?lands?\b/i, types: ['Agricultural Land', 'Farm House'] },
-    { pattern: /\bplots?\b|\bland\b|\blands\b/i,            types: ['Residential Land/ Plot','Commercial Plot','Commercial Land','Industrial Land','Agricultural Land'] },
-    { pattern: /\bvillas?\b/i,                               types: ['Villa'] },
-    { pattern: /\bpenthouse[s]?\b/i,                         types: ['Penthouse'] },
-    { pattern: /\bstudio\b/i,                                types: ['Studio Apartment'] },
-    { pattern: /\bbuilder\s+floor\b/i,                       types: ['Builder Floor Apartment'] },
-    { pattern: /\b(?:flat|flats|apartment|apartments)\b/i,  types: ['Flat/ Apartment','Builder Floor Apartment','Studio Apartment','Penthouse'] },
-    { pattern: /\b(?:row\s+house|independent\s+house|residential\s+house)\b/i, types: ['Residential House'] },
-    { pattern: /\bhouse[s]?\b/i,                             types: ['Residential House','Villa','Farm House'] },
-    { pattern: /\bfarm\s*house[s]?\b/i,                      types: ['Farm House'] },
-    { pattern: /\boffice\s+(?:space|park|it\s+park)\b|\bit\s+park\b|\bsez\b/i, types: ['Office in IT Park/ SEZ','Commercial Office Space'] },
-    { pattern: /\boffices?\b/i,                              types: ['Commercial Office Space','Office in IT Park/ SEZ'] },
-    { pattern: /\bshowrooms?\b|\bretail\s+space\b/i,         types: ['Commercial Showroom'] },
-    { pattern: /\bshops?\b/i,                                types: ['Commercial Shop','Commercial Showroom'] },
-    { pattern: /\bwarehouse[s]?\b|\bgodowns?\b/i,            types: ['Warehouse/ Godown'] },
-    { pattern: /\bindustrial\s+(?:shed|building)s?\b/i,      types: ['Industrial Building','Industrial Shed'] },
-    { pattern: /\bmixed[\s-]*use\b|\bcommercial\s+(?:building|complex|development)s?\b/i, types: ['Commercial Building'] },
-    { pattern: /\bcommercial\b/i,                            types: ['Commercial','Commercial Office Space','Office in IT Park/ SEZ','Commercial Shop','Commercial Showroom','Commercial Building','Commercial Plot','Commercial Land','Warehouse/ Godown','Industrial Land','Industrial Building','Industrial Shed'] },
-    { pattern: /\bresidential\b/i,                           types: ['Residential','Flat/ Apartment','Residential House','Villa','Builder Floor Apartment','Residential Land/ Plot','Penthouse','Studio Apartment'] },
-    { pattern: /\bagricultur(?:al|e)\b|\bagri\b/i,           types: ['Agricultural','Agricultural Land','Farm House'] },
+    {
+      pattern: /\bresidential\s+(?:land|plot)s?\b/i,
+      types: ['Residential Land/ Plot'],
+    },
+    { pattern: /\bcommercial\s+plots?\b/i, types: ['Commercial Plot'] },
+    { pattern: /\bcommercial\s+lands?\b/i, types: ['Commercial Land'] },
+    {
+      pattern: /\bindustrial\s+(?:land|plot)s?\b/i,
+      types: ['Industrial Land'],
+    },
+    {
+      pattern:
+        /\bagricultur(?:al|e)\s+(?:land|plot|farm)s?\b|\bagri[\s-]?(?:land|plot)s?\b|\bfarm[\s-]?lands?\b/i,
+      types: ['Agricultural Land', 'Farm House'],
+    },
+    {
+      pattern: /\bplots?\b|\bland\b|\blands\b/i,
+      types: [
+        'Residential Land/ Plot',
+        'Commercial Plot',
+        'Commercial Land',
+        'Industrial Land',
+        'Agricultural Land',
+      ],
+    },
+    { pattern: /\bvillas?\b/i, types: ['Villa'] },
+    { pattern: /\bpenthouse[s]?\b/i, types: ['Penthouse'] },
+    { pattern: /\bstudio\b/i, types: ['Studio Apartment'] },
+    { pattern: /\bbuilder\s+floor\b/i, types: ['Builder Floor Apartment'] },
+    {
+      pattern: /\b(?:flat|flats|apartment|apartments)\b/i,
+      types: [
+        'Flat/ Apartment',
+        'Builder Floor Apartment',
+        'Studio Apartment',
+        'Penthouse',
+      ],
+    },
+    {
+      pattern: /\b(?:row\s+house|independent\s+house|residential\s+house)\b/i,
+      types: ['Residential House'],
+    },
+    {
+      pattern: /\bhouse[s]?\b/i,
+      types: ['Residential House', 'Villa', 'Farm House'],
+    },
+    { pattern: /\bfarm\s*house[s]?\b/i, types: ['Farm House'] },
+    {
+      pattern: /\boffice\s+(?:space|park|it\s+park)\b|\bit\s+park\b|\bsez\b/i,
+      types: ['Office in IT Park/ SEZ', 'Commercial Office Space'],
+    },
+    {
+      pattern: /\boffices?\b/i,
+      types: ['Commercial Office Space', 'Office in IT Park/ SEZ'],
+    },
+    {
+      pattern: /\bshowrooms?\b|\bretail\s+space\b/i,
+      types: ['Commercial Showroom'],
+    },
+    {
+      pattern: /\bshops?\b/i,
+      types: ['Commercial Shop', 'Commercial Showroom'],
+    },
+    {
+      pattern: /\bwarehouse[s]?\b|\bgodowns?\b/i,
+      types: ['Warehouse/ Godown'],
+    },
+    {
+      pattern: /\bindustrial\s+(?:shed|building)s?\b/i,
+      types: ['Industrial Building', 'Industrial Shed'],
+    },
+    {
+      pattern:
+        /\bmixed[\s-]*use\b|\bcommercial\s+(?:building|complex|development)s?\b/i,
+      types: ['Commercial Building'],
+    },
+    {
+      pattern: /\bcommercial\b/i,
+      types: [
+        'Commercial',
+        'Commercial Office Space',
+        'Office in IT Park/ SEZ',
+        'Commercial Shop',
+        'Commercial Showroom',
+        'Commercial Building',
+        'Commercial Plot',
+        'Commercial Land',
+        'Warehouse/ Godown',
+        'Industrial Land',
+        'Industrial Building',
+        'Industrial Shed',
+      ],
+    },
+    {
+      pattern: /\bresidential\b/i,
+      types: [
+        'Residential',
+        'Flat/ Apartment',
+        'Residential House',
+        'Villa',
+        'Builder Floor Apartment',
+        'Residential Land/ Plot',
+        'Penthouse',
+        'Studio Apartment',
+      ],
+    },
+    {
+      pattern: /\bagricultur(?:al|e)\b|\bagri\b/i,
+      types: ['Agricultural', 'Agricultural Land', 'Farm House'],
+    },
   ];
 
   for (const rule of TYPE_RULES) {
     if (rule.pattern.test(q)) {
-      rule.types.forEach(t => { if (!types.includes(t)) types.push(t); });
+      rule.types.forEach((t) => {
+        if (!types.includes(t)) types.push(t);
+      });
       // Only break for specific matches, not broad categories
-      if (!['Commercial','Residential','Agricultural'].some(c => rule.types.includes(c))) {
+      if (
+        !['Commercial', 'Residential', 'Agricultural'].some((c) =>
+          rule.types.includes(c)
+        )
+      ) {
         break;
       }
     }
@@ -282,7 +410,8 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   // ── Location extraction ───────────────────────────────────────────────────
   // "in Whitefield", "in Domlur Bengaluru", "at Koramangala", "near Marathahalli"
   const locations: string[] = [];
-  const locPattern = /\b(?:in|at|near|around|from)\s+([A-Z][a-zA-Z\s]{2,30?}?)(?=\s+(?:with|for|under|above|below|price|area|bhk|\d)|$|,|\.|$)/gi;
+  const locPattern =
+    /\b(?:in|at|near|around|from)\s+([A-Z][a-zA-Z\s]{2,30?}?)(?=\s+(?:with|for|under|above|below|price|area|bhk|\d)|$|,|\.|$)/gi;
   let locMatch;
   while ((locMatch = locPattern.exec(searchQuery)) !== null) {
     const loc = locMatch[1].trim().replace(/\s+/g, ' ');
@@ -295,49 +424,164 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   let remaining = q;
 
   // Strip price/area expressions already consumed
-  remaining = remaining.replace(/[><]=?\s*\d+(?:\.\d+)?\s*(?:cr(?:ore)?s?|lakh?s?|lacs?|k|sq\.?\s*(?:ft|feet|meter|mtr|m)|sqft|sqm|acres?|guntas?|grounds?|cents?)?/gi, '');
-  remaining = remaining.replace(/\d+(?:\.\d+)?\s*(?:cr(?:ore)?s?|lakh?s?|lacs?|k)\b/gi, '');
-  remaining = remaining.replace(/\d+(?:\.\d+)?\s*(?:sq\.?\s*(?:ft|feet|meter|mtr|m)|sqft|sqm|acres?|guntas?|grounds?|cents?)\b/gi, '');
+  remaining = remaining.replace(
+    /[><]=?\s*\d+(?:\.\d+)?\s*(?:cr(?:ore)?s?|lakh?s?|lacs?|k|sq\.?\s*(?:ft|feet|meter|mtr|m)|sqft|sqm|acres?|guntas?|grounds?|cents?)?/gi,
+    ''
+  );
+  remaining = remaining.replace(
+    /\d+(?:\.\d+)?\s*(?:cr(?:ore)?s?|lakh?s?|lacs?|k)\b/gi,
+    ''
+  );
+  remaining = remaining.replace(
+    /\d+(?:\.\d+)?\s*(?:sq\.?\s*(?:ft|feet|meter|mtr|m)|sqft|sqm|acres?|guntas?|grounds?|cents?)\b/gi,
+    ''
+  );
 
   // Strip listing type words
-  remaining = remaining.replace(/\bfor\s+(?:sale|rent)\b|\bto\s+(?:rent|buy|sell)\b|\b(?:sale|rent(?:al)?|lease)\b/gi, '');
+  remaining = remaining.replace(
+    /\bfor\s+(?:sale|rent)\b|\bto\s+(?:rent|buy|sell)\b|\b(?:sale|rent(?:al)?|lease)\b/gi,
+    ''
+  );
 
   // Strip type keywords
   const TYPE_KEYWORDS = [
-    'residential plots','residential plot','commercial land','commercial plot',
-    'industrial land','industrial plot','agricultural land','agricultural plot',
-    'agriculture land','agriculture plot','agri land','agri plot',
-    'farm land','farm lands','farmland','farmlands','farm house','farmhouse','builder floor',
-    'penthouse','penthouses','studio','plot','plots','land','lands',
-    'villa','villas','house','houses','independent house','row house',
-    'flat','flats','apartment','apartments',
-    'office space','office','offices','it park','sez',
-    'shop','shops','showroom','showrooms','retail space','retail',
-    'warehouse','warehouses','godown','godowns',
-    'commercial building','commercial complex','commercial development',
-    'mixed use','mixed-use',
-    'industrial building','industrial shed',
-    'commercial','residential','agricultural','agriculture','agri',
+    'residential plots',
+    'residential plot',
+    'commercial land',
+    'commercial plot',
+    'industrial land',
+    'industrial plot',
+    'agricultural land',
+    'agricultural plot',
+    'agriculture land',
+    'agriculture plot',
+    'agri land',
+    'agri plot',
+    'farm land',
+    'farm lands',
+    'farmland',
+    'farmlands',
+    'farm house',
+    'farmhouse',
+    'builder floor',
+    'penthouse',
+    'penthouses',
+    'studio',
+    'plot',
+    'plots',
+    'land',
+    'lands',
+    'villa',
+    'villas',
+    'house',
+    'houses',
+    'independent house',
+    'row house',
+    'flat',
+    'flats',
+    'apartment',
+    'apartments',
+    'office space',
+    'office',
+    'offices',
+    'it park',
+    'sez',
+    'shop',
+    'shops',
+    'showroom',
+    'showrooms',
+    'retail space',
+    'retail',
+    'warehouse',
+    'warehouses',
+    'godown',
+    'godowns',
+    'commercial building',
+    'commercial complex',
+    'commercial development',
+    'mixed use',
+    'mixed-use',
+    'industrial building',
+    'industrial shed',
+    'commercial',
+    'residential',
+    'agricultural',
+    'agriculture',
+    'agri',
   ];
   TYPE_KEYWORDS.sort((a, b) => b.length - a.length); // longest first
-  TYPE_KEYWORDS.forEach(kw => {
-    remaining = remaining.replace(new RegExp(`\\b${kw.replace(/\//g,'\\/')}\\b`, 'gi'), '');
+  TYPE_KEYWORDS.forEach((kw) => {
+    remaining = remaining.replace(
+      new RegExp(`\\b${kw.replace(/\//g, '\\/')}\\b`, 'gi'),
+      ''
+    );
   });
 
   // Strip bedroom words
-  remaining = remaining.replace(/\b\d+\s*(?:-\s*)?(?:bhk|bedrooms?|bed)\b/gi, '');
+  remaining = remaining.replace(
+    /\b\d+\s*(?:-\s*)?(?:bhk|bedrooms?|bed)\b/gi,
+    ''
+  );
 
   // Strip filler words. 'vacant'/'empty'/'open' are land adjectives that
   // carry no filterable meaning ("vacant land" IS land) — left in place
   // they'd AND a text match that no listing contains and zero the results.
-  const FILLERS = ['properties','property','listing','listings','with','having',
-    'price','cost','budget','rate','value','area','size','sqft','sq ft',
-    'from','to','range','between','and','in','at','for','near','around','about',
-    'approx','under','above','below','over','more','less','than','the','a','an',
-    'all','any','some','give','show','find','search','get','list','want',
-    'vacant','empty','open','yield','yielding'];
+  const FILLERS = [
+    'properties',
+    'property',
+    'listing',
+    'listings',
+    'with',
+    'having',
+    'price',
+    'cost',
+    'budget',
+    'rate',
+    'value',
+    'area',
+    'size',
+    'sqft',
+    'sq ft',
+    'from',
+    'to',
+    'range',
+    'between',
+    'and',
+    'in',
+    'at',
+    'for',
+    'near',
+    'around',
+    'about',
+    'approx',
+    'under',
+    'above',
+    'below',
+    'over',
+    'more',
+    'less',
+    'than',
+    'the',
+    'a',
+    'an',
+    'all',
+    'any',
+    'some',
+    'give',
+    'show',
+    'find',
+    'search',
+    'get',
+    'list',
+    'want',
+    'vacant',
+    'empty',
+    'open',
+    'yield',
+    'yielding',
+  ];
   FILLERS.sort((a, b) => b.length - a.length);
-  FILLERS.forEach(f => {
+  FILLERS.forEach((f) => {
     remaining = remaining.replace(new RegExp(`\\b${f}\\b`, 'gi'), '');
   });
 

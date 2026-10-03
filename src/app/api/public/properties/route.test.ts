@@ -33,9 +33,8 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
 
 const { GET, getPublicProperties } = await import('./route');
-const { RATE_LIMITS, __resetRateLimitForTests } = await import(
-  '@/lib/rate-limit'
-);
+const { RATE_LIMITS, __resetRateLimitForTests } =
+  await import('@/lib/rate-limit');
 
 const ACCOUNT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
@@ -52,7 +51,7 @@ function req(opts: { ip?: string; account?: string; apiKey?: string } = {}) {
   if (opts.apiKey) headers['x-api-key'] = opts.apiKey;
   return new Request(
     `http://localhost/api/public/properties?account_id=${account}`,
-    { headers },
+    { headers }
   ) as never;
 }
 
@@ -84,7 +83,7 @@ describe('GET /api/public/properties rate limiting', () => {
     expect(blocked.status).toBe(429);
     expect(blocked.headers.get('Retry-After')).toBeTruthy();
     expect(blocked.headers.get('X-RateLimit-Limit')).toBe(
-      String(RATE_LIMITS.publicCatalog.limit),
+      String(RATE_LIMITS.publicCatalog.limit)
     );
   });
 
@@ -107,7 +106,7 @@ describe('GET /api/public/properties rate limiting', () => {
     const blocked = await GET(req({ account: ACCOUNT }));
     expect(blocked.status).toBe(429);
     expect(blocked.headers.get('X-RateLimit-Limit')).toBe(
-      String(RATE_LIMITS.publicCatalogAccount.limit),
+      String(RATE_LIMITS.publicCatalogAccount.limit)
     );
   });
 

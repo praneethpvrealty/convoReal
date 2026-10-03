@@ -16,89 +16,89 @@
 //   * meta_catalog_*   — Meta catalog sync internals
 // ============================================================
 
-import { denAdmin, type DenContext } from "./auth";
+import { denAdmin, type DenContext } from './auth';
 
-export type DealMode = "off" | "soft" | "aggressive";
+export type DealMode = 'off' | 'soft' | 'aggressive';
 
-export const DEAL_MODES: DealMode[] = ["off", "soft", "aggressive"];
+export const DEAL_MODES: DealMode[] = ['off', 'soft', 'aggressive'];
 
 export const DEN_PROPERTY_SELECT = [
-  "id",
-  "account_id",
-  "title",
-  "description",
-  "price",
-  "sold_price",
-  "location",
-  "type",
-  "status",
-  "listing_type",
-  "rent_per_month",
-  "maintenance",
-  "advance",
-  "gst",
-  "jv_structure",
-  "owner_share_percent",
-  "builder_share_percent",
-  "goodwill_amount",
-  "bts_lease_years",
-  "bts_lock_in_years",
-  "bts_escalation_percent",
-  "ownership_status",
-  "land_use_zoning",
-  "bedrooms",
-  "bathrooms",
-  "area_sqft",
-  "area_unit",
-  "land_area",
-  "land_area_unit",
-  "super_built_area",
-  "sublocality",
-  "city",
-  "state",
-  "project",
-  "latitude",
-  "longitude",
-  "land_zone",
-  "ideal_for",
-  "dimensions",
-  "road_width",
-  "road_width_unit",
-  "facing_direction",
-  "nearby_highlights",
-  "is_published",
-  "features",
-  "images",
-  "documents",
-  "google_map_link",
-  "property_code",
-  "owner_contact_id",
-  "rental_income",
-  "roi",
-  "floor_tenancies",
-  "listing_source",
-  "deal_mode",
-  "deal_mode_updated_at",
-  "deal_mode_set_by",
-  "min_bid",
-  "created_at",
-  "updated_at",
-].join(", ");
+  'id',
+  'account_id',
+  'title',
+  'description',
+  'price',
+  'sold_price',
+  'location',
+  'type',
+  'status',
+  'listing_type',
+  'rent_per_month',
+  'maintenance',
+  'advance',
+  'gst',
+  'jv_structure',
+  'owner_share_percent',
+  'builder_share_percent',
+  'goodwill_amount',
+  'bts_lease_years',
+  'bts_lock_in_years',
+  'bts_escalation_percent',
+  'ownership_status',
+  'land_use_zoning',
+  'bedrooms',
+  'bathrooms',
+  'area_sqft',
+  'area_unit',
+  'land_area',
+  'land_area_unit',
+  'super_built_area',
+  'sublocality',
+  'city',
+  'state',
+  'project',
+  'latitude',
+  'longitude',
+  'land_zone',
+  'ideal_for',
+  'dimensions',
+  'road_width',
+  'road_width_unit',
+  'facing_direction',
+  'nearby_highlights',
+  'is_published',
+  'features',
+  'images',
+  'documents',
+  'google_map_link',
+  'property_code',
+  'owner_contact_id',
+  'rental_income',
+  'roi',
+  'floor_tenancies',
+  'listing_source',
+  'deal_mode',
+  'deal_mode_updated_at',
+  'deal_mode_set_by',
+  'min_bid',
+  'created_at',
+  'updated_at',
+].join(', ');
 
 /** Fields an owner may edit directly on their listing. Structural
  *  changes (type, status, publish state, location) go through the
  *  managing agency instead. */
 export const DEN_EDITABLE_FIELDS = [
-  "title",
-  "description",
-  "price",
-  "rent_per_month",
-  "maintenance",
-  "advance",
-  "gst",
-  "min_bid",
-  "features",
-  "nearby_highlights",
+  'title',
+  'description',
+  'price',
+  'rent_per_month',
+  'maintenance',
+  'advance',
+  'gst',
+  'min_bid',
+  'features',
+  'nearby_highlights',
 ] as const;
 
 export type DenEditableField = (typeof DEN_EDITABLE_FIELDS)[number];
@@ -111,20 +111,20 @@ export type DenEditableField = (typeof DEN_EDITABLE_FIELDS)[number];
  */
 export async function loadOwnedProperty(
   ctx: DenContext,
-  propertyId: string,
+  propertyId: string
 ): Promise<Record<string, unknown> | null> {
   const contactIds = ctx.links.map((l) => l.contactId);
   if (contactIds.length === 0) return null;
   const db = denAdmin();
   const { data, error } = await db
-    .from("properties")
+    .from('properties')
     .select(DEN_PROPERTY_SELECT)
-    .eq("id", propertyId)
-    .in("owner_contact_id", contactIds)
-    .neq("listing_source", "agent")
+    .eq('id', propertyId)
+    .in('owner_contact_id', contactIds)
+    .neq('listing_source', 'agent')
     .maybeSingle();
   if (error) {
-    console.error("[loadOwnedProperty] fetch error:", error);
+    console.error('[loadOwnedProperty] fetch error:', error);
     return null;
   }
   return data as Record<string, unknown> | null;
@@ -132,7 +132,7 @@ export async function loadOwnedProperty(
 
 /** Picks only owner-editable fields from an untrusted payload. */
 export function pickDenEditableFields(
-  payload: Record<string, unknown>,
+  payload: Record<string, unknown>
 ): Partial<Record<DenEditableField, unknown>> {
   const out: Partial<Record<DenEditableField, unknown>> = {};
   for (const field of DEN_EDITABLE_FIELDS) {

@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
-import { toErrorResponse } from "@/lib/auth/account";
-import { requirePlatformAdmin } from "@/lib/auth/platform-admin";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { NextResponse } from 'next/server';
+import { toErrorResponse } from '@/lib/auth/account';
+import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
  * POST /api/admin/marketplace/items/[id]/provision
@@ -11,10 +11,9 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
  * get a fresh disabled flow copy.
  */
 
-
 export async function POST(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   try {
@@ -25,13 +24,13 @@ export async function POST(
 
   const admin = supabaseAdmin();
   try {
-    await admin.rpc("publish_marketplace_item_to_existing_accounts", {
+    await admin.rpc('publish_marketplace_item_to_existing_accounts', {
       p_marketplace_item_id: id,
     });
     return NextResponse.json({ success: true });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Provision failed";
-    console.error("[admin/marketplace/items/[id]/provision] error:", err);
+    const msg = err instanceof Error ? err.message : 'Provision failed';
+    console.error('[admin/marketplace/items/[id]/provision] error:', err);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

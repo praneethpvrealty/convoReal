@@ -96,7 +96,14 @@ export function inferPersonalWhatsAppJourneyMessage({
     return contentText || (templateName ? `[template:${templateName}]` : null);
   }
 
-  if (contentType === 'media' || contentType === 'audio' || contentType === 'video' || contentType === 'document' || contentType === 'image' || contentType === 'location') {
+  if (
+    contentType === 'media' ||
+    contentType === 'audio' ||
+    contentType === 'video' ||
+    contentType === 'document' ||
+    contentType === 'image' ||
+    contentType === 'location'
+  ) {
     return contentText || '[media]';
   }
 

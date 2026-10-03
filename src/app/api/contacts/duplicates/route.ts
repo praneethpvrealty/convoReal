@@ -42,17 +42,27 @@ export interface DuplicateContact {
 
 export interface DuplicateGroup {
   reason: 'phone' | 'email' | 'name';
-  key: string;   // match key, or the representative name for a name group
+  key: string; // match key, or the representative name for a name group
   contacts: DuplicateContact[];
 }
 
 type ContactRow = {
-  id: string; name: string | null; phone: string; email: string | null;
-  source: string | null; classification: string | null; created_at: string;
-  name_tag: string | null; status: string | null; company: string | null;
-  second_name: string | null; requirements: string | null;
-  min_budget: number | null; max_budget: number | null;
-  areas_of_interest: string[] | null; property_interests: string[] | null;
+  id: string;
+  name: string | null;
+  phone: string;
+  email: string | null;
+  source: string | null;
+  classification: string | null;
+  created_at: string;
+  name_tag: string | null;
+  status: string | null;
+  company: string | null;
+  second_name: string | null;
+  requirements: string | null;
+  min_budget: number | null;
+  max_budget: number | null;
+  areas_of_interest: string[] | null;
+  property_interests: string[] | null;
   last_contacted_at: string | null;
 };
 
@@ -70,7 +80,9 @@ export async function GET() {
       // One literal, not a concatenation: the client infers the row type
       // from the select string, and joining it loses that.
       // prettier-ignore
-      .select('id, name, phone, email, source, classification, created_at, name_tag, status, company, second_name, requirements, min_budget, max_budget, areas_of_interest, property_interests, last_contacted_at')
+      .select(
+        'id, name, phone, email, source, classification, created_at, name_tag, status, company, second_name, requirements, min_budget, max_budget, areas_of_interest, property_interests, last_contacted_at'
+      )
       .eq('account_id', ctx.accountId)
       .eq('is_merged', false)
       .not('phone', 'is', null)
@@ -147,7 +159,9 @@ export async function GET() {
     // the quadratic path an account with thousands of contacts would feel.
     const clusters: { keys: string[]; rows: typeof contacts }[] = [];
     for (const [key, rows] of nameMap.entries()) {
-      const match = clusters.find((cl) => cl.keys.some((k) => namesAreSimilar(k, key)));
+      const match = clusters.find((cl) =>
+        cl.keys.some((k) => namesAreSimilar(k, key))
+      );
       if (match) {
         match.keys.push(key);
         match.rows.push(...rows);
@@ -174,12 +188,16 @@ export async function GET() {
       .eq('account_id', ctx.accountId);
 
     const dismissed = new Set(
-      (dismissals ?? []).map((d) => pairKey(d.contact_a_id, d.contact_b_id)),
+      (dismissals ?? []).map((d) => pairKey(d.contact_a_id, d.contact_b_id))
     );
 
     return NextResponse.json({
       groups: groups.filter(
-        (g) => !isGroupDismissed(g.contacts.map((c) => c.id), dismissed),
+        (g) =>
+          !isGroupDismissed(
+            g.contacts.map((c) => c.id),
+            dismissed
+          )
       ),
     });
   } catch (err) {

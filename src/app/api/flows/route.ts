@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
-import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
-import { supabaseAdmin } from '@/lib/supabase/admin'
-import { getFlowTemplate } from '@/lib/flows/templates'
+import { NextResponse } from 'next/server';
+import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getFlowTemplate } from '@/lib/flows/templates';
 
 /**
  * GET /api/flows — list the caller's flows.
@@ -17,62 +17,60 @@ import { getFlowTemplate } from '@/lib/flows/templates'
 
 export async function GET() {
   try {
-    const { supabase, accountId } = await getCurrentAccount()
+    const { supabase, accountId } = await getCurrentAccount();
 
     const { data, error } = await supabase
       .from('flows')
       .select('*')
       .eq('account_id', accountId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false });
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    return NextResponse.json({ flows: data ?? [] })
+    return NextResponse.json({ flows: data ?? [] });
   } catch (error) {
-    return toErrorResponse(error)
+    return toErrorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
-  let userId: string
-  let accountId: string
+  let userId: string;
+  let accountId: string;
   try {
-    const ctx = await getCurrentAccount()
-    userId = ctx.userId
-    accountId = ctx.accountId
+    const ctx = await getCurrentAccount();
+    userId = ctx.userId;
+    accountId = ctx.accountId;
   } catch (error) {
-    return toErrorResponse(error)
+    return toErrorResponse(error);
   }
 
-  const body = (await request.json().catch(() => null)) as
-    | {
-        name?: string
-        description?: string | null
-        trigger_type?: 'keyword' | 'first_inbound_message' | 'manual'
-        trigger_config?: Record<string, unknown>
-        /**
-         * If set, clone the matching template's name + trigger +
-         * entry_node_id + nodes[] into a fresh draft for this user.
-         * `name` from the body overrides the template default if
-         * provided.
-         */
-        template_slug?: string
-      }
-    | null
+  const body = (await request.json().catch(() => null)) as {
+    name?: string;
+    description?: string | null;
+    trigger_type?: 'keyword' | 'first_inbound_message' | 'manual';
+    trigger_config?: Record<string, unknown>;
+    /**
+     * If set, clone the matching template's name + trigger +
+     * entry_node_id + nodes[] into a fresh draft for this user.
+     * `name` from the body overrides the template default if
+     * provided.
+     */
+    template_slug?: string;
+  } | null;
   if (!body) {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const admin = supabaseAdmin()
+  const admin = supabaseAdmin();
 
   // -------- Template clone path --------
   if (body.template_slug) {
-    const template = getFlowTemplate(body.template_slug)
+    const template = getFlowTemplate(body.template_slug);
     if (!template) {
       return NextResponse.json(
         { error: `Unknown template_slug "${body.template_slug}"` },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
     const { data: flow, error: flowErr } = await admin
       .from('flows')
@@ -87,12 +85,12 @@ export async function POST(request: Request) {
         entry_node_id: template.entry_node_id,
       })
       .select()
-      .single()
+      .single();
     if (flowErr || !flow) {
       return NextResponse.json(
         { error: flowErr?.message ?? 'flow insert failed' },
-        { status: 500 },
-      )
+        { status: 500 }
+      );
     }
     if (template.nodes.length > 0) {
       const { error: nodesErr } = await admin.from('flow_nodes').insert(
@@ -101,27 +99,24 @@ export async function POST(request: Request) {
           node_key: n.node_key,
           node_type: n.node_type,
           config: n.config,
-        })),
-      )
+        }))
+      );
       if (nodesErr) {
         // Roll back the parent flow so a half-cloned template doesn't
         // sit as an empty draft. CASCADE on flow_id removes the
         // (probably zero) nodes too.
-        await admin.from('flows').delete().eq('id', flow.id)
-        return NextResponse.json(
-          { error: nodesErr.message },
-          { status: 500 },
-        )
+        await admin.from('flows').delete().eq('id', flow.id);
+        return NextResponse.json({ error: nodesErr.message }, { status: 500 });
       }
     }
-    return NextResponse.json({ flow }, { status: 201 })
+    return NextResponse.json({ flow }, { status: 201 });
   }
 
   // -------- Plain (empty) create path --------
   if (!body.name?.trim()) {
-    return NextResponse.json({ error: 'name is required' }, { status: 400 })
+    return NextResponse.json({ error: 'name is required' }, { status: 400 });
   }
-  const trigger_type = body.trigger_type ?? 'keyword'
+  const trigger_type = body.trigger_type ?? 'keyword';
 
   const { data, error } = await admin
     .from('flows')
@@ -135,12 +130,12 @@ export async function POST(request: Request) {
       trigger_config: body.trigger_config ?? {},
     })
     .select()
-    .single()
+    .single();
   if (error || !data) {
     return NextResponse.json(
       { error: error?.message ?? 'insert failed' },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
-  return NextResponse.json({ flow: data }, { status: 201 })
+  return NextResponse.json({ flow: data }, { status: 201 });
 }

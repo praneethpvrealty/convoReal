@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { getCurrentAccount, requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  getCurrentAccount,
+  requireRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 
 /**
  * Account-level data-sharing consent (DPDP opt-in for the anonymized
@@ -39,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const limit = await checkRateLimit(
       `data-sharing:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
@@ -47,7 +55,7 @@ export async function POST(req: NextRequest) {
     if (typeof body.consent !== 'boolean') {
       return NextResponse.json(
         { error: "'consent' must be a boolean" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 

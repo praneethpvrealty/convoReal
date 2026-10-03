@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
-import { FlowEditorShell } from "@/components/flows/flow-editor-shell";
-import { FlowNodeLoader } from "@/components/ui/flow-node-loader";
-import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
-import type { FlowRow, FlowNodeRow } from "@/lib/flows/types";
+import { FlowEditorShell } from '@/components/flows/flow-editor-shell';
+import { FlowNodeLoader } from '@/components/ui/flow-node-loader';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import type { FlowRow, FlowNodeRow } from '@/lib/flows/types';
 
 /**
  * Flow editor shell.
@@ -78,8 +78,8 @@ export default function FlowEditorPage() {
         <p className="text-sm text-slate-400">Flow not found.</p>
         <button
           type="button"
-          onClick={() => router.push("/flows")}
-          className="text-sm text-primary hover:opacity-80"
+          onClick={() => router.push('/flows')}
+          className="text-primary text-sm hover:opacity-80"
         >
           ← Back to flows
         </button>

@@ -102,7 +102,10 @@ export async function PATCH(
 
     if (loadErr) {
       console.error('[PATCH /api/learning/facts] load error:', loadErr);
-      return NextResponse.json({ error: 'Failed to load fact' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to load fact' },
+        { status: 500 }
+      );
     }
     if (!fact) {
       return NextResponse.json({ error: 'Fact not found' }, { status: 404 });
@@ -125,7 +128,10 @@ export async function PATCH(
       );
     }
 
-    if (action === 'approve' && (policy.applyAs ?? 'column') === 'contact_tags') {
+    if (
+      action === 'approve' &&
+      (policy.applyAs ?? 'column') === 'contact_tags'
+    ) {
       const names = Array.isArray(fact.value) ? (fact.value as string[]) : [];
       const failed = await attachTags(
         ctx.supabase,
@@ -147,7 +153,10 @@ export async function PATCH(
       }
     } else if (action === 'approve') {
       const patch: Record<string, unknown> = { [policy.column]: fact.value };
-      if (policy.entity === 'property' && policy.field.startsWith('seller_final_price')) {
+      if (
+        policy.entity === 'property' &&
+        policy.field.startsWith('seller_final_price')
+      ) {
         patch.seller_final_price_at = new Date().toISOString();
         patch.seller_final_price_source = 'chat';
       }

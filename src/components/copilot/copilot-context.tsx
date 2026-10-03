@@ -29,10 +29,7 @@ import { toast } from 'sonner';
 import { getTour, type Tour, type TourStep } from '@/lib/copilot/tours';
 
 type TourStatus =
-  | 'idle'
-  | 'waiting-for-route'
-  | 'waiting-for-target'
-  | 'showing';
+  'idle' | 'waiting-for-route' | 'waiting-for-target' | 'showing';
 type EndReason = 'completed' | 'aborted' | 'lost' | 'timeout';
 
 interface CopilotContextValue {

@@ -1,32 +1,32 @@
-"use client"
+'use client';
 
 type CacheEntry<T> = {
-  data: T
-  timestamp: number
-}
+  data: T;
+  timestamp: number;
+};
 
-const cacheStore = new Map<string, CacheEntry<unknown>>()
+const cacheStore = new Map<string, CacheEntry<unknown>>();
 
 export const localCache = {
   get: <T>(key: string, ttlMs: number = 30000): T | null => {
-    if (typeof window === "undefined") return null
-    const entry = cacheStore.get(key)
-    if (!entry) return null
-    const isExpired = Date.now() - entry.timestamp > ttlMs
+    if (typeof window === 'undefined') return null;
+    const entry = cacheStore.get(key);
+    if (!entry) return null;
+    const isExpired = Date.now() - entry.timestamp > ttlMs;
     if (isExpired) {
-      cacheStore.delete(key)
-      return null
+      cacheStore.delete(key);
+      return null;
     }
-    return entry.data as T
+    return entry.data as T;
   },
   set: <T>(key: string, data: T): void => {
-    if (typeof window === "undefined") return
-    cacheStore.set(key, { data, timestamp: Date.now() })
+    if (typeof window === 'undefined') return;
+    cacheStore.set(key, { data, timestamp: Date.now() });
   },
   delete: (key: string): void => {
-    cacheStore.delete(key)
+    cacheStore.delete(key);
   },
   clear: (): void => {
-    cacheStore.clear()
+    cacheStore.clear();
   },
-}
+};

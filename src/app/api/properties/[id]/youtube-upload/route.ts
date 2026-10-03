@@ -83,7 +83,7 @@ export async function POST(
     if (!queued?.length) {
       return NextResponse.json(
         { error: 'Property not found, or you cannot change it' },
-        { status: 404 },
+        { status: 404 }
       );
     }
 

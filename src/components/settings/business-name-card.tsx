@@ -36,7 +36,8 @@ export function BusinessNameCard() {
     if (account?.name) setName(account.name);
   }, [account?.name]);
 
-  const dirty = !!account && name.trim() !== account.name && name.trim().length > 0;
+  const dirty =
+    !!account && name.trim() !== account.name && name.trim().length > 0;
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,20 +64,23 @@ export function BusinessNameCard() {
         description: 'New client-facing messages will use it right away.',
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update business name');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update business name'
+      );
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Card className="bg-slate-900/40 border-slate-800">
+    <Card className="border-slate-800 bg-slate-900/40">
       <CardHeader>
         <CardTitle className="text-white">Business name</CardTitle>
         <CardDescription className="text-slate-400">
           The name your clients see — it appears in WhatsApp meeting reminders
-          (&ldquo;a friendly reminder from &hellip;&rdquo;) and other client-facing
-          messages. This is separate from your personal display name above.
+          (&ldquo;a friendly reminder from &hellip;&rdquo;) and other
+          client-facing messages. This is separate from your personal display
+          name above.
         </CardDescription>
       </CardHeader>
 

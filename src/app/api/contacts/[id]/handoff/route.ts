@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { PostgrestError } from '@supabase/supabase-js';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 
 // POST /api/contacts/[id]/handoff — reassign a contact to a different agent.
 //
@@ -23,12 +27,15 @@ function rpcErrorToResponse(err: PostgrestError): NextResponse {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
   console.error('[handoff route] unexpected RPC error:', err);
-  return NextResponse.json({ error: 'Failed to hand off contact' }, { status: 500 });
+  return NextResponse.json(
+    { error: 'Failed to hand off contact' },
+    { status: 500 }
+  );
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -36,19 +43,19 @@ export async function POST(
 
     const limit = await checkRateLimit(
       `agent:handoffContact:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
-    const body = (await request.json().catch(() => null)) as
-      | { newAgentId?: unknown }
-      | null;
+    const body = (await request.json().catch(() => null)) as {
+      newAgentId?: unknown;
+    } | null;
     const newAgentId = body?.newAgentId;
 
     if (typeof newAgentId !== 'string' || newAgentId.trim().length === 0) {
       return NextResponse.json(
         { error: "'newAgentId' is required" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 

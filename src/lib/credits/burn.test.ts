@@ -9,7 +9,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const h = vi.hoisted(() => ({
   state: {
     rpcCalls: [] as { fn: string; args: Record<string, unknown> }[],
-    rpcResponse: { success: true, balance_after: 0, deficit: 0 } as Record<string, unknown>,
+    rpcResponse: { success: true, balance_after: 0, deficit: 0 } as Record<
+      string,
+      unknown
+    >,
   },
 }));
 
@@ -57,7 +60,9 @@ describe('burnCredits', () => {
 
   it('passes hardBlock: false for the chatbot soft-block path', async () => {
     h.state.rpcResponse = { success: true, balance_after: 0, deficit: 3 };
-    const result = await burnCredits('acct-1', 'chatbot_classify', 2, { hardBlock: false });
+    const result = await burnCredits('acct-1', 'chatbot_classify', 2, {
+      hardBlock: false,
+    });
 
     expect(h.state.rpcCalls[0].args.p_hard_block).toBe(false);
     // Soft-block always reports success so the caller proceeds, even
@@ -98,8 +103,12 @@ describe('refundCredits', () => {
 
   it('supports custom description', async () => {
     h.state.rpcResponse = { balance_after: 100 };
-    await refundCredits('acct-1', 'property_description', 10, { description: 'failed AI description' });
+    await refundCredits('acct-1', 'property_description', 10, {
+      description: 'failed AI description',
+    });
 
-    expect(h.state.rpcCalls[0].args.p_description).toBe('failed AI description');
+    expect(h.state.rpcCalls[0].args.p_description).toBe(
+      'failed AI description'
+    );
   });
 });

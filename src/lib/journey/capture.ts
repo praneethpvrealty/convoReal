@@ -15,8 +15,8 @@
  * branch, or un-hides anything the agent tucked away.
  */
 
-import { createClient } from "@/lib/supabase/client";
-import type { JourneyItemSource, JourneyStage } from "@/types";
+import { createClient } from '@/lib/supabase/client';
+import type { JourneyItemSource, JourneyStage } from '@/types';
 
 /**
  * The account's journey stages: mirrors of its default pipeline's
@@ -25,24 +25,24 @@ import type { JourneyItemSource, JourneyStage } from "@/types";
  * cannot run the sync, so the mirrored rows are read back either way.
  */
 export async function ensureJourneyStages(
-  accountId: string,
+  accountId: string
 ): Promise<JourneyStage[]> {
   const supabase = createClient();
   const { data: synced, error: syncError } = await supabase.rpc(
-    "sync_journey_stages_from_pipeline",
-    { p_account_id: accountId, p_pipeline_id: null },
+    'sync_journey_stages_from_pipeline',
+    { p_account_id: accountId, p_pipeline_id: null }
   );
   if (!syncError && Array.isArray(synced) && synced.length > 0) {
     return synced as JourneyStage[];
   }
   const { data, error } = await supabase
-    .from("journey_stages")
-    .select("*")
-    .eq("account_id", accountId)
-    .not("pipeline_stage_id", "is", null)
-    .order("position");
+    .from('journey_stages')
+    .select('*')
+    .eq('account_id', accountId)
+    .not('pipeline_stage_id', 'is', null)
+    .order('position');
   if (error) {
-    console.error("Failed to load journey stages:", error.message);
+    console.error('Failed to load journey stages:', error.message);
     return [];
   }
   return (data ?? []) as JourneyStage[];
@@ -85,7 +85,7 @@ export async function captureJourneyItems({
   const stages = await ensureJourneyStages(accountId);
   const firstStage = stages[0];
   if (!firstStage) {
-    return { created: 0, error: "Journey stages could not be loaded" };
+    return { created: 0, error: 'Journey stages could not be loaded' };
   }
 
   // Dedupe input pairs (a broadcast can list the same contact twice
@@ -111,41 +111,41 @@ export async function captureJourneyItems({
     }));
 
   const { data, error } = await supabase
-    .from("journey_items")
+    .from('journey_items')
     .upsert(payload, {
-      onConflict: "account_id,contact_id,property_id",
+      onConflict: 'account_id,contact_id,property_id',
       ignoreDuplicates: true,
     })
-    .select("id");
+    .select('id');
 
   if (error) {
-    console.error("Journey capture failed:", error.message);
+    console.error('Journey capture failed:', error.message);
     return { created: 0, error: error.message };
   }
 
   const created = data ?? [];
   if (created.length > 0) {
-    const { error: evError } = await supabase.from("journey_events").insert(
+    const { error: evError } = await supabase.from('journey_events').insert(
       created.map((row) => ({
         account_id: accountId,
         item_id: row.id,
-        event_type: "added",
+        event_type: 'added',
         to_stage_id: firstStage.id,
         reason:
-          source === "whatsapp_share"
-            ? "Captured from WhatsApp share"
-            : source === "chat_import"
-              ? "Imported from chat history"
-              : source === "inquiry_import"
-                ? "Imported from property inquiries"
+          source === 'whatsapp_share'
+            ? 'Captured from WhatsApp share'
+            : source === 'chat_import'
+              ? 'Imported from chat history'
+              : source === 'inquiry_import'
+                ? 'Imported from property inquiries'
                 : null,
         created_by: userId ?? null,
-      })),
+      }))
     );
     if (evError) {
       // Timeline entry is best-effort — the item row is already in;
       // don't fail the capture over its audit line.
-      console.error("Journey capture event log failed:", evError.message);
+      console.error('Journey capture event log failed:', evError.message);
     }
   }
   return { created: created.length, error: null };

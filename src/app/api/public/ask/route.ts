@@ -33,7 +33,8 @@ import {
 //      seeing an error (external engine stays soft — see
 //      credit-gating-design). The buyer never sees "out of credits".
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_QUESTION_LEN = 500;
 const AI_FEATURE = 'chatbot_auto_reply' as const;
 
@@ -45,15 +46,44 @@ const ASK_ACCOUNT_LIMIT = { limit: 120, windowMs: 60_000 };
 // Columns needed to answer + to attribute a captured lead. No private
 // fields (documents, notes, owner contact) are selected.
 const QA_COLUMNS = [
-  'id', 'account_id', 'user_id', 'title', 'type', 'listing_type',
-  'price', 'rent_per_month', 'maintenance', 'advance', 'gst',
-  'jv_structure', 'owner_share_percent', 'builder_share_percent', 'goodwill_amount',
-  'bts_lease_years', 'bts_lock_in_years', 'bts_escalation_percent',
-  'location', 'location_privacy', 'sublocality', 'city', 'state',
-  'bedrooms', 'bathrooms',
-  'area_sqft', 'area_unit', 'super_built_area', 'land_area',
-  'land_area_unit', 'facing_direction', 'features', 'nearby_highlights',
-  'property_code', 'project', 'rental_income', 'roi', 'dimensions',
+  'id',
+  'account_id',
+  'user_id',
+  'title',
+  'type',
+  'listing_type',
+  'price',
+  'rent_per_month',
+  'maintenance',
+  'advance',
+  'gst',
+  'jv_structure',
+  'owner_share_percent',
+  'builder_share_percent',
+  'goodwill_amount',
+  'bts_lease_years',
+  'bts_lock_in_years',
+  'bts_escalation_percent',
+  'location',
+  'location_privacy',
+  'sublocality',
+  'city',
+  'state',
+  'bedrooms',
+  'bathrooms',
+  'area_sqft',
+  'area_unit',
+  'super_built_area',
+  'land_area',
+  'land_area_unit',
+  'facing_direction',
+  'features',
+  'nearby_highlights',
+  'property_code',
+  'project',
+  'rental_income',
+  'roi',
+  'dimensions',
 ].join(', ');
 
 const HANDOFF_MESSAGE =
@@ -77,14 +107,30 @@ export async function POST(request: NextRequest) {
     const question = (body?.question || '').trim().slice(0, MAX_QUESTION_LEN);
     const sessionKey = (body?.session_key || '').slice(0, 64);
 
-    if (!accountId || !UUID_RE.test(accountId) || !propertyId || !UUID_RE.test(propertyId) || !question || !sessionKey) {
-      return NextResponse.json({ error: 'Missing or invalid required fields' }, { status: 400 });
+    if (
+      !accountId ||
+      !UUID_RE.test(accountId) ||
+      !propertyId ||
+      !UUID_RE.test(propertyId) ||
+      !question ||
+      !sessionKey
+    ) {
+      return NextResponse.json(
+        { error: 'Missing or invalid required fields' },
+        { status: 400 }
+      );
     }
 
     // 1. Rate limits — per session, then per account.
-    const sessionLimit = await checkRateLimit(`ask:session:${sessionKey}`, ASK_SESSION_LIMIT);
+    const sessionLimit = await checkRateLimit(
+      `ask:session:${sessionKey}`,
+      ASK_SESSION_LIMIT
+    );
     if (!sessionLimit.success) return rateLimitResponse(sessionLimit);
-    const accountLimit = await checkRateLimit(`ask:account:${accountId}`, ASK_ACCOUNT_LIMIT);
+    const accountLimit = await checkRateLimit(
+      `ask:account:${accountId}`,
+      ASK_ACCOUNT_LIMIT
+    );
     if (!accountLimit.success) return rateLimitResponse(accountLimit);
 
     const db = supabaseAdmin();
@@ -98,10 +144,15 @@ export async function POST(request: NextRequest) {
       .eq('account_id', accountId)
       .eq('is_published', true)
       .eq('status', 'Available')
-      .maybeSingle<QaProperty & { id: string; account_id: string; user_id: string | null }>();
+      .maybeSingle<
+        QaProperty & { id: string; account_id: string; user_id: string | null }
+      >();
 
     if (!property) {
-      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Property not found' },
+        { status: 404 }
+      );
     }
 
     // Guarded listings must never answer "where is it?" with the street
@@ -119,17 +170,30 @@ export async function POST(request: NextRequest) {
         guarded && structured.intent === 'location'
           ? `${structured.answer} The exact address is shared on request.`
           : structured.answer;
-      return NextResponse.json({ answer, source: 'listing', intent: structured.intent });
+      return NextResponse.json({
+        answer,
+        source: 'listing',
+        intent: structured.intent,
+      });
     }
 
     // 4. Open-ended question → AI path, but only once we have a phone.
     const rawPhone = (body?.visitor_phone || '').trim();
     if (!rawPhone) {
-      return NextResponse.json({ answer: null, needs_phone: true, message: NEEDS_PHONE_MESSAGE });
+      return NextResponse.json({
+        answer: null,
+        needs_phone: true,
+        message: NEEDS_PHONE_MESSAGE,
+      });
     }
     const phone = normalizePhoneWithCountryCode(rawPhone);
     if (!phone) {
-      return NextResponse.json({ answer: null, needs_phone: true, message: 'That number looks off — please re-enter it with your area code.' });
+      return NextResponse.json({
+        answer: null,
+        needs_phone: true,
+        message:
+          'That number looks off — please re-enter it with your area code.',
+      });
     }
 
     // 5. Soft-burn the agent's credits BEFORE the AI call. If the
@@ -137,7 +201,12 @@ export async function POST(request: NextRequest) {
     //    calling (and paying for) Gemini — the buyer never sees an error.
     let burnCovered = false;
     try {
-      const burn = await burnCredits(accountId, AI_FEATURE, AI_FEATURE_COSTS[AI_FEATURE], { hardBlock: false });
+      const burn = await burnCredits(
+        accountId,
+        AI_FEATURE,
+        AI_FEATURE_COSTS[AI_FEATURE],
+        { hardBlock: false }
+      );
       burnCovered = burn.deficit === 0;
     } catch (err) {
       console.error('[POST /api/public/ask] credit burn failed:', err);
@@ -146,28 +215,52 @@ export async function POST(request: NextRequest) {
 
     // Capture the lead regardless of whether we answer with AI — the
     // buyer gave us a phone number. Best-effort; never blocks the reply.
-    void captureLead(db, property, phone, body?.visitor_name, question, sessionKey);
+    void captureLead(
+      db,
+      property,
+      phone,
+      body?.visitor_name,
+      question,
+      sessionKey
+    );
 
     if (!burnCovered) {
-      return NextResponse.json({ answer: null, escalate_whatsapp: true, message: HANDOFF_MESSAGE });
+      return NextResponse.json({
+        answer: null,
+        escalate_whatsapp: true,
+        message: HANDOFF_MESSAGE,
+      });
     }
 
     // 6. AI answer grounded in the listing.
     try {
       const prompt = `Property details:\n${buildPropertyContext(qaProperty)}\n\nBuyer's question: ${question}\n\nAnswer:`;
-      const raw = await generateText(prompt, PROPERTY_QA_SYSTEM_PROMPT, { feature: 'public_ask' });
+      const raw = await generateText(prompt, PROPERTY_QA_SYSTEM_PROMPT, {
+        feature: 'public_ask',
+      });
       const answer = (raw || '').trim();
       if (!answer) {
-        return NextResponse.json({ answer: null, escalate_whatsapp: true, message: HANDOFF_MESSAGE });
+        return NextResponse.json({
+          answer: null,
+          escalate_whatsapp: true,
+          message: HANDOFF_MESSAGE,
+        });
       }
       return NextResponse.json({ answer, source: 'ai' });
     } catch (err) {
       console.error('[POST /api/public/ask] AI generation failed:', err);
-      return NextResponse.json({ answer: null, escalate_whatsapp: true, message: HANDOFF_MESSAGE });
+      return NextResponse.json({
+        answer: null,
+        escalate_whatsapp: true,
+        message: HANDOFF_MESSAGE,
+      });
     }
   } catch (err) {
     console.error('[POST /api/public/ask] Unexpected error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
@@ -178,11 +271,16 @@ export async function POST(request: NextRequest) {
  */
 async function captureLead(
   db: ReturnType<typeof supabaseAdmin>,
-  property: { id: string; account_id: string; user_id: string | null; title: string },
+  property: {
+    id: string;
+    account_id: string;
+    user_id: string | null;
+    title: string;
+  },
   phone: string,
   name: string | undefined,
   question: string,
-  sessionKey: string,
+  sessionKey: string
 ): Promise<void> {
   await captureVisitorLead(db, {
     accountId: property.account_id,

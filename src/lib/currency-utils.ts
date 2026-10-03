@@ -21,8 +21,11 @@ export function getCurrencyIcon(currency: string) {
   }
 }
 
-export function formatCurrency(value: number, currency: string = "INR"): string {
-  if (currency === "INR") {
+export function formatCurrency(
+  value: number,
+  currency: string = 'INR'
+): string {
+  if (currency === 'INR') {
     if (value >= 10000000) {
       const cr = value / 10000000;
       return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
@@ -30,15 +33,15 @@ export function formatCurrency(value: number, currency: string = "INR"): string 
       const lakhs = value / 100000;
       return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
     }
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
   }
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
     currency: currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
@@ -77,7 +80,10 @@ export function priceInWords(
 
   if (currency === 'INR') {
     const trim = (n: number) =>
-      n.toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1');
+      n
+        .toFixed(2)
+        .replace(/\.00$/, '')
+        .replace(/\.(\d)0$/, '.$1');
     if (amount >= 10000000) return `₹${trim(amount / 10000000)} Crore`;
     if (amount >= 100000) return `₹${trim(amount / 100000)} Lakhs`;
     return `₹${amount.toLocaleString('en-IN')}`;
@@ -95,7 +101,10 @@ export function equivalentPriceLabel(
   return words ? `Equivalent to: ${words}` : '';
 }
 
-export function formatCurrencyShort(v: number, currency: string = 'INR'): string {
+export function formatCurrencyShort(
+  v: number,
+  currency: string = 'INR'
+): string {
   if (currency === 'INR') {
     if (v >= 10000000) {
       const cr = v / 10000000;
@@ -116,7 +125,7 @@ export function formatCurrencyShort(v: number, currency: string = 'INR'): string
   };
   const sym = symbols[currency] || '';
 
-  if (v >= 1_000_000) return `${sym}${(v / 1_000_000).toFixed(1)}M`
-  if (v >= 1_000) return `${sym}${(v / 1_000).toFixed(1)}k`
-  return `${sym}${v.toFixed(0)}`
+  if (v >= 1_000_000) return `${sym}${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${sym}${(v / 1_000).toFixed(1)}k`;
+  return `${sym}${v.toFixed(0)}`;
 }

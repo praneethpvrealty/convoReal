@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import { sanitizeAreasGeo } from '@/lib/contacts/area-geo';
 import { sanitizeAreaList } from '@/lib/contacts/area-fragments';
 import { sanitizeListingTypes } from '@/lib/ai/preference-extraction';
@@ -10,7 +14,7 @@ import { isUpdateChannel } from '@/lib/voice/announcements';
 // in a single server-side call (replaces multi-step client writes in contact-form.tsx).
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -18,21 +22,47 @@ export async function PUT(
 
     const limit = await checkRateLimit(
       `agent:updateContact:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = await request.json().catch(() => null);
     if (!body) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
     }
 
     const {
-      name, salutation, second_name, name_tag, phone, secondary_phones, email, company, classification, lead_temp,
-      last_inquired_property_id, referrer, referrer_contact_id,
-      min_budget, max_budget, no_budget, pref_listing_types, areas_of_interest, areas_of_interest_geo,
-      property_interests, min_roi, requires_tenanted, source, dob, feedback_status,
-      strict_area_match, projects_of_interest, strict_project_match,
+      name,
+      salutation,
+      second_name,
+      name_tag,
+      phone,
+      secondary_phones,
+      email,
+      company,
+      classification,
+      lead_temp,
+      last_inquired_property_id,
+      referrer,
+      referrer_contact_id,
+      min_budget,
+      max_budget,
+      no_budget,
+      pref_listing_types,
+      areas_of_interest,
+      areas_of_interest_geo,
+      property_interests,
+      min_roi,
+      requires_tenanted,
+      source,
+      dob,
+      feedback_status,
+      strict_area_match,
+      projects_of_interest,
+      strict_project_match,
       preferred_update_channel,
       // Related entities
       tag_ids,
@@ -49,41 +79,66 @@ export async function PUT(
     if (!phoneValue && !emailValue) {
       return NextResponse.json(
         { error: "'phone' or 'email' is required" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     const fieldsToSave = {
       name: typeof name === 'string' ? name.trim() || null : null,
-      salutation: salutation === 'Mr.' || salutation === 'Mrs.' ? salutation : null,
-      second_name: typeof second_name === 'string' ? second_name.trim() || null : null,
+      salutation:
+        salutation === 'Mr.' || salutation === 'Mrs.' ? salutation : null,
+      second_name:
+        typeof second_name === 'string' ? second_name.trim() || null : null,
       name_tag: typeof name_tag === 'string' ? name_tag.trim() || null : null,
       phone: phoneValue,
       secondary_phones: Array.isArray(secondary_phones)
-        ? secondary_phones.filter((p: unknown) => typeof p === 'string' && p.trim().length > 0).map((p: string) => p.trim())
+        ? secondary_phones
+            .filter(
+              (p: unknown) => typeof p === 'string' && p.trim().length > 0
+            )
+            .map((p: string) => p.trim())
         : [],
       email: emailValue,
       company: typeof company === 'string' ? company.trim() || null : null,
-      classification: typeof classification === 'string' ? classification : 'Buyer',
+      classification:
+        typeof classification === 'string' ? classification : 'Buyer',
       lead_temp: typeof lead_temp === 'string' ? lead_temp || null : null,
-      last_inquired_property_id: typeof last_inquired_property_id === 'string' ? last_inquired_property_id || null : null,
+      last_inquired_property_id:
+        typeof last_inquired_property_id === 'string'
+          ? last_inquired_property_id || null
+          : null,
       referrer: typeof referrer === 'string' ? referrer.trim() || null : null,
-      referrer_contact_id: typeof referrer_contact_id === 'string' ? referrer_contact_id || null : null,
+      referrer_contact_id:
+        typeof referrer_contact_id === 'string'
+          ? referrer_contact_id || null
+          : null,
       min_budget: typeof min_budget === 'number' ? min_budget : null,
       max_budget: typeof max_budget === 'number' ? max_budget : null,
       no_budget: typeof no_budget === 'boolean' ? no_budget : false,
       pref_listing_types: sanitizeListingTypes(pref_listing_types),
-      areas_of_interest: Array.isArray(areas_of_interest) ? sanitizeAreaList(areas_of_interest) : [],
+      areas_of_interest: Array.isArray(areas_of_interest)
+        ? sanitizeAreaList(areas_of_interest)
+        : [],
       areas_of_interest_geo: sanitizeAreasGeo(areas_of_interest_geo),
-      property_interests: Array.isArray(property_interests) ? property_interests : [],
+      property_interests: Array.isArray(property_interests)
+        ? property_interests
+        : [],
       min_roi: typeof min_roi === 'number' ? min_roi : null,
-      requires_tenanted: typeof requires_tenanted === 'boolean' ? requires_tenanted : null,
+      requires_tenanted:
+        typeof requires_tenanted === 'boolean' ? requires_tenanted : null,
       source: typeof source === 'string' ? source.trim() || null : null,
       dob: typeof dob === 'string' && dob.trim() ? dob.trim() : null,
-      feedback_status: typeof feedback_status === 'string' ? feedback_status : 'not_requested',
-      strict_area_match: typeof strict_area_match === 'boolean' ? strict_area_match : false,
-      projects_of_interest: Array.isArray(projects_of_interest) ? projects_of_interest : [],
-      strict_project_match: typeof strict_project_match === 'boolean' ? strict_project_match : false,
+      feedback_status:
+        typeof feedback_status === 'string' ? feedback_status : 'not_requested',
+      strict_area_match:
+        typeof strict_area_match === 'boolean' ? strict_area_match : false,
+      projects_of_interest: Array.isArray(projects_of_interest)
+        ? projects_of_interest
+        : [],
+      strict_project_match:
+        typeof strict_project_match === 'boolean'
+          ? strict_project_match
+          : false,
       preferred_update_channel: isUpdateChannel(preferred_update_channel)
         ? preferred_update_channel
         : null,
@@ -104,14 +159,17 @@ export async function PUT(
     if (updateErr) {
       if (updateErr.code === '23505') {
         return NextResponse.json(
-          { error: `A contact named "${fieldsToSave.name} ${fieldsToSave.second_name}" already exists. Use a different second name to tell them apart.`, code: 'DUPLICATE_FULL_NAME' },
-          { status: 409 },
+          {
+            error: `A contact named "${fieldsToSave.name} ${fieldsToSave.second_name}" already exists. Use a different second name to tell them apart.`,
+            code: 'DUPLICATE_FULL_NAME',
+          },
+          { status: 409 }
         );
       }
       console.error('[PUT /api/contacts/[id]] Update error:', updateErr);
       return NextResponse.json(
         { error: updateErr.message ?? 'Failed to update contact' },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -124,7 +182,9 @@ export async function PUT(
       .delete()
       .eq('contact_id', contactId);
 
-    const tagIds = Array.isArray(tag_ids) ? tag_ids.filter((id: unknown) => typeof id === 'string') : [];
+    const tagIds = Array.isArray(tag_ids)
+      ? tag_ids.filter((id: unknown) => typeof id === 'string')
+      : [];
     if (tagIds.length > 0) {
       const tagRows = tagIds.map((tag_id: string) => ({
         contact_id: contactId,
@@ -152,7 +212,7 @@ export async function PUT(
         if (noteErr || !noteRows?.length) {
           console.error(
             '[PUT /api/contacts/[id]] Note update error:',
-            noteErr ?? 'note no longer there',
+            noteErr ?? 'note no longer there'
           );
         }
       } else {
@@ -180,7 +240,16 @@ export async function PUT(
 
     // Step 4: Sync properties (owner_contact_id)
     const cls = typeof classification === 'string' ? classification : '';
-    if (['Buyer', 'Seller', 'Agent', 'Developer', 'Owner', 'Owner & Buyer'].includes(cls)) {
+    if (
+      [
+        'Buyer',
+        'Seller',
+        'Agent',
+        'Developer',
+        'Owner',
+        'Owner & Buyer',
+      ].includes(cls)
+    ) {
       // Clear existing ownership links for this contact
       await ctx.supabase
         .from('properties')
@@ -190,7 +259,9 @@ export async function PUT(
         .update({ owner_contact_id: null })
         .eq('owner_contact_id', contactId);
 
-      const propIds = Array.isArray(property_ids) ? property_ids.filter((id: unknown) => typeof id === 'string') : [];
+      const propIds = Array.isArray(property_ids)
+        ? property_ids.filter((id: unknown) => typeof id === 'string')
+        : [];
       if (propIds.length > 0) {
         const { data: linked, error: propErr } = await ctx.supabase
           .from('properties')
@@ -200,18 +271,21 @@ export async function PUT(
         if (propErr || linked?.length !== propIds.length) {
           console.error(
             '[PUT /api/contacts/[id]] Property link error:',
-            propErr ?? `linked ${linked?.length ?? 0} of ${propIds.length}`,
+            propErr ?? `linked ${linked?.length ?? 0} of ${propIds.length}`
           );
         }
       }
     }
 
     // Fire-and-forget: extract AI matching preferences
-    fetch(`${process.env.NEXT_PUBLIC_APP_URL || ''}/api/contacts/extract-preferences`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contactIds: [contactId] }),
-    }).catch(() => {});
+    fetch(
+      `${process.env.NEXT_PUBLIC_APP_URL || ''}/api/contacts/extract-preferences`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactIds: [contactId] }),
+      }
+    ).catch(() => {});
 
     return NextResponse.json({ id: contactId });
   } catch (err) {
@@ -227,7 +301,7 @@ export async function PUT(
 // contact_id.
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -235,7 +309,7 @@ export async function DELETE(
 
     const limit = await checkRateLimit(
       `agent:deleteContact:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
@@ -252,7 +326,7 @@ export async function DELETE(
       console.error('[DELETE /api/contacts/[id]] Load error:', loadErr);
       return NextResponse.json(
         { error: loadErr.message ?? 'Failed to delete contact' },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -275,7 +349,7 @@ export async function DELETE(
           code: 'NOT_CONTACT_OWNER',
           savedBy: owner?.full_name ?? null,
         },
-        { status: 403 },
+        { status: 403 }
       );
     }
 
@@ -293,7 +367,7 @@ export async function DELETE(
       console.error('[DELETE /api/contacts/[id]] Delete error:', error);
       return NextResponse.json(
         { error: error.message ?? 'Failed to delete contact' },
-        { status: 500 },
+        { status: 500 }
       );
     }
 

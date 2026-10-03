@@ -14,7 +14,11 @@
 // ============================================================
 
 import { generateJsonFromParts } from '@/lib/ai/gemini';
-import { sanitizeFloorTenancies, totalMonthlyRent, type FloorTenancy } from '@/lib/inventory/floor-tenancies';
+import {
+  sanitizeFloorTenancies,
+  totalMonthlyRent,
+  type FloorTenancy,
+} from '@/lib/inventory/floor-tenancies';
 import { rentalYieldPercent } from '@/lib/inventory/rental-yield';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
@@ -40,7 +44,13 @@ const EDITABLE_FIELDS: Record<EditableEntity, string[]> = {
   ],
 };
 
-const NUMERIC_FIELDS = new Set(['price', 'bedrooms', 'bathrooms', 'area_sqft', 'rental_income']);
+const NUMERIC_FIELDS = new Set([
+  'price',
+  'bedrooms',
+  'bathrooms',
+  'area_sqft',
+  'rental_income',
+]);
 
 /** Only the whitelisted keys, only when the model actually changed
  *  them, coerced to the column's type. */
@@ -49,7 +59,9 @@ export function buildRecordPatch(
   current: Record<string, unknown>,
   proposed: unknown
 ): Record<string, unknown> {
-  const obj = (proposed && typeof proposed === 'object' ? proposed : {}) as Record<string, unknown>;
+  const obj = (
+    proposed && typeof proposed === 'object' ? proposed : {}
+  ) as Record<string, unknown>;
   const patch: Record<string, unknown> = {};
 
   for (const field of EDITABLE_FIELDS[entityType]) {
@@ -86,9 +98,11 @@ export function buildRecordPatch(
       continue;
     }
 
-    const unchanged = field === 'floor_tenancies'
-      ? JSON.stringify(value) === JSON.stringify(sanitizeFloorTenancies(current[field]))
-      : value === current[field];
+    const unchanged =
+      field === 'floor_tenancies'
+        ? JSON.stringify(value) ===
+          JSON.stringify(sanitizeFloorTenancies(current[field]))
+        : value === current[field];
     if (!unchanged) patch[field] = value;
   }
   return patch;
@@ -102,13 +116,19 @@ function formatTenancy(row: FloorTenancy): string {
   return [
     row.floor || 'Unspecified floor',
     row.tenant_name,
-    row.monthly_rent !== null ? `${formatRupees(row.monthly_rent)}/month` : null,
+    row.monthly_rent !== null
+      ? `${formatRupees(row.monthly_rent)}/month`
+      : null,
     row.lock_in_months !== null ? `${row.lock_in_months}-month lock-in` : null,
     row.notes,
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
-export function formatRecordUpdateResult(result: Record<string, unknown>): Record<string, unknown> {
+export function formatRecordUpdateResult(
+  result: Record<string, unknown>
+): Record<string, unknown> {
   if (!Array.isArray(result.floor_tenancies)) return result;
   const rows = sanitizeFloorTenancies(result.floor_tenancies);
   const summary = [
@@ -127,7 +147,9 @@ export function formatRecordUnchangedReply(entityType: EditableEntity): string {
   ].join('\n');
 }
 
-export function formatRecordUpdateFailureReply(entityType: EditableEntity): string {
+export function formatRecordUpdateFailureReply(
+  entityType: EditableEntity
+): string {
   const label = entityType === 'contact' ? 'contact' : 'listing';
   return `⚠️ I couldn't update this ${label} right now. Please try again in a moment.`;
 }
@@ -138,7 +160,9 @@ export async function parseRecordUpdate(params: {
   instruction: string;
 }): Promise<Record<string, unknown>> {
   const fields = EDITABLE_FIELDS[params.entityType];
-  const current = Object.fromEntries(fields.map((f) => [f, params.current[f] ?? null]));
+  const current = Object.fromEntries(
+    fields.map((f) => [f, params.current[f] ?? null])
+  );
 
   const system =
     `You are a record data editor. The user is correcting an existing ${params.entityType} record.\n` +
@@ -155,10 +179,14 @@ export async function parseRecordUpdate(params: {
     `Current record:\n${JSON.stringify(current, null, 2)}\n\n` +
     'Respond with ONLY the JSON object.';
 
-  const raw = await generateJsonFromParts([{ text: params.instruction }], system, {
-    tier: 'lite',
-    feature: 'chatbot_classify',
-  });
+  const raw = await generateJsonFromParts(
+    [{ text: params.instruction }],
+    system,
+    {
+      tier: 'lite',
+      feature: 'chatbot_classify',
+    }
+  );
 
   try {
     return JSON.parse(raw) as Record<string, unknown>;
@@ -196,21 +224,39 @@ export async function applyRecordUpdate(params: {
     current: row as Record<string, unknown>,
     instruction: params.instruction,
   });
-  const patch = buildRecordPatch(params.entityType, row as Record<string, unknown>, proposed);
+  const patch = buildRecordPatch(
+    params.entityType,
+    row as Record<string, unknown>,
+    proposed
+  );
 
-  if (params.entityType === 'property' && Array.isArray(patch.floor_tenancies)) {
+  if (
+    params.entityType === 'property' &&
+    Array.isArray(patch.floor_tenancies)
+  ) {
     const tenancies = patch.floor_tenancies as FloorTenancy[];
-    if (tenancies.length > 0 && tenancies.every((tenancy) => tenancy.monthly_rent !== null)) {
+    if (
+      tenancies.length > 0 &&
+      tenancies.every((tenancy) => tenancy.monthly_rent !== null)
+    ) {
       const total = totalMonthlyRent(tenancies);
-      if (total !== null && total !== row.rental_income) patch.rental_income = total;
+      if (total !== null && total !== row.rental_income)
+        patch.rental_income = total;
     }
   }
 
-  if (params.entityType === 'property' && ('price' in patch || 'rental_income' in patch)) {
+  if (
+    params.entityType === 'property' &&
+    ('price' in patch || 'rental_income' in patch)
+  ) {
     patch.roi = rentalYieldPercent(
       String(row.listing_type ?? ''),
-      'price' in patch ? patch.price as number | null : row.price as number | null,
-      'rental_income' in patch ? patch.rental_income as number | null : row.rental_income as number | null
+      'price' in patch
+        ? (patch.price as number | null)
+        : (row.price as number | null),
+      'rental_income' in patch
+        ? (patch.rental_income as number | null)
+        : (row.rental_income as number | null)
     );
   }
   if (Object.keys(patch).length === 0) return 'unchanged';

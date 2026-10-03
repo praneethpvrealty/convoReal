@@ -8,3 +8,6 @@ package-lock.json
 # Generated / vendored
 supabase/migrations
 src/lib/copilot/knowledge-index.gen.ts
+# Own dependency trees and lint setups (see eslint.config.mjs globalIgnores)
+mobile
+mcp

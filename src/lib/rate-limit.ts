@@ -208,7 +208,12 @@ export async function checkRateLimit(
     if (count > limit) {
       return { success: false, remaining: 0, reset, limit };
     }
-    return { success: true, remaining: Math.max(limit - count, 0), reset, limit };
+    return {
+      success: true,
+      remaining: Math.max(limit - count, 0),
+      reset,
+      limit,
+    };
   } catch (err) {
     noteRedisUnavailable(err);
     return checkInMemory(key, options);

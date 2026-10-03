@@ -2,9 +2,9 @@ import {
   type InteractiveButton,
   type InteractiveListSection,
   type MediaKind,
-} from '@/lib/whatsapp/meta-api'
-import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
-import { supabaseAdmin } from '@/lib/supabase/admin'
+} from '@/lib/whatsapp/meta-api';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 // ------------------------------------------------------------
 // Flows-side Meta sender (interactive variants).
@@ -16,21 +16,21 @@ interface SendTextEngineArgs {
   /** Account-level tenancy key. Drives contact + whatsapp_config
    *  lookups so a flow authored by user A still sends through the
    *  WhatsApp number user B saved on the same account. */
-  accountId: string
+  accountId: string;
   /** Original author of the flow — used for INSERT audit columns
    *  and for resolving the agent's identity in logs. Not consulted
    *  for tenancy. */
-  userId: string
-  conversationId: string
-  contactId: string
-  text: string
+  userId: string;
+  conversationId: string;
+  contactId: string;
+  text: string;
 }
 
 /**
  * Send a plain-text WhatsApp message from the Flows engine.
  */
 export async function engineSendText(
-  args: SendTextEngineArgs,
+  args: SendTextEngineArgs
 ): Promise<{ whatsapp_message_id: string }> {
   const result = await sendWhatsAppMessageAndPersist({
     accountId: args.accountId,
@@ -41,33 +41,35 @@ export async function engineSendText(
     senderType: 'bot',
     text: args.text,
     customDbClient: supabaseAdmin(),
-  })
+  });
 
   if (!result.success || !result.whatsappMessageId) {
-    throw new Error(result.error || 'Failed to send text via Flows WhatsApp dispatcher')
+    throw new Error(
+      result.error || 'Failed to send text via Flows WhatsApp dispatcher'
+    );
   }
 
-  return { whatsapp_message_id: result.whatsappMessageId }
+  return { whatsapp_message_id: result.whatsappMessageId };
 }
 
 interface SendMediaEngineArgs {
-  accountId: string
-  userId: string
-  conversationId: string
-  contactId: string
-  kind: MediaKind
+  accountId: string;
+  userId: string;
+  conversationId: string;
+  contactId: string;
+  kind: MediaKind;
   /** Public URL Meta fetches at send time. */
-  link: string
-  caption?: string
+  link: string;
+  caption?: string;
   /** Document-only; ignored by Meta for image/video. */
-  filename?: string
+  filename?: string;
 }
 
 /**
  * Send an image / video / document from the Flows engine.
  */
 export async function engineSendMedia(
-  args: SendMediaEngineArgs,
+  args: SendMediaEngineArgs
 ): Promise<{ whatsapp_message_id: string }> {
   const result = await sendWhatsAppMessageAndPersist({
     accountId: args.accountId,
@@ -81,43 +83,45 @@ export async function engineSendMedia(
     mediaCaption: args.caption,
     mediaFilename: args.filename,
     customDbClient: supabaseAdmin(),
-  })
+  });
 
   if (!result.success || !result.whatsappMessageId) {
-    throw new Error(result.error || 'Failed to send media via Flows WhatsApp dispatcher')
+    throw new Error(
+      result.error || 'Failed to send media via Flows WhatsApp dispatcher'
+    );
   }
 
-  return { whatsapp_message_id: result.whatsappMessageId }
+  return { whatsapp_message_id: result.whatsappMessageId };
 }
 
 interface SendInteractiveButtonsEngineArgs {
-  accountId: string
-  userId: string
-  conversationId: string
-  contactId: string
-  bodyText: string
-  buttons: InteractiveButton[]
-  headerText?: string
-  footerText?: string
+  accountId: string;
+  userId: string;
+  conversationId: string;
+  contactId: string;
+  bodyText: string;
+  buttons: InteractiveButton[];
+  headerText?: string;
+  footerText?: string;
 }
 
 interface SendInteractiveListEngineArgs {
-  accountId: string
-  userId: string
-  conversationId: string
-  contactId: string
-  bodyText: string
-  buttonLabel: string
-  sections: InteractiveListSection[]
-  headerText?: string
-  footerText?: string
+  accountId: string;
+  userId: string;
+  conversationId: string;
+  contactId: string;
+  bodyText: string;
+  buttonLabel: string;
+  sections: InteractiveListSection[];
+  headerText?: string;
+  footerText?: string;
 }
 
 /**
  * Send an interactive-button WhatsApp message from the Flows engine.
  */
 export async function engineSendInteractiveButtons(
-  args: SendInteractiveButtonsEngineArgs,
+  args: SendInteractiveButtonsEngineArgs
 ): Promise<{ whatsapp_message_id: string }> {
   const result = await sendWhatsAppMessageAndPersist({
     accountId: args.accountId,
@@ -132,20 +136,22 @@ export async function engineSendInteractiveButtons(
     headerText: args.headerText,
     footerText: args.footerText,
     customDbClient: supabaseAdmin(),
-  })
+  });
 
   if (!result.success || !result.whatsappMessageId) {
-    throw new Error(result.error || 'Failed to send interactive buttons via Flows dispatcher')
+    throw new Error(
+      result.error || 'Failed to send interactive buttons via Flows dispatcher'
+    );
   }
 
-  return { whatsapp_message_id: result.whatsappMessageId }
+  return { whatsapp_message_id: result.whatsappMessageId };
 }
 
 /**
  * Send an interactive-list WhatsApp message from the Flows engine.
  */
 export async function engineSendInteractiveList(
-  args: SendInteractiveListEngineArgs,
+  args: SendInteractiveListEngineArgs
 ): Promise<{ whatsapp_message_id: string }> {
   const result = await sendWhatsAppMessageAndPersist({
     accountId: args.accountId,
@@ -161,11 +167,13 @@ export async function engineSendInteractiveList(
     headerText: args.headerText,
     footerText: args.footerText,
     customDbClient: supabaseAdmin(),
-  })
+  });
 
   if (!result.success || !result.whatsappMessageId) {
-    throw new Error(result.error || 'Failed to send interactive list via Flows dispatcher')
+    throw new Error(
+      result.error || 'Failed to send interactive list via Flows dispatcher'
+    );
   }
 
-  return { whatsapp_message_id: result.whatsappMessageId }
+  return { whatsapp_message_id: result.whatsappMessageId };
 }

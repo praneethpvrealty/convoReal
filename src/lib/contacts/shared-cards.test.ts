@@ -10,10 +10,11 @@ import {
 
 // Verbatim from the thread that prompted this: one phonebook entry
 // carrying a person, a property and a second name.
-const NADEEM_CARD =
-  `${SHARED_CARDS_HEADER}\nNadeem Koramangala 8th Block 2100 Sqft Corner Property Owner Nassur (+91 98861 40608)`;
+const NADEEM_CARD = `${SHARED_CARDS_HEADER}\nNadeem Koramangala 8th Block 2100 Sqft Corner Property Owner Nassur (+91 98861 40608)`;
 
-function draft(overrides: Partial<ParsedPropertyDraft> = {}): ParsedPropertyDraft {
+function draft(
+  overrides: Partial<ParsedPropertyDraft> = {}
+): ParsedPropertyDraft {
   return {
     title: '2100 Sqft Corner Property in Koramangala 8th Block',
     price: null,
@@ -63,18 +64,22 @@ describe('parseSharedContactCards', () => {
 
   it('keeps only the first number when a card carries several', () => {
     expect(
-      parseSharedContactCards(`${SHARED_CARDS_HEADER}\nAnil (+91 90000 00001, +91 90000 00002)`)[0]
+      parseSharedContactCards(
+        `${SHARED_CARDS_HEADER}\nAnil (+91 90000 00001, +91 90000 00002)`
+      )[0]
     ).toEqual({ name: 'Anil', phone: '+91 90000 00001' });
   });
 
   it('survives a card with no number at all', () => {
-    expect(parseSharedContactCards(`${SHARED_CARDS_HEADER}\nAnil Kumar`)).toEqual([
-      { name: 'Anil Kumar', phone: null },
-    ]);
+    expect(
+      parseSharedContactCards(`${SHARED_CARDS_HEADER}\nAnil Kumar`)
+    ).toEqual([{ name: 'Anil Kumar', phone: null }]);
   });
 
   it('finds nothing in an ordinary message', () => {
-    expect(parseSharedContactCards('3 BHK in Whitefield, 1.2 crore')).toEqual([]);
+    expect(parseSharedContactCards('3 BHK in Whitefield, 1.2 crore')).toEqual(
+      []
+    );
     expect(parseSharedContactCards('')).toEqual([]);
     expect(parseSharedContactCards(null)).toEqual([]);
   });
@@ -87,11 +92,15 @@ describe('ownerFromCard', () => {
       phone: '+91 98861 40608',
     });
     expect(owner.name).toBe('Nadeem Koramangala');
-    expect(owner.nameTag).toBe('8th Block 2100 Sqft Corner Property Owner Nassur');
+    expect(owner.nameTag).toBe(
+      '8th Block 2100 Sqft Corner Property Owner Nassur'
+    );
   });
 
   it('leaves a plain name alone', () => {
-    expect(ownerFromCard({ name: 'Venkata Prasanna', phone: '+919848194537' })).toEqual({
+    expect(
+      ownerFromCard({ name: 'Venkata Prasanna', phone: '+919848194537' })
+    ).toEqual({
       name: 'Venkata Prasanna',
       nameTag: null,
       phone: '+919848194537',
@@ -132,8 +141,9 @@ describe('contactDraftsFromCards', () => {
 
   it('reads the role the phonebook name states', () => {
     const roleOf = (name: string) =>
-      contactDraftsFromCards(`${SHARED_CARDS_HEADER}\n${name} (+91 90000 00001)`)?.contacts[0]
-        .classification;
+      contactDraftsFromCards(
+        `${SHARED_CARDS_HEADER}\n${name} (+91 90000 00001)`
+      )?.contacts[0].classification;
     expect(roleOf('Ramesh Broker HSR')).toBe('Agent');
     expect(roleOf('Suresh Builder')).toBe('Developer');
     expect(roleOf('Anita Buyer 3BHK')).toBe('Buyer');
@@ -168,7 +178,9 @@ describe('applySharedCardOwner', () => {
 
   it('leaves the listing itself untouched', () => {
     const merged = applySharedCardOwner(draft(), NADEEM_CARD);
-    expect(merged.title).toBe('2100 Sqft Corner Property in Koramangala 8th Block');
+    expect(merged.title).toBe(
+      '2100 Sqft Corner Property in Koramangala 8th Block'
+    );
     expect(merged.land_area).toBe(2100);
     expect(merged.location).toBe('Koramangala 8th Block');
     expect(merged.features).toEqual(['Corner Property']);
@@ -176,7 +188,12 @@ describe('applySharedCardOwner', () => {
 
   it('returns a listing that did not come from a card unchanged', () => {
     const typed = draft();
-    expect(applySharedCardOwner(typed, '3 BHK in Whitefield, owner Ramesh 9000000001')).toBe(typed);
+    expect(
+      applySharedCardOwner(
+        typed,
+        '3 BHK in Whitefield, owner Ramesh 9000000001'
+      )
+    ).toBe(typed);
   });
 
   it('re-asserts the same person when the card is forwarded into an open draft', () => {
@@ -194,7 +211,11 @@ describe('applySharedCardOwner', () => {
 
   it('defaults the role to Owner when the model named nobody', () => {
     const merged = applySharedCardOwner(
-      draft({ owner_contact_name: null, owner_contact_phone: null, owner_contact_role: null }),
+      draft({
+        owner_contact_name: null,
+        owner_contact_phone: null,
+        owner_contact_role: null,
+      }),
       NADEEM_CARD
     );
     expect(merged.owner_contact_name).toBe('Nadeem Koramangala');

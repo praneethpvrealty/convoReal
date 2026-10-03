@@ -70,16 +70,20 @@ function makeAdmin(store: Store): SupabaseClient {
         b._single = true;
         return exec();
       },
-      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
-        Promise.resolve(exec()).then(resolve, reject),
+      then: (
+        resolve: (v: unknown) => unknown,
+        reject?: (e: unknown) => unknown
+      ) => Promise.resolve(exec()).then(resolve, reject),
     };
 
     const matches = (row: Record<string, unknown>) => {
-      for (const [c, v] of Object.entries(b._eq)) if (row[c] !== v) return false;
+      for (const [c, v] of Object.entries(b._eq))
+        if (row[c] !== v) return false;
       for (const [c, vals] of Object.entries(b._in))
         if (!vals.includes(row[c])) return false;
       for (const [c, v] of Object.entries(b._lte))
-        if (!(typeof row[c] === 'string' && (row[c] as string) <= v)) return false;
+        if (!(typeof row[c] === 'string' && (row[c] as string) <= v))
+          return false;
       return true;
     };
 
@@ -90,8 +94,7 @@ function makeAdmin(store: Store): SupabaseClient {
         return Promise.resolve({ data: null, error: null });
       }
       if (b._op === 'update') {
-        for (const row of rows)
-          if (matches(row)) Object.assign(row, b._patch);
+        for (const row of rows) if (matches(row)) Object.assign(row, b._patch);
         return Promise.resolve({ error: null });
       }
       let out = rows.filter(matches);
@@ -120,7 +123,7 @@ function makeAdmin(store: Store): SupabaseClient {
 }
 
 const DAY = 24 * 60 * 60 * 1000;
-const iso = ( msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+const iso = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
 
 function prop(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -128,7 +131,9 @@ function prop(over: Record<string, unknown> = {}): Record<string, unknown> {
     account_id: 'acc1',
     title: 'Test Villa',
     status: 'Sold',
-    images: ['https://x.supabase.co/storage/v1/object/public/property-images/acc1/img-1.jpg'],
+    images: [
+      'https://x.supabase.co/storage/v1/object/public/property-images/acc1/img-1.jpg',
+    ],
     images_cleanup_state: 'active',
     images_cleanup_warned_at: null,
     images_dereferenced_at: null,
@@ -177,7 +182,10 @@ describe('runImageCleanup — warn phase', () => {
 
   it('dry-run reports candidates but mutates nothing and sends nothing', async () => {
     store.properties = [prop()];
-    const summary = await runImageCleanup(makeAdmin(store), cfg({ dry_run: true }));
+    const summary = await runImageCleanup(
+      makeAdmin(store),
+      cfg({ dry_run: true })
+    );
     expect(summary.warned).toBe(1);
     expect(store.properties[0].images_cleanup_state).toBe('active');
     expect(store.logs).toHaveLength(0);
@@ -186,16 +194,25 @@ describe('runImageCleanup — warn phase', () => {
 
   it('respects max_per_run', async () => {
     store.properties = [prop({ id: 'a' }), prop({ id: 'b' })];
-    const summary = await runImageCleanup(makeAdmin(store), cfg({ max_per_run: 1 }));
+    const summary = await runImageCleanup(
+      makeAdmin(store),
+      cfg({ max_per_run: 1 })
+    );
     expect(summary.warned).toBe(1);
-    expect(store.properties.filter((p) => p.images_cleanup_state === 'warned')).toHaveLength(1);
+    expect(
+      store.properties.filter((p) => p.images_cleanup_state === 'warned')
+    ).toHaveLength(1);
   });
 });
 
 describe('runImageCleanup — escape reset', () => {
   it('resets a warned property whose owner re-activated it', async () => {
     store.properties = [
-      prop({ images_cleanup_state: 'warned', images_cleanup_warned_at: iso(40 * DAY), status: 'Available' }),
+      prop({
+        images_cleanup_state: 'warned',
+        images_cleanup_warned_at: iso(40 * DAY),
+        status: 'Available',
+      }),
     ];
     const summary = await runImageCleanup(makeAdmin(store), cfg());
     expect(summary.reset).toBe(1);
@@ -208,9 +225,15 @@ describe('runImageCleanup — escape reset', () => {
 describe('runImageCleanup — dereference phase', () => {
   it('clears images after grace, snapshots them, and keeps the blobs', async () => {
     store.properties = [
-      prop({ images_cleanup_state: 'warned', images_cleanup_warned_at: iso(40 * DAY) }),
+      prop({
+        images_cleanup_state: 'warned',
+        images_cleanup_warned_at: iso(40 * DAY),
+      }),
     ];
-    const summary = await runImageCleanup(makeAdmin(store), cfg({ grace_days: 30 }));
+    const summary = await runImageCleanup(
+      makeAdmin(store),
+      cfg({ grace_days: 30 })
+    );
     expect(summary.dereferenced).toBe(1);
     expect(store.properties[0].images_cleanup_state).toBe('dereferenced');
     expect(store.properties[0].images).toEqual([]);
@@ -221,9 +244,15 @@ describe('runImageCleanup — dereference phase', () => {
 
   it('does not dereference before the grace period elapses', async () => {
     store.properties = [
-      prop({ images_cleanup_state: 'warned', images_cleanup_warned_at: iso(5 * DAY) }),
+      prop({
+        images_cleanup_state: 'warned',
+        images_cleanup_warned_at: iso(5 * DAY),
+      }),
     ];
-    const summary = await runImageCleanup(makeAdmin(store), cfg({ grace_days: 30 }));
+    const summary = await runImageCleanup(
+      makeAdmin(store),
+      cfg({ grace_days: 30 })
+    );
     expect(summary.dereferenced).toBe(0);
     expect(store.properties[0].images_cleanup_state).toBe('warned');
   });
@@ -243,14 +272,19 @@ describe('runImageCleanup — purge phase (opt-in)', () => {
     property_id: 'p1',
     phase: 'dereference',
     snapshot: {
-      images: ['https://x.supabase.co/storage/v1/object/public/property-images/acc1/img-1.jpg'],
+      images: [
+        'https://x.supabase.co/storage/v1/object/public/property-images/acc1/img-1.jpg',
+      ],
     },
   });
 
   it('does NOT purge when hard_delete_enabled is false', async () => {
     store.properties = dereferenced();
     store.logs = [snapshotLog()];
-    const summary = await runImageCleanup(makeAdmin(store), cfg({ hard_delete_enabled: false }));
+    const summary = await runImageCleanup(
+      makeAdmin(store),
+      cfg({ hard_delete_enabled: false })
+    );
     expect(summary.purged).toBe(0);
     expect(store.removed).toHaveLength(0);
     expect(store.properties[0].images_cleanup_state).toBe('dereferenced');
@@ -261,7 +295,7 @@ describe('runImageCleanup — purge phase (opt-in)', () => {
     store.logs = [snapshotLog()];
     const summary = await runImageCleanup(
       makeAdmin(store),
-      cfg({ hard_delete_enabled: true, final_retention_days: 180 }),
+      cfg({ hard_delete_enabled: true, final_retention_days: 180 })
     );
     expect(summary.purged).toBe(1);
     expect(store.removed).toEqual(['acc1/img-1.jpg']);

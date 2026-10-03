@@ -9,8 +9,15 @@
 // photo); the sample below is only for Meta's review.
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
-import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
-import { templateBody, templateButtonLabel } from '@/lib/whatsapp/template-copy';
+import {
+  DEFAULT_LANGUAGE,
+  metaLanguageCode,
+  type LanguageCode,
+} from '@/lib/languages';
+import {
+  templateBody,
+  templateButtonLabel,
+} from '@/lib/whatsapp/template-copy';
 import {
   pickApprovedTemplate,
   type ApprovedTemplateCandidate,
@@ -37,7 +44,8 @@ import {
  *     revision gets a fresh name so the working Utility row remains a
  *     safe fallback throughout Meta review.
  */
-export const PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME = 'listing_photos_map_notice';
+export const PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME =
+  'listing_photos_map_notice';
 
 /** Earlier names, newest first. */
 export const LEGACY_PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES = [
@@ -53,14 +61,14 @@ export const PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES = [
 
 /** The photo-header property template a send should use. */
 export function pickPropertyPhotosTemplate<T extends ApprovedTemplateCandidate>(
-  rows: T[],
+  rows: T[]
 ): T | null {
   return pickApprovedTemplate(rows, PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES);
 }
 
 export function buildPropertyEnquiryPhotosTemplatePayload(
   origin: string,
-  language: LanguageCode = DEFAULT_LANGUAGE,
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): TemplatePayload {
   const base = origin.replace(/\/+$/, '');
   return {
@@ -81,7 +89,10 @@ export function buildPropertyEnquiryPhotosTemplatePayload(
     buttons: [
       // Same button set as property_enquiry_response: the quick reply
       // opens the 24h window, the URL carries the requested listing.
-      { type: 'QUICK_REPLY', text: templateButtonLabel('send_more_details', language) },
+      {
+        type: 'QUICK_REPLY',
+        text: templateButtonLabel('send_more_details', language),
+      },
       {
         type: 'URL',
         text: templateButtonLabel('view_full_details', language),

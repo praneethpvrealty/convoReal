@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import type { MessageTemplate } from "@/types";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import type { MessageTemplate } from '@/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -13,15 +13,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import {
-  ArrowLeft,
-  ChevronRight,
-  LayoutTemplate,
-  Loader2,
-} from "lucide-react";
-import { extractVariableIndices } from "@/lib/whatsapp/template-validators";
+} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, ChevronRight, LayoutTemplate, Loader2 } from 'lucide-react';
+import { extractVariableIndices } from '@/lib/whatsapp/template-validators';
 
 export interface TemplateSendValues {
   body: string[];
@@ -74,12 +69,12 @@ function collectVariableSlots(template: MessageTemplate): {
 } {
   const bodyVars = extractVariableIndices(template.body_text);
   const headerVarCount =
-    template.header_type === "text" && template.header_content
+    template.header_type === 'text' && template.header_content
       ? extractVariableIndices(template.header_content).length
       : 0;
   const urlButtonSlots: UrlButtonSlot[] = [];
   (template.buttons ?? []).forEach((b, i) => {
-    if (b.type === "URL" && extractVariableIndices(b.url).length > 0) {
+    if (b.type === 'URL' && extractVariableIndices(b.url).length > 0) {
       urlButtonSlots.push({ index: i, text: b.text, url: b.url });
     }
   });
@@ -96,7 +91,7 @@ export function TemplatePicker({
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<MessageTemplate | null>(null);
   const [params, setParams] = useState<string[]>([]);
-  const [headerText, setHeaderText] = useState<string>("");
+  const [headerText, setHeaderText] = useState<string>('');
   const [buttonParams, setButtonParams] = useState<Record<number, string>>({});
 
   useEffect(() => {
@@ -120,9 +115,9 @@ export function TemplatePicker({
 
       // Fetch user's profile to get their account_id
       const { data: profile } = await supabase
-        .from("profiles")
-        .select("account_id")
-        .eq("user_id", user.id)
+        .from('profiles')
+        .select('account_id')
+        .eq('user_id', user.id)
         .maybeSingle();
 
       const accountId = profile?.account_id;
@@ -135,15 +130,15 @@ export function TemplatePicker({
       }
 
       const { data, error } = await supabase
-        .from("message_templates")
-        .select("*")
-        .eq("account_id", accountId)
-        .eq("status", "APPROVED")
-        .order("created_at", { ascending: false });
+        .from('message_templates')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('status', 'APPROVED')
+        .order('created_at', { ascending: false });
 
       if (cancelled) return;
       if (error) {
-        console.error("Failed to fetch templates:", error);
+        console.error('Failed to fetch templates:', error);
         setTemplates([]);
       } else {
         setTemplates((data as MessageTemplate[]) ?? []);
@@ -173,8 +168,10 @@ export function TemplatePicker({
       setParams(intent.body);
       setButtonParams(
         intent.urlSuffix
-          ? Object.fromEntries(urlSlots.map((s) => [s.index, intent.urlSuffix!]))
-          : {},
+          ? Object.fromEntries(
+              urlSlots.map((s) => [s.index, intent.urlSuffix!])
+            )
+          : {}
       );
     });
   }, [open, intent, loading, templates]);
@@ -183,7 +180,7 @@ export function TemplatePicker({
     intentAppliedRef.current = null;
     setSelected(null);
     setParams([]);
-    setHeaderText("");
+    setHeaderText('');
     setButtonParams({});
   }
 
@@ -204,8 +201,8 @@ export function TemplatePicker({
       return;
     }
     setSelected(template);
-    setParams(new Array(slots.bodyVars.length).fill(""));
-    setHeaderText("");
+    setParams(new Array(slots.bodyVars.length).fill(''));
+    setHeaderText('');
     setButtonParams({});
   }
 
@@ -215,7 +212,7 @@ export function TemplatePicker({
     if (headerText.trim()) values.headerText = headerText.trim();
     if (Object.keys(buttonParams).length > 0) {
       values.buttonParams = Object.fromEntries(
-        Object.entries(buttonParams).map(([k, v]) => [Number(k), v.trim()]),
+        Object.entries(buttonParams).map(([k, v]) => [Number(k), v.trim()])
       );
     }
     onSelect(selected, values);
@@ -224,15 +221,15 @@ export function TemplatePicker({
 
   const slots = useMemo(
     () => (selected ? collectVariableSlots(selected) : null),
-    [selected],
+    [selected]
   );
   const canConfirm =
     !!selected &&
     !!slots &&
-    slots.bodyVars.every((_, i) => (params[i] ?? "").trim().length > 0) &&
+    slots.bodyVars.every((_, i) => (params[i] ?? '').trim().length > 0) &&
     (slots.headerVarCount === 0 || headerText.trim().length > 0) &&
     slots.urlButtonSlots.every(
-      (s) => (buttonParams[s.index] ?? "").trim().length > 0,
+      (s) => (buttonParams[s.index] ?? '').trim().length > 0
     );
 
   return (
@@ -240,13 +237,13 @@ export function TemplatePicker({
       <DialogContent className="border-slate-700 bg-slate-900 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-white">
-            <LayoutTemplate className="h-4 w-4 text-primary" />
-            {selected ? selected.name : "Send Message"}
+            <LayoutTemplate className="text-primary h-4 w-4" />
+            {selected ? selected.name : 'Send Message'}
           </DialogTitle>
           <DialogDescription className="text-slate-400">
             {selected
-              ? "Fill in the placeholders to render this template. Meta requires every variable to be set."
-              : "Pick an approved WhatsApp template to send to this contact."}
+              ? 'Fill in the placeholders to render this template. Meta requires every variable to be set.'
+              : 'Pick an approved WhatsApp template to send to this contact.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -254,14 +251,14 @@ export function TemplatePicker({
           <div className="max-h-[60vh] space-y-2 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <Loader2 className="text-primary h-5 w-5 animate-spin" />
               </div>
             ) : templates.length === 0 ? (
               <div className="rounded-md border border-slate-800 bg-slate-950/50 p-6 text-center">
                 <p className="text-sm text-slate-300">No approved templates</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Approve a template in Meta WhatsApp Manager, then sync it
-                  from Settings → Templates.
+                  Approve a template in Meta WhatsApp Manager, then sync it from
+                  Settings → Templates.
                 </p>
               </div>
             ) : (
@@ -270,7 +267,7 @@ export function TemplatePicker({
                   key={t.id}
                   type="button"
                   onClick={() => pickTemplate(t)}
-                  className="w-full rounded-md border border-slate-800 bg-slate-950/50 p-3 text-left transition-colors hover:border-primary/40 hover:bg-slate-900"
+                  className="hover:border-primary/40 w-full rounded-md border border-slate-800 bg-slate-950/50 p-3 text-left transition-colors hover:bg-slate-900"
                 >
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
@@ -278,11 +275,11 @@ export function TemplatePicker({
                         <p className="truncate text-sm font-medium text-white">
                           {t.name}
                         </p>
-                        <Badge className="border border-primary/30 bg-primary/20 text-[10px] text-primary">
+                        <Badge className="border-primary/30 bg-primary/20 text-primary border text-[10px]">
                           {t.category}
                         </Badge>
                         {t.language && (
-                          <span className="text-[10px] uppercase text-slate-500">
+                          <span className="text-[10px] text-slate-500 uppercase">
                             {t.language}
                           </span>
                         )}
@@ -301,11 +298,11 @@ export function TemplatePicker({
           <div className="space-y-3">
             <div className="rounded-md border border-slate-800 bg-slate-950/50 p-3">
               <p className="mb-1 text-xs text-slate-400">Preview</p>
-              <p className="whitespace-pre-wrap text-sm text-slate-200">
+              <p className="text-sm whitespace-pre-wrap text-slate-200">
                 {renderBodyPreview(selected.body_text, params)}
               </p>
               {selected.footer_text && (
-                <p className="mt-2 text-xs italic text-slate-500">
+                <p className="mt-2 text-xs text-slate-500 italic">
                   {selected.footer_text}
                 </p>
               )}
@@ -327,7 +324,7 @@ export function TemplatePicker({
               <div key={v} className="space-y-1">
                 <Label className="text-xs text-slate-300">{`Body {{${v}}}`}</Label>
                 <Input
-                  value={params[i] ?? ""}
+                  value={params[i] ?? ''}
                   onChange={(e) => {
                     const next = [...params];
                     next[i] = e.target.value;
@@ -341,10 +338,11 @@ export function TemplatePicker({
             {slots?.urlButtonSlots.map((slot) => (
               <div key={slot.index} className="space-y-1">
                 <Label className="text-xs text-slate-300">
-                  {`URL button "${slot.text}" — value for `}{`{{1}}`}
+                  {`URL button "${slot.text}" — value for `}
+                  {`{{1}}`}
                 </Label>
                 <Input
-                  value={buttonParams[slot.index] ?? ""}
+                  value={buttonParams[slot.index] ?? ''}
                   onChange={(e) =>
                     setButtonParams((prev) => ({
                       ...prev,
@@ -354,8 +352,12 @@ export function TemplatePicker({
                   placeholder="URL suffix value"
                   className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                 />
-                <p className="text-[10px] text-slate-500 break-all">
-                  Final URL: {slot.url.replace(/\{\{1\}\}/g, buttonParams[slot.index] || "{{1}}")}
+                <p className="text-[10px] break-all text-slate-500">
+                  Final URL:{' '}
+                  {slot.url.replace(
+                    /\{\{1\}\}/g,
+                    buttonParams[slot.index] || '{{1}}'
+                  )}
                 </p>
               </div>
             ))}

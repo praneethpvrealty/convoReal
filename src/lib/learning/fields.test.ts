@@ -72,10 +72,9 @@ describe('normalizeValue', () => {
   });
 
   it('cleans a list and dedupes case-insensitively, keeping what was written', () => {
-    expect(normalizeValue(areas, ['HSR Layout', ' hsr layout ', 'Koramangala'])).toEqual([
-      'HSR Layout',
-      'Koramangala',
-    ]);
+    expect(
+      normalizeValue(areas, ['HSR Layout', ' hsr layout ', 'Koramangala'])
+    ).toEqual(['HSR Layout', 'Koramangala']);
   });
 
   it('refuses a non-list for a list field', () => {
@@ -114,18 +113,23 @@ describe('formatValue', () => {
       formatValue(fieldPolicy('property', 'seller_final_price')!, 44_100_000)
     ).toBe('₹4,41,00,000');
     expect(
-      formatValue(fieldPolicy('property', 'seller_final_price_per_sqft')!, 10500)
+      formatValue(
+        fieldPolicy('property', 'seller_final_price_per_sqft')!,
+        10500
+      )
     ).toBe('₹10,500/sq.ft.');
-    expect(formatValue(fieldPolicy('contact', 'pref_areas')!, ['HSR', 'BTM'])).toBe(
-      'HSR, BTM'
-    );
+    expect(
+      formatValue(fieldPolicy('contact', 'pref_areas')!, ['HSR', 'BTM'])
+    ).toBe('HSR, BTM');
     expect(formatValue(fieldPolicy('contact', 'pref_bhk_min')!, 3)).toBe('3');
     expect(formatValue(fieldPolicy('contact', 'no_budget')!, false)).toBe('No');
   });
 
   it('shows an empty value as a dash rather than blank', () => {
     expect(formatValue(fieldPolicy('contact', 'pref_areas')!, [])).toBe('—');
-    expect(formatValue(fieldPolicy('contact', 'pref_budget_max')!, null)).toBe('—');
+    expect(formatValue(fieldPolicy('contact', 'pref_budget_max')!, null)).toBe(
+      '—'
+    );
   });
 });
 
@@ -141,7 +145,9 @@ describe('tags as a learnable field', () => {
     // Writing pref_suggested_tags attaches nothing and changes no
     // matching, so it applies on sight like the rest of the extraction.
     expect(dispositionFor('contact', 'pref_suggested_tags')).toBe('auto');
-    expect(fieldPolicy('contact', 'pref_suggested_tags')!.applyAs).toBeUndefined();
+    expect(
+      fieldPolicy('contact', 'pref_suggested_tags')!.applyAs
+    ).toBeUndefined();
   });
 
   it('renders a yield as a percentage', () => {

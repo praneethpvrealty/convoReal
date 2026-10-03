@@ -8,10 +8,7 @@ const MISSING_EXPIRY_INTERVAL_DAYS = 7;
 const OVERDUE_REMINDER_INTERVAL_DAYS = 7;
 
 export type PortalExpiryReminderKind =
-  | 'missing_expiry'
-  | 'upcoming'
-  | 'expiry_day'
-  | 'overdue';
+  'missing_expiry' | 'upcoming' | 'expiry_day' | 'overdue';
 
 export interface PortalExpiryReminderSchedule {
   key: string;

@@ -1,11 +1,19 @@
 import { NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { generateText } from '@/lib/ai/gemini';
-import { generateAiImage, hasImageProvider, IMAGE_PROVIDER_UNAVAILABLE } from '@/lib/ai/image-gen';
+import {
+  generateAiImage,
+  hasImageProvider,
+  IMAGE_PROVIDER_UNAVAILABLE,
+} from '@/lib/ai/image-gen';
 
 // POST /api/ai/greetings
 // Generates a personalized text greeting and a festive graphic card image
@@ -18,7 +26,7 @@ export async function POST(request: Request) {
 
     const limit = await checkRateLimit(
       `agent:greetings:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
@@ -30,7 +38,7 @@ export async function POST(request: Request) {
     if (!body || !body.occasion || !body.contactName) {
       return NextResponse.json(
         { error: 'occasion and contactName are required' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -38,7 +46,10 @@ export async function POST(request: Request) {
 
     if (generateImage && !(await hasImageProvider('huggingface'))) {
       console.error('[AI Greetings] No image provider configured.');
-      return NextResponse.json({ error: IMAGE_PROVIDER_UNAVAILABLE }, { status: 400 });
+      return NextResponse.json(
+        { error: IMAGE_PROVIDER_UNAVAILABLE },
+        { status: 400 }
+      );
     }
 
     // Burn credits
@@ -50,7 +61,7 @@ export async function POST(request: Request) {
           creditsNeeded: cost,
           upgradeRequired: true,
         },
-        { status: 402 },
+        { status: 402 }
       );
     }
 
@@ -59,22 +70,34 @@ export async function POST(request: Request) {
 
     try {
       // 1. Generate text greeting via Gemini
-      const systemInstruction = 
+      const systemInstruction =
         'You are an elite, personal real estate relationship manager. Write a warm, customized personal greeting message for WhatsApp.';
       const prompt = `Write a short, engaging, and personal greeting for my client named "${contactName}" for the occasion: "${occasion}". Make it professional yet warm, and keep it under 3-4 sentences so it fits perfectly in a WhatsApp message. Do not include placeholders like [Your Name], just write the greeting itself.`;
-      
-      textResult = await generateText(prompt, systemInstruction, { tier: 'lite', feature: 'greetings_generate' });
+
+      textResult = await generateText(prompt, systemInstruction, {
+        tier: 'lite',
+        feature: 'greetings_generate',
+      });
 
       // 2. Generate graphic card image if requested. Uses the shared
       // generator (Hugging Face free path, Imagen fallback). Image
       // failure never fails the request — the text greeting still ships.
       if (generateImage) {
         const imagePrompt = getImagePromptForOccasion(occasion);
-        console.log(`[Greetings AI] Generating card image with prompt: "${imagePrompt}"`);
+        console.log(
+          `[Greetings AI] Generating card image with prompt: "${imagePrompt}"`
+        );
         try {
-          imageResult = await generateAiImage({ prompt: imagePrompt, provider: 'huggingface', feature: 'greetings_image' });
+          imageResult = await generateAiImage({
+            prompt: imagePrompt,
+            provider: 'huggingface',
+            feature: 'greetings_image',
+          });
         } catch (imgErr) {
-          console.error('[Greetings AI] Image generation failed, returning text only:', (imgErr as Error).message);
+          console.error(
+            '[Greetings AI] Image generation failed, returning text only:',
+            (imgErr as Error).message
+          );
         }
       }
 
@@ -82,18 +105,19 @@ export async function POST(request: Request) {
         text: textResult.trim(),
         imageUrl: imageResult || undefined,
       });
-
     } catch (generationErr) {
       // Refund credits on failure
       await refundCredits(ctx.accountId, 'greetings_generate', cost);
       throw generationErr;
     }
-
   } catch (err) {
     console.error('[POST /api/ai/greetings] error:', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to generate greeting' },
-      { status: 500 },
+      {
+        error:
+          err instanceof Error ? err.message : 'Failed to generate greeting',
+      },
+      { status: 500 }
     );
   }
 }
@@ -109,7 +133,10 @@ function getImagePromptForOccasion(occasion: string): string {
   if (cleanOccasion.includes('xmas') || cleanOccasion.includes('christmas')) {
     return 'A premium beautiful greeting card for Christmas, featuring a decorated christmas tree, glowing lights, soft snow, warm festive atmosphere, elegant layout, high resolution, professional design, 4k';
   }
-  if (cleanOccasion.includes('birthday') || cleanOccasion.includes('birth day')) {
+  if (
+    cleanOccasion.includes('birthday') ||
+    cleanOccasion.includes('birth day')
+  ) {
     return 'A premium elegant birthday greeting card, with warm golden balloons, minimalist design, elegant confetti, high resolution, professional layout, 4k';
   }
   return `A premium artistic festive greeting card for ${occasion}, elegant layout, warm glowing lighting, vibrant colors, high resolution, professional graphic design, 4k`;

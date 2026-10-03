@@ -18,7 +18,10 @@ vi.mock('@/lib/supabase/admin', () => {
   const { state } = h;
 
   function builder(table: string) {
-    const ops: { type: string; filters: [string, unknown][] } = { type: 'select', filters: [] };
+    const ops: { type: string; filters: [string, unknown][] } = {
+      type: 'select',
+      filters: [],
+    };
     const b: Record<string, unknown> = {
       select: () => b,
       eq: (col: string, val: unknown) => {
@@ -37,9 +40,14 @@ vi.mock('@/lib/supabase/admin', () => {
       },
       maybeSingle: () => {
         if (table === 'credit_transactions') {
-          const orderId = ops.filters.find(([c]) => c === 'gateway_order_id')?.[1] as string | undefined;
+          const orderId = ops.filters.find(
+            ([c]) => c === 'gateway_order_id'
+          )?.[1] as string | undefined;
           if (orderId && state.existingTxOrderIds.has(orderId)) {
-            return Promise.resolve({ data: { id: 'existing-tx' }, error: null });
+            return Promise.resolve({
+              data: { id: 'existing-tx' },
+              error: null,
+            });
           }
           return Promise.resolve({ data: null, error: null });
         }
@@ -51,7 +59,11 @@ vi.mock('@/lib/supabase/admin', () => {
         return Promise.resolve({ data: null, error: null });
       },
       single: () => {
-        if (table === 'credit_wallets') return Promise.resolve({ data: state.wallet, error: state.wallet ? null : new Error('not found') });
+        if (table === 'credit_wallets')
+          return Promise.resolve({
+            data: state.wallet,
+            error: state.wallet ? null : new Error('not found'),
+          });
         return Promise.resolve({ data: null, error: null });
       },
       then: (resolve: (v: { data: unknown; error: unknown }) => unknown) =>
@@ -69,10 +81,18 @@ vi.mock('@/lib/supabase/admin', () => {
           if (args.p_gateway_order_id === 'order_duplicate') {
             return Promise.resolve({
               data: null,
-              error: { code: '23505', message: 'duplicate key value violates unique constraint', details: '', hint: '' } as unknown as PostgrestError,
+              error: {
+                code: '23505',
+                message: 'duplicate key value violates unique constraint',
+                details: '',
+                hint: '',
+              } as unknown as PostgrestError,
             });
           }
-          return Promise.resolve({ data: [{ balance_after: 2650, success: true }], error: null });
+          return Promise.resolve({
+            data: [{ balance_after: 2650, success: true }],
+            error: null,
+          });
         }
         return Promise.resolve({ data: null, error: null });
       },
@@ -131,7 +151,9 @@ describe('creditPurchase', () => {
   beforeEach(() => {
     h.state.existingTxOrderIds = new Set();
     h.state.rpcCalls = [];
-    h.state.packages = [{ id: 'pkg-1', key: 'standard', name: 'Standard Pack', credits: 2500 }];
+    h.state.packages = [
+      { id: 'pkg-1', key: 'standard', name: 'Standard Pack', credits: 2500 },
+    ];
     h.state.wallet = {
       purchased_credits: 100,
       monthly_credits: 50,

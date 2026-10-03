@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Canvas / mind-map view of a flow. Editable, in parity with the
@@ -36,7 +36,7 @@
  * list view reads.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Background,
   Controls,
@@ -52,12 +52,12 @@ import {
   type Edge as RfEdge,
   type NodeProps,
   type OnNodeDrag,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
-import { Plus, Trash2 } from "lucide-react";
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import { Plus, Trash2 } from 'lucide-react';
 
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
@@ -65,27 +65,27 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
+} from '@/components/ui/sheet';
 import {
   applyEdgeConnection,
   deriveCanvasEdges,
   outgoingSlots,
-} from "@/lib/flows/edges";
-import { autoLayout, shouldAutoLayout } from "@/lib/flows/layout";
+} from '@/lib/flows/edges';
+import { autoLayout, shouldAutoLayout } from '@/lib/flows/layout';
 import {
   NODE_META,
   summarizeNode,
   type BuilderNode,
   type NodeType,
-} from "./shared";
+} from './shared';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useFlowEditor } from "./flow-editor-state";
-import { NodeConfigForm } from "./forms/node-config-form";
+} from '@/components/ui/dropdown-menu';
+import { useFlowEditor } from './flow-editor-state';
+import { NodeConfigForm } from './forms/node-config-form';
 
 // React-Flow node `data` payload — the bits our custom renderer needs.
 interface NodeData extends Record<string, unknown> {
@@ -117,7 +117,7 @@ function FlowNodeCard({ data, selected }: NodeProps) {
   // don't need an incoming Handle. Every other node type accepts
   // incoming edges (including terminal handoff / end — they're the
   // common targets).
-  const hasTarget = node.node_type !== "start";
+  const hasTarget = node.node_type !== 'start';
   // Single-slot nodes get a single source handle floated on the right
   // edge of the card. Multi-slot nodes (condition, send_buttons,
   // send_list) render slot rows inline so each handle visually sits
@@ -126,14 +126,14 @@ function FlowNodeCard({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        "relative min-w-[220px] max-w-[260px] rounded-lg border bg-slate-900/95 px-3 py-2 text-left shadow-lg backdrop-blur transition-colors",
+        'relative max-w-[260px] min-w-[220px] rounded-lg border bg-slate-900/95 px-3 py-2 text-left shadow-lg backdrop-blur transition-colors',
         selected
-          ? "border-primary ring-1 ring-primary/40"
-          : "border-slate-700 hover:border-slate-600",
+          ? 'border-primary ring-primary/40 ring-1'
+          : 'border-slate-700 hover:border-slate-600',
         // Flash overrides hover/selected colors briefly. Tailwind's
         // built-in `animate-pulse` is too gentle; a ring with the
         // amber accent matches the list view's flash semantics.
-        isFlashed && "!border-amber-400 ring-2 ring-amber-400/60",
+        isFlashed && '!border-amber-400 ring-2 ring-amber-400/60'
       )}
     >
       {hasTarget && (
@@ -145,12 +145,12 @@ function FlowNodeCard({ data, selected }: NodeProps) {
       )}
 
       <div className="flex items-center gap-2">
-        <Icon className={cn("h-3.5 w-3.5 shrink-0", meta.color)} />
-        <span className="truncate text-[11px] font-medium uppercase tracking-wide text-slate-400">
+        <Icon className={cn('h-3.5 w-3.5 shrink-0', meta.color)} />
+        <span className="truncate text-[11px] font-medium tracking-wide text-slate-400 uppercase">
           {meta.label}
         </span>
         {isEntry && (
-          <span className="ml-auto rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-300">
+          <span className="ml-auto rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold tracking-wider text-emerald-300 uppercase">
             Entry
           </span>
         )}
@@ -182,7 +182,7 @@ function FlowNodeCard({ data, selected }: NodeProps) {
                 // sits flush with the right edge of the card instead
                 // of floating at vertical center. The negative offset
                 // matches the card's px-3 + the handle's own radius.
-                className="!relative !right-auto !top-auto !h-2.5 !w-2.5 !translate-x-[12px] !transform-none !border-slate-600 !bg-slate-700"
+                className="!relative !top-auto !right-auto !h-2.5 !w-2.5 !translate-x-[12px] !transform-none !border-slate-600 !bg-slate-700"
               />
             </div>
           ))}
@@ -241,9 +241,9 @@ function FlowCanvasInner() {
   const selectedNode = useMemo(
     () =>
       selectedNodeKey
-        ? builderNodes.find((n) => n.node_key === selectedNodeKey) ?? null
+        ? (builderNodes.find((n) => n.node_key === selectedNodeKey) ?? null)
         : null,
-    [selectedNodeKey, builderNodes],
+    [selectedNodeKey, builderNodes]
   );
 
   const { rfNodes, rfEdges } = useMemo(() => {
@@ -262,7 +262,7 @@ function FlowCanvasInner() {
             height: NODE_HEIGHT,
           })),
           canvasEdges.map((e) => ({ source: e.source, target: e.target })),
-          { direction: "TB" },
+          { direction: 'TB' }
         )
       : null;
 
@@ -270,7 +270,7 @@ function FlowCanvasInner() {
       const fallback = positions?.get(n.node_key);
       return {
         id: n.node_key,
-        type: "flow",
+        type: 'flow',
         position: {
           x: fallback?.x ?? n.position_x ?? 0,
           y: fallback?.y ?? n.position_y ?? 0,
@@ -292,11 +292,11 @@ function FlowCanvasInner() {
       target: e.target,
       sourceHandle: e.sourceHandle,
       label: e.label,
-      labelStyle: { fill: "#cbd5e1", fontSize: 11 },
-      labelBgStyle: { fill: "#0f172a" },
+      labelStyle: { fill: '#cbd5e1', fontSize: 11 },
+      labelBgStyle: { fill: '#0f172a' },
       labelBgPadding: [4, 2] as [number, number],
       labelBgBorderRadius: 4,
-      style: { stroke: "#475569", strokeWidth: 1.5 },
+      style: { stroke: '#475569', strokeWidth: 1.5 },
     }));
 
     return { rfNodes, rfEdges };
@@ -313,7 +313,7 @@ function FlowCanvasInner() {
     (_event, node) => {
       updateNodePosition(node.id, node.position.x, node.position.y);
     },
-    [updateNodePosition],
+    [updateNodePosition]
   );
 
   // Pan to the flashed node when the validator panel requests one.
@@ -335,7 +335,7 @@ function FlowCanvasInner() {
     (_event: React.MouseEvent, node: RfNode<NodeData>) => {
       setSelectedNodeKey(node.id);
     },
-    [],
+    []
   );
 
   // Drag-to-connect: React-Flow fires onConnect when the user drops a
@@ -346,11 +346,15 @@ function FlowCanvasInner() {
   // the next render — no need to maintain a separate edge list.
   const handleConnect = useCallback(
     (connection: Connection) => {
-      if (!connection.source || !connection.target || !connection.sourceHandle) {
+      if (
+        !connection.source ||
+        !connection.target ||
+        !connection.sourceHandle
+      ) {
         return;
       }
       const sourceNode = builderNodes.find(
-        (n) => n.node_key === connection.source,
+        (n) => n.node_key === connection.source
       );
       if (!sourceNode) return;
       // Self-loops are a footgun (a button whose target is its own
@@ -360,11 +364,11 @@ function FlowCanvasInner() {
       const patch = applyEdgeConnection(
         sourceNode,
         connection.sourceHandle,
-        connection.target,
+        connection.target
       );
       if (patch) updateNodeConfig(connection.source, patch);
     },
-    [builderNodes, updateNodeConfig],
+    [builderNodes, updateNodeConfig]
   );
 
   // Keyboard delete (Backspace / Delete) + drag-to-trash. React-Flow
@@ -380,7 +384,7 @@ function FlowCanvasInner() {
         if (selectedNodeKey === n.id) setSelectedNodeKey(null);
       }
     },
-    [removeNode, selectedNodeKey],
+    [removeNode, selectedNodeKey]
   );
 
   // Edge delete: clear the source node's slot rather than removing
@@ -392,11 +396,11 @@ function FlowCanvasInner() {
         if (!e.sourceHandle) continue;
         const sourceNode = builderNodes.find((n) => n.node_key === e.source);
         if (!sourceNode) continue;
-        const patch = applyEdgeConnection(sourceNode, e.sourceHandle, "");
+        const patch = applyEdgeConnection(sourceNode, e.sourceHandle, '');
         if (patch) updateNodeConfig(e.source, patch);
       }
     },
-    [builderNodes, updateNodeConfig],
+    [builderNodes, updateNodeConfig]
   );
 
   // Wrapped mutators that target the currently-selected node — pass to
@@ -406,7 +410,7 @@ function FlowCanvasInner() {
     (patch: Record<string, unknown>) => {
       if (selectedNodeKey) updateNodeConfig(selectedNodeKey, patch);
     },
-    [selectedNodeKey, updateNodeConfig],
+    [selectedNodeKey, updateNodeConfig]
   );
 
   const handleDeleteSelected = useCallback(() => {
@@ -446,7 +450,7 @@ function FlowCanvasInner() {
           onEdgesDelete={handleEdgesDelete}
           // Default is "Backspace" only — accept both so Mac users
           // hitting Delete (Fn+Backspace) get the same behavior.
-          deleteKeyCode={["Backspace", "Delete"]}
+          deleteKeyCode={['Backspace', 'Delete']}
           nodesConnectable={true}
           edgesFocusable={true}
           elementsSelectable={true}
@@ -468,7 +472,7 @@ function FlowCanvasInner() {
             maskColor="rgba(15, 23, 42, 0.7)"
             className="!border !border-slate-700 !bg-slate-900"
           />
-          <Panel position="bottom-right" className="!bottom-4 !right-4">
+          <Panel position="bottom-right" className="!right-4 !bottom-4">
             <CanvasAddNodeButton />
           </Panel>
         </ReactFlow>
@@ -530,10 +534,10 @@ function NodeEditSheet({
       >
         <SheetHeader className="border-b border-slate-800 px-5 py-4">
           <SheetTitle className="flex items-center gap-2 text-slate-100">
-            <Icon className={cn("h-4 w-4 shrink-0", meta.color)} />
+            <Icon className={cn('h-4 w-4 shrink-0', meta.color)} />
             <span>{meta.label}</span>
             {isEntry && (
-              <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
+              <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-emerald-300 uppercase">
                 Entry
               </span>
             )}
@@ -583,16 +587,16 @@ function NodeEditSheet({
 // ============================================================
 
 const ADD_NODE_TYPES: NodeType[] = [
-  "start",
-  "send_buttons",
-  "send_list",
-  "send_message",
-  "send_media",
-  "collect_input",
-  "condition",
-  "set_tag",
-  "handoff",
-  "end",
+  'start',
+  'send_buttons',
+  'send_list',
+  'send_message',
+  'send_media',
+  'collect_input',
+  'condition',
+  'set_tag',
+  'handoff',
+  'end',
 ];
 
 function CanvasAddNodeButton() {
@@ -606,7 +610,7 @@ function CanvasAddNodeButton() {
     // .react-flow root and read its bounding rect. If we can't find
     // it (test envs, etc.), addNode's default (0, 0) is the fallback
     // and the user can drag the node into view.
-    const root = document.querySelector(".react-flow") as HTMLElement | null;
+    const root = document.querySelector('.react-flow') as HTMLElement | null;
     if (!root) return;
     const rect = root.getBoundingClientRect();
     const center = reactFlow.screenToFlowPosition({
@@ -616,7 +620,11 @@ function CanvasAddNodeButton() {
     // NODE_WIDTH / NODE_HEIGHT are the dagre layout defaults; offset
     // so the card sits visually centered rather than top-left at the
     // viewport center.
-    updateNodePosition(key, center.x - NODE_WIDTH / 2, center.y - NODE_HEIGHT / 2);
+    updateNodePosition(
+      key,
+      center.x - NODE_WIDTH / 2,
+      center.y - NODE_HEIGHT / 2
+    );
   };
 
   return (
@@ -628,13 +636,16 @@ function CanvasAddNodeButton() {
         <Plus className="h-3.5 w-3.5" />
         Add node
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="border-slate-700 bg-slate-900">
+      <DropdownMenuContent
+        align="end"
+        className="border-slate-700 bg-slate-900"
+      >
         {ADD_NODE_TYPES.map((t) => {
           const meta = NODE_META[t];
           const Icon = meta.icon;
           return (
             <DropdownMenuItem key={t} onClick={() => handleAdd(t)}>
-              <Icon className={cn("h-3.5 w-3.5", meta.color)} />
+              <Icon className={cn('h-3.5 w-3.5', meta.color)} />
               {meta.label}
             </DropdownMenuItem>
           );

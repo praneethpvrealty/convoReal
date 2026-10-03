@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils';
 
 /**
  * The common app-wide loader: the ConvoReal wordmark with a bright
@@ -15,15 +15,19 @@ export function ConvoRealLoader({
   label = 'Loading',
   className,
 }: {
-  size?: number
-  label?: string
-  className?: string
+  size?: number;
+  label?: string;
+  className?: string;
 }) {
   return (
-    <div role="status" aria-label={label} className={cn('inline-flex', className)}>
+    <div
+      role="status"
+      aria-label={label}
+      className={cn('inline-flex', className)}
+    >
       <span className="cr-flash" style={{ fontSize: size }} aria-hidden="true">
         ConvoReal
       </span>
     </div>
-  )
+  );
 }

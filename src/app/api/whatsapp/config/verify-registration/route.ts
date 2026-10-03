@@ -1,14 +1,11 @@
-import { NextResponse } from 'next/server'
-import { getCurrentAccount, UnauthorizedError } from '@/lib/auth/account'
-import { decrypt } from '@/lib/whatsapp/encryption'
-import {
-  getSubscribedApps,
-  verifyPhoneNumber,
-} from '@/lib/whatsapp/meta-api'
+import { NextResponse } from 'next/server';
+import { getCurrentAccount, UnauthorizedError } from '@/lib/auth/account';
+import { decrypt } from '@/lib/whatsapp/encryption';
+import { getSubscribedApps, verifyPhoneNumber } from '@/lib/whatsapp/meta-api';
 import {
   assessRegistration,
   fetchPhoneRegistrationState,
-} from '@/lib/whatsapp/registration-state'
+} from '@/lib/whatsapp/registration-state';
 
 /**
  * GET /api/whatsapp/config/verify-registration
@@ -41,38 +38,41 @@ export async function GET() {
   // caller without a usable account gets the soft `live: false` shape
   // rather than an error the UI would have to special-case. Only a
   // missing session is a hard 401.
-  let supabase: Awaited<ReturnType<typeof getCurrentAccount>>['supabase']
-  let accountId: string
+  let supabase: Awaited<ReturnType<typeof getCurrentAccount>>['supabase'];
+  let accountId: string;
   try {
-    ;({ supabase, accountId } = await getCurrentAccount())
+    ({ supabase, accountId } = await getCurrentAccount());
   } catch (error) {
     if (error instanceof UnauthorizedError) {
-      return NextResponse.json({ error: error.message }, { status: error.status })
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
     }
     return NextResponse.json({
       live: false,
       checks: { config_exists: false },
       message: error instanceof Error ? error.message : 'Account unavailable.',
-    })
+    });
   }
 
   const { data: config } = await supabase
     .from('whatsapp_config')
     .select('*')
     .eq('account_id', accountId)
-    .maybeSingle()
+    .maybeSingle();
 
   if (!config) {
     return NextResponse.json({
       live: false,
       checks: { config_exists: false },
       message: 'No WhatsApp configuration saved yet.',
-    })
+    });
   }
 
-  let accessToken: string
+  let accessToken: string;
   try {
-    accessToken = decrypt(config.access_token)
+    accessToken = decrypt(config.access_token);
   } catch {
     return NextResponse.json({
       live: false,
@@ -81,18 +81,18 @@ export async function GET() {
         token_decryptable: false,
       },
       message:
-        'Stored access token can\'t be decrypted — likely ENCRYPTION_KEY changed. Re-enter the token to repair.',
-    })
+        "Stored access token can't be decrypted — likely ENCRYPTION_KEY changed. Re-enter the token to repair.",
+    });
   }
 
   const checks: {
-    config_exists: boolean
-    token_decryptable: boolean
-    phone_metadata_ok: boolean
-    registered_on_meta: boolean | null
-    display_name_approved: boolean | null
-    waba_subscribed_to_app: boolean | null
-    locally_marked_registered: boolean
+    config_exists: boolean;
+    token_decryptable: boolean;
+    phone_metadata_ok: boolean;
+    registered_on_meta: boolean | null;
+    display_name_approved: boolean | null;
+    waba_subscribed_to_app: boolean | null;
+    locally_marked_registered: boolean;
   } = {
     config_exists: true,
     token_decryptable: true,
@@ -101,22 +101,23 @@ export async function GET() {
     display_name_approved: null,
     waba_subscribed_to_app: null,
     locally_marked_registered: config.registered_at != null,
-  }
-  const errors: string[] = []
-  let registeredAt: string | null = config.registered_at ?? null
-  let lastRegistrationError: string | null = config.last_registration_error ?? null
+  };
+  const errors: string[] = [];
+  let registeredAt: string | null = config.registered_at ?? null;
+  let lastRegistrationError: string | null =
+    config.last_registration_error ?? null;
 
   // 1. Phone metadata
   try {
     await verifyPhoneNumber({
       phoneNumberId: config.phone_number_id,
       accessToken,
-    })
-    checks.phone_metadata_ok = true
+    });
+    checks.phone_metadata_ok = true;
   } catch (err) {
     errors.push(
-      `Phone metadata check failed: ${err instanceof Error ? err.message : String(err)}`,
-    )
+      `Phone metadata check failed: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 
   // 1b. Meta's own registration state. platform_type is CLOUD_API only
@@ -126,56 +127,60 @@ export async function GET() {
     await fetchPhoneRegistrationState({
       phoneNumberId: config.phone_number_id,
       accessToken,
-    }),
-  )
+    })
+  );
   if (assessment) {
-    checks.registered_on_meta = assessment.registered
-    checks.display_name_approved = assessment.nameApproved
+    checks.registered_on_meta = assessment.registered;
+    checks.display_name_approved = assessment.nameApproved;
     if (!assessment.registered) {
-      errors.push(assessment.reason ?? 'Meta reports this number is not registered.')
-      registeredAt = null
-      lastRegistrationError = assessment.reason
+      errors.push(
+        assessment.reason ?? 'Meta reports this number is not registered.'
+      );
+      registeredAt = null;
+      lastRegistrationError = assessment.reason;
     } else if (assessment.nameApproved === false) {
       errors.push(
-        'The display name is not approved. Messaging may be limited until a name is approved in WhatsApp Manager.',
-      )
+        'The display name is not approved. Messaging may be limited until a name is approved in WhatsApp Manager.'
+      );
     }
     if (assessment.registered) {
-      lastRegistrationError = null
-      if (registeredAt == null) registeredAt = new Date().toISOString()
+      lastRegistrationError = null;
+      if (registeredAt == null) registeredAt = new Date().toISOString();
     }
     const drifted =
       (registeredAt == null) !== (config.registered_at == null) ||
       lastRegistrationError !== (config.last_registration_error ?? null) ||
-      (assessment.registered ? 'connected' : 'disconnected') !== config.status
+      (assessment.registered ? 'connected' : 'disconnected') !== config.status;
     if (drifted) {
-      const stamp = new Date().toISOString()
+      const stamp = new Date().toISOString();
       const patch = {
         registered_at: registeredAt,
         last_registration_error: lastRegistrationError,
         updated_at: stamp,
-      }
+      };
       const { data: fixedConfig } = await supabase
         .from('whatsapp_config')
         .update({
           ...patch,
           status: assessment.registered ? 'connected' : 'disconnected',
-          connected_at: assessment.registered ? (config.connected_at ?? stamp) : null,
+          connected_at: assessment.registered
+            ? (config.connected_at ?? stamp)
+            : null,
         })
         .eq('account_id', accountId)
-        .select('id')
+        .select('id');
       if (!fixedConfig?.length) {
         errors.push(
-          'Could not update the stored registration state — an admin needs to run this check.',
-        )
+          'Could not update the stored registration state — an admin needs to run this check.'
+        );
       } else {
-        checks.locally_marked_registered = registeredAt != null
+        checks.locally_marked_registered = registeredAt != null;
         await supabase
           .from('whatsapp_number_profiles')
           .update(patch)
           .eq('account_id', accountId)
           .eq('phone_number_id', config.phone_number_id)
-          .select('id')
+          .select('id');
       }
     }
   }
@@ -186,33 +191,33 @@ export async function GET() {
       const subs = await getSubscribedApps({
         wabaId: config.waba_id,
         accessToken,
-      })
+      });
       // Meta returns the apps subscribed to this WABA. If the list
       // is non-empty, OUR app is in there (the access_token we used
       // belongs to our app — Meta wouldn't return data for an app
       // the token can't see). Treat any entry as success.
-      checks.waba_subscribed_to_app = subs.length > 0
+      checks.waba_subscribed_to_app = subs.length > 0;
       if (!checks.waba_subscribed_to_app) {
         errors.push(
-          'WABA has no subscribed apps. Re-save the configuration to subscribe.',
-        )
+          'WABA has no subscribed apps. Re-save the configuration to subscribe.'
+        );
       }
     } catch (err) {
       errors.push(
-        `WABA subscription check failed: ${err instanceof Error ? err.message : String(err)}`,
-      )
+        `WABA subscription check failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   } else {
     errors.push(
-      'No WABA ID on file — webhooks can\'t be wired without it. Add it in the form and re-save.',
-    )
+      "No WABA ID on file — webhooks can't be wired without it. Add it in the form and re-save."
+    );
   }
 
   const live =
     checks.phone_metadata_ok &&
     (checks.waba_subscribed_to_app ?? false) &&
     checks.locally_marked_registered &&
-    checks.registered_on_meta !== false
+    checks.registered_on_meta !== false;
 
   return NextResponse.json({
     live,
@@ -221,5 +226,5 @@ export async function GET() {
     last_registration_error: lastRegistrationError,
     registered_at: registeredAt,
     subscribed_apps_at: config.subscribed_apps_at ?? null,
-  })
+  });
 }

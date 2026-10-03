@@ -14,7 +14,10 @@ export async function GET(request: Request) {
   const supplied = request.headers.get('x-cron-secret') || '';
   const suppliedBuf = Buffer.from(supplied);
   const expectedBuf = Buffer.from(expected);
-  if (suppliedBuf.length !== expectedBuf.length || !timingSafeEqual(suppliedBuf, expectedBuf)) {
+  if (
+    suppliedBuf.length !== expectedBuf.length ||
+    !timingSafeEqual(suppliedBuf, expectedBuf)
+  ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -25,7 +28,7 @@ export async function GET(request: Request) {
     console.error('[Passive Earn Cron] failed:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

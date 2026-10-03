@@ -6,7 +6,10 @@ import { isUpgrade } from '@/lib/billing/plan-config';
 import type { Plan } from '@/lib/billing/types';
 import { grantSubscriptionCredits } from '@/lib/credits/grant';
 import { processReferralConversion } from '@/lib/credits/referral';
-import type { SubscriptionPlanForCredits, BillingCycleForCredits } from '@/lib/credits/types';
+import type {
+  SubscriptionPlanForCredits,
+  BillingCycleForCredits,
+} from '@/lib/credits/types';
 
 function isPaidPlan(plan: string): plan is SubscriptionPlanForCredits {
   return plan === 'solo_pro' || plan === 'team' || plan === 'agency';
@@ -29,7 +32,7 @@ export async function POST(request: NextRequest) {
     if (!isUpgrade(limits.plan, newPlan)) {
       return NextResponse.json(
         { error: `${newPlan} is not an upgrade from ${limits.plan}` },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -57,16 +60,18 @@ export async function POST(request: NextRequest) {
     // (offline/comped/admin-override, or a prior sandbox create-subscription) has
     // no razorpay_subscription_id to PATCH, yet must still be able to upgrade.
     if (!hasKeys) {
-      console.log(`[DEVELOPMENT BYPASS] Razorpay key/plan not configured. Auto-upgrading to ${newPlan} for account ${ctx.accountId}`);
-      
+      console.log(
+        `[DEVELOPMENT BYPASS] Razorpay key/plan not configured. Auto-upgrading to ${newPlan} for account ${ctx.accountId}`
+      );
+
       const admin = supabaseAdmin();
       await admin
         .from('subscriptions')
-        .update({ 
-          plan: newPlan, 
+        .update({
+          plan: newPlan,
           razorpay_plan_id: newRazorpayPlanId || 'plan_mock_' + newPlan,
-          pending_plan: null, 
-          pending_plan_effective_at: null 
+          pending_plan: null,
+          pending_plan_effective_at: null,
         })
         .eq('account_id', ctx.accountId);
 
@@ -81,13 +86,25 @@ export async function POST(request: NextRequest) {
       if (isPaidPlan(newPlan)) {
         const cycle = limits.billing_cycle || 'monthly';
         const creditsCycle: BillingCycleForCredits =
-          cycle === 'quarterly' ? '3month' : cycle === 'monthly' ? 'monthly' : 'annual';
+          cycle === 'quarterly'
+            ? '3month'
+            : cycle === 'monthly'
+              ? 'monthly'
+              : 'annual';
         await grantSubscriptionCredits(ctx.accountId, newPlan, creditsCycle, {
           isNewCycle: false,
           periodEnd: sub?.current_period_end ?? new Date().toISOString(),
-        }).catch((err) => console.error('[billing/upgrade] grantSubscriptionCredits failed:', err));
+        }).catch((err) =>
+          console.error(
+            '[billing/upgrade] grantSubscriptionCredits failed:',
+            err
+          )
+        );
         await processReferralConversion(ctx.accountId, newPlan).catch((err) =>
-          console.error('[billing/upgrade] processReferralConversion failed:', err),
+          console.error(
+            '[billing/upgrade] processReferralConversion failed:',
+            err
+          )
         );
       }
 
@@ -98,22 +115,31 @@ export async function POST(request: NextRequest) {
     // plan id — refuse rather than silently granting a free upgrade. Set
     // RAZORPAY_PLAN_<PLAN>_<CYCLE> (named in the message) to enable it.
     if (!newRazorpayPlanId) {
-      console.error(`[billing/upgrade] ${newPlanKey} is not set — refusing free upgrade for account ${ctx.accountId}`);
+      console.error(
+        `[billing/upgrade] ${newPlanKey} is not set — refusing free upgrade for account ${ctx.accountId}`
+      );
       return NextResponse.json(
-        { error: `Billing is not configured for this plan yet (${newPlanKey} is not set).` },
-        { status: 503 },
+        {
+          error: `Billing is not configured for this plan yet (${newPlanKey} is not set).`,
+        },
+        { status: 503 }
       );
     }
 
     // Live Razorpay path — needs an existing subscription object to modify.
     if (!sub?.razorpay_subscription_id) {
       return NextResponse.json(
-        { error: 'No active subscription found. Use /api/billing/create-subscription to subscribe first.' },
-        { status: 404 },
+        {
+          error:
+            'No active subscription found. Use /api/billing/create-subscription to subscribe first.',
+        },
+        { status: 404 }
       );
     }
 
-    const credentials = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
+    const credentials = Buffer.from(
+      `${razorpayKeyId}:${razorpayKeySecret}`
+    ).toString('base64');
     const rzRes = await fetch(
       `https://api.razorpay.com/v1/subscriptions/${sub.razorpay_subscription_id}`,
       {
@@ -123,18 +149,26 @@ export async function POST(request: NextRequest) {
           Authorization: `Basic ${credentials}`,
         },
         body: JSON.stringify({ plan_id: newRazorpayPlanId, quantity: 1 }),
-      },
+      }
     );
 
     if (!rzRes.ok) {
       const err = await rzRes.json().catch(() => ({}));
-      return NextResponse.json({ error: 'Razorpay upgrade failed', details: err }, { status: 502 });
+      return NextResponse.json(
+        { error: 'Razorpay upgrade failed', details: err },
+        { status: 502 }
+      );
     }
 
     const admin = supabaseAdmin();
     await admin
       .from('subscriptions')
-      .update({ plan: newPlan, razorpay_plan_id: newRazorpayPlanId, pending_plan: null, pending_plan_effective_at: null })
+      .update({
+        plan: newPlan,
+        razorpay_plan_id: newRazorpayPlanId,
+        pending_plan: null,
+        pending_plan_effective_at: null,
+      })
       .eq('account_id', ctx.accountId);
 
     await admin.from('subscription_events').insert({
@@ -153,9 +187,14 @@ export async function POST(request: NextRequest) {
       await grantSubscriptionCredits(ctx.accountId, newPlan, 'monthly', {
         isNewCycle: false,
         periodEnd: sub.current_period_end ?? new Date().toISOString(),
-      }).catch((err) => console.error('[billing/upgrade] grantSubscriptionCredits failed:', err));
+      }).catch((err) =>
+        console.error('[billing/upgrade] grantSubscriptionCredits failed:', err)
+      );
       await processReferralConversion(ctx.accountId, newPlan).catch((err) =>
-        console.error('[billing/upgrade] processReferralConversion failed:', err),
+        console.error(
+          '[billing/upgrade] processReferralConversion failed:',
+          err
+        )
       );
     }
 

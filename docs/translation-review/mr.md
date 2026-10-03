@@ -5,7 +5,7 @@ These are every word ConvoReal sends to a client in Marathi. They were drafted b
 ## What to look for
 
 1. **Does it read naturally**, or like translated English?
-2. **Keep it flat and factual.** These are deliberately dry — labelled fields, no emoji, no "don't miss out". That dryness is what lets WhatsApp classify them as *Utility* messages, which reach people who have hit their marketing limit. Adding warmth or urgency can get the message re-classified, and that cannot be undone. Please do not make it more persuasive.
+2. **Keep it flat and factual.** These are deliberately dry — labelled fields, no emoji, no "don't miss out". That dryness is what lets WhatsApp classify them as _Utility_ messages, which reach people who have hit their marketing limit. Adding warmth or urgency can get the message re-classified, and that cannot be undone. Please do not make it more persuasive.
 3. **Leave every `{{1}}`, `{{2}}` … exactly as they are.** They are filled in with real names and prices when the message is sent. You may move one within the sentence, but do not delete one, add one, or let two sit next to each other with only a comma between.
 4. **Buttons must stay under 25 characters** — WhatsApp refuses longer ones.
 
@@ -17,31 +17,31 @@ Write your correction in the last column / block. Leave it blank if the current 
 
 The tappable options underneath a message.
 
-| # | English | मराठी (current) | Length | Your correction |
-|---|---------|---------------------|--------|-----------------|
-| 1 | Send more details | अधिक माहिती पाठवा | 17/25 | |
-| 2 | Send full list | संपूर्ण यादी पाठवा | 18/25 | |
-| 3 | Book a site visit | साइट भेट बुक करा | 16/25 | |
-| 4 | Update my preferences | पसंती अपडेट करा | 15/25 | |
-| 5 | Close my enquiry | चौकशी बंद करा | 13/25 | |
-| 6 | Still considering it | अजून विचार करत आहे | 18/25 | |
-| 7 | Today itself | आजच | 3/25 | |
-| 8 | In 2 days | 2 दिवसांत | 9/25 | |
-| 9 | Yes, send them | हो, पाठवा | 9/25 | |
-| 10 | Paperwork on track | कागदपत्रे ठीक आहेत | 18/25 | |
-| 11 | Something is pending | काहीतरी बाकी आहे | 16/25 | |
-| 12 | Approve request | विनंती मंजूर करा | 16/25 | |
-| 13 | Decline request | विनंती नाकारा | 13/25 | |
-| 14 | Approve access | प्रवेश मंजूर करा | 16/25 | |
-| 15 | It's perfect | हे योग्य आहे | 12/25 | |
-| 16 | Not interested | स्वारस्य नाही | 13/25 | |
-| 17 | Reject access | प्रवेश नाकारा | 13/25 | |
-| 18 | Can't say yet | आत्ता सांगू शकत नाही | 20/25 | |
-| 19 | View full details | संपूर्ण तपशील पहा | 17/25 | |
-| 20 | View location | ठिकाण पहा | 9/25 | |
-| 21 | Browse showcase | कॅटलॉग पहा | 10/25 | |
-| 22 | Sign in to Portfolio | पोर्टफोलिओ साइन इन | 18/25 | |
-| 23 | Noted, thanks | ठीक आहे, धन्यवाद | 16/25 | |
+| #   | English               | मराठी (current)      | Length | Your correction |
+| --- | --------------------- | -------------------- | ------ | --------------- |
+| 1   | Send more details     | अधिक माहिती पाठवा    | 17/25  |                 |
+| 2   | Send full list        | संपूर्ण यादी पाठवा   | 18/25  |                 |
+| 3   | Book a site visit     | साइट भेट बुक करा     | 16/25  |                 |
+| 4   | Update my preferences | पसंती अपडेट करा      | 15/25  |                 |
+| 5   | Close my enquiry      | चौकशी बंद करा        | 13/25  |                 |
+| 6   | Still considering it  | अजून विचार करत आहे   | 18/25  |                 |
+| 7   | Today itself          | आजच                  | 3/25   |                 |
+| 8   | In 2 days             | 2 दिवसांत            | 9/25   |                 |
+| 9   | Yes, send them        | हो, पाठवा            | 9/25   |                 |
+| 10  | Paperwork on track    | कागदपत्रे ठीक आहेत   | 18/25  |                 |
+| 11  | Something is pending  | काहीतरी बाकी आहे     | 16/25  |                 |
+| 12  | Approve request       | विनंती मंजूर करा     | 16/25  |                 |
+| 13  | Decline request       | विनंती नाकारा        | 13/25  |                 |
+| 14  | Approve access        | प्रवेश मंजूर करा     | 16/25  |                 |
+| 15  | It's perfect          | हे योग्य आहे         | 12/25  |                 |
+| 16  | Not interested        | स्वारस्य नाही        | 13/25  |                 |
+| 17  | Reject access         | प्रवेश नाकारा        | 13/25  |                 |
+| 18  | Can't say yet         | आत्ता सांगू शकत नाही | 20/25  |                 |
+| 19  | View full details     | संपूर्ण तपशील पहा    | 17/25  |                 |
+| 20  | View location         | ठिकाण पहा            | 9/25   |                 |
+| 21  | Browse showcase       | कॅटलॉग पहा           | 10/25  |                 |
+| 22  | Sign in to Portfolio  | पोर्टफोलिओ साइन इन   | 18/25  |                 |
+| 23  | Noted, thanks         | ठीक आहे, धन्यवाद     | 16/25  |                 |
 
 ---
 
@@ -49,7 +49,7 @@ The tappable options underneath a message.
 
 ### 1. Number change notice — the brokerage now messages from a different WhatsApp number
 
-*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name · `{{3}}` = previous WhatsApp number
+_Placeholders:_ `{{1}}` = contact first name · `{{2}}` = brokerage name · `{{3}}` = previous WhatsApp number
 
 **English**
 
@@ -67,7 +67,7 @@ The tappable options underneath a message.
 >
 > तुमच्या चौकशीचे अपडेट मिळत राहण्यासाठी कृपया हा नंबर सेव्ह करा. पुष्टी करण्यासाठी येथे उत्तर द्या.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -75,7 +75,7 @@ The tappable options underneath a message.
 
 ### 2. Property share feedback — follow up to see if a shared property matched
 
-*Placeholders:* `{{1}}` = buyer first name
+_Placeholders:_ `{{1}}` = buyer first name
 
 **English**
 
@@ -89,7 +89,7 @@ The tappable options underneath a message.
 >
 > हे तुमच्या गरजेनुसार योग्य आहे का?
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -97,7 +97,7 @@ The tappable options underneath a message.
 
 ### 3. Portfolio access — a buyer or owner is sent their Portfolio sign-in link
 
-*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name
+_Placeholders:_ `{{1}}` = contact first name · `{{2}}` = brokerage name
 
 **English**
 
@@ -115,7 +115,7 @@ The tappable options underneath a message.
 >
 > साइन इन करण्यासाठी खालील बटण दाबा आणि या नंबरवर पाठवलेला वन-टाइम कोड टाका.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -123,7 +123,7 @@ The tappable options underneath a message.
 
 ### 4. Requirement review — verify the property search recorded for an enquiry
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name
+_Placeholders:_ `{{1}}` = buyer first name · `{{2}}` = brokerage name
 
 **English**
 
@@ -137,7 +137,7 @@ The tappable options underneath a message.
 >
 > कृपया मालमत्तेचे प्रकार, पसंतीची ठिकाणे आणि बजेट तपासा किंवा दुरुस्त करा. तुम्ही सादर केलेल्या तपशीलांनुसार तुमची चौकशी नोंद अपडेट होईल.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -145,7 +145,7 @@ The tappable options underneath a message.
 
 ### 5. Property details — sent when a buyer asks about a listing
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality
+_Placeholders:_ `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality
 
 **English**
 
@@ -167,7 +167,7 @@ The tappable options underneath a message.
 >
 > या चौकशीबद्दल अधिक माहिती हवी असल्यास या संदेशाला उत्तर द्या.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -175,7 +175,7 @@ The tappable options underneath a message.
 
 ### 6. Property photos — the same, led by a photo
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality · `{{6}}` = Google Maps link
+_Placeholders:_ `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality · `{{6}}` = Google Maps link
 
 **English**
 
@@ -199,7 +199,7 @@ The tappable options underneath a message.
 >
 > या चौकशीबद्दल अधिक माहिती हवी असल्यास या संदेशाला उत्तर द्या.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -207,11 +207,11 @@ The tappable options underneath a message.
 
 ### 7. Location reveal — approved request for an exact address
 
-*Placeholders:* `{{1}}` = requester first name · `{{2}}` = listing title
+_Placeholders:_ `{{1}}` = requester first name · `{{2}}` = listing title
 
 **English**
 
-> 📍 *Location Request Approved*
+> 📍 _Location Request Approved_
 >
 > Hi {{1}}, your request for the exact location of {{2}} has been approved by the listing team.
 >
@@ -222,7 +222,7 @@ The tappable options underneath a message.
 
 **मराठी — current**
 
-> 📍 *ठिकाण विनंती मंजूर*
+> 📍 _ठिकाण विनंती मंजूर_
 >
 > नमस्कार {{1}}, तुम्ही अचूक ठिकाण मागितलेली मालमत्ता — {{2}} — लिस्टिंग टीमने मंजूर केली आहे.
 >
@@ -231,7 +231,7 @@ The tappable options underneath a message.
 >
 > पत्ता, नकाशा आणि सर्व फोटो पाहण्यासाठी खालील बटण दाबा. ही लिंक 48 तास वैध राहील.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -239,11 +239,11 @@ The tappable options underneath a message.
 
 ### 8. Listing access approved — approved request to view the full listing
 
-*Placeholders:* `{{1}}` = requester first name · `{{2}}` = listing title · `{{3}}` = listing specs
+_Placeholders:_ `{{1}}` = requester first name · `{{2}}` = listing title · `{{3}}` = listing specs
 
 **English**
 
-> 🔓 *Listing Access Approved*
+> 🔓 _Listing Access Approved_
 >
 > Hi {{1}}, your request to view the full listing of {{2}} has been approved by the listing team.
 >
@@ -253,7 +253,7 @@ The tappable options underneath a message.
 
 **मराठी — current**
 
-> 🔓 *लिस्टिंग प्रवेश मंजूर*
+> 🔓 _लिस्टिंग प्रवेश मंजूर_
 >
 > नमस्कार {{1}}, तुम्ही ज्या मालमत्तेची पूर्ण लिस्टिंग पाहण्याची विनंती केली होती — {{2}} — ती लिस्टिंग टीमने मंजूर केली आहे.
 >
@@ -261,7 +261,7 @@ The tappable options underneath a message.
 >
 > सर्व फोटो, पत्ता आणि नकाशा पिनसह लिस्टिंग उघडण्यासाठी खालील बटणावर टॅप करा. ही लिंक 7 दिवस वैध राहील. कृपया लिंक किंवा फोटो पुढे पाठवू नका.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -269,7 +269,7 @@ The tappable options underneath a message.
 
 ### 9. Location consent request — a co-broker decides whether a protected request can advance
 
-*Placeholders:* `{{1}}` = co-broker first name · `{{2}}` = listing title · `{{3}}` = masked requester identity
+_Placeholders:_ `{{1}}` = co-broker first name · `{{2}}` = listing title · `{{3}}` = masked requester identity
 
 **English**
 
@@ -291,7 +291,7 @@ The tappable options underneath a message.
 >
 > त्यांची ओळख लिस्टिंग बाजूपासून लपवली जाईल. पुढील संमती टप्प्यासाठी मंजूर करा किंवा बंद करण्यासाठी नाकारा.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -299,7 +299,7 @@ The tappable options underneath a message.
 
 ### 10. Location owner decision — the listing side approves or rejects protected access
 
-*Placeholders:* `{{1}}` = request type · `{{2}}` = listing title and code · `{{3}}` = requester identity or masked identity · `{{4}}` = access being requested
+_Placeholders:_ `{{1}}` = request type · `{{2}}` = listing title and code · `{{3}}` = requester identity or masked identity · `{{4}}` = access being requested
 
 **English**
 
@@ -321,7 +321,7 @@ The tappable options underneath a message.
 >
 > या विनंतीकर्त्याला {{4}} देण्यासाठी मंजूर करा किंवा विनंती बंद करण्यासाठी नाकारा. डॅशबोर्डवरूनही निर्णय घेता येईल.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -329,11 +329,11 @@ The tappable options underneath a message.
 
 ### 11. Inventory update — a refreshed catalogue snapshot
 
-*Placeholders:* `{{1}}` = contact first name · `{{2}}` = residential summary · `{{3}}` = commercial summary · `{{4}}` = farm & land summary
+_Placeholders:_ `{{1}}` = contact first name · `{{2}}` = residential summary · `{{3}}` = commercial summary · `{{4}}` = farm & land summary
 
 **English**
 
-> 🏠 *Selected Property Options*
+> 🏠 _Selected Property Options_
 >
 > Hi {{1}}! I've selected these properties based on what you're looking for:
 >
@@ -341,11 +341,11 @@ The tappable options underneath a message.
 >
 > Reply to this message for photos, exact locations, or to book a site visit — I answer personally on this number.
 
-*Footer:* Reply STOP to unsubscribe
+_Footer:_ Reply STOP to unsubscribe
 
 **मराठी — current**
 
-> 🏠 *निवडलेले मालमत्ता पर्याय*
+> 🏠 _निवडलेले मालमत्ता पर्याय_
 >
 > नमस्कार {{1}}! तुमच्या गरजेनुसार मी हे मालमत्ता पर्याय निवडले आहेत:
 >
@@ -353,9 +353,9 @@ The tappable options underneath a message.
 >
 > फोटो, अचूक ठिकाण किंवा साइट भेटीसाठी या संदेशाला उत्तर द्या — याच नंबरवर मी स्वतः उत्तर देतो.
 
-*Footer:* थांबवण्यासाठी STOP पाठवा
+_Footer:_ थांबवण्यासाठी STOP पाठवा
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -363,7 +363,7 @@ The tappable options underneath a message.
 
 ### 12. Enquiry status — the listing they asked about is gone
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name
 
 **English**
 
@@ -381,7 +381,7 @@ The tappable options underneath a message.
 >
 > चौकशी सुरू ठेवण्यासाठी खाली तुमची गरज अपडेट करा किंवा आता काय हवे ते उत्तरात लिहा. संपवण्यासाठी "चौकशी बंद करा" निवडा, नंतर कोणतेही अपडेट पाठवले जाणार नाहीत.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -389,7 +389,7 @@ The tappable options underneath a message.
 
 ### 13. Enquiry notice — the same, naming the listing
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
 **English**
 
@@ -411,7 +411,7 @@ The tappable options underneath a message.
 >
 > चौकशी सुरू ठेवण्यासाठी खाली तुमची गरज अपडेट करा किंवा आता काय हवे ते उत्तरात लिहा. संपवण्यासाठी "चौकशी बंद करा" निवडा, नंतर कोणतेही अपडेट पाठवले जाणार नाहीत.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -419,7 +419,7 @@ The tappable options underneath a message.
 
 ### 14. Listing availability — the listing is not available right now; we will update you if it frees up
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = listing status, e.g. Under contract
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = listing status, e.g. Under contract
 
 **English**
 
@@ -443,7 +443,7 @@ The tappable options underneath a message.
 >
 > चौकशी सुरू ठेवण्यासाठी खाली तुमची गरज अपडेट करा किंवा तुमच्या गरजा आणि बजेट उत्तरात लिहा. संपवण्यासाठी "चौकशी बंद करा" निवडा, नंतर कोणतेही अपडेट पाठवले जाणार नाहीत.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -451,7 +451,7 @@ The tappable options underneath a message.
 
 ### 15. Enquiry check-in — is this still under consideration?
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
 **English**
 
@@ -473,7 +473,7 @@ The tappable options underneath a message.
 >
 > हे अजूनही विचाराधीन असल्यास उत्तर देऊन खात्री करा. चौकशी संपवण्यासाठी "चौकशी बंद करा" निवडा, नंतर कोणतेही अपडेट पाठवले जाणार नाहीत.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -481,7 +481,7 @@ The tappable options underneath a message.
 
 ### 16. Enquiry timeline — when should we check back with you?
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
 **English**
 
@@ -503,7 +503,7 @@ The tappable options underneath a message.
 >
 > आम्ही केव्हा पुन्हा संपर्क साधावा ते निवडा, तुमच्या गरजेच्या आधी संपर्क करू नये म्हणून.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -511,7 +511,7 @@ The tappable options underneath a message.
 
 ### 17. Enquiry follow-up reminder — confirm or move the scheduled follow-up date
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = scheduled follow-up date
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = scheduled follow-up date
 
 **English**
 
@@ -531,7 +531,7 @@ The tappable options underneath a message.
 >
 > ही तारीख निश्चित करण्यासाठी किंवा बदलण्यासाठी खालील बटण दाबा. "आत्ता सांगू शकत नाही" निवडल्यास नियोजित संपर्क काढून टाकला जाईल आणि चौकशी खुली राहील.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -539,7 +539,7 @@ The tappable options underneath a message.
 
 ### 18. Purchase progress — where does the paperwork stand on a deal already at legal?
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = property being bought · `{{4}}` = stage the purchase is recorded at
+_Placeholders:_ `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = property being bought · `{{4}}` = stage the purchase is recorded at
 
 **English**
 
@@ -559,7 +559,7 @@ The tappable options underneath a message.
 >
 > आमच्या नोंदींमध्ये हा टप्पा अजूनही खुला आहे. कागदपत्रांचे काम कोणत्या टप्प्यावर आहे, किंवा आमच्याकडून काय बाकी आहे हे कळवण्यासाठी इथे उत्तर द्या.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -567,7 +567,7 @@ The tappable options underneath a message.
 
 ### 19. Audio announcement — a voice-note update, delivered as a playable video
 
-*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name
+_Placeholders:_ `{{1}}` = contact first name · `{{2}}` = brokerage name
 
 **English**
 
@@ -581,7 +581,7 @@ The tappable options underneath a message.
 >
 > अधिक जाणून घेण्यासाठी येथे उत्तर द्या, किंवा हे अपडेट थांबवण्यासाठी STOP असे उत्तर द्या.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -589,7 +589,7 @@ The tappable options underneath a message.
 
 ### 20. Post-call options — after a qualification call, offer the matching listings
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = stated requirement (budget / areas)
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = stated requirement (budget / areas)
 
 **English**
 
@@ -607,7 +607,7 @@ The tappable options underneath a message.
 >
 > या गरजेशी जुळणाऱ्या सध्याच्या मालमत्ता मिळवण्यासाठी "हो, पाठवा" निवडा. नाहीतर या कॉलबद्दल आणखी संदेश पाठवला जाणार नाही.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 

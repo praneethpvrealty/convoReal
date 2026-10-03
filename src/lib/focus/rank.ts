@@ -3,8 +3,8 @@ import {
   priorityRank,
   type JourneyMode,
   type JourneyPriority,
-} from '@/components/journey/shared'
-import type { AgendaAppointment, AgendaTodo } from '@/lib/today/queries'
+} from '@/components/journey/shared';
+import type { AgendaAppointment, AgendaTodo } from '@/lib/today/queries';
 import type {
   FocusJourney,
   FocusRequest,
@@ -13,7 +13,7 @@ import type {
   FocusTask,
   FocusTasks,
   FocusUrgency,
-} from './types'
+} from './types';
 
 /**
  * The ranking behind Focus. Pure on purpose: it decides what "top 3"
@@ -22,17 +22,17 @@ import type {
  */
 
 /** How many of each list the gist cards show before you expand them. */
-export const FOCUS_TOP_N = 3
+export const FOCUS_TOP_N = 3;
 
-const HOUR_MS = 3_600_000
-const DAY_MS = 24 * HOUR_MS
+const HOUR_MS = 3_600_000;
+const DAY_MS = 24 * HOUR_MS;
 
 function wholeDaysSince(iso: string, nowMs: number): number {
-  return Math.max(0, Math.floor((nowMs - new Date(iso).getTime()) / DAY_MS))
+  return Math.max(0, Math.floor((nowMs - new Date(iso).getTime()) / DAY_MS));
 }
 
 function hoursSince(iso: string, nowMs: number): number {
-  return Math.max(0, (nowMs - new Date(iso).getTime()) / HOUR_MS)
+  return Math.max(0, (nowMs - new Date(iso).getTime()) / HOUR_MS);
 }
 
 // --- 1. Tasks, to-dos and visits ---------------------------------------
@@ -46,11 +46,11 @@ function hoursSince(iso: string, nowMs: number): number {
 export function summarizeTasks(
   appointments: AgendaAppointment[],
   todos: AgendaTodo[],
-  nowMs: number = Date.now(),
+  nowMs: number = Date.now()
 ): FocusTasks {
-  const dayStart = new Date(nowMs)
-  dayStart.setHours(0, 0, 0, 0)
-  const dayStartMs = dayStart.getTime()
+  const dayStart = new Date(nowMs);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayStartMs = dayStart.getTime();
 
   const items: FocusTask[] = [
     ...appointments.map<FocusTask>((a) => ({
@@ -62,10 +62,18 @@ export function summarizeTasks(
       location: a.location,
       priority: null,
       contact: a.contact
-        ? { id: a.contact.id, name: a.contact.name || a.contact.phone, detail: a.contact.phone }
+        ? {
+            id: a.contact.id,
+            name: a.contact.name || a.contact.phone,
+            detail: a.contact.phone,
+          }
         : null,
       property: a.property
-        ? { id: a.property.id, name: a.property.title, detail: a.property.location ?? null }
+        ? {
+            id: a.property.id,
+            name: a.property.title,
+            detail: a.property.location ?? null,
+          }
         : null,
     })),
     ...todos.map<FocusTask>((t) => ({
@@ -77,13 +85,17 @@ export function summarizeTasks(
       location: null,
       priority: t.priority,
       contact: t.contact
-        ? { id: t.contact.id, name: t.contact.name || t.contact.phone, detail: t.contact.phone }
+        ? {
+            id: t.contact.id,
+            name: t.contact.name || t.contact.phone,
+            detail: t.contact.phone,
+          }
         : null,
       property: t.property
         ? { id: t.property.id, name: t.property.title, detail: null }
         : null,
     })),
-  ].sort((a, b) => a.at.localeCompare(b.at))
+  ].sort((a, b) => a.at.localeCompare(b.at));
 
   return {
     items,
@@ -91,35 +103,36 @@ export function summarizeTasks(
     appointments: appointments.length,
     todos: todos.length,
     overdue: items.filter((i) => i.overdue).length,
-  }
+  };
 }
 
 // --- 2. Journeys --------------------------------------------------------
 
 export interface JourneyCandidate {
-  mode: JourneyMode
-  subjectId: string
-  subject: FocusSubjectRef
-  priority: JourneyPriority | null
-  furthestStageIdx: number
-  furthestStageName: string | null
-  lastUpdated: string
-  activeCount: number
+  mode: JourneyMode;
+  subjectId: string;
+  subject: FocusSubjectRef;
+  priority: JourneyPriority | null;
+  furthestStageIdx: number;
+  furthestStageName: string | null;
+  lastUpdated: string;
+  activeCount: number;
   /** journey_items making up this journey. Not sent to the client —
    *  selectTopJourneys uses it to keep the top three distinct. */
-  itemIds: string[]
+  itemIds: string[];
 }
 
 function journeyReason(j: FocusJourney): string {
-  const parts: string[] = []
-  if (j.priority) parts.push(`${JOURNEY_PRIORITY_META[j.priority].label} priority`)
-  if (j.furthestStageName) parts.push(j.furthestStageName)
+  const parts: string[] = [];
+  if (j.priority)
+    parts.push(`${JOURNEY_PRIORITY_META[j.priority].label} priority`);
+  if (j.furthestStageName) parts.push(j.furthestStageName);
   parts.push(
     j.stalledDays === 0
       ? 'moved today'
-      : `stalled ${j.stalledDays} day${j.stalledDays === 1 ? '' : 's'}`,
-  )
-  return parts.join(' · ')
+      : `stalled ${j.stalledDays} day${j.stalledDays === 1 ? '' : 's'}`
+  );
+  return parts.join(' · ');
 }
 
 /**
@@ -134,14 +147,14 @@ function journeyReason(j: FocusJourney): string {
  */
 export function rankJourneys(
   candidates: JourneyCandidate[],
-  nowMs: number = Date.now(),
+  nowMs: number = Date.now()
 ): FocusJourney[] {
-  return rankJourneyPairs(candidates, nowMs).map(([, journey]) => journey)
+  return rankJourneyPairs(candidates, nowMs).map(([, journey]) => journey);
 }
 
 function rankJourneyPairs(
   candidates: JourneyCandidate[],
-  nowMs: number,
+  nowMs: number
 ): [JourneyCandidate, FocusJourney][] {
   return candidates
     .map<[JourneyCandidate, FocusJourney]>((candidate) => {
@@ -158,18 +171,18 @@ function rankJourneyPairs(
         activeCount: candidate.activeCount,
         stalledDays: wholeDaysSince(candidate.lastUpdated, nowMs),
         reason: '',
-      }
-      return [candidate, { ...journey, reason: journeyReason(journey) }]
+      };
+      return [candidate, { ...journey, reason: journeyReason(journey) }];
     })
     .sort(([, a], [, b]) => {
-      const byPriority = priorityRank(a.priority) - priorityRank(b.priority)
-      if (byPriority !== 0) return byPriority
-      const byStage = b.furthestStageIdx - a.furthestStageIdx
-      if (byStage !== 0) return byStage
-      const byStalled = b.stalledDays - a.stalledDays
-      if (byStalled !== 0) return byStalled
-      return a.subject.name.localeCompare(b.subject.name)
-    })
+      const byPriority = priorityRank(a.priority) - priorityRank(b.priority);
+      if (byPriority !== 0) return byPriority;
+      const byStage = b.furthestStageIdx - a.furthestStageIdx;
+      if (byStage !== 0) return byStage;
+      const byStalled = b.stalledDays - a.stalledDays;
+      if (byStalled !== 0) return byStalled;
+      return a.subject.name.localeCompare(b.subject.name);
+    });
 }
 
 /**
@@ -186,31 +199,34 @@ function rankJourneyPairs(
 export function selectTopJourneys(
   candidates: JourneyCandidate[],
   n: number = FOCUS_TOP_N,
-  nowMs: number = Date.now(),
+  nowMs: number = Date.now()
 ): FocusJourney[] {
-  const taken = new Set<string>()
-  const picked: FocusJourney[] = []
+  const taken = new Set<string>();
+  const picked: FocusJourney[] = [];
   for (const [candidate, journey] of rankJourneyPairs(candidates, nowMs)) {
-    if (picked.length >= n) break
-    if (candidate.itemIds.length > 0 && candidate.itemIds.every((id) => taken.has(id))) {
-      continue
+    if (picked.length >= n) break;
+    if (
+      candidate.itemIds.length > 0 &&
+      candidate.itemIds.every((id) => taken.has(id))
+    ) {
+      continue;
     }
-    candidate.itemIds.forEach((id) => taken.add(id))
-    picked.push(journey)
+    candidate.itemIds.forEach((id) => taken.add(id));
+    picked.push(journey);
   }
-  return picked
+  return picked;
 }
 
 // --- 3. Requests --------------------------------------------------------
 
 export interface RequestCandidate {
-  id: string
-  kind: FocusRequestKind
-  title: string
-  detail: string | null
-  receivedAt: string
-  expiresAt: string | null
-  href: string
+  id: string;
+  kind: FocusRequestKind;
+  title: string;
+  detail: string | null;
+  receivedAt: string;
+  expiresAt: string | null;
+  href: string;
 }
 
 /**
@@ -227,12 +243,12 @@ const KIND_BASE: Record<FocusRequestKind, number> = {
   listing_submission: 60,
   inquiry: 55,
   match: 40,
-}
+};
 
 /** Hours left before an expiring request stops being actionable. */
 function hoursToExpiry(expiresAt: string | null, nowMs: number): number | null {
-  if (!expiresAt) return null
-  return (new Date(expiresAt).getTime() - nowMs) / HOUR_MS
+  if (!expiresAt) return null;
+  return (new Date(expiresAt).getTime() - nowMs) / HOUR_MS;
 }
 
 /**
@@ -242,26 +258,26 @@ function hoursToExpiry(expiresAt: string | null, nowMs: number): number | null {
  */
 export function scoreRequest(
   candidate: RequestCandidate,
-  nowMs: number = Date.now(),
+  nowMs: number = Date.now()
 ): number {
-  let score = KIND_BASE[candidate.kind]
+  let score = KIND_BASE[candidate.kind];
 
-  const left = hoursToExpiry(candidate.expiresAt, nowMs)
+  const left = hoursToExpiry(candidate.expiresAt, nowMs);
   if (left !== null) {
-    if (left <= 6) score += 30
-    else if (left <= 24) score += 15
+    if (left <= 6) score += 30;
+    else if (left <= 24) score += 15;
   }
 
-  score += Math.min(20, hoursSince(candidate.receivedAt, nowMs) / 6)
+  score += Math.min(20, hoursSince(candidate.receivedAt, nowMs) / 6);
 
-  return Math.max(0, Math.min(100, Math.round(score)))
+  return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 function urgencyOf(score: number, left: number | null): FocusUrgency {
-  if (left !== null && left <= 6) return 'now'
-  if (score >= 80) return 'now'
-  if (score >= 55) return 'soon'
-  return 'later'
+  if (left !== null && left <= 6) return 'now';
+  if (score >= 80) return 'now';
+  if (score >= 55) return 'soon';
+  return 'later';
 }
 
 /**
@@ -271,23 +287,23 @@ function urgencyOf(score: number, left: number | null): FocusUrgency {
  */
 export function rankRequests(
   candidates: RequestCandidate[],
-  nowMs: number = Date.now(),
+  nowMs: number = Date.now()
 ): FocusRequest[] {
   return candidates
     .map<FocusRequest>((c) => {
-      const score = scoreRequest(c, nowMs)
+      const score = scoreRequest(c, nowMs);
       return {
         ...c,
         score,
         ageHours: Math.floor(hoursSince(c.receivedAt, nowMs)),
         urgency: urgencyOf(score, hoursToExpiry(c.expiresAt, nowMs)),
-      }
+      };
     })
     .sort((a, b) => {
-      const byScore = b.score - a.score
-      if (byScore !== 0) return byScore
-      const byWait = a.receivedAt.localeCompare(b.receivedAt)
-      if (byWait !== 0) return byWait
-      return a.id.localeCompare(b.id)
-    })
+      const byScore = b.score - a.score;
+      if (byScore !== 0) return byScore;
+      const byWait = a.receivedAt.localeCompare(b.receivedAt);
+      if (byWait !== 0) return byWait;
+      return a.id.localeCompare(b.id);
+    });
 }

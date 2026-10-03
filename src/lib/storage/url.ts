@@ -54,7 +54,9 @@ export function storagePublicUrl(value: string | null | undefined): string {
  * external URL). Used by deletion/cleanup code that addresses objects by
  * path.
  */
-export function storageObjectPath(value: string | null | undefined): string | null {
+export function storageObjectPath(
+  value: string | null | undefined
+): string | null {
   if (!value) return null;
   const v = String(value).trim();
   if (!v) return null;

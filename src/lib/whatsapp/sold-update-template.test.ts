@@ -39,7 +39,9 @@ describe('buildPropertyStatusUpdateTemplatePayload', () => {
     expect(payload.name).toBe(PROPERTY_STATUS_UPDATE_TEMPLATE_NAME);
     expect(payload.body_text).toContain('{{3}}');
     expect(payload.body_text).toContain('{{4}}');
-    expect(payload.buttons).toEqual([{ type: 'QUICK_REPLY', text: 'Find similar' }]);
+    expect(payload.buttons).toEqual([
+      { type: 'QUICK_REPLY', text: 'Find similar' },
+    ]);
   });
 
   it('builds name, property, status and detail params', () => {

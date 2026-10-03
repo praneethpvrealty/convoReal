@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect } from "react";
-import { cn } from "@/lib/utils";
-import { storagePublicUrl } from "@/lib/storage/url";
-import { useAuth } from "@/hooks/use-auth";
-import { useTotalUnread } from "@/hooks/use-total-unread";
-import { useT } from "@/hooks/use-locale";
-import type { MessageKey } from "@/lib/i18n/messages";
-import { COPILOT_ENABLED } from "@/lib/copilot/config";
-import { useCopilot } from "@/components/copilot/copilot-context";
-import { SidebarCreditWidget } from "@/components/layout/SidebarCreditWidget";
-import { FavoritesCard } from "@/components/layout/favorites-card";
-import { ConvoRealMark } from "@/components/brand/mark";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect } from 'react';
+import { cn } from '@/lib/utils';
+import { storagePublicUrl } from '@/lib/storage/url';
+import { useAuth } from '@/hooks/use-auth';
+import { useTotalUnread } from '@/hooks/use-total-unread';
+import { useT } from '@/hooks/use-locale';
+import type { MessageKey } from '@/lib/i18n/messages';
+import { COPILOT_ENABLED } from '@/lib/copilot/config';
+import { useCopilot } from '@/components/copilot/copilot-context';
+import { SidebarCreditWidget } from '@/components/layout/SidebarCreditWidget';
+import { FavoritesCard } from '@/components/layout/favorites-card';
+import { ConvoRealMark } from '@/components/brand/mark';
 import {
   Crown,
   Headset,
@@ -36,8 +36,8 @@ import {
   Landmark,
   Scale,
   Briefcase,
-} from "lucide-react";
-import type { AccountRole } from "@/lib/auth/roles";
+} from 'lucide-react';
+import type { AccountRole } from '@/lib/auth/roles';
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single
@@ -49,53 +49,44 @@ const ROLE_CHIP: Record<
 > = {
   owner: {
     icon: Crown,
-    labelKey: "role.owner",
+    labelKey: 'role.owner',
     // Amber: scarce, immutable, "the boss" — gets visual emphasis.
-    className:
-      "border-amber-500/40 bg-amber-500/10 text-amber-300",
+    className: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
   },
   admin: {
     icon: Shield,
-    labelKey: "role.admin",
+    labelKey: 'role.admin',
     // Primary-tinted: significant but not as scarce as owner.
-    className:
-      "border-primary/40 bg-primary/10 text-primary",
+    className: 'border-primary/40 bg-primary/10 text-primary',
   },
   coordinator: {
     icon: Headset,
-    labelKey: "role.coordinator",
+    labelKey: 'role.coordinator',
     // Cyan: a senior operator (above agent, below admin) — distinct
     // hue so it reads apart from both neighbours at a glance.
-    className:
-      "border-cyan-500/40 bg-cyan-500/10 text-cyan-300",
+    className: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300',
   },
   agent: {
     icon: UserCog,
-    labelKey: "role.agent",
+    labelKey: 'role.agent',
     // Neutral slate: the operational default.
-    className:
-      "border-slate-700 bg-slate-800 text-slate-300",
+    className: 'border-slate-700 bg-slate-800 text-slate-300',
   },
   viewer: {
     icon: User,
-    labelKey: "role.viewer",
+    labelKey: 'role.viewer',
     // Muted slate: read-only role; visually quieter than agent.
-    className:
-      "border-slate-800 bg-slate-900 text-slate-500",
+    className: 'border-slate-800 bg-slate-900 text-slate-500',
   },
 };
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 
 interface NavItem {
   href: string;
@@ -108,26 +99,26 @@ interface NavItem {
   beta?: boolean;
 }
 const navItems: NavItem[] = [
-  { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
-  { href: "/inbox", labelKey: "nav.inbox", icon: MessageSquare },
-  { href: "/groups", labelKey: "nav.groups", icon: UsersRound, beta: true },
-  { href: "/contacts", labelKey: "nav.contacts", icon: Users },
-  { href: "/inventory", labelKey: "nav.inventory", icon: Home },
-  { href: "/liaisons", labelKey: "nav.liaisons", icon: Landmark },
-  { href: "/guidance-value", labelKey: "nav.guidanceValue", icon: Scale },
-  { href: "/calendar", labelKey: "nav.calendar", icon: Calendar },
-  { href: "/deals", labelKey: "nav.transactions", icon: Briefcase },
-  { href: "/automations", labelKey: "nav.automations", icon: Workflow },
-  { href: "/broadcasts", labelKey: "nav.broadcasts", icon: Radio },
+  { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { href: '/inbox', labelKey: 'nav.inbox', icon: MessageSquare },
+  { href: '/groups', labelKey: 'nav.groups', icon: UsersRound, beta: true },
+  { href: '/contacts', labelKey: 'nav.contacts', icon: Users },
+  { href: '/inventory', labelKey: 'nav.inventory', icon: Home },
+  { href: '/liaisons', labelKey: 'nav.liaisons', icon: Landmark },
+  { href: '/guidance-value', labelKey: 'nav.guidanceValue', icon: Scale },
+  { href: '/calendar', labelKey: 'nav.calendar', icon: Calendar },
+  { href: '/deals', labelKey: 'nav.transactions', icon: Briefcase },
+  { href: '/automations', labelKey: 'nav.automations', icon: Workflow },
+  { href: '/broadcasts', labelKey: 'nav.broadcasts', icon: Radio },
   // Meta Ads surfaces (incl. this nav item) only render when the feature is
   // enabled at build via NEXT_PUBLIC_META_ADS_APP_ID.
   ...(process.env.NEXT_PUBLIC_META_ADS_APP_ID
-    ? [{ href: "/ads", labelKey: "nav.ads" as const, icon: Megaphone }]
+    ? [{ href: '/ads', labelKey: 'nav.ads' as const, icon: Megaphone }]
     : []),
 ];
 
 const bottomNavItems = [
-  { href: "/settings", labelKey: "nav.settings" as const, icon: Settings },
+  { href: '/settings', labelKey: 'nav.settings' as const, icon: Settings },
 ];
 
 interface SidebarProps {
@@ -138,7 +129,7 @@ interface SidebarProps {
 
 // Same flag key the Members tab and Settings page use. Flip per
 // profile via Supabase Studio to dogfood the multi-user surface.
-const ACCOUNT_SHARING_FLAG = "account_sharing";
+const ACCOUNT_SHARING_FLAG = 'account_sharing';
 
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
@@ -153,11 +144,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   // pop in once the row resolves — visible as a layout jump in the
   // sidebar footer.
   const accountSharingEnabled =
-    !profileLoading &&
-    !!profile?.beta_features?.includes(ACCOUNT_SHARING_FLAG);
+    !profileLoading && !!profile?.beta_features?.includes(ACCOUNT_SHARING_FLAG);
 
   const dynamicBottomItems = [
-    ...(profile?.role === 'super_admin' ? [{ href: "/admin", labelKey: "nav.adminPanel" as const, icon: Shield }] : []),
+    ...(profile?.role === 'super_admin'
+      ? [{ href: '/admin', labelKey: 'nav.adminPanel' as const, icon: Shield }]
+      : []),
     ...bottomNavItems,
   ];
 
@@ -174,14 +166,14 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose?.();
+      if (e.key === 'Escape') onClose?.();
     };
-    window.addEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener('keydown', onKey);
     };
   }, [open, onClose]);
 
@@ -195,35 +187,39 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         aria-label="Close menu"
         onClick={onClose}
         className={cn(
-          "fixed inset-0 z-30 bg-slate-950/70 backdrop-blur-sm transition-opacity lg:hidden",
+          'fixed inset-0 z-30 bg-slate-950/70 backdrop-blur-sm transition-opacity lg:hidden',
           open
-            ? "pointer-events-auto opacity-100"
-            : "pointer-events-none opacity-0",
+            ? 'pointer-events-auto opacity-100'
+            : 'pointer-events-none opacity-0'
         )}
       />
 
       <aside
         className={cn(
           // Mobile: fixed drawer that slides in from the left.
-          "fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-slate-900/60 bg-slate-950/45 backdrop-blur-xl",
-          "transition-transform duration-200 ease-out will-change-transform",
-          open ? "translate-x-0" : "-translate-x-full",
+          'fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-slate-900/60 bg-slate-950/45 backdrop-blur-xl',
+          'transition-transform duration-200 ease-out will-change-transform',
+          open ? 'translate-x-0' : '-translate-x-full',
           // Desktop: static, always visible — reset all the mobile framing.
-          "lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none",
+          'lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none'
         )}
         aria-label="Primary"
       >
         {/* Decorative ambient glow */}
-        <div className="absolute top-0 left-0 right-0 h-48 bg-gradient-to-b from-primary/8 to-transparent pointer-events-none blur-3xl" />
+        <div className="from-primary/8 pointer-events-none absolute top-0 right-0 left-0 h-48 bg-gradient-to-b to-transparent blur-3xl" />
 
         {/* Logo row. On mobile we put a close button here; on desktop the
             close button is hidden since the sidebar is always-visible. */}
-        <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-900/60 px-4 bg-slate-950/20 backdrop-blur-sm relative z-10">
-          <Link href="/dashboard" prefetch={false} className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-indigo-650 shadow-md shadow-primary/20">
+        <div className="relative z-10 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-900/60 bg-slate-950/20 px-4 backdrop-blur-sm">
+          <Link
+            href="/dashboard"
+            prefetch={false}
+            className="flex items-center gap-2"
+          >
+            <div className="from-primary to-indigo-650 shadow-primary/20 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br shadow-md">
               <ConvoRealMark className="h-5 w-5" />
             </div>
-            <span className="text-[11px] font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-[11px] font-black tracking-tight text-transparent">
               CONVOREAL ENGINE
             </span>
           </Link>
@@ -238,132 +234,151 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         </div>
 
         {/* Main navigation */}
-        <div className="flex-1 min-h-0 overflow-y-auto relative z-10">
-        <nav className="px-3 py-4">
-          <ul className="flex flex-col gap-1">
-            {COPILOT_ENABLED && (
-              <li>
-                <button
-                  type="button"
-                  onClick={() => {
-                    openPanel();
-                    onClose?.();
-                  }}
-                  data-tour="copilot-sidebar"
-                  className="flex w-full items-center gap-3 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2.5 text-left text-sm font-semibold text-white shadow-md shadow-primary/5 transition-all duration-300 hover:bg-primary/15 lg:py-2"
-                >
-                  <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-                  <span className="flex-1 truncate">{t("copilot.assistant")}</span>
-                  <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-primary">
-                    AI
-                  </span>
-                </button>
-              </li>
-            )}
-            {navItems.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/dashboard" && pathname.startsWith(item.href));
-
-              const showUnreadDot =
-                item.href === "/inbox" && totalUnread > 0 && !isActive;
-
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    prefetch={false}
-                    data-tour={`nav-${item.href.slice(1)}`}
-                    className={cn(
-                      // Taller on mobile so fingers can hit the row reliably (≥44px).
-                      "flex items-center gap-3 px-3 py-2.5 text-sm font-semibold transition-all duration-300 lg:py-2",
-                      isActive
-                        ? "bg-primary/10 text-white border border-primary/25 shadow-md shadow-primary/5 rounded-xl"
-                        : "text-slate-400 hover:text-white hover:bg-slate-900/40 hover:pl-4 rounded-xl border border-transparent",
-                    )}
+        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto">
+          <nav className="px-3 py-4">
+            <ul className="flex flex-col gap-1">
+              {COPILOT_ENABLED && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openPanel();
+                      onClose?.();
+                    }}
+                    data-tour="copilot-sidebar"
+                    className="border-primary/25 bg-primary/10 shadow-primary/5 hover:bg-primary/15 flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold text-white shadow-md transition-all duration-300 lg:py-2"
                   >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="min-w-0 flex-1 leading-tight">{t(item.labelKey)}</span>
-                    {item.beta && (
-                      <span
-                        aria-label="Beta feature"
-                        className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-amber-300 shrink-0"
-                      >
-                        Beta
-                      </span>
-                    )}
-                    {showUnreadDot && (
-                      <span
-                        aria-label={`${totalUnread} unread conversation${totalUnread === 1 ? "" : "s"}`}
-                        className="relative flex h-2 w-2 shrink-0"
-                      >
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                      </span>
-                    )}
-                  </Link>
+                    <Sparkles className="text-primary h-4 w-4 shrink-0" />
+                    <span className="flex-1 truncate">
+                      {t('copilot.assistant')}
+                    </span>
+                    <span className="border-primary/30 bg-primary/10 text-primary rounded-full border px-1.5 py-0.5 text-[8px] font-extrabold tracking-wider uppercase">
+                      AI
+                    </span>
+                  </button>
                 </li>
-              );
-            })}
-          </ul>
+              )}
+              {navItems.map((item) => {
+                const isActive =
+                  pathname === item.href ||
+                  (item.href !== '/dashboard' &&
+                    pathname.startsWith(item.href));
 
-          <div className="my-4 border-t border-slate-900/60" />
+                const showUnreadDot =
+                  item.href === '/inbox' && totalUnread > 0 && !isActive;
 
-          <ul className="flex flex-col gap-1">
-            {dynamicBottomItems.map((item) => {
-              const isActive = pathname.startsWith(item.href);
-              return (
-                <li key={item.href}>
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      prefetch={false}
+                      data-tour={`nav-${item.href.slice(1)}`}
+                      className={cn(
+                        // Taller on mobile so fingers can hit the row reliably (≥44px).
+                        'flex items-center gap-3 px-3 py-2.5 text-sm font-semibold transition-all duration-300 lg:py-2',
+                        isActive
+                          ? 'bg-primary/10 border-primary/25 shadow-primary/5 rounded-xl border text-white shadow-md'
+                          : 'rounded-xl border border-transparent text-slate-400 hover:bg-slate-900/40 hover:pl-4 hover:text-white'
+                      )}
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      <span className="min-w-0 flex-1 leading-tight">
+                        {t(item.labelKey)}
+                      </span>
+                      {item.beta && (
+                        <span
+                          aria-label="Beta feature"
+                          className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[8px] font-extrabold tracking-wider text-amber-300 uppercase"
+                        >
+                          Beta
+                        </span>
+                      )}
+                      {showUnreadDot && (
+                        <span
+                          aria-label={`${totalUnread} unread conversation${totalUnread === 1 ? '' : 's'}`}
+                          className="relative flex h-2 w-2 shrink-0"
+                        >
+                          <span className="bg-primary absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" />
+                          <span className="bg-primary relative inline-flex h-2 w-2 rounded-full" />
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="my-4 border-t border-slate-900/60" />
+
+            <ul className="flex flex-col gap-1">
+              {dynamicBottomItems.map((item) => {
+                const isActive = pathname.startsWith(item.href);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      prefetch={false}
+                      data-tour={`nav-${item.href.slice(1)}`}
+                      className={cn(
+                        'flex items-center gap-3 px-3 py-2.5 text-sm font-semibold transition-all duration-300 lg:py-2',
+                        isActive
+                          ? 'bg-primary/10 border-primary/25 shadow-primary/5 rounded-xl border text-white shadow-md'
+                          : 'rounded-xl border border-transparent text-slate-400 hover:bg-slate-900/40 hover:pl-4 hover:text-white'
+                      )}
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      <span className="flex-1 truncate">
+                        {t(item.labelKey)}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* Quick Access section */}
+            <div className="my-6 border-t border-slate-900/60 px-1 pt-4">
+              <h3 className="text-slate-550 mb-3 px-3 text-[10px] font-black tracking-widest uppercase">
+                {t('nav.quickAccess')}
+              </h3>
+              <div className="flex flex-col gap-1.5">
+                {[
+                  {
+                    labelKey: 'nav.newDeals' as const,
+                    href: '/deals?view=board&new=true',
+                  },
+                  {
+                    labelKey: 'nav.pendingQuotes' as const,
+                    href: '/inbox?filter=pending',
+                  },
+                  {
+                    labelKey: 'nav.priorityTasks' as const,
+                    href: '/calendar?filter=priority',
+                  },
+                  {
+                    labelKey: 'nav.followUps' as const,
+                    href: '/contacts?search=follow-up',
+                  },
+                ].map((qa) => (
                   <Link
-                    href={item.href}
+                    key={qa.labelKey}
+                    href={qa.href}
                     prefetch={false}
-                    data-tour={`nav-${item.href.slice(1)}`}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 text-sm font-semibold transition-all duration-300 lg:py-2",
-                      isActive
-                        ? "bg-primary/10 text-white border border-primary/25 shadow-md shadow-primary/5 rounded-xl"
-                        : "text-slate-400 hover:text-white hover:bg-slate-900/40 hover:pl-4 rounded-xl border border-transparent",
-                    )}
+                    className="text-slate-450 w-full cursor-pointer rounded-xl border border-slate-900/60 bg-slate-900/15 px-4 py-2 text-left text-xs font-bold transition-all duration-200 hover:border-slate-800 hover:bg-slate-900/45 hover:text-white"
                   >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="flex-1 truncate">{t(item.labelKey)}</span>
+                    {t(qa.labelKey)}
                   </Link>
-                </li>
-              );
-            })}
-          </ul>
-
-          {/* Quick Access section */}
-          <div className="my-6 border-t border-slate-900/60 pt-4 px-1">
-            <h3 className="text-[10px] font-black text-slate-550 uppercase tracking-widest mb-3 px-3">
-              {t("nav.quickAccess")}
-            </h3>
-            <div className="flex flex-col gap-1.5">
-              {[
-                { labelKey: "nav.newDeals" as const, href: "/deals?view=board&new=true" },
-                { labelKey: "nav.pendingQuotes" as const, href: "/inbox?filter=pending" },
-                { labelKey: "nav.priorityTasks" as const, href: "/calendar?filter=priority" },
-                { labelKey: "nav.followUps" as const, href: "/contacts?search=follow-up" },
-              ].map((qa) => (
-                <Link
-                  key={qa.labelKey}
-                  href={qa.href}
-                  prefetch={false}
-                  className="w-full text-left text-xs font-bold text-slate-450 hover:text-white bg-slate-900/15 hover:bg-slate-900/45 border border-slate-900/60 hover:border-slate-800 px-4 py-2 rounded-xl transition-all duration-200 cursor-pointer"
-                >
-                  {t(qa.labelKey)}
-                </Link>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        </nav>
+          </nav>
 
-        <FavoritesCard />
-        <SidebarCreditWidget />
+          <FavoritesCard />
+          <SidebarCreditWidget />
         </div>
 
         {/* User section */}
-        <div className="shrink-0 border-t border-slate-900/60 p-3 bg-slate-950/10 backdrop-blur-sm relative z-10">
+        <div className="relative z-10 shrink-0 border-t border-slate-900/60 bg-slate-950/10 p-3 backdrop-blur-sm">
           {/* Account name display — only surfaced when the user is
               opted into the account_sharing beta flag. For solo
               users (the default) the account is named after them,
@@ -379,24 +394,24 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <span className="truncate" title={account.name}>
                 {account.name}
               </span>
-              {accountRole ? (
-                // Always render the chip — owners used to be
-                // invisible here, which made them indistinguishable
-                // from admins at a glance. Now everyone sees their
-                // role (with a colour cue) regardless of tier.
-                (() => {
-                  const meta = ROLE_CHIP[accountRole];
-                  const Icon = meta.icon;
-                  return (
-                    <span
-                      className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${meta.className}`}
-                    >
-                      <Icon className="size-3" />
-                      {t(meta.labelKey)}
-                    </span>
-                  );
-                })()
-              ) : null}
+              {accountRole
+                ? // Always render the chip — owners used to be
+                  // invisible here, which made them indistinguishable
+                  // from admins at a glance. Now everyone sees their
+                  // role (with a colour cue) regardless of tier.
+                  (() => {
+                    const meta = ROLE_CHIP[accountRole];
+                    const Icon = meta.icon;
+                    return (
+                      <span
+                        className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium tracking-wider uppercase ${meta.className}`}
+                      >
+                        <Icon className="size-3" />
+                        {t(meta.labelKey)}
+                      </span>
+                    );
+                  })()
+                : null}
             </div>
           ) : null}
           <DropdownMenu>
@@ -405,21 +420,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 {profile?.avatar_url ? (
                   <AvatarImage
                     src={storagePublicUrl(profile.avatar_url)}
-                    alt={profile.full_name ?? "Avatar"}
+                    alt={profile.full_name ?? 'Avatar'}
                   />
                 ) : null}
-                <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
                   {profile?.full_name?.charAt(0)?.toUpperCase() ??
                     profile?.email?.charAt(0)?.toUpperCase() ??
-                    "U"}
+                    'U'}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-white">
-                  {profile?.full_name ?? "User"}
+                  {profile?.full_name ?? 'User'}
                 </p>
                 <p className="truncate text-xs text-slate-400">
-                  {profile?.email ?? ""}
+                  {profile?.email ?? ''}
                 </p>
               </div>
             </DropdownMenuTrigger>

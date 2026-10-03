@@ -65,9 +65,7 @@ export function BuyerShell({ children }: { children: React.ReactNode }) {
             <span className="bg-primary/10 border-primary/20 flex h-8 w-8 items-center justify-center rounded-xl border">
               <Home className="text-primary h-4 w-4" />
             </span>
-            <span className="text-sm font-black tracking-tight">
-              Portfolio
-            </span>
+            <span className="text-sm font-black tracking-tight">Portfolio</span>
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
             {NAV.map((item) => {

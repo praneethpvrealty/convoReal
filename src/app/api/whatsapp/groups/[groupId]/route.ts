@@ -23,7 +23,7 @@ import {
 async function loadGroup(
   supabase: Awaited<ReturnType<typeof requireRole>>['supabase'],
   accountId: string,
-  groupId: string,
+  groupId: string
 ) {
   const { data } = await supabase
     .from('whatsapp_groups')
@@ -36,7 +36,7 @@ async function loadGroup(
 
 async function loadCredentials(
   supabase: Awaited<ReturnType<typeof requireRole>>['supabase'],
-  accountId: string,
+  accountId: string
 ) {
   const { data } = await supabase
     .from('whatsapp_config')
@@ -52,7 +52,7 @@ async function loadCredentials(
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ groupId: string }> },
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   let supabase: Awaited<ReturnType<typeof requireRole>>['supabase'];
   let accountId: string;
@@ -70,17 +70,21 @@ export async function GET(
 
   const { data: participants } = await supabase
     .from('whatsapp_group_participants')
-    .select('id, wa_id, contact_id, joined_at, left_at, contact:contacts(id, name, phone)')
+    .select(
+      'id, wa_id, contact_id, joined_at, left_at, contact:contacts(id, name, phone)'
+    )
     .eq('group_id', groupId)
     .is('left_at', null)
     .order('joined_at', { ascending: true });
 
-  return NextResponse.json({ data: { group, participants: participants ?? [] } });
+  return NextResponse.json({
+    data: { group, participants: participants ?? [] },
+  });
 }
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ groupId: string }> },
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   let supabase: Awaited<ReturnType<typeof requireRole>>['supabase'];
   let accountId: string;
@@ -96,7 +100,7 @@ export async function PATCH(
     if (!group?.wa_group_id) {
       return NextResponse.json(
         { error: 'Group not found, or still being created on WhatsApp' },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
@@ -104,7 +108,7 @@ export async function PATCH(
     if (!credentials) {
       return NextResponse.json(
         { error: 'Groups are not enabled for this number.' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -113,7 +117,7 @@ export async function PATCH(
     if (body?.action === 'reset_invite_link') {
       const inviteLink = await resetInviteLink(
         credentials.accessToken,
-        group.wa_group_id,
+        group.wa_group_id
       );
       const { data: rotated } = await supabase
         .from('whatsapp_groups')
@@ -129,7 +133,7 @@ export async function PATCH(
             error:
               'WhatsApp rotated the link but it could not be saved — reopen the group to fetch the current one.',
           },
-          { status: 500 },
+          { status: 500 }
         );
       }
       return NextResponse.json({ data: { invite_link: inviteLink } });
@@ -137,15 +141,21 @@ export async function PATCH(
 
     if (body?.action === 'remove_participants') {
       const waIds = Array.isArray(body.wa_ids)
-        ? body.wa_ids.filter((id: unknown): id is string => typeof id === 'string')
+        ? body.wa_ids.filter(
+            (id: unknown): id is string => typeof id === 'string'
+          )
         : [];
       if (waIds.length === 0) {
         return NextResponse.json(
           { error: 'wa_ids is required' },
-          { status: 400 },
+          { status: 400 }
         );
       }
-      await removeParticipants(credentials.accessToken, group.wa_group_id, waIds);
+      await removeParticipants(
+        credentials.accessToken,
+        group.wa_group_id,
+        waIds
+      );
       // The participants webhook writes left_at; nothing is marked here
       // so a refusal Meta reports later cannot leave the row lying.
       return NextResponse.json({ data: { removed: waIds.length } });
@@ -154,13 +164,12 @@ export async function PATCH(
     const subject =
       typeof body?.subject === 'string' ? body.subject.trim() : undefined;
     const description =
-      typeof body?.description === 'string' ? body.description.trim() : undefined;
+      typeof body?.description === 'string'
+        ? body.description.trim()
+        : undefined;
 
     if (subject === undefined && description === undefined) {
-      return NextResponse.json(
-        { error: 'Nothing to update' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
     }
 
     await updateGroup(credentials.accessToken, group.wa_group_id, {
@@ -186,7 +195,7 @@ export async function PATCH(
           error:
             'WhatsApp accepted the change but it could not be saved locally — it will appear once WhatsApp confirms it.',
         },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -196,14 +205,14 @@ export async function PATCH(
     console.error('[groups] PATCH failed:', message);
     return NextResponse.json(
       { error: `WhatsApp refused the change: ${message}` },
-      { status: 502 },
+      { status: 502 }
     );
   }
 }
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: Promise<{ groupId: string }> },
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   let supabase: Awaited<ReturnType<typeof requireRole>>['supabase'];
   let accountId: string;
@@ -224,7 +233,7 @@ export async function DELETE(
     if (!credentials) {
       return NextResponse.json(
         { error: 'Groups are not enabled for this number.' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -247,7 +256,7 @@ export async function DELETE(
           error:
             'The group was deleted on WhatsApp but is still listed here — the lifecycle webhook should clear it shortly.',
         },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -257,7 +266,7 @@ export async function DELETE(
     console.error('[groups] DELETE failed:', message);
     return NextResponse.json(
       { error: `WhatsApp refused the deletion: ${message}` },
-      { status: 502 },
+      { status: 502 }
     );
   }
 }

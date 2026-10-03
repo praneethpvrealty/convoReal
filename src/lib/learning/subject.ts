@@ -69,7 +69,10 @@ export function propertiesNamedIn(
   const ids = new Set<string>();
   for (const candidate of candidates) {
     const project = normalize(candidate.project || '');
-    if (project.length >= MIN_PROJECT_NAME && containsPhrase(haystack, project)) {
+    if (
+      project.length >= MIN_PROJECT_NAME &&
+      containsPhrase(haystack, project)
+    ) {
       ids.add(candidate.id);
       continue;
     }

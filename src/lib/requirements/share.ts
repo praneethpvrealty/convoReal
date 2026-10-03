@@ -60,16 +60,22 @@ export function requirementReference(id: string): string {
 
 function budgetLine(r: ShareableRequirement): string {
   if (r.no_budget) return 'Budget: No limit stated';
-  const min = r.min_budget && Number(r.min_budget) > 0 ? Number(r.min_budget) : null;
-  const max = r.max_budget && Number(r.max_budget) > 0 ? Number(r.max_budget) : null;
+  const min =
+    r.min_budget && Number(r.min_budget) > 0 ? Number(r.min_budget) : null;
+  const max =
+    r.max_budget && Number(r.max_budget) > 0 ? Number(r.max_budget) : null;
   if (min && max) return `Budget: ${compactINR(min)} – ${compactINR(max)}`;
   if (max) return `Budget: up to ${compactINR(max)}`;
   if (min) return `Budget: from ${compactINR(min)}`;
   return 'Budget: Not specified';
 }
 
-function cleanList(values: (string | null | undefined)[] | null | undefined): string[] {
-  return (values || []).map((v) => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
+function cleanList(
+  values: (string | null | undefined)[] | null | undefined
+): string[] {
+  return (values || [])
+    .map((v) => (typeof v === 'string' ? v.trim() : ''))
+    .filter(Boolean);
 }
 
 /**
@@ -82,11 +88,11 @@ export function isShareable(r: ShareableRequirement): boolean {
   if (r.requirement_active === false) return false;
   return Boolean(
     r.requirements?.trim() ||
-      cleanList(r.areas_of_interest).length ||
-      cleanList(r.projects_of_interest).length ||
-      r.no_budget ||
-      r.min_budget ||
-      r.max_budget
+    cleanList(r.areas_of_interest).length ||
+    cleanList(r.projects_of_interest).length ||
+    r.no_budget ||
+    r.min_budget ||
+    r.max_budget
   );
 }
 
@@ -102,7 +108,9 @@ export function formatRequirement(
   const lines = [who, budgetLine(r)];
 
   if (r.requirements?.trim()) {
-    lines.push(`${mode === 'masked' ? 'Looking for' : 'Requirements'}: ${r.requirements.trim()}`);
+    lines.push(
+      `${mode === 'masked' ? 'Looking for' : 'Requirements'}: ${r.requirements.trim()}`
+    );
   }
 
   const areas = cleanList(r.areas_of_interest);

@@ -166,7 +166,9 @@ describe('the engine answers the question it asked', () => {
     // Without this the question keeps standing for its 48-hour window
     // and every later short message re-answers it.
     const cleared = source.indexOf('clearBotTarget({');
-    const fallbackText = source.indexOf("I couldn't find *${propertyAnswer.code");
+    const fallbackText = source.indexOf(
+      "I couldn't find *${propertyAnswer.code"
+    );
     expect(cleared).toBeGreaterThan(-1);
     expect(fallbackText).toBeGreaterThan(-1);
     expect(cleared).toBeLessThan(fallbackText);

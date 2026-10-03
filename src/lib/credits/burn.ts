@@ -47,7 +47,7 @@ export async function burnCredits(
   accountId: string,
   feature: BillableFeatureKey,
   cost: number,
-  opts: BurnOptions = {},
+  opts: BurnOptions = {}
 ): Promise<BurnResult> {
   const hardBlock = opts.hardBlock ?? true;
   const supabase = supabaseAdmin();
@@ -84,7 +84,7 @@ export async function refundCredits(
   accountId: string,
   feature: BillableFeatureKey,
   cost: number,
-  opts: { description?: string } = {},
+  opts: { description?: string } = {}
 ): Promise<{ success: boolean; balanceAfter: number }> {
   const supabase = supabaseAdmin();
   const description = opts.description ?? `${feature} refund`;
@@ -101,7 +101,8 @@ export async function refundCredits(
   }
 
   const row = Array.isArray(data) ? data[0] : data;
-  const balanceAfter = typeof row === 'number' ? row : Number(row?.balance_after ?? 0);
+  const balanceAfter =
+    typeof row === 'number' ? row : Number(row?.balance_after ?? 0);
 
   return {
     success: true,

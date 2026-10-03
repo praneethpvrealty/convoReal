@@ -47,7 +47,7 @@ Anything marked `SQL` runs in the Supabase SQL editor. Anything marked
 5. **You need two real WhatsApp numbers** you can receive messages on:
    - `PHONE_OWNER` — plays the property owner
    - `PHONE_BUYER` — plays the buyer contact
-   (One physical phone with two numbers/WhatsApp Business also works.)
+     (One physical phone with two numbers/WhatsApp Business also works.)
 
 ---
 
@@ -55,9 +55,9 @@ Anything marked `SQL` runs in the Supabase SQL editor. Anything marked
 
 You need **two tenant accounts** so cross-tenant matching has two sides:
 
-| Role | Account | How |
-|---|---|---|
-| Agency A (owner side) | your main login | existing account |
+| Role                  | Account             | How                                                 |
+| --------------------- | ------------------- | --------------------------------------------------- |
+| Agency A (owner side) | your main login     | existing account                                    |
 | Agency B (buyer side) | second staff signup | fresh email signup (this also exercises Scenario A) |
 
 Then, via the Engine UI (more realistic than SQL):
@@ -186,7 +186,7 @@ All as **Agency B** staff on the radar card.
    ```
 3. Unlock again. **Expect:** success toast with credits used (50, or 75 when
    the match score ≥ 80%); the card reveals full address, photos, owner name
-   + WhatsApp deep link, "Listed via <Agency A>".
+   - WhatsApp deep link, "Listed via <Agency A>".
 4. `SQL` — exactly one unlock row and one matching burn:
    ```sql
    SELECT credits_burned, score FROM den_match_unlocks WHERE account_id = '<AGENCY_B_ID>';

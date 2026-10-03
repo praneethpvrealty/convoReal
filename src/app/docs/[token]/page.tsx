@@ -1,6 +1,12 @@
 import type { Metadata } from 'next';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { FileText, Download, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
+import {
+  FileText,
+  Download,
+  AlertTriangle,
+  Clock,
+  CheckCircle,
+} from 'lucide-react';
 import Link from 'next/link';
 import { DocAccessGate } from '@/components/documents/doc-access-gate';
 import { trackDocumentView } from '@/lib/documents/track-view';
@@ -64,7 +70,10 @@ export default async function DocumentsPage({ params }: PageProps) {
     : null;
 
   // Render access gate if password protected
-  if (docRequest.access_password && docRequest.access_password.trim().length > 0) {
+  if (
+    docRequest.access_password &&
+    docRequest.access_password.trim().length > 0
+  ) {
     return (
       <DocAccessGate
         token={token}
@@ -92,35 +101,43 @@ export default async function DocumentsPage({ params }: PageProps) {
   const parsedDocuments = parsePropertyDocuments(property?.documents);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center px-4 py-16 font-sans">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 px-4 py-16 font-sans text-slate-100">
       {/* Radial glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-primary/8 rounded-full blur-[120px] pointer-events-none" />
+      <div className="bg-primary/8 pointer-events-none absolute top-0 left-1/2 h-[300px] w-[600px] -translate-x-1/2 rounded-full blur-[120px]" />
 
-      <div className="relative max-w-lg w-full space-y-6">
+      <div className="relative w-full max-w-lg space-y-6">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-primary/15 border border-primary/25 mb-4">
-            <FileText className="size-7 text-primary" />
+        <div className="space-y-2 text-center">
+          <div className="bg-primary/15 border-primary/25 mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border">
+            <FileText className="text-primary size-7" />
           </div>
           <h1 className="text-2xl font-black text-white">Property Documents</h1>
           <p className="text-sm text-slate-400">
             Shared securely for{' '}
-            <span className="text-white font-semibold">{docRequest.requester_name}</span>
+            <span className="font-semibold text-white">
+              {docRequest.requester_name}
+            </span>
           </p>
         </div>
 
         {/* Property Card */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
-          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Property</p>
-          <p className="text-base font-bold text-white">{property?.title || 'Property'}</p>
+        <div className="space-y-1 rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <p className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+            Property
+          </p>
+          <p className="text-base font-bold text-white">
+            {property?.title || 'Property'}
+          </p>
           {property?.property_code && (
-            <p className="text-xs text-slate-400 font-mono">{property.property_code}</p>
+            <p className="font-mono text-xs text-slate-400">
+              {property.property_code}
+            </p>
           )}
         </div>
 
         {/* Expiry Notice */}
         {formattedExpiry && (
-          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/25 rounded-xl px-4 py-3 text-xs text-amber-400 font-medium">
+          <div className="flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-xs font-medium text-amber-400">
             <Clock className="size-4 shrink-0" />
             This link expires on {formattedExpiry}
           </div>
@@ -129,7 +146,7 @@ export default async function DocumentsPage({ params }: PageProps) {
         {/* Documents List */}
         {parsedDocuments.length > 0 ? (
           <div className="space-y-3">
-            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <h2 className="text-xs font-bold tracking-wider text-slate-400 uppercase">
               Available Documents ({parsedDocuments.length})
             </h2>
             <div className="space-y-2">
@@ -144,31 +161,34 @@ export default async function DocumentsPage({ params }: PageProps) {
                     href={docUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between gap-3 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-primary/40 rounded-xl px-4 py-3.5 transition-all group"
+                    className="hover:bg-slate-850 hover:border-primary/40 group flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-4 py-3.5 transition-all"
                   >
                     <div className="flex items-center gap-3 truncate">
-                      <div className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                        <FileText className="size-4 text-primary" />
+                      <div className="bg-primary/10 border-primary/20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
+                        <FileText className="text-primary size-4" />
                       </div>
                       <div className="truncate">
-                        <p className="text-sm font-semibold text-white truncate group-hover:text-primary transition-colors">
+                        <p className="group-hover:text-primary truncate text-sm font-semibold text-white transition-colors">
                           {displayTitle}
                         </p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">Click to open</p>
+                        <p className="mt-0.5 text-[10px] text-slate-500">
+                          Click to open
+                        </p>
                       </div>
                     </div>
-                    <Download className="size-4 text-slate-500 group-hover:text-primary shrink-0 transition-colors" />
+                    <Download className="group-hover:text-primary size-4 shrink-0 text-slate-500 transition-colors" />
                   </a>
                 );
               })}
             </div>
           </div>
         ) : (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-2">
-            <CheckCircle className="size-8 text-emerald-500 mx-auto" />
+          <div className="space-y-2 rounded-2xl border border-slate-800 bg-slate-900 p-6 text-center">
+            <CheckCircle className="mx-auto size-8 text-emerald-500" />
             <p className="text-sm font-semibold text-white">Request Approved</p>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              No documents have been uploaded yet. The agent will share them with you shortly via WhatsApp.
+            <p className="text-xs leading-relaxed text-slate-400">
+              No documents have been uploaded yet. The agent will share them
+              with you shortly via WhatsApp.
             </p>
           </div>
         )}
@@ -181,7 +201,7 @@ export default async function DocumentsPage({ params }: PageProps) {
         <div className="text-center">
           <Link
             href="/"
-            className="text-xs text-primary hover:underline font-medium"
+            className="text-primary text-xs font-medium hover:underline"
           >
             ← Browse Properties
           </Link>
@@ -191,7 +211,11 @@ export default async function DocumentsPage({ params }: PageProps) {
   );
 }
 
-function ErrorState({ reason }: { reason: 'invalid' | 'expired' | 'not_approved' }) {
+function ErrorState({
+  reason,
+}: {
+  reason: 'invalid' | 'expired' | 'not_approved';
+}) {
   const messages = {
     invalid: {
       icon: AlertTriangle,
@@ -220,12 +244,17 @@ function ErrorState({ reason }: { reason: 'invalid' | 'expired' | 'not_approved'
   const Icon = cfg.icon;
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
-      <div className={`max-w-sm w-full border rounded-2xl p-8 text-center space-y-4 ${cfg.bg}`}>
-        <Icon className={`size-12 mx-auto ${cfg.color}`} />
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
+      <div
+        className={`w-full max-w-sm space-y-4 rounded-2xl border p-8 text-center ${cfg.bg}`}
+      >
+        <Icon className={`mx-auto size-12 ${cfg.color}`} />
         <h1 className="text-lg font-black text-white">{cfg.title}</h1>
-        <p className="text-sm text-slate-400 leading-relaxed">{cfg.desc}</p>
-        <Link href="/" className="inline-block text-xs text-primary hover:underline font-medium mt-2">
+        <p className="text-sm leading-relaxed text-slate-400">{cfg.desc}</p>
+        <Link
+          href="/"
+          className="text-primary mt-2 inline-block text-xs font-medium hover:underline"
+        >
           ← Browse Properties
         </Link>
       </div>

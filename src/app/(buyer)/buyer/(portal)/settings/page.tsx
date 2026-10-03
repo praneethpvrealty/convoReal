@@ -1,4 +1,4 @@
-import { BuyerSettingsContent } from "@/components/buyer/settings-content";
+import { BuyerSettingsContent } from '@/components/buyer/settings-content';
 
 export default function BuyerSettingsPage() {
   return <BuyerSettingsContent />;

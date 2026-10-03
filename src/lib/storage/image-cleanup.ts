@@ -64,7 +64,7 @@ async function logPhase(
   propertyId: string,
   phase: string,
   imageCount: number,
-  snapshot: Record<string, unknown>,
+  snapshot: Record<string, unknown>
 ): Promise<boolean> {
   const { error } = await admin.from('image_cleanup_log').insert({
     account_id: accountId,
@@ -74,7 +74,10 @@ async function logPhase(
     snapshot,
   });
   if (error) {
-    console.error(`[image-cleanup] audit insert failed (${phase}):`, error.message);
+    console.error(
+      `[image-cleanup] audit insert failed (${phase}):`,
+      error.message
+    );
     return false;
   }
   return true;
@@ -82,7 +85,7 @@ async function logPhase(
 
 export async function runImageCleanup(
   admin: SupabaseClient,
-  config: ImageCleanupConfig,
+  config: ImageCleanupConfig
 ): Promise<CleanupSummary> {
   const summary: CleanupSummary = {
     dryRun: config.dry_run,
@@ -102,7 +105,7 @@ export async function runImageCleanup(
   const { data: warnedRows, error: warnedErr } = await admin
     .from('properties')
     .select(
-      'id, account_id, title, status, images, images_cleanup_warned_at, images_dereferenced_at',
+      'id, account_id, title, status, images, images_cleanup_warned_at, images_dereferenced_at'
     )
     .eq('images_cleanup_state', 'warned')
     .limit(config.max_per_run);
@@ -120,22 +123,35 @@ export async function runImageCleanup(
       }
       const { error } = await admin
         .from('properties')
-        .update({ images_cleanup_state: 'active', images_cleanup_warned_at: null })
+        .update({
+          images_cleanup_state: 'active',
+          images_cleanup_warned_at: null,
+        })
         .eq('id', r.id)
         .eq('images_cleanup_state', 'warned');
       if (error) {
         summary.errors++;
         continue;
       }
-      await logPhase(admin, r.account_id, r.id, 'reset', r.images?.length ?? 0, {
-        status: r.status,
-      });
+      await logPhase(
+        admin,
+        r.account_id,
+        r.id,
+        'reset',
+        r.images?.length ?? 0,
+        {
+          status: r.status,
+        }
+      );
       summary.reset++;
       continue;
     }
 
     // Not yet past the grace period — leave it warned.
-    if (!r.images_cleanup_warned_at || r.images_cleanup_warned_at > graceCutoff) {
+    if (
+      !r.images_cleanup_warned_at ||
+      r.images_cleanup_warned_at > graceCutoff
+    ) {
       continue;
     }
 
@@ -151,7 +167,7 @@ export async function runImageCleanup(
       r.id,
       'dereference',
       r.images!.length,
-      { images: r.images, status: r.status },
+      { images: r.images, status: r.status }
     );
     if (!snapped) {
       summary.errors++;
@@ -174,7 +190,9 @@ export async function runImageCleanup(
   }
 
   // ── Warn: active + terminal + long-dormant + has images ───────────────────
-  const warnCutoff = new Date(now - config.warn_after_days * DAY_MS).toISOString();
+  const warnCutoff = new Date(
+    now - config.warn_after_days * DAY_MS
+  ).toISOString();
   const { data: activeRows, error: activeErr } = await admin
     .from('properties')
     .select('id, account_id, title, status, images')
@@ -226,7 +244,7 @@ export async function runImageCleanup(
   // ── Purge: dereferenced + past final retention (opt-in only) ──────────────
   if (config.hard_delete_enabled) {
     const purgeCutoff = new Date(
-      now - config.final_retention_days * DAY_MS,
+      now - config.final_retention_days * DAY_MS
     ).toISOString();
     const { data: derefRows, error: derefErr } = await admin
       .from('properties')
@@ -235,7 +253,10 @@ export async function runImageCleanup(
       .lte('images_dereferenced_at', purgeCutoff)
       .limit(config.max_per_run);
     if (derefErr) {
-      console.error('[image-cleanup] dereferenced query failed:', derefErr.message);
+      console.error(
+        '[image-cleanup] dereferenced query failed:',
+        derefErr.message
+      );
       summary.errors++;
     }
 
@@ -250,8 +271,8 @@ export async function runImageCleanup(
         .limit(1)
         .maybeSingle();
       const urls: string[] =
-        (logRow as { snapshot?: { images?: string[] } } | null)?.snapshot?.images ??
-        [];
+        (logRow as { snapshot?: { images?: string[] } } | null)?.snapshot
+          ?.images ?? [];
       const paths = urls.map(extractStoragePath).filter(Boolean) as string[];
 
       if (config.dry_run) {
@@ -261,7 +282,10 @@ export async function runImageCleanup(
       if (paths.length > 0) {
         const { error } = await admin.storage.from(BUCKET).remove(paths);
         if (error) {
-          console.error(`[image-cleanup] blob delete failed for ${r.id}:`, error.message);
+          console.error(
+            `[image-cleanup] blob delete failed for ${r.id}:`,
+            error.message
+          );
           summary.errors++;
           continue;
         }
@@ -275,7 +299,9 @@ export async function runImageCleanup(
         summary.errors++;
         continue;
       }
-      await logPhase(admin, r.account_id, r.id, 'purge', paths.length, { paths });
+      await logPhase(admin, r.account_id, r.id, 'purge', paths.length, {
+        paths,
+      });
       summary.purged++;
     }
   }

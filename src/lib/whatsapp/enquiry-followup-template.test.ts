@@ -33,7 +33,8 @@ describe('buildEnquiryFollowupTemplatePayload', () => {
     // The lead has never messaged this number. An anonymous message
     // claiming to know about "your property enquiry" is the shape of a
     // scam, and trust is decided on the first line.
-    const first = buildEnquiryFollowupTemplatePayload().body_text.split('\n')[0];
+    const first =
+      buildEnquiryFollowupTemplatePayload().body_text.split('\n')[0];
     expect(first).toContain('{{2}}');
   });
 
@@ -75,17 +76,17 @@ describe('buildEnquiryFollowupTemplatePayload', () => {
 
 describe('buildEnquiryFollowupParams', () => {
   it('greets by first name and signs with the brokerage', () => {
-    expect(buildEnquiryFollowupParams('Praneeth Kumar', 'Aryavarta Ventures')).toEqual([
-      'Praneeth',
-      'Aryavarta Ventures',
-    ]);
+    expect(
+      buildEnquiryFollowupParams('Praneeth Kumar', 'Aryavarta Ventures')
+    ).toEqual(['Praneeth', 'Aryavarta Ventures']);
   });
 
   it('never greets a placeholder or missing name', () => {
     for (const name of ['Housing Lead', null, '  ']) {
-      expect(buildEnquiryFollowupParams(name, 'Aryavarta Ventures')[0], String(name)).toBe(
-        'there'
-      );
+      expect(
+        buildEnquiryFollowupParams(name, 'Aryavarta Ventures')[0],
+        String(name)
+      ).toBe('there');
     }
   });
 

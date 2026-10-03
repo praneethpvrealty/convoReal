@@ -12,7 +12,10 @@ export async function POST() {
 
     const limits = await getPlanLimits(ctx);
     if (limits.plan === 'starter') {
-      return NextResponse.json({ error: 'No active subscription to cancel' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'No active subscription to cancel' },
+        { status: 400 }
+      );
     }
 
     const { data: sub } = await ctx.supabase
@@ -22,14 +25,19 @@ export async function POST() {
       .maybeSingle();
 
     if (!sub) {
-      return NextResponse.json({ error: 'No subscription found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'No subscription found' },
+        { status: 404 }
+      );
     }
 
     const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
     const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (razorpayKeyId && razorpayKeySecret && sub.razorpay_subscription_id) {
-      const credentials = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
+      const credentials = Buffer.from(
+        `${razorpayKeyId}:${razorpayKeySecret}`
+      ).toString('base64');
       await fetch(
         `https://api.razorpay.com/v1/subscriptions/${sub.razorpay_subscription_id}/cancel`,
         {
@@ -39,7 +47,7 @@ export async function POST() {
             Authorization: `Basic ${credentials}`,
           },
           body: JSON.stringify({ cancel_at_cycle_end: 1 }),
-        },
+        }
       );
     }
 

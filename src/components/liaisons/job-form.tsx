@@ -65,7 +65,9 @@ export function JobForm({
       supabase.from('contacts').select('*').order('name'),
       supabase
         .from('properties')
-        .select('id, title, property_code, location, sublocality, project, tags')
+        .select(
+          'id, title, property_code, location, sublocality, project, tags'
+        )
         .order('title'),
     ]);
     if (contactsRes.data) setContacts(contactsRes.data);
@@ -81,12 +83,12 @@ export function JobForm({
     setClientCharge(
       job?.client_charge !== null && job?.client_charge !== undefined
         ? String(job.client_charge)
-        : '',
+        : ''
     );
     setLiaisonFee(
       job?.liaison_fee !== null && job?.liaison_fee !== undefined
         ? String(job.liaison_fee)
-        : '',
+        : ''
     );
     setNotes(job?.notes ?? '');
     fetchPickerData();
@@ -94,7 +96,7 @@ export function JobForm({
 
   const selectedLiaison = useMemo(
     () => liaisons.find((l) => l.id === liaisonId) ?? null,
-    [liaisons, liaisonId],
+    [liaisons, liaisonId]
   );
 
   /** Picking a rate-card service fills the name and seeds both amounts —
@@ -172,14 +174,14 @@ export function JobForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-slate-700 bg-slate-900 text-slate-200 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-white">
             {isEdit ? 'Edit Job' : 'Log Job'}
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            One engagement with a liaison — link the client and property, agree the
-            amounts, then record payments as they happen.
+            One engagement with a liaison — link the client and property, agree
+            the amounts, then record payments as they happen.
           </DialogDescription>
         </DialogHeader>
 
@@ -191,7 +193,7 @@ export function JobForm({
             <select
               value={liaisonId}
               onChange={(e) => setLiaisonId(e.target.value)}
-              className="h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              className="focus:border-primary focus:ring-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:ring-1"
             >
               <option value="">Select liaison...</option>
               {liaisons.map((l) => (
@@ -215,10 +217,10 @@ export function JobForm({
                     key={s.name}
                     type="button"
                     onClick={() => applyService(s.name)}
-                    className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors cursor-pointer ${
+                    className={`cursor-pointer rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors ${
                       serviceName === s.name
                         ? 'border-primary/40 bg-primary/10 text-white'
-                        : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:text-white hover:border-primary/40'
+                        : 'hover:border-primary/40 border-slate-700 bg-slate-800/60 text-slate-400 hover:text-white'
                     }`}
                   >
                     {s.name}
@@ -231,11 +233,11 @@ export function JobForm({
               value={serviceName}
               onChange={(e) => setServiceName(e.target.value)}
               placeholder="e.g. Khata transfer"
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs text-slate-300">Client</Label>
               <SearchableContactSelect
@@ -269,10 +271,12 @@ export function JobForm({
               <Input
                 id="job-charge"
                 value={clientCharge}
-                onChange={(e) => setClientCharge(e.target.value.replace(/[^\d.]/g, ''))}
+                onChange={(e) =>
+                  setClientCharge(e.target.value.replace(/[^\d.]/g, ''))
+                }
                 placeholder="What you bill"
                 inputMode="numeric"
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
             <div className="space-y-1.5">
@@ -282,16 +286,18 @@ export function JobForm({
               <Input
                 id="job-fee"
                 value={liaisonFee}
-                onChange={(e) => setLiaisonFee(e.target.value.replace(/[^\d.]/g, ''))}
+                onChange={(e) =>
+                  setLiaisonFee(e.target.value.replace(/[^\d.]/g, ''))
+                }
                 placeholder="What they charge"
                 inputMode="numeric"
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
           </div>
           {marginPreview && (
             <p
-              className={`text-[11px] font-semibold -mt-2 ${
+              className={`-mt-2 text-[11px] font-semibold ${
                 marginPreview.negative ? 'text-red-400' : 'text-emerald-400'
               }`}
             >
@@ -308,12 +314,12 @@ export function JobForm({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Documents handed over, expected completion, follow-ups..."
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-16 resize-none"
+              className="h-16 resize-none border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
             />
           </div>
         </div>
 
-        <DialogFooter className="bg-slate-900 border-slate-700">
+        <DialogFooter className="border-slate-700 bg-slate-900">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

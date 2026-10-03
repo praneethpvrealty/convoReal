@@ -12,7 +12,7 @@ const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string; callId: string }> },
+  { params }: { params: Promise<{ id: string; callId: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -28,15 +28,24 @@ export async function GET(
 
     const objectPath = storageObjectPath(call?.recording_url);
     if (!objectPath || !objectPath.startsWith('call-recordings/')) {
-      return NextResponse.json({ error: 'No recording for this call' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'No recording for this call' },
+        { status: 404 }
+      );
     }
 
     const { data: signed, error } = await supabaseAdmin()
       .storage.from('call-recordings')
-      .createSignedUrl(objectPath.slice('call-recordings/'.length), SIGNED_URL_TTL_SECONDS);
+      .createSignedUrl(
+        objectPath.slice('call-recordings/'.length),
+        SIGNED_URL_TTL_SECONDS
+      );
 
     if (error || !signed?.signedUrl) {
-      return NextResponse.json({ error: 'Recording unavailable' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Recording unavailable' },
+        { status: 404 }
+      );
     }
     return NextResponse.redirect(signed.signedUrl);
   } catch (err) {

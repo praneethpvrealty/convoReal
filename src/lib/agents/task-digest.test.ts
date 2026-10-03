@@ -21,9 +21,9 @@ describe('normalizeSendTimes', () => {
   it('drops anything that is not a real 24-hour time', () => {
     // Dropped rather than coerced: a bad value does not mis-send, it
     // changes WHEN somebody is interrupted, and guessing is worse.
-    expect(normalizeSendTimes(['7', '25:00', '13:60', 'morning', '', null])).toEqual(
-      DEFAULT_SEND_TIMES
-    );
+    expect(
+      normalizeSendTimes(['7', '25:00', '13:60', 'morning', '', null])
+    ).toEqual(DEFAULT_SEND_TIMES);
   });
 
   it('falls back to the defaults rather than scheduling nothing', () => {
@@ -46,7 +46,10 @@ describe('resolveSchedule', () => {
       enabled: true,
       times: DEFAULT_SEND_TIMES,
     });
-    expect(resolveSchedule(null)).toEqual({ enabled: true, times: DEFAULT_SEND_TIMES });
+    expect(resolveSchedule(null)).toEqual({
+      enabled: true,
+      times: DEFAULT_SEND_TIMES,
+    });
   });
 
   it('honours an explicit opt-out', () => {
@@ -58,7 +61,9 @@ describe('resolveSchedule', () => {
   });
 
   it('honours a saved schedule', () => {
-    expect(resolveSchedule({ enabled: true, send_times: ['08:30', '18:00'] })).toEqual({
+    expect(
+      resolveSchedule({ enabled: true, send_times: ['08:30', '18:00'] })
+    ).toEqual({
       enabled: true,
       times: ['08:30', '18:00'],
     });
@@ -109,11 +114,15 @@ describe('supersededSlots', () => {
   it('claims the slots a collapsed backlog skipped', () => {
     // Without this, sending 13:00 leaves 07:00 pending and the next run
     // half an hour later delivers the morning as though it just arrived.
-    expect(supersededSlots(['07:00', '13:00', '21:00'], '13:00', [])).toEqual(['07:00']);
+    expect(supersededSlots(['07:00', '13:00', '21:00'], '13:00', [])).toEqual([
+      '07:00',
+    ]);
   });
 
   it('does not re-claim what the ledger already holds', () => {
-    expect(supersededSlots(['07:00', '13:00', '21:00'], '13:00', ['07:00'])).toEqual([]);
+    expect(
+      supersededSlots(['07:00', '13:00', '21:00'], '13:00', ['07:00'])
+    ).toEqual([]);
   });
 
   it('is empty for the first slot of the day', () => {
@@ -122,7 +131,7 @@ describe('supersededSlots', () => {
 });
 
 describe('istNow', () => {
-  it('reads the IST calendar day, not the server\'s', () => {
+  it("reads the IST calendar day, not the server's", () => {
     // 20:00 UTC is already the next day in IST (+05:30). A digest keyed
     // on the server's date would file the evening send under yesterday
     // and let the morning one repeat.
@@ -147,7 +156,13 @@ describe('formatTaskDigest', () => {
     // An agent with a clear list should hear silence three times a day,
     // not "you have 0 tasks" three times a day.
     expect(
-      formatTaskDigest({ name: 'Praneeth', slot: '07:00', overdue: [], dueToday: [], appointments: [] })
+      formatTaskDigest({
+        name: 'Praneeth',
+        slot: '07:00',
+        overdue: [],
+        dueToday: [],
+        appointments: [],
+      })
     ).toBeNull();
   });
 
@@ -157,7 +172,9 @@ describe('formatTaskDigest', () => {
       slot: '07:00',
       overdue: [task('Send the EC to Ravi')],
       dueToday: [task('List SLV JP Nagar'), task('Call Ashwath')],
-      appointments: [{ title: 'Site visit — Hoodi', start_time: '2026-08-10T05:30:00Z' }],
+      appointments: [
+        { title: 'Site visit — Hoodi', start_time: '2026-08-10T05:30:00Z' },
+      ],
     });
     expect(out).not.toBeNull();
     expect(out!.title).toBe('Your day, Praneeth');
@@ -165,18 +182,22 @@ describe('formatTaskDigest', () => {
     expect(out!.body).toContain('Due today (2)');
     expect(out!.body).toContain("Today's calendar (1)");
     expect(out!.body).toContain('Send the EC to Ravi');
-    expect(out!.body.indexOf('Overdue')).toBeLessThan(out!.body.indexOf('Due today'));
+    expect(out!.body.indexOf('Overdue')).toBeLessThan(
+      out!.body.indexOf('Due today')
+    );
   });
 
   it('reads the time of day from the slot', () => {
     const args = { overdue: [], dueToday: [task('x')], appointments: [] };
-    expect(formatTaskDigest({ ...args, slot: '07:00', name: null })!.title).toBe('Your day');
-    expect(formatTaskDigest({ ...args, slot: '13:00', name: null })!.title).toBe(
-      'Where your day stands'
-    );
-    expect(formatTaskDigest({ ...args, slot: '21:00', name: null })!.title).toBe(
-      'Still open tonight'
-    );
+    expect(
+      formatTaskDigest({ ...args, slot: '07:00', name: null })!.title
+    ).toBe('Your day');
+    expect(
+      formatTaskDigest({ ...args, slot: '13:00', name: null })!.title
+    ).toBe('Where your day stands');
+    expect(
+      formatTaskDigest({ ...args, slot: '21:00', name: null })!.title
+    ).toBe('Still open tonight');
   });
 
   it('truncates a long list instead of sending a wall', () => {
@@ -201,8 +222,16 @@ describe('formatTaskDigest', () => {
       dueToday: [],
       appointments: [],
       deadlines: [
-        { title: 'Registration scheduled', subject: 'Sidharth — Property No. 19', daysLeft: 0 },
-        { title: 'Expected close', subject: 'Yusuf Sameer — Lotus', daysLeft: -2 },
+        {
+          title: 'Registration scheduled',
+          subject: 'Sidharth — Property No. 19',
+          daysLeft: 0,
+        },
+        {
+          title: 'Expected close',
+          subject: 'Yusuf Sameer — Lotus',
+          daysLeft: -2,
+        },
       ],
     });
     expect(out).not.toBeNull();
@@ -210,7 +239,9 @@ describe('formatTaskDigest', () => {
     expect(out!.body).toContain(
       '• Registration scheduled — Sidharth — Property No. 19 · Due today'
     );
-    expect(out!.body).toContain('• Expected close — Yusuf Sameer — Lotus · Overdue by 2 days');
+    expect(out!.body).toContain(
+      '• Expected close — Yusuf Sameer — Lotus · Overdue by 2 days'
+    );
   });
 
   it('shows appointment times in IST', () => {
@@ -219,7 +250,9 @@ describe('formatTaskDigest', () => {
       slot: '07:00',
       overdue: [],
       dueToday: [],
-      appointments: [{ title: 'Registration', start_time: '2026-08-10T05:30:00Z' }],
+      appointments: [
+        { title: 'Registration', start_time: '2026-08-10T05:30:00Z' },
+      ],
     });
     expect(out!.body).toContain('11:00 am');
   });

@@ -22,7 +22,6 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const MAX_ROWS = 2000;
 
-
 type DemandAudience = 'agent' | 'owner' | 'buyer';
 
 interface DemandRow {

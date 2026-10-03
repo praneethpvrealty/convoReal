@@ -102,7 +102,7 @@ export default function JoinPage() {
   // route group, so it doesn't reach this page. We hit Supabase
   // directly the same way `/login` and `/signup` do.
   const [authedUserId, setAuthedUserId] = useState<string | null | undefined>(
-    undefined, // undefined = unknown / still loading; null = signed out
+    undefined // undefined = unknown / still loading; null = signed out
   );
   const [accepting, setAccepting] = useState(false);
   // `redeem_invitation` returns 409 when the caller's current account
@@ -172,7 +172,7 @@ export default function JoinPage() {
     try {
       const res = await fetch(
         `/api/invitations/${encodeURIComponent(token)}/redeem`,
-        { method: 'POST' },
+        { method: 'POST' }
       );
       if (!res.ok) {
         const payload = (await res.json().catch(() => ({}))) as {
@@ -186,7 +186,7 @@ export default function JoinPage() {
         if (res.status === 409) {
           setConflictMessage(
             payload.error ||
-              'You are already in another account. Sign in with a different email to join this one.',
+              'You are already in another account. Sign in with a different email to join this one.'
           );
         } else {
           toast.error(payload.error || 'Failed to accept invitation');
@@ -258,7 +258,7 @@ export default function JoinPage() {
             <>
               <Button
                 onClick={loadPeekAndAuth}
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 w-full"
               >
                 Try again
               </Button>
@@ -274,7 +274,7 @@ export default function JoinPage() {
           ) : (
             <>
               <Link href="/signup">
-                <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                <Button className="bg-primary text-primary-foreground hover:bg-primary/90 w-full">
                   Create a new account instead
                 </Button>
               </Link>
@@ -296,8 +296,8 @@ export default function JoinPage() {
   // ----- Peek OK -----
   const inviteHeader = (
     <CardHeader className="items-center text-center">
-      <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-        <UsersRound className="h-6 w-6 text-primary" />
+      <div className="bg-primary/10 mb-2 flex h-12 w-12 items-center justify-center rounded-xl">
+        <UsersRound className="text-primary h-6 w-6" />
       </div>
       <CardTitle className="text-xl text-white">
         You&apos;re invited to{' '}
@@ -306,7 +306,7 @@ export default function JoinPage() {
       <CardDescription className="text-slate-400">
         You&apos;ll join as{' '}
         <span className="inline-flex items-center gap-1 text-white">
-          <ShieldCheck className="size-3.5 text-primary" />
+          <ShieldCheck className="text-primary size-3.5" />
           {ROLE_LABEL[peek.role]}
         </span>
         . Link valid until{' '}
@@ -330,7 +330,7 @@ export default function JoinPage() {
             <Button
               onClick={handleAccept}
               disabled={accepting}
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 w-full"
             >
               {accepting ? (
                 <>
@@ -362,7 +362,7 @@ export default function JoinPage() {
             if (!open) setConflictMessage(null);
           }}
         >
-          <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-md">
+          <DialogContent className="border-slate-700 bg-slate-900 sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-white">
                 <AlertTriangle className="size-4 text-amber-400" />
@@ -376,12 +376,11 @@ export default function JoinPage() {
               <p>
                 To join{' '}
                 <span className="text-slate-300">{peek.account_name}</span>,
-                sign out and sign up again with a different email address.
-                The invite link stays valid as long as it hasn&apos;t
-                expired.
+                sign out and sign up again with a different email address. The
+                invite link stays valid as long as it hasn&apos;t expired.
               </p>
             </div>
-            <DialogFooter className="bg-slate-900 border-slate-700">
+            <DialogFooter className="border-slate-700 bg-slate-900">
               <Button
                 variant="outline"
                 onClick={() => setConflictMessage(null)}
@@ -416,7 +415,7 @@ export default function JoinPage() {
       {inviteHeader}
       <CardContent className="flex flex-col gap-2">
         <Link href={`/signup?invite=${encodeURIComponent(token!)}`}>
-          <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+          <Button className="bg-primary text-primary-foreground hover:bg-primary/90 w-full">
             Create account &amp; join
           </Button>
         </Link>

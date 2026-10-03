@@ -44,7 +44,9 @@ export function LogExternalShareDialog({
   const supabase = createClient();
   const { user, accountId, profile } = useAuth();
 
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(
+    null
+  );
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [sharingMedia, setSharingMedia] = useState(false);
@@ -67,9 +69,10 @@ export function LogExternalShareDialog({
   const generateShareMessage = useCallback(() => {
     if (!selectedProperty) return '';
 
-    const showcaseUrl = typeof window !== 'undefined'
-      ? `${window.location.origin}/?property_id=${selectedProperty.id}`
-      : `/?property_id=${selectedProperty.id}`;
+    const showcaseUrl =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/?property_id=${selectedProperty.id}`
+        : `/?property_id=${selectedProperty.id}`;
 
     const title = selectedProperty.title || 'this property';
 
@@ -92,10 +95,23 @@ export function LogExternalShareDialog({
       }
     }
 
-    const location = [selectedProperty.sublocality, selectedProperty.city, selectedProperty.state].filter(Boolean).join(', ') || selectedProperty.location || '';
+    const location =
+      [
+        selectedProperty.sublocality,
+        selectedProperty.city,
+        selectedProperty.state,
+      ]
+        .filter(Boolean)
+        .join(', ') ||
+      selectedProperty.location ||
+      '';
     const type = selectedProperty.type || '';
-    const beds = selectedProperty.bedrooms ? `${selectedProperty.bedrooms} BHK` : '';
-    const area = selectedProperty.area_sqft ? `${selectedProperty.area_sqft} ${selectedProperty.area_unit || 'Sq.Ft.'}` : '';
+    const beds = selectedProperty.bedrooms
+      ? `${selectedProperty.bedrooms} BHK`
+      : '';
+    const area = selectedProperty.area_sqft
+      ? `${selectedProperty.area_sqft} ${selectedProperty.area_unit || 'Sq.Ft.'}`
+      : '';
     const agentName = profile?.full_name || '';
     const agentPhone = profile?.phone || '';
     const signOff = agentName ? `Best regards, ${agentName}` : 'Best regards';
@@ -121,11 +137,12 @@ export function LogExternalShareDialog({
         ? `${selectedProperty.property_code ? `[${selectedProperty.property_code}] ` : ''}${selectedProperty.title}`
         : null;
 
-      const methodLabel = shareMethod === 'device'
-        ? '📱 Shared via device sharing (with image)'
-        : shareMethod === 'whatsapp'
-        ? '📱 Shared via personal WhatsApp'
-        : '📱 Shared via external channel';
+      const methodLabel =
+        shareMethod === 'device'
+          ? '📱 Shared via device sharing (with image)'
+          : shareMethod === 'whatsapp'
+            ? '📱 Shared via personal WhatsApp'
+            : '📱 Shared via external channel';
 
       const noteLines = [
         methodLabel,
@@ -145,18 +162,18 @@ export function LogExternalShareDialog({
           // eslint-disable-next-line convoreal/supabase-write-guard
           .update({ last_contacted_at: now })
           .eq('id', contactId),
-        supabase
-          .from('contact_notes')
-          .insert({
-            contact_id: contactId,
-            user_id: user.id,
-            account_id: accountId,
-            note_text: noteLines,
-          }),
+        supabase.from('contact_notes').insert({
+          contact_id: contactId,
+          user_id: user.id,
+          account_id: accountId,
+          note_text: noteLines,
+        }),
       ]);
 
       const contactErr =
-        contactRes.status === 'fulfilled' ? contactRes.value.error : contactRes.reason;
+        contactRes.status === 'fulfilled'
+          ? contactRes.value.error
+          : contactRes.reason;
       const noteErr =
         noteRes.status === 'fulfilled' ? noteRes.value.error : noteRes.reason;
 
@@ -178,9 +195,7 @@ export function LogExternalShareDialog({
         });
       }
 
-      toast.success(
-        `Logged external share for ${contactName || contactPhone}`,
-      );
+      toast.success(`Logged external share for ${contactName || contactPhone}`);
       onOpenChange(false);
       if (onSaved) onSaved();
     } catch (err) {
@@ -217,8 +232,14 @@ export function LogExternalShareDialog({
       };
 
       // Try to attach the property thumbnail image if available
-      const imageUrl = storagePublicUrl(selectedProperty.images?.find((img) => img.trim().length > 0));
-      if (imageUrl && typeof navigator !== 'undefined' && 'canShare' in navigator) {
+      const imageUrl = storagePublicUrl(
+        selectedProperty.images?.find((img) => img.trim().length > 0)
+      );
+      if (
+        imageUrl &&
+        typeof navigator !== 'undefined' &&
+        'canShare' in navigator
+      ) {
         try {
           const response = await fetch(imageUrl);
           const blob = await response.blob();
@@ -227,7 +248,9 @@ export function LogExternalShareDialog({
             .trim()
             .replace(/\s+/g, '_')
             .slice(0, 50);
-          const file = new File([blob], `${sanitizedTitle || 'property'}.jpg`, { type: blob.type || 'image/jpeg' });
+          const file = new File([blob], `${sanitizedTitle || 'property'}.jpg`, {
+            type: blob.type || 'image/jpeg',
+          });
           if (navigator.canShare({ files: [file] })) {
             shareData.files = [file];
           }
@@ -256,15 +279,17 @@ export function LogExternalShareDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-white sm:max-w-md">
-        <DialogHeader className="border-b border-slate-800 pb-3 mb-1">
-          <DialogTitle className="text-white flex items-center gap-2 text-base font-black tracking-tight">
-            <Share2 className="size-4 text-primary" />
+      <DialogContent className="border-slate-700 bg-slate-900 text-white sm:max-w-md">
+        <DialogHeader className="mb-1 border-b border-slate-800 pb-3">
+          <DialogTitle className="flex items-center gap-2 text-base font-black tracking-tight text-white">
+            <Share2 className="text-primary size-4" />
             Share Property Listing
           </DialogTitle>
-          <DialogDescription className="text-slate-400 text-xs">
+          <DialogDescription className="text-xs text-slate-400">
             Record that you shared a property with{' '}
-            <span className="text-white font-semibold">{contactName || contactPhone}</span>{' '}
+            <span className="font-semibold text-white">
+              {contactName || contactPhone}
+            </span>{' '}
             outside the Engine (e.g. personal WhatsApp, SMS, in-person).
           </DialogDescription>
         </DialogHeader>
@@ -272,8 +297,9 @@ export function LogExternalShareDialog({
         <div className="space-y-4 py-2">
           {/* Property Picker */}
           <div className="space-y-1.5">
-            <Label className="text-slate-300 text-xs font-semibold">
-              Property shared <span className="text-slate-500 font-normal">(optional)</span>
+            <Label className="text-xs font-semibold text-slate-300">
+              Property shared{' '}
+              <span className="font-normal text-slate-500">(optional)</span>
             </Label>
             <SearchablePropertySelect
               properties={properties}
@@ -282,14 +308,20 @@ export function LogExternalShareDialog({
               placeholder="Search & pick a property..."
             />
             {selectedProperty && (
-              <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2.5 flex items-center gap-2 text-xs animate-in fade-in duration-200">
+              <div className="animate-in fade-in flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/60 p-2.5 text-xs duration-200">
                 <span className="text-slate-400">🏠</span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-white font-semibold truncate">{selectedProperty.title}</p>
+                  <p className="truncate font-semibold text-white">
+                    {selectedProperty.title}
+                  </p>
                   {selectedProperty.location && (
-                    <p className="text-slate-400 truncate text-[10px] mt-0.5">
-                      📍 {selectedProperty.sublocality || selectedProperty.location}
-                      {selectedProperty.price ? ` · ₹${Number(selectedProperty.price) >= 10000000 ? `${(Number(selectedProperty.price) / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` : Number(selectedProperty.price) >= 100000 ? `${(Number(selectedProperty.price) / 100000).toFixed(2).replace(/\.00$/, '')} L` : Number(selectedProperty.price).toLocaleString('en-IN')}` : ''}
+                    <p className="mt-0.5 truncate text-[10px] text-slate-400">
+                      📍{' '}
+                      {selectedProperty.sublocality ||
+                        selectedProperty.location}
+                      {selectedProperty.price
+                        ? ` · ₹${Number(selectedProperty.price) >= 10000000 ? `${(Number(selectedProperty.price) / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` : Number(selectedProperty.price) >= 100000 ? `${(Number(selectedProperty.price) / 100000).toFixed(2).replace(/\.00$/, '')} L` : Number(selectedProperty.price).toLocaleString('en-IN')}`
+                        : ''}
                     </p>
                   )}
                 </div>
@@ -299,28 +331,36 @@ export function LogExternalShareDialog({
 
           {/* Optional Note */}
           <div className="space-y-1.5">
-            <Label className="text-slate-300 text-xs font-semibold">
-              Note <span className="text-slate-500 font-normal">(optional)</span>
+            <Label className="text-xs font-semibold text-slate-300">
+              Note{' '}
+              <span className="font-normal text-slate-500">(optional)</span>
             </Label>
             <Textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="e.g. Sent photos on WhatsApp, client seemed interested..."
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[70px] text-xs resize-none"
+              className="min-h-[70px] resize-none border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
             />
           </div>
 
           {/* Preview of what will be logged */}
-          <div className="bg-slate-950/40 border border-slate-800 rounded-lg p-3 space-y-1">
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">What will be logged</p>
-            <ul className="text-xs text-slate-400 space-y-0.5">
+          <div className="space-y-1 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+            <p className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+              What will be logged
+            </p>
+            <ul className="space-y-0.5 text-xs text-slate-400">
               <li className="flex items-center gap-1.5">
-                <span className="size-1 rounded-full bg-emerald-400 shrink-0" />
-                <span>Mark as <span className="text-emerald-400 font-semibold">contacted now</span></span>
+                <span className="size-1 shrink-0 rounded-full bg-emerald-400" />
+                <span>
+                  Mark as{' '}
+                  <span className="font-semibold text-emerald-400">
+                    contacted now
+                  </span>
+                </span>
               </li>
               {selectedProperty && (
                 <li className="flex items-center gap-1.5">
-                  <span className="size-1 rounded-full bg-primary shrink-0" />
+                  <span className="bg-primary size-1 shrink-0 rounded-full" />
                   <span>
                     Link property{' '}
                     <span className="text-primary font-semibold">
@@ -330,9 +370,10 @@ export function LogExternalShareDialog({
                 </li>
               )}
               <li className="flex items-center gap-1.5">
-                <span className="size-1 rounded-full bg-amber-400 shrink-0" />
+                <span className="size-1 shrink-0 rounded-full bg-amber-400" />
                 <span>
-                  Add note: <span className="text-white font-medium">
+                  Add note:{' '}
+                  <span className="font-medium text-white">
                     {selectedProperty
                       ? '"Shared via device sharing / WhatsApp"'
                       : '"Shared via personal WhatsApp"'}
@@ -344,12 +385,12 @@ export function LogExternalShareDialog({
         </div>
 
         {/* Actions */}
-        <div className="flex flex-col gap-2 pt-2 border-t border-slate-800">
+        <div className="flex flex-col gap-2 border-t border-slate-800 pt-2">
           {selectedProperty && (
             <Button
               onClick={handleNativeShareAndLog}
               disabled={saving || sharingMedia}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-9 rounded-xl flex items-center justify-center gap-1.5"
+              className="flex h-9 w-full items-center justify-center gap-1.5 rounded-xl bg-blue-600 text-xs font-bold text-white hover:bg-blue-700"
             >
               {sharingMedia ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -363,20 +404,22 @@ export function LogExternalShareDialog({
             <Button
               onClick={handleOpenAndLog}
               disabled={saving || sharingMedia}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 rounded-xl flex items-center justify-center gap-1.5"
+              className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
             >
               {saving && !sharingMedia ? (
                 <Loader2 className="size-3.5 animate-spin" />
               ) : (
                 <ExternalLink className="size-3.5" />
               )}
-              {selectedProperty ? 'WhatsApp &amp; Log' : 'Open WhatsApp &amp; Log'}
+              {selectedProperty
+                ? 'WhatsApp &amp; Log'
+                : 'Open WhatsApp &amp; Log'}
             </Button>
             <Button
               onClick={() => handleSubmit()}
               disabled={saving || sharingMedia}
               variant="outline"
-              className="flex-1 border-slate-700 text-white hover:bg-slate-800 font-bold text-xs h-9 rounded-xl flex items-center justify-center gap-1.5"
+              className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border-slate-700 text-xs font-bold text-white hover:bg-slate-800"
             >
               {saving ? (
                 <Loader2 className="size-3.5 animate-spin" />

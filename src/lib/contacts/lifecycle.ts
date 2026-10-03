@@ -21,10 +21,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  */
 
 export type DeadReason =
-  | 'closed_enquiry'
-  | 'stop_alerts'
-  | 'manual'
-  | 'bulk_cleanup';
+  'closed_enquiry' | 'stop_alerts' | 'manual' | 'bulk_cleanup';
 
 /** Thrown by the dispatcher when an automated send targets a dead contact. */
 export const DEAD_CONTACT_BLOCKED_MESSAGE =

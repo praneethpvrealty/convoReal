@@ -4,13 +4,22 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ListChecks, Loader2, Plus, X } from 'lucide-react';
-import { DEFAULT_SEND_TIMES, normalizeSendTimes } from '@/lib/agents/task-digest';
+import {
+  DEFAULT_SEND_TIMES,
+  normalizeSendTimes,
+} from '@/lib/agents/task-digest';
 
 /**
  * Settings card for the Agent Task Digest — the agent's own overdue
@@ -64,16 +73,18 @@ export function AgentTaskDigestCard() {
     const cleaned = normalizeSendTimes(nextTimes);
     setSaving(true);
     try {
-      const { error } = await supabase.from('agent_task_digest_settings').upsert(
-        {
-          account_id: accountId,
-          user_id: user.id,
-          enabled: nextEnabled,
-          send_times: cleaned,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'account_id,user_id' }
-      );
+      const { error } = await supabase
+        .from('agent_task_digest_settings')
+        .upsert(
+          {
+            account_id: accountId,
+            user_id: user.id,
+            enabled: nextEnabled,
+            send_times: cleaned,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'account_id,user_id' }
+        );
       if (error) throw error;
       setTimes(cleaned);
       toast.success(
@@ -108,22 +119,22 @@ export function AgentTaskDigestCard() {
   };
 
   return (
-    <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+    <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
       <CardHeader>
         <div className="flex items-center gap-2">
-          <ListChecks className="size-4 text-primary" />
+          <ListChecks className="text-primary size-4" />
           <CardTitle className="text-white">Task Digest</CardTitle>
         </div>
         <CardDescription className="text-slate-400">
-          Your overdue tasks, today&apos;s tasks and today&apos;s calendar, sent to you at
-          the times you choose. On by default at 7am, 1pm and 9pm IST — change the times
-          here, or switch it off. This schedule is yours alone; it does not change anyone
-          else&apos;s.
+          Your overdue tasks, today&apos;s tasks and today&apos;s calendar, sent
+          to you at the times you choose. On by default at 7am, 1pm and 9pm IST
+          — change the times here, or switch it off. This schedule is yours
+          alone; it does not change anyone else&apos;s.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {loading ? (
-          <div className="flex items-center gap-2 text-slate-400 text-sm">
+          <div className="flex items-center gap-2 text-sm text-slate-400">
             <Loader2 className="size-4 animate-spin" /> Loading…
           </div>
         ) : (
@@ -157,7 +168,7 @@ export function AgentTaskDigestCard() {
                       disabled={saving || !enabled}
                       onChange={(e) => updateTime(i, e.target.value)}
                       onBlur={() => save(enabled, times)}
-                      className="w-32 bg-slate-800 border-slate-700 text-white"
+                      className="w-32 border-slate-700 bg-slate-800 text-white"
                     />
                     {times.length > 1 && (
                       <Button
@@ -182,13 +193,14 @@ export function AgentTaskDigestCard() {
                     onClick={addTime}
                     className="border-slate-700 text-slate-300"
                   >
-                    <Plus className="size-4 mr-1" /> Add a time
+                    <Plus className="mr-1 size-4" /> Add a time
                   </Button>
                 )}
               </div>
               <p className="text-xs text-slate-500">
-                Checked every half hour, so a time is delivered on or just after the
-                half-hour it falls in. Nothing is sent when you have no open work.
+                Checked every half hour, so a time is delivered on or just after
+                the half-hour it falls in. Nothing is sent when you have no open
+                work.
               </p>
             </div>
           </>

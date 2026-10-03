@@ -48,14 +48,14 @@ Meta Webhooks ──→ Go Ingress (port 8080) ──→ Redis Queue ──→ N
                                               + Storage)
 ```
 
-| Layer | Technology | Role |
-|---|---|---|
+| Layer               | Technology                     | Role                                                             |
+| ------------------- | ------------------------------ | ---------------------------------------------------------------- |
 | **Webhook ingress** | Go 1.24 (`go-ingress/main.go`) | HMAC-SHA256 verification, Redis fan-out, Dockerized (7MB binary) |
-| **Queue** | Redis | Webhook buffer, dead-letter queue recovery |
-| **App server** | Next.js 16 (App Router) | SSR pages, REST API, business logic |
-| **Database** | Supabase (PostgreSQL + RLS) | Multi-tenant data, auth, storage, realtime |
-| **AI** | Google Gemini 2.5 / Imagen 4.0 | Property descriptions, image generation, chatbot |
-| **Messaging** | Meta WhatsApp Cloud API v21 | Send/receive messages, templates, media |
+| **Queue**           | Redis                          | Webhook buffer, dead-letter queue recovery                       |
+| **App server**      | Next.js 16 (App Router)        | SSR pages, REST API, business logic                              |
+| **Database**        | Supabase (PostgreSQL + RLS)    | Multi-tenant data, auth, storage, realtime                       |
+| **AI**              | Google Gemini 2.5 / Imagen 4.0 | Property descriptions, image generation, chatbot                 |
+| **Messaging**       | Meta WhatsApp Cloud API v21    | Send/receive messages, templates, media                          |
 
 ---
 
@@ -73,13 +73,13 @@ Open http://localhost:3000. You'll be redirected to `/login`.
 
 ### Required environment variables
 
-| Variable | Purpose |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-side admin access |
-| `ENCRYPTION_KEY` | 64-char hex for AES-256-GCM token encryption |
-| `META_APP_SECRET` | WhatsApp webhook HMAC verification |
+| Variable                        | Purpose                                      |
+| ------------------------------- | -------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase project URL                         |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key                       |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Server-side admin access                     |
+| `ENCRYPTION_KEY`                | 64-char hex for AES-256-GCM token encryption |
+| `META_APP_SECRET`               | WhatsApp webhook HMAC verification           |
 
 ### Supabase migrations
 
@@ -133,6 +133,7 @@ docs/                         # Deployment guides, architecture docs
 ### Property showcase
 
 A branded public portal at the root URL (`/`) with:
+
 - Category filters (Residential, Commercial, Land), bedroom/price/sort controls
 - Property detail modal with image gallery, specs, map, nearby highlights
 - WhatsApp click-to-chat inquiries with auto-generated messages
@@ -144,6 +145,7 @@ A branded public portal at the root URL (`/`) with:
 ### Email lead sync (MagicBricks, Housing.com, 99acres)
 
 Incoming portal emails are parsed by portal-specific extractors that:
+
 - Extract name, phone, email, requirement
 - Match property details against published inventory (scored matching)
 - Auto-create contacts with source tracking and automatic tagging
@@ -153,6 +155,7 @@ Incoming portal emails are parsed by portal-specific extractors that:
 ### WhatsApp update sessions
 
 Contacts can update Engine data directly from WhatsApp:
+
 - "update property PROP-1018" → guided field-by-field property editing
 - "update contact" → guided field-by-field contact editing
 - Supports "cancel" to abort, "all" for full wizard, field-specific commands
@@ -161,6 +164,7 @@ Contacts can update Engine data directly from WhatsApp:
 ### Go webhook ingress
 
 A standalone Go service that sits in front of the Node.js application:
+
 - Verifies HMAC-SHA256 signatures with constant-time comparison
 - Enqueues verified payloads to Redis and returns HTTP 200 instantly
 - Proxies verification challenges to Next.js for DB-backed token matching
@@ -170,13 +174,13 @@ A standalone Go service that sits in front of the Node.js application:
 
 ## Deployment
 
-| Service | Where | How |
-|---|---|---|
-| **Web app** | Vercel, Railway, or any Node.js host | `npm run build && npm start` |
-| **Go ingress** | Railway / Docker host | `docker run -p 8080:8080 go-ingress` |
-| **Queue worker** | Railway / background container | `npx tsx src/scripts/queue-worker.ts` |
-| **Database** | Supabase (managed Postgres) | Run migrations in SQL Editor |
-| **Redis** | Upstash / Redis Labs / self-hosted | Set `REDIS_URL` env var |
+| Service          | Where                                | How                                   |
+| ---------------- | ------------------------------------ | ------------------------------------- |
+| **Web app**      | Vercel, Railway, or any Node.js host | `npm run build && npm start`          |
+| **Go ingress**   | Railway / Docker host                | `docker run -p 8080:8080 go-ingress`  |
+| **Queue worker** | Railway / background container       | `npx tsx src/scripts/queue-worker.ts` |
+| **Database**     | Supabase (managed Postgres)          | Run migrations in SQL Editor          |
+| **Redis**        | Upstash / Redis Labs / self-hosted   | Set `REDIS_URL` env var               |
 
 ---
 

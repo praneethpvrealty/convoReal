@@ -18,12 +18,16 @@
  * lookup volume, but not for bulk/high-volume use.
  */
 
-import { geocodeAddress, hasGoogleMapsKey, reverseGeocode } from "@/lib/maps/google-places";
+import {
+  geocodeAddress,
+  hasGoogleMapsKey,
+  reverseGeocode,
+} from '@/lib/maps/google-places';
 import {
   extractCoordinatesFromMapUrl,
   extractPlaceNameFromMapUrl,
   type Coordinates,
-} from "@/lib/maps/map-links";
+} from '@/lib/maps/map-links';
 
 // Re-exported so callers have one maps entry point; the parsing lives
 // in map-links.ts because the property form imports it in the browser.
@@ -34,10 +38,10 @@ export {
   googleMapsUrlForCoordinates,
   parseCoordinatePair,
   type Coordinates,
-} from "@/lib/maps/map-links";
+} from '@/lib/maps/map-links';
 
 const FETCH_TIMEOUT_MS = 5000;
-const NOMINATIM_USER_AGENT = "ConvoReal/1.0 (WhatsApp property listing intake)";
+const NOMINATIM_USER_AGENT = 'ConvoReal/1.0 (WhatsApp property listing intake)';
 
 export interface ResolvedMapLocation {
   /** Human-readable address line for the draft's `location` field. */
@@ -49,7 +53,10 @@ export interface ResolvedMapLocation {
   longitude: number | null;
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {}
+): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -64,9 +71,10 @@ function composeLocation(
   city: string | null,
   formattedAddress: string | null
 ): string | null {
-  const compact = [sublocality, city].filter(Boolean).join(", ");
+  const compact = [sublocality, city].filter(Boolean).join(', ');
   if (compact) return compact;
-  if (formattedAddress) return formattedAddress.replace(/,?\s*India$/i, "").trim() || null;
+  if (formattedAddress)
+    return formattedAddress.replace(/,?\s*India$/i, '').trim() || null;
   return null;
 }
 
@@ -76,7 +84,7 @@ async function reverseGeocodeWithNominatim(
 ): Promise<ResolvedMapLocation | null> {
   const res = await fetchWithTimeout(
     `https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&zoom=16&lat=${latitude}&lon=${longitude}`,
-    { headers: { "User-Agent": NOMINATIM_USER_AGENT } }
+    { headers: { 'User-Agent': NOMINATIM_USER_AGENT } }
   );
   if (!res.ok) return null;
 
@@ -86,8 +94,13 @@ async function reverseGeocodeWithNominatim(
   };
   const address = geo.address || {};
   const sublocality =
-    address.suburb || address.neighbourhood || address.city_district || address.residential || null;
-  const city = address.city || address.town || address.village || address.county || null;
+    address.suburb ||
+    address.neighbourhood ||
+    address.city_district ||
+    address.residential ||
+    null;
+  const city =
+    address.city || address.town || address.village || address.county || null;
   const state = address.state || null;
   const location = composeLocation(sublocality, city, geo.display_name || null);
   if (!location) return null;
@@ -107,7 +120,11 @@ export async function resolveLocationFromCoordinates(
     if (hasGoogleMapsKey()) {
       const place = await reverseGeocode(latitude, longitude);
       const location = place
-        ? composeLocation(place.sublocality, place.city, place.formatted_address)
+        ? composeLocation(
+            place.sublocality,
+            place.city,
+            place.formatted_address
+          )
         : null;
       if (place && location) {
         return {
@@ -122,7 +139,7 @@ export async function resolveLocationFromCoordinates(
     }
     return await reverseGeocodeWithNominatim(latitude, longitude);
   } catch (err) {
-    console.error("[maps] resolveLocationFromCoordinates failed:", err);
+    console.error('[maps] resolveLocationFromCoordinates failed:', err);
     return null;
   }
 }
@@ -149,7 +166,7 @@ export async function resolveCoordinatesFromMapLink(
   try {
     let placeName = extractPlaceNameFromMapUrl(url);
     if (!placeName) {
-      const res = await fetchWithTimeout(url, { redirect: "follow" });
+      const res = await fetchWithTimeout(url, { redirect: 'follow' });
       const resolvedUrl = res.url || url;
       const pinned = extractCoordinatesFromMapUrl(resolvedUrl);
       if (pinned) return pinned;
@@ -161,7 +178,7 @@ export async function resolveCoordinatesFromMapLink(
       ? { latitude: geocoded.latitude, longitude: geocoded.longitude }
       : null;
   } catch (err) {
-    console.error("[maps] resolveCoordinatesFromMapLink failed:", err);
+    console.error('[maps] resolveCoordinatesFromMapLink failed:', err);
     return null;
   }
 }
@@ -178,8 +195,11 @@ export async function resolveLocationFromGoogleMapLink(
   try {
     // Skip the redirect hop when the link already carries what we need.
     let resolvedUrl = url;
-    if (!extractCoordinatesFromMapUrl(url) && !extractPlaceNameFromMapUrl(url)) {
-      const res = await fetchWithTimeout(url, { redirect: "follow" });
+    if (
+      !extractCoordinatesFromMapUrl(url) &&
+      !extractPlaceNameFromMapUrl(url)
+    ) {
+      const res = await fetchWithTimeout(url, { redirect: 'follow' });
       resolvedUrl = res.url || url;
     }
 
@@ -203,7 +223,9 @@ export async function resolveLocationFromGoogleMapLink(
 
     if (geo) {
       const named =
-        placeName && geo.city && !placeName.toLowerCase().includes(geo.city.toLowerCase())
+        placeName &&
+        geo.city &&
+        !placeName.toLowerCase().includes(geo.city.toLowerCase())
           ? `${placeName}, ${geo.city}`
           : placeName;
       return { ...geo, location: named || geo.location };
@@ -222,7 +244,7 @@ export async function resolveLocationFromGoogleMapLink(
 
     return null;
   } catch (err) {
-    console.error("[maps] resolveLocationFromGoogleMapLink failed:", err);
+    console.error('[maps] resolveLocationFromGoogleMapLink failed:', err);
     return null;
   }
 }

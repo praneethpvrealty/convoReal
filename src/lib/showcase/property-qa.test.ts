@@ -46,7 +46,12 @@ describe('answerFromPropertyData — structured answers', () => {
   });
 
   it('answers rent (with maintenance) for a rent listing', () => {
-    const prop = makeProp({ listing_type: 'Rent', price: 0, rent_per_month: 35000, maintenance: 2000 });
+    const prop = makeProp({
+      listing_type: 'Rent',
+      price: 0,
+      rent_per_month: 35000,
+      maintenance: 2000,
+    });
     const r = answerFromPropertyData('what is the rent?', prop);
     expect(r.intent).toBe('price');
     expect(r.answer).toContain('The monthly rent is ₹35,000.');
@@ -54,12 +59,18 @@ describe('answerFromPropertyData — structured answers', () => {
   });
 
   it('answers bedroom count', () => {
-    expect(answerFromPropertyData('how many bedrooms?', makeProp()).answer).toBe("It's a 3 BHK.");
+    expect(
+      answerFromPropertyData('how many bedrooms?', makeProp()).answer
+    ).toBe("It's a 3 BHK.");
   });
 
   it('answers bathroom count with pluralization', () => {
-    expect(answerFromPropertyData('bathrooms?', makeProp()).answer).toBe('It has 2 bathrooms.');
-    expect(answerFromPropertyData('bathroom?', makeProp({ bathrooms: 1 })).answer).toBe('It has 1 bathroom.');
+    expect(answerFromPropertyData('bathrooms?', makeProp()).answer).toBe(
+      'It has 2 bathrooms.'
+    );
+    expect(
+      answerFromPropertyData('bathroom?', makeProp({ bathrooms: 1 })).answer
+    ).toBe('It has 1 bathroom.');
   });
 
   it('answers area/size', () => {
@@ -69,25 +80,41 @@ describe('answerFromPropertyData — structured answers', () => {
   });
 
   it('answers location and de-dupes repeated place names', () => {
-    const r = answerFromPropertyData('where is it located?', makeProp({ location: 'Bengaluru', sublocality: 'HSR', city: 'Bengaluru', state: undefined }));
+    const r = answerFromPropertyData(
+      'where is it located?',
+      makeProp({
+        location: 'Bengaluru',
+        sublocality: 'HSR',
+        city: 'Bengaluru',
+        state: undefined,
+      })
+    );
     expect(r.intent).toBe('location');
     expect(r.answer).toBe("It's located in Bengaluru, HSR.");
   });
 
   it('answers amenities', () => {
-    expect(answerFromPropertyData('what amenities does it have?', makeProp()).answer).toContain('Gym, Swimming Pool, Covered Parking');
+    expect(
+      answerFromPropertyData('what amenities does it have?', makeProp()).answer
+    ).toContain('Gym, Swimming Pool, Covered Parking');
   });
 
   it('answers facing direction', () => {
-    expect(answerFromPropertyData('which direction does it face?', makeProp()).answer).toBe('It faces East.');
+    expect(
+      answerFromPropertyData('which direction does it face?', makeProp()).answer
+    ).toBe('It faces East.');
   });
 
   it('answers nearby highlights', () => {
-    expect(answerFromPropertyData('what is nearby?', makeProp()).answer).toContain('Metro 500m, DPS School 1km');
+    expect(
+      answerFromPropertyData('what is nearby?', makeProp()).answer
+    ).toContain('Metro 500m, DPS School 1km');
   });
 
   it('answers property type + sale/rent', () => {
-    expect(answerFromPropertyData('what type of property is it?', makeProp()).answer).toBe('This is a Flat/ Apartment listed for sale.');
+    expect(
+      answerFromPropertyData('what type of property is it?', makeProp()).answer
+    ).toBe('This is a Flat/ Apartment listed for sale.');
   });
 
   it('prioritizes ROI intent over price for "rental income"', () => {
@@ -101,22 +128,32 @@ describe('answerFromPropertyData — structured answers', () => {
 
 describe('answerFromPropertyData — escalation to AI (null answer)', () => {
   it('returns null for an unmatched open-ended question', () => {
-    expect(answerFromPropertyData('is the price negotiable?', makeProp())).toEqual({ answer: null, intent: null });
+    expect(
+      answerFromPropertyData('is the price negotiable?', makeProp())
+    ).toEqual({ answer: null, intent: null });
   });
 
   it('returns null for a question we have no field for (floor)', () => {
-    expect(answerFromPropertyData('which floor is it on?', makeProp())).toEqual({ answer: null, intent: null });
+    expect(answerFromPropertyData('which floor is it on?', makeProp())).toEqual(
+      { answer: null, intent: null }
+    );
   });
 
   it('escalates when the matched intent has no data (bedrooms on a plot)', () => {
-    const plot = makeProp({ type: 'Residential Land/ Plot', bedrooms: undefined });
+    const plot = makeProp({
+      type: 'Residential Land/ Plot',
+      bedrooms: undefined,
+    });
     const r = answerFromPropertyData('how many bedrooms?', plot);
     expect(r.intent).toBe('bedrooms');
     expect(r.answer).toBeNull();
   });
 
   it('returns null for an empty question', () => {
-    expect(answerFromPropertyData('   ', makeProp())).toEqual({ answer: null, intent: null });
+    expect(answerFromPropertyData('   ', makeProp())).toEqual({
+      answer: null,
+      intent: null,
+    });
   });
 });
 
@@ -132,7 +169,9 @@ describe('buildPropertyContext', () => {
   });
 
   it('shows rent fields (not price) for a rental listing', () => {
-    const ctx = buildPropertyContext(makeProp({ listing_type: 'Rent', price: 0, rent_per_month: 35000 }));
+    const ctx = buildPropertyContext(
+      makeProp({ listing_type: 'Rent', price: 0, rent_per_month: 35000 })
+    );
     expect(ctx).toContain('Rent (per month): ₹35,000');
     expect(ctx).not.toContain('Price:');
   });

@@ -93,10 +93,13 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
     async function getWallet(): Promise<WalletRow> {
       const { data, error } = await supabase
         .from('credit_wallets')
-        .select('monthly_credits, bonus_credits, referral_credits, purchased_credits, promo_credits, total_credits')
+        .select(
+          'monthly_credits, bonus_credits, referral_credits, purchased_credits, promo_credits, total_credits'
+        )
         .eq('account_id', accountId)
         .single();
-      if (error || !data) throw new Error(`wallet fetch failed: ${error?.message}`);
+      if (error || !data)
+        throw new Error(`wallet fetch failed: ${error?.message}`);
       return data as WalletRow;
     }
 
@@ -119,8 +122,15 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
       const current = await getWallet();
       const next: WalletRow = { ...current, ...partial };
       next.total_credits =
-        next.monthly_credits + next.bonus_credits + next.referral_credits + next.purchased_credits + next.promo_credits;
-      const { error } = await supabase.from('credit_wallets').update(next).eq('account_id', accountId);
+        next.monthly_credits +
+        next.bonus_credits +
+        next.referral_credits +
+        next.purchased_credits +
+        next.promo_credits;
+      const { error } = await supabase
+        .from('credit_wallets')
+        .update(next)
+        .eq('account_id', accountId);
       if (error) throw new Error(`wallet seed failed: ${error.message}`);
     }
 
@@ -134,14 +144,17 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
       // has something real to point at.
       const stamp = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const email = `convoreal-integration-test-${stamp}@convoreal-test.invalid`;
-      const { data: created, error: createErr } = await supabase.auth.admin.createUser({
-        email,
-        password: crypto.randomUUID(),
-        email_confirm: true,
-        user_metadata: { full_name: 'Integration Test Throwaway' },
-      });
+      const { data: created, error: createErr } =
+        await supabase.auth.admin.createUser({
+          email,
+          password: crypto.randomUUID(),
+          email_confirm: true,
+          user_metadata: { full_name: 'Integration Test Throwaway' },
+        });
       if (createErr || !created.user) {
-        throw new Error(`failed to create throwaway auth user: ${createErr?.message}`);
+        throw new Error(
+          `failed to create throwaway auth user: ${createErr?.message}`
+        );
       }
       userId = created.user.id;
 
@@ -166,7 +179,9 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
           .select('id')
           .single();
         if (acctErr || !account) {
-          throw new Error(`failed to create throwaway account: ${acctErr?.message}`);
+          throw new Error(
+            `failed to create throwaway account: ${acctErr?.message}`
+          );
         }
         accountId = account.id as string;
       }
@@ -180,7 +195,10 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
       if (!accountId) return;
       // Wipe the ledger and zero every bucket so each test starts from
       // a clean, known balance regardless of what the previous test did.
-      await supabase.from('credit_transactions').delete().eq('account_id', accountId);
+      await supabase
+        .from('credit_transactions')
+        .delete()
+        .eq('account_id', accountId);
       await supabase
         .from('credit_wallets')
         .update({
@@ -198,8 +216,14 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
       if (!supabase) return;
       try {
         if (accountId) {
-          await supabase.from('credit_transactions').delete().eq('account_id', accountId);
-          await supabase.from('credit_wallets').delete().eq('account_id', accountId);
+          await supabase
+            .from('credit_transactions')
+            .delete()
+            .eq('account_id', accountId);
+          await supabase
+            .from('credit_wallets')
+            .delete()
+            .eq('account_id', accountId);
           // accounts.owner_user_id -> auth.users is ON DELETE RESTRICT,
           // so the account must be deleted before the auth user.
           await supabase.from('accounts').delete().eq('id', accountId);
@@ -234,7 +258,11 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
         expect(after.total_credits).toBe(before.total_credits + N);
         // CHECK (total_credits = sum of buckets) must still hold.
         expect(after.total_credits).toBe(
-          after.monthly_credits + after.bonus_credits + after.referral_credits + after.purchased_credits + after.promo_credits,
+          after.monthly_credits +
+            after.bonus_credits +
+            after.referral_credits +
+            after.purchased_credits +
+            after.promo_credits
         );
 
         const ledger = await getLedger();
@@ -377,5 +405,5 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
         expect(after.total_credits).toBeGreaterThanOrEqual(0); // never blew past zero
       });
     });
-  },
+  }
 );

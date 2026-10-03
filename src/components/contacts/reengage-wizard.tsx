@@ -159,7 +159,10 @@ export function ReengageWizard({
       '1': { type: 'field', value: 'name' },
     };
     if (enquiryFollowupParamCount(followupName) === 2) {
-      vars['2'] = { type: 'static', value: account?.name?.trim() || BRANDING.name };
+      vars['2'] = {
+        type: 'static',
+        value: account?.name?.trim() || BRANDING.name,
+      };
     }
     return vars;
   };
@@ -185,12 +188,14 @@ export function ReengageWizard({
       // account that has a perfectly good one.
       setTemplate(
         pickEnquiryFollowupTemplate(
-          rows.filter((r): r is TemplateRow & { name: string } => Boolean(r.name)),
+          rows.filter((r): r is TemplateRow & { name: string } =>
+            Boolean(r.name)
+          )
         ) ??
           rows.find((r) =>
-            ENQUIRY_FOLLOWUP_TEMPLATE_NAMES.includes(r.name ?? ''),
+            ENQUIRY_FOLLOWUP_TEMPLATE_NAMES.includes(r.name ?? '')
           ) ??
-          null,
+          null
       );
       // The property-anchored template is optional: without it the
       // batch still goes out on the generic notice.
@@ -200,7 +205,7 @@ export function ReengageWizard({
       // Same chain treatment: the signed revision may be under review
       // while its predecessor is approved and sending.
       const anchored = rows.filter(
-        (r) => r.name && ENQUIRY_NOTICE_TEMPLATE_NAMES.includes(r.name),
+        (r) => r.name && ENQUIRY_NOTICE_TEMPLATE_NAMES.includes(r.name)
       );
       const anchoredPick = anchored.find((r) => canSendToEveryLead(r)) ?? null;
       setAnchoredName(anchoredPick?.name ?? null);

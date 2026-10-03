@@ -17,10 +17,7 @@
 // ============================================================
 
 export type PartySuggestionReason =
-  | 'same_property'
-  | 'same_company'
-  | 'email_domain'
-  | 'shared_surname';
+  'same_property' | 'same_company' | 'email_domain' | 'shared_surname';
 
 export interface SuggestionCandidate {
   id: string;

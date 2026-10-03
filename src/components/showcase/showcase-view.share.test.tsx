@@ -14,7 +14,13 @@
 // ============================================================
 
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
-import { render, cleanup, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  cleanup,
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import { toast } from 'sonner';
 import type { Property, ShowcaseSettings } from '@/types';
 
@@ -79,9 +85,9 @@ function renderAt(
   agentMode = false,
   visitorRef?: string,
   onboardOffer = false,
-  writeText: ReturnType<
-    typeof vi.fn<(text: string) => Promise<void>>
-  > = vi.fn().mockResolvedValue(undefined)
+  writeText: ReturnType<typeof vi.fn<(text: string) => Promise<void>>> = vi
+    .fn()
+    .mockResolvedValue(undefined)
 ) {
   window.history.replaceState({}, '', `/${search}`);
   Object.defineProperty(navigator, 'clipboard', {
@@ -206,7 +212,14 @@ describe('showcase detail — share control', () => {
       }
       return true;
     }) as typeof document.execCommand;
-    renderAt(`?g=${GRANT_TOKEN}&v=contact-9`, GRANT_TOKEN, false, undefined, false, writeText);
+    renderAt(
+      `?g=${GRANT_TOKEN}&v=contact-9`,
+      GRANT_TOKEN,
+      false,
+      undefined,
+      false,
+      writeText
+    );
 
     fireEvent.click(
       screen.getByRole('button', { name: /share this property/i })
@@ -243,10 +256,15 @@ describe('showcase detail — share control', () => {
           return Promise.resolve({
             ok: true,
             json: () =>
-              Promise.resolve({ link: 'https://www.convoreal.com/property/sarjapur-jv-land?ref=contact-9' }),
+              Promise.resolve({
+                link: 'https://www.convoreal.com/property/sarjapur-jv-land?ref=contact-9',
+              }),
           });
         }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ data: [] }) });
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ data: [] }),
+        });
       })
     );
     let copiedValue: string | undefined;
@@ -263,14 +281,18 @@ describe('showcase detail — share control', () => {
     try {
       renderAt('', undefined, true, 'contact-9', false, writeText);
 
-      fireEvent.click(screen.getByRole('button', { name: /get my share link/i }));
+      fireEvent.click(
+        screen.getByRole('button', { name: /get my share link/i })
+      );
       fireEvent.change(screen.getByPlaceholderText('Your Name'), {
         target: { value: 'Priya' },
       });
       fireEvent.change(screen.getByPlaceholderText('Your WhatsApp Number'), {
         target: { value: '9900277111' },
       });
-      fireEvent.click(screen.getByRole('button', { name: /get my share link/i }));
+      fireEvent.click(
+        screen.getByRole('button', { name: /get my share link/i })
+      );
 
       const copyButton = await screen.findByRole('button', { name: /^copy$/i });
       fireEvent.click(copyButton);

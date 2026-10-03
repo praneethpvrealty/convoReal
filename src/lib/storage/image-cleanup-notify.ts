@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { sendTransactionalEmail, buildImageCleanupWarningEmail } from '@/lib/email';
+import {
+  sendTransactionalEmail,
+  buildImageCleanupWarningEmail,
+} from '@/lib/email';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 
 /**
@@ -25,7 +28,7 @@ const appUrl =
 
 async function getOwner(
   admin: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<OwnerProfile | null> {
   const { data, error } = await admin
     .from('profiles')
@@ -41,7 +44,7 @@ export async function notifyOwnerImageCleanup(
   admin: SupabaseClient,
   accountId: string,
   properties: { title: string }[],
-  archiveDate: Date,
+  archiveDate: Date
 ): Promise<void> {
   if (properties.length === 0) return;
   let owner: OwnerProfile | null = null;
@@ -90,11 +93,14 @@ export async function notifyOwnerImageCleanup(
       });
       if (!result.success) {
         console.warn(
-          `[image-cleanup] warning WhatsApp failed (non-fatal): ${result.error}`,
+          `[image-cleanup] warning WhatsApp failed (non-fatal): ${result.error}`
         );
       }
     } catch (err) {
-      console.error('[image-cleanup] warning WhatsApp exception (non-fatal):', err);
+      console.error(
+        '[image-cleanup] warning WhatsApp exception (non-fatal):',
+        err
+      );
     }
   }
 }

@@ -20,14 +20,17 @@ const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
     const { id: contactId } = await params;
 
     if (!(await hasGeminiKey())) {
-      return NextResponse.json({ error: 'AI is not configured on this server.' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'AI is not configured on this server.' },
+        { status: 500 }
+      );
     }
 
     const body = (await request.json().catch(() => null)) as {
@@ -47,14 +50,18 @@ export async function POST(
     if (!transcriptText && !audioBase64) {
       return NextResponse.json(
         { error: 'Provide a call recording or a transcript to analyze.' },
-        { status: 400 },
+        { status: 400 }
       );
     }
     if (audioBase64 && audioBase64.length * 0.75 > MAX_AUDIO_BYTES) {
-      return NextResponse.json({ error: 'Recording is too large (max 15MB).' }, { status: 413 });
+      return NextResponse.json(
+        { error: 'Recording is too large (max 15MB).' },
+        { status: 413 }
+      );
     }
 
-    const direction: CallDirection = body?.direction === 'inbound' ? 'inbound' : 'outbound';
+    const direction: CallDirection =
+      body?.direction === 'inbound' ? 'inbound' : 'outbound';
 
     const { data: contact } = await ctx.supabase
       .from('contacts')
@@ -71,8 +78,12 @@ export async function POST(
     const burn = await burnCredits(ctx.accountId, feature, cost);
     if (!burn.success) {
       return NextResponse.json(
-        { error: 'Insufficient credits to analyze this call.', creditsNeeded: cost, upgradeRequired: true },
-        { status: 402 },
+        {
+          error: 'Insufficient credits to analyze this call.',
+          creditsNeeded: cost,
+          upgradeRequired: true,
+        },
+        { status: 402 }
       );
     }
 
@@ -93,7 +104,7 @@ export async function POST(
       console.error('[calls/analyze] Gemini call failed:', apiErr);
       return NextResponse.json(
         { error: 'Could not analyze that call. Please try again.' },
-        { status: 502 },
+        { status: 502 }
       );
     }
 
@@ -103,7 +114,7 @@ export async function POST(
         recordingUrl = await uploadCallRecording(
           ctx.accountId,
           Buffer.from(audioBase64, 'base64'),
-          audioMime || 'audio/mpeg',
+          audioMime || 'audio/mpeg'
         );
       } catch (uploadErr) {
         // The analysis is already paid for and useful — keep it and log
@@ -127,7 +138,8 @@ export async function POST(
         transcript: analysis.transcript ?? transcriptText ?? null,
         summary: analysis.summary,
         key_points: analysis.key_points.length > 0 ? analysis.key_points : null,
-        action_items: analysis.action_items.length > 0 ? analysis.action_items : null,
+        action_items:
+          analysis.action_items.length > 0 ? analysis.action_items : null,
         update_draft: analysis.update_draft,
       })
       .select()

@@ -8,7 +8,10 @@ const supabase = createClient(
 );
 
 async function main() {
-  const { data: { users }, error } = await supabase.auth.admin.listUsers();
+  const {
+    data: { users },
+    error,
+  } = await supabase.auth.admin.listUsers();
   if (error) {
     console.error('Error fetching users:', error);
     return;

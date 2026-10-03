@@ -17,11 +17,13 @@ describe('sanitizePerformanceEvent', () => {
   });
 
   it('replaces document tokens with the dynamic route pattern', () => {
-    expect(sanitizePerformanceEvent({
-      type: 'vital',
-      route: '/docs/[token]',
-      url: 'https://www.convoreal.com/docs/private-document-token?key=secret',
-    })).toEqual({
+    expect(
+      sanitizePerformanceEvent({
+        type: 'vital',
+        route: '/docs/[token]',
+        url: 'https://www.convoreal.com/docs/private-document-token?key=secret',
+      })
+    ).toEqual({
       type: 'vital',
       route: '/docs/[token]',
       url: 'https://www.convoreal.com/docs/[token]',
@@ -29,18 +31,28 @@ describe('sanitizePerformanceEvent', () => {
   });
 
   it('drops events without a normalized route rather than sending a raw URL', () => {
-    expect(sanitizePerformanceEvent({
-      type: 'vital',
-      url: 'https://www.convoreal.com/docs/private-document-token',
-    })).toBeNull();
+    expect(
+      sanitizePerformanceEvent({
+        type: 'vital',
+        url: 'https://www.convoreal.com/docs/private-document-token',
+      })
+    ).toBeNull();
   });
 
   it('drops malformed events without throwing into the application', () => {
-    expect(sanitizePerformanceEvent({
-      type: 'vital', route: '/contacts', url: 'not-a-url',
-    })).toBeNull();
-    expect(sanitizePerformanceEvent({
-      type: 'vital', route: '//other.example', url: 'https://www.convoreal.com/',
-    })).toBeNull();
+    expect(
+      sanitizePerformanceEvent({
+        type: 'vital',
+        route: '/contacts',
+        url: 'not-a-url',
+      })
+    ).toBeNull();
+    expect(
+      sanitizePerformanceEvent({
+        type: 'vital',
+        route: '//other.example',
+        url: 'https://www.convoreal.com/',
+      })
+    ).toBeNull();
   });
 });

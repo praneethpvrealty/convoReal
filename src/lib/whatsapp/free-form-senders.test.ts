@@ -14,10 +14,10 @@
  * rather than by copy-paste.
  */
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 
 /**
  * Why each of these may send free-form text without the dispatcher:
@@ -28,27 +28,27 @@ import { describe, expect, it } from "vitest";
 const ALLOWED_DIRECT_SENDERS = [
   // Replies to an inbound WhatsApp message — the window is open by
   // construction, since the inbound message is what invoked these.
-  "src/lib/ai/chatbot-engine.ts",
-  "src/lib/ai/buyer-qualification.ts",
-  "src/lib/whatsapp/webhook-handler.ts",
-  "src/lib/calendar/whatsapp-scheduler.ts",
+  'src/lib/ai/chatbot-engine.ts',
+  'src/lib/ai/buyer-qualification.ts',
+  'src/lib/whatsapp/webhook-handler.ts',
+  'src/lib/calendar/whatsapp-scheduler.ts',
   // Reply from a RETIRED saved number to whoever just messaged it. The
   // window is open by construction, and the dispatcher cannot be used:
   // it sends from whatsapp_config, which is the live number, while this
   // reply must leave from the retired number's own phone_number_id and
   // token, and it has no conversation of its own to persist into.
-  "src/lib/whatsapp/retired-number-reply.ts",
+  'src/lib/whatsapp/retired-number-reply.ts',
   // Template-first paths that keep a text fallback.
-  "src/app/api/auth/sms-hook/route.ts",
-  "src/app/api/leads/email-webhook/auto-reply.ts",
-  "src/lib/whatsapp/admin-otp-sender.ts",
+  'src/app/api/auth/sms-hook/route.ts',
+  'src/app/api/leads/email-webhook/auto-reply.ts',
+  'src/lib/whatsapp/admin-otp-sender.ts',
   // Operator-to-customer sends from the PLATFORM number (OTP codes,
   // subscription-extension notices). Always tries the approved Utility
   // template first; the text fallback only lands when a window happens
   // to be open, and a failure there is recorded rather than retried.
   // The dispatcher is not usable here: it persists to the tenant's own
   // conversation and bills their WABA, which is the wrong sender.
-  "src/lib/whatsapp/platform-sender.ts",
+  'src/lib/whatsapp/platform-sender.ts',
   // Group sends. The 24-hour window is a property of a conversation
   // with ONE contact — it is measured from that person's last inbound
   // message, and re-entered with a template addressed to them. A group
@@ -57,9 +57,9 @@ const ALLOWED_DIRECT_SENDERS = [
   // from. Routing groups through the dispatcher would mean giving it a
   // contact it does not have, purely to skip the check that contact
   // exists for.
-  "src/lib/whatsapp/group-send.ts",
+  'src/lib/whatsapp/group-send.ts',
   // The dispatcher itself — where the guard lives.
-  "src/lib/whatsapp/meta-api-dispatcher.ts",
+  'src/lib/whatsapp/meta-api-dispatcher.ts',
 ].sort();
 
 function sourceFiles(dir: string, found: string[] = []): string[] {
@@ -75,12 +75,12 @@ function sourceFiles(dir: string, found: string[] = []): string[] {
   return found;
 }
 
-describe("free-form WhatsApp senders", () => {
-  it("only the known modules reach sendTextMessage without the dispatcher", () => {
+describe('free-form WhatsApp senders', () => {
+  it('only the known modules reach sendTextMessage without the dispatcher', () => {
     const root = process.cwd();
-    const callers = sourceFiles(join(root, "src"))
+    const callers = sourceFiles(join(root, 'src'))
       .filter((file) => {
-        const source = readFileSync(file, "utf8");
+        const source = readFileSync(file, 'utf8');
         return (
           /from ['"]@\/lib\/whatsapp\/meta-api['"]/.test(source) &&
           /\bsendTextMessage\b/.test(source)
@@ -92,10 +92,10 @@ describe("free-form WhatsApp senders", () => {
     expect(callers).toEqual(ALLOWED_DIRECT_SENDERS);
   });
 
-  it("the dispatcher enforces the window on free-form text", () => {
+  it('the dispatcher enforces the window on free-form text', () => {
     const source = readFileSync(
-      join(process.cwd(), "src/lib/whatsapp/meta-api-dispatcher.ts"),
-      "utf8",
+      join(process.cwd(), 'src/lib/whatsapp/meta-api-dispatcher.ts'),
+      'utf8'
     );
     expect(source).toMatch(/isWithinCustomerWindow/);
     expect(source).toMatch(/CUSTOMER_WINDOW_EXPIRED_MESSAGE/);

@@ -3,13 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import {
-  Loader2,
-  Upload,
-  Trash2,
-  Mail,
-  CircleAlert,
-} from 'lucide-react';
+import { Loader2, Upload, Trash2, Mail, CircleAlert } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { storagePublicUrl } from '@/lib/storage/url';
@@ -25,11 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Card,
   CardContent,
@@ -116,7 +106,10 @@ export function ProfileForm() {
   }, [previewUrl]);
 
   const currentAvatar =
-    previewUrl ?? (!removeAvatar && profile?.avatar_url ? storagePublicUrl(profile.avatar_url) : null);
+    previewUrl ??
+    (!removeAvatar && profile?.avatar_url
+      ? storagePublicUrl(profile.avatar_url)
+      : null);
 
   const initial = (fullName || profile?.full_name || profile?.email || 'U')
     .charAt(0)
@@ -174,8 +167,7 @@ export function ProfileForm() {
 
       // Upload a newly-staged image, if any.
       if (pendingAvatar) {
-        const ext =
-          pendingAvatar.name.split('.').pop()?.toLowerCase() || 'png';
+        const ext = pendingAvatar.name.split('.').pop()?.toLowerCase() || 'png';
         const path = `${user.id}/avatar-${Date.now()}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('avatars')
@@ -246,7 +238,7 @@ export function ProfileForm() {
       toast.success(
         emailSent
           ? 'Profile saved — check your email to confirm the address change'
-          : 'Profile saved',
+          : 'Profile saved'
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -274,7 +266,7 @@ export function ProfileForm() {
     : '—';
 
   return (
-    <Card className="bg-slate-900/40 border-slate-800">
+    <Card className="border-slate-800 bg-slate-900/40">
       <CardHeader>
         <CardTitle className="text-white">Profile</CardTitle>
         <CardDescription className="text-slate-400">
@@ -291,7 +283,7 @@ export function ProfileForm() {
               {currentAvatar ? (
                 <AvatarImage src={currentAvatar} alt={fullName || 'Avatar'} />
               ) : null}
-              <AvatarFallback className="bg-primary/10 text-base text-primary">
+              <AvatarFallback className="bg-primary/10 text-primary text-base">
                 {initial}
               </AvatarFallback>
             </Avatar>
@@ -396,8 +388,9 @@ export function ProfileForm() {
               </Button>
             </div>
             <p className="text-xs text-slate-500">
-              ConvoReal is a WhatsApp-based platform — this verified number is where your
-              enquiries, alerts and listing sync arrive. Changing it requires a WhatsApp OTP.
+              ConvoReal is a WhatsApp-based platform — this verified number is
+              where your enquiries, alerts and listing sync arrive. Changing it
+              requires a WhatsApp OTP.
             </p>
           </div>
 
@@ -441,7 +434,7 @@ export function ProfileForm() {
 
           {/* Read-only block */}
           <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-3 text-xs font-semibold tracking-wider text-slate-500 uppercase">
               Account details
             </p>
             <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
@@ -457,7 +450,7 @@ export function ProfileForm() {
               </div>
               <div className="sm:col-span-2">
                 <dt className="text-slate-500">User ID</dt>
-                <dd className="mt-0.5 break-all font-mono text-xs text-slate-400">
+                <dd className="mt-0.5 font-mono text-xs break-all text-slate-400">
                   {user?.id ?? '—'}
                 </dd>
               </div>
@@ -489,11 +482,13 @@ export function ProfileForm() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {profile?.phone ? 'Change your WhatsApp number' : 'Verify your WhatsApp number'}
+                {profile?.phone
+                  ? 'Change your WhatsApp number'
+                  : 'Verify your WhatsApp number'}
               </DialogTitle>
               <DialogDescription>
-                ConvoReal runs on WhatsApp, so every number change is confirmed with a one-time
-                code sent to the new number.
+                ConvoReal runs on WhatsApp, so every number change is confirmed
+                with a one-time code sent to the new number.
               </DialogDescription>
             </DialogHeader>
             <WhatsappPhoneVerify

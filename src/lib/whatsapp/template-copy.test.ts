@@ -29,13 +29,13 @@ function placeholders(text: string): string[] {
 }
 
 describe('button labels', () => {
-  it('fit inside Meta\'s 25-character button cap', () => {
+  it("fit inside Meta's 25-character button cap", () => {
     for (const action of ACTIONS) {
       for (const code of LANGUAGE_CODES) {
         const label = TEMPLATE_BUTTON_LABELS[action][code];
         expect(
           label.length,
-          `${action}.${code} is ${label.length} chars: "${label}"`,
+          `${action}.${code} is ${label.length} chars: "${label}"`
         ).toBeLessThanOrEqual(MAX_BUTTON_CHARS);
       }
     }
@@ -59,7 +59,7 @@ describe('button labels', () => {
         const label = TEMPLATE_BUTTON_LABELS[action][code].toLowerCase();
         expect(
           seen.has(label),
-          `${code}: "${label}" is used by both ${seen.get(label)} and ${action}`,
+          `${code}: "${label}" is used by both ${seen.get(label)} and ${action}`
         ).toBe(false);
         seen.set(label, action);
       }
@@ -81,14 +81,16 @@ describe('matchTemplateButton', () => {
       for (const code of LANGUAGE_CODES) {
         expect(
           matchTemplateButton(TEMPLATE_BUTTON_LABELS[action][code]),
-          `${action}.${code}`,
+          `${action}.${code}`
         ).toBe(action);
       }
     }
   });
 
   it('is case- and whitespace-insensitive, so a typed reply also lands', () => {
-    expect(matchTemplateButton('  send MORE details ')).toBe('send_more_details');
+    expect(matchTemplateButton('  send MORE details ')).toBe(
+      'send_more_details'
+    );
   });
 
   it('returns null for unrelated text', () => {
@@ -101,33 +103,33 @@ describe('matchTemplateButton', () => {
   it('ignores a long message that merely contains a label', () => {
     expect(
       matchTemplateButton(
-        'I was going to close my enquiry but actually I have another question about the price',
-      ),
+        'I was going to close my enquiry but actually I have another question about the price'
+      )
     ).toBeNull();
   });
 });
 
 describe('template bodies', () => {
-  it('fit inside Meta\'s 1024-character body cap', () => {
+  it("fit inside Meta's 1024-character body cap", () => {
     for (const key of KEYS) {
       for (const code of LANGUAGE_CODES) {
         const body = templateBody(key, code);
         expect(
           body.length,
-          `${key}.${code} is ${body.length} chars`,
+          `${key}.${code} is ${body.length} chars`
         ).toBeLessThanOrEqual(MAX_BODY_CHARS);
       }
     }
   });
 
-  it('fit inside Meta\'s 60-character footer cap', () => {
+  it("fit inside Meta's 60-character footer cap", () => {
     for (const key of KEYS) {
       for (const code of LANGUAGE_CODES) {
         const footer = templateFooter(key, code);
         if (!footer) continue;
         expect(
           footer.length,
-          `${key}.${code} footer is ${footer.length} chars: "${footer}"`,
+          `${key}.${code} footer is ${footer.length} chars: "${footer}"`
         ).toBeLessThanOrEqual(MAX_FOOTER_CHARS);
       }
     }
@@ -143,7 +145,7 @@ describe('template bodies', () => {
       for (const code of LANGUAGE_CODES) {
         expect(
           placeholders(templateBody(key, code)),
-          `${key}.${code} placeholder mismatch`,
+          `${key}.${code} placeholder mismatch`
         ).toEqual(expected);
       }
     }
@@ -168,7 +170,7 @@ describe('template bodies', () => {
         if (code === 'en') continue;
         expect(
           templateBody(key, code),
-          `${key}.${code} is identical to English`,
+          `${key}.${code} is identical to English`
         ).not.toBe(english.get(key));
       }
     }

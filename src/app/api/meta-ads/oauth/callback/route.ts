@@ -32,12 +32,17 @@ function oauthRedirectUri(appBase: string): string {
 // not a fetch client.
 export async function GET(request: NextRequest) {
   const appBase =
-    process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    'http://localhost:3000';
   const cookieStore = await cookies();
 
   // Always clear the one-time nonce cookie, whatever happens below.
   const clearNonceCookie = (res: NextResponse) => {
-    res.cookies.set(NONCE_COOKIE, '', { maxAge: 0, path: '/api/meta-ads/oauth' });
+    res.cookies.set(NONCE_COOKIE, '', {
+      maxAge: 0,
+      path: '/api/meta-ads/oauth',
+    });
     return res;
   };
 
@@ -47,7 +52,9 @@ export async function GET(request: NextRequest) {
     if (errorParam) {
       // User denied consent, or Facebook returned an error directly.
       return clearNonceCookie(
-        NextResponse.redirect(settingsUrl(appBase, { meta_ads_error: 'consent_denied' })),
+        NextResponse.redirect(
+          settingsUrl(appBase, { meta_ads_error: 'consent_denied' })
+        )
       );
     }
 
@@ -58,16 +65,23 @@ export async function GET(request: NextRequest) {
 
     if (!code || !appId || !appSecret) {
       return clearNonceCookie(
-        NextResponse.redirect(settingsUrl(appBase, { meta_ads_error: 'invalid_request' })),
+        NextResponse.redirect(
+          settingsUrl(appBase, { meta_ads_error: 'invalid_request' })
+        )
       );
     }
 
     const nonce = cookieStore.get(NONCE_COOKIE)?.value ?? null;
     const verified = verifyOAuthState(state, appSecret, nonce);
     if (!verified.valid) {
-      console.error('[meta-ads oauth callback] state verification failed:', verified.reason);
+      console.error(
+        '[meta-ads oauth callback] state verification failed:',
+        verified.reason
+      );
       return clearNonceCookie(
-        NextResponse.redirect(settingsUrl(appBase, { meta_ads_error: 'state_' + verified.reason })),
+        NextResponse.redirect(
+          settingsUrl(appBase, { meta_ads_error: 'state_' + verified.reason })
+        )
       );
     }
 
@@ -79,7 +93,9 @@ export async function GET(request: NextRequest) {
     const ctx = await requireRole('owner');
     if (ctx.accountId !== verified.payload.accountId) {
       return clearNonceCookie(
-        NextResponse.redirect(settingsUrl(appBase, { meta_ads_error: 'account_mismatch' })),
+        NextResponse.redirect(
+          settingsUrl(appBase, { meta_ads_error: 'account_mismatch' })
+        )
       );
     }
 
@@ -110,7 +126,7 @@ export async function GET(request: NextRequest) {
         status: 'connected',
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'account_id' },
+      { onConflict: 'account_id' }
     );
 
     // Auto-select assets when unambiguous; otherwise the settings UI
@@ -134,11 +150,15 @@ export async function GET(request: NextRequest) {
         .eq('account_id', ctx.accountId);
     }
 
-    return clearNonceCookie(NextResponse.redirect(settingsUrl(appBase, { meta_ads_connected: '1' })));
+    return clearNonceCookie(
+      NextResponse.redirect(settingsUrl(appBase, { meta_ads_connected: '1' }))
+    );
   } catch (err) {
     console.error('[GET /api/meta-ads/oauth/callback] failed:', err);
     return clearNonceCookie(
-      NextResponse.redirect(settingsUrl(appBase, { meta_ads_error: 'connection_failed' })),
+      NextResponse.redirect(
+        settingsUrl(appBase, { meta_ads_error: 'connection_failed' })
+      )
     );
   }
 }

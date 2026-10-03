@@ -28,7 +28,8 @@
     'CONVOREAL_OWNER_LEADS_CLEAR',
   ]);
 
-  const reply = (message) => window.postMessage({ ...message, source: SOURCE }, window.location.origin);
+  const reply = (message) =>
+    window.postMessage({ ...message, source: SOURCE }, window.location.origin);
 
   // After the extension is reloaded/updated, content scripts already
   // injected into open tabs are orphaned: chrome.* is torn down and
@@ -74,7 +75,10 @@
       return;
     }
 
-    if (data.type === 'CONVOREAL_HARVEST_CLEAR' && typeof data.portal === 'string') {
+    if (
+      data.type === 'CONVOREAL_HARVEST_CLEAR' &&
+      typeof data.portal === 'string'
+    ) {
       chrome.storage.local.get('convorealHarvest', ({ convorealHarvest }) => {
         const store = convorealHarvest || {};
         delete store[data.portal];
@@ -86,11 +90,14 @@
     }
 
     if (data.type === 'CONVOREAL_OWNER_LEADS_PULL') {
-      chrome.storage.local.get('convorealOwnerLeads', ({ convorealOwnerLeads }) => {
-        const store = convorealOwnerLeads || {};
-        const leads = Object.values(store);
-        reply({ type: 'CONVOREAL_OWNER_LEADS_DATA', leads });
-      });
+      chrome.storage.local.get(
+        'convorealOwnerLeads',
+        ({ convorealOwnerLeads }) => {
+          const store = convorealOwnerLeads || {};
+          const leads = Object.values(store);
+          reply({ type: 'CONVOREAL_OWNER_LEADS_DATA', leads });
+        }
+      );
       return;
     }
 
@@ -101,17 +108,25 @@
       return;
     }
 
-    if (data.type === 'CONVOREAL_PORTAL_PAYLOAD' && data.payload && typeof data.payload === 'object') {
+    if (
+      data.type === 'CONVOREAL_PORTAL_PAYLOAD' &&
+      data.payload &&
+      typeof data.payload === 'object'
+    ) {
       const payload = {
         ...data.payload,
         savedAt: Date.now(),
       };
       chrome.storage.local.set({ convorealPortalPayload: payload }, () => {
-        reply({ type: 'CONVOREAL_PORTAL_PAYLOAD_SAVED', propertyTitle: payload.title || '' });
+        reply({
+          type: 'CONVOREAL_PORTAL_PAYLOAD_SAVED',
+          propertyTitle: payload.title || '',
+        });
       });
     }
   });
 
   // Announce on load so an already-open dialog can flip to "detected".
-  if (extensionAlive()) reply({ type: 'CONVOREAL_PORTAL_EXT_PONG', version: '1.6.5' });
+  if (extensionAlive())
+    reply({ type: 'CONVOREAL_PORTAL_EXT_PONG', version: '1.6.5' });
 })();

@@ -1,7 +1,7 @@
-import { timingSafeEqual } from 'node:crypto'
-import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/admin'
-import { sweepStaleFlowRuns } from '@/lib/flows/sweep'
+import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { sweepStaleFlowRuns } from '@/lib/flows/sweep';
 
 /**
  * Sweep abandoned active flow runs.
@@ -29,28 +29,28 @@ import { sweepStaleFlowRuns } from '@/lib/flows/sweep'
  */
 export async function GET(request: Request) {
   const expected =
-    process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET
+    process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET;
   if (!expected) {
-    return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
+    return NextResponse.json({ error: 'cron not configured' }, { status: 503 });
   }
   const supplied =
     request.headers.get('x-cron-secret') ||
     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
-    ''
-  const suppliedBuf = Buffer.from(supplied)
-  const expectedBuf = Buffer.from(expected)
+    '';
+  const suppliedBuf = Buffer.from(supplied);
+  const expectedBuf = Buffer.from(expected);
   if (
     suppliedBuf.length !== expectedBuf.length ||
     !timingSafeEqual(suppliedBuf, expectedBuf)
   ) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    return NextResponse.json(await sweepStaleFlowRuns(supabaseAdmin()))
+    return NextResponse.json(await sweepStaleFlowRuns(supabaseAdmin()));
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('[flows-cron] active-run scan failed:', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[flows-cron] active-run scan failed:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

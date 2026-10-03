@@ -23,11 +23,11 @@ describe('parseGreetingAudience', () => {
   });
 
   it('refuses an empty selected-contact audience', () => {
-    expect(
-      parseGreetingAudience({ type: 'contacts', contactIds: [] })
-    ).toEqual({
-      error: 'Pick at least one contact for a selected audience',
-    });
+    expect(parseGreetingAudience({ type: 'contacts', contactIds: [] })).toEqual(
+      {
+        error: 'Pick at least one contact for a selected audience',
+      }
+    );
   });
 
   it('refuses unknown audience types instead of broadening to all contacts', () => {

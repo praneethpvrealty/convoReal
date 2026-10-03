@@ -6,13 +6,17 @@ const results = [];
 
 export function check(name, pass, detail = '') {
   results.push({ name, pass: Boolean(pass), detail });
-  console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
+  console.log(
+    `${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`
+  );
   return Boolean(pass);
 }
 
 export function summary() {
   const failed = results.filter((r) => !r.pass);
-  console.log(`\n===== ${results.length - failed.length}/${results.length} passed =====`);
+  console.log(
+    `\n===== ${results.length - failed.length}/${results.length} passed =====`
+  );
   for (const r of failed) console.log(' FAILED:', r.name, '|', r.detail);
   return failed.length === 0;
 }

@@ -67,26 +67,33 @@ export function MatchTargetRow({
         }
       }}
       className={cn(
-        'flex items-start gap-3 rounded-xl border cursor-pointer transition-all select-none',
-        compact ? 'p-2.5 gap-2.5 rounded-lg' : 'p-3 gap-3.5',
+        'flex cursor-pointer items-start gap-3 rounded-xl border transition-all select-none',
+        compact ? 'gap-2.5 rounded-lg p-2.5' : 'gap-3.5 p-3',
         selected
-          ? 'bg-primary/5 border-primary/45 ring-1 ring-primary/10'
-          : 'bg-slate-900/50 border-slate-800 hover:border-slate-750'
+          ? 'bg-primary/5 border-primary/45 ring-primary/10 ring-1'
+          : 'hover:border-slate-750 border-slate-800 bg-slate-900/50'
       )}
     >
       <button
         type="button"
         tabIndex={-1}
-        className={cn('shrink-0 mt-0.5', selected ? 'text-primary' : 'text-slate-650')}
+        className={cn(
+          'mt-0.5 shrink-0',
+          selected ? 'text-primary' : 'text-slate-650'
+        )}
       >
-        {selected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
+        {selected ? (
+          <CheckSquare className="size-4" />
+        ) : (
+          <Square className="size-4" />
+        )}
       </button>
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
             <h4
               className={cn(
-                'font-bold text-white truncate',
+                'truncate font-bold text-white',
                 compact ? 'text-[11px]' : 'text-xs'
               )}
             >
@@ -96,7 +103,7 @@ export function MatchTargetRow({
           </div>
           <span
             className={cn(
-              'inline-flex items-center rounded border px-1.5 py-0.5 font-bold shrink-0',
+              'inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 font-bold',
               compact ? 'text-[9px]' : 'text-[9px]',
               TONE_CLASS[tone]
             )}
@@ -105,11 +112,13 @@ export function MatchTargetRow({
           </span>
         </div>
         {detail && (
-          <p className="text-[11px] text-slate-500 font-mono mt-0.5 truncate">{detail}</p>
+          <p className="mt-0.5 truncate font-mono text-[11px] text-slate-500">
+            {detail}
+          </p>
         )}
         {inquiries.length > 0 && (
-          <p className="text-[10px] text-slate-500 mt-1 truncate">
-            <span className="text-slate-400 font-semibold">Enquired: </span>
+          <p className="mt-1 truncate text-[10px] text-slate-500">
+            <span className="font-semibold text-slate-400">Enquired: </span>
             {inquiries.join(' · ')}
           </p>
         )}

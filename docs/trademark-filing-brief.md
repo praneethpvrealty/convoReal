@@ -41,12 +41,12 @@ combination rather than to the word on its own.
 Software is split across classes depending on how it is delivered. ConvoReal is
 a hosted product with a companion mobile app, so:
 
-| Class | Covers | Needed? |
-|---|---|---|
-| **42** | Software as a service (SaaS), platform as a service, software design and development | **Yes — primary.** This is what ConvoReal actually is |
-| **9** | Downloadable software and mobile applications | **Yes.** The Expo app in `mobile/` is downloadable software |
-| 35 | Business management, advertising, marketing services | Optional — see below |
-| 36 | Real estate services (agency, brokerage) | **Probably not** — see below |
+| Class  | Covers                                                                               | Needed?                                                     |
+| ------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| **42** | Software as a service (SaaS), platform as a service, software design and development | **Yes — primary.** This is what ConvoReal actually is       |
+| **9**  | Downloadable software and mobile applications                                        | **Yes.** The Expo app in `mobile/` is downloadable software |
+| 35     | Business management, advertising, marketing services                                 | Optional — see below                                        |
+| 36     | Real estate services (agency, brokerage)                                             | **Probably not** — see below                                |
 
 **On Class 35.** Justifiable if you present the product as delivering marketing
 or business-management services (broadcast campaigns, lead management). It
@@ -54,7 +54,7 @@ broadens protection against a cloner positioning as a "real estate marketing
 platform". It is the usual third class for SaaS. Costs one more class fee.
 
 **On Class 36.** Avoid unless you intend to act as a broker yourself. You supply
-software *to* brokerages; you do not transact property. Filing in a class you do
+software _to_ brokerages; you do not transact property. Filing in a class you do
 not trade in invites a non-use cancellation after five years and adds cost for
 protection you cannot defend.
 
@@ -67,6 +67,7 @@ Wording matters — too narrow and a cloner sidesteps it, too broad and the
 examiner objects. Starting point, for an attorney to refine:
 
 **Class 42**
+
 > Software as a service (SaaS) featuring software for customer relationship
 > management, property inventory management, lead management and sales pipeline
 > management for the real estate sector; platform as a service (PaaS) featuring
@@ -76,12 +77,14 @@ examiner objects. Starting point, for an attorney to refine:
 > matching prospective buyers with property listings.
 
 **Class 9**
+
 > Downloadable mobile applications for customer relationship management,
 > property inventory management and sales pipeline management; downloadable
 > computer software for messaging-based customer engagement in the real estate
 > sector; recorded computer programs for data matching and analysis.
 
 **Class 35** (only if filing it)
+
 > Business management assistance for real estate agencies; advertising and
 > marketing services provided via messaging platforms; compilation and
 > systemisation of information into computer databases; lead generation
@@ -126,16 +129,16 @@ rather than after the examination report.
 
 This decides the fee, so settle it before filing.
 
-| Applicant | Government fee, e-filing, **per class** |
-|---|---|
-| Individual, startup, or MSME | **₹4,500** |
-| Company or LLP | **₹9,000** |
+| Applicant                    | Government fee, e-filing, **per class** |
+| ---------------------------- | --------------------------------------- |
+| Individual, startup, or MSME | **₹4,500**                              |
+| Company or LLP               | **₹9,000**                              |
 
 Physical filing costs ₹500 more per class in either category. Fees are set by
 the First Schedule to the Trade Marks Rules, 2017, and are non-refundable.
 
 **The concession is not automatic.** The ₹4,500 rate requires a valid **Udyam
-Registration Certificate** held *at the time of filing* Form TM-A, or DPIIT
+Registration Certificate** held _at the time of filing_ Form TM-A, or DPIIT
 startup recognition. If ConvoReal is not yet Udyam-registered, do that first —
 registration is free and online, and it halves the fee on every class.
 
@@ -161,7 +164,7 @@ widely; get two quotes.
 
 The single most common own goal in an Indian filing.
 
-Form TM-A asks whether the mark is *proposed to be used* or already in use. India
+Form TM-A asks whether the mark is _proposed to be used_ or already in use. India
 protects prior use, and rights run from the **date of first use**, not the date
 of filing. ConvoReal has been trading under the name — live site, paying
 customers, WhatsApp templates approved against the brand — so claiming

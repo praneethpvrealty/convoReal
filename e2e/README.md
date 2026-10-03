@@ -62,10 +62,10 @@ npm run dev                       # in one shell
 npm run test:e2e                  # in another
 ```
 
-| File | Covers |
-|------|--------|
-| `language-switcher.mjs` | All seven languages, the two-language cap, the header toggle, persistence to `profiles` and across a reload. |
-| `template-languages.mjs` | Per-language template tabs and their `n/7` counts; the language-usage card and its API. Read-only. |
+| File                          | Covers                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `language-switcher.mjs`       | All seven languages, the two-language cap, the header toggle, persistence to `profiles` and across a reload.              |
+| `template-languages.mjs`      | Per-language template tabs and their `n/7` counts; the language-usage card and its API. Read-only.                        |
 | `translation-review-gate.mjs` | Draft → review → submit, both refusals, and that rewording withdraws a sign-off. Creates rows, deletes them in `finally`. |
 
 Unlike `drive.ts` these read `E2E_EMAIL` / `E2E_PASSWORD` from `.env.local`

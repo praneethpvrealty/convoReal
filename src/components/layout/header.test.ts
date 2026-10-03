@@ -22,7 +22,9 @@ describe('getPageTitle', () => {
   // These never hold the screen — each replaces itself with a tab of
   // another section — so the title that matters is the destination's.
   it('titles a redirect shim after wherever it lands', () => {
-    expect(getPageTitle('/dashboard?tab=radar'.split('?')[0])).toBe('Dashboard');
+    expect(getPageTitle('/dashboard?tab=radar'.split('?')[0])).toBe(
+      'Dashboard'
+    );
     expect(getPageTitle('/automations')).toBe('Automations');
     expect(getPageTitle('/contacts')).toBe('Contacts');
   });

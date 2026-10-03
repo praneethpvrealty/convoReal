@@ -26,7 +26,10 @@ function contactsQuery() {
     }),
     insert: (values: Record<string, unknown>) => {
       state.insertedContacts.push(values);
-      const created = { id: `contact-${state.insertedContacts.length}`, ...values };
+      const created = {
+        id: `contact-${state.insertedContacts.length}`,
+        ...values,
+      };
       state.contacts.push(created);
       return {
         select: () => ({
@@ -55,7 +58,10 @@ function propertiesQuery() {
     }),
     insert: async (values: Record<string, unknown>) => {
       state.insertedProperties.push(values);
-      const created = { id: `prop-${state.insertedProperties.length}`, ...values };
+      const created = {
+        id: `prop-${state.insertedProperties.length}`,
+        ...values,
+      };
       state.properties.push(created);
       return { data: created, error: null };
     },
@@ -92,7 +98,8 @@ vi.mock('@/lib/rate-limit', () => ({
 
 vi.mock('@/lib/billing/gates', () => ({
   checkPlanLimit: async () => ({ allowed: state.planAllowed }),
-  gateResponse: () => Response.json({ error: 'upgrade required' }, { status: 402 }),
+  gateResponse: () =>
+    Response.json({ error: 'upgrade required' }, { status: 402 }),
 }));
 
 import { POST } from './route';
@@ -215,7 +222,9 @@ describe('POST /api/inventory/import-owner-leads', () => {
 
     // Inserted property linked to existing contact
     expect(state.insertedProperties).toHaveLength(1);
-    expect(state.insertedProperties[0].owner_contact_id).toBe('existing-contact-1');
+    expect(state.insertedProperties[0].owner_contact_id).toBe(
+      'existing-contact-1'
+    );
     expect(state.insertedProperties[0].type).toBe('Plot');
     expect(state.insertedProperties[0].price).toBe(4500000);
   });

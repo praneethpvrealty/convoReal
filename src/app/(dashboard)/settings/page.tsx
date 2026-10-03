@@ -286,13 +286,11 @@ export default function SettingsPage() {
       whatsappSub === 'templates'
         ? 'settings-tab-templates'
         : `settings-tab-whatsapp-${whatsappSub}`;
-    document
-      .querySelector(`[data-tour="${tour}"]`)
-      ?.scrollIntoView({
-        block: 'nearest',
-        inline: 'center',
-        behavior: 'auto',
-      });
+    document.querySelector(`[data-tour="${tour}"]`)?.scrollIntoView({
+      block: 'nearest',
+      inline: 'center',
+      behavior: 'auto',
+    });
   }, [tab, whatsappSub]);
 
   // Build navigation groups dynamically based on feature flags

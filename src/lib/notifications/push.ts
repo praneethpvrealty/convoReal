@@ -27,7 +27,10 @@ interface ExpoPushMessage {
 
 /** Send a push to every registered device of a user. Returns the
  *  number of tokens targeted (0 when the user has no devices). */
-export async function sendExpoPush(userId: string, payload: PushPayload): Promise<number> {
+export async function sendExpoPush(
+  userId: string,
+  payload: PushPayload
+): Promise<number> {
   const admin = supabaseAdmin();
   const { data: devices } = await admin
     .from('notification_devices')
@@ -50,23 +53,39 @@ export async function sendExpoPush(userId: string, payload: PushPayload): Promis
   try {
     const res = await fetch(EXPO_PUSH_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
       body: JSON.stringify(messages),
     });
     if (!res.ok) {
-      console.error('[push] Expo push rejected:', res.status, await res.text().catch(() => ''));
+      console.error(
+        '[push] Expo push rejected:',
+        res.status,
+        await res.text().catch(() => '')
+      );
       return 0;
     }
     // Prune tokens Expo reports as unregistered so we stop pushing to
     // uninstalled apps.
-    const json = (await res.json().catch(() => null)) as { data?: Array<{ status?: string; details?: { error?: string } }> } | null;
+    const json = (await res.json().catch(() => null)) as {
+      data?: Array<{ status?: string; details?: { error?: string } }>;
+    } | null;
     const receipts = json?.data;
     if (Array.isArray(receipts)) {
       const dead = receipts
-        .map((r, i) => (r?.status === 'error' && r?.details?.error === 'DeviceNotRegistered' ? tokens[i] : null))
+        .map((r, i) =>
+          r?.status === 'error' && r?.details?.error === 'DeviceNotRegistered'
+            ? tokens[i]
+            : null
+        )
         .filter((t): t is string => t !== null);
       if (dead.length > 0) {
-        await admin.from('notification_devices').delete().in('expo_push_token', dead);
+        await admin
+          .from('notification_devices')
+          .delete()
+          .in('expo_push_token', dead);
       }
     }
     return tokens.length;

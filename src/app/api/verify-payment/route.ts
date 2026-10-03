@@ -17,7 +17,10 @@ export async function POST(request: Request) {
 
     if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
       return NextResponse.json(
-        { error: 'Missing required fields: razorpay_payment_id, razorpay_order_id, razorpay_signature' },
+        {
+          error:
+            'Missing required fields: razorpay_payment_id, razorpay_order_id, razorpay_signature',
+        },
         { status: 400 }
       );
     }
@@ -49,10 +52,8 @@ export async function POST(request: Request) {
     });
   } catch (error: unknown) {
     console.error('[verify-payment] failed:', error);
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    const message =
+      error instanceof Error ? error.message : 'Internal Server Error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

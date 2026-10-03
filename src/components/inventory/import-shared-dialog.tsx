@@ -21,7 +21,11 @@ interface ImportSharedDialogProps {
   onImported: () => void;
 }
 
-export function ImportSharedDialog({ open, onOpenChange, onImported }: ImportSharedDialogProps) {
+export function ImportSharedDialog({
+  open,
+  onOpenChange,
+  onImported,
+}: ImportSharedDialogProps) {
   const [link, setLink] = useState('');
   const [importing, setImporting] = useState(false);
 
@@ -45,7 +49,9 @@ export function ImportSharedDialog({ open, onOpenChange, onImported }: ImportSha
       onOpenChange(false);
       onImported();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to import property');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to import property'
+      );
     } finally {
       setImporting(false);
     }
@@ -53,16 +59,16 @@ export function ImportSharedDialog({ open, onOpenChange, onImported }: ImportSha
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-md">
+      <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white flex items-center gap-2">
-            <FolderInput className="size-5 text-primary" />
+          <DialogTitle className="flex items-center gap-2 text-white">
+            <FolderInput className="text-primary size-5" />
             Import Shared Property
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Paste a property link another agent shared with you. The listing is copied into
-            your inventory as agent-referred, credits them as the source, and stays
-            unpublished until you review it.
+            Paste a property link another agent shared with you. The listing is
+            copied into your inventory as agent-referred, credits them as the
+            source, and stays unpublished until you review it.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5">
@@ -74,7 +80,7 @@ export function ImportSharedDialog({ open, onOpenChange, onImported }: ImportSha
             value={link}
             onChange={(e) => setLink(e.target.value)}
             placeholder="https://.../?property_id=..."
-            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
             onKeyDown={(e) => {
               if (e.key === 'Enter') void handleImport();
             }}
@@ -84,7 +90,7 @@ export function ImportSharedDialog({ open, onOpenChange, onImported }: ImportSha
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
           >
             Cancel
           </Button>

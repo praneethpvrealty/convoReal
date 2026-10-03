@@ -4,12 +4,7 @@
 // ============================================================
 
 export type CreditBucket =
-  | 'monthly'
-  | 'bonus'
-  | 'referral'
-  | 'purchased'
-  | 'promo'
-  | 'pending_referral';
+  'monthly' | 'bonus' | 'referral' | 'purchased' | 'promo' | 'pending_referral';
 
 export type CreditTransactionType =
   | 'subscription_grant'
@@ -26,20 +21,10 @@ export type CreditTransactionType =
 
 export type ReferralTier = 'bronze' | 'silver' | 'gold' | 'platinum';
 export type ReferralStatus =
-  | 'pending'
-  | 'active'
-  | 'converted'
-  | 'expired'
-  | 'invalid';
+  'pending' | 'active' | 'converted' | 'expired' | 'invalid';
 export type PaymentGateway = 'razorpay' | 'stripe';
 export type CreditCurrency =
-  | 'INR'
-  | 'USD'
-  | 'GBP'
-  | 'EUR'
-  | 'AED'
-  | 'SGD'
-  | 'AUD';
+  'INR' | 'USD' | 'GBP' | 'EUR' | 'AED' | 'SGD' | 'AUD';
 export type SubscriptionPlanForCredits = 'solo_pro' | 'team' | 'agency';
 export type BillingCycleForCredits = 'monthly' | '3month' | '6month' | 'annual';
 

@@ -13,8 +13,7 @@ export type PublicProfilePatch = {
 };
 
 type ParseResult =
-  | { ok: true; value: PublicProfilePatch }
-  | { ok: false; error: string };
+  { ok: true; value: PublicProfilePatch } | { ok: false; error: string };
 
 function parseList(value: unknown, label: string): string[] | null | string {
   if (value === null) return null;

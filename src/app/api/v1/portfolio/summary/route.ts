@@ -11,25 +11,41 @@
 // though the identity tables themselves are global.
 // ============================================================
 
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
-import { withApiKeyAuth } from "@/lib/auth/api-keys";
-import { asRow } from "@/lib/v1/projections";
-import { toBuyerStats, toOwnerStats } from "@/lib/v1/portfolio";
+import { withApiKeyAuth } from '@/lib/auth/api-keys';
+import { asRow } from '@/lib/v1/projections';
+import { toBuyerStats, toOwnerStats } from '@/lib/v1/portfolio';
 
-export const GET = withApiKeyAuth("read", async (ctx) => {
+export const GET = withApiKeyAuth('read', async (ctx) => {
   const [owners, buyers] = await Promise.all([
-    ctx.db.rpc("portfolio_owner_stats", { p_account_id: ctx.accountId }).maybeSingle(),
-    ctx.db.rpc("portfolio_buyer_stats", { p_account_id: ctx.accountId }).maybeSingle(),
+    ctx.db
+      .rpc('portfolio_owner_stats', { p_account_id: ctx.accountId })
+      .maybeSingle(),
+    ctx.db
+      .rpc('portfolio_buyer_stats', { p_account_id: ctx.accountId })
+      .maybeSingle(),
   ]);
 
   if (owners.error) {
-    console.error("[GET /api/v1/portfolio/summary] owner stats error:", owners.error);
-    return NextResponse.json({ error: "Failed to load owner portfolio" }, { status: 500 });
+    console.error(
+      '[GET /api/v1/portfolio/summary] owner stats error:',
+      owners.error
+    );
+    return NextResponse.json(
+      { error: 'Failed to load owner portfolio' },
+      { status: 500 }
+    );
   }
   if (buyers.error) {
-    console.error("[GET /api/v1/portfolio/summary] buyer stats error:", buyers.error);
-    return NextResponse.json({ error: "Failed to load buyer portfolio" }, { status: 500 });
+    console.error(
+      '[GET /api/v1/portfolio/summary] buyer stats error:',
+      buyers.error
+    );
+    return NextResponse.json(
+      { error: 'Failed to load buyer portfolio' },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({

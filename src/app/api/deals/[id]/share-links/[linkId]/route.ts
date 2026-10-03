@@ -38,9 +38,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     }
 
     const holder = revoked[0].stakeholder as
-      | { name: string }
-      | { name: string }[]
-      | null;
+      { name: string } | { name: string }[] | null;
     const name = Array.isArray(holder) ? holder[0]?.name : holder?.name;
 
     const outcome = await writeDealEvent({
@@ -51,7 +49,10 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       title: `Share link revoked${name ? ` for ${name}` : ''}`,
       actorId: ctx.userId,
       actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
-      source: new URL(request.url).searchParams.get('source') === 'mobile' ? 'mobile' : 'web',
+      source:
+        new URL(request.url).searchParams.get('source') === 'mobile'
+          ? 'mobile'
+          : 'web',
       metadata: { link_id: linkId },
     });
     if (!outcome.ok) {

@@ -22,7 +22,10 @@ export async function GET() {
 
     if (settingsError) {
       console.error('Error fetching system settings:', settingsError);
-      return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to fetch settings' },
+        { status: 500 }
+      );
     }
 
     const parsedSettings: Record<string, unknown> = {};
@@ -49,14 +52,15 @@ export async function GET() {
       .select('account_id, full_name, email')
       .eq('account_role', 'owner');
 
-    const mappedConfigs = configs?.map((cfg) => {
-      const owner = profiles?.find((p) => p.account_id === cfg.account_id);
-      return {
-        ...cfg,
-        owner_name: owner?.full_name || 'Unknown',
-        owner_email: owner?.email || 'N/A',
-      };
-    }) || [];
+    const mappedConfigs =
+      configs?.map((cfg) => {
+        const owner = profiles?.find((p) => p.account_id === cfg.account_id);
+        return {
+          ...cfg,
+          owner_name: owner?.full_name || 'Unknown',
+          owner_email: owner?.email || 'N/A',
+        };
+      }) || [];
 
     // 4. Fetch list of all organizations/accounts
     const { data: accounts } = await admin
@@ -70,16 +74,17 @@ export async function GET() {
       .from('subscriptions')
       .select('account_id, plan');
 
-    const mappedOrgs = accounts?.map((acc) => {
-      const orgOwner = profiles?.find((p) => p.account_id === acc.id);
-      const sub = subscriptions?.find((s) => s.account_id === acc.id);
-      return {
-        ...acc,
-        owner_name: orgOwner?.full_name || 'N/A',
-        owner_email: orgOwner?.email || 'N/A',
-        plan: sub?.plan || 'starter',
-      };
-    }) || [];
+    const mappedOrgs =
+      accounts?.map((acc) => {
+        const orgOwner = profiles?.find((p) => p.account_id === acc.id);
+        const sub = subscriptions?.find((s) => s.account_id === acc.id);
+        return {
+          ...acc,
+          owner_name: orgOwner?.full_name || 'N/A',
+          owner_email: orgOwner?.email || 'N/A',
+          plan: sub?.plan || 'starter',
+        };
+      }) || [];
 
     return NextResponse.json({
       settings: parsedSettings,
@@ -92,7 +97,10 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Error in GET admin settings:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
@@ -111,30 +119,29 @@ export async function POST(request: Request) {
     const { fallback_whatsapp_account_id, feature_toggles } = body;
 
     if (fallback_whatsapp_account_id !== undefined) {
-      const { error: err } = await admin
-        .from('system_settings')
-        .upsert({
-          key: 'fallback_whatsapp_account_id',
-          value: fallback_whatsapp_account_id, // JSONB handles string or null directly
-          updated_at: new Date().toISOString(),
-        });
+      const { error: err } = await admin.from('system_settings').upsert({
+        key: 'fallback_whatsapp_account_id',
+        value: fallback_whatsapp_account_id, // JSONB handles string or null directly
+        updated_at: new Date().toISOString(),
+      });
       if (err) throw err;
     }
 
     if (feature_toggles !== undefined) {
-      const { error: err } = await admin
-        .from('system_settings')
-        .upsert({
-          key: 'feature_toggles',
-          value: feature_toggles,
-          updated_at: new Date().toISOString(),
-        });
+      const { error: err } = await admin.from('system_settings').upsert({
+        key: 'feature_toggles',
+        value: feature_toggles,
+        updated_at: new Date().toISOString(),
+      });
       if (err) throw err;
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error in POST admin settings:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

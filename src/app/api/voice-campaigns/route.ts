@@ -128,8 +128,7 @@ export async function POST(request: NextRequest) {
         name: body.name.trim().slice(0, 200),
         property_id: propertyId,
         agent_ref:
-          typeof body.agent_ref === 'string' &&
-          body.agent_ref.trim()
+          typeof body.agent_ref === 'string' && body.agent_ref.trim()
             ? body.agent_ref.trim()
             : null,
         script_context: scriptContext,

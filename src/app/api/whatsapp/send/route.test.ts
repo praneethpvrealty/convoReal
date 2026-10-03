@@ -19,7 +19,10 @@ let dispatcherCalls: Array<Record<string, unknown>>;
 function makeDb() {
   return {
     from(table: string) {
-      const response = (queues[table] ?? []).shift() ?? { data: null, error: null };
+      const response = (queues[table] ?? []).shift() ?? {
+        data: null,
+        error: null,
+      };
       const builder: { [k: string]: (...args: unknown[]) => unknown } = {
         select: () => builder,
         eq: () => builder,
@@ -31,7 +34,7 @@ function makeDb() {
         then: (resolve: unknown, reject: unknown) =>
           Promise.resolve(response).then(
             resolve as (v: unknown) => unknown,
-            reject as (v: unknown) => unknown,
+            reject as (v: unknown) => unknown
           ),
       };
       return builder;
@@ -46,12 +49,16 @@ vi.mock('@/lib/auth/account', () => ({
     userId: 'user-1',
   }),
   toErrorResponse: (err: unknown) =>
-    Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 }),
+    Response.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    ),
 }));
 
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: () => ({ success: true }),
-  rateLimitResponse: () => Response.json({ error: 'rate limited' }, { status: 429 }),
+  rateLimitResponse: () =>
+    Response.json({ error: 'rate limited' }, { status: 429 }),
   RATE_LIMITS: { send: {} },
 }));
 
@@ -91,7 +98,11 @@ const CONVERSATION = {
 
 function config(integrationType: string) {
   return {
-    data: { id: 'cfg-1', access_token: 'enc', integration_type: integrationType },
+    data: {
+      id: 'cfg-1',
+      access_token: 'enc',
+      integration_type: integrationType,
+    },
     error: null,
   };
 }
@@ -101,7 +112,7 @@ function post(body: Record<string, unknown>) {
     new Request('http://localhost/api/whatsapp/send', {
       method: 'POST',
       body: JSON.stringify(body),
-    }),
+    })
   );
 }
 
@@ -118,7 +129,10 @@ describe('POST /api/whatsapp/send — customer window', () => {
       conversations: [CONVERSATION],
       whatsapp_config: [config('meta_cloud')],
       messages: [
-        { data: { created_at: new Date(Date.now() - 30 * HOURS).toISOString() }, error: null },
+        {
+          data: { created_at: new Date(Date.now() - 30 * HOURS).toISOString() },
+          error: null,
+        },
       ],
     };
 
@@ -157,7 +171,10 @@ describe('POST /api/whatsapp/send — customer window', () => {
       conversations: [CONVERSATION],
       whatsapp_config: [config('meta_cloud')],
       messages: [
-        { data: { created_at: new Date(Date.now() - 2 * HOURS).toISOString() }, error: null },
+        {
+          data: { created_at: new Date(Date.now() - 2 * HOURS).toISOString() },
+          error: null,
+        },
       ],
     };
 
@@ -172,14 +189,20 @@ describe('POST /api/whatsapp/send — customer window', () => {
     expect(dispatcherCalls[0].kind).toBe('text');
   });
 
-  it('quotes with Meta\'s wamid but persists our own row id', async () => {
+  it("quotes with Meta's wamid but persists our own row id", async () => {
     queues = {
       conversations: [CONVERSATION],
       whatsapp_config: [config('meta_cloud')],
       messages: [
         // The reply target, then the window lookup.
-        { data: { message_id: 'wamid.parent', conversation_id: 'conv-1' }, error: null },
-        { data: { created_at: new Date(Date.now() - 2 * HOURS).toISOString() }, error: null },
+        {
+          data: { message_id: 'wamid.parent', conversation_id: 'conv-1' },
+          error: null,
+        },
+        {
+          data: { created_at: new Date(Date.now() - 2 * HOURS).toISOString() },
+          error: null,
+        },
       ],
     };
 
@@ -194,7 +217,9 @@ describe('POST /api/whatsapp/send — customer window', () => {
     // reply_to_message_id is a UUID self-FK: handing it the wamid failed
     // the insert after Meta had already delivered the message.
     expect(dispatcherCalls[0].contextMessageId).toBe('wamid.parent');
-    expect(dispatcherCalls[0].replyToMessageId).toBe('11111111-2222-3333-4444-555555555555');
+    expect(dispatcherCalls[0].replyToMessageId).toBe(
+      '11111111-2222-3333-4444-555555555555'
+    );
   });
 
   it('keeps the local reply link when the parent never reached Meta', async () => {
@@ -203,7 +228,10 @@ describe('POST /api/whatsapp/send — customer window', () => {
       whatsapp_config: [config('meta_cloud')],
       messages: [
         { data: { message_id: null, conversation_id: 'conv-1' }, error: null },
-        { data: { created_at: new Date(Date.now() - 2 * HOURS).toISOString() }, error: null },
+        {
+          data: { created_at: new Date(Date.now() - 2 * HOURS).toISOString() },
+          error: null,
+        },
       ],
     };
 
@@ -216,14 +244,19 @@ describe('POST /api/whatsapp/send — customer window', () => {
 
     expect(res.status).toBe(200);
     expect(dispatcherCalls[0].contextMessageId).toBeUndefined();
-    expect(dispatcherCalls[0].replyToMessageId).toBe('11111111-2222-3333-4444-555555555555');
+    expect(dispatcherCalls[0].replyToMessageId).toBe(
+      '11111111-2222-3333-4444-555555555555'
+    );
   });
 
   it('lets a template through a closed window — that is what reopens it', async () => {
     queues = {
       conversations: [CONVERSATION],
       whatsapp_config: [config('meta_cloud')],
-      message_templates: [{ data: null, error: null }, { data: [], error: null }],
+      message_templates: [
+        { data: null, error: null },
+        { data: [], error: null },
+      ],
       messages: [{ data: null, error: null }],
     };
 

@@ -1,14 +1,18 @@
-import type { Metadata } from "next";
+import type { Metadata } from 'next';
 
-import { DenProvider } from "@/components/den/den-provider";
-import { DenShell } from "@/components/den/den-shell";
+import { DenProvider } from '@/components/den/den-provider';
+import { DenShell } from '@/components/den/den-shell';
 
 export const metadata: Metadata = {
-  title: "Portfolio",
-  description: "Your exclusive property owner portal",
+  title: 'Portfolio',
+  description: 'Your exclusive property owner portal',
 };
 
-export default function DenPortalLayout({ children }: { children: React.ReactNode }) {
+export default function DenPortalLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <DenProvider>
       <DenShell>{children}</DenShell>

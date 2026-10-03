@@ -36,24 +36,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid attempt' }, { status: 400 });
     }
 
-    const s = await checkRateLimit(`signupattempt:session:${sessionKey}`, SESSION_LIMIT);
+    const s = await checkRateLimit(
+      `signupattempt:session:${sessionKey}`,
+      SESSION_LIMIT
+    );
     if (!s.success) return rateLimitResponse(s);
     const g = await checkRateLimit('signupattempt:global', GLOBAL_LIMIT);
     if (!g.success) return rateLimitResponse(g);
 
     // A landing has no address to record; only a submitted form does.
     const email =
-      stage === 'landed' ? null : (body?.email || '').trim().slice(0, 254) || null;
+      stage === 'landed'
+        ? null
+        : (body?.email || '').trim().slice(0, 254) || null;
 
-    const { error } = await supabaseAdmin().from('signup_attempts').insert({
-      session_key: sessionKey,
-      stage,
-      gate,
-      email,
-      error_message: (body?.error_message || '').trim().slice(0, 300) || null,
-      referrer: (request.headers.get('referer') || '').slice(0, 500) || null,
-      user_agent: (request.headers.get('user-agent') || '').slice(0, 300) || null,
-    });
+    const { error } = await supabaseAdmin()
+      .from('signup_attempts')
+      .insert({
+        session_key: sessionKey,
+        stage,
+        gate,
+        email,
+        error_message: (body?.error_message || '').trim().slice(0, 300) || null,
+        referrer: (request.headers.get('referer') || '').slice(0, 500) || null,
+        user_agent:
+          (request.headers.get('user-agent') || '').slice(0, 300) || null,
+      });
 
     if (error) {
       console.error('[POST /api/public/signup-attempt] Insert failed:', error);

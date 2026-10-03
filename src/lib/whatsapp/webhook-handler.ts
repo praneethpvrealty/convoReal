@@ -951,7 +951,10 @@ async function handleStatusUpdate(status: {
     );
   }
 
-  if (isMarketingBlockCode(failure?.error_code) && updatedMsg?.[0]?.conversation_id) {
+  if (
+    isMarketingBlockCode(failure?.error_code) &&
+    updatedMsg?.[0]?.conversation_id
+  ) {
     const { data: conversation } = await supabaseAdmin()
       .from('conversations')
       .select('contact_id')
@@ -969,9 +972,7 @@ async function handleStatusUpdate(status: {
         .eq('id', conversation.contact_id)
         .maybeSingle();
       const standing = contactRow?.whatsapp_marketing_suppressed_until as
-        | string
-        | null
-        | undefined;
+        string | null | undefined;
       const proposed = failure?.retry_after as string;
       const until = laterSuppression(standing, proposed);
       const { error: suppressError } = await supabaseAdmin()
@@ -1114,7 +1115,9 @@ async function handleReminderButtonReply(
     const appointmentRow = Array.isArray(log.appointment)
       ? log.appointment[0]
       : log.appointment;
-    const claimGeneration = log.rearmed_at ? new Date(log.rearmed_at).getTime() : null;
+    const claimGeneration = log.rearmed_at
+      ? new Date(log.rearmed_at).getTime()
+      : null;
     const currentGeneration = appointmentRow?.reminders_rearmed_at
       ? new Date(appointmentRow.reminders_rearmed_at).getTime()
       : null;
@@ -1144,9 +1147,10 @@ async function handleReminderButtonReply(
       .update(stamp)
       .eq('id', log.appointment_id)
       .eq('account_id', accountId);
-    const { data: appt } = await (log.rearmed_at
-      ? stampQuery.eq('reminders_rearmed_at', log.rearmed_at)
-      : stampQuery.is('reminders_rearmed_at', null)
+    const { data: appt } = await (
+      log.rearmed_at
+        ? stampQuery.eq('reminders_rearmed_at', log.rearmed_at)
+        : stampQuery.is('reminders_rearmed_at', null)
     )
       .select('id, title, start_time, user_id, assigned_to')
       .maybeSingle();
@@ -2163,16 +2167,18 @@ async function handleInboundChain(
           unavailableReply
             ? UNAVAILABLE_LISTING_AGENT_NOTE
             : shareSent
-            ? actionRequested
-              ? [
-                  visitRequested ? 'Site visit requested.' : '',
-                  ownerContactRequested ? 'Owner conversation requested.' : '',
-                  'The exact property details were sent; please coordinate the requested next step.',
-                ]
-                  .filter(Boolean)
-                  .join(' ')
-              : 'The exact property details were sent. Reply to answer any property-specific questions.'
-            : 'The listing was matched, but the automatic details send failed. Please share it and follow up now.',
+              ? actionRequested
+                ? [
+                    visitRequested ? 'Site visit requested.' : '',
+                    ownerContactRequested
+                      ? 'Owner conversation requested.'
+                      : '',
+                    'The exact property details were sent; please coordinate the requested next step.',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
+                : 'The exact property details were sent. Reply to answer any property-specific questions.'
+              : 'The listing was matched, but the automatic details send failed. Please share it and follow up now.',
         ]
           .filter(Boolean)
           .join(' '),
@@ -2192,10 +2198,10 @@ async function handleInboundChain(
           unavailableReply
             ? UNAVAILABLE_LISTING_AGENT_NOTE
             : shareSent
-            ? actionRequested
-              ? 'The listing details have already been sent. Please coordinate the visit / owner conversation now.'
-              : 'The listing details have already been sent.'
-            : '⚠️ The automatic details send failed — please share them now.',
+              ? actionRequested
+                ? 'The listing details have already been sent. Please coordinate the visit / owner conversation now.'
+                : 'The listing details have already been sent.'
+              : '⚠️ The automatic details send failed — please share them now.',
           BRIDGE_REPLY_HINT,
         ].join('\n'),
       });
@@ -3158,7 +3164,10 @@ async function handleInboundChain(
   }
 
   const cleanedText = contentText?.trim()?.toLowerCase() || '';
-  const isCalendarQuery = /\b(schedule|visit|appointment|appointments|booking|bookings|my visits|my appointments)\b/i.test(cleanedText);
+  const isCalendarQuery =
+    /\b(schedule|visit|appointment|appointments|booking|bookings|my visits|my appointments)\b/i.test(
+      cleanedText
+    );
 
   if (isCalendarQuery) {
     console.log(

@@ -9,7 +9,7 @@ import {
 function db(
   rows: { id: string }[] | null,
   error: { message: string } | null = null,
-  capture?: { since?: string; senderType?: string },
+  capture?: { since?: string; senderType?: string }
 ): SupabaseClient {
   return {
     from() {
@@ -17,10 +17,12 @@ function db(
         select() {
           return {
             eq(_col: string, value: unknown) {
-              if (capture && _col === 'sender_type') capture.senderType = String(value);
+              if (capture && _col === 'sender_type')
+                capture.senderType = String(value);
               return {
                 eq(col2: string, v2: unknown) {
-                  if (capture && col2 === 'sender_type') capture.senderType = String(v2);
+                  if (capture && col2 === 'sender_type')
+                    capture.senderType = String(v2);
                   return {
                     gte(_c: string, since: string) {
                       if (capture) capture.since = since;
@@ -54,19 +56,21 @@ describe('hasRecentAgentReply', () => {
     await hasRecentAgentReply(db([], null, capture), 'conv-1', now);
     expect(capture.senderType).toBe('agent');
     expect(new Date(capture.since!).getTime()).toBe(
-      now.getTime() - AGENT_TAKEOVER_WINDOW_MS,
+      now.getTime() - AGENT_TAKEOVER_WINDOW_MS
     );
   });
 
   it('fails open on a lookup error, so a glitch cannot mute every funnel', async () => {
-    expect(await hasRecentAgentReply(db(null, { message: 'down' }), 'conv-1')).toBe(false);
+    expect(
+      await hasRecentAgentReply(db(null, { message: 'down' }), 'conv-1')
+    ).toBe(false);
   });
 });
 
 function flowRunsDb(
   rows: { id: string }[] | null,
   error: { message: string } | null = null,
-  capture?: Record<string, unknown>,
+  capture?: Record<string, unknown>
 ): SupabaseClient {
   return {
     from() {
@@ -101,7 +105,7 @@ describe('standDownActiveFlowRuns', () => {
     const count = await standDownActiveFlowRuns(
       flowRunsDb([{ id: 'run-1' }], null, capture),
       'a1',
-      'c1',
+      'c1'
     );
     expect(count).toBe(1);
     expect(capture.statusFilter).toBe('status=active');
@@ -119,7 +123,11 @@ describe('standDownActiveFlowRuns', () => {
     // The bug this replaced: an RLS refusal came back as zero rows and
     // no error, so the pause silently did nothing for every human reply.
     expect(
-      await standDownActiveFlowRuns(flowRunsDb(null, { message: 'denied' }), 'a1', 'c1'),
+      await standDownActiveFlowRuns(
+        flowRunsDb(null, { message: 'denied' }),
+        'a1',
+        'c1'
+      )
     ).toBe(0);
   });
 });

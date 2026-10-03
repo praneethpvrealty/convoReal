@@ -46,7 +46,10 @@ export async function POST(request: NextRequest) {
       );
       if (!sessionLimit.success) return rateLimitResponse(sessionLimit);
     }
-    const globalLimit = await checkRateLimit('siteask:global', ASK_GLOBAL_LIMIT);
+    const globalLimit = await checkRateLimit(
+      'siteask:global',
+      ASK_GLOBAL_LIMIT
+    );
     if (!globalLimit.success) return rateLimitResponse(globalLimit);
 
     const structured = answerFromSiteData(question);

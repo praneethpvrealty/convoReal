@@ -17,20 +17,42 @@
   if (document.getElementById(PANEL_ID)) return;
 
   const HOST = window.location.hostname;
-  const PORTAL = HOST.includes('99acres') ? '99acres' : HOST.includes('magicbricks') ? 'magicbricks' : 'housing';
+  const PORTAL = HOST.includes('99acres')
+    ? '99acres'
+    : HOST.includes('magicbricks')
+      ? 'magicbricks'
+      : 'housing';
 
   // Maps our field labels → keywords likely to appear around the
   // portal's matching form control.
   const FIELD_HINTS = {
     Title: ['ad title', 'property title', 'title', 'heading'],
-    Description: ['description', 'describe', 'about the property', 'unique about'],
+    Description: [
+      'description',
+      'describe',
+      'about the property',
+      'unique about',
+    ],
     'Expected Price': ['expected price', 'price', 'total price', 'cost'],
     'Monthly Rent': ['monthly rent', 'rent', 'expected rent'],
     Maintenance: ['maintenance'],
     'Security Deposit / Advance': ['security deposit', 'deposit', 'advance'],
-    'Built-up Area': ['built-up area', 'built up', 'super area', 'carpet area', 'area'],
+    'Built-up Area': [
+      'built-up area',
+      'built up',
+      'super area',
+      'carpet area',
+      'area',
+    ],
     'Plot Area': ['plot area', 'land area', 'area'],
-    Locality: ['locality', 'society', 'project', 'landmark', 'location', 'search locality'],
+    Locality: [
+      'locality',
+      'society',
+      'project',
+      'landmark',
+      'location',
+      'search locality',
+    ],
     City: ['city'],
     Bedrooms: ['bedroom', 'bhk'],
     Bathrooms: ['bathroom', 'bath'],
@@ -48,7 +70,11 @@
     // field must claim its input first (DOM order breaks the tie).
     Length: ['length'],
     Width: ['width'],
-    'Width of Facing Road': ['width of facing road', 'facing road', 'road width'],
+    'Width of Facing Road': [
+      'width of facing road',
+      'facing road',
+      'road width',
+    ],
   };
 
   // Housing's "Building / Apartment / Society Name" contains the word
@@ -73,16 +99,29 @@
   function antihintsFor(label, fields) {
     const base = FIELD_ANTIHINTS[label] || [];
     if (!AREA_ANTIHINTS[label]) return base;
-    const both = fields.some((f) => f.label === 'Plot Area')
-      && fields.some((f) => f.label === 'Built-up Area');
+    const both =
+      fields.some((f) => f.label === 'Plot Area') &&
+      fields.some((f) => f.label === 'Built-up Area');
     return both ? [...base, ...AREA_ANTIHINTS[label]] : base;
   }
 
   const NUMERIC_FIELDS = new Set([
-    'Expected Price', 'Monthly Rent', 'Maintenance', 'Security Deposit / Advance',
-    'Built-up Area', 'Plot Area', 'Bedrooms', 'Bathrooms',
-    'Age of Property', 'Length', 'Width', 'Width of Facing Road', 'Brokerage',
-    'Balconies', 'Floor No.', 'Total Floors',
+    'Expected Price',
+    'Monthly Rent',
+    'Maintenance',
+    'Security Deposit / Advance',
+    'Built-up Area',
+    'Plot Area',
+    'Bedrooms',
+    'Bathrooms',
+    'Age of Property',
+    'Length',
+    'Width',
+    'Width of Facing Road',
+    'Brokerage',
+    'Balconies',
+    'Floor No.',
+    'Total Floors',
   ]);
 
   /** "₹45 Cr" → "45000000 0" is wrong — portals want raw numbers.
@@ -98,7 +137,11 @@
 
   function contextText(el) {
     const bits = [
-      el.placeholder, el.name, el.id, el.getAttribute('aria-label'), el.getAttribute('data-label'),
+      el.placeholder,
+      el.name,
+      el.id,
+      el.getAttribute('aria-label'),
+      el.getAttribute('data-label'),
     ];
     if (el.labels) for (const l of el.labels) bits.push(l.textContent);
     const container = el.closest('div, li, section');
@@ -110,7 +153,10 @@
   }
 
   function nativeSet(el, value) {
-    const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+    const proto =
+      el.tagName === 'TEXTAREA'
+        ? window.HTMLTextAreaElement.prototype
+        : window.HTMLInputElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
     setter.call(el, value);
     el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -119,14 +165,20 @@
 
   function isFillable(el) {
     if (el.disabled || el.readOnly) return false;
-    if (el.tagName === 'INPUT' && !['text', 'search', 'tel', 'number', 'email', ''].includes(el.type)) return false;
+    if (
+      el.tagName === 'INPUT' &&
+      !['text', 'search', 'tel', 'number', 'email', ''].includes(el.type)
+    )
+      return false;
     const rect = el.getBoundingClientRect();
     return rect.width > 40 && rect.height > 10;
   }
 
   function flashOutline(el) {
     el.style.outline = '2px solid #10b981';
-    setTimeout(() => { el.style.outline = ''; }, 3000);
+    setTimeout(() => {
+      el.style.outline = '';
+    }, 3000);
   }
 
   // City / locality / society inputs on the portals are typeaheads:
@@ -138,9 +190,17 @@
    *  (they commit on mousedown/pointer events, not click). */
   function simulateClick(el) {
     const opts = { bubbles: true, cancelable: true, view: window };
-    try { el.dispatchEvent(new PointerEvent('pointerdown', opts)); } catch { /* older Chrome */ }
+    try {
+      el.dispatchEvent(new PointerEvent('pointerdown', opts));
+    } catch {
+      /* older Chrome */
+    }
     el.dispatchEvent(new MouseEvent('mousedown', opts));
-    try { el.dispatchEvent(new PointerEvent('pointerup', opts)); } catch { /* older Chrome */ }
+    try {
+      el.dispatchEvent(new PointerEvent('pointerup', opts));
+    } catch {
+      /* older Chrome */
+    }
     el.dispatchEvent(new MouseEvent('mouseup', opts));
     el.click();
   }
@@ -150,20 +210,32 @@
    *  commits. Hover first, like a real mouse would. */
   function simulateHover(el) {
     const opts = { bubbles: true, cancelable: true, view: window };
-    try { el.dispatchEvent(new PointerEvent('pointerover', opts)); } catch { /* older Chrome */ }
+    try {
+      el.dispatchEvent(new PointerEvent('pointerover', opts));
+    } catch {
+      /* older Chrome */
+    }
     el.dispatchEvent(new MouseEvent('mouseover', opts));
-    el.dispatchEvent(new MouseEvent('mouseenter', { cancelable: true, view: window }));
+    el.dispatchEvent(
+      new MouseEvent('mouseenter', { cancelable: true, view: window })
+    );
   }
 
   /** Key events carrying keyCode/which too — jQuery-era handlers
    *  (MagicBricks) read e.keyCode, which KeyboardEvent inits ignore. */
   function keyEvent(type, ch) {
-    const ev = new KeyboardEvent(type, { key: ch, bubbles: true, cancelable: true });
+    const ev = new KeyboardEvent(type, {
+      key: ch,
+      bubbles: true,
+      cancelable: true,
+    });
     const code = ch.length === 1 ? ch.toUpperCase().charCodeAt(0) : 0;
     try {
       Object.defineProperty(ev, 'keyCode', { get: () => code });
       Object.defineProperty(ev, 'which', { get: () => code });
-    } catch { /* frozen event — key-only handlers still work */ }
+    } catch {
+      /* frozen event — key-only handlers still work */
+    }
     return ev;
   }
 
@@ -176,7 +248,8 @@
       const parent = node.parentElement;
       if (parent.contains(input)) break;
       const r = parent.getBoundingClientRect();
-      if (r.height > 90 || normalizedText(parent.textContent).length > 90) break;
+      if (r.height > 90 || normalizedText(parent.textContent).length > 90)
+        break;
       node = parent;
     }
     return node;
@@ -248,17 +321,25 @@
    *  far past the visible fold. */
   function suggestionRows(input) {
     const ir = input.getBoundingClientRect();
-    const near = [...document.querySelectorAll('[role="option"], li, a, div, span, p, b, strong')]
-      .filter((el) => {
-        if (el.childElementCount > 3) return false;
-        if (el.closest(`#${PANEL_ID}`)) return false;
-        const text = normalizedText(el.textContent);
-        if (!text || text.length > 120) return false;
-        const r = el.getBoundingClientRect();
-        if (r.width < 40 || r.height < 12 || r.height > 90) return false;
-        // Must sit in the dropdown zone under the input.
-        return r.top >= ir.bottom - 4 && r.top <= ir.bottom + 440 && r.left < ir.right + 40 && r.right > ir.left - 60;
-      });
+    const near = [
+      ...document.querySelectorAll(
+        '[role="option"], li, a, div, span, p, b, strong'
+      ),
+    ].filter((el) => {
+      if (el.childElementCount > 3) return false;
+      if (el.closest(`#${PANEL_ID}`)) return false;
+      const text = normalizedText(el.textContent);
+      if (!text || text.length > 120) return false;
+      const r = el.getBoundingClientRect();
+      if (r.width < 40 || r.height < 12 || r.height > 90) return false;
+      // Must sit in the dropdown zone under the input.
+      return (
+        r.top >= ir.bottom - 4 &&
+        r.top <= ir.bottom + 440 &&
+        r.left < ir.right + 40 &&
+        r.right > ir.left - 60
+      );
+    });
 
     const rows = new Map();
     const addRow = (row) => {
@@ -316,7 +397,8 @@
     const wants = [want];
     if (label === 'City') {
       for (const group of CITY_ALIASES) {
-        if (group.includes(want)) for (const name of group) if (name !== want) wants.push(name);
+        if (group.includes(want))
+          for (const name of group) if (name !== want) wants.push(name);
       }
     }
     return wants;
@@ -328,18 +410,22 @@
    *  "Bengaluru" query lands here and must beat any loose prefix. */
   function pickExact(rows, wants) {
     const head = (t) => t.split(',')[0].trim();
-    return rows.find((c) => wants.some((w) => c.text === w || head(c.text) === w))
-      || rows.find((c) => wants.some((w) => c.text.startsWith(`${w},`)))
-      || null;
+    return (
+      rows.find((c) => wants.some((w) => c.text === w || head(c.text) === w)) ||
+      rows.find((c) => wants.some((w) => c.text.startsWith(`${w},`))) ||
+      null
+    );
   }
 
   /** A loose prefix match — "Bengaluru East" for "Bengaluru". Fine when
    *  nothing exact exists, but a sub-region should never be picked over
    *  an exact city, so callers try pickExact first (and wait for it). */
   function pickPrefix(rows, wants) {
-    return rows.find((c) => wants.some((w) => c.text.startsWith(`${w} `)))
-      || rows.find((c) => wants.some((w) => c.text.startsWith(w)))
-      || null;
+    return (
+      rows.find((c) => wants.some((w) => c.text.startsWith(`${w} `))) ||
+      rows.find((c) => wants.some((w) => c.text.startsWith(w))) ||
+      null
+    );
   }
 
   function pickSuggestion(rows, wants) {
@@ -386,7 +472,9 @@
       simulateClick(fresh.target);
       await sleep(450);
 
-      const rowGone = !document.contains(fresh.row) || fresh.row.getBoundingClientRect().height === 0;
+      const rowGone =
+        !document.contains(fresh.row) ||
+        fresh.row.getBoundingClientRect().height === 0;
       const inputOk = !document.contains(input) || normalizedText(input.value);
       if (rowGone && inputOk) {
         if (document.contains(input)) flashOutline(input);
@@ -409,7 +497,9 @@
       // after it, and redoing a failed one just repeats the slow poll.
       if (handled.has(field.label)) continue;
       const isTypeahead = TYPEAHEAD_FIELDS.has(field.label);
-      const value = NUMERIC_FIELDS.has(field.label) ? numericValue(field.label, field.value) : field.value;
+      const value = NUMERIC_FIELDS.has(field.label)
+        ? numericValue(field.label, field.value)
+        : field.value;
 
       // Re-scan the DOM for every field: portals reveal inputs as
       // earlier ones commit (99acres shows Locality only after the
@@ -420,7 +510,9 @@
       let bestScore = 0;
       for (let attempt = 0; attempt < attempts && !best; attempt++) {
         if (attempt > 0) await sleep(400);
-        for (const el of [...document.querySelectorAll('input, textarea')].filter(isFillable)) {
+        for (const el of [
+          ...document.querySelectorAll('input, textarea'),
+        ].filter(isFillable)) {
           // A typeahead that already shows our text still needs its
           // suggestion clicked, so don't skip it on value equality.
           if (used.has(el) || (el.value === value && !isTypeahead)) continue;
@@ -430,9 +522,14 @@
           if (antihints.some((h) => ctx.includes(h))) continue;
           let score = 0;
           hints.forEach((hint, idx) => {
-            if (ctx.includes(hint)) score = Math.max(score, hints.length - idx + (hint.length > 6 ? 1 : 0));
+            if (ctx.includes(hint))
+              score = Math.max(
+                score,
+                hints.length - idx + (hint.length > 6 ? 1 : 0)
+              );
           });
-          if (field.label === 'Description' && el.tagName === 'TEXTAREA') score += 2;
+          if (field.label === 'Description' && el.tagName === 'TEXTAREA')
+            score += 2;
           if (score > bestScore) {
             best = el;
             bestScore = score;
@@ -499,7 +596,8 @@
     return (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
   }
 
-  const COMMERCIAL_RE = /commercial|office|shop|showroom|industrial|warehouse|godown/;
+  const COMMERCIAL_RE =
+    /commercial|office|shop|showroom|industrial|warehouse|godown/;
 
   function listingSynonyms(listingFor) {
     return listingFor.startsWith('Rent')
@@ -511,8 +609,10 @@
    *  texts only — "furnished" is a substring of the other two, so the
    *  plain value alone would grab the wrong control. */
   function furnishingSynonyms(furnishing) {
-    if (furnishing.startsWith('semi')) return ['semi-furnished', 'semi furnished', 'semifurnished'];
-    if (furnishing.startsWith('un')) return ['unfurnished', 'un-furnished', 'un furnished'];
+    if (furnishing.startsWith('semi'))
+      return ['semi-furnished', 'semi furnished', 'semifurnished'];
+    if (furnishing.startsWith('un'))
+      return ['unfurnished', 'un-furnished', 'un furnished'];
     return ['furnished', 'fully furnished', 'fully-furnished'];
   }
 
@@ -528,8 +628,16 @@
     if (floor === '0') return ['ground', '0'];
     const n = parseInt(floor, 10);
     const tens = n % 100;
-    const suffix = tens >= 11 && tens <= 13 ? 'th'
-      : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th';
+    const suffix =
+      tens >= 11 && tens <= 13
+        ? 'th'
+        : n % 10 === 1
+          ? 'st'
+          : n % 10 === 2
+            ? 'nd'
+            : n % 10 === 3
+              ? 'rd'
+              : 'th';
     return [floor, `${floor}${suffix}`];
   }
 
@@ -542,28 +650,50 @@
     if (/vitrified/.test(flooring)) options.push('vitrified tiles');
     if (/ceramic/.test(flooring)) options.push('ceramic tiles');
     if (/wood/.test(flooring)) options.push('wooden', 'wood');
-    if (/normal|kotah/.test(flooring)) options.push('normal tiles / kotah stone', 'normal tiles', 'kotah stone');
+    if (/normal|kotah/.test(flooring))
+      options.push('normal tiles / kotah stone', 'normal tiles', 'kotah stone');
     return options;
   }
 
   /** type must already be normalizedText()ed. */
   function typeSynonyms(type) {
     const sub = [];
-    if (/plot|land/.test(type)) sub.push('plot / land', 'plot/land', 'residential land', 'residential plot', 'plot', 'land');
-    if (/apartment|flat/.test(type) && !/studio|1 rk/.test(type)) sub.push('flat/apartment', 'flat / apartment', 'apartment', 'flat');
-    if (/villa|independent house/.test(type)) sub.push('independent house / villa', 'villa', 'independent house');
-    if (/builder floor/.test(type)) sub.push('independent / builder floor', 'builder floor');
-    if (/studio|1 rk/.test(type)) sub.push('1 rk/ studio apartment', 'studio apartment');
-    if (/office/.test(type)) sub.push('office space', 'office', 'commercial office space');
-    if (/shop|showroom|retail/.test(type)) sub.push('retail shop', 'shop', 'showroom', 'retail', 'shop/showroom');
-    if (/warehouse|godown/.test(type)) sub.push('warehouse / godown', 'warehouse', 'godown');
+    if (/plot|land/.test(type))
+      sub.push(
+        'plot / land',
+        'plot/land',
+        'residential land',
+        'residential plot',
+        'plot',
+        'land'
+      );
+    if (/apartment|flat/.test(type) && !/studio|1 rk/.test(type))
+      sub.push('flat/apartment', 'flat / apartment', 'apartment', 'flat');
+    if (/villa|independent house/.test(type))
+      sub.push('independent house / villa', 'villa', 'independent house');
+    if (/builder floor/.test(type))
+      sub.push('independent / builder floor', 'builder floor');
+    if (/studio|1 rk/.test(type))
+      sub.push('1 rk/ studio apartment', 'studio apartment');
+    if (/office/.test(type))
+      sub.push('office space', 'office', 'commercial office space');
+    if (/shop|showroom|retail/.test(type))
+      sub.push('retail shop', 'shop', 'showroom', 'retail', 'shop/showroom');
+    if (/warehouse|godown/.test(type))
+      sub.push('warehouse / godown', 'warehouse', 'godown');
     if (/farm/.test(type)) sub.push('farmhouse', 'farm house');
     if (/pg|hostel/.test(type)) sub.push('pg');
     // Commercial types the portals don't list verbatim (e.g. "Commercial
     // Building") fall back to the generic bucket each portal does offer,
     // so the mandatory subtype still gets picked and the step unblocks.
     if (COMMERCIAL_RE.test(type) && sub.length === 0) {
-      sub.push('commercial building', 'building', 'commercial space', 'other', 'others');
+      sub.push(
+        'commercial building',
+        'building',
+        'commercial space',
+        'other',
+        'others'
+      );
     }
     return sub;
   }
@@ -573,54 +703,125 @@
     const targets = [];
 
     const listingFor = get('Listing For');
-    if (listingFor) targets.push({ label: 'Listing For', synonyms: listingSynonyms(listingFor) });
+    if (listingFor)
+      targets.push({
+        label: 'Listing For',
+        synonyms: listingSynonyms(listingFor),
+      });
 
     const type = normalizedText(get('Property Type'));
     if (type) {
-      targets.push({ label: 'Property Type', synonyms: [COMMERCIAL_RE.test(type) ? 'commercial' : 'residential'] });
+      targets.push({
+        label: 'Property Type',
+        synonyms: [COMMERCIAL_RE.test(type) ? 'commercial' : 'residential'],
+      });
       const sub = typeSynonyms(type);
-      if (sub.length > 0) targets.push({ label: 'Property Type', synonyms: sub });
+      if (sub.length > 0)
+        targets.push({ label: 'Property Type', synonyms: sub });
     }
 
     const beds = get('Bedrooms');
-    if (beds) targets.push({ label: 'Bedrooms', synonyms: [`${beds} bhk`, `${beds}bhk`, beds], scope: /bedroom|bhk/ });
+    if (beds)
+      targets.push({
+        label: 'Bedrooms',
+        synonyms: [`${beds} bhk`, `${beds}bhk`, beds],
+        scope: /bedroom|bhk/,
+      });
     const baths = get('Bathrooms');
-    if (baths) targets.push({ label: 'Bathrooms', synonyms: [baths], scope: /bathroom|bath/ });
+    if (baths)
+      targets.push({
+        label: 'Bathrooms',
+        synonyms: [baths],
+        scope: /bathroom|bath/,
+      });
     const facing = normalizedText(get('Facing'));
-    if (facing) targets.push({ label: 'Facing', synonyms: [facing], scope: /facing/ });
+    if (facing)
+      targets.push({ label: 'Facing', synonyms: [facing], scope: /facing/ });
 
     // Per-portal mandatory chips from portalExtras() — 99acres/MB
     // availability, furnishing, balconies, ownership.
     const availability = normalizedText(get('Availability Status'));
-    if (availability) targets.push({ label: 'Availability Status', synonyms: availabilitySynonyms(availability) });
+    if (availability)
+      targets.push({
+        label: 'Availability Status',
+        synonyms: availabilitySynonyms(availability),
+      });
     const furnishing = normalizedText(get('Furnishing'));
-    if (furnishing) targets.push({ label: 'Furnishing', synonyms: furnishingSynonyms(furnishing), scope: /furnish/ });
+    if (furnishing)
+      targets.push({
+        label: 'Furnishing',
+        synonyms: furnishingSynonyms(furnishing),
+        scope: /furnish/,
+      });
     const balconies = get('Balconies');
-    if (balconies) targets.push({ label: 'Balconies', synonyms: [balconies], scope: /balcon/ });
+    if (balconies)
+      targets.push({
+        label: 'Balconies',
+        synonyms: [balconies],
+        scope: /balcon/,
+      });
     const ownership = normalizedText(get('Ownership'));
-    if (ownership) targets.push({ label: 'Ownership', synonyms: [ownership], scope: /ownership/ });
+    if (ownership)
+      targets.push({
+        label: 'Ownership',
+        synonyms: [ownership],
+        scope: /ownership/,
+      });
     const flooring = normalizedText(get('Flooring'));
-    if (flooring) targets.push({ label: 'Flooring', synonyms: flooringSynonyms(flooring), scope: /floor/ });
+    if (flooring)
+      targets.push({
+        label: 'Flooring',
+        synonyms: flooringSynonyms(flooring),
+        scope: /floor/,
+      });
     const powerBackup = normalizedText(get('Power Backup'));
-    if (powerBackup) targets.push({ label: 'Power Backup', synonyms: [powerBackup], scope: /power/ });
+    if (powerBackup)
+      targets.push({
+        label: 'Power Backup',
+        synonyms: [powerBackup],
+        scope: /power/,
+      });
 
     // Housing mandatory chips (also match 99acres/MB wording where the
     // same question exists).
     const txn = normalizedText(get('Transaction Type'));
-    if (txn) targets.push({ label: 'Transaction Type', synonyms: txn === 'resale' ? ['resale'] : ['new booking', 'new property'] });
+    if (txn)
+      targets.push({
+        label: 'Transaction Type',
+        synonyms:
+          txn === 'resale' ? ['resale'] : ['new booking', 'new property'],
+      });
     const possession = normalizedText(get('Possession Status'));
     if (possession) {
       targets.push({
         label: 'Possession Status',
-        synonyms: possession === 'immediate' ? ['immediate', 'ready to move'] : ['in future', 'under construction'],
+        synonyms:
+          possession === 'immediate'
+            ? ['immediate', 'ready to move']
+            : ['in future', 'under construction'],
       });
     }
     const boundary = normalizedText(get('Boundary Wall'));
-    if (boundary) targets.push({ label: 'Boundary Wall', synonyms: [boundary], scope: /boundary/ });
+    if (boundary)
+      targets.push({
+        label: 'Boundary Wall',
+        synonyms: [boundary],
+        scope: /boundary/,
+      });
     const chargeBrokerage = normalizedText(get('Charge Brokerage'));
-    if (chargeBrokerage) targets.push({ label: 'Charge Brokerage', synonyms: [chargeBrokerage], scope: /brokerage/ });
+    if (chargeBrokerage)
+      targets.push({
+        label: 'Charge Brokerage',
+        synonyms: [chargeBrokerage],
+        scope: /brokerage/,
+      });
     const openSides = normalizedText(get('Open Sides'));
-    if (openSides) targets.push({ label: 'Open Sides', synonyms: [openSides], scope: /open side/ });
+    if (openSides)
+      targets.push({
+        label: 'Open Sides',
+        synonyms: [openSides],
+        scope: /open side/,
+      });
 
     return targets;
   }
@@ -632,20 +833,28 @@
    *  fires the input's change, so the selection never flips. */
   function choiceInput(node) {
     if (!node) return null;
-    if (node.tagName === 'INPUT' && /^(radio|checkbox)$/.test(node.type)) return node;
+    if (node.tagName === 'INPUT' && /^(radio|checkbox)$/.test(node.type))
+      return node;
     if (node.tagName === 'LABEL' && node.htmlFor) {
       const byFor = document.getElementById(node.htmlFor);
       if (byFor && byFor.tagName === 'INPUT') return byFor;
     }
-    const inside = node.querySelector && node.querySelector('input[type="radio"], input[type="checkbox"]');
+    const inside =
+      node.querySelector &&
+      node.querySelector('input[type="radio"], input[type="checkbox"]');
     if (inside) return inside;
     const parent = node.parentElement;
-    const near = parent && parent.querySelector('input[type="radio"], input[type="checkbox"]');
+    const near =
+      parent &&
+      parent.querySelector('input[type="radio"], input[type="checkbox"]');
     return near || null;
   }
 
   function clickChoiceElement(el) {
-    const control = el.closest('button, label, [role="radio"], [role="button"], [role="tab"]') || el;
+    const control =
+      el.closest(
+        'button, label, [role="radio"], [role="button"], [role="tab"]'
+      ) || el;
     const input = choiceInput(control) || choiceInput(el);
     if (input) {
       input.click();
@@ -657,27 +866,49 @@
   }
 
   function clickChoice(target) {
-    const clickables = [...document.querySelectorAll('button, label, li, span, div, [role="radio"], [role="button"], [role="tab"]')]
-      .filter((el) => {
-        if (el.closest(`#${PANEL_ID}, a[href], nav, header, footer`)) return false;
-        const rect = el.getBoundingClientRect();
-        return rect.width > 20 && rect.height > 14 && rect.width < 420 && rect.height < 90;
-      });
+    const clickables = [
+      ...document.querySelectorAll(
+        'button, label, li, span, div, [role="radio"], [role="button"], [role="tab"]'
+      ),
+    ].filter((el) => {
+      if (el.closest(`#${PANEL_ID}, a[href], nav, header, footer`))
+        return false;
+      const rect = el.getBoundingClientRect();
+      return (
+        rect.width > 20 &&
+        rect.height > 14 &&
+        rect.width < 420 &&
+        rect.height < 90
+      );
+    });
 
     for (const syn of target.synonyms) {
       const matches = clickables
-        .filter((el) => normalizedText(el.textContent) === syn && el.childElementCount <= 2)
+        .filter(
+          (el) =>
+            normalizedText(el.textContent) === syn && el.childElementCount <= 2
+        )
         .filter((el) => {
           if (!target.scope) return true;
           // Numeric/direction chips are ambiguous ("3", "east") — only
           // click them inside a section that mentions the field.
           let node = el.parentElement;
-          for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) {
-            if (target.scope.test(normalizedText(node.textContent).slice(0, 300))) return true;
+          for (
+            let depth = 0;
+            node && depth < 5;
+            depth++, node = node.parentElement
+          ) {
+            if (
+              target.scope.test(normalizedText(node.textContent).slice(0, 300))
+            )
+              return true;
           }
           return false;
         })
-        .sort((a, b) => a.getBoundingClientRect().width - b.getBoundingClientRect().width);
+        .sort(
+          (a, b) =>
+            a.getBoundingClientRect().width - b.getBoundingClientRect().width
+        );
 
       if (matches.length > 0) {
         const el = matches[0];
@@ -699,7 +930,11 @@
   // clicking it again would turn it off.
 
   function normalizeAmenity(text) {
-    return normalizedText(text).replace(/^[+✓]\s*/, '').replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+    return normalizedText(text)
+      .replace(/^[+✓]\s*/, '')
+      .replace(/[^a-z0-9 ]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   // Engine feature wording → the portals' chip wording where they differ.
@@ -717,22 +952,34 @@
     'play area': 'childrens play area',
     clubhouse: 'club house',
     'rainwater harvesting': 'rain water harvesting',
-    'borewell': 'water storage',
+    borewell: 'water storage',
   };
 
   function clickAmenities(fields) {
     const raw = fields.find((f) => f.label === 'Amenities')?.value || '';
-    const wants = raw.split(',').map(normalizeAmenity).filter(Boolean)
+    const wants = raw
+      .split(',')
+      .map(normalizeAmenity)
+      .filter(Boolean)
       .map((a) => AMENITY_ALIASES[a] || a);
     if (wants.length === 0) return 0;
 
-    const chips = [...document.querySelectorAll('button, label, li, span, div, [role="checkbox"], [role="button"]')]
-      .filter((el) => {
-        if (el.closest(`#${PANEL_ID}, a[href], nav, header, footer`)) return false;
-        if (el.childElementCount > 2) return false;
-        const rect = el.getBoundingClientRect();
-        return rect.width > 20 && rect.height > 14 && rect.width < 420 && rect.height < 90;
-      });
+    const chips = [
+      ...document.querySelectorAll(
+        'button, label, li, span, div, [role="checkbox"], [role="button"]'
+      ),
+    ].filter((el) => {
+      if (el.closest(`#${PANEL_ID}, a[href], nav, header, footer`))
+        return false;
+      if (el.childElementCount > 2) return false;
+      const rect = el.getBoundingClientRect();
+      return (
+        rect.width > 20 &&
+        rect.height > 14 &&
+        rect.width < 420 &&
+        rect.height < 90
+      );
+    });
 
     const used = new Set();
     let clicked = 0;
@@ -741,14 +988,19 @@
         if (used.has(el)) return false;
         const text = normalizeAmenity(el.textContent);
         if (!text) return false;
-        return text === want
-          || (want.length > 5 && text.includes(want))
-          || (text.length > 5 && want.includes(text));
+        return (
+          text === want ||
+          (want.length > 5 && text.includes(want)) ||
+          (text.length > 5 && want.includes(text))
+        );
       });
       if (!hit) continue;
       used.add(hit);
       const input = choiceInput(hit);
-      if (input ? input.checked : normalizedText(hit.textContent).startsWith('✓')) continue;
+      if (
+        input ? input.checked : normalizedText(hit.textContent).startsWith('✓')
+      )
+        continue;
       try {
         clickChoiceElement(hit);
         clicked++;
@@ -765,17 +1017,23 @@
   // clicker nor the text filler can reach.
 
   function nativeSelectSet(sel, option) {
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLSelectElement.prototype,
+      'value'
+    ).set;
     setter.call(sel, option.value);
     sel.dispatchEvent(new Event('input', { bubbles: true }));
     sel.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   function pickOption(options, synonyms, avoid) {
-    const usable = options.filter((o) => !avoid || !avoid.test(normalizedText(o.textContent)));
+    const usable = options.filter(
+      (o) => !avoid || !avoid.test(normalizedText(o.textContent))
+    );
     for (const syn of synonyms) {
-      const hit = usable.find((o) => normalizedText(o.textContent) === syn)
-        || usable.find((o) => normalizedText(o.textContent).includes(syn));
+      const hit =
+        usable.find((o) => normalizedText(o.textContent) === syn) ||
+        usable.find((o) => normalizedText(o.textContent).includes(syn));
       if (hit) return hit;
     }
     return null;
@@ -786,7 +1044,12 @@
     const jobs = [];
 
     const listingFor = get('Listing For');
-    if (listingFor) jobs.push({ label: 'Listing For', hints: ['listed for', 'listing for', 'property for', 'want to'], synonyms: listingSynonyms(listingFor) });
+    if (listingFor)
+      jobs.push({
+        label: 'Listing For',
+        hints: ['listed for', 'listing for', 'property for', 'want to'],
+        synonyms: listingSynonyms(listingFor),
+      });
 
     const type = normalizedText(get('Property Type'));
     if (type) {
@@ -800,11 +1063,22 @@
     }
 
     const beds = get('Bedrooms');
-    if (beds) jobs.push({ label: 'Bedrooms', hints: ['bedroom', 'bhk'], synonyms: [`${beds} bhk`, `${beds}bhk`, beds] });
+    if (beds)
+      jobs.push({
+        label: 'Bedrooms',
+        hints: ['bedroom', 'bhk'],
+        synonyms: [`${beds} bhk`, `${beds}bhk`, beds],
+      });
     const baths = get('Bathrooms');
-    if (baths) jobs.push({ label: 'Bathrooms', hints: ['bathroom', 'bath'], synonyms: [baths] });
+    if (baths)
+      jobs.push({
+        label: 'Bathrooms',
+        hints: ['bathroom', 'bath'],
+        synonyms: [baths],
+      });
     const facing = normalizedText(get('Facing'));
-    if (facing) jobs.push({ label: 'Facing', hints: ['facing'], synonyms: [facing] });
+    if (facing)
+      jobs.push({ label: 'Facing', hints: ['facing'], synonyms: [facing] });
 
     const AREA_UNIT_SYNONYMS = {
       sqft: ['sq. ft.', 'sq.ft.', 'sq ft', 'sqft', 'square feet'],
@@ -817,35 +1091,79 @@
       guntha: ['guntha', 'gunta'],
     };
     const areaUnit = normalizedText(get('Area Unit')).replace(/[^a-z]/g, '');
-    if (areaUnit) jobs.push({ label: 'Area Unit', hints: ['area unit', 'unit'], synonyms: AREA_UNIT_SYNONYMS[areaUnit] || [areaUnit] });
+    if (areaUnit)
+      jobs.push({
+        label: 'Area Unit',
+        hints: ['area unit', 'unit'],
+        synonyms: AREA_UNIT_SYNONYMS[areaUnit] || [areaUnit],
+      });
 
     const availability = normalizedText(get('Availability Status'));
-    if (availability) jobs.push({ label: 'Availability Status', hints: ['availability', 'possession'], synonyms: availabilitySynonyms(availability) });
+    if (availability)
+      jobs.push({
+        label: 'Availability Status',
+        hints: ['availability', 'possession'],
+        synonyms: availabilitySynonyms(availability),
+      });
     const furnishing = normalizedText(get('Furnishing'));
     if (furnishing) {
       jobs.push({
         label: 'Furnishing',
         hints: ['furnish'],
         synonyms: furnishingSynonyms(furnishing),
-        avoid: furnishing.startsWith('semi') ? undefined : furnishing.startsWith('un') ? /semi/ : /unfurn|semi/,
+        avoid: furnishing.startsWith('semi')
+          ? undefined
+          : furnishing.startsWith('un')
+            ? /semi/
+            : /unfurn|semi/,
       });
     }
     const balconies = get('Balconies');
-    if (balconies) jobs.push({ label: 'Balconies', hints: ['balcon'], synonyms: [balconies] });
+    if (balconies)
+      jobs.push({
+        label: 'Balconies',
+        hints: ['balcon'],
+        synonyms: [balconies],
+      });
     const ownership = normalizedText(get('Ownership'));
-    if (ownership) jobs.push({ label: 'Ownership', hints: ['ownership'], synonyms: [ownership] });
+    if (ownership)
+      jobs.push({
+        label: 'Ownership',
+        hints: ['ownership'],
+        synonyms: [ownership],
+      });
     // 99acres renders flooring as a real <select> ("Type of flooring"),
     // before the floor-number jobs claim anything with 'floor' in it.
     const flooring = normalizedText(get('Flooring'));
-    if (flooring) jobs.push({ label: 'Flooring', hints: ['flooring'], synonyms: flooringSynonyms(flooring) });
+    if (flooring)
+      jobs.push({
+        label: 'Flooring',
+        hints: ['flooring'],
+        synonyms: flooringSynonyms(flooring),
+      });
     const powerBackup = normalizedText(get('Power Backup'));
-    if (powerBackup) jobs.push({ label: 'Power Backup', hints: ['power back'], synonyms: [powerBackup] });
+    if (powerBackup)
+      jobs.push({
+        label: 'Power Backup',
+        hints: ['power back'],
+        synonyms: [powerBackup],
+      });
     // Total Floors first: its select claims the 'total' one, so the
     // floor-no job can't land on it via a bare "floor" mention.
     const totalFloors = get('Total Floors');
-    if (totalFloors) jobs.push({ label: 'Total Floors', hints: ['total floor', 'no of floors'], synonyms: [totalFloors] });
+    if (totalFloors)
+      jobs.push({
+        label: 'Total Floors',
+        hints: ['total floor', 'no of floors'],
+        synonyms: [totalFloors],
+      });
     const floorNo = get('Floor No.');
-    if (floorNo) jobs.push({ label: 'Floor No.', hints: ['floor no', 'property on floor', 'your floor', 'which floor'], synonyms: floorSynonyms(floorNo) });
+    if (floorNo)
+      jobs.push({
+        label: 'Floor No.',
+        hints: ['floor no', 'property on floor', 'your floor', 'which floor'],
+        synonyms: floorSynonyms(floorNo),
+      });
 
     return jobs;
   }
@@ -892,36 +1210,50 @@
   // so an unfilled unit costs us the area too.
 
   function comboTrigger(hints) {
-    const candidates = [...document.querySelectorAll('[role="combobox"], [role="button"], button, div, span, input')]
-      .filter((el) => {
-        if (el.closest(`#${PANEL_ID}, nav, header, footer`)) return false;
-        if (el.childElementCount > 3) return false;
-        const rect = el.getBoundingClientRect();
-        if (rect.width < 60 || rect.height < 16 || rect.height > 80) return false;
-        const own = normalizedText(el.tagName === 'INPUT' ? el.value || el.placeholder : el.textContent);
-        // Only an unset control — never one already showing a choice.
-        return own === '' || /^(select|choose)\b/.test(own);
-      });
-    return candidates.find((el) => hints.some((h) => contextText(el).includes(h)))
-      || candidates.find((el) => {
+    const candidates = [
+      ...document.querySelectorAll(
+        '[role="combobox"], [role="button"], button, div, span, input'
+      ),
+    ].filter((el) => {
+      if (el.closest(`#${PANEL_ID}, nav, header, footer`)) return false;
+      if (el.childElementCount > 3) return false;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 60 || rect.height < 16 || rect.height > 80) return false;
+      const own = normalizedText(
+        el.tagName === 'INPUT' ? el.value || el.placeholder : el.textContent
+      );
+      // Only an unset control — never one already showing a choice.
+      return own === '' || /^(select|choose)\b/.test(own);
+    });
+    return (
+      candidates.find((el) => hints.some((h) => contextText(el).includes(h))) ||
+      candidates.find((el) => {
         let node = el.parentElement;
-        for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
+        for (
+          let depth = 0;
+          node && depth < 4;
+          depth++, node = node.parentElement
+        ) {
           const text = normalizedText(node.textContent).slice(0, 160);
           if (hints.some((h) => text.includes(h))) return true;
         }
         return false;
-      });
+      })
+    );
   }
 
   function openOptions(avoid) {
-    return [...document.querySelectorAll('[role="option"], li, div, span, p')]
-      .filter((el) => {
-        if (el.closest(`#${PANEL_ID}`) || el.childElementCount > 1) return false;
-        const rect = el.getBoundingClientRect();
-        if (rect.width < 30 || rect.height < 12 || rect.height > 70) return false;
-        const text = normalizedText(el.textContent);
-        return text.length > 0 && text.length < 40 && (!avoid || !avoid.test(text));
-      });
+    return [
+      ...document.querySelectorAll('[role="option"], li, div, span, p'),
+    ].filter((el) => {
+      if (el.closest(`#${PANEL_ID}`) || el.childElementCount > 1) return false;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 30 || rect.height < 12 || rect.height > 70) return false;
+      const text = normalizedText(el.textContent);
+      return (
+        text.length > 0 && text.length < 40 && (!avoid || !avoid.test(text))
+      );
+    });
   }
 
   async function fillComboboxes(jobs, report) {
@@ -936,8 +1268,11 @@
       const squash = (t) => t.replace(/[^a-z0-9]/g, '');
       let hit = null;
       for (const syn of job.synonyms) {
-        hit = options.find((el) => normalizedText(el.textContent) === syn)
-          || options.find((el) => squash(normalizedText(el.textContent)) === squash(syn));
+        hit =
+          options.find((el) => normalizedText(el.textContent) === syn) ||
+          options.find(
+            (el) => squash(normalizedText(el.textContent)) === squash(syn)
+          );
         if (hit) break;
       }
       if (!hit) {
@@ -957,21 +1292,33 @@
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   // The wizard's "advance" button, matched by exact label.
-  const CONTINUE_RE = /^(continue|next|save (?:&|and) continue|save (?:&|and) next|proceed|next step|save & proceed)$/;
+  const CONTINUE_RE =
+    /^(continue|next|save (?:&|and) continue|save (?:&|and) next|proceed|next step|save & proceed)$/;
 
   /** Click the step's primary Continue/Next button to advance the
    *  wizard. Only called after a clean fill (no failed fields), so it
    *  never skips a step that still needs a manual fix. Exact-label plus
    *  most-prominent, to avoid stray "next"/"continue" links. */
   function clickContinue() {
-    const candidates = [...document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"]')]
+    const candidates = [
+      ...document.querySelectorAll(
+        'button, [role="button"], input[type="submit"], input[type="button"]'
+      ),
+    ]
       .filter((elm) => {
         if (elm.closest(`#${PANEL_ID}, nav, header, footer`)) return false;
         if (elm.disabled) return false;
-        const text = normalizedText(elm.tagName === 'INPUT' ? elm.value : elm.textContent);
+        const text = normalizedText(
+          elm.tagName === 'INPUT' ? elm.value : elm.textContent
+        );
         if (!CONTINUE_RE.test(text)) return false;
         const r = elm.getBoundingClientRect();
-        return r.width > 60 && r.height > 20 && r.top >= 0 && r.top < window.innerHeight;
+        return (
+          r.width > 60 &&
+          r.height > 20 &&
+          r.top >= 0 &&
+          r.top < window.innerHeight
+        );
       })
       .sort((a, b) => {
         const ra = a.getBoundingClientRect();
@@ -991,11 +1338,14 @@
   async function revealBuiltUpArea(fields) {
     if (!fields.some((f) => f.label === 'Built-up Area')) return;
     const inputs = [...document.querySelectorAll('input')].filter(isFillable);
-    if (inputs.some((el) => /built.?up|super area/.test(contextText(el)))) return;
-    const toggle = [...document.querySelectorAll('a, button, span, div')].find((el) => {
-      if (el.closest(`#${PANEL_ID}`) || el.children.length > 0) return false;
-      return /^\+\s*built[- ]?up area$/.test(normalizedText(el.textContent));
-    });
+    if (inputs.some((el) => /built.?up|super area/.test(contextText(el))))
+      return;
+    const toggle = [...document.querySelectorAll('a, button, span, div')].find(
+      (el) => {
+        if (el.closest(`#${PANEL_ID}`) || el.children.length > 0) return false;
+        return /^\+\s*built[- ]?up area$/.test(normalizedText(el.textContent));
+      }
+    );
     if (!toggle) return;
     simulateClick(toggle);
     await sleep(350);
@@ -1044,13 +1394,17 @@
     navigator.clipboard.writeText(text).then(() => {
       const prev = btn.textContent;
       btn.textContent = '✓';
-      setTimeout(() => { btn.textContent = prev; }, 1200);
+      setTimeout(() => {
+        btn.textContent = prev;
+      }, 1200);
     });
   }
 
   function describeEl(node, maxLen) {
     const html = node.outerHTML || '';
-    return html.length > maxLen ? `${html.slice(0, maxLen)}\n…[truncated]` : html;
+    return html.length > maxLen
+      ? `${html.slice(0, maxLen)}\n…[truncated]`
+      : html;
   }
 
   /** Support helper: copy the portal's own markup for a field to the
@@ -1065,23 +1419,40 @@
     const antihints = FIELD_ANTIHINTS[field.label];
     let best = null;
     let bestScore = 0;
-    for (const elm of [...document.querySelectorAll('input, select, textarea')]) {
+    for (const elm of [
+      ...document.querySelectorAll('input, select, textarea'),
+    ]) {
       if (elm.closest(`#${PANEL_ID}`)) continue;
       const r = elm.getBoundingClientRect();
       if (r.width < 20 || r.height < 8) continue;
       const ctx = contextText(elm);
-      if (!ctx || (antihints && antihints.some((h) => ctx.includes(h)))) continue;
+      if (!ctx || (antihints && antihints.some((h) => ctx.includes(h))))
+        continue;
       let score = 0;
-      hints.forEach((hint, idx) => { if (ctx.includes(hint)) score = Math.max(score, hints.length - idx); });
-      if (score > bestScore) { best = elm; bestScore = score; }
+      hints.forEach((hint, idx) => {
+        if (ctx.includes(hint)) score = Math.max(score, hints.length - idx);
+      });
+      if (score > bestScore) {
+        best = elm;
+        bestScore = score;
+      }
     }
 
-    const parts = [`ConvoReal DOM dump — ${PORTAL} — field "${field.label}" (value: ${field.value})`, `URL: ${location.href}`];
+    const parts = [
+      `ConvoReal DOM dump — ${PORTAL} — field "${field.label}" (value: ${field.value})`,
+      `URL: ${location.href}`,
+    ];
     if (!best) {
       parts.push('No matching input/select/textarea found on this step.');
     } else {
       let container = best;
-      for (let i = 0; i < 4 && container.parentElement && normalizedText(container.parentElement.textContent).length < 220; i++) {
+      for (
+        let i = 0;
+        i < 4 &&
+        container.parentElement &&
+        normalizedText(container.parentElement.textContent).length < 220;
+        i++
+      ) {
         container = container.parentElement;
       }
       parts.push('=== control ===', describeEl(container, 4000));
@@ -1089,14 +1460,27 @@
         try {
           await typeLikeUser(best, field.value);
           await sleep(700);
-          const overlays = [...document.querySelectorAll('[role="listbox"], [role="option"], ul, ol, [class*="dropdown" i], [class*="suggest" i], [class*="autocomplete" i], [class*="menu" i], [class*="option" i]')]
+          const overlays = [
+            ...document.querySelectorAll(
+              '[role="listbox"], [role="option"], ul, ol, [class*="dropdown" i], [class*="suggest" i], [class*="autocomplete" i], [class*="menu" i], [class*="option" i]'
+            ),
+          ]
             .filter((o) => {
               if (o.closest(`#${PANEL_ID}`)) return false;
               const r = o.getBoundingClientRect();
-              return r.width > 40 && r.height > 12 && r.height < 520 && normalizedText(o.textContent).length > 0;
+              return (
+                r.width > 40 &&
+                r.height > 12 &&
+                r.height < 520 &&
+                normalizedText(o.textContent).length > 0
+              );
             })
             .slice(0, 6);
-          parts.push(overlays.length ? '=== dropdown/overlay candidates ===' : '=== dropdown: none detected after typing ===');
+          parts.push(
+            overlays.length
+              ? '=== dropdown/overlay candidates ==='
+              : '=== dropdown: none detected after typing ==='
+          );
           overlays.forEach((o) => parts.push(describeEl(o, 2500)));
         } catch (err) {
           parts.push(`typeahead capture failed: ${err && err.message}`);
@@ -1105,7 +1489,9 @@
     }
     await navigator.clipboard.writeText(parts.join('\n\n'));
     btn.textContent = '✓';
-    setTimeout(() => { btn.textContent = prev; }, 1500);
+    setTimeout(() => {
+      btn.textContent = prev;
+    }, 1500);
   }
 
   function el(tag, style, text) {
@@ -1131,7 +1517,9 @@
       ref.row.style.borderColor = color;
       ref.row.style.borderLeftColor = color;
       ref.labelEl.style.color = failed ? '#fb7185' : ok ? '#6ee7b7' : '#64748b';
-      ref.copyBtn.style.background = failed ? 'rgba(244,63,94,0.18)' : '#1e293b';
+      ref.copyBtn.style.background = failed
+        ? 'rgba(244,63,94,0.18)'
+        : '#1e293b';
       ref.copyBtn.style.color = failed ? '#fecaca' : '#cbd5e1';
     }
   }
@@ -1143,37 +1531,93 @@
     const panel = el('div');
     panel.id = PANEL_ID;
     panel.style.cssText = [
-      'position:fixed', 'right:16px', 'bottom:16px', 'z-index:2147483647', 'width:300px',
-      'max-height:70vh', 'display:flex', 'flex-direction:column', 'background:#0f172a',
-      'border:1px solid #334155', 'border-radius:12px', 'box-shadow:0 8px 32px rgba(0,0,0,.5)',
-      'font-family:system-ui,sans-serif', 'color:#e2e8f0', 'font-size:12px', 'overflow:hidden',
+      'position:fixed',
+      'right:16px',
+      'bottom:16px',
+      'z-index:2147483647',
+      'width:300px',
+      'max-height:70vh',
+      'display:flex',
+      'flex-direction:column',
+      'background:#0f172a',
+      'border:1px solid #334155',
+      'border-radius:12px',
+      'box-shadow:0 8px 32px rgba(0,0,0,.5)',
+      'font-family:system-ui,sans-serif',
+      'color:#e2e8f0',
+      'font-size:12px',
+      'overflow:hidden',
     ].join(';');
 
-    const header = el('div', 'display:flex;align-items:center;gap:8px;padding:10px 12px;background:#1e1b4b;cursor:pointer');
+    const header = el(
+      'div',
+      'display:flex;align-items:center;gap:8px;padding:10px 12px;background:#1e1b4b;cursor:pointer'
+    );
     const title = el('div', 'flex:1;min-width:0');
     let version = '';
-    try { version = chrome.runtime?.getManifest?.().version || ''; } catch { /* orphaned */ }
-    const brand = el('div', 'font-weight:800;color:#c4b5fd', 'ConvoReal Autofill');
-    if (version) brand.appendChild(el('span', 'margin-left:6px;font-weight:600;color:#6d5bd0;font-size:10px', `v${version}`));
+    try {
+      version = chrome.runtime?.getManifest?.().version || '';
+    } catch {
+      /* orphaned */
+    }
+    const brand = el(
+      'div',
+      'font-weight:800;color:#c4b5fd',
+      'ConvoReal Autofill'
+    );
+    if (version)
+      brand.appendChild(
+        el(
+          'span',
+          'margin-left:6px;font-weight:600;color:#6d5bd0;font-size:10px',
+          `v${version}`
+        )
+      );
     title.appendChild(brand);
-    title.appendChild(el('div', 'color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis', payload.title || 'No listing sent yet'));
+    title.appendChild(
+      el(
+        'div',
+        'color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis',
+        payload.title || 'No listing sent yet'
+      )
+    );
     header.appendChild(title);
-    const collapseBtn = el('button', 'background:none;border:none;color:#94a3b8;font-size:14px;cursor:pointer', '−');
+    const collapseBtn = el(
+      'button',
+      'background:none;border:none;color:#94a3b8;font-size:14px;cursor:pointer',
+      '−'
+    );
     header.appendChild(collapseBtn);
     panel.appendChild(header);
 
-    const body = el('div', 'display:flex;flex-direction:column;overflow:hidden');
+    const body = el(
+      'div',
+      'display:flex;flex-direction:column;overflow:hidden'
+    );
     panel.appendChild(body);
 
     if (fields.length === 0) {
-      body.appendChild(el('div', 'padding:12px;color:#94a3b8',
-        'Open a property in ConvoReal → Post Ad → "Send to Extension", then come back here.'));
+      body.appendChild(
+        el(
+          'div',
+          'padding:12px;color:#94a3b8',
+          'Open a property in ConvoReal → Post Ad → "Send to Extension", then come back here.'
+        )
+      );
     } else {
-      const actions = el('div', 'display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid #1e293b');
-      const fillBtn = el('button',
+      const actions = el(
+        'div',
+        'display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid #1e293b'
+      );
+      const fillBtn = el(
+        'button',
         'flex:1;background:#7c3aed;border:none;border-radius:8px;color:#fff;font-weight:700;padding:8px;cursor:pointer;font-size:12px',
-        'Autofill this page');
-      const status = el('span', 'align-self:center;color:#94a3b8;white-space:nowrap');
+        'Autofill this page'
+      );
+      const status = el(
+        'span',
+        'align-self:center;color:#94a3b8;white-space:nowrap'
+      );
       const rowByLabel = new Map();
       fillBtn.addEventListener('click', async () => {
         fillBtn.disabled = true;
@@ -1182,17 +1626,21 @@
           const { done, report, advanced } = await autofill(fields);
           applyFieldStatus(rowByLabel, report);
           const misses = report.failed.size;
-          if (done > 0 && misses > 0) status.textContent = `${done} filled · ${misses} to copy`;
-          else if (advanced) status.textContent = `${done} filled ✓ · continued`;
+          if (done > 0 && misses > 0)
+            status.textContent = `${done} filled · ${misses} to copy`;
+          else if (advanced)
+            status.textContent = `${done} filled ✓ · continued`;
           else if (done > 0) status.textContent = `${done} filled ✓`;
           else status.textContent = 'No matches on this step';
         } finally {
           fillBtn.disabled = false;
         }
       });
-      const clearBtn = el('button',
+      const clearBtn = el(
+        'button',
         'align-self:center;background:#1e293b;border:none;border-radius:8px;color:#cbd5e1;font-weight:600;padding:8px 10px;cursor:pointer;font-size:12px',
-        'Clear');
+        'Clear'
+      );
       clearBtn.title = 'Clear the sent listing from the extension';
       clearBtn.addEventListener('click', () => clearPayload());
       actions.appendChild(fillBtn);
@@ -1200,19 +1648,44 @@
       actions.appendChild(clearBtn);
       body.appendChild(actions);
 
-      const list = el('div', 'overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:4px');
+      const list = el(
+        'div',
+        'overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:4px'
+      );
       for (const field of fields) {
-        const row = el('div', `display:flex;align-items:center;gap:6px;background:#020617;border:1px solid ${ROW_BORDER};border-radius:8px;padding:6px 8px;border-left-width:3px`);
+        const row = el(
+          'div',
+          `display:flex;align-items:center;gap:6px;background:#020617;border:1px solid ${ROW_BORDER};border-radius:8px;padding:6px 8px;border-left-width:3px`
+        );
         const meta = el('div', 'flex:1;min-width:0');
-        const labelEl = el('div', 'font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#64748b', field.label);
+        const labelEl = el(
+          'div',
+          'font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#64748b',
+          field.label
+        );
         meta.appendChild(labelEl);
-        meta.appendChild(el('div', 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e2e8f0', field.value));
+        meta.appendChild(
+          el(
+            'div',
+            'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e2e8f0',
+            field.value
+          )
+        );
         row.appendChild(meta);
-        const domBtn = el('button', 'background:#0b1220;border:1px solid #1e293b;border-radius:6px;color:#64748b;padding:4px 6px;cursor:pointer;font-size:10px', 'DOM');
-        domBtn.title = 'Copy this field’s page markup (for support) — types the value first to capture a typeahead’s dropdown';
+        const domBtn = el(
+          'button',
+          'background:#0b1220;border:1px solid #1e293b;border-radius:6px;color:#64748b;padding:4px 6px;cursor:pointer;font-size:10px',
+          'DOM'
+        );
+        domBtn.title =
+          'Copy this field’s page markup (for support) — types the value first to capture a typeahead’s dropdown';
         domBtn.addEventListener('click', () => dumpFieldDom(field, domBtn));
         row.appendChild(domBtn);
-        const copyBtn = el('button', 'background:#1e293b;border:none;border-radius:6px;color:#cbd5e1;padding:4px 8px;cursor:pointer', 'Copy');
+        const copyBtn = el(
+          'button',
+          'background:#1e293b;border:none;border-radius:6px;color:#cbd5e1;padding:4px 8px;cursor:pointer',
+          'Copy'
+        );
         copyBtn.addEventListener('click', () => copyText(field.value, copyBtn));
         row.appendChild(copyBtn);
         list.appendChild(row);
@@ -1220,17 +1693,33 @@
       }
 
       if (Array.isArray(payload.photos) && payload.photos.length > 0) {
-        const photoRow = el('div', 'display:flex;align-items:center;gap:6px;background:#020617;border:1px solid #1e293b;border-radius:8px;padding:6px 8px');
-        photoRow.appendChild(el('div', 'flex:1;color:#94a3b8', `${payload.photos.length} photos`));
-        const openBtn = el('button', 'background:#1e293b;border:none;border-radius:6px;color:#cbd5e1;padding:4px 8px;cursor:pointer', 'Open all');
-        openBtn.addEventListener('click', () => payload.photos.forEach((u) => window.open(u, '_blank', 'noopener')));
+        const photoRow = el(
+          'div',
+          'display:flex;align-items:center;gap:6px;background:#020617;border:1px solid #1e293b;border-radius:8px;padding:6px 8px'
+        );
+        photoRow.appendChild(
+          el('div', 'flex:1;color:#94a3b8', `${payload.photos.length} photos`)
+        );
+        const openBtn = el(
+          'button',
+          'background:#1e293b;border:none;border-radius:6px;color:#cbd5e1;padding:4px 8px;cursor:pointer',
+          'Open all'
+        );
+        openBtn.addEventListener('click', () =>
+          payload.photos.forEach((u) => window.open(u, '_blank', 'noopener'))
+        );
         photoRow.appendChild(openBtn);
         list.appendChild(photoRow);
       }
       body.appendChild(list);
 
-      body.appendChild(el('div', 'padding:8px 12px;color:#64748b;border-top:1px solid #1e293b',
-        'Autofill fills text fields, picks matching chips and dropdowns (Sell, property type, BHK, availability, furnishing), and commits city/locality suggestions. When a step fills cleanly it also clicks Continue to advance; if any field turns red it stops there — use that field’s Copy button, fix it, then run Autofill again. Review before you submit. (A red field not filling? Hit its DOM button and paste to support.)'));
+      body.appendChild(
+        el(
+          'div',
+          'padding:8px 12px;color:#64748b;border-top:1px solid #1e293b',
+          'Autofill fills text fields, picks matching chips and dropdowns (Sell, property type, BHK, availability, furnishing), and commits city/locality suggestions. When a step fills cleanly it also clicks Continue to advance; if any field turns red it stops there — use that field’s Copy button, fix it, then run Autofill again. Review before you submit. (A red field not filling? Hit its DOM button and paste to support.)'
+        )
+      );
     }
 
     // The − minimizes the whole panel back to the floating launcher.
@@ -1256,18 +1745,40 @@
     launcher.id = LAUNCHER_ID;
     launcher.title = 'ConvoReal Autofill';
     launcher.style.cssText = [
-      'position:fixed', 'right:16px', 'bottom:16px', 'z-index:2147483647',
-      'width:48px', 'height:48px', 'border-radius:9999px', 'border:1px solid #4c1d95',
-      'background:linear-gradient(135deg,#7c3aed,#4338ca)', 'color:#fff',
-      'font-weight:900', 'font-size:15px', 'font-family:system-ui,sans-serif',
-      'cursor:pointer', 'box-shadow:0 6px 24px rgba(124,58,237,.45)',
-      'display:flex', 'align-items:center', 'justify-content:center',
+      'position:fixed',
+      'right:16px',
+      'bottom:16px',
+      'z-index:2147483647',
+      'width:48px',
+      'height:48px',
+      'border-radius:9999px',
+      'border:1px solid #4c1d95',
+      'background:linear-gradient(135deg,#7c3aed,#4338ca)',
+      'color:#fff',
+      'font-weight:900',
+      'font-size:15px',
+      'font-family:system-ui,sans-serif',
+      'cursor:pointer',
+      'box-shadow:0 6px 24px rgba(124,58,237,.45)',
+      'display:flex',
+      'align-items:center',
+      'justify-content:center',
     ].join(';');
     launcher.textContent = 'CR';
-    const dot = el('span', [
-      'position:absolute', 'top:2px', 'right:2px', 'width:11px', 'height:11px',
-      'border-radius:9999px', 'background:#34d399', 'border:2px solid #0f172a', 'display:none',
-    ].join(';'));
+    const dot = el(
+      'span',
+      [
+        'position:absolute',
+        'top:2px',
+        'right:2px',
+        'width:11px',
+        'height:11px',
+        'border-radius:9999px',
+        'background:#34d399',
+        'border:2px solid #0f172a',
+        'display:none',
+      ].join(';')
+    );
     dot.id = `${LAUNCHER_ID}-dot`;
     launcher.style.position = 'fixed';
     launcher.appendChild(dot);
@@ -1282,7 +1793,8 @@
     if (panel) panel.style.display = panelExpanded ? 'flex' : 'none';
     launcher.style.display = panelExpanded ? 'none' : 'flex';
     const dot = document.getElementById(`${LAUNCHER_ID}-dot`);
-    if (dot) dot.style.display = hasPayload && !panelExpanded ? 'block' : 'none';
+    if (dot)
+      dot.style.display = hasPayload && !panelExpanded ? 'block' : 'none';
   }
 
   function setExpanded(next) {
@@ -1308,16 +1820,27 @@
     });
   }
 
-  chrome.storage.local.get('convorealPortalPayload', ({ convorealPortalPayload }) => {
-    lastPayload = convorealPortalPayload || {};
-    hasPayload = !!(lastPayload.portals && lastPayload.portals[PORTAL] && lastPayload.portals[PORTAL].length > 0);
-    renderPanel(lastPayload);
-  });
+  chrome.storage.local.get(
+    'convorealPortalPayload',
+    ({ convorealPortalPayload }) => {
+      lastPayload = convorealPortalPayload || {};
+      hasPayload = !!(
+        lastPayload.portals &&
+        lastPayload.portals[PORTAL] &&
+        lastPayload.portals[PORTAL].length > 0
+      );
+      renderPanel(lastPayload);
+    }
+  );
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.convorealPortalPayload) {
       lastPayload = changes.convorealPortalPayload.newValue || {};
-      hasPayload = !!(lastPayload.portals && lastPayload.portals[PORTAL] && lastPayload.portals[PORTAL].length > 0);
+      hasPayload = !!(
+        lastPayload.portals &&
+        lastPayload.portals[PORTAL] &&
+        lastPayload.portals[PORTAL].length > 0
+      );
       // A fresh send from the Engine pops the panel open so the handoff
       // is visible without hunting for the button.
       panelExpanded = true;
@@ -1333,7 +1856,10 @@
     } catch {
       return;
     }
-    if (!document.getElementById(LAUNCHER_ID) || !document.getElementById(PANEL_ID)) {
+    if (
+      !document.getElementById(LAUNCHER_ID) ||
+      !document.getElementById(PANEL_ID)
+    ) {
       renderPanel(lastPayload);
     }
   }, 1500);

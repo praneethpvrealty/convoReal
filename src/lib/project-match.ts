@@ -51,9 +51,12 @@ function stemsAgree(a: string, b: string): boolean {
   const longSkeleton = consonantSkeleton(long);
   if (!longSkeleton.startsWith(shortSkeleton)) return false;
 
-  return shortSkeleton.length >= (shortSkeleton === longSkeleton
-    ? MIN_VARIANT_SKELETON
-    : MIN_ABBREVIATION_SKELETON);
+  return (
+    shortSkeleton.length >=
+    (shortSkeleton === longSkeleton
+      ? MIN_VARIANT_SKELETON
+      : MIN_ABBREVIATION_SKELETON)
+  );
 }
 
 /**
@@ -69,5 +72,7 @@ export function textContainsProject(field: string, label: string): boolean {
   const fieldStems = localityStems(field);
   if (fieldStems.length === 0) return false;
 
-  return labelStems.every((wanted) => fieldStems.some((found) => stemsAgree(wanted, found)));
+  return labelStems.every((wanted) =>
+    fieldStems.some((found) => stemsAgree(wanted, found))
+  );
 }

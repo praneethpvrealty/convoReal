@@ -11,9 +11,9 @@
 // list and says so rather than paginating a diary.
 // ============================================================
 
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
-import { withApiKeyAuth } from "@/lib/auth/api-keys";
+import { withApiKeyAuth } from '@/lib/auth/api-keys';
 
 const DEFAULT_DAYS = 7;
 const MAX_DAYS = 90;
@@ -26,17 +26,20 @@ function parseDate(raw: string | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export const GET = withApiKeyAuth("read", async (ctx, req) => {
+export const GET = withApiKeyAuth('read', async (ctx, req) => {
   const url = new URL(req.url);
 
-  const from = parseDate(url.searchParams.get("from")) ?? new Date();
-  let to = parseDate(url.searchParams.get("to"));
+  const from = parseDate(url.searchParams.get('from')) ?? new Date();
+  let to = parseDate(url.searchParams.get('to'));
   if (!to) {
     to = new Date(from.getTime() + DEFAULT_DAYS * 86_400_000);
   }
 
   if (to.getTime() < from.getTime()) {
-    return NextResponse.json({ error: "'to' must be on or after 'from'" }, { status: 400 });
+    return NextResponse.json(
+      { error: "'to' must be on or after 'from'" },
+      { status: 400 }
+    );
   }
 
   const maxTo = new Date(from.getTime() + MAX_DAYS * 86_400_000);
@@ -48,41 +51,50 @@ export const GET = withApiKeyAuth("read", async (ctx, req) => {
 
   const [appointments, todos] = await Promise.all([
     ctx.db
-      .from("appointments")
+      .from('appointments')
       .select(
-        "id, title, description, start_time, end_time, location, status, " +
-          "contact:contacts(id, name, phone), " +
-          "property:properties(id, title, location, sublocality)",
+        'id, title, description, start_time, end_time, location, status, ' +
+          'contact:contacts(id, name, phone), ' +
+          'property:properties(id, title, location, sublocality)'
       )
-      .eq("account_id", ctx.accountId)
-      .neq("status", "cancelled")
-      .gte("start_time", fromIso)
-      .lte("start_time", toIso)
-      .order("start_time", { ascending: true })
+      .eq('account_id', ctx.accountId)
+      .neq('status', 'cancelled')
+      .gte('start_time', fromIso)
+      .lte('start_time', toIso)
+      .order('start_time', { ascending: true })
       .limit(MAX_ITEMS),
     ctx.db
-      .from("todos")
+      .from('todos')
       .select(
-        "id, title, description, due_date, priority, completed, " +
-          "contact:contacts(id, name, phone), " +
-          "property:properties(id, title, location, sublocality)",
+        'id, title, description, due_date, priority, completed, ' +
+          'contact:contacts(id, name, phone), ' +
+          'property:properties(id, title, location, sublocality)'
       )
-      .eq("account_id", ctx.accountId)
-      .eq("completed", false)
+      .eq('account_id', ctx.accountId)
+      .eq('completed', false)
       // Overdue work belongs on today's agenda, so the lower bound is
       // deliberately open — a task due last week is still outstanding.
-      .lte("due_date", toIso)
-      .order("due_date", { ascending: true, nullsFirst: false })
+      .lte('due_date', toIso)
+      .order('due_date', { ascending: true, nullsFirst: false })
       .limit(MAX_ITEMS),
   ]);
 
   if (appointments.error) {
-    console.error("[GET /api/v1/agenda] appointments error:", appointments.error);
-    return NextResponse.json({ error: "Failed to load appointments" }, { status: 500 });
+    console.error(
+      '[GET /api/v1/agenda] appointments error:',
+      appointments.error
+    );
+    return NextResponse.json(
+      { error: 'Failed to load appointments' },
+      { status: 500 }
+    );
   }
   if (todos.error) {
-    console.error("[GET /api/v1/agenda] todos error:", todos.error);
-    return NextResponse.json({ error: "Failed to load to-dos" }, { status: 500 });
+    console.error('[GET /api/v1/agenda] todos error:', todos.error);
+    return NextResponse.json(
+      { error: 'Failed to load to-dos' },
+      { status: 500 }
+    );
   }
 
   const appointmentRows = appointments.data ?? [];
@@ -97,6 +109,8 @@ export const GET = withApiKeyAuth("read", async (ctx, req) => {
       appointments: appointmentRows.length === MAX_ITEMS,
       todos: todoRows.length === MAX_ITEMS,
     },
-    ...(clamped ? { note: `Window clamped to ${MAX_DAYS} days from 'from'.` } : {}),
+    ...(clamped
+      ? { note: `Window clamped to ${MAX_DAYS} days from 'from'.` }
+      : {}),
   });
 });

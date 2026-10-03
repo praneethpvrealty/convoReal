@@ -59,7 +59,9 @@ async function main() {
     process.exit(1);
   }
 
-  const candidates = (rows || []).filter((r) => (r.google_map_link || '').trim());
+  const candidates = (rows || []).filter((r) =>
+    (r.google_map_link || '').trim()
+  );
   console.log(
     `${candidates.length} properties carry a map link; drift threshold ${minKm} km${dryRun ? ' (dry run)' : ''}.`
   );
@@ -76,7 +78,12 @@ async function main() {
     } else {
       const hasCoords = row.latitude != null && row.longitude != null;
       const driftKm = hasCoords
-        ? haversineKm(Number(row.latitude), Number(row.longitude), pin.latitude, pin.longitude)
+        ? haversineKm(
+            Number(row.latitude),
+            Number(row.longitude),
+            pin.latitude,
+            pin.longitude
+          )
         : null;
 
       if (driftKm !== null && driftKm < minKm) {
@@ -89,7 +96,9 @@ async function main() {
             : `${driftKm.toFixed(2)} km off its pin`;
 
         if (dryRun) {
-          console.log(`[dry] ${label}: ${move} → ${pin.latitude},${pin.longitude}`);
+          console.log(
+            `[dry] ${label}: ${move} → ${pin.latitude},${pin.longitude}`
+          );
         } else {
           const { error: updateErr } = await supabase
             .from('properties')
@@ -98,7 +107,9 @@ async function main() {
           if (updateErr) {
             console.error(`  ✗ ${label}: update failed:`, updateErr.message);
           } else {
-            console.log(`  ✓ ${label}: ${move} → ${pin.latitude},${pin.longitude}`);
+            console.log(
+              `  ✓ ${label}: ${move} → ${pin.latitude},${pin.longitude}`
+            );
           }
         }
         if (driftKm === null) filled++;

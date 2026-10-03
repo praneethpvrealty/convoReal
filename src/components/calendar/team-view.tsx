@@ -1,12 +1,19 @@
-"use client";
+'use client';
 
-import { useMemo } from "react";
-import { cn } from "@/lib/utils";
-import { storagePublicUrl } from "@/lib/storage/url";
-import { ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
-import { isArchivedAppointment } from "@/lib/calendar/tasks-view";
-import { ARCHIVED_EVENT_CHIP, CalendarEvent, TeamMember, eventTypeMeta, memberInitials, formatTimeShort } from "./event-types";
-import { NameTagBadge } from "@/components/contacts/name-tag-badge";
+import { useMemo } from 'react';
+import { cn } from '@/lib/utils';
+import { storagePublicUrl } from '@/lib/storage/url';
+import { ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { isArchivedAppointment } from '@/lib/calendar/tasks-view';
+import {
+  ARCHIVED_EVENT_CHIP,
+  CalendarEvent,
+  TeamMember,
+  eventTypeMeta,
+  memberInitials,
+  formatTimeShort,
+} from './event-types';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 
 interface TeamViewProps {
   events: CalendarEvent[];
@@ -22,7 +29,14 @@ interface TeamViewProps {
  *  hop across the week. Clicking an empty lane schedules for that
  *  member; everyone sees everyone (transparency), edits go through the
  *  same dialog / RLS as before. */
-export function TeamView({ events, members, selectedDate, onSelectDate, onEventClick, onSlotClick }: TeamViewProps) {
+export function TeamView({
+  events,
+  members,
+  selectedDate,
+  onSelectDate,
+  onEventClick,
+  onSlotClick,
+}: TeamViewProps) {
   const weekDays = useMemo(() => {
     const start = new Date(selectedDate);
     start.setDate(start.getDate() - start.getDay());
@@ -43,7 +57,10 @@ export function TeamView({ events, members, selectedDate, onSelectDate, onEventC
       map[owner].push(ev);
     }
     for (const key of Object.keys(map)) {
-      map[key].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+      map[key].sort(
+        (a, b) =>
+          new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+      );
     }
     return map;
   }, [events, selectedDate]);
@@ -57,7 +74,7 @@ export function TeamView({ events, members, selectedDate, onSelectDate, onEventC
   const todayStr = new Date().toDateString();
 
   return (
-    <div className="flex flex-1 flex-col min-h-0">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Week strip */}
       <div className="mb-4 flex items-center gap-2">
         <button
@@ -76,16 +93,23 @@ export function TeamView({ events, members, selectedDate, onSelectDate, onEventC
                 key={d.toISOString()}
                 onClick={() => onSelectDate(d)}
                 className={cn(
-                  "flex flex-col items-center rounded-lg border px-1 py-1.5 transition-colors",
+                  'flex flex-col items-center rounded-lg border px-1 py-1.5 transition-colors',
                   isSelected
-                    ? "border-primary bg-primary/15 text-white"
-                    : "border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-white"
+                    ? 'border-primary bg-primary/15 text-white'
+                    : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-white'
                 )}
               >
-                <span className="text-[9px] font-bold uppercase tracking-wider">
-                  {d.toLocaleDateString("en-IN", { weekday: "short" })}
+                <span className="text-[9px] font-bold tracking-wider uppercase">
+                  {d.toLocaleDateString('en-IN', { weekday: 'short' })}
                 </span>
-                <span className={cn("text-sm font-bold", isToday && !isSelected && "text-primary")}>{d.getDate()}</span>
+                <span
+                  className={cn(
+                    'text-sm font-bold',
+                    isToday && !isSelected && 'text-primary'
+                  )}
+                >
+                  {d.getDate()}
+                </span>
               </button>
             );
           })}
@@ -100,7 +124,7 @@ export function TeamView({ events, members, selectedDate, onSelectDate, onEventC
       </div>
 
       {/* Member lanes */}
-      <div className="flex-1 space-y-2 overflow-y-auto pr-1 min-h-0">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {members.length === 0 ? (
           <div className="flex h-32 items-center justify-center text-xs text-slate-500">
             No team members yet — invite your team from Settings.
@@ -116,16 +140,24 @@ export function TeamView({ events, members, selectedDate, onSelectDate, onEventC
                 <div className="flex w-28 shrink-0 items-center gap-2">
                   {m.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={storagePublicUrl(m.avatar_url)} alt="" className="h-8 w-8 rounded-full object-cover" />
+                    <img
+                      src={storagePublicUrl(m.avatar_url)}
+                      alt=""
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
                   ) : (
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-[11px] font-bold text-primary">
+                    <div className="bg-primary/20 text-primary flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold">
                       {memberInitials(m.full_name)}
                     </div>
                   )}
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-semibold text-white">{m.full_name || "Member"}</p>
-                    <p className="text-[9px] uppercase tracking-wide text-slate-500">
-                      {laneEvents.length > 0 ? `${laneEvents.length} scheduled` : "free"}
+                    <p className="truncate text-xs font-semibold text-white">
+                      {m.full_name || 'Member'}
+                    </p>
+                    <p className="text-[9px] tracking-wide text-slate-500 uppercase">
+                      {laneEvents.length > 0
+                        ? `${laneEvents.length} scheduled`
+                        : 'free'}
                     </p>
                   </div>
                 </div>
@@ -134,9 +166,9 @@ export function TeamView({ events, members, selectedDate, onSelectDate, onEventC
                   {laneEvents.length === 0 ? (
                     <button
                       onClick={() => onSlotClick(selectedDate, m.user_id)}
-                      className="rounded-lg border border-dashed border-slate-800 px-3 py-1.5 text-[10px] text-slate-500 hover:border-primary/40 hover:text-primary transition-colors"
+                      className="hover:border-primary/40 hover:text-primary rounded-lg border border-dashed border-slate-800 px-3 py-1.5 text-[10px] text-slate-500 transition-colors"
                     >
-                      + Schedule for {m.full_name?.split(" ")[0] || "member"}
+                      + Schedule for {m.full_name?.split(' ')[0] || 'member'}
                     </button>
                   ) : (
                     <>
@@ -147,23 +179,27 @@ export function TeamView({ events, members, selectedDate, onSelectDate, onEventC
                             key={ev.id}
                             onClick={() => onEventClick(ev)}
                             className={cn(
-                              "inline-flex max-w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-semibold transition-colors",
+                              'inline-flex max-w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-semibold transition-colors',
                               meta.chip,
-                              ev.status === "cancelled" && "line-through opacity-50",
-                              ev.status === "completed" && "opacity-60",
+                              ev.status === 'cancelled' &&
+                                'line-through opacity-50',
+                              ev.status === 'completed' && 'opacity-60',
                               isArchivedAppointment(ev) && ARCHIVED_EVENT_CHIP
                             )}
                           >
-                            {ev.status === "completed" ? (
+                            {ev.status === 'completed' ? (
                               <CheckCircle2 className="h-3 w-3 shrink-0" />
                             ) : (
                               <meta.icon className="h-3 w-3 shrink-0" />
                             )}
-                            <span className="font-mono text-[9px] opacity-80">{formatTimeShort(ev.start_time)}</span>
+                            <span className="font-mono text-[9px] opacity-80">
+                              {formatTimeShort(ev.start_time)}
+                            </span>
                             <span className="truncate">{ev.title}</span>
                             {ev.contact?.name && (
-                              <span className="hidden opacity-70 sm:inline-flex sm:items-center sm:gap-1 truncate">
-                                · {ev.contact.name}<NameTagBadge tag={ev.contact.name_tag} />
+                              <span className="hidden truncate opacity-70 sm:inline-flex sm:items-center sm:gap-1">
+                                · {ev.contact.name}
+                                <NameTagBadge tag={ev.contact.name_tag} />
                               </span>
                             )}
                           </button>
@@ -172,7 +208,7 @@ export function TeamView({ events, members, selectedDate, onSelectDate, onEventC
                       <button
                         onClick={() => onSlotClick(selectedDate, m.user_id)}
                         aria-label="Add event for member"
-                        className="rounded-lg border border-dashed border-slate-800 px-2 py-1 text-[10px] text-slate-500 hover:border-primary/40 hover:text-primary transition-colors"
+                        className="hover:border-primary/40 hover:text-primary rounded-lg border border-dashed border-slate-800 px-2 py-1 text-[10px] text-slate-500 transition-colors"
                       >
                         +
                       </button>

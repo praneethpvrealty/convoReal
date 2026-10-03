@@ -36,7 +36,12 @@ vi.mock('./copilot-context', () => ({
           body: 'Click **Dashboard** in the menu.',
           advanceOn: 'click-target',
         },
-        { target: 'x', title: 'Second', body: 'Second step.', advanceOn: 'next' },
+        {
+          target: 'x',
+          title: 'Second',
+          body: 'Second step.',
+          advanceOn: 'next',
+        },
       ],
     },
     stepIndex: 0,
@@ -101,8 +106,11 @@ describe('TourOverlay pointer-events contract', () => {
   it('keeps the blockers live so clicks outside the target are still swallowed', async () => {
     const root = await renderOverlay();
     // Four rects fence the cutout: above, below, left, right.
-    const blockers = Array.from(root.children).filter((el) =>
-      el.classList.contains('pointer-events-auto') && el.tagName === 'DIV' && !el.id
+    const blockers = Array.from(root.children).filter(
+      (el) =>
+        el.classList.contains('pointer-events-auto') &&
+        el.tagName === 'DIV' &&
+        !el.id
     );
 
     expect(blockers).toHaveLength(4);

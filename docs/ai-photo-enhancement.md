@@ -34,6 +34,7 @@ A real-estate Engine must not mislead buyers. So:
 ## Where it plugs in
 
 ### Detection (is this a Street-View / map screenshot?)
+
 Reuse the existing Gemini vision classifier pattern (`classifyImageOrText`,
 `src/lib/ai/gemini.ts`). Add a tiny `isMapOrStreetViewImage(buffer)` →
 boolean, prompted to detect: Google/Maps watermark, street-name overlays,
@@ -48,6 +49,7 @@ compass/pegman UI, dashcam/car-window framing. Runs on the `lite` tier.
   on any image the classifier flags.
 
 ### Enhancement (image-to-image)
+
 Reuse **`POST /api/ai/enhance-image`** (already wraps Imagen 4 / Hugging Face,
 burns `image_enhance` = 25 credits, respects `showcase_settings.flyer_ai_provider`).
 
@@ -64,6 +66,7 @@ burns `image_enhance` = 25 credits, respects `showcase_settings.flyer_ai_provide
   append to `properties.images`, and set the `ai_enhanced` flag (below).
 
 ### Data model
+
 - New migration: `property_image_meta JSONB` on `properties` **or** a small
   `property_images_meta` table keyed by `(property_id, image_path)` with
   `{ source: 'upload'|'ai_enhanced'|'flyer', origin_image_path, model }`.
@@ -87,11 +90,13 @@ lister uploads photo
 ```
 
 ## Cost / limits
+
 - 25 credits per enhancement (existing `image_enhance`), plan-gated to
   Solo Pro+ (existing `checkPlanLimit(ctx, 'ai')`).
 - Opt-in only (no silent spend). Rate-limit per account.
 
 ## Open questions
+
 1. Imagen 4 edit vs. a dedicated img2img model for faithful cleanup — needs a
    quick quality bake-off; instruct-pix2pix / SDXL img2img may hold geometry
    better than a generative edit.
@@ -101,5 +106,6 @@ lister uploads photo
    allowed with the badge? (Lean: allow, with the badge burned in.)
 
 ## Explicitly out of scope
+
 - Generating a "nicer" or different-looking property. Only faithful cleanup of
   the uploaded scene, labelled as AI-enhanced.

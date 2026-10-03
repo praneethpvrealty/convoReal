@@ -1,5 +1,5 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies, headers } from 'next/headers'
+import { createServerClient } from '@supabase/ssr';
+import { cookies, headers } from 'next/headers';
 
 /**
  * Server-side Supabase client for API routes and server components.
@@ -20,9 +20,7 @@ import { cookies, headers } from 'next/headers'
  * per-route changes.
  */
 export async function createClient() {
-  const bearerToken = getBearerToken(
-    (await headers()).get('authorization')
-  )
+  const bearerToken = getBearerToken((await headers()).get('authorization'));
 
   if (bearerToken) {
     const client = createServerClient(
@@ -32,7 +30,7 @@ export async function createClient() {
         // No cookie session on this path — the JWT is the session.
         cookies: {
           getAll() {
-            return []
+            return [];
           },
           setAll() {},
         },
@@ -40,20 +38,20 @@ export async function createClient() {
           headers: { Authorization: `Bearer ${bearerToken}` },
         },
       }
-    )
+    );
 
     // GoTrue's no-arg `getUser()` resolves the token from the (absent)
     // cookie session and would fail with AuthSessionMissingError, but
     // `getUser(jwt)` validates the given JWT server-side. Existing
     // callers all use the no-arg form, so default it to the bearer JWT.
-    const originalGetUser = client.auth.getUser.bind(client.auth)
+    const originalGetUser = client.auth.getUser.bind(client.auth);
     client.auth.getUser = ((jwt?: string) =>
-      originalGetUser(jwt ?? bearerToken)) as typeof client.auth.getUser
+      originalGetUser(jwt ?? bearerToken)) as typeof client.auth.getUser;
 
-    return client
+    return client;
   }
 
-  const cookieStore = await cookies()
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -61,13 +59,13 @@ export async function createClient() {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll()
+          return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
-            )
+            );
           } catch {
             // The `setAll` method was called from a Server Component.
             // This can be ignored if you have middleware refreshing sessions.
@@ -75,7 +73,7 @@ export async function createClient() {
         },
       },
     }
-  )
+  );
 }
 
 /**
@@ -87,7 +85,7 @@ export async function createClient() {
  * instead of sending a non-JWT to PostgREST.
  */
 function getBearerToken(headerValue: string | null): string | null {
-  const token = headerValue?.match(/^Bearer\s+(\S+)$/i)?.[1]
-  if (!token) return null
-  return /^[\w-]+\.[\w-]+\.[\w-]+$/.test(token) ? token : null
+  const token = headerValue?.match(/^Bearer\s+(\S+)$/i)?.[1];
+  if (!token) return null;
+  return /^[\w-]+\.[\w-]+\.[\w-]+$/.test(token) ? token : null;
 }

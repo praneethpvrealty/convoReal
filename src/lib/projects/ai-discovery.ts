@@ -2,7 +2,11 @@ import { generateJson } from '@/lib/ai/gemini';
 
 export type ProjectSource = 'rera' | 'curated' | 'ai';
 
-export const PROJECT_TYPES = ['Flat/ Apartment', 'Villa', 'Residential Land/ Plot'] as const;
+export const PROJECT_TYPES = [
+  'Flat/ Apartment',
+  'Villa',
+  'Residential Land/ Plot',
+] as const;
 
 export interface AiDiscoveredProject {
   name: string;
@@ -23,10 +27,14 @@ function text(value: unknown): string {
 }
 
 function positiveNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : null;
 }
 
-export function toAiDiscoveredProject(raw: unknown): AiDiscoveredProject | null {
+export function toAiDiscoveredProject(
+  raw: unknown
+): AiDiscoveredProject | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
   const name = text(r.name);
@@ -36,7 +44,9 @@ export function toAiDiscoveredProject(raw: unknown): AiDiscoveredProject | null 
   return {
     name,
     promoter_name: text(r.promoter_name) || null,
-    project_type: (PROJECT_TYPES as readonly string[]).includes(type) ? type : 'Flat/ Apartment',
+    project_type: (PROJECT_TYPES as readonly string[]).includes(type)
+      ? type
+      : 'Flat/ Apartment',
     sublocality: text(r.sublocality),
     city: text(r.city) || 'Bangalore',
     state: text(r.state) || 'Karnataka',
@@ -65,9 +75,15 @@ Return a JSON object with:
 If the project cannot be identified as a real project in Bangalore, return null.`;
 }
 
-export async function lookupProject(term: string): Promise<AiDiscoveredProject | null> {
-  const raw = await generateJson(buildProjectLookupPrompt(term), LOOKUP_SYSTEM, {
-    feature: 'project_lookup',
-  });
+export async function lookupProject(
+  term: string
+): Promise<AiDiscoveredProject | null> {
+  const raw = await generateJson(
+    buildProjectLookupPrompt(term),
+    LOOKUP_SYSTEM,
+    {
+      feature: 'project_lookup',
+    }
+  );
   return toAiDiscoveredProject(JSON.parse(raw));
 }

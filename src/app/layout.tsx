@@ -1,38 +1,38 @@
-import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
-import Script from "next/script";
-import { Analytics } from "@vercel/analytics/react";
-import "./globals.css";
-import { ThemeProvider } from "@/hooks/use-theme";
-import { QueryProvider } from "@/components/layout/query-provider";
+import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
+import Script from 'next/script';
+import { Analytics } from '@vercel/analytics/react';
+import './globals.css';
+import { ThemeProvider } from '@/hooks/use-theme';
+import { QueryProvider } from '@/components/layout/query-provider';
 import {
   DEFAULT_MODE,
   DEFAULT_THEME,
   MODE_STORAGE_KEY,
   STORAGE_KEY,
   THEME_IDS,
-} from "@/lib/themes";
-import { ThemedToaster } from "@/components/layout/themed-toaster";
-import { DeploymentCheck } from "@/components/deployment-check";
-import { PerformanceInsights } from "@/components/performance-insights";
+} from '@/lib/themes';
+import { ThemedToaster } from '@/components/layout/themed-toaster';
+import { DeploymentCheck } from '@/components/deployment-check';
+import { PerformanceInsights } from '@/components/performance-insights';
 
 const inter = Inter({
-  variable: "--font-sans",
-  subsets: ["latin"],
+  variable: '--font-sans',
+  subsets: ['latin'],
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "ConvoReal",
-    template: "%s — ConvoReal",
+    default: 'ConvoReal',
+    template: '%s — ConvoReal',
   },
-  description: "Self-hostable WhatsApp deal engine for real estate.",
+  description: 'Self-hostable WhatsApp deal engine for real estate.',
   robots: {
     index: false,
     follow: false,
   },
   icons: {
-    icon: [{ url: "/icon" }],
+    icon: [{ url: '/icon' }],
   },
   formatDetection: {
     email: false,
@@ -42,8 +42,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#020617",
-  colorScheme: "dark",
+  themeColor: '#020617',
+  colorScheme: 'dark',
 };
 
 // Inline boot script — runs before React hydrates so the user's
@@ -95,13 +95,13 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }}
         />
       </head>
-      <body className="min-h-full bg-background text-foreground font-sans">
+      <body className="bg-background text-foreground min-h-full font-sans">
         <ThemeProvider>
           <QueryProvider>
             <DeploymentCheck />
             {children}
             <Analytics />
-            {process.env.VERCEL_ENV === "production" && <PerformanceInsights />}
+            {process.env.VERCEL_ENV === 'production' && <PerformanceInsights />}
             <ThemedToaster />
           </QueryProvider>
         </ThemeProvider>

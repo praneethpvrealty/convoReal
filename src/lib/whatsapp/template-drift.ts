@@ -68,7 +68,7 @@ function rowRevision(row: DriftableRow): string {
 export function resolveCopyDrift(
   row: DriftableRow,
   key: EngineTemplateKey,
-  language: LanguageCode,
+  language: LanguageCode
 ): CopyDriftState {
   const shippedNow = copyRevision(key, language);
   const isShippedNow = rowRevision(row) === shippedNow;
@@ -101,7 +101,7 @@ export function hasCopyUpdate(state: CopyDriftState): boolean {
 /** The wording we would replace it with, for a diff or an adopt. */
 export function shippedCopy(
   key: EngineTemplateKey,
-  language: LanguageCode,
+  language: LanguageCode
 ): { body_text: string; footer_text: string | null } {
   return {
     body_text: templateBody(key, language),

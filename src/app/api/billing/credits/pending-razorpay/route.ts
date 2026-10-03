@@ -39,9 +39,11 @@ export async function GET() {
     }
 
     // Filter to only orders that haven't been credited yet
-    const pendingOrders = (recentOrders ?? []).filter((order: RazorpayOrderRow) => {
-      return order.status === 'created' || order.status === 'attempted';
-    });
+    const pendingOrders = (recentOrders ?? []).filter(
+      (order: RazorpayOrderRow) => {
+        return order.status === 'created' || order.status === 'attempted';
+      }
+    );
 
     return NextResponse.json({ orders: pendingOrders });
   } catch (err) {

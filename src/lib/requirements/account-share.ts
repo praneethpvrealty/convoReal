@@ -53,14 +53,18 @@ export interface RequirementAccountShareSummary {
   responseCount: number;
 }
 
-function numberOrNull(value: number | string | null | undefined): number | null {
+function numberOrNull(
+  value: number | string | null | undefined
+): number | null {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function clean(values: string[] | null | undefined): string[] {
-  return [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))];
+  return [
+    ...new Set((values ?? []).map((value) => value.trim()).filter(Boolean)),
+  ];
 }
 
 export function buildAccountRequirementBrief(
@@ -71,8 +75,10 @@ export function buildAccountRequirementBrief(
     classification: row.classification || 'Buyer',
     requirements: row.requirements?.trim() || null,
     noBudget: row.no_budget === true,
-    minBudget: numberOrNull(row.min_budget) ?? numberOrNull(row.pref_budget_min),
-    maxBudget: numberOrNull(row.max_budget) ?? numberOrNull(row.pref_budget_max),
+    minBudget:
+      numberOrNull(row.min_budget) ?? numberOrNull(row.pref_budget_min),
+    maxBudget:
+      numberOrNull(row.max_budget) ?? numberOrNull(row.pref_budget_max),
     areas: clean([...(row.areas_of_interest ?? []), ...(row.pref_areas ?? [])]),
     projects: clean([
       ...(row.projects_of_interest ?? []),
@@ -203,7 +209,7 @@ export async function listRequirementAccountShares(
   ctx: AccountContext,
   box: 'received' | 'sent'
 ): Promise<RequirementAccountShareSummary[]> {
-  const admin = (await lookupAdmin());
+  const admin = await lookupAdmin();
   let query = admin
     .from('requirement_account_shares')
     .select(
@@ -233,7 +239,9 @@ export async function listRequirementAccountShares(
       counts.set(id, (counts.get(id) ?? 0) + 1);
     }
   }
-  return (data ?? []).map((row) => toSummary(row, counts.get(row.id as string) ?? 0));
+  return (data ?? []).map((row) =>
+    toSummary(row, counts.get(row.id as string) ?? 0)
+  );
 }
 
 export async function getRequirementAccountShare(

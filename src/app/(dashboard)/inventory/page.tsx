@@ -1,16 +1,16 @@
-"use client"
+'use client';
 
-import { useSearchParams, useRouter } from "next/navigation";
-import { pushUrl } from "@/lib/navigation";
-import { useMemo } from "react";
-import InventoryContent from "./inventory-content";
-import ProjectsContent from "./projects-content";
-import AdsPage from "../ads/ads-content";
-import { FavoriteButton } from "@/components/layout/favorite-button";
+import { useSearchParams, useRouter } from 'next/navigation';
+import { pushUrl } from '@/lib/navigation';
+import { useMemo } from 'react';
+import InventoryContent from './inventory-content';
+import ProjectsContent from './projects-content';
+import AdsPage from '../ads/ads-content';
+import { FavoriteButton } from '@/components/layout/favorite-button';
 
 const META_ADS_ENABLED = !!process.env.NEXT_PUBLIC_META_ADS_APP_ID;
 
-type TabId = "list" | "projects" | "ads";
+type TabId = 'list' | 'projects' | 'ads';
 
 export default function InventoryPage() {
   const searchParams = useSearchParams();
@@ -18,29 +18,33 @@ export default function InventoryPage() {
 
   const tabs = useMemo(() => {
     const list = [
-      { id: "list" as TabId, label: "Inventory List" },
-      { id: "projects" as TabId, label: "Projects" },
+      { id: 'list' as TabId, label: 'Inventory List' },
+      { id: 'projects' as TabId, label: 'Projects' },
     ];
     if (META_ADS_ENABLED) {
-      list.push({ id: "ads" as TabId, label: "Ads Campaigns" });
+      list.push({ id: 'ads' as TabId, label: 'Ads Campaigns' });
     }
     return list;
   }, []);
 
   const activeTab = useMemo(() => {
-    const tab = searchParams.get("tab") as TabId;
-    return tabs.some((t) => t.id === tab) ? tab : "list";
+    const tab = searchParams.get('tab') as TabId;
+    return tabs.some((t) => t.id === tab) ? tab : 'list';
   }, [searchParams, tabs]);
 
   const tabMeta = useMemo(() => {
     switch (activeTab) {
-      case "ads":
-        return { label: "Ads", href: "/inventory?tab=ads", icon: "Megaphone" };
-      case "projects":
-        return { label: "Projects", href: "/inventory?tab=projects", icon: "Building2" };
-      case "list":
+      case 'ads':
+        return { label: 'Ads', href: '/inventory?tab=ads', icon: 'Megaphone' };
+      case 'projects':
+        return {
+          label: 'Projects',
+          href: '/inventory?tab=projects',
+          icon: 'Building2',
+        };
+      case 'list':
       default:
-        return { label: "Inventory", href: "/inventory", icon: "Home" };
+        return { label: 'Inventory', href: '/inventory', icon: 'Home' };
     }
   }, [activeTab]);
 
@@ -49,31 +53,36 @@ export default function InventoryPage() {
   };
 
   return (
-    <div className="space-y-6 relative overflow-hidden">
+    <div className="relative space-y-6 overflow-hidden">
       {/* Header */}
       <div className="relative z-10 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+          <h1 className="bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent text-white">
             Inventory
           </h1>
-          <p className="mt-1.5 text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
-            Manage listings, create flyers, track approvals, and run ad campaigns.
+          <p className="mt-1.5 text-xs leading-relaxed font-medium text-slate-400 sm:text-sm">
+            Manage listings, create flyers, track approvals, and run ad
+            campaigns.
           </p>
         </div>
-        <FavoriteButton label={tabMeta.label} href={tabMeta.href} icon={tabMeta.icon} />
+        <FavoriteButton
+          label={tabMeta.label}
+          href={tabMeta.href}
+          icon={tabMeta.icon}
+        />
       </div>
 
       {/* Sleek Tab Bar */}
       {tabs.length > 1 && (
-        <div className="flex border-b border-slate-800/80 gap-2 relative z-10">
+        <div className="relative z-10 flex gap-2 border-b border-slate-800/80">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
-              className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+              className={`cursor-pointer border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
                 activeTab === tab.id
-                  ? "border-primary text-white bg-primary/5"
-                  : "border-transparent text-slate-400 hover:text-white"
+                  ? 'border-primary bg-primary/5 text-white'
+                  : 'border-transparent text-slate-400 hover:text-white'
               }`}
             >
               {tab.label}
@@ -84,9 +93,9 @@ export default function InventoryPage() {
 
       {/* Render Active View */}
       <div className="relative z-10">
-        {activeTab === "list" && <InventoryContent />}
-        {activeTab === "projects" && <ProjectsContent />}
-        {activeTab === "ads" && <AdsPage />}
+        {activeTab === 'list' && <InventoryContent />}
+        {activeTab === 'projects' && <ProjectsContent />}
+        {activeTab === 'ads' && <AdsPage />}
       </div>
     </div>
   );

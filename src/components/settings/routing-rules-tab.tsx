@@ -27,7 +27,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
-import type { AccountMember, RoutingRule, RoutingRuleType, Team } from '@/types';
+import type {
+  AccountMember,
+  RoutingRule,
+  RoutingRuleType,
+  Team,
+} from '@/types';
 
 const RULE_TYPE_LABELS: Record<RoutingRuleType, string> = {
   locality_match: 'Locality match',
@@ -53,7 +58,8 @@ export function RoutingRulesTab() {
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<string | null>(null);
 
-  const [newRuleType, setNewRuleType] = useState<RoutingRuleType>('locality_match');
+  const [newRuleType, setNewRuleType] =
+    useState<RoutingRuleType>('locality_match');
   const [newMatchValue, setNewMatchValue] = useState('');
   const [newTargetType, setNewTargetType] = useState<'team' | 'agent'>('team');
   const [newTargetId, setNewTargetId] = useState('');
@@ -65,9 +71,13 @@ export function RoutingRulesTab() {
         fetch('/api/account/teams', { cache: 'no-store' }),
         fetch('/api/account/members', { cache: 'no-store' }),
       ]);
-      if (rres.ok) setRules(((await rres.json()) as { rules: RoutingRule[] }).rules);
+      if (rres.ok)
+        setRules(((await rres.json()) as { rules: RoutingRule[] }).rules);
       if (tres.ok) setTeams(((await tres.json()) as { teams: Team[] }).teams);
-      if (mres.ok) setMembers(((await mres.json()) as { members: AccountMember[] }).members);
+      if (mres.ok)
+        setMembers(
+          ((await mres.json()) as { members: AccountMember[] }).members
+        );
     } catch (err) {
       console.error('[RoutingRulesTab] load error:', err);
       toast.error('Could not reach the server');
@@ -143,7 +153,9 @@ export function RoutingRulesTab() {
   async function handleDelete(rule: RoutingRule) {
     setPending(rule.id);
     try {
-      const res = await fetch(`/api/account/routing-rules/${rule.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/account/routing-rules/${rule.id}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
         toast.error(payload.error || 'Failed to delete rule');
@@ -161,10 +173,15 @@ export function RoutingRulesTab() {
 
   function targetLabel(rule: RoutingRule): string {
     if (rule.target_team_id) {
-      return teams.find((t) => t.id === rule.target_team_id)?.name ?? 'Unknown team';
+      return (
+        teams.find((t) => t.id === rule.target_team_id)?.name ?? 'Unknown team'
+      );
     }
     if (rule.target_agent_id) {
-      return members.find((m) => m.user_id === rule.target_agent_id)?.full_name ?? 'Unknown agent';
+      return (
+        members.find((m) => m.user_id === rule.target_agent_id)?.full_name ??
+        'Unknown agent'
+      );
     }
     return '—';
   }
@@ -172,14 +189,14 @@ export function RoutingRulesTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-primary" />
+        <Loader2 className="text-primary size-6 animate-spin" />
       </div>
     );
   }
 
   if (!isOrgManager) {
     return (
-      <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent mt-4">
+      <Card className="mt-4 border-slate-700 bg-slate-900 ring-0 ring-transparent">
         <CardContent className="flex flex-col items-center justify-center py-8 text-center">
           <Route className="size-6 text-slate-600" />
           <p className="mt-2 text-sm text-slate-400">
@@ -190,40 +207,49 @@ export function RoutingRulesTab() {
     );
   }
 
-  const targetOptions = newTargetType === 'team' ? teams : members.filter((m) => m.org_role === 'org_agent');
+  const targetOptions =
+    newTargetType === 'team'
+      ? teams
+      : members.filter((m) => m.org_role === 'org_agent');
 
   return (
-    <div className="space-y-6 mt-4">
+    <div className="mt-4 space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-white">Routing rules</h2>
         <p className="text-sm text-slate-400">
-          Inbound WhatsApp conversations are auto-assigned by priority: an existing
-          conversation stays with its agent, then an explicit contact assignment, then
-          these rules (locality, then lead source), then round-robin within the fallback
-          team, then the unassigned queue.
+          Inbound WhatsApp conversations are auto-assigned by priority: an
+          existing conversation stays with its agent, then an explicit contact
+          assignment, then these rules (locality, then lead source), then
+          round-robin within the fallback team, then the unassigned queue.
         </p>
       </div>
 
-      <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+      <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
         <CardContent className="p-0">
           {rules.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Route className="size-6 text-slate-600" />
-              <p className="mt-2 text-sm text-slate-400">No routing rules yet.</p>
+              <p className="mt-2 text-sm text-slate-400">
+                No routing rules yet.
+              </p>
               <p className="mt-1 text-xs text-slate-500">
-                Unmatched conversations land in the unassigned queue for a Leader to triage.
+                Unmatched conversations land in the unassigned queue for a
+                Leader to triage.
               </p>
             </div>
           ) : (
             <ul className="divide-y divide-slate-800">
               {rules.map((rule) => (
-                <li key={rule.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <li
+                  key={rule.id}
+                  className="flex items-center justify-between gap-3 px-4 py-3"
+                >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-white">
                         {RULE_TYPE_LABELS[rule.rule_type]}
                       </span>
-                      <Badge className="bg-slate-800 text-slate-400 border-slate-700 text-[10px]">
+                      <Badge className="border-slate-700 bg-slate-800 text-[10px] text-slate-400">
                         priority {rule.priority}
                       </Badge>
                     </div>
@@ -232,7 +258,7 @@ export function RoutingRulesTab() {
                       {targetLabel(rule)}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex shrink-0 items-center gap-3">
                     <Switch
                       checked={rule.is_active}
                       onCheckedChange={() => handleToggleActive(rule)}
@@ -255,12 +281,15 @@ export function RoutingRulesTab() {
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
-        <CardContent className="p-4 space-y-3">
+      <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
+        <CardContent className="space-y-3 p-4">
           <h3 className="text-sm font-semibold text-white">New rule</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Select value={newRuleType} onValueChange={(v) => setNewRuleType(v as RoutingRuleType)}>
-              <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-200">
+            <Select
+              value={newRuleType}
+              onValueChange={(v) => setNewRuleType(v as RoutingRuleType)}
+            >
+              <SelectTrigger className="border-slate-700 bg-slate-800 text-slate-200">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -283,12 +312,18 @@ export function RoutingRulesTab() {
                       ? 'e.g. MagicBricks'
                       : 'keyword'
                 }
-                className="bg-slate-800 border-slate-700 text-white"
+                className="border-slate-700 bg-slate-800 text-white"
               />
             )}
 
-            <Select value={newTargetType} onValueChange={(v) => { setNewTargetType(v as 'team' | 'agent'); setNewTargetId(''); }}>
-              <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-200">
+            <Select
+              value={newTargetType}
+              onValueChange={(v) => {
+                setNewTargetType(v as 'team' | 'agent');
+                setNewTargetId('');
+              }}
+            >
+              <SelectTrigger className="border-slate-700 bg-slate-800 text-slate-200">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -297,9 +332,18 @@ export function RoutingRulesTab() {
               </SelectContent>
             </Select>
 
-            <Select value={newTargetId} onValueChange={(v) => setNewTargetId(v ?? '')}>
-              <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-200">
-                <SelectValue placeholder={newTargetType === 'team' ? 'Choose a team...' : 'Choose an agent...'} />
+            <Select
+              value={newTargetId}
+              onValueChange={(v) => setNewTargetId(v ?? '')}
+            >
+              <SelectTrigger className="border-slate-700 bg-slate-800 text-slate-200">
+                <SelectValue
+                  placeholder={
+                    newTargetType === 'team'
+                      ? 'Choose a team...'
+                      : 'Choose an agent...'
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
                 {targetOptions.map((opt) => (
@@ -318,7 +362,11 @@ export function RoutingRulesTab() {
             disabled={pending === 'create'}
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
-            {pending === 'create' ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            {pending === 'create' ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Plus className="size-4" />
+            )}
             Add rule
           </Button>
         </CardContent>

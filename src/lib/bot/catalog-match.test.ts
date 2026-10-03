@@ -284,7 +284,11 @@ describe('matchProperties', () => {
 
   it('tolerates a plural the catalog spells singular', () => {
     const villa = property({ id: 'villa', type: 'Villa', price: 5_000_000 });
-    const flat = property({ id: 'flat', type: 'Flat/Apartment', price: 5_000_000 });
+    const flat = property({
+      id: 'flat',
+      type: 'Flat/Apartment',
+      price: 5_000_000,
+    });
     const { matches, relaxed } = matchProperties(
       [villa, flat],
       { intent: 'Buying', category: 'Villas' },
@@ -344,22 +348,40 @@ describe('chip sources', () => {
 describe('parseBudgetText with a rent/sale context', () => {
   it('reads a bare rental range as thousands a month', () => {
     // Nasrin typed exactly this. Without context it parsed as Rs 35-45.
-    expect(parseBudgetText('35 to 45', 'rent')).toEqual({ min: 35_000, max: 45_000 });
-    expect(parseBudgetText('Budget 35 to 40', 'rent')).toEqual({ min: 35_000, max: 40_000 });
+    expect(parseBudgetText('35 to 45', 'rent')).toEqual({
+      min: 35_000,
+      max: 45_000,
+    });
+    expect(parseBudgetText('Budget 35 to 40', 'rent')).toEqual({
+      min: 35_000,
+      max: 40_000,
+    });
   });
 
   it('leaves a rent figure already written in rupees alone', () => {
     expect(parseBudgetText('18000', 'rent').max).toBeCloseTo(18_000 * 1.1, 0);
-    expect(parseBudgetText('25000 to 40000', 'rent')).toEqual({ min: 25_000, max: 40_000 });
+    expect(parseBudgetText('25000 to 40000', 'rent')).toEqual({
+      min: 25_000,
+      max: 40_000,
+    });
   });
 
   it('reads a small bare sale range as crores', () => {
-    expect(parseBudgetText('1-2', 'sale')).toEqual({ min: 10_000_000, max: 20_000_000 });
-    expect(parseBudgetText('2 to 5', 'sale')).toEqual({ min: 20_000_000, max: 50_000_000 });
+    expect(parseBudgetText('1-2', 'sale')).toEqual({
+      min: 10_000_000,
+      max: 20_000_000,
+    });
+    expect(parseBudgetText('2 to 5', 'sale')).toEqual({
+      min: 20_000_000,
+      max: 50_000_000,
+    });
   });
 
   it('reads a larger bare sale figure as lakh, because nobody means 80 crore', () => {
-    expect(parseBudgetText('50 to 80', 'sale')).toEqual({ min: 5_000_000, max: 8_000_000 });
+    expect(parseBudgetText('50 to 80', 'sale')).toEqual({
+      min: 5_000_000,
+      max: 8_000_000,
+    });
   });
 
   it('treats 60 as the top of the crore range', () => {
@@ -380,9 +402,18 @@ describe('parseBudgetText with a rent/sale context', () => {
   });
 
   it('never lets the context override a unit the visitor typed', () => {
-    expect(parseBudgetText('35k to 45k', 'rent')).toEqual({ min: 35_000, max: 45_000 });
-    expect(parseBudgetText('1.5 cr', 'sale').max).toBeCloseTo(15_000_000 * 1.1, 0);
-    expect(parseBudgetText('50L to 1Cr', 'sale')).toEqual({ min: 5_000_000, max: 10_000_000 });
+    expect(parseBudgetText('35k to 45k', 'rent')).toEqual({
+      min: 35_000,
+      max: 45_000,
+    });
+    expect(parseBudgetText('1.5 cr', 'sale').max).toBeCloseTo(
+      15_000_000 * 1.1,
+      0
+    );
+    expect(parseBudgetText('50L to 1Cr', 'sale')).toEqual({
+      min: 5_000_000,
+      max: 10_000_000,
+    });
   });
 
   it('keeps the literal reading when no context is supplied', () => {

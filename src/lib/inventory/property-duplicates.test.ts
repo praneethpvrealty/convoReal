@@ -41,6 +41,8 @@ describe('assessPropertyDuplicate', () => {
   });
 
   it('ignores listings outside 100 metres', () => {
-    expect(assessPropertyDuplicate(listing, { ...listing, latitude: 12.937 })).toBeNull();
+    expect(
+      assessPropertyDuplicate(listing, { ...listing, latitude: 12.937 })
+    ).toBeNull();
   });
 });

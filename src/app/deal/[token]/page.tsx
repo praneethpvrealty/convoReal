@@ -5,7 +5,8 @@ import { BRANDING } from '@/config/branding';
 
 export const metadata: Metadata = {
   title: `Transaction update — ${BRANDING.name}`,
-  description: 'A private view of one property transaction, shared with you by the agent.',
+  description:
+    'A private view of one property transaction, shared with you by the agent.',
   robots: { index: false, follow: false },
 };
 

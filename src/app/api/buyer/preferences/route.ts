@@ -53,9 +53,9 @@ export const GET = withBuyerAuth(async (ctx) => {
           min_budget: contact.min_budget ?? contact.pref_budget_min ?? null,
           max_budget: contact.max_budget ?? contact.pref_budget_max ?? null,
           areas_of_interest:
-            (contact.areas_of_interest && contact.areas_of_interest.length > 0)
+            contact.areas_of_interest && contact.areas_of_interest.length > 0
               ? contact.areas_of_interest
-              : contact.pref_areas ?? [],
+              : (contact.pref_areas ?? []),
           property_interests: contact.property_interests ?? [],
           min_roi: contact.min_roi ?? null,
         }

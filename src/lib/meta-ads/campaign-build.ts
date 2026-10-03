@@ -27,15 +27,28 @@ export interface BudgetValidation {
 }
 
 export function validateDailyBudgetInr(inr: unknown): BudgetValidation {
-  if (typeof inr !== 'number' || !Number.isFinite(inr)) return { ok: false, reason: 'Enter a daily budget.' };
-  if (inr < BUDGET_BOUNDS.minInr) return { ok: false, reason: `Minimum daily budget is ₹${BUDGET_BOUNDS.minInr}.` };
-  if (inr > BUDGET_BOUNDS.maxInr) return { ok: false, reason: `Maximum daily budget is ₹${BUDGET_BOUNDS.maxInr.toLocaleString('en-IN')}.` };
+  if (typeof inr !== 'number' || !Number.isFinite(inr))
+    return { ok: false, reason: 'Enter a daily budget.' };
+  if (inr < BUDGET_BOUNDS.minInr)
+    return {
+      ok: false,
+      reason: `Minimum daily budget is ₹${BUDGET_BOUNDS.minInr}.`,
+    };
+  if (inr > BUDGET_BOUNDS.maxInr)
+    return {
+      ok: false,
+      reason: `Maximum daily budget is ₹${BUDGET_BOUNDS.maxInr.toLocaleString('en-IN')}.`,
+    };
   return { ok: true };
 }
 
 export function clampRadiusKm(km: unknown): number {
-  const n = typeof km === 'number' && Number.isFinite(km) ? km : RADIUS_BOUNDS.minKm;
-  return Math.min(RADIUS_BOUNDS.maxKm, Math.max(RADIUS_BOUNDS.minKm, Math.round(n)));
+  const n =
+    typeof km === 'number' && Number.isFinite(km) ? km : RADIUS_BOUNDS.minKm;
+  return Math.min(
+    RADIUS_BOUNDS.maxKm,
+    Math.max(RADIUS_BOUNDS.minKm, Math.round(n))
+  );
 }
 
 interface GeoProperty {
@@ -63,7 +76,10 @@ export interface TargetingResult {
  * are absent, returns `precise: false` with a `cityFallback` for the
  * caller to resolve — never a fabricated/empty targeting object.
  */
-export function buildTargeting(property: GeoProperty, radiusKm: number): TargetingResult {
+export function buildTargeting(
+  property: GeoProperty,
+  radiusKm: number
+): TargetingResult {
   const radius = clampRadiusKm(radiusKm);
 
   if (

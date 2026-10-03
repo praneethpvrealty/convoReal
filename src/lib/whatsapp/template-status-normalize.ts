@@ -1,4 +1,4 @@
-import type { MessageTemplateStatus } from '@/types'
+import type { MessageTemplateStatus } from '@/types';
 
 const ALLOWED: ReadonlyArray<MessageTemplateStatus> = [
   'DRAFT',
@@ -9,7 +9,7 @@ const ALLOWED: ReadonlyArray<MessageTemplateStatus> = [
   'DISABLED',
   'IN_APPEAL',
   'PENDING_DELETION',
-]
+];
 
 /**
  * Normalize an upstream status string (from the sync poll, submit
@@ -20,11 +20,11 @@ const ALLOWED: ReadonlyArray<MessageTemplateStatus> = [
  * so the row is still visible to the user instead of silently dropped.
  */
 export function normalizeStatus(raw: string): MessageTemplateStatus {
-  const upper = (raw ?? '').toUpperCase()
-  if (upper === 'PENDING_REVIEW') return 'PENDING'
+  const upper = (raw ?? '').toUpperCase();
+  if (upper === 'PENDING_REVIEW') return 'PENDING';
   return (ALLOWED as readonly string[]).includes(upper)
     ? (upper as MessageTemplateStatus)
-    : 'PENDING'
+    : 'PENDING';
 }
 
 /**
@@ -44,18 +44,18 @@ export function normalizeStatus(raw: string): MessageTemplateStatus {
  */
 export function clearedTemplateComplaints(
   status: MessageTemplateStatus,
-  rejectedReason?: string | null,
+  rejectedReason?: string | null
 ): {
-  submission_error: null
-  rejection_reason?: string | null
+  submission_error: null;
+  rejection_reason?: string | null;
 } {
   if (status !== 'REJECTED') {
-    return { submission_error: null, rejection_reason: null }
+    return { submission_error: null, rejection_reason: null };
   }
-  const reason = rejectedReason?.trim()
+  const reason = rejectedReason?.trim();
   return reason && reason.toUpperCase() !== 'NONE'
     ? { submission_error: null, rejection_reason: reason }
-    : { submission_error: null }
+    : { submission_error: null };
 }
 
 /**
@@ -66,10 +66,10 @@ export function clearedTemplateComplaints(
  * so the value Meta returns must always win over the value requested.
  */
 export function normalizeCategory(
-  raw: string,
+  raw: string
 ): 'Marketing' | 'Utility' | 'Authentication' {
-  const upper = (raw ?? '').toUpperCase()
-  if (upper === 'UTILITY') return 'Utility'
-  if (upper === 'AUTHENTICATION') return 'Authentication'
-  return 'Marketing'
+  const upper = (raw ?? '').toUpperCase();
+  if (upper === 'UTILITY') return 'Utility';
+  if (upper === 'AUTHENTICATION') return 'Authentication';
+  return 'Marketing';
 }

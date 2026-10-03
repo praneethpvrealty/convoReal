@@ -82,7 +82,10 @@ export async function POST(request: Request, { params }: RouteParams) {
         .eq('account_id', ctx.accountId)
         .maybeSingle();
       if (!contact) {
-        return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
+        return NextResponse.json(
+          { error: 'Contact not found' },
+          { status: 404 }
+        );
       }
     }
 

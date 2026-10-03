@@ -51,7 +51,10 @@ export const NARRATION_LANGUAGES = {
 /** Split narration on sentence boundaries into ≤`max`-char chunks —
  *  Sarvam TTS caps input length per request. */
 export function chunkNarration(text, max = 450) {
-  const sentences = text.replace(/\s+/g, ' ').trim().match(/[^.!?।]+[.!?।]*\s*/g) ?? [text];
+  const sentences = text
+    .replace(/\s+/g, ' ')
+    .trim()
+    .match(/[^.!?।]+[.!?।]*\s*/g) ?? [text];
   const chunks = [];
   let cur = '';
   for (const s of sentences) {
@@ -78,7 +81,9 @@ async function sarvamPost(pathname, body) {
   if (!res.ok) {
     // Surface the whole response — if Sarvam's contract has drifted
     // from what this prototype expects, this makes it obvious.
-    throw new Error(`Sarvam ${pathname} → HTTP ${res.status}: ${raw.slice(0, 500)}`);
+    throw new Error(
+      `Sarvam ${pathname} → HTTP ${res.status}: ${raw.slice(0, 500)}`
+    );
   }
   return JSON.parse(raw);
 }
@@ -92,14 +97,22 @@ async function sarvamTranslate(text, targetLang) {
     target_language_code: targetLang,
     model: 'mayura:v1',
   });
-  if (typeof data.translated_text !== 'string' || !data.translated_text.trim()) {
-    throw new Error(`Sarvam /translate returned no translated_text: ${JSON.stringify(data).slice(0, 300)}`);
+  if (
+    typeof data.translated_text !== 'string' ||
+    !data.translated_text.trim()
+  ) {
+    throw new Error(
+      `Sarvam /translate returned no translated_text: ${JSON.stringify(data).slice(0, 300)}`
+    );
   }
   return data.translated_text;
 }
 
 /** Narration text → WAV file via Sarvam TTS, chunked and re-joined. */
-async function sarvamNarrate(text, { language, speaker, workDir, outWav, ffmpeg }) {
+async function sarvamNarrate(
+  text,
+  { language, speaker, workDir, outWav, ffmpeg }
+) {
   const chunks = chunkNarration(text);
   const chunkFiles = [];
   for (let i = 0; i < chunks.length; i++) {
@@ -113,20 +126,27 @@ async function sarvamNarrate(text, { language, speaker, workDir, outWav, ffmpeg 
     });
     const b64 = Array.isArray(data.audios) ? data.audios[0] : null;
     if (!b64) {
-      throw new Error(`Sarvam /text-to-speech returned no audios[0]: ${JSON.stringify(data).slice(0, 300)}`);
+      throw new Error(
+        `Sarvam /text-to-speech returned no audios[0]: ${JSON.stringify(data).slice(0, 300)}`
+      );
     }
     const f = path.join(workDir, `tts-${i}.wav`);
     fs.writeFileSync(f, Buffer.from(b64, 'base64'));
     chunkFiles.push(f);
-    console.log(`sarvam tts chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)`);
+    console.log(
+      `sarvam tts chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)`
+    );
   }
   if (chunkFiles.length === 1) {
     fs.copyFileSync(chunkFiles[0], outWav);
   } else {
     const list = path.join(workDir, 'tts-list.txt');
     fs.writeFileSync(list, chunkFiles.map((f) => `file '${f}'`).join('\n'));
-    execFileSync(ffmpeg, ['-y', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', outWav],
-      { stdio: ['ignore', 'ignore', 'pipe'] });
+    execFileSync(
+      ffmpeg,
+      ['-y', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', outWav],
+      { stdio: ['ignore', 'ignore', 'pipe'] }
+    );
   }
 }
 
@@ -140,16 +160,18 @@ const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 const work = fs.mkdtempSync('/tmp/listing-video-');
 const SEG_SECONDS = 6;
 const FPS = 30;
-const W = 720, H = 1280;
+const W = 720,
+  H = 1280;
 
-const run = (bin, args) => execFileSync(bin, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+const run = (bin, args) =>
+  execFileSync(bin, args, { stdio: ['ignore', 'ignore', 'pipe'] });
 
 // ---------- 1. Narration ----------
 const narrationWav = path.join(work, 'narration.wav');
 const language = cfg.language || 'en-IN';
 if (!NARRATION_LANGUAGES[language]) {
   throw new Error(
-    `Unsupported narration language "${language}". Supported: ${Object.keys(NARRATION_LANGUAGES).join(', ')}`,
+    `Unsupported narration language "${language}". Supported: ${Object.keys(NARRATION_LANGUAGES).join(', ')}`
   );
 }
 if (SARVAM_API_KEY) {
@@ -167,11 +189,26 @@ if (SARVAM_API_KEY) {
     outWav: narrationWav,
     ffmpeg: FFMPEG,
   });
-  console.log(`narration: Sarvam ${SARVAM_TTS_MODEL}, ${NARRATION_LANGUAGES[language]}, speaker=${cfg.speaker || 'anushka'}`);
+  console.log(
+    `narration: Sarvam ${SARVAM_TTS_MODEL}, ${NARRATION_LANGUAGES[language]}, speaker=${cfg.speaker || 'anushka'}`
+  );
 } else {
-  console.warn('SARVAM_API_KEY not set — falling back to espeak-ng placeholder voice (robotic, English only).');
-  run('espeak-ng', ['-v', 'en-us+f3', '-s', '150', '-p', '40', '-a', '190',
-    '-w', narrationWav, cfg.narration]);
+  console.warn(
+    'SARVAM_API_KEY not set — falling back to espeak-ng placeholder voice (robotic, English only).'
+  );
+  run('espeak-ng', [
+    '-v',
+    'en-us+f3',
+    '-s',
+    '150',
+    '-p',
+    '40',
+    '-a',
+    '190',
+    '-w',
+    narrationWav,
+    cfg.narration,
+  ]);
 }
 
 // ---------- 2. Music bed: gentle additive pad, written as WAV ----------
@@ -203,25 +240,35 @@ const musicWav = path.join(work, 'music.wav');
     pcm[i] = Math.round(2600 * env * shimmer * (s / chord.length));
   }
   const header = Buffer.alloc(44);
-  header.write('RIFF', 0); header.writeUInt32LE(36 + n * 2, 4);
-  header.write('WAVEfmt ', 8); header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20); header.writeUInt16LE(1, 22);
-  header.writeUInt32LE(sr, 24); header.writeUInt32LE(sr * 2, 28);
-  header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34);
-  header.write('data', 36); header.writeUInt32LE(n * 2, 40);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + n * 2, 4);
+  header.write('WAVEfmt ', 8);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(sr, 24);
+  header.writeUInt32LE(sr * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(n * 2, 40);
   fs.writeFileSync(musicWav, Buffer.concat([header, Buffer.from(pcm.buffer)]));
 }
 
 // ---------- 3. Per-photo Ken Burns segments with captions ----------
-const esc = (t) => t.replace(/\\/g, '\\\\').replace(/'/g, "\\\\\\'").replace(/:/g, '\\:').replace(/%/g, '\\%');
+const esc = (t) =>
+  t
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\\\\\'")
+    .replace(/:/g, '\\:')
+    .replace(/%/g, '\\%');
 const segments = [];
 cfg.photos.forEach((p, i) => {
   const seg = path.join(work, `seg${i}.mp4`);
   const frames = SEG_SECONDS * FPS;
   // Alternate zoom-in / zoom-out with a slow drift so stills feel alive.
-  const zoom = i % 2 === 0
-    ? `1.02+0.12*on/${frames}`
-    : `1.14-0.12*on/${frames}`;
+  const zoom =
+    i % 2 === 0 ? `1.02+0.12*on/${frames}` : `1.14-0.12*on/${frames}`;
   const caption = esc(p.caption);
   const vf = [
     // Orientation-safe: center-crop to the video's 9:16 aspect first
@@ -236,8 +283,27 @@ cfg.photos.forEach((p, i) => {
     `drawtext=fontfile=${FONT}:text='PV Realty':fontsize=26:fontcolor=white@0.9:box=1:boxcolor=0x0b1220@0.5:boxborderw=12:x=36:y=48`,
     `format=yuv420p`,
   ].join(',');
-  run(FFMPEG, ['-y', '-loop', '1', '-i', p.file, '-vf', vf, '-t', String(SEG_SECONDS),
-    '-r', String(FPS), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-an', seg]);
+  run(FFMPEG, [
+    '-y',
+    '-loop',
+    '1',
+    '-i',
+    p.file,
+    '-vf',
+    vf,
+    '-t',
+    String(SEG_SECONDS),
+    '-r',
+    String(FPS),
+    '-c:v',
+    'libx264',
+    '-preset',
+    'veryfast',
+    '-crf',
+    '23',
+    '-an',
+    seg,
+  ]);
   segments.push(seg);
   console.log(`segment ${i + 1}/${cfg.photos.length} done`);
 });
@@ -253,8 +319,25 @@ cfg.photos.forEach((p, i) => {
     `drawtext=fontfile=${FONT}:text='Made with ConvoReal':fontsize=22:fontcolor=white@0.45:x=(w-text_w)/2:y=1160`,
     `format=yuv420p`,
   ].join(',');
-  run(FFMPEG, ['-y', '-f', 'lavfi', '-i', `color=c=0x0b1220:s=${W}x${H}:r=${FPS}`,
-    '-vf', vf, '-t', '5', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-an', seg]);
+  run(FFMPEG, [
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    `color=c=0x0b1220:s=${W}x${H}:r=${FPS}`,
+    '-vf',
+    vf,
+    '-t',
+    '5',
+    '-c:v',
+    'libx264',
+    '-preset',
+    'veryfast',
+    '-crf',
+    '23',
+    '-an',
+    seg,
+  ]);
   segments.push(seg);
   console.log('end card done');
 }
@@ -263,20 +346,49 @@ cfg.photos.forEach((p, i) => {
 const listFile = path.join(work, 'list.txt');
 fs.writeFileSync(listFile, segments.map((s) => `file '${s}'`).join('\n'));
 const silent = path.join(work, 'video.mp4');
-run(FFMPEG, ['-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-c', 'copy', silent]);
+run(FFMPEG, [
+  '-y',
+  '-f',
+  'concat',
+  '-safe',
+  '0',
+  '-i',
+  listFile,
+  '-c',
+  'copy',
+  silent,
+]);
 
-run(FFMPEG, ['-y', '-i', silent, '-i', musicWav, '-i', narrationWav,
+run(FFMPEG, [
+  '-y',
+  '-i',
+  silent,
+  '-i',
+  musicWav,
+  '-i',
+  narrationWav,
   '-filter_complex',
   // Narration starts after 1s; music sits under it via sidechain ducking,
   // then everything fades out with the video.
   // sidechaincompress needs both inputs in one format — normalize to
   // 44.1kHz stereo float before anything else.
   '[2:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,adelay=1000|1000,volume=1.6,apad,asplit=2[voiceA][voiceB];' +
-  '[1:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=0.45[bed];' +
-  '[bed][voiceA]sidechaincompress=threshold=0.04:ratio=8:attack=120:release=800[ducked];' +
-  '[ducked][voiceB]amix=inputs=2:duration=first:dropout_transition=2,afade=t=out:st=33:d=2[a]',
-  '-map', '0:v', '-map', '[a]', '-shortest',
-  '-c:v', 'copy', '-c:a', 'aac', '-b:a', '96k', outPath]);
+    '[1:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=0.45[bed];' +
+    '[bed][voiceA]sidechaincompress=threshold=0.04:ratio=8:attack=120:release=800[ducked];' +
+    '[ducked][voiceB]amix=inputs=2:duration=first:dropout_transition=2,afade=t=out:st=33:d=2[a]',
+  '-map',
+  '0:v',
+  '-map',
+  '[a]',
+  '-shortest',
+  '-c:v',
+  'copy',
+  '-c:a',
+  'aac',
+  '-b:a',
+  '96k',
+  outPath,
+]);
 
 const mb = (fs.statSync(outPath).size / 1024 / 1024).toFixed(1);
 console.log(`\nDone: ${outPath} (${mb} MB)`);

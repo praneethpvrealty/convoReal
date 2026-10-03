@@ -38,8 +38,10 @@ export interface VideoPropertyFacts {
 }
 
 export function formatIndianAmount(value: number): string {
-  if (value >= 10000000) return `${(value / 10000000).toFixed(2).replace(/\.?0+$/, '')} crore rupees`;
-  if (value >= 100000) return `${(value / 100000).toFixed(2).replace(/\.?0+$/, '')} lakh rupees`;
+  if (value >= 10000000)
+    return `${(value / 10000000).toFixed(2).replace(/\.?0+$/, '')} crore rupees`;
+  if (value >= 100000)
+    return `${(value / 100000).toFixed(2).replace(/\.?0+$/, '')} lakh rupees`;
   return `${Math.round(value).toLocaleString('en-IN')} rupees`;
 }
 
@@ -50,11 +52,14 @@ export function formatIndianAmount(value: number): string {
  * Regional languages go through Sarvam translate on the worker.
  */
 export function buildNarrationScript(p: VideoPropertyFacts): string {
-  const locality = [p.sublocality, p.city].filter(Boolean).join(', ') || p.location || '';
+  const locality =
+    [p.sublocality, p.city].filter(Boolean).join(', ') || p.location || '';
   const what = [
     p.bedrooms && p.bedrooms > 0 ? `${p.bedrooms} bedroom` : '',
     (p.type || 'property').toLowerCase().replace('/ ', ' '),
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
   const price = Number(p.price);
   const rent = Number(p.rent_per_month);
   const priceLine =
@@ -68,22 +73,34 @@ export function buildNarrationScript(p: VideoPropertyFacts): string {
     `A well maintained ${what}, ready for you to see in person.`,
     priceLine,
     'Message us on WhatsApp to get the full details, photos, and to book your site visit today.',
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 /** Caption for photo N of the slideshow. First is the headline;
  *  later ones rotate through generic-but-true labels. */
-export function buildCaptions(p: VideoPropertyFacts, photoCount: number): string[] {
-  const locality = [p.sublocality, p.city].filter(Boolean).join(', ') || p.location || '';
+export function buildCaptions(
+  p: VideoPropertyFacts,
+  photoCount: number
+): string[] {
+  const locality =
+    [p.sublocality, p.city].filter(Boolean).join(', ') || p.location || '';
   const rotating = [
     locality ? `In ${locality}` : 'Prime location',
-    p.bedrooms && p.bedrooms > 0 ? `${p.bedrooms} BHK ${p.type ?? ''}`.trim() : (p.type ?? 'Quality build'),
+    p.bedrooms && p.bedrooms > 0
+      ? `${p.bedrooms} BHK ${p.type ?? ''}`.trim()
+      : (p.type ?? 'Quality build'),
     'Tap for photos & full details',
     'Site visits available this week',
   ];
   const captions: string[] = [];
   for (let i = 0; i < photoCount; i++) {
-    captions.push(i === 0 ? (p.title || 'New listing').slice(0, 48) : rotating[(i - 1) % rotating.length]);
+    captions.push(
+      i === 0
+        ? (p.title || 'New listing').slice(0, 48)
+        : rotating[(i - 1) % rotating.length]
+    );
   }
   return captions;
 }
