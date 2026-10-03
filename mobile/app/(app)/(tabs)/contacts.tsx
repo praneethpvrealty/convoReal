@@ -49,6 +49,7 @@ import { UnmappedPortalAds } from '@/components/unmapped-portal-ads';
 import { apiFetch, ApiError, isCancelled, isTimeout } from '@/lib/api';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 import { approveAndSendDetails } from '@/lib/approve-contact';
+import { useAuthStore } from '@/lib/auth-store';
 import {
   AREA_FILTER_COLUMNS,
   AREA_OPTIONS_QUERY_KEY,
@@ -477,59 +478,21 @@ async function fetchContacts(
   return { contacts, tags, propertyCodes, propertyTitles, interestMatches };
 }
 
-/** Segment counts, same head-count technique as the web tabs. */
-async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
-  const staffFilter = await staffPhoneFilter();
-  const excludeStaff = <
-    T extends { not: (c: string, op: string, v: string) => T },
-  >(
-    q: T
-  ): T => (staffFilter ? q.not('phone', 'in', staffFilter) : q);
-  const [active, review, favorites, market, wonDeals] = await Promise.all([
-    excludeStaff(
-      supabase
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('chain_only', false)
-        .eq('is_merged', false)
-        .eq('status', 'active')
-    ),
-    excludeStaff(
-      supabase
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('chain_only', false)
-        .eq('is_merged', false)
-        .eq('status', 'pending_review')
-    ),
-    excludeStaff(
-      supabase
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('chain_only', false)
-        .eq('is_merged', false)
-        .eq('is_favorite', true)
-    ),
-    excludeStaff(
-      supabase
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('chain_only', false)
-        .eq('is_merged', false)
-        .eq('status', 'active')
-        .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null')
-    ),
-    supabase.from('deals').select('contact_id').eq('status', 'won'),
-  ]);
-  const transacted = new Set(
-    (wonDeals.data ?? []).map((d) => d.contact_id).filter(Boolean)
-  ).size;
+/** Segment counts from the same SQL aggregate the web tabs read
+ *  (contacts_tab_counts): one scan, one staff rule, one Transacted rule. */
+async function fetchSegmentCounts(
+  accountId: string
+): Promise<Record<SegmentKey, number>> {
+  const { data, error } = await supabase
+    .rpc('contacts_tab_counts', { p_account_id: accountId })
+    .maybeSingle<Record<SegmentKey, number>>();
+  if (error) throw error;
   return {
-    active: active.count ?? 0,
-    pending_review: review.count ?? 0,
-    favorites: favorites.count ?? 0,
-    transacted,
-    market_active: market.count ?? 0,
+    active: data?.active ?? 0,
+    pending_review: data?.pending_review ?? 0,
+    favorites: data?.favorites ?? 0,
+    transacted: data?.transacted ?? 0,
+    market_active: data?.market_active ?? 0,
   };
 }
 
@@ -538,6 +501,7 @@ export default function ContactsScreen() {
   const { width } = useWindowDimensions();
   const wide = width >= 700;
   const insets = useSafeAreaInsets();
+  const accountId = useAuthStore((state) => state.profile?.account_id);
   const [search, setSearch] = useState('');
   const [segment, setSegment] = useState<SegmentKey>('active');
   const [interest, setInterest] = useState<InterestFilter | null>(null);
@@ -593,8 +557,9 @@ export default function ContactsScreen() {
     placeholderData: keepPreviousData,
   });
   const counts = useQuery({
-    queryKey: ['contact-counts'],
-    queryFn: fetchSegmentCounts,
+    queryKey: ['contact-counts', accountId],
+    enabled: Boolean(accountId),
+    queryFn: () => fetchSegmentCounts(accountId!),
   });
   const pull = usePullRefresh(() => Promise.all([refetch(), counts.refetch()]));
 
