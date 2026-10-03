@@ -34,6 +34,7 @@ import {
   nameTagCap,
 } from '@/components/ui';
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { conversationPreview } from '@shared/lib/conversations/text-format';
 import { useAuthStore } from '@/lib/auth-store';
 import { setConversationArchived } from '@/lib/conversation-actions';
 import { conversationCloseReasonLabel } from '@/lib/conversation-closure';
@@ -684,7 +685,7 @@ function ConversationRow({
                 }}
                 numberOfLines={1}
               >
-                {conversation.last_message_text ?? ''}
+                {conversationPreview(conversation.last_message_text)}
               </Text>
             </View>
             <UnreadBadge count={conversation.unread_count} />

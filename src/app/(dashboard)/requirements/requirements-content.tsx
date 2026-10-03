@@ -41,8 +41,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ChecklistLoader } from '@/components/ui/checklist-loader';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { Skeleton } from '@/components/dashboard/skeleton';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
 import { SearchableContactSelect } from '@/components/ui/searchable-contact-select';
@@ -703,7 +702,11 @@ export default function RequirementsPage() {
             <Sparkles className="text-primary size-4" />
           </div>
           <div className="mt-2.5 text-2xl font-black text-white">
-            <AnimatedCounter value={stats.total} />
+            {loading ? (
+              <Skeleton className="h-7 w-12" />
+            ) : (
+              <AnimatedCounter value={stats.total} />
+            )}
           </div>
         </button>
 
@@ -726,7 +729,11 @@ export default function RequirementsPage() {
             <span className="h-2 w-2 animate-ping rounded-full bg-rose-500" />
           </div>
           <div className="mt-2.5 text-2xl font-black text-rose-400">
-            <AnimatedCounter value={stats.hot} />
+            {loading ? (
+              <Skeleton className="h-7 w-12" />
+            ) : (
+              <AnimatedCounter value={stats.hot} />
+            )}
           </div>
         </button>
 
@@ -749,7 +756,11 @@ export default function RequirementsPage() {
             <Users className="size-4 text-emerald-400" />
           </div>
           <div className="mt-2.5 text-2xl font-black text-white">
-            <AnimatedCounter value={stats.buyers} />
+            {loading ? (
+              <Skeleton className="h-7 w-12" />
+            ) : (
+              <AnimatedCounter value={stats.buyers} />
+            )}
           </div>
         </button>
 
@@ -772,7 +783,11 @@ export default function RequirementsPage() {
             <Building className="size-4 text-sky-400" />
           </div>
           <div className="mt-2.5 text-2xl font-black text-white">
-            <AnimatedCounter value={stats.agents} />
+            {loading ? (
+              <Skeleton className="h-7 w-12" />
+            ) : (
+              <AnimatedCounter value={stats.agents} />
+            )}
           </div>
         </button>
       </div>
@@ -842,14 +857,33 @@ export default function RequirementsPage() {
       {/* Cards Grid */}
       <div className="relative z-10 min-h-0 flex-1">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-            <ChecklistLoader
-              size={104}
-              label="Assembling client requirements"
-              className="mb-3"
-            />
-            <ConvoRealLoader size={20} className="mb-2" />
-            <p className="text-sm">Assembling client requirements...</p>
+          <div
+            role="status"
+            aria-label="Loading requirements"
+            aria-busy="true"
+            className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
+          >
+            {Array.from({ length: 6 }, (_, i) => (
+              <div
+                key={i}
+                className="rounded-2xl border border-slate-800/80 bg-slate-900/45 p-5"
+              >
+                <div className="flex items-center gap-3">
+                  <Skeleton className="size-9 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3.5 w-32" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+                <Skeleton className="mt-5 h-3 w-full" />
+                <Skeleton className="mt-2 h-3 w-5/6" />
+                <Skeleton className="mt-2 h-3 w-2/3" />
+                <div className="mt-5 flex gap-2">
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : filteredData.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-800/80 bg-slate-900/25 py-20">

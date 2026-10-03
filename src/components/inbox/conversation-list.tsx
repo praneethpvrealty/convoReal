@@ -37,12 +37,7 @@ import { FavoriteButton } from '@/components/layout/favorite-button';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { ConversationListSkeleton } from '@/components/inbox/conversation-list-skeleton';
 import { conversationCloseReasonLabel } from '@/lib/conversations/closure';
-
-/** Strip WhatsApp formatting markers (*bold*, _italic_, ~strike~) for plain-text previews. */
-function stripWhatsAppFormatting(text: string | null | undefined): string {
-  if (!text) return '';
-  return text.replace(/[*_~`]/g, '').trim();
-}
+import { conversationPreview } from '@/lib/conversations/text-format';
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -706,7 +701,7 @@ function ConversationItem({
                     : 'font-normal text-slate-500'
               )}
             >
-              {stripWhatsAppFormatting(conversation.last_message_text) ||
+              {conversationPreview(conversation.last_message_text) ||
                 'No messages yet'}
             </p>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -715,17 +710,19 @@ function ConversationItem({
                   {conversation.unread_count}
                 </span>
               )}
-              <span
-                className={cn(
-                  'h-2 w-2 rounded-full',
-                  conversation.is_archived
-                    ? 'bg-slate-600'
-                    : STATUS_COLORS[conversation.status]
-                )}
-                title={
-                  conversation.is_archived ? 'archived' : conversation.status
-                }
-              />
+              {(conversation.is_archived || conversation.status !== 'open') && (
+                <span
+                  className={cn(
+                    'h-2 w-2 rounded-full',
+                    conversation.is_archived
+                      ? 'bg-slate-600'
+                      : STATUS_COLORS[conversation.status]
+                  )}
+                  title={
+                    conversation.is_archived ? 'archived' : conversation.status
+                  }
+                />
+              )}
             </div>
           </div>
           {(reply || closeReasonLabel || activityCount != null) && (

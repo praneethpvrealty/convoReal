@@ -141,6 +141,32 @@ than a written entry. Newest first.
   five items opens in the Agenda, where a near-empty grid would show
   less. Every empty day cell shows a + on hover to say it can be
   scheduled on.
+- **One loading pattern across the inbox, Contacts, Requirements, Groups
+  and Sources.** Each screen used its own idiom: a logo splash, a bare
+  "Loading…" sentence, a spinner, or a session badge that literally read
+  "Loading...". Every one of them now shows grey placeholders shaped like
+  the content about to appear, so nothing jumps when the data arrives.
+  The Contacts list no longer shows its page footer while the rows are
+  still loading, the duplicate-check line keeps the height of the banner
+  that replaces it, the Requirements tiles show placeholders instead of
+  four zeros while the list loads, and the Archived filter's empty state
+  says "No archived contacts" rather than "No contacts yet".
+- **Inbox bubbles render WhatsApp formatting, and previews start at the
+  message.** Bold, italic, strikethrough and monospace now show the way
+  WhatsApp shows them, on web and in the mobile app, instead of as raw
+  asterisks and underscores. The conversation list's preview skips a
+  bold-only header line such as "Your Property Update" and shows the
+  first line of the body, so twelve digests no longer read identically.
+  The small purple dot that sat on every open conversation is gone; a
+  dot now appears only for pending, closed or archived conversations.
+- **The Contacts table scans in one rhythm.** Every row is one line
+  tall: the Areas, Categories and Tags columns show at most two chips
+  and fold the rest into a "+N" whose tooltip names them, the HOT and
+  COLD badge sits beside the name instead of under it, and the two
+  WhatsApp buttons next to a phone number no longer look identical (the
+  filled one opens a chat, the outlined one sends the welcome message).
+  The page also drops its repeated "Contacts" heading, since the top bar
+  already carries it, so the first row of the table starts higher.
 - **The Calendar loads once and fits the screen.** Opening it showed a
   property-card skeleton, then a spinner, before the month appeared; it
   now shows one calendar-shaped skeleton and fetches appointments and

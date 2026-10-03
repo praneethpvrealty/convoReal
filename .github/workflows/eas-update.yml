@@ -40,6 +40,7 @@ on:
       # src/lib/mobile-parity.test.ts keeps this list whole.
       - 'src/lib/calendar/archive-sort.ts'
       - 'src/lib/calendar/todo-groups.ts'
+      - 'src/lib/conversations/text-format.ts'
       - 'src/lib/dashboard/approval-order.ts'
       - 'src/lib/deals/co-broking.ts'
       - 'src/lib/deals/deadline-rules.ts'

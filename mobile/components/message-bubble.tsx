@@ -42,6 +42,7 @@ import {
   shouldTriggerReply,
 } from '@/lib/swipe-reply';
 import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
+import { FormattedText } from '@/components/formatted-text';
 import type { Message, MessageReaction, MessageStatus } from '@/lib/types';
 
 const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
@@ -536,15 +537,14 @@ export function MessageBubble({
               ) : null}
 
               {displayText ? (
-                <Text
+                <FormattedText
+                  text={displayText}
                   style={{
                     fontSize: 15,
                     lineHeight: 21,
                     color: outgoing ? colors.outgoingText : colors.incomingText,
                   }}
-                >
-                  {displayText}
-                </Text>
+                />
               ) : null}
 
               <View style={styles.meta}>
