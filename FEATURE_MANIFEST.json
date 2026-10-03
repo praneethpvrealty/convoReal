@@ -1186,6 +1186,10 @@
             {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[PRP-007]"
+            },
+            {
+              "file": "src/components/inventory/property-enquiries-tab.test.tsx",
+              "case": "[PRP-007]"
             }
           ],
           "guards": [
