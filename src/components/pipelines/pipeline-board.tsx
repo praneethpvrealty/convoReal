@@ -66,6 +66,16 @@ export function PipelineBoard({
     [stages]
   );
 
+  const flatStages = useMemo(
+    () =>
+      (['active', 'successful', 'lost'] as const).flatMap((outcome) =>
+        sortedStages.filter(
+          (stage) => pipelineOutcomeForStage(stage) === outcome
+        )
+      ),
+    [sortedStages]
+  );
+
   const dealsByStage = useMemo(() => {
     const map = new Map<string, Deal[]>();
     for (const stage of sortedStages) map.set(stage.id, []);
@@ -143,11 +153,11 @@ export function PipelineBoard({
           aria-label="Pipeline stages"
           className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:snap-none"
         >
-          {sortedStages.map((stage, index) => {
+          {flatStages.map((stage, index) => {
             const outcome = pipelineOutcomeForStage(stage);
             const divider =
               OUTCOME_DIVIDERS[outcome] &&
-              sortedStages.findIndex(
+              flatStages.findIndex(
                 (other) => pipelineOutcomeForStage(other) === outcome
               ) === index
                 ? OUTCOME_DIVIDERS[outcome]

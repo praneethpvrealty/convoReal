@@ -54,7 +54,7 @@ export function PipelineAnalytics({
     const active = deals.filter((d) => d.status !== 'lost');
     const openDeals = active.filter((d) => d.status !== 'won');
 
-    const totalCount = active.length;
+    const totalCount = deals.length;
     let totalValue = 0;
     let feeCount = 0;
     for (const d of active) {
@@ -101,9 +101,9 @@ export function PipelineAnalytics({
       <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4 sm:grid-cols-3 xl:grid-cols-6">
         <Metric
           icon={<BarChart3 className="h-4 w-4 text-slate-400" />}
-          label="Active deals"
+          label="Deals shown"
           value={String(stats.totalCount)}
-          tooltip={`Open and won deals in ${scopeLabel}. Lost deals are excluded; the Focus/All switch changes this count.`}
+          tooltip={`Every deal the Focus/All switch is showing (${scopeLabel}), lost deals included, so it matches the switch's count.`}
         />
         <Metric
           icon={createElement(getCurrencyIcon(currency), {

@@ -113,6 +113,38 @@ describe('[PIPE-001] the flat Deals board', () => {
     expect(screen.queryByText('Lost deals')).toBeNull();
   });
 
+  it('keeps won and lost stages at the right edge even when they were reordered before an active stage', () => {
+    render(
+      <PipelineBoard
+        stages={[
+          stage('s-lost', 'Closed Lost', 0, 'lost'),
+          stage('s-won', 'Registered', 1, 'won'),
+          stage('s-enquiry', 'Enquiry', 2, 'open'),
+          stage('s-visit', 'Site visit', 3, 'open'),
+        ]}
+        deals={deals}
+        onDealMoved={vi.fn()}
+        onAddDeal={vi.fn()}
+        onEditDeal={vi.fn()}
+        layout="flat"
+      />
+    );
+    const row = screen.getByLabelText('Pipeline stages');
+    const labels = within(row)
+      .getAllByText(
+        /^(Enquiry|Site visit|Closed won|Registered|Lost|Closed Lost)$/
+      )
+      .map((node) => node.textContent);
+    expect(labels).toEqual([
+      'Enquiry',
+      'Site visit',
+      'Closed won',
+      'Registered',
+      'Lost',
+      'Closed Lost',
+    ]);
+  });
+
   it('collapses an empty stage to a rail that still adds deals and expands on click', () => {
     const { onAddDeal } = renderBoard('flat');
     expect(screen.queryByRole('heading', { name: 'Site visit' })).toBeNull();

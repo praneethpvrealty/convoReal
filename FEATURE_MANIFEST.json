@@ -2037,7 +2037,7 @@
       "invariants": [
         {
           "id": "PIPE-001",
-          "rule": "The Deals board opens flat on both surfaces: every stage of the pipeline in one horizontal row in position order, the won and lost stages at the right edge, an empty stage folded to a rail that still accepts a drop and opens on a tap. The rotating wheel is a per-device choice behind a Flat / Wheel switch, stored under one key on both surfaces, and never the default.",
+          "rule": "The Deals board opens flat on both surfaces: every stage of the pipeline in one row, active stages first in position order and then the won and lost stages at the right edge whatever their stored position, an empty stage folded to a rail that still accepts a drop and opens on a tap. The rotating wheel is a per-device choice behind a Flat / Wheel switch, stored under one key on both surfaces, and never the default.",
           "tests": [
             {
               "file": "src/lib/pipelines/board-layout.test.ts",
@@ -2062,7 +2062,7 @@
         },
         {
           "id": "PIPE-002",
-          "rule": "One fee rule on every board surface: a deal's fee is its saved brokerage amount, else its recorded rate applied to the value, net of co-broker payouts, and a deal with neither has no fee and says \"Fee not set\" — never a guessed 2%. A stage header leads with the deals' value and shows fees only once some are recorded; the first stat tile counts the deals the Focus / All switch is showing. Web and mobile compute these through the same module.",
+          "rule": "One fee rule on every board surface: a deal's fee is its saved brokerage amount, else its recorded rate applied to the value, net of co-broker payouts, and a deal with neither has no fee and says \"Fee not set\" — never a guessed 2%. A stage header leads with the deals' value and shows fees only once some are recorded; the first stat tile counts every deal the Focus / All switch is showing, lost ones included. Web and mobile compute these through the same module.",
           "tests": [
             {
               "file": "src/lib/pipelines/deal-money.test.ts",
