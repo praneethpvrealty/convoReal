@@ -354,7 +354,9 @@ export async function GET(request: Request) {
       if (isPublished !== null && isPublished !== '') {
         query = query.eq('is_published', isPublished === 'true');
       }
-      if (listingSource) query = query.eq('listing_source', listingSource);
+      if (listingSource === 'owner')
+        query = query.neq('listing_source', 'agent');
+      else if (listingSource) query = query.eq('listing_source', listingSource);
       if (listingType) query = query.eq('listing_type', listingType);
 
       if (minPrice !== null && minPrice !== '') {

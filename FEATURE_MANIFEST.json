@@ -1481,6 +1481,46 @@
             "src/lib/maps/lookup-cache.ts",
             "supabase/migrations/20261002073439_maps_lookup_cache.sql"
           ]
+        },
+        {
+          "id": "PRP-026",
+          "rule": "The inventory listing-party pills count the rows they list on the tab and summary tile in force: on Review and Archived they count only those listings, not the account's active total, and every non-agent listing (owner, WhatsApp and web self-listings) is Direct, so Direct plus Agent referred always equals All.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/list-scope.test.ts",
+              "case": "[PRP-026]"
+            },
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "[PRP-026]"
+            },
+            {
+              "file": "src/app/api/properties/route.test.ts",
+              "case": "[PRP-026]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/list-scope.ts",
+            "supabase/migrations/20261003124400_inventory_source_breakdown.sql"
+          ]
+        },
+        {
+          "id": "PRP-027",
+          "rule": "An empty inventory list says why it is empty: a filtered list names the tab and the filters that match nothing and offers Clear filters, and an unfiltered Review, Archived or All Listings tab explains that tab instead of telling the agent to create records.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/list-scope.test.ts",
+              "case": "[PRP-027]"
+            },
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "[PRP-027]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/list-scope.ts",
+            "src/components/inventory/inventory-empty-state.tsx"
+          ]
         }
       ]
     },

@@ -17,6 +17,22 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 3 October 2026
+
+- **Inventory counts match the list they sit over.** The All / Direct /
+  Agent referred pills showed the account's active totals on every tab, so
+  Archived read "All (223)" over three cards and Review read "All (223)"
+  over an empty list. They now count the listings on the tab and summary
+  tile in force, the Archived tab shows its own count, and owner listings
+  made over WhatsApp or the web count as Direct, so Direct and Agent
+  referred add up to All. The Direct filter on web and mobile now lists
+  those self-listings too. **Migration required:**
+  `20261003124400_inventory_source_breakdown.sql`.
+- **An empty inventory list says why.** Instead of "No listings found —
+  create property records", a filtered list names the tab and the filters
+  that match nothing and offers Clear filters, and an empty Review or
+  Archived tab explains what lands there.
+
 #### 2 October 2026
 
 - **A deal you create shows up on the Deals board straight away.** The

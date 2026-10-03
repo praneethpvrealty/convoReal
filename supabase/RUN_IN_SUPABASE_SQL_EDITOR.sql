@@ -2488,6 +2488,40 @@ REVOKE ALL ON FUNCTION public.inventory_stats(UUID) FROM anon;
 GRANT EXECUTE ON FUNCTION public.inventory_stats(UUID) TO authenticated;
 
 -- ============================================================
+-- 20261003124400_inventory_source_breakdown.sql
+-- Listing counts grouped by status, showcase flag and
+-- agent-referred, so the inventory tabs and listing-party pills
+-- count the rows they list. See the migration for the rationale.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.inventory_source_breakdown(p_account_id UUID)
+RETURNS TABLE (
+  status TEXT,
+  is_published BOOLEAN,
+  agent_referred BOOLEAN,
+  listings BIGINT
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    p.status::TEXT,
+    COALESCE(p.is_published, false),
+    p.listing_source = 'agent',
+    count(*)
+  FROM properties p
+  WHERE p.account_id = p_account_id
+    AND is_account_member(p_account_id)
+  GROUP BY 1, 2, 3;
+$$;
+
+REVOKE ALL ON FUNCTION public.inventory_source_breakdown(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.inventory_source_breakdown(UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.inventory_source_breakdown(UUID) TO authenticated;
+
+-- ============================================================
 -- 169_dashboard_metrics_rpc.sql
 -- Dashboard metric cards in one round trip instead of nine.
 -- See the migration for the rationale.

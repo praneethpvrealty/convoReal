@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, ElementType } from 'react';
+import { useRef, useState, type ElementType, type ReactNode } from 'react';
 import type { Property } from '@/types';
 import { totalMonthlyRent } from '@/lib/inventory/floor-tenancies';
 import { storagePublicUrl } from '@/lib/storage/url';
@@ -106,6 +106,7 @@ interface PropertyListProps {
    *  that does not offer it pays nothing for it. */
   selectedIds?: string[];
   onToggleSelected?: (propertyId: string) => void;
+  emptyState?: ReactNode;
 }
 
 export function PropertyList({
@@ -135,6 +136,7 @@ export function PropertyList({
   onReject,
   onArchive,
   currency = 'INR',
+  emptyState,
 }: PropertyListProps) {
   const [importsProperty, setImportsProperty] = useState<Property | null>(null);
   // Keyed by listing, not a single id: approving publishes the listing,
@@ -266,6 +268,7 @@ export function PropertyList({
   }
 
   if (properties.length === 0) {
+    if (emptyState) return <>{emptyState}</>;
     return (
       <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/40 py-16 text-center">
         <Building className="mx-auto mb-4 size-12 text-slate-600" />

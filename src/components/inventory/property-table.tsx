@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import type { Property } from '@/types';
 import { formatCurrency } from '@/lib/currency-utils';
 import { storagePublicUrl } from '@/lib/storage/url';
@@ -58,6 +58,7 @@ interface PropertyTableProps extends PropertyActionHandlers {
   importCounts?: ImportCountMap;
   canEdit: boolean;
   currency?: string;
+  emptyState?: ReactNode;
   selectedIds?: string[];
   onToggleSelected?: (propertyId: string) => void;
 }
@@ -121,6 +122,7 @@ export function PropertyTable({
   importCounts,
   canEdit,
   currency = 'INR',
+  emptyState,
   selectedIds,
   onToggleSelected,
   ...actions
@@ -157,6 +159,7 @@ export function PropertyTable({
   }
 
   if (properties.length === 0) {
+    if (emptyState) return <>{emptyState}</>;
     return (
       <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/40 py-16 text-center">
         <Building className="mx-auto mb-4 size-12 text-slate-600" />

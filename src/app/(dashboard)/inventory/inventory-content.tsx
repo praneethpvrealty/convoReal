@@ -89,6 +89,13 @@ import type { PortalBadge } from '@/components/inventory/property-list';
 import { BulkTagBar } from '@/components/inventory/bulk-tag-bar';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
 import { InfoHint } from '@/components/ui/info-hint';
+import { InventoryEmptyState } from '@/components/inventory/inventory-empty-state';
+import {
+  inventoryEmptyState,
+  partyCounts,
+  tabCount,
+  type SourceBreakdownRow,
+} from '@/lib/inventory/list-scope';
 
 // Counts across ALL properties, independent of the current page/filters
 // so the summary cards always show accurate totals.
@@ -112,8 +119,6 @@ const EMPTY_STATS = {
   soldOrContract: 0,
   pendingReview: 0,
   activeTotal: 0,
-  direct: 0,
-  agentReferred: 0,
 };
 
 export default function InventoryPage() {
@@ -239,6 +244,17 @@ export default function InventoryPage() {
     setPage(0);
   }
 
+  function clearListFilters() {
+    setSearch('');
+    setDebouncedSearch('');
+    setPickedPlace(null);
+    setNearMe(null);
+    setLocationText('');
+    setSourceFilter('All');
+    setTileFilter('all');
+    setPage(0);
+  }
+
   const refreshInventory = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['inventory'] });
   }, [queryClient]);
@@ -277,8 +293,6 @@ export default function InventoryPage() {
           sold_or_contract: number;
           pending_review: number;
           active_total: number;
-          direct: number;
-          agent_referred: number;
         }>();
       if (error) throw error;
       return {
@@ -288,13 +302,27 @@ export default function InventoryPage() {
         soldOrContract: data?.sold_or_contract ?? 0,
         pendingReview: data?.pending_review ?? 0,
         activeTotal: data?.active_total ?? 0,
-        direct: data?.direct ?? 0,
-        agentReferred: data?.agent_referred ?? 0,
       };
     },
     enabled: Boolean(accountId),
   });
   const globalStats = globalStatsQuery.data ?? EMPTY_STATS;
+
+  // The tab and listing-party counts, grouped by the columns the list
+  // filters on so each pill counts the rows it yields on the tab and
+  // tile in force — not the account's active total on every tab.
+  const sourceBreakdownQuery = useQuery({
+    queryKey: ['inventory', 'source-breakdown', accountId],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc('inventory_source_breakdown', {
+        p_account_id: accountId,
+      });
+      if (error) throw error;
+      return (data ?? []) as SourceBreakdownRow[];
+    },
+    enabled: Boolean(accountId),
+  });
 
   const listParams = useMemo(() => {
     const params = new URLSearchParams({
@@ -1036,10 +1064,31 @@ export default function InventoryPage() {
   const stats = globalStats;
 
   // The listing-party pills, rendered twice (tab row on sm+, own row on
-  // mobile). Counts are the RPC's non-archived splits — the same rows
-  // each pill yields on the All Listings tab — and are held back until
-  // the stats load so the labels don't flash "(0)".
-  const statsReady = Boolean(globalStatsQuery.data);
+  // mobile). Counts follow the active tab and tile, so each pill shows
+  // the rows it yields there, and are held back until the breakdown
+  // loads so the labels don't flash "(0)".
+  const sourceBreakdown = sourceBreakdownQuery.data;
+  const statsReady = Boolean(sourceBreakdown);
+  const pillCounts = partyCounts(sourceBreakdown ?? [], reviewTab, tileFilter);
+  const archivedCount = tabCount(sourceBreakdown ?? [], 'archived');
+  const emptyStateCopy = inventoryEmptyState({
+    tab: reviewTab,
+    tile: tileFilter,
+    party: sourceFilter,
+    search: debouncedSearch,
+    location: pickedPlace
+      ? `${pickedPlace.name} within ${radiusKm} km`
+      : nearMe
+        ? `near you within ${radiusKm} km`
+        : null,
+  });
+  const listEmptyState = (
+    <InventoryEmptyState
+      copy={emptyStateCopy}
+      tab={reviewTab}
+      onClearFilters={clearListFilters}
+    />
+  );
 
   const sortItems = useMemo(() => {
     const listed = PROPERTY_SORTS.map((s) => ({
@@ -1053,9 +1102,9 @@ export default function InventoryPage() {
       : [...listed, { value: sort.key, label: sort.label }];
   }, [sort, locationSortLocked]);
   const sourcePills = [
-    { value: 'All', label: 'All', count: stats.activeTotal },
-    { value: 'Owner', label: 'Direct', count: stats.direct },
-    { value: 'Agent', label: 'Agent referred', count: stats.agentReferred },
+    { value: 'All', label: 'All', count: pillCounts.All },
+    { value: 'Owner', label: 'Direct', count: pillCounts.Owner },
+    { value: 'Agent', label: 'Agent referred', count: pillCounts.Agent },
   ] as const;
 
   return (
@@ -1249,11 +1298,15 @@ export default function InventoryPage() {
           >
             <Archive className="size-3.5" />
             Archived
+            {archivedCount > 0 && (
+              <span className="rounded-full bg-slate-700/60 px-1.5 py-0.5 text-[10px] font-bold text-slate-300">
+                {archivedCount}
+              </span>
+            )}
           </button>
 
           {/* Listing party — who the listing belongs to. 'Owner' is
-            owner-direct (incl. WhatsApp/web self-listings, which the
-            API groups under 'owner' only when stored that way);
+            owner-direct, WhatsApp and web self-listings included;
             'Agent' is co-broked stock referred by an outside agent
             (owner_contact_id holds the referring agent's card). */}
           <div className="ml-4 hidden items-center gap-1 pb-1.5 sm:flex">
@@ -1727,6 +1780,7 @@ export default function InventoryPage() {
               importCounts={importCounts}
               canEdit={canEdit}
               currency={currency}
+              emptyState={listEmptyState}
             />
           ) : (
             <PropertyList
@@ -1765,6 +1819,7 @@ export default function InventoryPage() {
               onReject={handleReject}
               onArchive={handleArchive}
               currency={currency}
+              emptyState={listEmptyState}
             />
           )}
         </>
