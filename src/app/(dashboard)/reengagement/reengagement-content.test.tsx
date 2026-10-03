@@ -248,6 +248,36 @@ describe('ReengagementContent', () => {
     expect(screen.getByText('Ajay')).toBeTruthy();
   });
 
+  it('drops the old rows when the filter changes, so no action targets another result set', async () => {
+    setup([lead({})], summary({ leads: 250, matched: 10 }), 250);
+    await screen.findByText('Ajay');
+
+    queries.loadReengagementLeads.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(screen.getByRole('button', { name: /Show matched only/ }));
+
+    await waitFor(() =>
+      expect(lastLeadsRequest()).toMatchObject({ onlyMatched: true, page: 0 })
+    );
+    expect(screen.queryByText('Ajay')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Shortlist' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+  });
+
+  it('drops the old rows when another batch is picked', async () => {
+    setup([lead({})], summary());
+    await screen.findByText('Ajay');
+
+    queries.loadReengagementLeads.mockReturnValue(new Promise(() => {}));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'b3' } });
+
+    await waitFor(() =>
+      expect(lastLeadsRequest()).toMatchObject({ broadcastId: 'b3' })
+    );
+    await screen.findByText('Delivered');
+    expect(screen.queryByText('Ajay')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Shortlist' })).toBeNull();
+  });
+
   it('hides the matched-only filter when every lead is matched', async () => {
     setup([lead({})], summary({ leads: 3, matched: 3 }));
     await screen.findByText('Ajay');

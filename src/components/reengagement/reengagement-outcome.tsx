@@ -96,7 +96,15 @@ export function ReengagementOutcome({
         page,
       }),
     enabled,
-    placeholderData: (prev) => prev,
+    placeholderData: (prev, prevQuery) => {
+      const [, , prevAccount, prevBroadcast, prevOnlyMatched] =
+        prevQuery?.queryKey ?? [];
+      return prevAccount === accountId &&
+        prevBroadcast === broadcastId &&
+        prevOnlyMatched === onlyMatched
+        ? prev
+        : undefined;
+    },
   });
 
   function sortHeader(column: LeadSortColumn, label: string) {
