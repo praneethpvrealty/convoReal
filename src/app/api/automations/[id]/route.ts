@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { getCurrentAccount } from '@/lib/auth/account'
+import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
 import { hasMinRole } from '@/lib/auth/roles'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import {
@@ -12,14 +11,6 @@ import {
   validateStepsForActivation,
   validateTriggerForActivation,
 } from '@/lib/automations/validate'
-
-async function requireUser() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  return user
-}
 
 // Mutating an automation (editing steps, activation → outbound sends,
 // deletion) requires the 'agent' role. Returns the caller's userId, or a
@@ -48,8 +39,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const user = await requireUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  let user: { id: string }
+  try {
+    user = { id: (await getCurrentAccount()).userId }
+  } catch (err) {
+    return toErrorResponse(err)
+  }
 
   const admin = supabaseAdmin()
   const { data: automation, error } = await admin

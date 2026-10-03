@@ -1,30 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { toErrorResponse } from '@/lib/auth/account'
+import { requirePlatformAdmin } from '@/lib/auth/platform-admin'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
-async function checkSuperAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
-
-  if (authError || !user) {
-    return { authorized: false, status: 401, error: 'Unauthorized', userId: null }
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (profile?.role !== 'super_admin') {
-    return { authorized: false, status: 403, error: 'Forbidden', userId: null }
-  }
-
-  return { authorized: true, userId: user.id, status: 200, error: null }
-}
 
 /** Best-effort audit row — never blocks the action it's recording. */
 async function logLifecycleEvent(
@@ -53,13 +32,13 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let auth: { userId: string }
   try {
-    const supabase = await createClient()
-    const auth = await checkSuperAdmin(supabase)
-    if (!auth.authorized) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status })
-    }
-
+    auth = await requirePlatformAdmin()
+  } catch (err) {
+    return toErrorResponse(err)
+  }
+  try {
     const limit = await checkRateLimit(`admin:org-status:${auth.userId}`, RATE_LIMITS.adminAction)
     if (!limit.success) return rateLimitResponse(limit)
 
@@ -115,7 +94,7 @@ export async function PATCH(
     console.log(
       `[admin/organizations] account ${id} (${(existing as Record<string, unknown>).name}) ${actionLabel} by admin ${auth.userId}`
     )
-    await logLifecycleEvent(id, auth.userId!, action === 'archive' ? 'archived' : 'reactivated', {
+    await logLifecycleEvent(id, auth.userId, action === 'archive' ? 'archived' : 'reactivated', {
       name: (existing as Record<string, unknown>).name,
     })
 
@@ -138,13 +117,13 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let auth: { userId: string }
   try {
-    const supabase = await createClient()
-    const auth = await checkSuperAdmin(supabase)
-    if (!auth.authorized) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status })
-    }
-
+    auth = await requirePlatformAdmin()
+  } catch (err) {
+    return toErrorResponse(err)
+  }
+  try {
     const limit = await checkRateLimit(`admin:org-delete:${auth.userId}`, RATE_LIMITS.adminAction)
     if (!limit.success) return rateLimitResponse(limit)
 
@@ -189,7 +168,7 @@ export async function DELETE(
 
     // Audit the intent BEFORE performing the irreversible action, so a
     // crash mid-delete still leaves a record of what was about to happen.
-    await logLifecycleEvent(id, auth.userId!, 'deleted', {
+    await logLifecycleEvent(id, auth.userId, 'deleted', {
       name: accountRow.name,
       member_count: members.length,
       members: members.map((m) => ({ user_id: m.user_id, role: m.account_role, email: m.email })),

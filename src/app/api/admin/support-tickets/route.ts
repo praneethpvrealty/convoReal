@@ -13,7 +13,8 @@
 // ============================================================
 
 import { NextResponse } from 'next/server';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { toErrorResponse } from '@/lib/auth/account';
+import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
 
 import { sendTransactionalEmail } from '@/lib/email';
 import {
@@ -24,32 +25,16 @@ import {
   buildSupportTicketReplyParams,
   supportTicketReplyTemplate,
 } from '@/lib/whatsapp/support-ticket-reply-template';
-import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendPlatformTemplate } from '@/lib/whatsapp/platform-sender';
 
-async function requireSuperAdmin(supabase: SupabaseClient) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false as const, status: 401, body: { error: 'Unauthorized' } };
-  }
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (profile?.role !== 'super_admin') {
-    return { ok: false as const, status: 403, body: { error: 'Forbidden' } };
-  }
-  return { ok: true as const, userId: user.id };
-}
 
 export async function GET() {
-  const supabase = await createClient();
-  const guard = await requireSuperAdmin(supabase);
-  if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status });
+  try {
+    await requirePlatformAdmin();
+  } catch (err) {
+    return toErrorResponse(err);
+  }
 
   const { data, error } = await supabaseAdmin()
     .from('support_tickets')
@@ -81,9 +66,12 @@ interface TicketRow {
 }
 
 export async function PATCH(request: Request) {
-  const supabase = await createClient();
-  const guard = await requireSuperAdmin(supabase);
-  if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status });
+  let guard: { userId: string };
+  try {
+    guard = await requirePlatformAdmin();
+  } catch (err) {
+    return toErrorResponse(err);
+  }
 
   let payload: { id?: unknown; action?: unknown; answer?: unknown };
   try {

@@ -4,6 +4,7 @@ import nextTs from "eslint-config-next/typescript";
 import supabaseWriteGuard from "./eslint-rules/supabase-write-guard.cjs";
 import noEnvLocalInUnitTests from "./eslint-rules/no-env-local-in-unit-tests.cjs";
 import noInlineServiceRoleClient from "./eslint-rules/no-inline-service-role-client.cjs";
+import noRawAuthInRoutes from "./eslint-rules/no-raw-auth-in-routes.cjs";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -15,6 +16,7 @@ const eslintConfig = defineConfig([
           "supabase-write-guard": supabaseWriteGuard,
           "no-env-local-in-unit-tests": noEnvLocalInUnitTests,
           "no-inline-service-role-client": noInlineServiceRoleClient,
+          "no-raw-auth-in-routes": noRawAuthInRoutes,
         },
       },
     },
@@ -54,6 +56,21 @@ const eslintConfig = defineConfig([
       "**/*.test.tsx",
     ],
     rules: { "convoreal/no-inline-service-role-client": "error" },
+  },
+  {
+    // Routes resolve their caller through the shared helpers so the
+    // archived-account block and the role check are never skipped. The
+    // exemptions run before a caller has an account, or for a persona
+    // that never gets one.
+    files: ["src/app/api/**/route.ts"],
+    ignores: [
+      "src/app/api/auth/profile-setup/route.ts",
+      "src/app/api/invitations/*/redeem/route.ts",
+      "src/app/api/den/auth/complete/route.ts",
+      "src/app/api/buyer/auth/complete/route.ts",
+      "src/app/api/whatsapp/config/route.ts",
+    ],
+    rules: { "convoreal/no-raw-auth-in-routes": "error" },
   },
   {
     rules: { "@next/next/no-location-assign-relative-destination": "error" },

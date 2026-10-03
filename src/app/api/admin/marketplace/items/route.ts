@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { toErrorResponse } from "@/lib/auth/account";
+import { requirePlatformAdmin } from "@/lib/auth/platform-admin";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   createMarketplaceItemSnapshot,
@@ -15,31 +16,12 @@ import {
  * template sources. POST snapshots a template or flow into a new item.
  */
 
-type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
-
-async function requireSuperAdmin(supabase: SupabaseServerClient) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false as const, status: 401, body: { error: "Unauthorized" } };
-  }
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (profile?.role !== "super_admin") {
-    return { ok: false as const, status: 403, body: { error: "Forbidden" } };
-  }
-  return { ok: true as const, userId: user.id };
-}
 
 export async function GET() {
-  const supabase = await createClient();
-  const guard = await requireSuperAdmin(supabase);
-  if (!guard.ok) {
-    return NextResponse.json(guard.body, { status: guard.status });
+  try {
+    await requirePlatformAdmin();
+  } catch (err) {
+    return toErrorResponse(err);
   }
 
   const admin = supabaseAdmin();
@@ -86,10 +68,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const guard = await requireSuperAdmin(supabase);
-  if (!guard.ok) {
-    return NextResponse.json(guard.body, { status: guard.status });
+  let guard: { userId: string };
+  try {
+    guard = await requirePlatformAdmin();
+  } catch (err) {
+    return toErrorResponse(err);
   }
 
   const body = (await request.json().catch(() => null)) as

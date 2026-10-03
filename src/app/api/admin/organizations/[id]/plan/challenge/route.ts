@@ -1,33 +1,12 @@
 import { randomInt } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { toErrorResponse } from '@/lib/auth/account'
+import { requirePlatformAdmin } from '@/lib/auth/platform-admin'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { hashOtpCode, isValidPlan, OTP_TTL_MS, PLAN_VALUES } from '@/lib/billing/admin-plan-override'
 import { sendAdminOtpCode } from '@/lib/whatsapp/admin-otp-sender'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
-async function checkSuperAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
-
-  if (authError || !user) {
-    return { authorized: false, status: 401, error: 'Unauthorized', userId: null }
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (profile?.role !== 'super_admin') {
-    return { authorized: false, status: 403, error: 'Forbidden', userId: null }
-  }
-
-  return { authorized: true, userId: user.id, status: 200, error: null }
-}
 
 /**
  * POST /api/admin/organizations/[id]/plan/challenge
@@ -43,13 +22,13 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let auth: { userId: string }
   try {
-    const supabase = await createClient()
-    const auth = await checkSuperAdmin(supabase)
-    if (!auth.authorized) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status })
-    }
-
+    auth = await requirePlatformAdmin()
+  } catch (err) {
+    return toErrorResponse(err)
+  }
+  try {
     const limit = await checkRateLimit(`admin:plan-otp:${auth.userId}`, RATE_LIMITS.adminOtp)
     if (!limit.success) return rateLimitResponse(limit)
 
@@ -95,7 +74,7 @@ export async function POST(
     const { data: adminProfile } = await admin
       .from('profiles')
       .select('phone')
-      .eq('user_id', auth.userId!)
+      .eq('user_id', auth.userId)
       .maybeSingle()
     const adminPhone = (adminProfile as { phone?: string | null } | null)?.phone
 
