@@ -5,7 +5,6 @@ import {
   registerPhoneNumber,
   subscribeWabaToApp,
   sendTemplateMessage,
-  isGraphId,
   isAbsentOrGraphId,
 } from '@/lib/whatsapp/meta-api';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
@@ -56,33 +55,28 @@ export async function POST(request: Request) {
       notify_leads,
     } = body;
 
-    // Validate required fields
-    if (
-      typeof phone_number_id !== 'string' ||
-      typeof access_token !== 'string' ||
-      !phone_number_id.trim() ||
-      !access_token.trim()
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            'Phone Number ID and Access Token are required for Official API.',
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!isGraphId(phone_number_id.trim())) {
+    const trimmed = (value: unknown) =>
+      typeof value === 'string' ? value.trim() : value;
+    if (!isAbsentOrGraphId(trimmed(phone_number_id))) {
       return NextResponse.json(
         { error: 'Phone Number ID must contain digits only.' },
         { status: 400 }
       );
     }
-    if (
-      !isAbsentOrGraphId(typeof waba_id === 'string' ? waba_id.trim() : waba_id)
-    ) {
+    if (!isAbsentOrGraphId(trimmed(waba_id))) {
       return NextResponse.json(
         { error: 'WhatsApp Business Account ID must contain digits only.' },
+        { status: 400 }
+      );
+    }
+
+    // Validate required fields
+    if (!phone_number_id?.trim() || !access_token?.trim()) {
+      return NextResponse.json(
+        {
+          error:
+            'Phone Number ID and Access Token are required for Official API.',
+        },
         { status: 400 }
       );
     }

@@ -225,7 +225,7 @@ describe('[WAN-007] Graph id validation', () => {
       expect(isAbsentOrGraphId(absent)).toBe(true);
     }
     expect(isAbsentOrGraphId('1029384756')).toBe(true);
-    for (const wrong of [0, false, 1029384756, {}, ' ', 'waba-1']) {
+    for (const wrong of [0, false, 1029384756, {}, [], ' ', ' 123', 'waba-1']) {
       expect(isAbsentOrGraphId(wrong)).toBe(false);
     }
   });

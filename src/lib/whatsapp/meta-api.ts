@@ -17,15 +17,15 @@ export interface MetaSendResult {
 }
 
 const GRAPH_ID_PATTERN = /^\d+$/;
+const ABSENT_OR_GRAPH_ID_PATTERN = /^\d*$/;
 
 export function isGraphId(value: unknown): value is string {
   return typeof value === 'string' && GRAPH_ID_PATTERN.test(value);
 }
 
 export function isAbsentOrGraphId(value: unknown): boolean {
-  return (
-    value === undefined || value === null || value === '' || isGraphId(value)
-  );
+  const id = value ?? '';
+  return typeof id === 'string' && ABSENT_OR_GRAPH_ID_PATTERN.test(id);
 }
 
 /**
