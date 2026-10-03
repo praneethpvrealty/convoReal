@@ -19,6 +19,23 @@ than a written entry. Newest first.
 
 #### 3 October 2026
 
+- **The Calendar loads once and fits the screen.** Opening it showed a
+  property-card skeleton, then a spinner, before the month appeared; it
+  now shows one calendar-shaped skeleton and fetches appointments and
+  to-dos together, loading contacts and properties only when the
+  Schedule dialog opens. The page-level title and subtitle are gone (the
+  top bar already says Calendar; the smart-add bar carries the hint), so
+  the whole month fits a laptop screen. The month toolbar and filter
+  chips stay pinned while you scroll, a busy day shows two chips and a
+  "+N more" that opens the whole day instead of scrolling inside its
+  cell, and the list beneath the grid, now called **Schedule** (it was
+  Tasks), scrolls with the page rather than in its own box.
+- **The To-dos rail is about open work.** Renamed from To-Do Task List,
+  it shows one "Add a to-do" field until you type, when the date and
+  priority appear. Done to-dos collapse into a **Done (N)** group with a
+  **Clear completed** action that deletes them after a confirmation, and
+  long titles clamp to two lines. Same on mobile, where the Done group
+  and Clear completed share the web rule (`src/lib/calendar/todo-groups.ts`).
 - **The dashboard no longer hides its own rows or reloads itself on
   every tab.** The AI Assistant button shrinks to an icon once you scroll
   and the Help pill is an icon, so the last rows of Re-engagement,

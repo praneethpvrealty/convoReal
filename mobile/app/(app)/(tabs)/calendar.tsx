@@ -73,6 +73,7 @@ import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import { eventTypeFields, type EventFieldKey } from '@/lib/event-fields';
 import {
   addTodo,
+  deleteCompletedTodos,
   deleteTodo,
   fetchTodos,
   setTodoCompleted,
@@ -82,6 +83,13 @@ import {
   type TodoPriority,
 } from '@/lib/todos';
 import type { Appointment, AppointmentType, Contact } from '@/lib/types';
+import {
+  CLEAR_COMPLETED_LABEL,
+  clearCompletedPrompt,
+  completedTodoIds,
+  DONE_TODOS_LABEL,
+  splitTodosByCompletion,
+} from '@shared/lib/calendar/todo-groups';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { useDebounced } from '@/lib/use-debounced';
 
@@ -487,6 +495,10 @@ export default function CalendarScreen() {
       ),
     [todosQuery.data, upcomingTodoIds]
   );
+  const todoGroups = useMemo(
+    () => splitTodosByCompletion(remainingTodos),
+    [remainingTodos]
+  );
 
   const requestedDetail =
     eventId && dismissedEventId !== eventId
@@ -847,14 +859,22 @@ export default function CalendarScreen() {
           <ConvoRealLoader
             style={{ alignSelf: 'center', paddingVertical: 20 }}
           />
-        ) : remainingTodos.length === 0 ? (
-          <Text style={{ fontSize: 13, color: colors.textMuted }}>
-            No other tasks. Add one above — tasks sync with the web calendar.
-          </Text>
         ) : (
-          remainingTodos.map((todo) => (
-            <TodoRow key={todo.id} todo={todo} now={today} />
-          ))
+          <>
+            {todoGroups.open.length === 0 ? (
+              <Text style={{ fontSize: 13, color: colors.textMuted }}>
+                No other tasks. Add one above — tasks sync with the web
+                calendar.
+              </Text>
+            ) : (
+              todoGroups.open.map((todo) => (
+                <TodoRow key={todo.id} todo={todo} now={today} />
+              ))
+            )}
+            {todoGroups.done.length > 0 ? (
+              <DoneTodosGroup todos={todoGroups.done} now={today} />
+            ) : null}
+          </>
         )}
       </ScrollView>
 
@@ -1048,6 +1068,94 @@ function TodoQuickAdd() {
       {error ? (
         <Text style={{ fontSize: 12.5, color: colors.danger }}>{error}</Text>
       ) : null}
+    </View>
+  );
+}
+
+function DoneTodosGroup({ todos, now }: { todos: Todo[]; now: Date }) {
+  const { colors, fonts: f } = useTheme();
+  const [doneOpen, setDoneOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function clearCompleted() {
+    setClearing(true);
+    setError(null);
+    try {
+      await deleteCompletedTodos(completedTodoIds(todos));
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    } catch {
+      haptic.warn();
+      setError(
+        'Could not clear done tasks. Check your connection and try again.'
+      );
+    } finally {
+      setClearing(false);
+    }
+  }
+
+  function confirmClear() {
+    haptic.tap();
+    Alert.alert('Clear completed', clearCompletedPrompt(todos.length), [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => void clearCompleted(),
+      },
+    ]);
+  }
+
+  return (
+    <View style={{ gap: spacing.md }}>
+      <View style={styles.doneHeader}>
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            setDoneOpen((open) => !open);
+          }}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: doneOpen }}
+          style={styles.doneToggle}
+        >
+          <Ionicons
+            name={doneOpen ? 'chevron-down' : 'chevron-forward'}
+            size={15}
+            color={colors.textFaint}
+          />
+          <Text
+            style={[styles.dayLabel, { marginTop: 0, color: colors.textFaint }]}
+          >
+            {`${DONE_TODOS_LABEL} (${todos.length})`}
+          </Text>
+        </Pressable>
+        {clearing ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : (
+          <Pressable
+            onPress={confirmClear}
+            hitSlop={8}
+            accessibilityRole="button"
+          >
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: f.semibold,
+                color: colors.danger,
+              }}
+            >
+              {CLEAR_COMPLETED_LABEL}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+      {error ? (
+        <Text style={{ fontSize: 12.5, color: colors.danger }}>{error}</Text>
+      ) : null}
+      {doneOpen
+        ? todos.map((todo) => <TodoRow key={todo.id} todo={todo} now={now} />)
+        : null}
     </View>
   );
 }
@@ -2827,6 +2935,18 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginTop: spacing.sm,
+  },
+  doneHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  doneToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   card: {
     borderWidth: 1,
