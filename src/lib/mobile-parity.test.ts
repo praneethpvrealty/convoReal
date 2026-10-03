@@ -23,6 +23,7 @@ import { describe, expect, it } from 'vitest';
 import * as ts from 'typescript';
 
 import { PLAN_CONFIG, PLAN_ORDER } from '@/lib/billing/plan-config';
+import { CONTACT_LIST_COLUMNS } from '@/lib/contacts/list-columns';
 import {
   activeEntityQuery,
   insertEntityReference,
@@ -433,7 +434,9 @@ describe('property shortlist sharing remains available on both surfaces', () => 
   it('[PRP-012] previews the listing template and lets the agent lead with a saved photo on both surfaces', () => {
     const mobile = mobileSource('components/property-share-sheet.tsx');
     const mobileActions = mobileSource('lib/property-share-actions.ts');
-    const webForm = webSource('components/inventory/property-form.tsx');
+    const webMatchesTab = webSource(
+      'components/inventory/property-matches-tab.tsx'
+    );
     const shareRoute = webSource('app/api/whatsapp/share-property/route.ts');
     const previewRoute = webSource(
       'app/api/whatsapp/share-property/preview/route.ts'
@@ -443,11 +446,11 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(mobile).toContain('previewImages.includes(headerImage)');
     expect(mobileActions).toContain('/api/whatsapp/share-property/preview?');
     expect(mobileActions).toContain('header_image: headerImage');
-    expect(webForm).toContain('/api/whatsapp/share-property/preview?');
-    expect(webForm).toContain('? headerImageOptions.length > 0');
+    expect(webMatchesTab).toContain('/api/whatsapp/share-property/preview?');
+    expect(webMatchesTab).toContain('? headerImageOptions.length > 0');
     expect(mobile).toContain('const showPhotos = preview.images.length > 0;');
-    expect(webForm).toContain('header_image: selectedBroadcastImage');
-    expect(webForm).toContain(
+    expect(webMatchesTab).toContain('header_image: selectedBroadcastImage');
+    expect(webMatchesTab).toContain(
       'engineShare ? (property?.images ?? []) : images'
     );
     expect(shareRoute).toContain(
@@ -2494,32 +2497,33 @@ describe('the mobile deals screen uses the shared brokerage rule', () => {
 });
 
 describe('[PRP-007] property enquiries remain actionable on web and mobile', () => {
-  const web = readFileSync(
-    join(process.cwd(), 'src/components/inventory/property-form.tsx'),
-    'utf8'
+  const webForm = webSource('components/inventory/property-form.tsx');
+  const webEnquiriesTab = webSource(
+    'components/inventory/property-enquiries-tab.tsx'
   );
   const mobile = mobileSource('app/(app)/property/[id].tsx');
 
   it('shows explicit enquiries separately from preference matches', () => {
-    for (const source of [web, mobile]) {
+    for (const source of [webForm, mobile]) {
       expect(source).toContain('Enquired Contacts');
       expect(source).toContain('enquiredAudienceContacts');
       expect(source).toContain('Matching Contacts');
     }
+    expect(webForm).toContain('<PropertyEnquiriesTab');
   });
 
   it('keeps contact, call, message and follow-up actions on both surfaces', () => {
     for (const label of ['View contact', 'Call', 'Message', 'Follow up']) {
-      expect(web, `web lacks ${label}`).toContain(label);
+      expect(webEnquiriesTab, `web lacks ${label}`).toContain(label);
       expect(mobile, `mobile lacks ${label}`).toContain(label);
     }
     expect(mobile).toContain('eventType=follow_up');
-    expect(web).toContain('ScheduleDialog');
+    expect(webEnquiriesTab).toContain('ScheduleDialog');
     expect(mobile).toContain('dialableAudiencePhone');
-    expect(web).toContain('dialableAudiencePhone');
+    expect(webEnquiriesTab).toContain('dialableAudiencePhone');
     expect(mobile).toContain('onLongPress');
     expect(mobile).toContain('PropertyInterestFollowUpSheet');
-    expect(web).toContain('PropertyInterestFollowUpDialog');
+    expect(webEnquiriesTab).toContain('PropertyInterestFollowUpDialog');
   });
 });
 
@@ -4716,7 +4720,7 @@ describe('[CTM-013] the Contacts tab counts come from one SQL aggregate on both 
   // Six count=exact HEAD requests per web load and four per mobile load,
   // each a real COUNT(*) over the account's contacts, with the staff
   // exclusion and the Transacted rule written differently on each side.
-  const web = webSource('app/(dashboard)/contacts/contacts-content.tsx');
+  const web = webSource('lib/contacts/list-queries.ts');
   const mobile = mobileSource('app/(app)/(tabs)/contacts.tsx');
   const migration = readFileSync(
     join(
@@ -4767,5 +4771,48 @@ describe('[CTM-013] the Contacts tab counts come from one SQL aggregate on both 
     expect(migration).toContain(
       'GRANT EXECUTE ON FUNCTION public.contacts_tab_counts(UUID) TO authenticated;'
     );
+  });
+});
+
+describe('[CTM-015] both contact lists select the one shared column spec', () => {
+  // Web and mobile each carried their own select string for the contacts
+  // list, so a column added for one surface was quietly missing on the
+  // other. One dependency-free constant now feeds both reads.
+  const web = webSource('lib/contacts/list-queries.ts');
+  const screen = webSource('app/(dashboard)/contacts/contacts-content.tsx');
+  const mobile = mobileSource('app/(app)/(tabs)/contacts.tsx');
+
+  it('imports CONTACT_LIST_COLUMNS instead of carrying a select string', () => {
+    expect(web).toContain(
+      "import { CONTACT_LIST_COLUMNS } from '@/lib/contacts/list-columns';"
+    );
+    expect(web).toContain(".select(CONTACT_LIST_COLUMNS, { count: 'exact' })");
+    expect(mobile).toContain(
+      "import { CONTACT_LIST_COLUMNS } from '@shared/lib/contacts/list-columns';"
+    );
+    expect(mobile).toContain('CONTACT_LIST_COLUMNS +');
+    expect(mobile).toContain(
+      "(filters.tagId ? ', contact_tags!inner(tag_id)' : '')"
+    );
+    for (const source of [web, screen, mobile]) {
+      expect(source).not.toContain("'id, user_id, name, name_tag");
+      expect(source).not.toContain("'id, phone, name, name_tag");
+    }
+  });
+
+  it('the spec is the union of both lists, with no column twice', () => {
+    const columns = CONTACT_LIST_COLUMNS.split(',').map((c) => c.trim());
+    expect(new Set(columns).size).toBe(columns.length);
+    for (const column of [
+      'id',
+      'user_id',
+      'avatar_url',
+      'is_archived',
+      'requirement_profiles',
+      'buyer_alerts_consent',
+      'buyer_alerts_consent_requested_at',
+    ]) {
+      expect(columns).toContain(column);
+    }
   });
 });

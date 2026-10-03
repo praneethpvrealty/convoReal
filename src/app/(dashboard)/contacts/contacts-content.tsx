@@ -1,6 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import {
+  keepPreviousData,
+  queryOptions,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { pushUrl, replaceUrl } from '@/lib/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -8,13 +14,7 @@ import { resolveConversation } from '@/lib/conversations/resolve';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import type {
-  Contact,
-  Tag,
-  ContactTag,
-  ShowcaseSettings,
-  Property,
-} from '@/types';
+import type { Contact, Tag, ContactTag, Property } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -103,44 +103,38 @@ import {
 import { BUDGET_OPTIONS } from '@/lib/contacts/budget-options';
 import {
   activeContactFilterCount,
-  contactListCacheKey,
   contactSortItems,
 } from '@/lib/contacts/contact-sorts';
-import { parsePropertyQuery } from '@/lib/search-parser';
 import {
   effectiveAreas,
   effectiveCategories,
   effectiveMaxBudget,
 } from '@/lib/contact-preferences';
 import {
-  AREA_FILTER_COLUMNS,
   areaFilterVariants,
   areaOptionLabel,
-  areaOverlapFilter,
-  areaSearchVariants,
   MAX_SELECTED_AREAS,
-  type AreaOption,
 } from '@/lib/contacts/area-variants';
-import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
-import { projectOptions } from '@/lib/contacts/contact-interest';
 import { useT } from '@/hooks/use-locale';
-import { localCache } from '@/lib/cache-store';
+import {
+  CONTACTS_PAGE_SIZE,
+  loadAreaOptions,
+  loadContactsPage,
+  loadContactsShowcaseSettings,
+  loadProjectChoices,
+  loadStarredProperties,
+  loadTagsMap,
+  type ContactListPage,
+  type ContactListParams,
+  type ContactListTab,
+  type StarredProperty,
+} from '@/lib/contacts/list-queries';
 import { formatAuditDateTime } from '@/lib/audit-timestamps';
 import { splitChips, splitTagChips } from '@/lib/contacts/chip-overflow';
 import { formatInrCompact } from '@/lib/format/currency';
 
-const PAGE_SIZE = 25;
-
 const INTEREST_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// Bounds shared with the mobile port (mobile/app/(app)/(tabs)/contacts.tsx):
-// the contact ids an interest filter feeds into `.in()` stay capped so the
-// filter never builds an unbounded URL, and one project's units are scanned
-// to a ceiling comfortably past any real tower.
-const INTEREST_CONTACT_CAP = 150;
-const PROJECT_UNIT_CAP = 200;
-const PROJECT_SCAN_LIMIT = 400;
 
 interface ContactWithTags extends Contact {
   tags?: Tag[];
@@ -149,15 +143,16 @@ interface ContactWithTags extends Contact {
 export default function ContactsPage() {
   const t = useT();
   const supabase = createClient();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const { user, profile, accountId, profileLoading, profileError } = useAuth();
 
   // Watchdog for the loading state. Two silent failure shapes used to
   // leave the spinner up forever with zero diagnostics: (a) auth's
   // legacy profile fallback loads a profile WITHOUT account_id, so the
-  // `if (!accountId) return` guard in fetchContacts fires on every
-  // call; (b) a Supabase request that never settles (no client-side
-  // timeout). Surface both instead of spinning.
+  // `enabled` guard on the contacts query never lets it run; (b) a
+  // Supabase request that never settles (no client-side timeout).
+  // Surface both instead of spinning.
   const [slowLoad, setSlowLoad] = useState(false);
   const accountMissing = !profileLoading && !accountId;
   const canEdit = useCan('send-messages');
@@ -340,21 +335,12 @@ export default function ContactsPage() {
     }, 1500);
   };
 
-  const [showcaseSettings, setShowcaseSettings] =
-    useState<ShowcaseSettings | null>(null);
-
-  const fetchShowcaseSettings = useCallback(async () => {
-    if (!accountId) return;
-    const supabaseClient = createClient();
-    const { data } = await supabaseClient
-      .from('showcase_settings')
-      .select('*')
-      .eq('account_id', accountId)
-      .maybeSingle();
-    if (data) {
-      setShowcaseSettings(data);
-    }
-  }, [accountId]);
+  const showcaseQuery = useQuery({
+    queryKey: ['contacts', 'showcase-settings', accountId],
+    queryFn: () => loadContactsShowcaseSettings(supabase, accountId!),
+    enabled: Boolean(accountId),
+  });
+  const showcaseSettings = showcaseQuery.data ?? null;
 
   const getPrefilledWhatsAppLink = (
     contact: Contact,
@@ -513,40 +499,25 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
   };
 
-  const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [pendingDial, setPendingDial] = useState<PendingDial | null>(null);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(initialSearch);
   // `search` drives the controlled input for instant typing feedback;
-  // `debouncedSearch` is what actually triggers fetchContacts (via its
-  // dependency array below). Without this split, every keystroke fired a
+  // `debouncedSearch` is what actually keys the contacts query (via its
+  // query key below). Without this split, every keystroke fired a
   // full network round-trip (plus, for NLP-style queries, several extra
   // parallel note/tag lookups) — see the debounce effect further down.
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [page, setPage] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
-  // True when the last contacts load errored or timed out — renders an
-  // inline retry card instead of an eternal spinner / empty state.
-  const [fetchFailed, setFetchFailed] = useState(false);
-  type QuickFilterTab =
-    | 'active'
-    | 'pending_review'
-    | 'favorites'
-    | 'transacted'
-    | 'market_active'
-    | 'archived';
-  const [activeTab, setActiveTab] = useState<QuickFilterTab>('active');
+  const [activeTab, setActiveTab] = useState<ContactListTab>('active');
 
   /** Keeps the quick-filter tab (All/Needs Review/Favourites/Transacted/Active Buyers)
    *  in the URL — so it survives a refresh, can be shared, and so the
    *  page-level Favorite button (contacts/page.tsx) can capture exactly
    *  this view instead of always favoriting the default "All Contacts". */
-  const setActiveTabAndSync = (tab: QuickFilterTab) => {
+  const setActiveTabAndSync = (tab: ContactListTab) => {
     if (tab === activeTab) return;
     setActiveTab(tab);
     setPage(0);
-    setContacts([]);
-    setLoading(true);
     const params = new URLSearchParams(searchParams?.toString());
     if (tab === 'active') {
       params.delete('filter');
@@ -556,18 +527,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     const qs = params.toString();
     replaceUrl(router, qs ? `/contacts?${qs}` : '/contacts');
   };
-  // null = not fetched yet. The tab labels render plain ("All
-  // Contacts") until real numbers exist — a "(0)"/"(...)" placeholder
-  // while counts load reads as broken data.
-  const [activeCount, setActiveCount] = useState<number | null>(null);
-  const [reviewCount, setReviewCount] = useState<number | null>(null);
-  const [favoritesCount, setFavoritesCount] = useState<number | null>(null);
-  const [transactedCount, setTransactedCount] = useState<number | null>(null);
-  const [archivedCount, setArchivedCount] = useState<number | null>(null);
+
   const [cleanupOpen, setCleanupOpen] = useState(false);
-  const [marketActiveCount, setMarketActiveCount] = useState<number | null>(
-    null
-  );
 
   /** " (42)" once known, "" while loading. */
   const countSuffix = (n: number | null) => (n === null ? '' : ` (${n})`);
@@ -581,13 +542,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // Starred-property interest chips (fed from Inventory stars): the
   // selected chip narrows the list to contacts who showed interest in
   // that property (last_inquired_property_id ∪ contact_property_inquiries).
-  const [starredProps, setStarredProps] = useState<
-    { id: string; property_code: string | null; title: string }[]
-  >([]);
-  // Tracks whether the starred-properties fetch has completed at least
-  // once — the unstar-guard below must not run against the initial empty
-  // array, or it would wipe a filter restored from the URL on refresh.
-  const [starredLoaded, setStarredLoaded] = useState(false);
+  const starredKey = ['contacts', 'starred', accountId];
+  const starredQuery = useQuery({
+    queryKey: starredKey,
+    queryFn: () => loadStarredProperties(supabase, accountId!),
+    enabled: Boolean(accountId),
+  });
+  const starredProps = useMemo(
+    () => starredQuery.data ?? [],
+    [starredQuery.data]
+  );
   // Seeded from ?interest= so a refresh (or shared link) keeps the chip.
   // The value reaches uuid columns (property_id, last_inquired_property_id)
   // before the unstar-guard below can clear it, so anything that is not a
@@ -605,9 +569,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const [filterInterestProject, setFilterInterestProject] = useState<string>(
     () => searchParams?.get('interest_project')?.trim().slice(0, 120) || 'All'
   );
-  const [projectChoices, setProjectChoices] = useState<
-    { name: string; count: number }[]
-  >([]);
+  const projectsQuery = useQuery({
+    queryKey: ['contacts', 'projects', accountId],
+    queryFn: () => loadProjectChoices(supabase, accountId!),
+    enabled: Boolean(accountId),
+  });
+  const projectChoices = projectsQuery.data ?? [];
 
   // Single entry point for changing the interest chip: updates state and
   // mirrors it into the ?interest= URL param (history.replaceState, like
@@ -659,7 +626,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   }) => {
     const previous = starredProps;
     setUnstarringId(property.id);
-    setStarredProps((prev) => prev.filter((p) => p.id !== property.id));
+    queryClient.setQueryData<StarredProperty[]>(starredKey, (prev) =>
+      (prev ?? []).filter((p) => p.id !== property.id)
+    );
     try {
       const response = await fetch(`/api/properties/${property.id}`, {
         method: 'PUT',
@@ -673,8 +642,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       toast.success(
         `Removed ${property.property_code || property.title} from quick filters`
       );
+      void queryClient.invalidateQueries({ queryKey: ['contacts', 'starred'] });
     } catch (err: unknown) {
-      setStarredProps(previous);
+      queryClient.setQueryData(starredKey, previous);
       toast.error(
         err instanceof Error ? err.message : 'Failed to remove quick filter'
       );
@@ -690,19 +660,28 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
   const handleToggleFavorite = async (contact: ContactWithTags) => {
     const next = !contact.is_favorite;
-    const previousContacts = contacts;
-    const previousCount = favoritesCount;
+    const previousPage = queryClient.getQueryData<ContactListPage>(listKey);
 
     setFavoritingId(contact.id);
-    setContacts((prev) =>
-      activeTab === 'favorites' && !next
-        ? prev.filter((c) => c.id !== contact.id)
-        : prev.map((c) =>
-            c.id === contact.id ? { ...c, is_favorite: next } : c
-          )
-    );
-    setFavoritesCount((prev) =>
-      prev === null ? prev : Math.max(0, prev + (next ? 1 : -1))
+    queryClient.setQueryData<ContactListPage>(listKey, (prev) =>
+      prev
+        ? {
+            ...prev,
+            contacts:
+              activeTab === 'favorites' && !next
+                ? prev.contacts.filter((c) => c.id !== contact.id)
+                : prev.contacts.map((c) =>
+                    c.id === contact.id ? { ...c, is_favorite: next } : c
+                  ),
+            counts: {
+              ...prev.counts,
+              favoritesCount: Math.max(
+                0,
+                prev.counts.favoritesCount + (next ? 1 : -1)
+              ),
+            },
+          }
+        : prev
     );
 
     try {
@@ -715,15 +694,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.error || 'Failed to update favourite');
       }
-      localCache.clear();
+      void invalidateList();
       toast.success(
         next
           ? `Added ${contact.name || contact.phone} to Favourites`
           : `Removed ${contact.name || contact.phone} from Favourites`
       );
     } catch (err: unknown) {
-      setContacts(previousContacts);
-      setFavoritesCount(previousCount);
+      queryClient.setQueryData(listKey, previousPage);
       toast.error(
         err instanceof Error ? err.message : 'Failed to update favourite'
       );
@@ -764,7 +742,26 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       chipPressTimer.current = null;
     }
   };
-  const [areaOptions, setAreaOptions] = useState<AreaOption[]>([]);
+  // The "Area" filter chips and the search box's locality expansion:
+  // every stored locality, distinct-counted in SQL and grouped by
+  // spelling by /api/contacts/area-options. Cached for 5 minutes and —
+  // unlike the tags and contacts queries — only loaded when the Filters
+  // panel opens or a search runs, not on every Contacts page mount.
+  const areaOptionsQuery = queryOptions({
+    queryKey: ['contacts', 'area-options', accountId],
+    queryFn: loadAreaOptions,
+    staleTime: 5 * 60_000,
+  });
+  const areaOptionsResult = useQuery({
+    ...areaOptionsQuery,
+    enabled:
+      Boolean(accountId) &&
+      (isFiltersOpen || debouncedSearch.trim().length > 0),
+  });
+  const areaOptions = useMemo(
+    () => areaOptionsResult.data ?? [],
+    [areaOptionsResult.data]
+  );
   const [sortBy, setSortBy] = useState<string>('created_desc');
 
   // Debounce the search box: only commit to `debouncedSearch` (and reset to
@@ -838,101 +835,25 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   }, [importParam]);
 
   // All tags for display
-  const [tagsMap, setTagsMap] = useState<Record<string, Tag>>({});
+  const tagsQuery = useQuery({
+    queryKey: ['contacts', 'tags'],
+    queryFn: () => loadTagsMap(supabase),
+  });
+  const tagsMap = useMemo(() => tagsQuery.data ?? {}, [tagsQuery.data]);
 
-  const fetchTags = useCallback(async () => {
-    const supabaseClient = createClient();
-    const { data } = await supabaseClient.from('tags').select('*');
-    if (data) {
-      const map: Record<string, Tag> = {};
-      data.forEach((t) => (map[t.id] = t));
-      setTagsMap(map);
-    }
-  }, []);
-
-  // The "Area" filter chips and the search box's locality expansion:
-  // every stored locality, distinct-counted in SQL and grouped by
-  // spelling by /api/contacts/area-options. Cached for 5 minutes and —
-  // unlike fetchTags/fetchContacts — only loaded when the Filters panel
-  // opens or a search runs, not on every Contacts page mount.
-  const loadAreaOptions = useCallback(async (): Promise<AreaOption[]> => {
-    if (!accountId) return [];
-    const cacheKey = `contacts-area-options-${accountId}`;
-    const cached = localCache.get<AreaOption[]>(cacheKey, 5 * 60 * 1000);
-    if (cached) {
-      setAreaOptions(cached);
-      return cached;
-    }
-    try {
-      const res = await fetch('/api/contacts/area-options');
-      if (!res.ok) return [];
-      const body = (await res.json()) as { data?: AreaOption[] };
-      const options = Array.isArray(body.data) ? body.data : [];
-      setAreaOptions(options);
-      localCache.set(cacheKey, options);
-      return options;
-    } catch {
-      setAreaOptions([]);
-      return [];
-    }
-  }, [accountId]);
-
-  /** The search box's area clause: a typed locality stands for every
-   *  stored spelling of it, so "Brookfield" finds "Brookefield" too. */
-  const areaSearchClause = (term: string, options: AreaOption[]) => {
-    const variants = areaSearchVariants(term, options);
-    return variants.length > 0
-      ? areaOverlapFilter(AREA_FILTER_COLUMNS, variants)
-      : '';
-  };
-
-  // The stored spellings behind the selected area groups, as one string
-  // so the list only refetches when the selection itself changes — not
-  // when the options load or refresh.
+  // The stored spellings behind the selected area groups — part of the
+  // list query key, so the list only refetches when the selection itself
+  // changes, not when the options load or refresh.
   const selectedAreaVariants = useMemo(
-    () => areaFilterVariants(filterAreas, areaOptions).join('\u0001'),
+    () => areaFilterVariants(filterAreas, areaOptions),
     [filterAreas, areaOptions]
   );
-
-  // Load the account's starred properties for the quick-filter chips.
-  // Errors (e.g. migration 120 not applied yet) just hide the chips.
-  const fetchStarredProps = useCallback(async () => {
-    if (!accountId) return;
-    const supabaseClient = createClient();
-    const { data } = await supabaseClient
-      .from('properties')
-      .select('id, property_code, title')
-      .eq('account_id', accountId)
-      .eq('is_starred', true)
-      .order('updated_at', { ascending: false })
-      .limit(STARRED_PROPERTY_CAP);
-    setStarredProps(data || []);
-    setStarredLoaded(true);
-  }, [accountId]);
-
-  useEffect(() => {
-    fetchStarredProps();
-  }, [fetchStarredProps]);
-
-  // Distinct project names for the project filter — read off inventory
-  // rows, not the projects table, so unlinked units still count.
-  useEffect(() => {
-    if (!accountId) return;
-    const supabaseClient = createClient();
-    supabaseClient
-      .from('properties')
-      .select('project')
-      .eq('account_id', accountId)
-      .not('project', 'is', null)
-      .limit(PROJECT_SCAN_LIMIT)
-      .then(({ data }) => setProjectChoices(projectOptions(data ?? [])));
-  }, [accountId]);
 
   // If the active chip's property was unstarred elsewhere, drop the filter.
   // Waits for the first starred-props fetch so a URL-restored filter isn't
   // cleared against the initial empty array.
   useEffect(() => {
-    if (!starredLoaded) return;
+    if (!starredQuery.isSuccess) return;
     if (
       filterInterestProperty !== 'All' &&
       !starredProps.some((p) => p.id === filterInterestProperty)
@@ -940,714 +861,84 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       applyInterestFilter('All');
     }
   }, [
-    starredLoaded,
+    starredQuery.isSuccess,
     starredProps,
     filterInterestProperty,
     applyInterestFilter,
   ]);
 
-  const fetchContacts = useCallback(async () => {
-    if (!accountId) return;
-    setFetchFailed(false);
-    const supabaseClient = createClient();
-
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-
-    const cacheKey = contactListCacheKey(
-      accountId,
-      page,
-      activeTab,
-      sortBy,
-      {
+  const listParams: ContactListParams | null = accountId
+    ? {
+        accountId,
+        page,
+        tab: activeTab,
+        sort: sortBy,
+        search: debouncedSearch,
         classification: filterClassification,
         tag: filterTag,
         minBudget: filterMinBudget,
         maxBudget: filterMaxBudget,
         areas: filterAreas,
+        areaVariants: selectedAreaVariants,
         interestProperty: filterInterestProperty,
         interestProject: filterInterestProject,
-      },
-      debouncedSearch
-    );
-    const cached = localCache.get<{
-      enriched: ContactWithTags[];
-      totalCount: number;
-      activeCount: number;
-      reviewCount: number;
-      favoritesCount: number;
-      transactedCount: number;
-      marketActiveCount: number;
-      archivedCount: number;
-    }>(cacheKey);
+      }
+    : null;
+  const listKey = ['contacts', 'list', listParams];
+  const listQuery = useQuery({
+    queryKey: listKey,
+    queryFn: () =>
+      loadContactsPage(supabase, listParams!, () =>
+        queryClient.fetchQuery(areaOptionsQuery)
+      ),
+    enabled: listParams !== null,
+    placeholderData: keepPreviousData,
+  });
+  const invalidateList = () =>
+    queryClient.invalidateQueries({ queryKey: ['contacts', 'list'] });
 
-    if (cached) {
-      setContacts(cached.enriched || []);
-      setTotalCount(cached.totalCount || 0);
-      setActiveCount(cached.activeCount || 0);
-      setReviewCount(cached.reviewCount || 0);
-      setFavoritesCount(cached.favoritesCount || 0);
-      setTransactedCount(cached.transactedCount || 0);
-      setMarketActiveCount(cached.marketActiveCount || 0);
-      setArchivedCount(cached.archivedCount || 0);
-      setLoading(false);
-    } else {
-      setLoading(true);
-    }
-
-    try {
-      // The whole load races a hard timeout: on a stalled mobile
-      // connection an awaited query can hang forever, which used to
-      // leave "Loading contacts..." up indefinitely with no way to
-      // retry. A hang now falls into the catch below and renders the
-      // retry card instead.
-      await Promise.race([
-        (async () => {
-          // Fetch profile phone numbers for this account to exclude them
-          const { data: profilesData } = await supabaseClient
-            .from('profiles')
-            .select('phone')
-            .eq('account_id', accountId);
-
-          const profilePhones = (profilesData || [])
-            .map((p) => (p.phone ? p.phone.replace(/\D/g, '') : ''))
-            .filter((p) => p.length >= 8);
-
-          let internalContactIds: string[] = [];
-          if (profilePhones.length > 0) {
-            const orConditions = profilePhones
-              .map((p) => `phone.like.%${p.slice(-8)}`)
-              .join(',');
-            const { data: matchingContacts } = await supabaseClient
-              .from('contacts')
-              .select('id')
-              .eq('account_id', accountId)
-              .or(orConditions);
-
-            if (matchingContacts) {
-              internalContactIds = matchingContacts.map((c) => c.id);
-            }
-          }
-
-          // Scoped to what the table row, edit form, and delete/WhatsApp actions
-          // actually read — dropping `requirements` (free text) and other unused
-          // columns cuts payload size meaningfully at 25 rows/page. `.or()` search
-          // filters below reference DB columns directly, so they still work even
-          // though `requirements` isn't in the returned shape.
-          let query = supabaseClient
-            .from('contacts')
-            .select(
-              // buyer_alerts_consent(+_requested_at) are carried even though
-              // the list never renders them: the edit form opens from this
-              // row, and a consent control fed an absent value would show
-              // every contact as "Not asked yet" — a wrong answer to a
-              // compliance question, which is worse than a slightly larger page.
-              'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, requirement_profiles, is_favorite, min_roi, source, status, is_dead, dead_reason, is_archived, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types, buyer_alerts_consent, buyer_alerts_consent_requested_at',
-              { count: 'exact' }
-            )
-            .eq('account_id', accountId)
-            // A merged contact has been folded into another and is kept only
-            // so its history resolves. Listing it shows the same person twice
-            // and makes the duplicate check look like it missed a pair it had
-            // in fact already merged.
-            .eq('is_merged', false)
-            // A chain-only contact is a re-share intermediary's attribution,
-            // not a lead of this account — someone downstream of a co-broker
-            // who registered to forward a link onward. Listing them here is
-            // what turns the consent chain into a poachable contact list.
-            .eq('chain_only', false);
-
-          if (internalContactIds.length > 0) {
-            query = query.not('id', 'in', `(${internalContactIds.join(',')})`);
-          }
-
-          // Archived contacts are filed away on purpose: they leave every
-          // other view rather than being sprinkled through it, which is
-          // the point of archiving a list you can no longer read.
-          query =
-            activeTab === 'archived'
-              ? query.eq('is_archived', true)
-              : query.eq('is_archived', false);
-
-          if (activeTab === 'archived') {
-            // Deliberately unscoped by status — an archived contact is
-            // filed regardless of where it sat before.
-          } else if (activeTab === 'active' || activeTab === 'pending_review') {
-            query = query.eq('status', activeTab);
-          } else if (activeTab === 'favorites') {
-            // Intentionally unscoped by status — a contact parked in
-            // pending_review is exactly the kind an agent stars to return to.
-            query = query.eq('is_favorite', true);
-          } else {
-            // transacted and market_active are active contacts
-            query = query.eq('status', 'active');
-
-            if (activeTab === 'transacted') {
-              const { data: wonDeals } = await supabaseClient
-                .from('deals')
-                .select('contact_id')
-                .eq('status', 'won');
-              const transactedContactIds = Array.from(
-                new Set(
-                  wonDeals?.map((d) => d.contact_id).filter(Boolean) || []
-                )
-              );
-              if (transactedContactIds.length > 0) {
-                query = query.in('id', transactedContactIds);
-              } else {
-                query = query.eq('id', '00000000-0000-0000-0000-000000000000');
-              }
-            } else if (activeTab === 'market_active') {
-              query = query.or(
-                'lead_temp.eq.HOT,last_inquired_property_id.not.is.null'
-              );
-            }
-          }
-
-          // Apply sorting logic
-          if (sortBy === 'name_asc') {
-            query = query.order('name', { ascending: true, nullsFirst: false });
-          } else if (sortBy === 'name_desc') {
-            query = query.order('name', {
-              ascending: false,
-              nullsFirst: false,
-            });
-          } else if (sortBy === 'last_contacted_desc') {
-            query = query.order('last_contacted_at', {
-              ascending: false,
-              nullsFirst: false,
-            });
-          } else if (sortBy === 'last_contacted_asc') {
-            query = query.order('last_contacted_at', {
-              ascending: true,
-              nullsFirst: false,
-            });
-          } else if (sortBy === 'max_budget_desc') {
-            query = query.order('max_budget', {
-              ascending: false,
-              nullsFirst: false,
-            });
-          } else if (sortBy === 'max_budget_asc') {
-            query = query.order('max_budget', {
-              ascending: true,
-              nullsFirst: false,
-            });
-          } else if (sortBy === 'updated_desc') {
-            query = query.order('updated_at', { ascending: false });
-          } else {
-            query = query.order('created_at', { ascending: false });
-          }
-
-          if (filterClassification !== 'All') {
-            query = query.eq('classification', filterClassification);
-          }
-
-          if (filterTag !== 'All') {
-            const { data: matchedTags } = await supabaseClient
-              .from('contact_tags')
-              .select('contact_id')
-              .eq('tag_id', filterTag);
-
-            const tagContactIds = matchedTags
-              ? Array.from(
-                  new Set(matchedTags.map((t) => t.contact_id).filter(Boolean))
-                )
-              : [];
-
-            if (tagContactIds.length > 0) {
-              query = query.in('id', tagContactIds);
-            } else {
-              query = query.eq('id', '00000000-0000-0000-0000-000000000000');
-            }
-          }
-
-          if (
-            filterInterestProperty !== 'All' ||
-            filterInterestProject !== 'All'
-          ) {
-            // First-choice interest only: the contact's primary inquiry
-            // (last_inquired_property_id — set by the property form's
-            // interested-contacts link and by the portal-email webhook's
-            // top-scored match) OR a manual log from the contact detail view.
-            // Non-Manual junction rows are excluded — the webhook historically
-            // recorded every fuzzy match (score >= 2), so a type-only near-miss
-            // could drag unrelated contacts into the chip.
-            //
-            // Under a project filter the same sources run across every unit
-            // of the tower, plus contacts who NAMED the project in their
-            // stated preferences — the agent-entered list and the
-            // AI-extracted one — which is where most of a tower's buyers
-            // actually live.
-            let interestPropertyIds: string[] = [filterInterestProperty];
-            if (filterInterestProject !== 'All') {
-              const { data: unitRows } = await supabaseClient
-                .from('properties')
-                .select('id')
-                .eq('account_id', accountId)
-                .eq('project', filterInterestProject)
-                .limit(PROJECT_UNIT_CAP);
-              interestPropertyIds = (unitRows || []).map((r) => r.id);
-            }
-            const noRows = Promise.resolve({ data: [] as { id: string }[] });
-            const [inquiryRes, lastInquiredRes, enteredRes, extractedRes] =
-              await Promise.all([
-                interestPropertyIds.length
-                  ? supabaseClient
-                      .from('contact_property_inquiries')
-                      .select('contact_id')
-                      .in('property_id', interestPropertyIds)
-                      .eq('inquiry_source', 'Manual')
-                      .limit(INTEREST_CONTACT_CAP)
-                  : Promise.resolve({ data: [] as { contact_id: string }[] }),
-                interestPropertyIds.length
-                  ? supabaseClient
-                      .from('contacts')
-                      .select('id')
-                      .eq('account_id', accountId)
-                      .in('last_inquired_property_id', interestPropertyIds)
-                      .limit(INTEREST_CONTACT_CAP)
-                  : noRows,
-                filterInterestProject !== 'All'
-                  ? supabaseClient
-                      .from('contacts')
-                      .select('id')
-                      .eq('account_id', accountId)
-                      .contains('projects_of_interest', [filterInterestProject])
-                      .limit(INTEREST_CONTACT_CAP)
-                  : noRows,
-                filterInterestProject !== 'All'
-                  ? supabaseClient
-                      .from('contacts')
-                      .select('id')
-                      .eq('account_id', accountId)
-                      .contains('pref_projects', [filterInterestProject])
-                      .limit(INTEREST_CONTACT_CAP)
-                  : noRows,
-              ]);
-            const interestedIds = Array.from(
-              new Set(
-                [
-                  ...(inquiryRes.data?.map((r) => r.contact_id) || []),
-                  ...(lastInquiredRes.data?.map((r) => r.id) || []),
-                  ...(enteredRes.data?.map((r) => r.id) || []),
-                  ...(extractedRes.data?.map((r) => r.id) || []),
-                ].filter(Boolean)
-              )
-            ).slice(0, INTEREST_CONTACT_CAP);
-            if (interestedIds.length > 0) {
-              query = query.in('id', interestedIds);
-            } else {
-              query = query.eq('id', '00000000-0000-0000-0000-000000000000');
-            }
-          }
-
-          if (filterMinBudget !== 'All') {
-            const minVal = Number(filterMinBudget);
-            query = query.or(`max_budget.gte.${minVal},no_budget.eq.true`);
-          }
-
-          if (filterMaxBudget !== 'All') {
-            const maxVal = Number(filterMaxBudget);
-            query = query.lte('max_budget', maxVal);
-          }
-
-          if (filterAreas.length > 0) {
-            // Every spelling of every selected area group, against both
-            // the explicit (areas_of_interest) and the profile-extracted
-            // (pref_areas) preferences.
-            const variants = selectedAreaVariants
-              ? selectedAreaVariants.split('\u0001')
-              : [];
-            query =
-              variants.length > 0
-                ? query.or(areaOverlapFilter(AREA_FILTER_COLUMNS, variants))
-                : query.eq('id', '00000000-0000-0000-0000-000000000000');
-          }
-
-          if (debouncedSearch.trim()) {
-            const parsed = parsePropertyQuery(debouncedSearch.trim());
-            const areaOptionsForSearch = await loadAreaOptions();
-            const isNlpQuery =
-              parsed.locations.length > 0 ||
-              parsed.types.length > 0 ||
-              parsed.bedrooms !== null ||
-              parsed.minPrice !== null ||
-              parsed.maxPrice !== null;
-
-            if (isNlpQuery) {
-              // 1. Fetch contact IDs from notes matching locations, types, and bedrooms in parallel
-              const getLocNotes = async (): Promise<
-                { contact_id: string }[]
-              > => {
-                if (parsed.locations.length === 0) return [];
-                const locFilters = parsed.locations
-                  .map((loc) => `note_text.ilike.%${loc}%`)
-                  .join(',');
-                const { data } = await supabaseClient
-                  .from('contact_notes')
-                  .select('contact_id')
-                  .eq('account_id', accountId)
-                  .or(locFilters);
-                return (data as { contact_id: string }[]) || [];
-              };
-
-              const getTypeNotes = async (): Promise<
-                { contact_id: string }[]
-              > => {
-                if (parsed.types.length === 0) return [];
-                const typeFilters = parsed.types
-                  .map((type) => `note_text.ilike.%${type}%`)
-                  .join(',');
-                const { data } = await supabaseClient
-                  .from('contact_notes')
-                  .select('contact_id')
-                  .eq('account_id', accountId)
-                  .or(typeFilters);
-                return (data as { contact_id: string }[]) || [];
-              };
-
-              const getBedNotes = async (): Promise<
-                { contact_id: string }[]
-              > => {
-                if (parsed.bedrooms === null) return [];
-                const b = parsed.bedrooms;
-                const bedFilters = `note_text.ilike.%${b}%bhk%,note_text.ilike.%${b}%bedroom%,note_text.ilike.%${b}%bed%`;
-                const { data } = await supabaseClient
-                  .from('contact_notes')
-                  .select('contact_id')
-                  .eq('account_id', accountId)
-                  .or(bedFilters);
-                return (data as { contact_id: string }[]) || [];
-              };
-
-              // 2. Fetch contact IDs from tags matching types
-              const getTagContactIds = async (): Promise<string[]> => {
-                if (parsed.types.length === 0) return [];
-                const tagFilters = parsed.types
-                  .map((t) => `name.ilike.${t}`)
-                  .join(',');
-                const { data: tags } = await supabaseClient
-                  .from('tags')
-                  .select('id')
-                  .or(tagFilters);
-
-                const tagIds = (tags || []).map((t) => t.id);
-                if (tagIds.length === 0) return [];
-                const { data: ctData } = await supabaseClient
-                  .from('contact_tags')
-                  .select('contact_id')
-                  .in('tag_id', tagIds);
-                return (ctData || [])
-                  .map((ct) => ct.contact_id)
-                  .filter(Boolean);
-              };
-
-              const [locNotes, typeNotes, bedNotes, tagContactIds] =
-                await Promise.all([
-                  getLocNotes(),
-                  getTypeNotes(),
-                  getBedNotes(),
-                  getTagContactIds(),
-                ]);
-
-              const locNoteContactIds = Array.from(
-                new Set(locNotes.map((n) => n.contact_id).filter(Boolean))
-              );
-              const typeNoteContactIds = Array.from(
-                new Set(typeNotes.map((n) => n.contact_id).filter(Boolean))
-              );
-              const bedNoteContactIds = Array.from(
-                new Set(bedNotes.map((n) => n.contact_id).filter(Boolean))
-              );
-
-              // Combine type note and tag IDs
-              const typeContactIds = Array.from(
-                new Set([...typeNoteContactIds, ...tagContactIds])
-              );
-
-              // Limit lists to prevent URL length limits (HTTP 414)
-              const safeLocIds = locNoteContactIds.slice(0, 150);
-              const safeTypeIds = typeContactIds.slice(0, 150);
-              const safeBedIds = bedNoteContactIds.slice(0, 150);
-
-              // 3. Apply location filters
-              if (parsed.locations.length > 0) {
-                let locOrs = parsed.locations
-                  .map(
-                    (loc) =>
-                      `requirements.ilike.%${loc}%,` +
-                      (areaSearchClause(loc, areaOptionsForSearch) ||
-                        `areas_of_interest.cs.{"${loc}"},pref_areas.cs.{"${loc}"}`)
-                  )
-                  .join(',');
-                if (safeLocIds.length > 0) {
-                  locOrs += `,id.in.(${safeLocIds.join(',')})`;
-                }
-                query = query.or(locOrs);
-              }
-
-              // 4. Apply type filters
-              if (parsed.types.length > 0) {
-                let typeOrs = parsed.types
-                  .map(
-                    (t) =>
-                      `requirements.ilike.%${t}%,property_interests.cs.{"${t}"}`
-                  )
-                  .join(',');
-                if (safeTypeIds.length > 0) {
-                  typeOrs += `,id.in.(${safeTypeIds.join(',')})`;
-                }
-                query = query.or(typeOrs);
-              }
-
-              // 5. Apply bedroom filters
-              if (parsed.bedrooms !== null) {
-                const b = parsed.bedrooms;
-                let bedOrs = `requirements.ilike.%${b}%bhk%,requirements.ilike.%${b}%bedroom%,requirements.ilike.%${b}%bed%`;
-                if (safeBedIds.length > 0) {
-                  bedOrs += `,id.in.(${safeBedIds.join(',')})`;
-                }
-                query = query.or(bedOrs);
-              }
-
-              // 6. Apply budget filters (overlap logic)
-              if (parsed.maxPrice !== null) {
-                query = query.or(
-                  `min_budget.lte.${parsed.maxPrice},min_budget.is.null`
-                );
-              }
-              if (parsed.minPrice !== null) {
-                query = query.or(
-                  `max_budget.gte.${parsed.minPrice},max_budget.is.null,no_budget.eq.true`
-                );
-              }
-
-              // 7. Fallback for remaining search text
-              if (parsed.remainingSearch) {
-                const term = `%${parsed.remainingSearch}%`;
-                const cleanSearch = parsed.remainingSearch
-                  .trim()
-                  .replace(/["'{}\\]/g, '');
-                const { data: matchedNotes } = await supabaseClient
-                  .from('contact_notes')
-                  .select('contact_id')
-                  .eq('account_id', accountId)
-                  .ilike('note_text', term);
-
-                const remainingNoteContactIds = matchedNotes
-                  ? Array.from(
-                      new Set(
-                        matchedNotes.map((n) => n.contact_id).filter(Boolean)
-                      )
-                    )
-                  : [];
-                const safeRemainingIds = remainingNoteContactIds.slice(0, 150);
-
-                let orFilter = `name.ilike.${term},second_name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
-                if (cleanSearch) {
-                  orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
-                }
-                const remainingAreas = areaSearchClause(
-                  parsed.remainingSearch,
-                  areaOptionsForSearch
-                );
-                if (remainingAreas) {
-                  orFilter += `,${remainingAreas}`;
-                }
-                if (safeRemainingIds.length > 0) {
-                  orFilter += `,id.in.(${safeRemainingIds.join(',')})`;
-                }
-                query = query.or(orFilter);
-              }
-            } else {
-              // Simple text-search query fallback
-              const term = `%${debouncedSearch.trim()}%`;
-              const cleanSearch = debouncedSearch
-                .trim()
-                .replace(/["'{}\\]/g, '');
-              const { data: matchedNotes } = await supabaseClient
-                .from('contact_notes')
-                .select('contact_id')
-                .eq('account_id', accountId)
-                .ilike('note_text', term);
-
-              const noteContactIds = matchedNotes
-                ? Array.from(
-                    new Set(
-                      matchedNotes.map((n) => n.contact_id).filter(Boolean)
-                    )
-                  )
-                : [];
-              const safeNoteIds = noteContactIds.slice(0, 150);
-
-              let orFilter = `name.ilike.${term},second_name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
-              if (cleanSearch) {
-                orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
-              }
-              const searchAreas = areaSearchClause(
-                debouncedSearch,
-                areaOptionsForSearch
-              );
-              if (searchAreas) {
-                orFilter += `,${searchAreas}`;
-              }
-              if (safeNoteIds.length > 0) {
-                orFilter += `,id.in.(${safeNoteIds.join(',')})`;
-              }
-              query = query.or(orFilter);
-            }
-          }
-
-          query = query.range(from, to);
-
-          const { data, count, error } = await query;
-
-          if (error) {
-            toast.error('Failed to load contacts');
-            setLoading(false);
-            return;
-          }
-
-          // Six tab counters from one scan of the account's contacts
-          // (migration 20261003174500); the staff and won-deal rules
-          // live in SQL, shared with the mobile tab.
-          const { data: tabCountsRow, error: tabCountsError } =
-            await supabaseClient
-              .rpc('contacts_tab_counts', { p_account_id: accountId })
-              .maybeSingle<{
-                active: number;
-                pending_review: number;
-                favorites: number;
-                transacted: number;
-                market_active: number;
-                archived: number;
-              }>();
-          if (tabCountsError) {
-            console.error('Error loading contact tab counts:', tabCountsError);
-          }
-          const tabCounts = {
-            activeCount: tabCountsRow?.active ?? 0,
-            reviewCount: tabCountsRow?.pending_review ?? 0,
-            favoritesCount: tabCountsRow?.favorites ?? 0,
-            transactedCount: tabCountsRow?.transacted ?? 0,
-            marketActiveCount: tabCountsRow?.market_active ?? 0,
-            archivedCount: tabCountsRow?.archived ?? 0,
-          };
-
-          setActiveCount(tabCounts.activeCount);
-          setReviewCount(tabCounts.reviewCount);
-          setFavoritesCount(tabCounts.favoritesCount);
-          setTransactedCount(tabCounts.transactedCount);
-          setMarketActiveCount(tabCounts.marketActiveCount);
-          setArchivedCount(tabCounts.archivedCount);
-
-          if (!data || data.length === 0) {
-            setContacts([]);
-            setTotalCount(count ?? 0);
-            setLoading(false);
-            return;
-          }
-
-          // Fetch tags for these contacts
-          const contactIds = data.map((c) => c.id);
-          const { data: contactTags } = await supabaseClient
-            .from('contact_tags')
-            .select('contact_id, tag_id')
-            .in('contact_id', contactIds);
-
-          const tagsByContact: Record<string, string[]> = {};
-          contactTags?.forEach((ct) => {
-            if (!tagsByContact[ct.contact_id])
-              tagsByContact[ct.contact_id] = [];
-            tagsByContact[ct.contact_id].push(ct.tag_id);
-          });
-
-          const enriched: ContactWithTags[] = data.map((c) => ({
-            ...c,
-            tags: (tagsByContact[c.id] ?? [])
-              .map((tid) => tagsMap[tid])
-              .filter(Boolean),
-          }));
-
-          localCache.set(cacheKey, {
-            enriched,
-            totalCount: count ?? 0,
-            ...tabCounts,
-          });
-
-          setContacts(enriched);
-          setTotalCount(count ?? 0);
-          setLoading(false);
-        })(),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error('contacts fetch timed out after 20s')),
-            20_000
-          )
-        ),
-      ]);
-    } catch (err: unknown) {
-      console.error('Error fetching contacts:', err);
-      toast.error('An unexpected error occurred while loading contacts');
-      setFetchFailed(true);
-      setLoading(false);
-    }
-  }, [
-    page,
-    debouncedSearch,
-    tagsMap,
-    activeTab,
-    accountId,
-    filterClassification,
-    filterTag,
-    filterMinBudget,
-    filterMaxBudget,
-    filterAreas,
-    selectedAreaVariants,
-    loadAreaOptions,
-    filterInterestProperty,
-    filterInterestProject,
-    sortBy,
-  ]);
-
-  const fetchContactsWithInvalidate = useCallback(() => {
-    localCache.clear();
-    fetchContacts();
-  }, [fetchContacts]);
-
-  // Load-once-on-mount-ish data fetches. Each setter inside runs
-  // inside an async promise completion (Supabase await), not
-  // synchronously in the effect body, so the cascade the lint rule
-  // warns about doesn't apply here.
-  // Note: loadAreaOptions is intentionally NOT called here — it's a full-table
-  // scan just to populate the Area filter dropdown, so it's deferred until
-  // the user actually opens the Filters panel (see the isFiltersOpen effect
-  // below).
-  useEffect(() => {
-    fetchTags();
-    fetchShowcaseSettings();
-  }, [fetchTags, fetchShowcaseSettings]);
-
-  // Lazily load the Area filter options only when the Filters panel opens.
-  useEffect(() => {
-    if (isFiltersOpen) {
-      loadAreaOptions();
-    }
-  }, [isFiltersOpen, loadAreaOptions]);
+  const contacts = useMemo<ContactWithTags[]>(() => {
+    const loaded = listQuery.data;
+    if (!loaded) return [];
+    return loaded.contacts.map((c) => ({
+      ...c,
+      tags: (loaded.contactTagsByContact[c.id] ?? [])
+        .map((tid) => tagsMap[tid])
+        .filter(Boolean),
+    }));
+  }, [listQuery.data, tagsMap]);
+  const totalCount = listQuery.data?.totalCount ?? 0;
+  // null = not fetched yet. The tab labels render plain ("All
+  // Contacts") until real numbers exist — a "(0)"/"(...)" placeholder
+  // while counts load reads as broken data.
+  const counts = listQuery.data?.counts ?? null;
+  const activeCount = counts?.activeCount ?? null;
+  const reviewCount = counts?.reviewCount ?? null;
+  const favoritesCount = counts?.favoritesCount ?? null;
+  const transactedCount = counts?.transactedCount ?? null;
+  const marketActiveCount = counts?.marketActiveCount ?? null;
+  const archivedCount = counts?.archivedCount ?? null;
+  const loading =
+    listQuery.isPending || (listQuery.isError && listQuery.isFetching);
+  // True when the last contacts load errored — renders an inline retry
+  // card instead of an eternal spinner / empty state.
+  const fetchFailed = listQuery.isError && !listQuery.isFetching;
 
   useEffect(() => {
-    fetchContacts();
-  }, [fetchContacts]);
+    if (!listQuery.isError) return;
+    console.error('Error fetching contacts:', listQuery.error);
+    toast.error('An unexpected error occurred while loading contacts');
+  }, [listQuery.isError, listQuery.error]);
 
-  // Arm the slow-load notice while the spinner is up; disarm on settle.
+  // Arm the slow-load notice while a load is in flight; disarm on settle.
   useEffect(() => {
-    if (!loading) {
+    if (!listQuery.isFetching) {
       setSlowLoad(false);
       return;
     }
     const t = setTimeout(() => setSlowLoad(true), 12_000);
     return () => clearTimeout(t);
-  }, [loading]);
+  }, [listQuery.isFetching]);
 
   // Automatically open contact detail modal if contactId is specified in query parameters
   useEffect(() => {
@@ -1774,7 +1065,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       if (error) throw error;
 
       toast.success(`Successfully imported ${records.length} contacts`);
-      fetchContactsWithInvalidate();
+      void invalidateList();
     } catch (err) {
       const error = err as Error;
       console.error('Bulk insert failed:', error);
@@ -1835,8 +1126,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         throw new Error(errData.error || 'Failed to delete contact');
       }
       toast.success('Contact deleted');
-      localCache.clear();
-      fetchContactsWithInvalidate();
+      void invalidateList();
     } catch (err: unknown) {
       toast.error(
         err instanceof Error ? err.message : 'Failed to delete contact'
@@ -1848,9 +1138,24 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     setDeleteTarget(null);
   }
 
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const totalPages = Math.ceil(totalCount / CONTACTS_PAGE_SIZE);
   const hasNext = page < totalPages - 1;
   const hasPrev = page > 0;
+
+  const slowLoadNotice = slowLoad ? (
+    <div className="flex flex-col items-center gap-2 py-6">
+      <p className="text-xs text-slate-500">
+        This is taking longer than usual — the connection may have stalled.
+      </p>
+      <Button
+        onClick={() => listQuery.refetch()}
+        variant="outline"
+        className="h-8 cursor-pointer border-slate-700 px-4 text-xs text-slate-300 hover:bg-slate-800"
+      >
+        Retry
+      </Button>
+    </div>
+  ) : null;
 
   const activeFilterCount = activeContactFilterCount({
     classification: filterClassification,
@@ -1927,7 +1232,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     <div className="space-y-6">
       {/* Duplicate detection panel — only visible to agents+ when dupes exist */}
       <DuplicatesPanel
-        onMergeComplete={fetchContactsWithInvalidate}
+        onMergeComplete={invalidateList}
         onOpenContact={openDetail}
       />
 
@@ -2500,7 +1805,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       {/* Portal ads still waiting on their first assertion. Renders
           nothing when there are none, so it costs a clean account no
           space — and it sits above the queue it explains. */}
-      <UnmappedPortalAds onMapped={fetchContactsWithInvalidate} />
+      <UnmappedPortalAds onMapped={invalidateList} />
 
       {!accountMissing && !loading && !fetchFailed && (
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
@@ -2549,21 +1854,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         ) : loading ? (
           <div className="flex flex-col text-slate-400">
             <ContactsTableSkeleton />
-            {slowLoad && (
-              <div className="flex flex-col items-center gap-2 py-6">
-                <p className="text-xs text-slate-500">
-                  This is taking longer than usual — the connection may have
-                  stalled.
-                </p>
-                <Button
-                  onClick={fetchContactsWithInvalidate}
-                  variant="outline"
-                  className="h-8 cursor-pointer border-slate-700 px-4 text-xs text-slate-300 hover:bg-slate-800"
-                >
-                  Retry
-                </Button>
-              </div>
-            )}
+            {slowLoadNotice}
           </div>
         ) : fetchFailed ? (
           <div className="flex flex-col items-center gap-3 py-12">
@@ -2575,10 +1866,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                setLoading(true);
-                fetchContacts();
-              }}
+              onClick={() => listQuery.refetch()}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
               Retry
@@ -2952,12 +2240,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         )}
       </div>
 
+      {!loading && slowLoadNotice}
+
       {/* Pagination */}
       {totalPages > 1 && !loading && (
         <div className="flex items-center justify-between">
           <p className="text-xs text-slate-500">
-            Showing {page * PAGE_SIZE + 1}-
-            {Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount}
+            Showing {page * CONTACTS_PAGE_SIZE + 1}-
+            {Math.min((page + 1) * CONTACTS_PAGE_SIZE, totalCount)} of{' '}
+            {totalCount}
           </p>
           <div className="flex items-center gap-1">
             <Button
@@ -2993,14 +2284,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           if (!open) setPendingDial(null);
         }}
         onLogged={(contactId, calledAt) => {
-          setContacts((prev) =>
-            prev.map((c) =>
-              c.id === contactId &&
-              (!c.last_contacted_at ||
-                new Date(calledAt) > new Date(c.last_contacted_at))
-                ? { ...c, last_contacted_at: calledAt }
-                : c
-            )
+          queryClient.setQueryData<ContactListPage>(listKey, (prev) =>
+            prev
+              ? {
+                  ...prev,
+                  contacts: prev.contacts.map((c) =>
+                    c.id === contactId &&
+                    (!c.last_contacted_at ||
+                      new Date(calledAt) > new Date(c.last_contacted_at))
+                      ? { ...c, last_contacted_at: calledAt }
+                      : c
+                  ),
+                }
+              : prev
           );
         }}
       />
@@ -3012,8 +2308,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         contact={editContact}
         contactTags={editContactTags}
         onSaved={() => {
-          fetchContactsWithInvalidate();
-          fetchTags();
+          void invalidateList();
+          void queryClient.invalidateQueries({
+            queryKey: ['contacts', 'tags'],
+          });
         }}
       />
 
@@ -3022,20 +2320,20 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         open={detailOpen}
         onOpenChange={handleDetailOpenChange}
         contactId={detailContactId}
-        onUpdated={fetchContactsWithInvalidate}
+        onUpdated={invalidateList}
       />
 
       {/* Import / re-engage wizard */}
       <ReengageWizard
         open={reengageOpen}
         onOpenChange={setReengageOpen}
-        onImported={fetchContactsWithInvalidate}
+        onImported={invalidateList}
       />
 
       <ContactCleanupDialog
         open={cleanupOpen}
         onOpenChange={setCleanupOpen}
-        onDone={fetchContactsWithInvalidate}
+        onDone={invalidateList}
       />
 
       <BulkImportModal
@@ -3108,7 +2406,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           contact={requirementsContact}
           onChanged={() => {
             setRequirementsContact(null);
-            void fetchContacts();
+            void invalidateList();
           }}
         />
       ) : null}

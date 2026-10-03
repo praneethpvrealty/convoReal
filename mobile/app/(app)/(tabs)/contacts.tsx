@@ -91,6 +91,7 @@ import {
   type Classification,
   type Contact,
 } from '@/lib/types';
+import { CONTACT_LIST_COLUMNS } from '@shared/lib/contacts/list-columns';
 
 /** Web parity quick filters (contacts-content.tsx). */
 const SEGMENTS = [
@@ -294,10 +295,7 @@ async function fetchContacts(
   let query = supabase
     .from('contacts')
     .select(
-      'id, phone, name, name_tag, email, company, classification, avatar_url, lead_temp, ' +
-        'status, last_contacted_at, last_inquired_property_id, property_interests, ' +
-        'areas_of_interest, min_budget, max_budget, no_budget, is_favorite, requirement_profiles' +
-        ', created_at, updated_at' +
+      CONTACT_LIST_COLUMNS +
         // An inner join rather than a fetch-then-`.in()`: a popular tag
         // holds more contacts than an id list can travel in a URL.
         (filters.tagId ? ', contact_tags!inner(tag_id)' : '')

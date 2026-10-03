@@ -691,6 +691,17 @@
               "case": "[CTM-014]"
             }
           ]
+        },
+        {
+          "id": "CTM-015",
+          "rule": "The web Contacts list and the mobile Contacts tab select their rows through the one shared column spec CONTACT_LIST_COLUMNS (src/lib/contacts/list-columns.ts), so a column one surface needs — the buyer-alerts consent pair the edit form reads, the avatar the mobile row shows — travels on both, and neither surface keeps a private select list that can drift.",
+          "tests": [
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[CTM-015]" }
+          ],
+          "guards": [
+            ".github/workflows/ci.yml",
+            ".github/workflows/eas-update.yml"
+          ]
         }
       ]
     },
@@ -1185,6 +1196,10 @@
             },
             {
               "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-007]"
+            },
+            {
+              "file": "src/components/inventory/property-enquiries-tab.test.tsx",
               "case": "[PRP-007]"
             }
           ],
