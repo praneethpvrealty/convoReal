@@ -115,6 +115,11 @@ import {
   INVOICE_STATUS_LABELS,
 } from '@/lib/invoices/types';
 import { brokerageAmount } from '@/lib/pipelines/brokerage';
+import {
+  DEFAULT_BOARD_LAYOUT,
+  parseBoardLayout,
+} from '@/lib/pipelines/board-layout';
+import { dealFee } from '@/lib/pipelines/deal-money';
 import { DEAL_WORKSPACE_TABS } from '@/components/deals/deal-workspace';
 import {
   isClosingRecord,
@@ -137,6 +142,7 @@ import {
   STAKEHOLDER_ROLE_LABELS,
   STAKEHOLDER_SIDE_LABELS,
   defaultSideForRole,
+  formatStakeholderPhone,
   type StakeholderRole,
 } from '@/lib/deals/stakeholders';
 import { DEAL_VISIBILITY_LABELS } from '@/lib/deals/visibility';
@@ -2450,9 +2456,21 @@ describe('the mobile deals screen uses the shared brokerage rule', () => {
     expect(mobile).not.toContain('* 0.02');
   });
 
-  it('mirrors brokerageAmount: fixed wins, otherwise a percentage', () => {
-    expect(mobile).toContain("deal.brokerage_type === 'fixed'");
-    expect(mobile).toContain('(Number(deal.value ?? 0) * value) / 100');
+  it('[PIPE-002] computes card fees and stage totals with the web module itself', () => {
+    // The screen used to carry its own copy of brokerageAmount. It now
+    // imports the web rule at runtime, so there is no copy left to drift.
+    expect(mobile).toContain("from '@shared/lib/pipelines/deal-money'");
+    expect(mobile).toContain('dealFeeLabel(deal)');
+    expect(mobile).toContain('stageTotalsLabel(stageTotals(stageDeals)');
+    expect(mobile).not.toContain('function dealBrokerage');
+    expect(webSource('lib/pipelines/deal-money.ts')).toContain(
+      "import { brokerageAmount } from './brokerage';"
+    );
+
+    // The brokerage sheet's preview still mirrors brokerageAmount.
+    expect(mobile).toContain(
+      "return type === 'fixed' ? value : ((dealValue ?? 0) * value) / 100;"
+    );
 
     // Same inputs, same answer on both surfaces.
     expect(
@@ -2462,6 +2480,16 @@ describe('the mobile deals screen uses the shared brokerage rule', () => {
         value: 0.7,
       })
     ).toBe(1134000);
+    expect(
+      dealFee({
+        value: 162000000,
+        brokerage_type: 'percentage',
+        brokerage_value: 0.7,
+      })
+    ).toBe(1134000);
+    expect(
+      dealFee({ value: 162000000, brokerage_type: 'percentage' })
+    ).toBeNull();
   });
 });
 
@@ -2530,6 +2558,64 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     );
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(webWorkspace).toContain('DEAL_WORKSPACE_TABS');
+  });
+
+  it('[TXW-030] puts the money on its own tab, right after the overview', () => {
+    expect(DEAL_WORKSPACE_TABS.slice(0, 2)).toEqual([
+      { id: 'overview', label: 'Overview' },
+      { id: 'money', label: 'Money' },
+    ]);
+    expect(mobileVocab).toContain(
+      "{ id: 'overview', label: 'Overview' },\n  { id: 'money', label: 'Money' },"
+    );
+    expect(mobileScreen).toContain("{tab === 'money' && <FinancialsTab");
+    expect(mobileScreen).toContain('<OverviewTab');
+    expect(mobileScreen).toContain('stage_id, value, currency,');
+    expect(mobileScreen).toContain("const currency = head?.currency ?? 'INR';");
+    expect(mobileScreen).toContain('formatDealAmount(amount, currency)');
+    expect(mobileScreen).not.toContain(
+      '<OverviewFigure label="Deal value" value={formatInr('
+    );
+  });
+
+  it('[TXW-009] prints a stakeholder number with exactly one plus sign on both surfaces', () => {
+    const body = (source: string) =>
+      source.match(
+        /export function formatStakeholderPhone\([\s\S]*?\n\}\n/
+      )?.[0];
+    const web = body(webSource('lib/deals/stakeholders.ts'));
+    expect(web).toBeDefined();
+    expect(body(mobileVocab)).toBe(web);
+    expect(mobileScreen).toContain('formatStakeholderPhone(s.phone)');
+    expect(mobileScreen).not.toContain('` · +${s.phone}`');
+    expect(formatStakeholderPhone('+919833902005')).toBe('+919833902005');
+    expect(formatStakeholderPhone('919833902005')).toBe('+919833902005');
+  });
+
+  it('[PIPE-001] opens the Deals board flat on both surfaces and remembers the choice under one key', () => {
+    const mobileHook = mobileSource('lib/board-layout-preference.ts');
+    const webHook = webSource('hooks/use-board-layout.ts');
+    for (const source of [mobileHook, webHook]) {
+      expect(source).toContain('BOARD_LAYOUT_STORAGE_KEY');
+      expect(source).toContain('parseBoardLayout(');
+      expect(source).toContain('DEFAULT_BOARD_LAYOUT');
+    }
+    expect(mobileHook).toContain("from '@shared/lib/pipelines/board-layout'");
+    expect(DEFAULT_BOARD_LAYOUT).toBe('flat');
+    expect(parseBoardLayout(null)).toBe('flat');
+    expect(parseBoardLayout('wheel')).toBe('wheel');
+    const mobileList = mobileSource('app/(app)/deals.tsx');
+    expect(mobileList).toContain('useBoardLayout()');
+    expect(mobileList).toContain('BOARD_LAYOUTS.map(');
+    expect(mobileList).toContain('<SectionList<Deal, FlatSection>');
+    expect(mobileList).toContain('? flatStageOrder(stages ?? [])');
+    expect(mobileList).toContain(
+      "const OUTCOME_ORDER: readonly PipelineOutcome[] = [\n  'active',\n  'successful',\n  'lost',\n];"
+    );
+    expect(mobileList).toContain('scrollToLocation({');
+    expect(
+      webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
+    ).toContain('useBoardLayout()');
   });
 
   it('[TXW-003] labels every milestone status identically', () => {
@@ -4233,8 +4319,15 @@ describe('[TXW-023] co-broking ships on both surfaces through one route', () => 
       expect(mobileScreen).toContain(`data.summary.${total}`);
       expect(webPanel).toContain(`data.summary.${total}`);
     }
-    expect(mobileDeals).toContain('netOfPayouts(');
-    expect(webBoard).toContain('netOfPayouts(');
+    expect(mobileDeals).toContain("from '@shared/lib/pipelines/deal-money'");
+    expect(webSource('lib/pipelines/deal-money.ts')).toContain(
+      'return netOfPayouts('
+    );
+    expect(
+      dealFee({ brokerage_amount: 100000, co_broker_payout_total: 40000 })
+    ).toBe(60000);
+    expect(webBoard).toContain('stageTotals(stageDeals)');
+    expect(webBoard).toContain("from '@/lib/pipelines/deal-money'");
   });
 });
 

@@ -398,6 +398,16 @@
               "case": "[INB-022]"
             }
           ]
+        },
+        {
+          "id": "INB-023",
+          "rule": "Switching conversations in the web inbox never shows the previous contact's deals, notes or tags under the new contact's name: those sections render placeholders until the new contact's own rows arrive, and a response for the contact that was left is discarded if it lands after the switch.",
+          "tests": [
+            {
+              "file": "src/components/inbox/contact-sidebar.test.tsx",
+              "case": "[INB-023]"
+            }
+          ]
         }
       ]
     },
@@ -2195,6 +2205,88 @@
       ]
     },
     {
+      "id": "pipeline-board",
+      "name": "Deals board — every stage in one row, with the wheel kept as a choice",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "PIPE-001",
+          "rule": "The Deals board opens flat on both surfaces: every stage of the pipeline in one row, active stages first in position order and then the won and lost stages at the right edge whatever their stored position, an empty stage folded to a rail that still accepts a drop and opens on a tap. The rotating wheel is a per-device choice behind a Flat / Wheel switch, stored under one key on both surfaces, and never the default.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/board-layout.test.ts",
+              "case": "[PIPE-001]"
+            },
+            {
+              "file": "src/components/pipelines/pipeline-board.test.tsx",
+              "case": "[PIPE-001]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PIPE-001]"
+            }
+          ],
+          "guards": [
+            "src/lib/pipelines/board-layout.ts",
+            "src/hooks/use-board-layout.ts",
+            "src/components/pipelines/pipeline-board.tsx",
+            "mobile/lib/board-layout-preference.ts",
+            "mobile/app/(app)/deals.tsx"
+          ]
+        },
+        {
+          "id": "PIPE-002",
+          "rule": "One fee rule on every board surface: a deal's fee is its saved brokerage amount, else its recorded rate applied to the value, net of co-broker payouts, and a deal with neither has no fee and says \"Fee not set\" — never a guessed 2%. A stage header leads with the deals' value and shows fees only once some are recorded; the first stat tile counts every deal the Focus / All switch is showing, lost ones included. Web and mobile compute these through the same module.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/deal-money.test.ts",
+              "case": "[PIPE-002]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PIPE-002]"
+            }
+          ],
+          "guards": [
+            "src/lib/pipelines/deal-money.ts",
+            "src/components/pipelines/deal-card.tsx",
+            "src/components/pipelines/pipeline-analytics.tsx",
+            "mobile/app/(app)/deals.tsx"
+          ]
+        },
+        {
+          "id": "PIPE-003",
+          "rule": "Every amount on the Deals surfaces — board cards, stage headers, stat tiles, closing-record rows and the deal workspace — prints in one Indian compact notation (₹8.16 Cr, ₹75.05 L, ₹95,000); other currencies render through Intl.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/deal-money.test.ts",
+              "case": "[PIPE-003]"
+            }
+          ],
+          "guards": [
+            "src/lib/pipelines/deal-money.ts",
+            "src/components/deals/deal-workspace.tsx",
+            "src/components/deals/transaction-workspace-index.tsx"
+          ]
+        },
+        {
+          "id": "PIPE-004",
+          "rule": "A deal card names the property and the buyer once: the headline is the property (unit number first when it has one), the contact row names the person, and the deal's own title appears only when it says something the headline does not.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/deal-money.test.ts",
+              "case": "[PIPE-004]"
+            }
+          ],
+          "guards": [
+            "src/lib/pipelines/deal-money.ts",
+            "src/components/pipelines/deal-card.tsx",
+            "mobile/app/(app)/deals.tsx"
+          ]
+        }
+      ]
+    },
+    {
       "id": "transaction-workspace",
       "name": "Transaction Workspace — the closing record for a deal",
       "surfaces": ["web", "mobile", "stakeholder-link"],
@@ -2672,6 +2764,40 @@
             "src/lib/deals/board-focus.ts",
             "src/components/deals/deal-workspace.tsx",
             "mobile/lib/deal-workspace.ts",
+            "mobile/app/(app)/deal/[id].tsx"
+          ]
+        },
+        {
+          "id": "TXW-030",
+          "rule": "A closing record opens on where it stands, not on a form: Overview shows the next pending milestone with a tick that completes it through the milestones route, the open tasks, the latest timeline entry, the people on each side and a money summary (deal value, brokerage, collected, outstanding, token, payment schedule), and the financial forms, payment schedule and co-broking live on a Money tab that sits right after Overview on both surfaces.",
+          "tests": [
+            {
+              "file": "src/components/deals/deal-overview-panel.test.tsx",
+              "case": "[TXW-030]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-030]"
+            }
+          ],
+          "guards": [
+            "src/components/deals/deal-overview-panel.tsx",
+            "src/components/deals/deal-workspace.tsx",
+            "mobile/lib/deal-workspace.ts",
+            "mobile/app/(app)/deal/[id].tsx"
+          ]
+        },
+        {
+          "id": "TXW-031",
+          "rule": "Milestones are a checklist: the tick is the primary control on every row, the meta line reads Due / Done / status / visibility, and a row's status, visibility and due-date controls appear only when its options are opened.",
+          "tests": [
+            {
+              "file": "src/components/deals/deal-milestones-panel.test.tsx",
+              "case": "[TXW-031]"
+            }
+          ],
+          "guards": [
+            "src/components/deals/deal-milestones-panel.tsx",
             "mobile/app/(app)/deal/[id].tsx"
           ]
         }

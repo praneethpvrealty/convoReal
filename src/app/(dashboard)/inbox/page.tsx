@@ -14,6 +14,7 @@ import { ConversationList } from '@/components/inbox/conversation-list';
 import { MessageThread } from '@/components/inbox/message-thread';
 import type { TemplateIntent } from '@/components/inbox/template-picker';
 import { ContactSidebar } from '@/components/inbox/contact-sidebar';
+import { mergeConversations } from '@/lib/conversations/merge';
 import { WifiOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
@@ -411,6 +412,7 @@ export default function InboxPage() {
     setResyncToken((n) => n + 1);
   }, []);
 
+  const lastLoadedIdsRef = useRef<Set<string>>(new Set());
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
       const activeId = activeConversationIdRef.current;
@@ -425,62 +427,13 @@ export default function InboxPage() {
           )
         : loaded;
 
-      setConversations((prev) => {
-        // First load (prev is empty) — just set the full list.
-        if (prev.length === 0) {
-          return activeId
-            ? loadedFiltered.map((c) =>
-                c.id === activeId ? { ...c, unread_count: 0 } : c
-              )
-            : loadedFiltered;
-        }
-
-        // Resync merge: patch existing rows in-place and prepend truly new
-        // conversations. This avoids replacing the entire array reference
-        // (which would cause the whole list to re-render) and preserves any
-        // optimistic state we applied since the last fetch.
-        const prevMap = new Map(prev.map((c) => [c.id, c]));
-        const loadedMap = new Map(loadedFiltered.map((c) => [c.id, c]));
-        const result: Conversation[] = [];
-
-        // Iterate the freshly-fetched order (sorted by last_message_at desc)
-        // so the list stays sorted after the merge.
-        for (const fresh of loadedFiltered) {
-          const existing = prevMap.get(fresh.id);
-          if (existing) {
-            // Preserve optimistic unread_count: 0 for the active conversation.
-            const unread = fresh.id === activeId ? 0 : fresh.unread_count;
-            // Only replace the object if something actually changed — avoids
-            // triggering needless React reconciliation for unchanged rows.
-            const unchanged =
-              existing.unread_count === unread &&
-              existing.last_message_at === fresh.last_message_at &&
-              existing.last_message_text === fresh.last_message_text &&
-              existing.status === fresh.status &&
-              existing.is_archived === fresh.is_archived;
-            result.push(
-              unchanged
-                ? existing
-                : { ...existing, ...fresh, unread_count: unread }
-            );
-          } else {
-            // Brand-new conversation not yet in state.
-            result.push(
-              fresh.id === activeId ? { ...fresh, unread_count: 0 } : fresh
-            );
-          }
-        }
-
-        // Keep any local-only rows (e.g. optimistically prepended via hydrateConversation)
-        // that haven't appeared in the DB result yet.
-        for (const existing of prev) {
-          if (!loadedMap.has(existing.id)) {
-            result.push(existing);
-          }
-        }
-
-        return result;
-      });
+      setConversations((prev) =>
+        mergeConversations(prev, loadedFiltered, {
+          activeId,
+          previouslyLoadedIds: lastLoadedIdsRef.current,
+        })
+      );
+      lastLoadedIdsRef.current = new Set(loadedFiltered.map((c) => c.id));
       // Resolve a pending deep-link here rather than in an effect — this
       // is an event handler, so the setState calls below are allowed by
       // react-hooks/set-state-in-effect. Runs once per ?c=<id> URL value
@@ -694,7 +647,7 @@ export default function InboxPage() {
   const hasActiveConv = !!activeConversation;
 
   return (
-    <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
+    <div className="-m-4 -mb-28 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6 sm:-mb-28">
       {/* WhatsApp connection banner — in the flex column, not absolute,
           so it pushes the panels down instead of overlapping them. */}
       {whatsappConnected === false && (

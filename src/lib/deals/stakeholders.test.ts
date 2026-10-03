@@ -112,3 +112,14 @@ describe('isSamePerson', () => {
     ).toBe(false);
   });
 });
+
+describe('[TXW-009] a stakeholder phone prints one plus sign', () => {
+  it('prefixes digits once whatever the row stored', async () => {
+    const { formatStakeholderPhone } = await import('./stakeholders');
+    expect(formatStakeholderPhone('919833902005')).toBe('+919833902005');
+    expect(formatStakeholderPhone('+919833902005')).toBe('+919833902005');
+    expect(formatStakeholderPhone('+91 98339 02005')).toBe('+919833902005');
+    expect(formatStakeholderPhone(null)).toBeNull();
+    expect(formatStakeholderPhone('')).toBeNull();
+  });
+});

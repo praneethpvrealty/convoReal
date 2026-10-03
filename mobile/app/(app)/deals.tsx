@@ -1,15 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Stack, router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
   RefreshControl,
   ScrollView,
+  SectionList,
   StyleSheet,
   Text,
   View,
+  type ViewToken,
 } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
@@ -26,6 +28,7 @@ import {
   TextField,
 } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
+import { useBoardLayout } from '@/lib/board-layout-preference';
 import { contactFullName } from '@/lib/contact-name';
 import {
   BOARD_FOCUS_QUERY_KEY,
@@ -34,7 +37,6 @@ import {
   DEAL_SAVED_QUERY_KEYS,
   expectedCloseLabel,
   isClosingRecord,
-  netOfPayouts,
   RECORDS_SORTS,
   sortIndexRows,
   transactionSubtitle,
@@ -67,19 +69,17 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { DEALS_VIEWS } from '@shared/lib/deals/routes';
+import { BOARD_LAYOUTS } from '@shared/lib/pipelines/board-layout';
+import {
+  dealCardCopy,
+  dealFee,
+  dealFeeLabel,
+  stageTotals,
+  stageTotalsLabel,
+} from '@shared/lib/pipelines/deal-money';
 
 import { JourneyBody } from './journey';
-
-function dealIndexRow(deal: Deal) {
-  return {
-    title: deal.title,
-    contact_name: deal.contact ? contactFullName(deal.contact) || null : null,
-    property_title: deal.property?.title ?? null,
-    property_unit_no: deal.property?.unit_no ?? null,
-    source_journey_item_id: deal.source_journey_item_id ?? null,
-    milestones_total: deal.milestones?.[0]?.count ?? 0,
-  };
-}
 
 /**
  * What a deal's brokerage is worth.
@@ -100,20 +100,23 @@ function brokeragePreview(
   return type === 'fixed' ? value : ((dealValue ?? 0) * value) / 100;
 }
 
-function dealBrokerage(deal: Deal): number {
-  if (deal.brokerage_amount != null) {
-    return netOfPayouts(
-      Number(deal.brokerage_amount),
-      deal.co_broker_payout_total
-    );
-  }
-  const value = Number(deal.brokerage_value ?? 0);
-  if (value <= 0) return 0;
-  const collected =
-    deal.brokerage_type === 'fixed'
-      ? value
-      : (Number(deal.value ?? 0) * value) / 100;
-  return netOfPayouts(collected, deal.co_broker_payout_total);
+const OUTCOME_ORDER: readonly PipelineOutcome[] = [
+  'active',
+  'successful',
+  'lost',
+];
+
+function flatStageOrder(stages: readonly PipelineStage[]): PipelineStage[] {
+  const byPosition = [...stages].sort((a, b) => a.position - b.position);
+  return OUTCOME_ORDER.flatMap((outcome) =>
+    byPosition.filter((stage) => pipelineOutcomeForStage(stage) === outcome)
+  );
+}
+
+interface FlatSection {
+  stage: PipelineStage;
+  marker: string | null;
+  data: Deal[];
 }
 
 export default function DealsScreen() {
@@ -122,6 +125,8 @@ export default function DealsScreen() {
   const [stageId, setStageId] = useState<string | null>(null);
   const [outcomeView, setOutcomeView] = useState<PipelineOutcome>('active');
   const [boardScope, setBoardScope] = useState<BoardScope>('focus');
+  const [boardLayout, setBoardLayout] = useBoardLayout();
+  const flat = boardLayout === 'flat';
   const [movingDeal, setMovingDeal] = useState<Deal | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [lostPrompt, setLostPrompt] = useState<{
@@ -247,11 +252,70 @@ export default function DealsScreen() {
 
   const visibleStages = useMemo(
     () =>
-      (stages ?? []).filter(
-        (stage) => pipelineOutcomeForStage(stage) === outcomeView
-      ),
-    [stages, outcomeView]
+      flat
+        ? flatStageOrder(stages ?? [])
+        : (stages ?? []).filter(
+            (stage) => pipelineOutcomeForStage(stage) === outcomeView
+          ),
+    [stages, outcomeView, flat]
   );
+  const firstClosedIndex = useMemo(
+    () => ({
+      successful: visibleStages.findIndex(
+        (stage) => pipelineOutcomeForStage(stage) === 'successful'
+      ),
+      lost: visibleStages.findIndex(
+        (stage) => pipelineOutcomeForStage(stage) === 'lost'
+      ),
+    }),
+    [visibleStages]
+  );
+  const flatSections = useMemo<FlatSection[]>(
+    () =>
+      flat
+        ? visibleStages.map((stage, index) => ({
+            stage,
+            marker:
+              index === firstClosedIndex.successful
+                ? 'Closed won'
+                : index === firstClosedIndex.lost
+                  ? 'Lost'
+                  : null,
+            data: boardList.filter((d) => d.stage_id === stage.id),
+          }))
+        : [],
+    [flat, visibleStages, firstClosedIndex, boardList]
+  );
+  const sectionListRef = useRef<SectionList<Deal, FlatSection>>(null);
+  const jumpRef = useRef<{ sectionIndex: number; retries: number } | null>(
+    null
+  );
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      if (jumpRef.current) return;
+      const top = viewableItems.find((token) => token.section)?.section as
+        FlatSection | undefined;
+      if (top) setStageId(top.stage.id);
+    },
+    []
+  );
+
+  function scrollToSection(sectionIndex: number) {
+    sectionListRef.current?.scrollToLocation({
+      sectionIndex,
+      itemIndex: 0,
+      viewOffset: 0,
+      animated: true,
+    });
+  }
+
+  function jumpToStage(index: number) {
+    const stage = visibleStages[index];
+    if (!stage) return;
+    jumpRef.current = { sectionIndex: index, retries: 0 };
+    setStageId(stage.id);
+    scrollToSection(index);
+  }
   const visibleStageCounts = useMemo(
     () =>
       visibleStages.map(
@@ -259,7 +323,7 @@ export default function DealsScreen() {
       ),
     [visibleStages, boardList]
   );
-  const openingKey = `${activePipeline}:${outcomeView}`;
+  const openingKey = `${activePipeline}:${flat ? 'flat' : outcomeView}`;
   const [openingStage, setOpeningStage] = useState<{
     key: string;
     id: string;
@@ -281,14 +345,18 @@ export default function DealsScreen() {
     () => boardList.filter((d) => d.stage_id === activeStage),
     [boardList, activeStage]
   );
-  const stageValue = stageDeals.reduce((sum, d) => sum + (d.value ?? 0), 0);
-  const stageBrokerage = stageDeals.reduce(
-    (sum, deal) => sum + dealBrokerage(deal),
-    0
-  );
   const selectedStage = (stages ?? []).find(
     (stage) => stage.id === activeStage
   );
+
+  function chooseLayout(next: typeof boardLayout) {
+    if (next === boardLayout) return;
+    if (next === 'wheel' && selectedStage) {
+      setOutcomeView(pipelineOutcomeForStage(selectedStage));
+      setStageId(selectedStage.id);
+    }
+    setBoardLayout(next);
+  }
 
   async function moveDeal(
     deal: Deal,
@@ -347,8 +415,10 @@ export default function DealsScreen() {
       });
       return;
     }
-    setOutcomeView(pipelineOutcomeForStage(stage));
-    setStageId(stage.id);
+    if (!flat) {
+      setOutcomeView(pipelineOutcomeForStage(stage));
+      setStageId(stage.id);
+    }
     await Promise.all(
       DEAL_SAVED_QUERY_KEYS.map((queryKey) =>
         queryClient.invalidateQueries({ queryKey })
@@ -409,24 +479,17 @@ export default function DealsScreen() {
       />
 
       <View style={styles.outcomeRow}>
-        <FilterChip
-          label="Board"
-          active={segment === 'board'}
-          onPress={() => {
-            setSegment('board');
-            void focusQuery.refetch();
-          }}
-        />
-        <FilterChip
-          label="Journey"
-          active={segment === 'journey'}
-          onPress={() => setSegment('journey')}
-        />
-        <FilterChip
-          label="Records"
-          active={segment === 'records'}
-          onPress={() => setSegment('records')}
-        />
+        {DEALS_VIEWS.map((view) => (
+          <FilterChip
+            key={view.id}
+            label={view.label}
+            active={segment === view.id}
+            onPress={() => {
+              setSegment(view.id);
+              if (view.id === 'board') void focusQuery.refetch();
+            }}
+          />
+        ))}
       </View>
 
       {segment === 'journey' ? <JourneyBody /> : null}
@@ -462,27 +525,43 @@ export default function DealsScreen() {
       ) : null}
 
       {segment === 'board' ? (
-        <View
-          style={styles.outcomeRow}
-          accessibilityLabel="Deals shown on the board"
-        >
-          {BOARD_SCOPES.map((scope) => (
-            <FilterChip
-              key={scope.id}
-              label={`${scope.label} (${
-                scope.id === 'all' ? (deals?.length ?? 0) : focusDeals.length
-              })`}
-              active={boardScope === scope.id}
-              onPress={() => {
-                setBoardScope(scope.id);
-                setStageId(null);
-              }}
-            />
-          ))}
+        <View style={[styles.outcomeRow, styles.wrapRow]}>
+          <View
+            style={styles.chipGroup}
+            accessibilityLabel="Deals shown on the board"
+          >
+            {BOARD_SCOPES.map((scope) => (
+              <FilterChip
+                key={scope.id}
+                label={`${scope.label} (${
+                  scope.id === 'all' ? (deals?.length ?? 0) : focusDeals.length
+                })`}
+                active={boardScope === scope.id}
+                onPress={() => {
+                  setBoardScope(scope.id);
+                  setStageId(null);
+                }}
+              />
+            ))}
+          </View>
+          <View
+            style={[styles.chipGroup, styles.layoutToggle]}
+            accessibilityLabel="Board layout"
+          >
+            {BOARD_LAYOUTS.map((option) => (
+              <FilterChip
+                key={option.id}
+                label={option.label}
+                accessibilityLabel={option.hint}
+                active={boardLayout === option.id}
+                onPress={() => chooseLayout(option.id)}
+              />
+            ))}
+          </View>
         </View>
       ) : null}
 
-      {segment === 'board' ? (
+      {segment === 'board' && !flat ? (
         <View style={styles.outcomeRow}>
           {(
             [
@@ -507,7 +586,45 @@ export default function DealsScreen() {
         </View>
       ) : null}
 
-      {segment === 'board' && visibleStages.length > 0 ? (
+      {segment === 'board' && flat && visibleStages.length > 0 ? (
+        <View style={styles.header}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            accessibilityLabel="Pipeline stages"
+          >
+            <View style={styles.stageStrip}>
+              {visibleStages.map((stage, index) => {
+                const marker = flatSections[index]?.marker ?? null;
+                return (
+                  <Fragment key={stage.id}>
+                    {marker ? (
+                      <Text
+                        style={[
+                          styles.stageDivider,
+                          {
+                            color: colors.textFaint,
+                            borderLeftColor: colors.border,
+                          },
+                        ]}
+                      >
+                        {marker}
+                      </Text>
+                    ) : null}
+                    <FilterChip
+                      label={`${stage.name} (${visibleStageCounts[index]})`}
+                      active={stage.id === activeStage}
+                      onPress={() => jumpToStage(index)}
+                    />
+                  </Fragment>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {segment === 'board' && !flat && visibleStages.length > 0 ? (
         <StageWheel
           stages={visibleStages.map((s, index) => ({
             id: s.id,
@@ -520,12 +637,12 @@ export default function DealsScreen() {
         />
       ) : null}
 
-      {segment === 'board' && stageDeals.length > 0 ? (
+      {segment === 'board' && !flat && stageDeals.length > 0 ? (
         <Text style={[styles.stageSummary, { color: colors.textMuted }]}>
           {stageDeals.length} deal{stageDeals.length === 1 ? '' : 's'} ·{' '}
-          {selectedStage && isBrokeragePaidStage(selectedStage)
-            ? `Brokerage received ${formatInr(stageBrokerage)}`
-            : formatInr(stageValue)}
+          {stageTotalsLabel(stageTotals(stageDeals), {
+            paid: selectedStage ? isBrokeragePaidStage(selectedStage) : false,
+          })}
         </Text>
       ) : null}
 
@@ -553,6 +670,122 @@ export default function DealsScreen() {
           icon="trending-up-outline"
           title="No pipeline yet"
           subtitle="Create your first sales pipeline on the web app — deals will show up here."
+        />
+      ) : flat ? (
+        <SectionList<Deal, FlatSection>
+          ref={sectionListRef}
+          style={{ flex: 1 }}
+          sections={flatSections}
+          keyExtractor={(d) => d.id}
+          stickySectionHeadersEnabled
+          contentContainerStyle={{ paddingBottom: spacing.xxl }}
+          refreshControl={
+            <RefreshControl
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
+              tintColor={colors.primary}
+            />
+          }
+          onViewableItemsChanged={onViewableItemsChanged}
+          onScrollBeginDrag={() => {
+            jumpRef.current = null;
+          }}
+          onScrollToIndexFailed={(info) => {
+            const jump = jumpRef.current;
+            if (!jump || jump.retries >= 3) return;
+            jump.retries += 1;
+            sectionListRef.current?.getScrollResponder()?.scrollTo({
+              y: info.averageItemLength * info.index,
+              animated: false,
+            });
+            setTimeout(() => {
+              if (jumpRef.current === jump) scrollToSection(jump.sectionIndex);
+            }, 120);
+          }}
+          ListEmptyComponent={
+            <EmptyState
+              icon="file-tray-outline"
+              title="No stages in this pipeline"
+              subtitle="Add stages to the pipeline and its deals will show up here."
+            />
+          }
+          renderSectionHeader={({ section }) => {
+            const totals = stageTotalsLabel(stageTotals(section.data), {
+              paid: isBrokeragePaidStage(section.stage),
+            });
+            return (
+              <View
+                style={[
+                  styles.sectionHeader,
+                  { backgroundColor: colors.background },
+                ]}
+              >
+                {section.marker ? (
+                  <Text
+                    style={[
+                      styles.sectionDivider,
+                      {
+                        color: colors.textFaint,
+                        borderTopColor: colors.border,
+                      },
+                    ]}
+                  >
+                    {section.marker}
+                  </Text>
+                ) : null}
+                <View
+                  style={styles.sectionTitleRow}
+                  accessibilityRole="header"
+                  accessibilityLabel={`${section.stage.name}, ${section.data.length} deal${section.data.length === 1 ? '' : 's'}, ${totals}`}
+                >
+                  <View
+                    style={[
+                      styles.stageDot,
+                      {
+                        backgroundColor: section.stage.color || colors.primary,
+                      },
+                    ]}
+                  />
+                  <Text
+                    style={[styles.sectionTitle, { color: colors.text }]}
+                    numberOfLines={1}
+                  >
+                    {section.stage.name}
+                  </Text>
+                  <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+                    {section.data.length}
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    fontSize: 12.5,
+                    color:
+                      section.data.length === 0
+                        ? colors.textFaint
+                        : colors.textMuted,
+                  }}
+                >
+                  {totals}
+                </Text>
+              </View>
+            );
+          }}
+          renderItem={({ item, index, section }) => (
+            <EnterRow index={index}>
+              <DealCard
+                deal={item}
+                stage={section.stage}
+                onMove={() => setMovingDeal(item)}
+                onReopen={() => void reopenDeal(item)}
+                onEdit={() =>
+                  router.push({
+                    pathname: '/(app)/deal-edit',
+                    params: { id: item.id },
+                  })
+                }
+              />
+            </EnterRow>
+          )}
         />
       ) : (
         <FlatList
@@ -812,7 +1045,7 @@ function RecordsList({
             <Pressable
               onPress={() => router.push(`/deal/${item.id}`)}
               accessibilityRole="button"
-              accessibilityLabel={`Open the record for ${transactionTitle(item)}`}
+              accessibilityLabel={`Open the closing record for ${transactionTitle(item)}`}
               style={[
                 styles.card,
                 {
@@ -896,11 +1129,14 @@ function DealCard({
   onEdit: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
-  const contactName = deal.contact?.name || deal.contact?.phone;
+  const fullName = deal.contact ? contactFullName(deal.contact) : '';
+  const contactName = fullName || deal.contact?.phone;
   const brokeragePaid = stage ? isBrokeragePaidStage(stage) : false;
-  const indexRow = dealIndexRow(deal);
-  const headline = transactionTitle(indexRow);
-  const subtitle = transactionSubtitle(indexRow);
+  const { headline, subline } = dealCardCopy({
+    title: deal.title,
+    contact: { name: fullName || null },
+    property: deal.property ?? null,
+  });
 
   return (
     <View
@@ -918,18 +1154,29 @@ function DealCard({
         <View style={{ flex: 1 }}>
           <Text
             style={[styles.cardTitle, { color: colors.text }]}
-            numberOfLines={1}
+            numberOfLines={2}
           >
             {headline}
           </Text>
-          {subtitle ? (
+          {subline ? (
             <Text
               style={{ fontSize: 12.5, color: colors.textMuted }}
               numberOfLines={1}
             >
-              {subtitle}
+              {subline}
             </Text>
           ) : null}
+          {brokeragePaid ? null : (
+            <Text
+              style={{
+                fontSize: 12.5,
+                color:
+                  dealFee(deal) === null ? colors.textFaint : colors.textMuted,
+              }}
+            >
+              {dealFeeLabel(deal)}
+            </Text>
+          )}
         </View>
         <Text
           style={{
@@ -973,7 +1220,7 @@ function DealCard({
         <View style={styles.receiptRow}>
           <Ionicons name="checkmark-circle" size={15} color={colors.success} />
           <Text style={{ fontSize: 12.5, color: colors.success }}>
-            Brokerage received · {formatInr(dealBrokerage(deal))}
+            {dealFeeLabel(deal, { paid: true })}
             {deal.brokerage_paid_at
               ? ` · ${new Date(deal.brokerage_paid_at).toLocaleDateString([], {
                   day: 'numeric',
@@ -983,19 +1230,6 @@ function DealCard({
               : ''}
           </Text>
         </View>
-      ) : null}
-      {deal.property ? (
-        <Link href={`/(app)/property/${deal.property_id}`} asChild>
-          <Pressable style={styles.linkRow}>
-            <Ionicons name="home-outline" size={15} color={colors.textMuted} />
-            <Text
-              style={{ fontSize: 13.5, color: colors.textMuted }}
-              numberOfLines={1}
-            >
-              {deal.property.title}
-            </Text>
-          </Pressable>
-        </Link>
       ) : null}
 
       <View style={styles.cardBottom}>
@@ -1074,6 +1308,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
   },
+  wrapRow: { flexWrap: 'wrap', rowGap: spacing.sm },
+  chipGroup: { flexDirection: 'row', gap: spacing.sm },
+  layoutToggle: { marginLeft: 'auto' },
+  stageStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  stageDivider: {
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    borderLeftWidth: 1,
+    paddingLeft: spacing.sm,
+    marginLeft: spacing.xs,
+  },
+  sectionHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    gap: 2,
+  },
+  sectionDivider: {
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stageDot: { width: 10, height: 10, borderRadius: 5 },
+  sectionTitle: { flexShrink: 1, fontSize: 14.5, fontFamily: fonts.bold },
   stageSummary: {
     fontSize: 12.5,
     paddingHorizontal: spacing.lg,

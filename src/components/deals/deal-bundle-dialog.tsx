@@ -26,7 +26,7 @@ import {
   sameBuyerIds,
   type BundleCandidate,
 } from '@/lib/deals/bundles';
-import { formatIndianDigits } from '@/lib/invoices/pdf-text';
+import { formatDealAmount } from '@/lib/pipelines/deal-money';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
@@ -412,7 +412,7 @@ function BundleMembers({
                       </span>
                     </span>
                     <span className="shrink-0 text-sm font-semibold text-white">
-                      Rs. {formatIndianDigits(member.value ?? 0, 0)}
+                      {formatDealAmount(member.value)}
                     </span>
                   </>
                 );

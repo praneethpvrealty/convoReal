@@ -16,7 +16,7 @@ export const MENU_LINKS = {
   deals: {
     href: '/(app)/deals',
     icon: 'briefcase-outline',
-    label: 'Deals: board & records',
+    label: 'Deals: pipeline & closing records',
   },
   radar: { href: '/(app)/radar', icon: 'radio-outline', label: 'Match Radar' },
   guidanceValue: {

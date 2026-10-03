@@ -16,12 +16,13 @@ import {
   type TdsStatus,
   type TokenSource,
 } from '@/lib/deals/financials';
-import { formatIndianDigits } from '@/lib/invoices/pdf-text';
+import { equivalentPriceLabel } from '@/lib/format/currency';
+import { formatDealAmount } from '@/lib/pipelines/deal-money';
 
 import { DealCoBrokingPanel } from './deal-co-broking-panel';
 import { DealTranchesPanel } from './deal-tranches-panel';
 
-interface FinancialsResponse extends DealFinancials {
+export interface FinancialsResponse extends DealFinancials {
   token_source: TokenSource;
   token: {
     source: TokenSource;
@@ -165,6 +166,11 @@ function FinancialsForm({
         onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
         className="border-slate-700 bg-slate-950"
       />
+      {type === 'money' && equivalentPriceLabel(draft[key]) && (
+        <p className="mt-1 text-[11px] text-slate-400">
+          {equivalentPriceLabel(draft[key])}
+        </p>
+      )}
     </div>
   );
 
@@ -205,7 +211,7 @@ function FinancialsForm({
               <dt className="text-[11px] text-slate-500 uppercase">Amount</dt>
               <dd className="text-white">
                 {data.token.amount != null
-                  ? `Rs. ${formatIndianDigits(data.token.amount, 0)}`
+                  ? formatDealAmount(data.token.amount)
                   : data.token.status
                     ? `Escrow ${data.token.status}`
                     : 'Not yet'}

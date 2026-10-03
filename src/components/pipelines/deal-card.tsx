@@ -2,11 +2,16 @@
 
 import type { Deal, PipelineStage } from '@/types';
 import { Calendar, Check, X } from 'lucide-react';
-import { formatCurrency } from '@/lib/currency-utils';
-import { netOfPayouts } from '@/lib/deals/co-broking';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { isBrokeragePaidStage } from '@/lib/pipelines/stage-semantics';
 import { lostReasonLabel } from '@/lib/pipelines/lost-reasons';
+import {
+  dealCardCopy,
+  dealFee,
+  dealFeeLabel,
+  formatDealAmount,
+} from '@/lib/pipelines/deal-money';
+import { cn } from '@/lib/utils';
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', {
@@ -41,6 +46,9 @@ export function DealCard({
     deal.contact?.name || deal.contact?.phone || 'No contact';
   const assigneeLabel = deal.assignee?.full_name || null;
   const brokeragePaid = stage ? isBrokeragePaidStage(stage) : false;
+  const { headline, subline } = dealCardCopy(deal);
+  const dealCurrency = deal.currency || currency;
+  const feeSet = dealFee(deal) !== null;
 
   return (
     <button
@@ -66,9 +74,16 @@ export function DealCard({
       />
 
       <div className="flex items-start justify-between gap-2">
-        <h4 className="flex-1 text-sm leading-snug font-semibold break-words text-white">
-          {deal.title}
-        </h4>
+        <div className="min-w-0 flex-1">
+          <h4 className="line-clamp-2 text-sm leading-snug font-semibold break-words text-white">
+            {headline}
+          </h4>
+          {subline && (
+            <p className="mt-0.5 line-clamp-2 text-xs break-words text-slate-400">
+              {subline}
+            </p>
+          )}
+        </div>
         {deal.status === 'won' && (
           <span className="bg-primary/15 text-primary inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold">
             <Check className="h-3 w-3" />
@@ -85,7 +100,7 @@ export function DealCard({
 
       {/* Contact row */}
       <div className="mt-2 flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-700 text-[10px] font-semibold text-slate-200">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-700 text-[11px] font-semibold text-slate-200">
           {initials(deal.contact?.name, deal.contact?.phone ?? undefined)}
         </span>
         <span className="flex min-w-0 items-center gap-1 text-xs text-slate-400">
@@ -94,35 +109,21 @@ export function DealCard({
         </span>
       </div>
 
-      {deal.property && (
-        <div className="text-slate-450 mt-1.5 flex w-fit max-w-full items-center gap-1 rounded border border-slate-800/40 bg-slate-950/20 px-2 py-0.5 text-[11px]">
-          <span className="shrink-0 text-[10px] saturate-50 filter">🏡</span>
-          <span
-            className="text-slate-350 truncate font-medium"
-            title={deal.property.title}
-          >
-            {deal.property.title}
-          </span>
-        </div>
-      )}
-
       <div className="mt-2 flex items-center justify-between">
         <div className="flex flex-col">
           <span className="text-primary text-sm font-bold">
-            {formatCurrency(deal.value, deal.currency || currency)}
+            {formatDealAmount(deal.value, dealCurrency)}
           </span>
-          <span className="text-[10px] font-medium text-slate-400">
-            {brokeragePaid ? 'Brokerage received: ' : 'Fee: '}
-            {formatCurrency(
-              netOfPayouts(
-                deal.brokerage_amount !== null &&
-                  deal.brokerage_amount !== undefined
-                  ? Number(deal.brokerage_amount)
-                  : Number(deal.value || 0) * 0.02,
-                deal.co_broker_payout_total
-              ),
-              deal.currency || currency
+          <span
+            className={cn(
+              'text-[11px] font-medium',
+              feeSet ? 'text-slate-400' : 'text-slate-500'
             )}
+          >
+            {dealFeeLabel(deal, {
+              paid: brokeragePaid,
+              currency: dealCurrency,
+            })}
           </span>
         </div>
         {deal.expected_close_date && (
@@ -140,7 +141,7 @@ export function DealCard({
       )}
 
       {brokeragePaid && deal.brokerage_paid_at && (
-        <p className="mt-1 text-[10px] text-slate-500">
+        <p className="mt-1 text-[11px] text-slate-500">
           Paid {formatDate(deal.brokerage_paid_at)}
         </p>
       )}
@@ -149,7 +150,7 @@ export function DealCard({
         <div className="mt-2 flex items-center justify-end">
           <span
             title={assigneeLabel}
-            className="bg-primary/15 text-primary flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold"
+            className="bg-primary/15 text-primary flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold"
           >
             {initials(assigneeLabel)}
           </span>
