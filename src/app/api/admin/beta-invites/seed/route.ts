@@ -12,7 +12,8 @@
 // ============================================================
 
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { toErrorResponse } from "@/lib/auth/account";
+import { requirePlatformAdmin } from "@/lib/auth/platform-admin";
 
 import { inviteBaseUrl } from "@/lib/auth/invite-base-url";
 import {
@@ -20,35 +21,17 @@ import {
   betaInviteUrl,
   generateBetaInvite,
 } from "@/lib/beta/invites";
-import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 /** Bounded so a typo'd loop can't mint hundreds of live links. */
 const MAX_SEEDS_PER_CALL = 25;
 
-async function requireSuperAdmin(supabase: SupabaseClient) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false as const, status: 401, body: { error: "Unauthorized" } };
-  }
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (profile?.role !== "super_admin") {
-    return { ok: false as const, status: 403, body: { error: "Forbidden" } };
-  }
-  return { ok: true as const };
-}
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const guard = await requireSuperAdmin(supabase);
-  if (!guard.ok) {
-    return NextResponse.json(guard.body, { status: guard.status });
+  try {
+    await requirePlatformAdmin();
+  } catch (err) {
+    return toErrorResponse(err);
   }
 
   let labels: string[] = [];

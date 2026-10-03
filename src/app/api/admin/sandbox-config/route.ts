@@ -1,40 +1,18 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { toErrorResponse } from '@/lib/auth/account';
+import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
 import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
-async function checkAdminAuth(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return { authorized: false, status: 401, error: 'Unauthorized' };
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (profile?.role !== 'super_admin') {
-    return { authorized: false, status: 403, error: 'Forbidden' };
-  }
-
-  return { authorized: true, userId: user.id };
-}
 
 export async function GET() {
   try {
-    const supabase = await createClient();
-    const auth = await checkAdminAuth(supabase);
-    if (!auth.authorized) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
-
+    await requirePlatformAdmin();
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+  try {
     // Load sandbox config
     const { data: setting } = await supabaseAdmin()
       .from('system_settings')
@@ -81,12 +59,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const auth = await checkAdminAuth(supabase);
-    if (!auth.authorized) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
-
+    await requirePlatformAdmin();
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+  try {
     const body = await request.json();
     const {
       phone_number_id,

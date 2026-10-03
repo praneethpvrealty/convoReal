@@ -8,30 +8,13 @@
 // ============================================================
 
 import { NextResponse } from 'next/server';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { toErrorResponse } from '@/lib/auth/account';
+import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
 
-import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const WINDOW_DAYS = 30;
 
-async function requireSuperAdmin(supabase: SupabaseClient) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false as const, status: 401, body: { error: 'Unauthorized' } };
-  }
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (profile?.role !== 'super_admin') {
-    return { ok: false as const, status: 403, body: { error: 'Forbidden' } };
-  }
-  return { ok: true as const };
-}
 
 export interface CopilotUsageRow {
   event: string;
@@ -43,9 +26,11 @@ export interface CopilotUsageRow {
 }
 
 export async function GET() {
-  const supabase = await createClient();
-  const guard = await requireSuperAdmin(supabase);
-  if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status });
+  try {
+    await requirePlatformAdmin();
+  } catch (err) {
+    return toErrorResponse(err);
+  }
 
   const since = new Date(
     Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000

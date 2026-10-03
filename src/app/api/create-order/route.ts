@@ -1,21 +1,17 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { toErrorResponse, getCurrentAccount } from '@/lib/auth/account';
 import { createRazorpayOrder } from '@/lib/marketplace/razorpay';
 
 // POST /api/create-order
 // Request: { amount: number, currency?: string, receipt?: string }
 export async function POST(request: Request) {
+  let userId: string;
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    ({ userId } = await getCurrentAccount());
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+  try {
     const body = await request.json().catch(() => ({}));
     const amount = Number(body.amount); // in paise
     const currency = String(body.currency || 'INR');
@@ -34,7 +30,7 @@ export async function POST(request: Request) {
       currency,
       receipt,
       notes: {
-        user_id: user.id,
+        user_id: userId,
         source: 'standard_web_checkout',
       },
     });
