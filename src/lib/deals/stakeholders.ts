@@ -110,6 +110,19 @@ export function normalizePhone(raw: string): string | null {
   return digits;
 }
 
+/**
+ * A stored number for display: `+919833902005`. Rows written before
+ * numbers were normalised kept their own `+`, and prefixing another
+ * printed `++91…` on both surfaces. Mirrored in
+ * mobile/lib/deal-workspace.ts; guarded by mobile-parity.test.ts.
+ */
+export function formatStakeholderPhone(
+  phone: string | null | undefined
+): string | null {
+  const digits = (phone ?? '').replace(/\D/g, '');
+  return digits ? `+${digits}` : null;
+}
+
 export function parseStakeholderInput(
   raw: unknown
 ): ParseResult<StakeholderInput> {

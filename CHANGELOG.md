@@ -19,6 +19,32 @@ than a written entry. Newest first.
 
 #### 3 October 2026
 
+- **The Deals board reads as one funnel again.** Every stage sits in one
+  horizontal row, with the won and lost stages at the right edge, so an
+  agent can scan the pipeline without turning a carousel; a stage with no
+  deals folds to a narrow rail that still accepts a drop and opens on a
+  tap. The rotating wheel is still there behind a Flat / Wheel switch next
+  to Focus / All, and each device remembers the choice. Cards name the
+  property once and the buyer once instead of three times, every amount on
+  the board, the stat tiles and the records list prints the same way
+  (₹8.16 Cr, ₹75.05 L, ₹95,000), a deal with no brokerage recorded says
+  "Fee not set" instead of "Fee: ₹0", a stage header leads with the deals'
+  value and shows fees only once some are recorded, and the first stat
+  tile counts the deals the Focus / All switch is showing. Same on mobile,
+  where Flat lists every stage as chips in one row.
+- **A deal's closing record opens on where it stands, not on a form.**
+  Overview now shows the next milestone with a tick, the open tasks, the
+  latest timeline entry, the people on each side and a money summary
+  (deal value, brokerage, collected, outstanding, token, payment
+  schedule); the financial forms, payment schedule and co-broking moved
+  to a Money tab, and every amount field says what it means as you type
+  ("Equivalent to: ₹8.16 Crore"). The header's third tile shows what has
+  been collected and what is outstanding instead of a hypothetical half
+  share. Milestones are a checklist: tick the circle, and open a row's
+  options only when you need its status, visibility or due date. The
+  three Deals views are Pipeline, Journeys and Closing records on both
+  surfaces, the back link says Closing records, and a stakeholder's
+  number prints one plus sign.
 - **The dashboard no longer hides its own rows or reloads itself on
   every tab.** The AI Assistant button shrinks to an icon once you scroll
   and the Help pill is an icon, so the last rows of Re-engagement,

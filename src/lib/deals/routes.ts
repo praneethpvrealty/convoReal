@@ -7,20 +7,28 @@ export const DEALS_VIEWS: ReadonlyArray<{
 }> = [
   {
     id: 'board',
-    label: 'Board',
+    label: 'Pipeline',
     lede: 'Every deal on its pipeline stage. Drag a card to move it; a closing stage asks for brokerage first.',
   },
   {
     id: 'journey',
-    label: 'Journey',
+    label: 'Journeys',
     lede: "Each buyer's search as a map: what was shared, what was dropped, and what is still in the race.",
   },
   {
     id: 'records',
-    label: 'Records',
+    label: 'Closing records',
     lede: 'The closing record for every commercially active deal: milestones, timeline, papers, tasks and money.',
   },
 ];
+
+/** The one name every surface uses for a deal's closing record. */
+export const CLOSING_RECORD_LABEL = 'Closing record';
+export const CLOSING_RECORDS_LABEL = 'Closing records';
+
+export function dealsViewLabel(view: DealsView): string {
+  return DEALS_VIEWS.find((v) => v.id === view)?.label ?? 'Pipeline';
+}
 
 export function parseDealsView(value: string | null | undefined): DealsView {
   return DEALS_VIEWS.some((v) => v.id === value)
