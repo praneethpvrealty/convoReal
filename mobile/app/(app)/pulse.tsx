@@ -1,5 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+} from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -31,9 +35,14 @@ import { formatInr } from '@/lib/format';
 import {
   fetchPulseFeed,
   fetchPulseStats,
-  fetchPulseTopProperties,
-  type PulseTopProperty,
+  fetchPulseViewedListings,
 } from '@/lib/pulse';
+import {
+  DEFAULT_PULSE_LISTING_SORT,
+  PULSE_LISTING_SORTS,
+  type PulseListingSort,
+  type PulseViewedListing,
+} from '@shared/lib/pulse/viewed-listings';
 import {
   dedupeConsecutiveEvents,
   formatDwellTime,
@@ -83,6 +92,9 @@ export default function PulseScreen() {
   const [renderedListings, setRenderedListings] = useState(
     PULSE_LISTINGS_RENDER_STEP
   );
+  const [listingSort, setListingSort] = useState<PulseListingSort>(
+    DEFAULT_PULSE_LISTING_SORT
+  );
   const [viewersFor, setViewersFor] = useState<{
     id: string;
     title: string;
@@ -95,9 +107,10 @@ export default function PulseScreen() {
     retry: retryAnalyticsRequest,
   });
   const top = useQuery({
-    queryKey: ['pulse-top-properties'],
+    queryKey: ['pulse-viewed-listings', listingSort],
     enabled: Boolean(accountId),
-    queryFn: () => fetchPulseTopProperties(accountId!),
+    queryFn: () => fetchPulseViewedListings(accountId!, listingSort),
+    placeholderData: keepPreviousData,
     retry: retryAnalyticsRequest,
   });
   const feed = useInfiniteQuery({
@@ -195,6 +208,19 @@ export default function PulseScreen() {
                   : 'Viewed listings'
               }
             />
+            <View style={styles.filters}>
+              {PULSE_LISTING_SORTS.map((option) => (
+                <FilterChip
+                  key={option.key}
+                  label={option.label}
+                  active={listingSort === option.key}
+                  onPress={() => {
+                    setListingSort(option.key);
+                    setRenderedListings(PULSE_LISTINGS_RENDER_STEP);
+                  }}
+                />
+              ))}
+            </View>
             {top.isLoading ? (
               <InlineStatus text="Loading viewed listings…" loading />
             ) : top.isError ? (
@@ -211,7 +237,11 @@ export default function PulseScreen() {
             ) : (
               <ScrollView
                 nestedScrollEnabled
-                style={styles.listingScroller}
+                key={listingSort}
+                style={[
+                  styles.listingScroller,
+                  top.isPlaceholderData && { opacity: 0.6 },
+                ]}
                 contentContainerStyle={{ gap: spacing.sm }}
                 accessibilityLabel="Viewed listings"
                 scrollEventThrottle={100}
@@ -425,7 +455,7 @@ function TopListingCard({
   listing,
   onPress,
 }: {
-  listing: PulseTopProperty;
+  listing: PulseViewedListing;
   onPress: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
@@ -469,6 +499,9 @@ function TopListingCard({
           See viewers
         </Text>
       </View>
+      <Text style={{ fontSize: 11, color: colors.textFaint }}>
+        Last viewed {formatTimeAgo(listing.lastViewedAt)}
+      </Text>
     </PressScale>
   );
 }
