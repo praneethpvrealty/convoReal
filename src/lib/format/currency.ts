@@ -13,9 +13,18 @@ function trimZeros(n: number): string {
   return n.toFixed(2).replace(/\.?0+$/, '');
 }
 
-/** Whole rupees in Indian grouping: ₹12,34,567. */
-export function formatInrPlain(amount: number): string {
-  return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+/**
+ * Indian grouping with no scale word: ₹12,34,567. Whole rupees by
+ * default; pass `fractionDigits` for an amount whose paise matter,
+ * such as a cost per lead, and only the digits present are shown.
+ */
+export function formatInrPlain(amount: number, fractionDigits = 0): string {
+  if (fractionDigits === 0) {
+    return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+  }
+  return `₹${amount.toLocaleString('en-IN', {
+    maximumFractionDigits: fractionDigits,
+  })}`;
 }
 
 /**

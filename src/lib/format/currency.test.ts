@@ -31,6 +31,13 @@ describe('formatInrPlain', () => {
     expect(formatInrPlain(1234567.4)).toBe('₹12,34,567');
     expect(formatInrPlain(950)).toBe('₹950');
   });
+
+  it('keeps paise only when asked', () => {
+    expect(formatInrPlain(123.45, 2)).toBe('₹123.45');
+    expect(formatInrPlain(123.4, 2)).toBe('₹123.4');
+    expect(formatInrPlain(120, 2)).toBe('₹120');
+    expect(formatInrPlain(1234567.456, 2)).toBe('₹12,34,567.46');
+  });
 });
 
 describe('formatCurrency', () => {
