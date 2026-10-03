@@ -669,12 +669,12 @@
           ]
         },
         {
-          "id": "CTM-013",
+          "id": "CTM-014",
           "rule": "Every chip column on the web Contacts table (Areas, Categories, Tags) shows at most two chips on one line, deduplicated and with blanks dropped, and folds the rest into a \"+N\" whose tooltip names the hidden values in order, so every row stays one line tall.",
           "tests": [
             {
               "file": "src/lib/contacts/chip-overflow.test.ts",
-              "case": "[CTM-013]"
+              "case": "[CTM-014]"
             }
           ]
         }

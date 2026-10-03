@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { splitChips, TABLE_CHIP_CAP } from '@/lib/contacts/chip-overflow';
 
-describe('splitChips [CTM-013]', () => {
+describe('splitChips [CTM-014]', () => {
   it('shows the first two and names the rest in the overflow title', () => {
     const split = splitChips([
       '2nd block banashankari 6th stage',
