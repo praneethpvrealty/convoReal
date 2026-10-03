@@ -1,7 +1,13 @@
 // @vitest-environment happy-dom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type {
   ReengagementLead,
@@ -68,7 +74,11 @@ function summary(over: Partial<ReengagementSummary> = {}) {
   };
 }
 
-function setup(leads: ReengagementLead[], sum: ReengagementSummary) {
+function setup(
+  leads: ReengagementLead[],
+  sum: ReengagementSummary,
+  total = leads.length
+) {
   queries.loadReengagementBatches.mockResolvedValue(
     Array.from({ length: 6 }, (_, i) => ({
       broadcastId: `b${i}`,
@@ -81,7 +91,7 @@ function setup(leads: ReengagementLead[], sum: ReengagementSummary) {
   queries.loadReengagementSummary.mockResolvedValue(sum);
   queries.loadReengagementLeads.mockResolvedValue({
     leads,
-    total: leads.length,
+    total,
   });
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -93,11 +103,15 @@ function setup(leads: ReengagementLead[], sum: ReengagementSummary) {
   );
 }
 
-function rowOrder() {
+function lastLeadsRequest() {
+  return queries.loadReengagementLeads.mock.calls.at(-1)?.[2];
+}
+
+function sortOf(name: RegExp) {
   return screen
-    .getAllByRole('row')
-    .slice(1)
-    .map((row) => row.querySelector('a')?.textContent);
+    .getByRole('button', { name })
+    .closest('th')
+    ?.getAttribute('aria-sort');
 }
 
 afterEach(() => {
@@ -133,22 +147,105 @@ describe('ReengagementContent', () => {
         lead({
           contactId: 'a',
           contactName: 'Asha',
-          matchCount: 2,
           repliedAt: '2026-08-10T00:00:00Z',
         }),
-        lead({
-          contactId: 'b',
-          contactName: 'Bala',
-          matchCount: 9,
-          repliedAt: null,
-        }),
+        lead({ contactId: 'b', contactName: 'Bala', repliedAt: null }),
       ],
       summary({ leads: 2, matched: 2 })
     );
     await screen.findByText('Asha');
-    expect(screen.getByText('Last reply')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /Last reply/ })).toBeNull();
-    expect(rowOrder()).toEqual(['Asha', 'Bala']);
+    const cells = screen
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => row.querySelectorAll('td')[4]?.textContent);
+    expect(cells[0]).not.toBe('—');
+    expect(cells[1]).toBe('—');
+  });
+
+  it('asks the server for the standing batch order first', async () => {
+    setup([lead({})], summary());
+    await screen.findByText('Ajay');
+    expect(lastLeadsRequest()).toMatchObject({ sort: 'batch', page: 0 });
+    expect(sortOf(/Matches/)).toBe('none');
+    expect(sortOf(/Last reply/)).toBe('none');
+  });
+
+  it('sorts by matches on the server: descending, ascending, then back', async () => {
+    setup([lead({})], summary());
+    await screen.findByText('Ajay');
+
+    fireEvent.click(screen.getByRole('button', { name: /Matches/ }));
+    await waitFor(() =>
+      expect(lastLeadsRequest()).toMatchObject({ sort: 'matches_desc' })
+    );
+    expect(sortOf(/Matches/)).toBe('descending');
+    expect(sortOf(/Last reply/)).toBe('none');
+
+    fireEvent.click(screen.getByRole('button', { name: /Matches/ }));
+    await waitFor(() =>
+      expect(lastLeadsRequest()).toMatchObject({ sort: 'matches_asc' })
+    );
+    expect(sortOf(/Matches/)).toBe('ascending');
+
+    fireEvent.click(screen.getByRole('button', { name: /Matches/ }));
+    await waitFor(() =>
+      expect(lastLeadsRequest()).toMatchObject({ sort: 'batch' })
+    );
+    expect(sortOf(/Matches/)).toBe('none');
+  });
+
+  it('sorts by last reply on the server and clears the other column', async () => {
+    setup([lead({})], summary());
+    await screen.findByText('Ajay');
+
+    fireEvent.click(screen.getByRole('button', { name: /Matches/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Last reply/ }));
+    await waitFor(() =>
+      expect(lastLeadsRequest()).toMatchObject({ sort: 'replied_desc' })
+    );
+    expect(sortOf(/Last reply/)).toBe('descending');
+    expect(sortOf(/Matches/)).toBe('none');
+
+    fireEvent.click(screen.getByRole('button', { name: /Last reply/ }));
+    await waitFor(() =>
+      expect(lastLeadsRequest()).toMatchObject({ sort: 'replied_asc' })
+    );
+    expect(sortOf(/Last reply/)).toBe('ascending');
+  });
+
+  it('goes back to the first page when the sort changes', async () => {
+    setup([lead({})], summary({ leads: 250, matched: 10 }), 250);
+    await screen.findByText('Ajay');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() =>
+      expect(lastLeadsRequest()).toMatchObject({ sort: 'batch', page: 1 })
+    );
+    await screen.findByText('Page 2 of 3');
+
+    fireEvent.click(screen.getByRole('button', { name: /Last reply/ }));
+    await waitFor(() =>
+      expect(lastLeadsRequest()).toMatchObject({
+        sort: 'replied_desc',
+        page: 0,
+      })
+    );
+    await screen.findByText('Page 1 of 3');
+  });
+
+  it('keeps the header in place while a new order loads', async () => {
+    setup([lead({})], summary());
+    await screen.findByText('Ajay');
+    const header = screen.getByRole('button', { name: /Matches/ });
+
+    queries.loadReengagementLeads.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(header);
+
+    await waitFor(() =>
+      expect(lastLeadsRequest()).toMatchObject({ sort: 'matches_desc' })
+    );
+    expect(screen.getByRole('button', { name: /Matches/ })).toBe(header);
+    expect(screen.getByText('Ajay')).toBeTruthy();
   });
 
   it('hides the matched-only filter when every lead is matched', async () => {

@@ -1,9 +1,10 @@
 // Data layer for the portal-lead re-engagement outcome report.
 //
-// Every read goes through a SECURITY DEFINER RPC (migration 212) that
-// aggregates in SQL and names its account explicitly — the funnel spans
-// four tables and assembling it client-side would mean an unbounded
-// contact-id list in `.in()` filters.
+// Every read goes through a SECURITY DEFINER RPC (migration 212; the
+// leads sort in 20261003124115) that aggregates in SQL and names its
+// account explicitly — the funnel spans four tables and assembling it
+// client-side would mean an unbounded contact-id list in `.in()`
+// filters.
 //
 // `broadcastId` selects one batch; null spans every re-engagement batch
 // the account has ever sent, which is what the standing view shows.
@@ -14,6 +15,21 @@ type DB = SupabaseClient;
 
 /** Rows per page in the leads table. */
 export const LEADS_PAGE_SIZE = 100;
+
+/**
+ * Orders reengagement_leads accepts as p_sort. The function sorts the
+ * whole result before it paginates, so a sort chosen here holds across
+ * pages. 'batch' is the standing order: most actionable first.
+ */
+export const LEAD_SORTS = [
+  'batch',
+  'matches_desc',
+  'matches_asc',
+  'replied_desc',
+  'replied_asc',
+] as const;
+
+export type LeadSort = (typeof LEAD_SORTS)[number];
 
 export interface ReengagementSummary {
   batches: number;
@@ -145,6 +161,7 @@ export async function loadReengagementLeads(
   opts: {
     broadcastId?: string | null;
     onlyMatched?: boolean;
+    sort?: LeadSort;
     page?: number;
     pageSize?: number;
   } = {}
@@ -158,6 +175,7 @@ export async function loadReengagementLeads(
     p_only_matched: opts.onlyMatched ?? false,
     p_limit: pageSize,
     p_offset: page * pageSize,
+    p_sort: opts.sort ?? 'batch',
   });
   if (error) throw error;
 

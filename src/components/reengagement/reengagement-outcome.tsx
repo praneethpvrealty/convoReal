@@ -9,22 +9,35 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Loader2, Send, Users, Filter, MessageSquare } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Loader2,
+  Send,
+  Users,
+  Filter,
+  MessageSquare,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import {
   loadReengagementSummary,
   loadReengagementLeads,
   LEADS_PAGE_SIZE,
+  type LeadSort,
   type ReengagementLead,
 } from '@/lib/reengagement/queries';
 import {
   allLeadsMatched,
   funnelStages,
+  leadSortDirection,
   leadStage,
   maskPhoneLastFour,
+  nextLeadSort,
   requirementSummary,
   LEAD_STAGE_LABELS,
+  type LeadSortColumn,
   type LeadStage,
 } from '@/lib/reengagement/funnel';
 import { formatRelative } from '@/lib/format/date';
@@ -54,6 +67,7 @@ export function ReengagementOutcome({
 
   const [onlyMatched, setOnlyMatched] = useState(false);
   const [page, setPage] = useState(0);
+  const [sort, setSort] = useState<LeadSort>('batch');
   const [shortlistLead, setShortlistLead] = useState<ReengagementLead | null>(
     null
   );
@@ -71,12 +85,53 @@ export function ReengagementOutcome({
       accountId,
       broadcastId,
       onlyMatched,
+      sort,
       page,
     ],
     queryFn: () =>
-      loadReengagementLeads(db, accountId!, { broadcastId, onlyMatched, page }),
+      loadReengagementLeads(db, accountId!, {
+        broadcastId,
+        onlyMatched,
+        sort,
+        page,
+      }),
     enabled,
+    placeholderData: (prev) => prev,
   });
+
+  function sortHeader(column: LeadSortColumn, label: string) {
+    const direction = leadSortDirection(sort, column);
+    const Icon =
+      direction === 'desc'
+        ? ArrowDown
+        : direction === 'asc'
+          ? ArrowUp
+          : ArrowUpDown;
+    return (
+      <th
+        aria-sort={
+          direction === 'desc'
+            ? 'descending'
+            : direction === 'asc'
+              ? 'ascending'
+              : 'none'
+        }
+        className="px-3 py-2 text-left font-medium text-slate-400"
+      >
+        <button
+          type="button"
+          onClick={() => {
+            setSort(nextLeadSort(sort, column));
+            setPage(0);
+          }}
+          className="inline-flex cursor-pointer items-center gap-1 hover:text-slate-200"
+        >
+          {label}
+          <Icon className="size-3" />
+        </button>
+      </th>
+    );
+  }
 
   function refresh() {
     summaryQuery.refetch();
@@ -176,7 +231,12 @@ export function ReengagementOutcome({
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-800">
+        <div
+          aria-busy={leadsQuery.isPlaceholderData}
+          className={`overflow-x-auto rounded-xl border border-slate-800 transition-opacity ${
+            leadsQuery.isPlaceholderData ? 'opacity-60' : ''
+          }`}
+        >
           <table className="w-full min-w-[800px] text-xs">
             <thead>
               <tr className="bg-slate-800/60">
@@ -189,12 +249,8 @@ export function ReengagementOutcome({
                 <th className="px-3 py-2 text-left font-medium text-slate-400">
                   Latest requirement
                 </th>
-                <th className="px-3 py-2 text-left font-medium text-slate-400">
-                  Matches
-                </th>
-                <th className="px-3 py-2 text-left font-medium text-slate-400">
-                  Last reply
-                </th>
+                {sortHeader('matches', 'Matches')}
+                {sortHeader('replied', 'Last reply')}
                 <th className="px-3 py-2 text-right font-medium text-slate-400">
                   Action
                 </th>
