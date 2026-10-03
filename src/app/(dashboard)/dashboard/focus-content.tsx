@@ -38,7 +38,7 @@ import { cn } from '@/lib/utils';
 import { pushUrl } from '@/lib/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { TabSkeleton } from '@/components/dashboard/skeleton';
 import { JourneyEmbed } from '@/components/journey/journey-embed';
 import type {
   FocusJourney,
@@ -193,10 +193,6 @@ export default function FocusContent() {
     [tasks, completed]
   );
 
-  if (focusQuery.isLoading) {
-    return <ConvoRealLoader className="mx-auto my-20" />;
-  }
-
   if (focusQuery.isError) {
     return (
       <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-6 text-center">
@@ -250,299 +246,307 @@ export default function FocusContent() {
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <GistCard
-          id="tasks"
-          title="Tasks & visits"
-          icon={<ClipboardList className="size-4 text-emerald-400" />}
-          count={openTasks.length}
-          summary={
-            tasks
-              ? [
-                  `${tasks.visits} visit${tasks.visits === 1 ? '' : 's'}`,
-                  `${tasks.appointments} appointment${tasks.appointments === 1 ? '' : 's'}`,
-                  `${tasks.todos} to-do${tasks.todos === 1 ? '' : 's'}`,
-                  ...(tasks.overdue > 0 ? [`${tasks.overdue} overdue`] : []),
-                ].join(' · ')
-              : ''
-          }
-          expanded={expanded.has('tasks')}
-          onToggle={() => toggle('tasks')}
-          emptyText="Nothing scheduled — the day is yours."
-        >
-          {openTasks.slice(0, 3).map((task) => (
-            <TaskLine key={task.id} task={task} />
-          ))}
-        </GistCard>
-
-        <GistCard
-          id="deadlines"
-          title="Deal deadlines"
-          icon={<CalendarClock className="size-4 text-amber-400" />}
-          count={deadlineSummary.total}
-          summary={
-            deadlineSummary.total
-              ? [
-                  ...(deadlineSummary.overdue > 0
-                    ? [`${deadlineSummary.overdue} overdue`]
-                    : []),
-                  ...(deadlineSummary.dueToday > 0
-                    ? [`${deadlineSummary.dueToday} today`]
-                    : []),
-                  ...(deadlineSummary.soon > 0
-                    ? [`${deadlineSummary.soon} in the next two weeks`]
-                    : []),
-                ].join(' · ')
-              : ''
-          }
-          expanded={expanded.has('deadlines')}
-          onToggle={() => toggle('deadlines')}
-          emptyText="No deal date is due in the next two weeks."
-        >
-          {deadlineGroups.slice(0, 3).map((d) => (
-            <DeadlineLine key={d.dealId} deadline={d} />
-          ))}
-        </GistCard>
-
-        <GistCard
-          id="journeys"
-          title="Top journeys"
-          icon={<Waypoints className="size-4 text-violet-400" />}
-          count={journeys?.all.length ?? 0}
-          summary={
-            journeys?.all.length
-              ? `${journeys.all.length} live journey${journeys.all.length === 1 ? '' : 's'} · ranked by priority, then how close to closing`
-              : ''
-          }
-          expanded={expanded.has('journeys')}
-          onToggle={() => toggle('journeys')}
-          emptyText="No live journeys yet. Add one from a contact or a listing."
-        >
-          {(journeys?.top ?? []).map((journey) => (
-            <JourneyLine
-              key={`${journey.mode}:${journey.subjectId}`}
-              journey={journey}
-            />
-          ))}
-        </GistCard>
-
-        <GistCard
-          id="requests"
-          title="Requests to act on"
-          icon={<Sparkles className="size-4 text-sky-400" />}
-          count={requestsNow}
-          empty={!requests?.all.length}
-          summary={
-            requests?.all.length
-              ? [
-                  `${requestsNow} needing an answer now`,
-                  `${requests.all.length} open in total`,
-                  ...(requestsStale > 0
-                    ? [`${requestsStale} waiting over 3 days`]
-                    : []),
-                ].join(' · ')
-              : ''
-          }
-          expanded={expanded.has('requests')}
-          onToggle={() => toggle('requests')}
-          emptyText="Nobody is waiting on you."
-        >
-          {(requests?.top ?? []).map((request) => (
-            <RequestLine key={request.id} request={request} />
-          ))}
-        </GistCard>
-      </div>
-
-      {expanded.has('tasks') && (
-        <Panel
-          title="Tasks & visits"
-          subtitle="Everything due today, plus anything that slipped from an earlier day."
-          onOpenFull={() => pushUrl(router, '/calendar')}
-          openLabel="Open calendar"
-        >
-          {openTasks.length === 0 ? (
-            <EmptyPanel text="Nothing left for today." />
-          ) : (
-            <div className="flex flex-col gap-2">
-              {openTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3.5"
-                >
-                  <div className="mt-0.5 shrink-0">
-                    {task.kind === 'appointment' ? (
-                      <CalendarDays className="size-4 text-emerald-400" />
-                    ) : (
-                      <ClipboardList className="size-4 text-sky-400" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-white">
-                      {task.title}
-                    </p>
-                    <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
-                      {[
-                        timeChip(task.at),
-                        task.location,
-                        task.contact?.name,
-                        task.property?.name,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
-                  </div>
-                  {task.overdue && (
-                    <span className="shrink-0 rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-300">
-                      Overdue
-                    </span>
-                  )}
-                  {task.kind === 'todo' && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => completeTodo(task)}
-                      className="h-7 shrink-0 cursor-pointer rounded-lg px-2 text-[11px] font-bold text-slate-400 hover:text-emerald-300"
-                    >
-                      <Check className="size-3.5" />
-                      Done
-                    </Button>
-                  )}
-                </div>
+      {focusQuery.isPending ? (
+        <TabSkeleton label="Loading Focus" tiles={4} cards={1} />
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <GistCard
+              id="tasks"
+              title="Tasks & visits"
+              icon={<ClipboardList className="size-4 text-emerald-400" />}
+              count={openTasks.length}
+              summary={
+                tasks
+                  ? [
+                      `${tasks.visits} visit${tasks.visits === 1 ? '' : 's'}`,
+                      `${tasks.appointments} appointment${tasks.appointments === 1 ? '' : 's'}`,
+                      `${tasks.todos} to-do${tasks.todos === 1 ? '' : 's'}`,
+                      ...(tasks.overdue > 0
+                        ? [`${tasks.overdue} overdue`]
+                        : []),
+                    ].join(' · ')
+                  : ''
+              }
+              expanded={expanded.has('tasks')}
+              onToggle={() => toggle('tasks')}
+              emptyText="Nothing scheduled — the day is yours."
+            >
+              {openTasks.slice(0, 3).map((task) => (
+                <TaskLine key={task.id} task={task} />
               ))}
-            </div>
-          )}
-        </Panel>
-      )}
+            </GistCard>
 
-      {expanded.has('deadlines') && (
-        <Panel
-          title="Deal deadlines"
-          subtitle="Milestone target dates and expected close dates on live deals. Open a record to move the date or tick the milestone."
-          onOpenFull={() => pushUrl(router, '/deals?view=records')}
-          openLabel="Open records"
-        >
-          {deadlineGroups.length === 0 ? (
-            <EmptyPanel text="Nothing is due in the next two weeks." />
-          ) : (
-            <div className="flex flex-col gap-2">
-              {deadlineGroups.map((d) => (
-                <button
-                  key={d.dealId}
-                  type="button"
-                  onClick={() => pushUrl(router, `/deals/${d.dealId}`)}
-                  className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3.5 text-left transition-colors hover:border-slate-600"
-                >
-                  <div className="mt-0.5 shrink-0">
-                    <CalendarClock className="size-4 text-amber-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-white">
-                      {d.subject}
-                    </p>
-                    <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
-                      {d.titles.join(' · ')} · {d.dueDate}
-                    </p>
-                  </div>
-                  <span
-                    className={cn(
-                      'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold',
-                      d.urgency === 'overdue'
-                        ? URGENCY_CLASS.now
-                        : d.urgency === 'today'
-                          ? URGENCY_CLASS.soon
-                          : URGENCY_CLASS.later
-                    )}
-                  >
-                    {deadlineLabel(d.daysLeft)}
-                  </span>
-                </button>
+            <GistCard
+              id="deadlines"
+              title="Deal deadlines"
+              icon={<CalendarClock className="size-4 text-amber-400" />}
+              count={deadlineSummary.total}
+              summary={
+                deadlineSummary.total
+                  ? [
+                      ...(deadlineSummary.overdue > 0
+                        ? [`${deadlineSummary.overdue} overdue`]
+                        : []),
+                      ...(deadlineSummary.dueToday > 0
+                        ? [`${deadlineSummary.dueToday} today`]
+                        : []),
+                      ...(deadlineSummary.soon > 0
+                        ? [`${deadlineSummary.soon} in the next two weeks`]
+                        : []),
+                    ].join(' · ')
+                  : ''
+              }
+              expanded={expanded.has('deadlines')}
+              onToggle={() => toggle('deadlines')}
+              emptyText="No deal date is due in the next two weeks."
+            >
+              {deadlineGroups.slice(0, 3).map((d) => (
+                <DeadlineLine key={d.dealId} deadline={d} />
               ))}
-            </div>
-          )}
-        </Panel>
-      )}
+            </GistCard>
 
-      {expanded.has('journeys') && (
-        <Panel
-          title="Top journeys"
-          subtitle="Pick one to open its map here — advance, drop and plan without leaving Focus."
-          onOpenFull={() => pushUrl(router, '/journey')}
-          openLabel="Open all journeys"
-        >
-          {(journeys?.top ?? []).length === 0 ? (
-            <EmptyPanel text="No live journeys to rank yet." />
-          ) : (
-            <div className="flex flex-col gap-3">
-              {(journeys?.top ?? []).map((journey) => {
-                const key = `${journey.mode}:${journey.subjectId}`;
-                const open = openJourney === key;
-                return (
-                  <div
-                    key={key}
-                    className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setOpenJourney(open ? null : key)}
-                      className="flex w-full cursor-pointer items-center gap-3 p-3.5 text-left hover:bg-slate-900/40"
-                    >
-                      {journey.mode === 'buyer' ? (
-                        <UserRound className="size-4 shrink-0 text-sky-400" />
-                      ) : (
-                        <Building2 className="size-4 shrink-0 text-violet-400" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-white">
-                          {journey.subject.name}
-                        </p>
-                        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
-                          {journey.reason}
-                        </p>
-                      </div>
-                      <ChevronDown
-                        className={cn(
-                          'size-4 shrink-0 text-slate-500 transition-transform',
-                          open && 'rotate-180'
-                        )}
-                      />
-                    </button>
-                    {open && (
-                      <div className="border-t border-slate-800 p-3">
-                        <JourneyEmbed
-                          mode={journey.mode}
-                          subjectId={journey.subjectId}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Panel>
-      )}
-
-      {expanded.has('requests') && (
-        <Panel
-          title="Requests to act on"
-          subtitle="Offers, listing submissions, property inquiries and Radar matches, ranked together."
-          onOpenFull={() => pushUrl(router, '/dashboard?tab=radar')}
-          openLabel="Open Match Radar"
-        >
-          {(requests?.all ?? []).length === 0 ? (
-            <EmptyPanel text="Nothing inbound is waiting." />
-          ) : (
-            <div className="flex flex-col gap-2">
-              {(requests?.all ?? []).map((request) => (
-                <RequestRow
-                  key={request.id}
-                  request={request}
-                  onOpen={() => pushUrl(router, request.href)}
+            <GistCard
+              id="journeys"
+              title="Top journeys"
+              icon={<Waypoints className="size-4 text-violet-400" />}
+              count={journeys?.all.length ?? 0}
+              summary={
+                journeys?.all.length
+                  ? `${journeys.all.length} live journey${journeys.all.length === 1 ? '' : 's'} · ranked by priority, then how close to closing`
+                  : ''
+              }
+              expanded={expanded.has('journeys')}
+              onToggle={() => toggle('journeys')}
+              emptyText="No live journeys yet. Add one from a contact or a listing."
+            >
+              {(journeys?.top ?? []).map((journey) => (
+                <JourneyLine
+                  key={`${journey.mode}:${journey.subjectId}`}
+                  journey={journey}
                 />
               ))}
-            </div>
+            </GistCard>
+
+            <GistCard
+              id="requests"
+              title="Requests to act on"
+              icon={<Sparkles className="size-4 text-sky-400" />}
+              count={requestsNow}
+              empty={!requests?.all.length}
+              summary={
+                requests?.all.length
+                  ? [
+                      `${requestsNow} needing an answer now`,
+                      `${requests.all.length} open in total`,
+                      ...(requestsStale > 0
+                        ? [`${requestsStale} waiting over 3 days`]
+                        : []),
+                    ].join(' · ')
+                  : ''
+              }
+              expanded={expanded.has('requests')}
+              onToggle={() => toggle('requests')}
+              emptyText="Nobody is waiting on you."
+            >
+              {(requests?.top ?? []).map((request) => (
+                <RequestLine key={request.id} request={request} />
+              ))}
+            </GistCard>
+          </div>
+
+          {expanded.has('tasks') && (
+            <Panel
+              title="Tasks & visits"
+              subtitle="Everything due today, plus anything that slipped from an earlier day."
+              onOpenFull={() => pushUrl(router, '/calendar')}
+              openLabel="Open calendar"
+            >
+              {openTasks.length === 0 ? (
+                <EmptyPanel text="Nothing left for today." />
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {openTasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3.5"
+                    >
+                      <div className="mt-0.5 shrink-0">
+                        {task.kind === 'appointment' ? (
+                          <CalendarDays className="size-4 text-emerald-400" />
+                        ) : (
+                          <ClipboardList className="size-4 text-sky-400" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-white">
+                          {task.title}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
+                          {[
+                            timeChip(task.at),
+                            task.location,
+                            task.contact?.name,
+                            task.property?.name,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </p>
+                      </div>
+                      {task.overdue && (
+                        <span className="shrink-0 rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-300">
+                          Overdue
+                        </span>
+                      )}
+                      {task.kind === 'todo' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => completeTodo(task)}
+                          className="h-7 shrink-0 cursor-pointer rounded-lg px-2 text-[11px] font-bold text-slate-400 hover:text-emerald-300"
+                        >
+                          <Check className="size-3.5" />
+                          Done
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Panel>
           )}
-        </Panel>
+
+          {expanded.has('deadlines') && (
+            <Panel
+              title="Deal deadlines"
+              subtitle="Milestone target dates and expected close dates on live deals. Open a record to move the date or tick the milestone."
+              onOpenFull={() => pushUrl(router, '/deals?view=records')}
+              openLabel="Open records"
+            >
+              {deadlineGroups.length === 0 ? (
+                <EmptyPanel text="Nothing is due in the next two weeks." />
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {deadlineGroups.map((d) => (
+                    <button
+                      key={d.dealId}
+                      type="button"
+                      onClick={() => pushUrl(router, `/deals/${d.dealId}`)}
+                      className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3.5 text-left transition-colors hover:border-slate-600"
+                    >
+                      <div className="mt-0.5 shrink-0">
+                        <CalendarClock className="size-4 text-amber-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-white">
+                          {d.subject}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
+                          {d.titles.join(' · ')} · {d.dueDate}
+                        </p>
+                      </div>
+                      <span
+                        className={cn(
+                          'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold',
+                          d.urgency === 'overdue'
+                            ? URGENCY_CLASS.now
+                            : d.urgency === 'today'
+                              ? URGENCY_CLASS.soon
+                              : URGENCY_CLASS.later
+                        )}
+                      >
+                        {deadlineLabel(d.daysLeft)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Panel>
+          )}
+
+          {expanded.has('journeys') && (
+            <Panel
+              title="Top journeys"
+              subtitle="Pick one to open its map here — advance, drop and plan without leaving Focus."
+              onOpenFull={() => pushUrl(router, '/journey')}
+              openLabel="Open all journeys"
+            >
+              {(journeys?.top ?? []).length === 0 ? (
+                <EmptyPanel text="No live journeys to rank yet." />
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {(journeys?.top ?? []).map((journey) => {
+                    const key = `${journey.mode}:${journey.subjectId}`;
+                    const open = openJourney === key;
+                    return (
+                      <div
+                        key={key}
+                        className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setOpenJourney(open ? null : key)}
+                          className="flex w-full cursor-pointer items-center gap-3 p-3.5 text-left hover:bg-slate-900/40"
+                        >
+                          {journey.mode === 'buyer' ? (
+                            <UserRound className="size-4 shrink-0 text-sky-400" />
+                          ) : (
+                            <Building2 className="size-4 shrink-0 text-violet-400" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold text-white">
+                              {journey.subject.name}
+                            </p>
+                            <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
+                              {journey.reason}
+                            </p>
+                          </div>
+                          <ChevronDown
+                            className={cn(
+                              'size-4 shrink-0 text-slate-500 transition-transform',
+                              open && 'rotate-180'
+                            )}
+                          />
+                        </button>
+                        {open && (
+                          <div className="border-t border-slate-800 p-3">
+                            <JourneyEmbed
+                              mode={journey.mode}
+                              subjectId={journey.subjectId}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Panel>
+          )}
+
+          {expanded.has('requests') && (
+            <Panel
+              title="Requests to act on"
+              subtitle="Offers, listing submissions, property inquiries and Radar matches, ranked together."
+              onOpenFull={() => pushUrl(router, '/dashboard?tab=radar')}
+              openLabel="Open Match Radar"
+            >
+              {(requests?.all ?? []).length === 0 ? (
+                <EmptyPanel text="Nothing inbound is waiting." />
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {(requests?.all ?? []).map((request) => (
+                    <RequestRow
+                      key={request.id}
+                      request={request}
+                      onOpen={() => pushUrl(router, request.href)}
+                    />
+                  ))}
+                </div>
+              )}
+            </Panel>
+          )}
+        </>
       )}
     </div>
   );
