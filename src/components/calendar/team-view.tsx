@@ -166,7 +166,7 @@ export function TeamView({
                   {laneEvents.length === 0 ? (
                     <button
                       onClick={() => onSlotClick(selectedDate, m.user_id)}
-                      className="hover:border-primary/40 hover:text-primary rounded-lg border border-dashed border-slate-800 px-3 py-1.5 text-[10px] text-slate-500 transition-colors"
+                      className="hover:border-primary/40 hover:text-primary rounded-lg border border-dashed border-slate-800 px-3 py-1.5 text-[11px] text-slate-500 transition-colors"
                     >
                       + Schedule for {m.full_name?.split(' ')[0] || 'member'}
                     </button>
@@ -179,7 +179,7 @@ export function TeamView({
                             key={ev.id}
                             onClick={() => onEventClick(ev)}
                             className={cn(
-                              'inline-flex max-w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-semibold transition-colors',
+                              'inline-flex max-w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors',
                               meta.chip,
                               ev.status === 'cancelled' &&
                                 'line-through opacity-50',
@@ -208,7 +208,7 @@ export function TeamView({
                       <button
                         onClick={() => onSlotClick(selectedDate, m.user_id)}
                         aria-label="Add event for member"
-                        className="hover:border-primary/40 hover:text-primary rounded-lg border border-dashed border-slate-800 px-2 py-1 text-[10px] text-slate-500 transition-colors"
+                        className="hover:border-primary/40 hover:text-primary rounded-lg border border-dashed border-slate-800 px-2 py-1 text-[11px] text-slate-500 transition-colors"
                       >
                         +
                       </button>

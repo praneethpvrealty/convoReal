@@ -5,6 +5,7 @@ import type { DealDeadline } from '@/lib/deals/deadlines';
 import {
   DEAL_DATE_HORIZON_DAYS,
   DEAL_DATE_KIND_LABELS,
+  dealDateChipLabel,
   dealDateHref,
   dealDatesForMember,
   dealDateKey,
@@ -149,5 +150,32 @@ describe('[CAL-008] deal dates on the calendar', () => {
       payment: 'Payment due',
       expected_close: 'Expected close',
     });
+  });
+
+  it('names the deal on the chip so two dates on one day read apart', () => {
+    expect(dealDateChipLabel(deadline({}))).toBe(
+      'Registration scheduled · Adithi — Property No. 19'
+    );
+    expect(
+      dealDateChipLabel(
+        deadline({
+          kind: 'expected_close',
+          milestoneId: null,
+          title: 'Expected close',
+          subject: 'Sidharth Mahesh kumar — #20, 2400 Sqft Commercial Plot',
+        })
+      )
+    ).toBe(
+      'Expected close · Sidharth Mahesh kumar — #20, 2400 Sqft Commercial Plot'
+    );
+  });
+
+  it('falls back to the bare title when the deal has no subject', () => {
+    expect(dealDateChipLabel(deadline({ subject: '' }))).toBe(
+      'Registration scheduled'
+    );
+    expect(dealDateChipLabel(deadline({ subject: '   ' }))).toBe(
+      'Registration scheduled'
+    );
   });
 });
