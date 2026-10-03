@@ -24,11 +24,7 @@ export type FlowKind = (typeof FLOW_KINDS)[number];
  * - `none`     — deliberately nothing on WhatsApp.
  */
 export type PlaybookAction =
-  | 'matches'
-  | 'note'
-  | 'handoff'
-  | 'checkin'
-  | 'none';
+  'matches' | 'note' | 'handoff' | 'checkin' | 'none';
 
 export interface PlaybookEntry {
   action: PlaybookAction;

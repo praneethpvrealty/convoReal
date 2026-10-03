@@ -52,7 +52,7 @@ export function stampFor(
   name: string,
   metaLanguage: string,
   content: { body_text: string; footer_text?: string | null },
-  previous?: string | null,
+  previous?: string | null
 ): string | null {
   const key = engineCopyKey(name);
   if (!key) return null;

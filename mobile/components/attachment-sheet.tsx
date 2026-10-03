@@ -66,14 +66,24 @@ export function AttachmentSheet({
             android_ripple={{ color: colors.border }}
             style={styles.row}
           >
-            <View style={[styles.icon, { backgroundColor: colors.primarySoft }]}>
+            <View
+              style={[styles.icon, { backgroundColor: colors.primarySoft }]}
+            >
               <Ionicons name={choice.icon} size={20} color={colors.primary} />
             </View>
             <View style={{ flex: 1, gap: 1 }}>
-              <Text style={{ fontSize: 15, fontFamily: f.semibold, color: colors.text }}>
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontFamily: f.semibold,
+                  color: colors.text,
+                }}
+              >
                 {choice.label}
               </Text>
-              <Text style={{ fontSize: 12, color: colors.textMuted }}>{choice.hint}</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                {choice.hint}
+              </Text>
             </View>
           </Pressable>
         ))}

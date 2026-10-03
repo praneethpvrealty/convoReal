@@ -1,21 +1,16 @@
-"use client";
+'use client';
 
-import { useMemo, createElement } from "react";
-import type { Deal, PipelineStage } from "@/types";
-import {
-  BarChart3,
-  Trophy,
-  XCircle,
-  Info,
-} from "lucide-react";
+import { useMemo, createElement } from 'react';
+import type { Deal, PipelineStage } from '@/types';
+import { BarChart3, Trophy, XCircle, Info } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { getCurrencyIcon, formatCurrency } from "@/lib/currency-utils";
-import { netOfPayouts } from "@/lib/deals/co-broking";
+} from '@/components/ui/tooltip';
+import { getCurrencyIcon, formatCurrency } from '@/lib/currency-utils';
+import { netOfPayouts } from '@/lib/deals/co-broking';
 
 interface PipelineAnalyticsProps {
   stages: PipelineStage[];
@@ -30,7 +25,7 @@ interface PipelineAnalyticsProps {
  */
 function computeStageProbability(
   stage: PipelineStage,
-  sortedStages: PipelineStage[],
+  sortedStages: PipelineStage[]
 ): number {
   const n = sortedStages.length;
   if (n <= 1) return 1;
@@ -43,15 +38,19 @@ function computeStageProbability(
   return 0.1 + t * (0.9 - 0.1);
 }
 
-export function PipelineAnalytics({ stages, deals, currency = "INR" }: PipelineAnalyticsProps) {
+export function PipelineAnalytics({
+  stages,
+  deals,
+  currency = 'INR',
+}: PipelineAnalyticsProps) {
   const sortedStages = useMemo(
     () => [...stages].sort((a, b) => a.position - b.position),
-    [stages],
+    [stages]
   );
 
   const stats = useMemo(() => {
-    const active = deals.filter((d) => d.status !== "lost");
-    const openDeals = active.filter((d) => d.status !== "won");
+    const active = deals.filter((d) => d.status !== 'lost');
+    const openDeals = active.filter((d) => d.status !== 'won');
 
     const totalCount = active.length;
     const totalValue = active.reduce((sum, d) => {
@@ -86,10 +85,10 @@ export function PipelineAnalytics({ stages, deals, currency = "INR" }: PipelineA
       return ts ? new Date(ts) >= monthStart : false;
     };
     const wonThisMonth = deals.filter(
-      (d) => d.status === "won" && thisMonth(d),
+      (d) => d.status === 'won' && thisMonth(d)
     ).length;
     const lostThisMonth = deals.filter(
-      (d) => d.status === "lost" && thisMonth(d),
+      (d) => d.status === 'lost' && thisMonth(d)
     ).length;
 
     return {
@@ -112,25 +111,31 @@ export function PipelineAnalytics({ stages, deals, currency = "INR" }: PipelineA
           tooltip="Count of every deal in this pipeline that isn't marked as Lost. Won deals are still included."
         />
         <Metric
-          icon={createElement(getCurrencyIcon(currency), { className: "h-4 w-4 text-primary" })}
+          icon={createElement(getCurrencyIcon(currency), {
+            className: 'h-4 w-4 text-primary',
+          })}
           label="Expected Revenue"
           value={formatCurrency(stats.totalValue, currency)}
           tooltip="Sum of expected brokerage commission across all active deals in this pipeline (actual brokerage configured or 2% fallback)."
         />
         <Metric
-          icon={createElement(getCurrencyIcon(currency), { className: "h-4 w-4 text-blue-400" })}
+          icon={createElement(getCurrencyIcon(currency), {
+            className: 'h-4 w-4 text-blue-400',
+          })}
           label="Avg Brokerage"
           value={formatCurrency(stats.avgValue, currency)}
           tooltip="Expected revenue divided by Total Deals — the average brokerage value of a single non-lost deal."
         />
         <Metric
-          icon={createElement(getCurrencyIcon(currency), { className: "h-4 w-4 text-purple-400" })}
+          icon={createElement(getCurrencyIcon(currency), {
+            className: 'h-4 w-4 text-purple-400',
+          })}
           label="Weighted Revenue"
           value={formatCurrency(stats.weightedValue, currency)}
           tooltip="Expected brokerage revenue: each open deal's brokerage value × its stage probability. First stage ≈ 10%, stages progress up to 90%, Won = 100%. Lost deals are excluded."
         />
         <Metric
-          icon={<Trophy className="h-4 w-4 text-primary" />}
+          icon={<Trophy className="text-primary h-4 w-4" />}
           label="Won This Month"
           value={String(stats.wonThisMonth)}
           tooltip="Deals marked as Won since the first day of the current month."
@@ -159,7 +164,7 @@ function Metric({
 }) {
   return (
     <div className="rounded-lg bg-slate-800/50 p-3">
-      <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">
+      <div className="flex items-center gap-1.5 text-[10px] font-medium tracking-wider text-slate-400 uppercase">
         {icon}
         <span>{label}</span>
         <Tooltip>

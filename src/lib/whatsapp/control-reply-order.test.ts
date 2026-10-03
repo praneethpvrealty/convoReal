@@ -21,7 +21,9 @@ const source = readFileSync(
 );
 
 describe('webhook control-reply dispatch order', () => {
-  const controlDispatch = source.indexOf('if (isControlReply && interactiveReplyId) {');
+  const controlDispatch = source.indexOf(
+    'if (isControlReply && interactiveReplyId) {'
+  );
   const bridge = source.indexOf('const bridged = isControlReply');
   const ownerChatbot = source.indexOf('processOwnerChatbotMessage(');
 

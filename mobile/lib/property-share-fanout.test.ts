@@ -114,7 +114,9 @@ describe('lead photo', () => {
     );
 
     expect(bodies).toHaveLength(3);
-    expect(bodies.every((b) => b.header_image === 'property-images/acc-1/plan.jpg')).toBe(true);
+    expect(
+      bodies.every((b) => b.header_image === 'property-images/acc-1/plan.jpg')
+    ).toBe(true);
 
     bodies.length = 0;
     await sendPropertyViaEngineMany(contacts(1), property, () => 'hi');

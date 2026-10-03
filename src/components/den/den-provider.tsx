@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 // ============================================================
 // Owners Den — client-side session context.
@@ -12,11 +12,17 @@
 //   3. loads /api/den/me into context for the shell + pages
 // ============================================================
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
+import { useRouter } from 'next/navigation';
 
-import { createClient } from "@/lib/supabase/client";
-import { reloadTo } from "@/lib/navigation";
+import { createClient } from '@/lib/supabase/client';
+import { reloadTo } from '@/lib/navigation';
 
 export interface DenLink {
   account_id: string;
@@ -37,7 +43,7 @@ export interface DenMe {
   display_name: string | null;
   notify_matches: boolean;
   notify_bids: boolean;
-  digest_frequency: "off" | "daily" | "weekly";
+  digest_frequency: 'off' | 'daily' | 'weekly';
   links: DenLink[];
   property_count: number;
   seller_pages?: DenSellerPage[];
@@ -67,7 +73,7 @@ export function DenProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadMe = useCallback(async (): Promise<DenMe | null> => {
-    const res = await fetch("/api/den/me");
+    const res = await fetch('/api/den/me');
     if (!res.ok) return null;
     return (await res.json()) as DenMe;
   }, []);
@@ -80,7 +86,7 @@ export function DenProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    reloadTo("/den/login");
+    reloadTo('/den/login');
   }, []);
 
   useEffect(() => {
@@ -92,20 +98,22 @@ export function DenProvider({ children }: { children: React.ReactNode }) {
       } = await supabase.auth.getUser();
       if (cancelled) return;
       if (!user) {
-        router.replace("/den/login");
+        router.replace('/den/login');
         return;
       }
 
-      const completeRes = await fetch("/api/den/auth/complete", { method: "POST" });
+      const completeRes = await fetch('/api/den/auth/complete', {
+        method: 'POST',
+      });
       if (cancelled) return;
       if (completeRes.status === 401) {
-        router.replace("/den/login");
+        router.replace('/den/login');
         return;
       }
       if (completeRes.status === 403) {
         const body = await completeRes.json().catch(() => null);
-        if (body?.code === "phone_unverified") {
-          router.replace("/den/verify-phone");
+        if (body?.code === 'phone_unverified') {
+          router.replace('/den/verify-phone');
           return;
         }
       }
@@ -113,7 +121,7 @@ export function DenProvider({ children }: { children: React.ReactNode }) {
       const fresh = await loadMe();
       if (cancelled) return;
       if (!fresh) {
-        router.replace("/den/login");
+        router.replace('/den/login');
         return;
       }
       setMe(fresh);

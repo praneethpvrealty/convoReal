@@ -42,8 +42,13 @@ beforeEach(async () => {
   h.state.authorization = null;
   h.createServerClient.mockReset();
   h.getUser.mockReset();
-  h.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
-  h.createServerClient.mockImplementation(() => ({ auth: { getUser: h.getUser } }));
+  h.getUser.mockResolvedValue({
+    data: { user: { id: 'user-1' } },
+    error: null,
+  });
+  h.createServerClient.mockImplementation(() => ({
+    auth: { getUser: h.getUser },
+  }));
   vi.resetModules();
   ({ createClient } = await import('./server'));
 });

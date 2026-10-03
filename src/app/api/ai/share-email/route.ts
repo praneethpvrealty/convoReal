@@ -38,7 +38,10 @@ export async function POST(request: NextRequest) {
     if (!gate.allowed) return gateResponse(gate);
 
     if (!(await hasGeminiKey())) {
-      return NextResponse.json({ error: 'AI is not configured on this server.' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'AI is not configured on this server.' },
+        { status: 500 }
+      );
     }
 
     const body = (await request.json().catch(() => null)) as {
@@ -50,11 +53,16 @@ export async function POST(request: NextRequest) {
     } | null;
     const propertyId = body?.property_id;
     if (!propertyId) {
-      return NextResponse.json({ error: 'property_id is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'property_id is required' },
+        { status: 400 }
+      );
     }
 
     const recipientNames = Array.isArray(body?.recipient_names)
-      ? body.recipient_names.filter((n): n is string => typeof n === 'string').slice(0, 10)
+      ? body.recipient_names
+          .filter((n): n is string => typeof n === 'string')
+          .slice(0, 10)
       : [];
 
     // Load the property, scoped to the caller's account (RLS-scoped
@@ -67,15 +75,22 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (!property) {
-      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Property not found' },
+        { status: 404 }
+      );
     }
 
     const cost = AI_FEATURE_COSTS[AI_FEATURE];
     const burn = await burnCredits(ctx.accountId, AI_FEATURE, cost);
     if (!burn.success) {
       return NextResponse.json(
-        { error: 'Insufficient credits to draft the email.', creditsNeeded: cost, upgradeRequired: true },
-        { status: 402 },
+        {
+          error: 'Insufficient credits to draft the email.',
+          creditsNeeded: cost,
+          upgradeRequired: true,
+        },
+        { status: 402 }
       );
     }
 
@@ -96,13 +111,19 @@ export async function POST(request: NextRequest) {
     const prompt = buildShareEmailAiPrompt(emailProperty, {
       recipientNames,
       agentName: typeof body?.agent_name === 'string' ? body.agent_name : null,
-      agentPhone: typeof body?.agent_phone === 'string' ? body.agent_phone : null,
-      showcaseBaseUrl: typeof body?.showcase_base_url === 'string' ? body.showcase_base_url : null,
+      agentPhone:
+        typeof body?.agent_phone === 'string' ? body.agent_phone : null,
+      showcaseBaseUrl:
+        typeof body?.showcase_base_url === 'string'
+          ? body.showcase_base_url
+          : null,
     });
 
     let raw: string;
     try {
-      raw = await generateText(prompt, SHARE_EMAIL_SYSTEM_PROMPT, { feature: 'share_email' });
+      raw = await generateText(prompt, SHARE_EMAIL_SYSTEM_PROMPT, {
+        feature: 'share_email',
+      });
     } catch (apiErr) {
       await refundCredits(ctx.accountId, AI_FEATURE, cost);
       throw apiErr;
@@ -112,7 +133,10 @@ export async function POST(request: NextRequest) {
     if (!draft) {
       // Model returned unusable output — refund and let the user retry.
       await refundCredits(ctx.accountId, AI_FEATURE, cost);
-      return NextResponse.json({ error: 'Could not draft the email. Please try again.' }, { status: 502 });
+      return NextResponse.json(
+        { error: 'Could not draft the email. Please try again.' },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({ draft });

@@ -21,7 +21,12 @@ export interface ParsedEventResponse {
   resolved: {
     start_time: string | null;
     end_time: string | null;
-    contact: { id: string; name: string; phone: string; name_tag?: string | null } | null;
+    contact: {
+      id: string;
+      name: string;
+      phone: string;
+      name_tag?: string | null;
+    } | null;
   } | null;
 }
 
@@ -37,9 +42,16 @@ export interface VoicePrefill {
 }
 
 /** The four types the New-appointment chips can display. */
-const CHIP_TYPES: AppointmentType[] = ['site_visit', 'meeting', 'call', 'follow_up'];
+const CHIP_TYPES: AppointmentType[] = [
+  'site_visit',
+  'meeting',
+  'call',
+  'follow_up',
+];
 
-export function prefillFromParse(parsed: ParsedEventResponse): VoicePrefill | null {
+export function prefillFromParse(
+  parsed: ParsedEventResponse
+): VoicePrefill | null {
   if (parsed.draft.intent === 'none') return null;
 
   const rawType = parsed.draft.event_type as AppointmentType;
@@ -78,7 +90,9 @@ export function voiceHints(prefill: VoicePrefill): string[] {
     hints.push('No date or time heard — set it below before scheduling.');
   }
   if (prefill.unmatchedContactName) {
-    hints.push(`"${prefill.unmatchedContactName}" didn't match a contact — attach one manually.`);
+    hints.push(
+      `"${prefill.unmatchedContactName}" didn't match a contact — attach one manually.`
+    );
   }
   return hints;
 }

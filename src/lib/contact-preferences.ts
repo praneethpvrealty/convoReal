@@ -44,13 +44,15 @@ function positiveNumber(v: number | string | null | undefined): number | null {
 
 function nonEmpty(v: string[] | null | undefined): string[] | null {
   if (!Array.isArray(v)) return null;
-  const cleaned = v.map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean);
+  const cleaned = v
+    .map((s) => (typeof s === 'string' ? s.trim() : ''))
+    .filter(Boolean);
   return cleaned.length > 0 ? cleaned : null;
 }
 
 /** Max budget with explicit-first merge. Null when neither side has one. */
 export function effectiveMaxBudget(
-  c: ContactPreferenceFields,
+  c: ContactPreferenceFields
 ): EffectiveValue<number> | null {
   const explicit = positiveNumber(c.max_budget);
   if (explicit !== null) return { value: explicit, source: 'explicit' };
@@ -60,7 +62,7 @@ export function effectiveMaxBudget(
 
 /** Areas of interest with explicit-first merge. */
 export function effectiveAreas(
-  c: ContactPreferenceFields,
+  c: ContactPreferenceFields
 ): EffectiveValue<string[]> | null {
   const explicit = nonEmpty(c.areas_of_interest);
   if (explicit) return { value: explicit, source: 'explicit' };
@@ -75,12 +77,12 @@ export function effectiveAreas(
  * capitalized for display.
  */
 export function effectiveCategories(
-  c: ContactPreferenceFields,
+  c: ContactPreferenceFields
 ): EffectiveValue<string[]> | null {
   const explicit = nonEmpty(c.property_interests);
   if (explicit) return { value: explicit, source: 'explicit' };
   const cats = (nonEmpty(c.pref_property_categories) ?? []).map(
-    (s) => s.charAt(0).toUpperCase() + s.slice(1),
+    (s) => s.charAt(0).toUpperCase() + s.slice(1)
   );
   const types = nonEmpty(c.pref_property_types) ?? [];
   const seen = new Set<string>();
@@ -103,7 +105,7 @@ export function effectiveCategories(
  */
 export function visibleTagSuggestions(
   suggested: string[] | null | undefined,
-  attachedTagNames: (string | null | undefined)[],
+  attachedTagNames: (string | null | undefined)[]
 ): string[] {
   const cleaned = nonEmpty(Array.isArray(suggested) ? suggested : null);
   if (!cleaned) return [];
@@ -111,7 +113,7 @@ export function visibleTagSuggestions(
     attachedTagNames
       .filter((n): n is string => typeof n === 'string')
       .map((n) => n.trim().toLowerCase())
-      .filter(Boolean),
+      .filter(Boolean)
   );
   const seen = new Set<string>();
   return cleaned.filter((s) => {

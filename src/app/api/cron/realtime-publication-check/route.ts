@@ -1,6 +1,6 @@
-import { timingSafeEqual } from 'node:crypto'
-import { NextResponse } from 'next/server'
-import { checkRealtimePublication } from '@/lib/realtime/publication-health'
+import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { checkRealtimePublication } from '@/lib/realtime/publication-health';
 
 /**
  * Realtime publication check — asserts that every table the web and
@@ -25,34 +25,41 @@ import { checkRealtimePublication } from '@/lib/realtime/publication-health'
  * (503) when no secret is configured.
  */
 export async function GET(request: Request) {
-  const expected = process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET
+  const expected =
+    process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET;
   if (!expected) {
-    return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
+    return NextResponse.json({ error: 'cron not configured' }, { status: 503 });
   }
   const supplied =
     request.headers.get('x-cron-secret') ||
     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
-    ''
-  const suppliedBuf = Buffer.from(supplied)
-  const expectedBuf = Buffer.from(expected)
-  if (suppliedBuf.length !== expectedBuf.length || !timingSafeEqual(suppliedBuf, expectedBuf)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    '';
+  const suppliedBuf = Buffer.from(supplied);
+  const expectedBuf = Buffer.from(expected);
+  if (
+    suppliedBuf.length !== expectedBuf.length ||
+    !timingSafeEqual(suppliedBuf, expectedBuf)
+  ) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const health = await checkRealtimePublication()
+    const health = await checkRealtimePublication();
     if (!health.ok) {
       console.error(
         '[realtime-publication-check] tables missing from supabase_realtime:',
         health.missing.join(', '),
-        '— realtime is dead for these; re-run supabase/migrations/207_restore_realtime_publication.sql',
-      )
-      return NextResponse.json(health, { status: 500 })
+        '— realtime is dead for these; re-run supabase/migrations/207_restore_realtime_publication.sql'
+      );
+      return NextResponse.json(health, { status: 500 });
     }
-    return NextResponse.json(health, { status: 200 })
+    return NextResponse.json(health, { status: 200 });
   } catch (err) {
-    const error = err as Error
-    console.error('[realtime-publication-check] failed:', error)
-    return NextResponse.json({ error: error.message || 'Check failed' }, { status: 500 })
+    const error = err as Error;
+    console.error('[realtime-publication-check] failed:', error);
+    return NextResponse.json(
+      { error: error.message || 'Check failed' },
+      { status: 500 }
+    );
   }
 }

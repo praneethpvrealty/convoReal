@@ -42,10 +42,16 @@ export function ConvoRealLoader({
   useEffect(() => {
     if (!w || reduced) return;
     x.value = -w;
-    x.value = withRepeat(withTiming(0, { duration: 1600, easing: Easing.linear }), -1, false);
+    x.value = withRepeat(
+      withTiming(0, { duration: 1600, easing: Easing.linear }),
+      -1,
+      false
+    );
   }, [w, reduced, x]);
 
-  const anim = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+  const anim = useAnimatedStyle(() => ({
+    transform: [{ translateX: x.value }],
+  }));
 
   const textStyle = {
     fontSize: size,
@@ -78,7 +84,8 @@ export function ConvoRealLoader({
         onLayout={(e) => {
           const { width, height } = e.nativeEvent.layout;
           setBox((prev) =>
-            Math.abs(prev.width - width) < 1 && Math.abs(prev.height - height) < 1
+            Math.abs(prev.width - width) < 1 &&
+            Math.abs(prev.height - height) < 1
               ? prev
               : { width, height }
           );
@@ -100,7 +107,13 @@ export function ConvoRealLoader({
                 start={{ x: 0, y: 0.3 }}
                 end={{ x: 1, y: 0.7 }}
                 style={[
-                  { position: 'absolute', top: 0, left: 0, width: w * 2, height: h },
+                  {
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: w * 2,
+                    height: h,
+                  },
                   anim,
                 ]}
               />

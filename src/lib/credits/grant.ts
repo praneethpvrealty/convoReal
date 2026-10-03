@@ -36,7 +36,7 @@ export async function grantSubscriptionCredits(
   accountId: string,
   plan: SubscriptionPlanForCredits,
   cycle: BillingCycleForCredits,
-  opts: GrantSubscriptionOptions,
+  opts: GrantSubscriptionOptions
 ): Promise<void> {
   const supabase = supabaseAdmin();
   await getOrCreateWallet(accountId, supabase);
@@ -81,7 +81,7 @@ export interface CreditPurchaseInput {
  * row.
  */
 export async function creditPurchase(
-  input: CreditPurchaseInput,
+  input: CreditPurchaseInput
 ): Promise<{ credited: boolean; credits: number }> {
   const supabase = supabaseAdmin();
 
@@ -120,7 +120,11 @@ export async function creditPurchase(
   });
 
   if (rpcErr) {
-    if (rpcErr.code === '23505' || rpcErr.message?.includes('23505') || rpcErr.message?.includes('unique constraint')) {
+    if (
+      rpcErr.code === '23505' ||
+      rpcErr.message?.includes('23505') ||
+      rpcErr.message?.includes('unique constraint')
+    ) {
       return { credited: false, credits: 0 };
     }
     throw new Error(`[creditPurchase] wallet update failed: ${rpcErr.message}`);
@@ -132,17 +136,24 @@ export async function creditPurchase(
   if (wasCredited) {
     // Fire-and-forget — a failed notification must never fail the
     // purchase, which has already been committed above.
-    void notifyManagerCreditsAdded(input.accountId, creditPackage.credits, creditPackage.name);
+    void notifyManagerCreditsAdded(
+      input.accountId,
+      creditPackage.credits,
+      creditPackage.name
+    );
   }
 
-  return { credited: wasCredited, credits: wasCredited ? creditPackage.credits : 0 };
+  return {
+    credited: wasCredited,
+    credits: wasCredited ? creditPackage.credits : 0,
+  };
 }
 
 /** Looks up the package price row for a given package + currency —
  *  used by the packages listing route and the buy route. */
 export async function getPackagePrice(
   packageKey: string,
-  currency: string,
+  currency: string
 ): Promise<{ pkg: CreditPackage; price: CreditPackagePrice } | null> {
   const supabase = supabaseAdmin();
 

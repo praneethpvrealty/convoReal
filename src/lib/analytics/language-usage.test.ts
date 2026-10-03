@@ -29,9 +29,9 @@ describe('getLanguageUsage', () => {
     const out = await getLanguageUsage(
       dbWith(
         [{ language: 'ta', agents: 2, contacts: 400, contacts_explicit: 120 }],
-        [{ language: 'ta', approved_templates: 3, awaiting_review: 1 }],
+        [{ language: 'ta', approved_templates: 3, awaiting_review: 1 }]
       ),
-      'a1',
+      'a1'
     );
     const ta = out.rows.find((r) => r.language === 'ta')!;
     expect(ta).toMatchObject({
@@ -53,12 +53,16 @@ describe('getLanguageUsage', () => {
           { language: 'ta', agents: 0, contacts: 400, contacts_explicit: 400 },
           { language: 'kn', agents: 0, contacts: 50, contacts_explicit: 50 },
         ],
-        [{ language: 'kn', approved_templates: 2, awaiting_review: 0 }],
+        [{ language: 'kn', approved_templates: 2, awaiting_review: 0 }]
       ),
-      'a1',
+      'a1'
     );
-    expect(out.rows.find((r) => r.language === 'ta')!.unservedDemand).toBe(true);
-    expect(out.rows.find((r) => r.language === 'kn')!.unservedDemand).toBe(false);
+    expect(out.rows.find((r) => r.language === 'ta')!.unservedDemand).toBe(
+      true
+    );
+    expect(out.rows.find((r) => r.language === 'kn')!.unservedDemand).toBe(
+      false
+    );
     expect(out.unservedContacts).toBe(400);
   });
 
@@ -67,10 +71,15 @@ describe('getLanguageUsage', () => {
   // account that has not made a template yet.
   it('never flags English as unserved', async () => {
     const out = await getLanguageUsage(
-      dbWith([{ language: 'en', agents: 3, contacts: 900, contacts_explicit: 0 }], []),
-      'a1',
+      dbWith(
+        [{ language: 'en', agents: 3, contacts: 900, contacts_explicit: 0 }],
+        []
+      ),
+      'a1'
     );
-    expect(out.rows.find((r) => r.language === 'en')!.unservedDemand).toBe(false);
+    expect(out.rows.find((r) => r.language === 'en')!.unservedDemand).toBe(
+      false
+    );
     expect(out.unservedContacts).toBe(0);
   });
 
@@ -83,9 +92,9 @@ describe('getLanguageUsage', () => {
           { language: 'hi', agents: 0, contacts: 12, contacts_explicit: 12 },
           { language: 'kn', agents: 0, contacts: 0, contacts_explicit: 0 },
         ],
-        [],
+        []
       ),
-      'a1',
+      'a1'
     );
     expect(out.activeLanguageCount).toBe(2);
   });
@@ -97,9 +106,9 @@ describe('getLanguageUsage', () => {
           { language: 'hi', agents: 0, contacts: 12, contacts_explicit: 12 },
           { language: 'ta', agents: 0, contacts: 400, contacts_explicit: 400 },
         ],
-        [],
+        []
       ),
-      'a1',
+      'a1'
     );
     expect(out.rows[0].language).toBe('ta');
   });
@@ -109,10 +118,17 @@ describe('getLanguageUsage', () => {
   it('coerces bigint-as-string counts to numbers', async () => {
     const out = await getLanguageUsage(
       dbWith(
-        [{ language: 'ta', agents: '2', contacts: '400', contacts_explicit: '5' }],
-        [{ language: 'ta', approved_templates: '1', awaiting_review: '0' }],
+        [
+          {
+            language: 'ta',
+            agents: '2',
+            contacts: '400',
+            contacts_explicit: '5',
+          },
+        ],
+        [{ language: 'ta', approved_templates: '1', awaiting_review: '0' }]
       ),
-      'a1',
+      'a1'
     );
     const ta = out.rows.find((r) => r.language === 'ta')!;
     expect(ta.contacts).toBe(400);

@@ -23,13 +23,17 @@ function db(rows: Array<{ id: string }>, capture?: Record<string, unknown>) {
 describe('matchProjectByName', () => {
   it('links a forwarded plan to the project the agent already created', async () => {
     expect(
-      await matchProjectByName(db([{ id: 'proj-1' }]), 'acc', 'Sattva Exotic'),
+      await matchProjectByName(db([{ id: 'proj-1' }]), 'acc', 'Sattva Exotic')
     ).toBe('proj-1');
   });
 
   it('matches on the slug, so casing and spacing do not lose the link', async () => {
     // What arrives over WhatsApp is whatever the sender typed.
-    for (const name of ['sattva exotic', 'SATTVA EXOTIC', '  Sattva  Exotic ']) {
+    for (const name of [
+      'sattva exotic',
+      'SATTVA EXOTIC',
+      '  Sattva  Exotic ',
+    ]) {
       const filters: Record<string, unknown> = {};
       await matchProjectByName(db([{ id: 'proj-1' }], filters), 'acc', name);
       expect(filters.slug, name).toBe('sattva-exotic');
@@ -38,7 +42,11 @@ describe('matchProjectByName', () => {
 
   it('scopes the lookup to the account', async () => {
     const filters: Record<string, unknown> = {};
-    await matchProjectByName(db([{ id: 'p' }], filters), 'acc-1', 'Sattva Exotic');
+    await matchProjectByName(
+      db([{ id: 'p' }], filters),
+      'acc-1',
+      'Sattva Exotic'
+    );
     expect(filters.account_id).toBe('acc-1');
   });
 
@@ -51,7 +59,10 @@ describe('matchProjectByName', () => {
 
   it('is null for a listing that names no project', async () => {
     for (const name of [null, undefined, '', '   ', '!!!']) {
-      expect(await matchProjectByName(db([{ id: 'p' }]), 'acc', name), String(name)).toBeNull();
+      expect(
+        await matchProjectByName(db([{ id: 'p' }]), 'acc', name),
+        String(name)
+      ).toBeNull();
     }
   });
 
@@ -72,7 +83,9 @@ describe('matchProjectByName', () => {
       },
     } as never;
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await matchProjectByName(failing, 'acc', 'Sattva Exotic')).toBeNull();
+    expect(
+      await matchProjectByName(failing, 'acc', 'Sattva Exotic')
+    ).toBeNull();
   });
 
   it('survives the client throwing outright', async () => {
@@ -82,6 +95,8 @@ describe('matchProjectByName', () => {
       },
     } as never;
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await matchProjectByName(throwing, 'acc', 'Sattva Exotic')).toBeNull();
+    expect(
+      await matchProjectByName(throwing, 'acc', 'Sattva Exotic')
+    ).toBeNull();
   });
 });

@@ -29,7 +29,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('whatsapp_groups')
     .select(
-      'id, wa_group_id, subject, description, invite_link, status, participant_count, error_message, created_at',
+      'id, wa_group_id, subject, description, invite_link, status, participant_count, error_message, created_at'
     )
     .eq('account_id', accountId)
     .neq('status', 'deleted')
@@ -37,7 +37,10 @@ export async function GET() {
 
   if (error) {
     console.error('[groups] list failed:', error.message);
-    return NextResponse.json({ error: 'Could not load groups' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Could not load groups' },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ data });
@@ -61,12 +64,18 @@ export async function POST(request: Request) {
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = await request.json().catch(() => null);
-    const subject = typeof body?.subject === 'string' ? body.subject.trim() : '';
+    const subject =
+      typeof body?.subject === 'string' ? body.subject.trim() : '';
     const description =
-      typeof body?.description === 'string' ? body.description.trim() : undefined;
+      typeof body?.description === 'string'
+        ? body.description.trim()
+        : undefined;
 
     if (!subject) {
-      return NextResponse.json({ error: 'subject is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'subject is required' },
+        { status: 400 }
+      );
     }
 
     const { data: config } = await supabase
@@ -78,7 +87,7 @@ export async function POST(request: Request) {
     if (!config) {
       return NextResponse.json(
         { error: 'WhatsApp not configured.' },
-        { status: 400 },
+        { status: 400 }
       );
     }
     if (!config.groups_enabled) {
@@ -91,7 +100,7 @@ export async function POST(request: Request) {
             'Groups are not enabled for this number. The Groups API requires an Official Business Account — contact support once Meta has granted OBA status.',
           code: 'GROUPS_NOT_ENABLED',
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -102,14 +111,14 @@ export async function POST(request: Request) {
           phoneNumberId: config.phone_number_id,
           accessToken: decrypt(config.access_token),
         },
-        { subject, description },
+        { subject, description }
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Meta error';
       console.error('[groups] create failed:', message);
       return NextResponse.json(
         { error: `WhatsApp refused the group: ${message}` },
-        { status: 502 },
+        { status: 502 }
       );
     }
 
@@ -130,13 +139,16 @@ export async function POST(request: Request) {
     if (insertError) {
       // The group exists on WhatsApp; losing the row here means it is
       // orphaned rather than absent, which is worth saying plainly.
-      console.error('[groups] created on Meta but insert failed:', insertError.message);
+      console.error(
+        '[groups] created on Meta but insert failed:',
+        insertError.message
+      );
       return NextResponse.json(
         {
           error:
             'The group was created on WhatsApp but could not be recorded. Refresh in a moment — the webhook may still complete it.',
         },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -151,7 +163,7 @@ export async function POST(request: Request) {
     console.error('[groups] POST failed:', error);
     return NextResponse.json(
       { error: 'Could not create the group' },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

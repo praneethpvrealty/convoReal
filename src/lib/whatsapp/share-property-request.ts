@@ -25,7 +25,8 @@ export async function postPropertyShare(
 ): Promise<SharePropertyResult> {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const sleep =
-    deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+    deps.sleep ??
+    ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const attempt = async (): Promise<Attempt> => {
     const response = await fetchImpl('/api/whatsapp/share-property', {
       method: 'POST',

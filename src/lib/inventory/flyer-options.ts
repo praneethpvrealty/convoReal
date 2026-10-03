@@ -1,4 +1,8 @@
-export const FLYER_TEMPLATES = ['minimalist', 'glassmorphism', 'vignette'] as const;
+export const FLYER_TEMPLATES = [
+  'minimalist',
+  'glassmorphism',
+  'vignette',
+] as const;
 export type FlyerTemplate = (typeof FLYER_TEMPLATES)[number];
 
 export interface FlyerOptions {
@@ -15,7 +19,8 @@ export interface FlyerOptions {
   save: boolean;
 }
 
-const AI_IMAGE_PATTERN = /^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/;
+const AI_IMAGE_PATTERN =
+  /^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/;
 const AI_IMAGE_MAX_LENGTH = 12_000_000;
 
 export function parseFlyerOptions(
@@ -52,7 +57,8 @@ export function parseFlyerOptions(
       aiImage = b.ai_image;
     } else {
       return {
-        error: "'ai_image' must be a base64 image data URL or a storage public URL",
+        error:
+          "'ai_image' must be a base64 image data URL or a storage public URL",
       };
     }
   }

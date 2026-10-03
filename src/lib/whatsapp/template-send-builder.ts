@@ -96,16 +96,16 @@ export function truncateParametersToBudget(
 ): string[] {
   const staticText = (templateBodyText || '').replace(/\{\{(\d+)\}\}/g, '');
   const staticLength = staticText.length;
-  
+
   const variableBudget = Math.max(0, maxTotalLength - staticLength);
-  
-  const currentParams = params.map(p => sanitizeParamText(p));
+
+  const currentParams = params.map((p) => sanitizeParamText(p));
   let totalLength = currentParams.reduce((sum, p) => sum + p.length, 0);
-  
+
   if (totalLength <= variableBudget) {
     return currentParams;
   }
-  
+
   while (totalLength > variableBudget) {
     let longestIdx = 0;
     let maxLength = -1;
@@ -115,31 +115,32 @@ export function truncateParametersToBudget(
         longestIdx = i;
       }
     }
-    
+
     if (maxLength <= 0) {
       break;
     }
-    
+
     const excess = totalLength - variableBudget;
     const targetLength = Math.max(0, currentParams[longestIdx].length - excess);
-    
+
     const originalLength = currentParams[longestIdx].length;
     let truncatedValue = '';
     if (targetLength >= 3 && originalLength > targetLength) {
-      truncatedValue = currentParams[longestIdx].slice(0, targetLength - 3) + '...';
+      truncatedValue =
+        currentParams[longestIdx].slice(0, targetLength - 3) + '...';
     } else {
       truncatedValue = currentParams[longestIdx].slice(0, targetLength);
     }
-    totalLength -= (originalLength - truncatedValue.length);
+    totalLength -= originalLength - truncatedValue.length;
     currentParams[longestIdx] = truncatedValue;
   }
-  
+
   return currentParams;
 }
 
 function buildHeaderComponent(
   template: MessageTemplate,
-  params: SendTimeParams,
+  params: SendTimeParams
 ): MetaSendComponent | null {
   const headerType = template.header_type;
   if (!headerType) return null;
@@ -148,20 +149,25 @@ function buildHeaderComponent(
     // TEXT header with {{1}} → need a value. Static text headers
     // (no variables) just ride along inside the template itself; no
     // header component required on send.
-    const varCount = extractVariableIndices(template.header_content ?? '').length;
+    const varCount = extractVariableIndices(
+      template.header_content ?? ''
+    ).length;
     if (varCount === 0) return null;
     const value = params.headerText;
     if (!value || !value.trim()) {
       throw new Error(
-        'Header text variable {{1}} requires a value — pass headerText.',
+        'Header text variable {{1}} requires a value — pass headerText.'
       );
     }
 
     // Header variable limit: total header text length <= 60 characters
-    const staticHeader = (template.header_content ?? '').replace(/\{\{(\d+)\}\}/g, '');
+    const staticHeader = (template.header_content ?? '').replace(
+      /\{\{(\d+)\}\}/g,
+      ''
+    );
     const staticHeaderLength = staticHeader.length;
     const headerBudget = Math.max(0, 60 - staticHeaderLength);
-    
+
     let sanitizedVal = sanitizeParamText(value);
     if (sanitizedVal.length > headerBudget) {
       if (headerBudget >= 3) {
@@ -193,10 +199,12 @@ function buildHeaderComponent(
 
   if (!link && !id) {
     throw new Error(
-      `${headerType} header requires a media link or id at send time — set header_media_url on the template or pass headerMediaUrl/headerMediaId.`,
+      `${headerType} header requires a media link or id at send time — set header_media_url on the template or pass headerMediaUrl/headerMediaId.`
     );
   }
-  const mediaPayload: { link?: string; id?: string } = id ? { id } : { link: storagePublicUrl(link!) };
+  const mediaPayload: { link?: string; id?: string } = id
+    ? { id }
+    : { link: storagePublicUrl(link!) };
   return {
     type: 'header',
     parameters: [
@@ -211,29 +219,35 @@ function buildHeaderComponent(
 
 function buildBodyComponent(
   template: MessageTemplate,
-  params: SendTimeParams,
+  params: SendTimeParams
 ): MetaSendComponent | null {
   const varCount = extractVariableIndices(template.body_text).length;
   const body = params.body ?? [];
   if (varCount === 0 && body.length === 0) return null;
   if (body.length < varCount) {
     throw new Error(
-      `Body has ${varCount} variable(s) but only ${body.length} value(s) were supplied.`,
+      `Body has ${varCount} variable(s) but only ${body.length} value(s) were supplied.`
     );
   }
   // Trim to the variable count — extra values are dropped silently so
   // a legacy caller that passes too many doesn't error out.
   const values = body.slice(0, varCount);
-  const truncatedValues = truncateParametersToBudget(template.body_text, values);
+  const truncatedValues = truncateParametersToBudget(
+    template.body_text,
+    values
+  );
   return {
     type: 'body',
-    parameters: truncatedValues.map((text) => ({ type: 'text', text: sanitizeParamText(text) })),
+    parameters: truncatedValues.map((text) => ({
+      type: 'text',
+      text: sanitizeParamText(text),
+    })),
   };
 }
 
 function buttonNeedsSendParam(
   button: TemplateButton,
-  override: string | undefined,
+  override: string | undefined
 ): boolean {
   switch (button.type) {
     case 'URL':
@@ -252,7 +266,7 @@ function buttonNeedsSendParam(
 function buildButtonComponent(
   button: TemplateButton,
   index: number,
-  override: string | undefined,
+  override: string | undefined
 ): MetaSendComponent | null {
   if (!buttonNeedsSendParam(button, override)) return null;
 
@@ -262,7 +276,7 @@ function buildButtonComponent(
       // the button's index in the template's buttons array.
       if (!override || !override.trim()) {
         throw new Error(
-          `URL button #${index + 1} uses {{1}} — requires a buttonParams[${index}] value.`,
+          `URL button #${index + 1} uses {{1}} — requires a buttonParams[${index}] value.`
         );
       }
       return {
@@ -305,7 +319,7 @@ function buildButtonComponent(
  */
 export function buildSendComponents(
   template: MessageTemplate,
-  params: SendTimeParams = {},
+  params: SendTimeParams = {}
 ): MetaSendComponent[] {
   const out: MetaSendComponent[] = [];
   const header = buildHeaderComponent(template, params);

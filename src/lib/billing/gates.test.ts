@@ -25,9 +25,9 @@ function makeCtx(opts: {
         then: (resolve: (v: unknown) => unknown) => {
           const result =
             table === 'contacts'
-              ? opts.contacts ?? { count: 0, error: null }
+              ? (opts.contacts ?? { count: 0, error: null })
               : table === 'properties'
-                ? opts.properties ?? { count: 0, error: null }
+                ? (opts.properties ?? { count: 0, error: null })
                 : { data: null, error: null };
           return Promise.resolve(result).then(resolve);
         },
@@ -35,7 +35,12 @@ function makeCtx(opts: {
       return builder;
     },
   };
-  return { supabase, accountId: 'acc-1', userId: 'user-1', role: 'owner' } as unknown as AccountContext;
+  return {
+    supabase,
+    accountId: 'acc-1',
+    userId: 'user-1',
+    role: 'owner',
+  } as unknown as AccountContext;
 }
 
 // An explicit starter plan-limits row, used to test checkPlanLimit's
@@ -57,7 +62,9 @@ function starterRow(overrides: Record<string, unknown> = {}) {
 
 describe('getPlanLimits fallback (view row missing)', () => {
   it('falls back to the enforced starter caps from the current migration', async () => {
-    const limits = await getPlanLimits(makeCtx({ planLimits: { data: null, error: { message: 'no row' } } }));
+    const limits = await getPlanLimits(
+      makeCtx({ planLimits: { data: null, error: { message: 'no row' } } })
+    );
     expect(limits.plan).toBe('starter');
     // These mirror the account_plan_limits view as last defined in
     // the latest account_plan_limits migration. The fallback must
@@ -70,8 +77,15 @@ describe('getPlanLimits fallback (view row missing)', () => {
   });
 
   it('returns the view row unchanged when present', async () => {
-    const row = { account_id: 'acc-1', plan: 'agency', max_contacts: 999999, has_ai: true };
-    const limits = await getPlanLimits(makeCtx({ planLimits: { data: row, error: null } }));
+    const row = {
+      account_id: 'acc-1',
+      plan: 'agency',
+      max_contacts: 999999,
+      has_ai: true,
+    };
+    const limits = await getPlanLimits(
+      makeCtx({ planLimits: { data: row, error: null } })
+    );
     expect(limits.plan).toBe('agency');
     expect(limits.max_contacts).toBe(999999);
   });
@@ -83,7 +97,9 @@ describe('pricing config stays in sync with enforced caps', () => {
   // This locks the two together — change one and this fails until the
   // other (and the DB view migration) is reconciled.
   it('PLAN_CONFIG.starter matches the enforced starter fallback', async () => {
-    const enforced = await getPlanLimits(makeCtx({ planLimits: { data: null, error: { message: 'no row' } } }));
+    const enforced = await getPlanLimits(
+      makeCtx({ planLimits: { data: null, error: { message: 'no row' } } })
+    );
     expect(PLAN_CONFIG.starter.maxContacts).toBe(enforced.max_contacts);
     expect(PLAN_CONFIG.starter.maxProperties).toBe(enforced.max_properties);
     expect(PLAN_CONFIG.starter.maxUsers).toBe(enforced.max_users);
@@ -93,7 +109,10 @@ describe('pricing config stays in sync with enforced caps', () => {
 describe('checkPlanLimit — contacts boundary', () => {
   it('allows when the current count is below the limit', async () => {
     const gate = await checkPlanLimit(
-      makeCtx({ planLimits: { data: starterRow(), error: null }, contacts: { count: 99, error: null } }),
+      makeCtx({
+        planLimits: { data: starterRow(), error: null },
+        contacts: { count: 99, error: null },
+      }),
       'contacts'
     );
     expect(gate.allowed).toBe(true);
@@ -101,7 +120,10 @@ describe('checkPlanLimit — contacts boundary', () => {
 
   it('blocks at the limit (current >= limit)', async () => {
     const gate = await checkPlanLimit(
-      makeCtx({ planLimits: { data: starterRow(), error: null }, contacts: { count: 100, error: null } }),
+      makeCtx({
+        planLimits: { data: starterRow(), error: null },
+        contacts: { count: 100, error: null },
+      }),
       'contacts'
     );
     expect(gate.allowed).toBe(false);
@@ -110,7 +132,10 @@ describe('checkPlanLimit — contacts boundary', () => {
 
   it('fails OPEN when the count query errors (documented behavior)', async () => {
     const gate = await checkPlanLimit(
-      makeCtx({ planLimits: { data: starterRow(), error: null }, contacts: { count: null, error: { message: 'db down' } } }),
+      makeCtx({
+        planLimits: { data: starterRow(), error: null },
+        contacts: { count: null, error: { message: 'db down' } },
+      }),
       'contacts'
     );
     expect(gate.allowed).toBe(true);

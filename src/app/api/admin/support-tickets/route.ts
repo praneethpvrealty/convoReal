@@ -28,7 +28,6 @@ import {
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendPlatformTemplate } from '@/lib/whatsapp/platform-sender';
 
-
 export async function GET() {
   try {
     await requirePlatformAdmin();

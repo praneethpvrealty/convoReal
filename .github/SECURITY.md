@@ -34,6 +34,7 @@ Include, if you can:
 ## Scope
 
 In scope:
+
 - Anything in this repository (`praneethpvrealty/convoReal`), including
   webhook and auth flows, token encryption, RLS policies, tenant isolation
   between accounts, the Owners Den and buyer portal scoping, and the
@@ -42,6 +43,7 @@ In scope:
   an unsafe default.
 
 Out of scope:
+
 - Vulnerabilities in Supabase, Next.js, Node.js, or other upstream
   dependencies — please report those to their maintainers. We'll happily
   bump versions on request.

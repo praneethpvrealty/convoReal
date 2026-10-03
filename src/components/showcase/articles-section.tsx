@@ -13,26 +13,27 @@ export function ArticlesSection({ articles }: ArticlesSectionProps) {
   if (!articles || articles.length === 0) return null;
 
   return (
-    <section className="py-16 px-4 bg-slate-950">
+    <section className="bg-slate-950 px-4 py-16">
       <div className="mx-auto max-w-5xl">
-        <div className="flex items-end justify-between mb-10">
+        <div className="mb-10 flex items-end justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-white tracking-tight sm:text-3xl">
+            <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
               Latest Insights & News
             </h2>
-            <p className="mt-3 text-sm text-slate-400 max-w-2xl">
-              Stay updated with the latest real estate trends and market analysis.
+            <p className="mt-3 max-w-2xl text-sm text-slate-400">
+              Stay updated with the latest real estate trends and market
+              analysis.
             </p>
           </div>
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {articles.map((article) => {
-            const displayDate = article.published_at 
+            const displayDate = article.published_at
               ? new Date(article.published_at).toLocaleDateString(undefined, {
                   month: 'short',
                   day: 'numeric',
-                  year: 'numeric'
+                  year: 'numeric',
                 })
               : null;
 
@@ -40,45 +41,50 @@ export function ArticlesSection({ articles }: ArticlesSectionProps) {
               <Link
                 key={article.id}
                 href={`/articles/${article.slug}`}
-                className="group relative flex flex-col items-start justify-between rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden hover:border-slate-700 transition-colors cursor-pointer"
+                className="group relative flex cursor-pointer flex-col items-start justify-between overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 transition-colors hover:border-slate-700"
               >
                 {/* Article Image Placeholder or Real Image */}
-                <div className="w-full aspect-[16/9] bg-slate-850 relative overflow-hidden">
+                <div className="bg-slate-850 relative aspect-[16/9] w-full overflow-hidden">
                   {article.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img 
-                      src={storagePublicUrl(article.image_url)} 
+                    <img
+                      src={storagePublicUrl(article.image_url)}
                       alt={article.title}
-                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
                       <Newspaper className="size-10 text-slate-700" />
                     </div>
                   )}
-                  <div className="absolute inset-0 ring-1 ring-inset ring-slate-900/10 pointer-events-none" />
+                  <div className="pointer-events-none absolute inset-0 ring-1 ring-slate-900/10 ring-inset" />
                 </div>
 
-                <div className="flex flex-1 flex-col p-6 w-full">
+                <div className="flex w-full flex-1 flex-col p-6">
                   <div className="flex items-center gap-x-4 text-xs">
                     {displayDate && (
-                      <time dateTime={article.published_at!} className="text-slate-500 flex items-center gap-1.5 font-medium">
+                      <time
+                        dateTime={article.published_at!}
+                        className="flex items-center gap-1.5 font-medium text-slate-500"
+                      >
                         <Calendar className="size-3.5" />
                         {displayDate}
                       </time>
                     )}
                   </div>
-                  
+
                   <div className="group relative">
-                    <h3 className="mt-3 text-lg font-semibold leading-tight text-white group-hover:text-primary transition-colors line-clamp-2">
+                    <h3 className="group-hover:text-primary mt-3 line-clamp-2 text-lg leading-tight font-semibold text-white transition-colors">
                       {article.title}
                     </h3>
                     <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-slate-400">
-                      {article.excerpt || article.content || 'Read more about this topic...'}
+                      {article.excerpt ||
+                        article.content ||
+                        'Read more about this topic...'}
                     </p>
                   </div>
-                  
-                  <div className="mt-6 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary">
+
+                  <div className="text-primary mt-6 flex items-center gap-1.5 text-xs font-bold tracking-wider uppercase">
                     Read Article
                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </div>

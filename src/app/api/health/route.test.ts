@@ -20,7 +20,9 @@ describe('GET /api/health', () => {
   it('returns ok only when Supabase responds successfully', async () => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://project.supabase.co');
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'public-anon-key');
-    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('{}', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
     const response = await GET();
@@ -29,7 +31,7 @@ describe('GET /api/health', () => {
     await expect(response.json()).resolves.toEqual({ status: 'ok' });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://project.supabase.co/rest/v1/rpc/beta_program_public',
-      expect.objectContaining({ method: 'POST', cache: 'no-store' }),
+      expect.objectContaining({ method: 'POST', cache: 'no-store' })
     );
   });
 });

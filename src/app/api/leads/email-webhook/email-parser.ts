@@ -10,7 +10,9 @@ import {
 export function decodeQuotedPrintable(str: string): string {
   return str
     .replace(/=\r?\n/g, '') // Remove soft line breaks
-    .replace(/=([0-9A-F]{2})/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+    .replace(/=([0-9A-F]{2})/gi, (match, hex) =>
+      String.fromCharCode(parseInt(hex, 16))
+    );
 }
 
 // Decodes MIME encoded subjects (Q-encoded UTF-8 or B-encoded Base64)
@@ -33,21 +35,24 @@ export function decodeMimeSubject(str: string): string {
 export function parseMimeEmail(raw: string): { html: string; text: string } {
   const headerSeparator = raw.indexOf('\r\n\r\n');
   const separatorLength = headerSeparator !== -1 ? 4 : 2;
-  const separatorPos = headerSeparator !== -1 ? headerSeparator : raw.indexOf('\n\n');
-  
+  const separatorPos =
+    headerSeparator !== -1 ? headerSeparator : raw.indexOf('\n\n');
+
   if (separatorPos === -1) {
     return { html: '', text: raw };
   }
-  
+
   const headersPart = raw.slice(0, separatorPos);
   const bodyPart = raw.slice(separatorPos + separatorLength);
-  
+
   const boundaryMatch = headersPart.match(/boundary=(?:"([^"]+)"|([^;\s]+))/i);
-  const boundary = boundaryMatch ? (boundaryMatch[1] || boundaryMatch[2]) : null;
-  
+  const boundary = boundaryMatch ? boundaryMatch[1] || boundaryMatch[2] : null;
+
   if (!boundary) {
     let body = bodyPart;
-    const transferEncoding = headersPart.match(/Content-Transfer-Encoding:\s*([^\s;]+)/i)?.[1]?.toLowerCase();
+    const transferEncoding = headersPart
+      .match(/Content-Transfer-Encoding:\s*([^\s;]+)/i)?.[1]
+      ?.toLowerCase();
     if (transferEncoding === 'quoted-printable') {
       body = decodeQuotedPrintable(body);
     } else if (transferEncoding === 'base64') {
@@ -55,47 +60,52 @@ export function parseMimeEmail(raw: string): { html: string; text: string } {
         body = Buffer.from(body.replace(/\s/g, ''), 'base64').toString('utf8');
       } catch {}
     }
-    
+
     const isHtml = /Content-Type:\s*text\/html/i.test(headersPart);
     return {
       html: isHtml ? body : '',
-      text: isHtml ? '' : body
+      text: isHtml ? '' : body,
     };
   }
-  
+
   const parts = bodyPart.split(`--${boundary}`);
   let html = '';
   let text = '';
-  
+
   for (const part of parts) {
     const trimmedPart = part.trim();
     if (!trimmedPart || trimmedPart === '--') continue;
-    
+
     const partSeparator = trimmedPart.indexOf('\r\n\r\n');
     const partSepLen = partSeparator !== -1 ? 4 : 2;
-    const partSepPos = partSeparator !== -1 ? partSeparator : trimmedPart.indexOf('\n\n');
-    
+    const partSepPos =
+      partSeparator !== -1 ? partSeparator : trimmedPart.indexOf('\n\n');
+
     if (partSepPos === -1) continue;
-    
+
     const partHeaders = trimmedPart.slice(0, partSepPos);
     let partBody = trimmedPart.slice(partSepPos + partSepLen);
-    
-    const partEncoding = partHeaders.match(/Content-Transfer-Encoding:\s*([^\s;]+)/i)?.[1]?.toLowerCase();
+
+    const partEncoding = partHeaders
+      .match(/Content-Transfer-Encoding:\s*([^\s;]+)/i)?.[1]
+      ?.toLowerCase();
     if (partEncoding === 'quoted-printable') {
       partBody = decodeQuotedPrintable(partBody);
     } else if (partEncoding === 'base64') {
       try {
-        partBody = Buffer.from(partBody.replace(/\s/g, ''), 'base64').toString('utf8');
+        partBody = Buffer.from(partBody.replace(/\s/g, ''), 'base64').toString(
+          'utf8'
+        );
       } catch {}
     }
-    
+
     if (/Content-Type:\s*text\/html/i.test(partHeaders)) {
       html = partBody;
     } else if (/Content-Type:\s*text\/plain/i.test(partHeaders)) {
       text = partBody;
     }
   }
-  
+
   return { html, text };
 }
 
@@ -111,7 +121,7 @@ export function stripHtmlToText(html: string): string {
     .replace(/&gt;/g, '>')
     .replace(/[ \t]+/g, ' ') // Normalize spaces
     .split('\n')
-    .map(line => line.trim())
+    .map((line) => line.trim())
     .filter(Boolean)
     .join('\n');
 }
@@ -119,7 +129,7 @@ export function stripHtmlToText(html: string): string {
 // Helper to parse budget strings (e.g., "1.5 Cr", "80 Lakhs", "50 L")
 export function parseBudgetToINR(text: string): number | null {
   const clean = text.toLowerCase().replace(/,/g, '').trim();
-  
+
   // Match Crores (Cr/Crore)
   const croreMatch = clean.match(/(\d+(?:\.\d+)?)\s*(?:cr|crore|crores)/);
   if (croreMatch) {
@@ -158,7 +168,11 @@ export function extractLeadPhone(line: string): string | null {
   if (!line) return null;
 
   // "₹8.4 Cr", "1,50,00,000", "4200 sq. ft." — quantities, not numbers to call.
-  if (/[₹$€£]|\b(?:rs|inr|cr|crore|crores|lakh|lakhs)\b|\bsq\.?\s*(?:ft|feet|yd|m|meter|metre)\b|%/i.test(line)) {
+  if (
+    /[₹$€£]|\b(?:rs|inr|cr|crore|crores|lakh|lakhs)\b|\bsq\.?\s*(?:ft|feet|yd|m|meter|metre)\b|%/i.test(
+      line
+    )
+  ) {
     return null;
   }
 
@@ -168,7 +182,9 @@ export function extractLeadPhone(line: string): string | null {
     // "6th block", "1st floor" — the digits belong to the ordinal.
     .replace(/\b\d+(?:st|nd|rd|th)\b/gi, ' ');
 
-  for (const match of cleaned.matchAll(/(?:\+|\b00)?\s*\d[\d\s().-]{6,20}\d/g)) {
+  for (const match of cleaned.matchAll(
+    /(?:\+|\b00)?\s*\d[\d\s().-]{6,20}\d/g
+  )) {
     const candidate = match[0].trim();
     const digits = candidate.replace(/\D/g, '');
     // 10 digits is a bare Indian mobile; 15 is E.164's ceiling, which
@@ -190,7 +206,7 @@ export function extractLeadPhone(line: string): string | null {
  */
 function isJunkNameLine(line: string): boolean {
   return /\b(?:details|response|dear|hello|hi|sourcing|ingest|message|subject|advertisement|property)\b/i.test(
-    line,
+    line
   );
 }
 
@@ -206,64 +222,95 @@ function isHeaderOrSMTPLine(line: string): boolean {
 // Returns true if the name is valid, false if it's junk
 export function isValidContactName(name: string): boolean {
   if (!name || name.trim().length === 0) return false;
-  
+
   const trimmed = name.trim();
-  
+
   if (isPlaceholderLeadName(trimmed)) return false;
 
   // Too short or too long
   if (trimmed.length < 2 || trimmed.length > 100) return false;
-  
+
   // Encoding artifacts and Quoted-Printable leftovers
   if (/^=[\da-fA-F]{2}\s*=$/.test(trimmed)) return false; // =0A = etc.
   if (/^=0A\s*=$/i.test(trimmed)) return false;
   if (/[ÃÂ©â€œâ€\x9d]/.test(trimmed)) return false; // UTF-8 encoding issues
-  
+
   // URLs and links
   if (/^https?:\/\//i.test(trimmed)) return false;
   if (/^help\s*:?\s*https?:\/\//i.test(trimmed)) return false;
-  
+
   // Copyright notices
   if (/^©|^&copy;|^\(c\)/i.test(trimmed)) return false;
-  if (/\d{4}\s+(?:ITP|Digital Media|Inc\.|Corp\.|LLC|Ltd\.)/i.test(trimmed)) return false;
-  
+  if (/\d{4}\s+(?:ITP|Digital Media|Inc\.|Corp\.|LLC|Ltd\.)/i.test(trimmed))
+    return false;
+
   // Marketing/promotional text
-  if (/(?:exclusive|savings|discount|offer|deal|sale|free|limited|champion|gear)/i.test(trimmed)) return false;
-  if (/(?:unlock|subscribe|unsubscribe|click here|act now|buy now)/i.test(trimmed)) return false;
-  
+  if (
+    /(?:exclusive|savings|discount|offer|deal|sale|free|limited|champion|gear)/i.test(
+      trimmed
+    )
+  )
+    return false;
+  if (
+    /(?:unlock|subscribe|unsubscribe|click here|act now|buy now)/i.test(trimmed)
+  )
+    return false;
+
   // System placeholders
   if (/^\[image.*\]/i.test(trimmed)) return false;
   if (/^(?:image|photo|avatar|picture)/i.test(trimmed)) return false;
-  
+
   // Job titles and signatures (not names)
-  if (/(?:specialist|manager|director|lead|senior|junior|associate|consultant)\s*\|/i.test(trimmed)) return false;
+  if (
+    /(?:specialist|manager|director|lead|senior|junior|associate|consultant)\s*\|/i.test(
+      trimmed
+    )
+  )
+    return false;
   if (/\|\s*(?:trial|demo|experience|intern)/i.test(trimmed)) return false;
-  
+
   // Property owner/developer/builder names (not buyer contacts)
-  if (/(?:^OWNER\s*:|^DEVELOPER\s*:|^BUILDER\s*:|^BROKER\s*:)/i.test(trimmed)) return false;
-  if (/(?:SATTVA|PRESTIGE|BRIGADE|SOBHA|DLF|GODREJ|TATA|ADBHI|MERLIN|CONFIDENT|EMERALD|PURI|SUNTECH|MAHESTRA|OBEROI|MESCAPE|VASCON|VIKRAM|RAVINDRA|SATTVAVIHAR)/i.test(trimmed)) return false;
-  
+  if (/(?:^OWNER\s*:|^DEVELOPER\s*:|^BUILDER\s*:|^BROKER\s*:)/i.test(trimmed))
+    return false;
+  if (
+    /(?:SATTVA|PRESTIGE|BRIGADE|SOBHA|DLF|GODREJ|TATA|ADBHI|MERLIN|CONFIDENT|EMERALD|PURI|SUNTECH|MAHESTRA|OBEROI|MESCAPE|VASCON|VIKRAM|RAVINDRA|SATTVAVIHAR)/i.test(
+      trimmed
+    )
+  )
+    return false;
+
   // Company/agency names carrying an entity or realty-business marker
   // (e.g. "SBS PROPERTIES", "VK Groups Pvt Ltd"). Casing alone says
   // nothing here — portal leads routinely arrive fully upper-cased, so
   // "ADH" and "KARTHIK" are people, not builders.
-  if (/\b(?:propert(?:y|ies)|realty|realtors?|estates?|builders?|developers?|constructions?|infra(?:structure)?|ventures?|enterprises?|projects?|associates|homes|housing|groups?|pvt|private|ltd|limited|llp|inc|corp(?:oration)?|company)\b/i.test(trimmed)) return false;
-  
+  if (
+    /\b(?:propert(?:y|ies)|realty|realtors?|estates?|builders?|developers?|constructions?|infra(?:structure)?|ventures?|enterprises?|projects?|associates|homes|housing|groups?|pvt|private|ltd|limited|llp|inc|corp(?:oration)?|company)\b/i.test(
+      trimmed
+    )
+  )
+    return false;
+
   // Addresses (contain state codes, zip codes)
   if (/\b[A-Z]{2}\s+\d{5,6}\b/.test(trimmed)) return false; // CA 94104, TN 600018
-  if (/\d+\s+(?:Market|Street|St|Ave|Avenue|Blvd|Road|Rd)\s+(?:St|PMB|Suite|Ste|Apt)/i.test(trimmed)) return false;
-  
+  if (
+    /\d+\s+(?:Market|Street|St|Ave|Avenue|Blvd|Road|Rd)\s+(?:St|PMB|Suite|Ste|Apt)/i.test(
+      trimmed
+    )
+  )
+    return false;
+
   // LinkedIn and social media help URLs
   if (/linkedin\.com\/help/i.test(trimmed)) return false;
-  if (/(?:facebook|twitter|instagram|youtube)\.com/i.test(trimmed)) return false;
-  
+  if (/(?:facebook|twitter|instagram|youtube)\.com/i.test(trimmed))
+    return false;
+
   // Just numbers or mostly numbers
   const digitCount = (trimmed.match(/\d/g) || []).length;
   if (digitCount > trimmed.length * 0.5) return false;
-  
+
   // Just special characters or punctuation
   if (/^[^\w\s]+$/.test(trimmed)) return false;
-  
+
   return true;
 }
 
@@ -272,10 +319,18 @@ export function isValidContactName(name: string): boolean {
 // "Sheetal Sawarthia [DEALER]" -> "Sheetal Sawarthia" (99acres brackets its role)
 export function stripOwnerSuffix(name: string): string {
   if (!name) return name;
-  return name.replace(/\s*[([](?:Owner|Developer|Builder|Broker|Dealer|Landlord|Seller|Individual|Agent|Buyer|Tenant|Customer)[)\]]\s*$/i, '').trim();
+  return name
+    .replace(
+      /\s*[([](?:Owner|Developer|Builder|Broker|Dealer|Landlord|Seller|Individual|Agent|Buyer|Tenant|Customer)[)\]]\s*$/i,
+      ''
+    )
+    .trim();
 }
 
-const ROLE_SUFFIX_TO_CLASSIFICATION: Record<string, 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer'> = {
+const ROLE_SUFFIX_TO_CLASSIFICATION: Record<
+  string,
+  'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer'
+> = {
   owner: 'Owner',
   developer: 'Developer',
   builder: 'Developer',
@@ -301,10 +356,12 @@ const ROLE_SUFFIX_TO_CLASSIFICATION: Record<string, 'Owner' | 'Seller' | 'Buyer'
  * portal leads), so the caller can fall back to its own default.
  */
 export function classificationFromNameSuffix(
-  name: string,
+  name: string
 ): 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | null {
   if (!name) return null;
-  const match = name.match(/[([](Owner|Developer|Builder|Broker|Dealer|Landlord|Seller|Individual|Agent|Buyer|Tenant|Customer)[)\]]\s*$/i);
+  const match = name.match(
+    /[([](Owner|Developer|Builder|Broker|Dealer|Landlord|Seller|Individual|Agent|Buyer|Tenant|Customer)[)\]]\s*$/i
+  );
   if (!match) return null;
   return ROLE_SUFFIX_TO_CLASSIFICATION[match[1].toLowerCase()] ?? null;
 }
@@ -318,7 +375,9 @@ export function classificationFromNameSuffix(
 export function isInquiryAboutOwnListing(text: string): boolean {
   if (!text) return false;
   return (
-    /\b(?:regarding|about|interested in|interest in|enquir(?:y|ing)\s+(?:for|about|on)?|inquir(?:y|ing)\s+(?:for|about|on)?)\s*your\s+(?:plot|property|properties|villa|house|flat|apartment|listing|land|office|shop|showroom|site|project|ad(?:vertisement)?)/i.test(text) ||
+    /\b(?:regarding|about|interested in|interest in|enquir(?:y|ing)\s+(?:for|about|on)?|inquir(?:y|ing)\s+(?:for|about|on)?)\s*your\s+(?:plot|property|properties|villa|house|flat|apartment|listing|land|office|shop|showroom|site|project|ad(?:vertisement)?)/i.test(
+      text
+    ) ||
     /contact request from our user/i.test(text) ||
     /(?:they are|is|are) awaiting your resp/i.test(text)
   );
@@ -336,7 +395,7 @@ export function isInquiryAboutOwnListing(text: string): boolean {
  */
 export function classifyPortalLead(
   rawName: string,
-  contextText: string,
+  contextText: string
 ): 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | null {
   const fromSuffix = classificationFromNameSuffix(rawName);
   if (!fromSuffix) return null;
@@ -362,8 +421,18 @@ export function isUsableLocation(candidate: string): boolean {
   const trimmed = (candidate ?? '').trim();
   if (trimmed.length < 3) return false;
   if (isAreaFragment(trimmed)) return false;
-  if (/^(?:your|my|our|his|her|their|its|the|this|that|these|those|an?)\b/i.test(trimmed)) return false;
-  if (/^(?:propert(?:y|ies)|listing|search|home|house|flat|apartment|plot|land|villa|site|project|advertisement|response|requirement|detail|budget|area|price)s?\b/i.test(trimmed)) return false;
+  if (
+    /^(?:your|my|our|his|her|their|its|the|this|that|these|those|an?)\b/i.test(
+      trimmed
+    )
+  )
+    return false;
+  if (
+    /^(?:propert(?:y|ies)|listing|search|home|house|flat|apartment|plot|land|villa|site|project|advertisement|response|requirement|detail|budget|area|price)s?\b/i.test(
+      trimmed
+    )
+  )
+    return false;
   return true;
 }
 
@@ -372,7 +441,8 @@ export function isUsableLocation(candidate: string): boolean {
  * "WJGP+87H", the prefix Google puts on a formatted address when the
  * place has no street number.
  */
-const PLUS_CODE_HEAD = /^[23456789CFGHJMPQRVWX]{4,}\+[23456789CFGHJMPQRVWX]{2,}\b/i;
+const PLUS_CODE_HEAD =
+  /^[23456789CFGHJMPQRVWX]{4,}\+[23456789CFGHJMPQRVWX]{2,}\b/i;
 
 /**
  * The area label to file a lead under, given the listing it enquired
@@ -420,7 +490,7 @@ export function parsePortalLead(
   let email = '';
   let requirementText = '';
   let source = 'Others';
-  
+
   // Property details for matching against listings
   let propertyType = '';
   let bedrooms: number | null = null;
@@ -441,7 +511,7 @@ export function parsePortalLead(
 
   if (sourceText.includes('magicbricks')) {
     source = 'Magic Bricks';
-    
+
     // Name extraction: "Client Name: John Doe" or "Name: John Doe"
     const nameMatch = bodyText.match(/(?:client\s+name|name)\s*:\s*(.+)/i);
     if (nameMatch) name = nameMatch[1].trim();
@@ -455,9 +525,10 @@ export function parsePortalLead(
     if (emailMatch) email = emailMatch[1].trim();
 
     // Requirement extraction: "Requirement: 3 BHK in HSR Layout"
-    const reqMatch = bodyText.match(/(?:requirement|preference|interest)\s*:\s*(.+)/i);
+    const reqMatch = bodyText.match(
+      /(?:requirement|preference|interest)\s*:\s*(.+)/i
+    );
     if (reqMatch) requirementText = reqMatch[1].trim();
-
   } else if (sourceText.includes('housing')) {
     source = 'Housing';
 
@@ -466,14 +537,20 @@ export function parsePortalLead(
     if (nameMatch) {
       const extractedName = nameMatch[1].trim();
       // Skip if it's a property owner/developer name
-      if (!/^(?:OWNER|DEVELOPER|BUILDER|BROKER)\s*:/i.test(extractedName) &&
-          !/(?:SATTVA|PRESTIGE|BRIGADE|SOBHA|DLF|GODREJ|TATA)/i.test(extractedName)) {
+      if (
+        !/^(?:OWNER|DEVELOPER|BUILDER|BROKER)\s*:/i.test(extractedName) &&
+        !/(?:SATTVA|PRESTIGE|BRIGADE|SOBHA|DLF|GODREJ|TATA)/i.test(
+          extractedName
+        )
+      ) {
         name = extractedName;
       }
     }
 
     // Phone extraction: "Phone - 9876543210" or "Mobile: 9876543210" or "Contact: 9876543210"
-    const phoneMatch = bodyText.match(/(?:phone|mobile|contact)\s*[:|-]\s*([+\d\s()-]{7,})/i);
+    const phoneMatch = bodyText.match(
+      /(?:phone|mobile|contact)\s*[:|-]\s*([+\d\s()-]{7,})/i
+    );
     if (phoneMatch) {
       const extractedPhone = phoneMatch[1].trim();
       // Validate it's actually a phone number (at least 7 digits) and not button text
@@ -488,7 +565,10 @@ export function parsePortalLead(
     if (emailMatch) {
       const extractedEmail = emailMatch[1].trim();
       // Validate it's actually an email address (contains @) and not button text like "Send Email"
-      if (extractedEmail.includes('@') && /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(extractedEmail)) {
+      if (
+        extractedEmail.includes('@') &&
+        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(extractedEmail)
+      ) {
         email = extractedEmail;
       }
     }
@@ -502,34 +582,39 @@ export function parsePortalLead(
     }
 
     // Requirement extraction: "Requirement - 2 BHK Flat" or "regarding your villa:" etc.
-    const reqMatch = bodyText.match(/(?:requirement|enquiry|interest| villa| house| apartment| plot)\s*[:|-]\s*(.+)/i);
+    const reqMatch = bodyText.match(
+      /(?:requirement|enquiry|interest| villa| house| apartment| plot)\s*[:|-]\s*(.+)/i
+    );
     if (reqMatch) {
       requirementText = reqMatch[1].trim();
     } else {
       // Find standard lines following Devanahalli / Devanahallu / Property ID
-      const propIdMatch = bodyText.match(/(?:Property ID|Property)\s*[:|-]\s*(.+)/i);
+      const propIdMatch = bodyText.match(
+        /(?:Property ID|Property)\s*[:|-]\s*(.+)/i
+      );
       if (propIdMatch) {
         requirementText = `Inquiry on Property ID: ${propIdMatch[1].trim()}`;
       }
     }
-
-
 
     // Housing Property ID extraction: "Property ID: 20327451"
     const propIdMatch = bodyText.match(/Property\s*ID\s*[:|-]\s*(\d+)/i);
     if (propIdMatch) {
       housingPropertyId = propIdMatch[1];
     }
-
   } else if (sourceText.includes('99acres')) {
     source = '99acres';
 
     // Name extraction: "Lead Name: Robert Smith" or "Sender Name: Robert Smith"
-    const nameMatch = bodyText.match(/(?:lead\s+name|sender\s+name|name)\s*:\s*(.+)/i);
+    const nameMatch = bodyText.match(
+      /(?:lead\s+name|sender\s+name|name)\s*:\s*(.+)/i
+    );
     if (nameMatch) name = nameMatch[1].trim();
 
     // Phone extraction: "Mobile Number: +919876543210" or "Phone Number: 9876543210"
-    const phoneMatch = bodyText.match(/(?:mobile|phone)\s*(?:number)?\s*:\s*(.+)/i);
+    const phoneMatch = bodyText.match(
+      /(?:mobile|phone)\s*(?:number)?\s*:\s*(.+)/i
+    );
     if (phoneMatch) phone = phoneMatch[1].trim();
 
     // Email extraction: "Email Address: robert@example.com"
@@ -537,7 +622,9 @@ export function parsePortalLead(
     if (emailMatch) email = emailMatch[1].trim();
 
     // Requirement extraction: "Requirements: 4 BHK Villa in Whitefield"
-    const reqMatch = bodyText.match(/(?:requirements|query|details)\s*:\s*(.+)/i);
+    const reqMatch = bodyText.match(
+      /(?:requirements|query|details)\s*:\s*(.+)/i
+    );
     if (reqMatch) requirementText = reqMatch[1].trim();
   } else {
     // Fallback parser for generic lead emails
@@ -545,31 +632,40 @@ export function parsePortalLead(
     if (nameMatch) name = nameMatch[1].trim();
 
     // Phone extraction: "Phone|mobile|tel|contact"
-    const phoneMatch = bodyText.match(/(?:phone|mobile|tel|contact)\s*[:|-]\s*([+\d\s-]{7,15})/i);
+    const phoneMatch = bodyText.match(
+      /(?:phone|mobile|tel|contact)\s*[:|-]\s*([+\d\s-]{7,15})/i
+    );
     if (phoneMatch) phone = phoneMatch[1].trim();
 
     // Email extraction
-    const emailMatch = bodyText.match(/(?:email|mail)\s*[:|-]\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+    const emailMatch = bodyText.match(
+      /(?:email|mail)\s*[:|-]\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i
+    );
     if (emailMatch) email = emailMatch[1].trim();
 
     // Requirement extraction
-    const reqMatch = bodyText.match(/(?:requirement|preferences|comments|inquiry)\s*[:|-]\s*(.+)/i);
+    const reqMatch = bodyText.match(
+      /(?:requirement|preferences|comments|inquiry)\s*[:|-]\s*(.+)/i
+    );
     if (reqMatch) requirementText = reqMatch[1].trim();
   }
 
-  // Generic Block-Format Fallback: If name, email, or phone are still missing, 
+  // Generic Block-Format Fallback: If name, email, or phone are still missing,
   // try to find adjacent lines around the email address line (common in table/card layouts without explicit labels)
   if (!phone || !email || !name || name === 'Portal Lead') {
-    const lines = bodyText.split('\n').map(l => l.trim()).filter(Boolean);
+    const lines = bodyText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-    
+
     // Find the first email line index that is NOT a system or portal/notification email
     let emailIndex = -1;
     for (let i = 0; i < lines.length; i++) {
       const match = lines[i].match(emailRegex);
       if (match) {
         const candidate = match[0].toLowerCase();
-        const isSystemOrPortal = 
+        const isSystemOrPortal =
           candidate.includes('convoreal.com') ||
           candidate.includes('99acres.com') ||
           candidate.includes('magicbricks.com') ||
@@ -581,23 +677,27 @@ export function parsePortalLead(
           candidate.startsWith('info') ||
           candidate.startsWith('support') ||
           candidate.startsWith('reply');
-          
+
         if (!isSystemOrPortal) {
           emailIndex = i;
           break;
         }
       }
     }
-    
+
     if (emailIndex !== -1) {
       const candidateEmail = lines[emailIndex].match(emailRegex)?.[0];
-      
+
       // Candidate Name: Try same line first if it matches "Name <email>" format, otherwise scan previous 2 lines
       let candidateName = '';
       const lineWithEmail = lines[emailIndex];
-      const nameInAngleBracketsMatch = lineWithEmail.match(/(?:from\s*:\s*)?([^<]+)<[^>]+>/i);
+      const nameInAngleBracketsMatch = lineWithEmail.match(
+        /(?:from\s*:\s*)?([^<]+)<[^>]+>/i
+      );
       if (nameInAngleBracketsMatch) {
-        const potentialName = nameInAngleBracketsMatch[1].replace(/["']/g, '').trim();
+        const potentialName = nameInAngleBracketsMatch[1]
+          .replace(/["']/g, '')
+          .trim();
         if (potentialName && !isJunkNameLine(potentialName)) {
           candidateName = potentialName;
         }
@@ -621,8 +721,14 @@ export function parsePortalLead(
         if (emailIndex + i < lines.length) {
           const line = lines[emailIndex + i];
           // Skip lines that are clearly not phone numbers (Property ID, listing IDs, etc., or URLs)
-          const isNotPhone = /property\s*id|listing\s*id|reference|ref\s*#|id\s*:/i.test(line) || line.includes('/') || line.includes('http');
-          const found = isHeaderOrSMTPLine(line) || isNotPhone ? null : extractLeadPhone(line);
+          const isNotPhone =
+            /property\s*id|listing\s*id|reference|ref\s*#|id\s*:/i.test(line) ||
+            line.includes('/') ||
+            line.includes('http');
+          const found =
+            isHeaderOrSMTPLine(line) || isNotPhone
+              ? null
+              : extractLeadPhone(line);
           if (found) {
             candidatePhone = found;
             break;
@@ -646,8 +752,14 @@ export function parsePortalLead(
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         // Skip lines that are clearly not phone numbers (Property ID, listing IDs, etc., or URLs)
-        const isNotPhone = /property\s*id|listing\s*id|reference|ref\s*#|id\s*:/i.test(line) || line.includes('/') || line.includes('http');
-        const found = isHeaderOrSMTPLine(line) || isNotPhone ? null : extractLeadPhone(line);
+        const isNotPhone =
+          /property\s*id|listing\s*id|reference|ref\s*#|id\s*:/i.test(line) ||
+          line.includes('/') ||
+          line.includes('http');
+        const found =
+          isHeaderOrSMTPLine(line) || isNotPhone
+            ? null
+            : extractLeadPhone(line);
         if (found) {
           phone = found;
 
@@ -668,7 +780,9 @@ export function parsePortalLead(
   const combinedText = `${subject}\n${bodyText}`;
 
   // 1. Property Type & Bedrooms
-  const propertyTypeMatch = combinedText.match(/(\d+)\s*(?:BHK|BHK)\s*(Apartment|Flat|House|Villa|Plot|Land|Commercial|Industrial)/i);
+  const propertyTypeMatch = combinedText.match(
+    /(\d+)\s*(?:BHK|BHK)\s*(Apartment|Flat|House|Villa|Plot|Land|Commercial|Industrial)/i
+  );
   if (propertyTypeMatch) {
     bedrooms = parseInt(propertyTypeMatch[1]);
     propertyType = propertyTypeMatch[2];
@@ -690,7 +804,9 @@ export function parsePortalLead(
     propertyType = mappedType;
   } else if (!propertyType) {
     // Fallback to simple keyword match
-    const typeOnlyMatch = combinedText.match(/(Apartment|Flat|House|Villa|Plot|Land|Commercial|Industrial)/i);
+    const typeOnlyMatch = combinedText.match(
+      /(Apartment|Flat|House|Villa|Plot|Land|Commercial|Industrial)/i
+    );
     if (typeOnlyMatch) propertyType = typeOnlyMatch[1];
   }
 
@@ -702,7 +818,9 @@ export function parsePortalLead(
     // \b matters: without it the "at" inside "Chat On WhatsApp" (the
     // portal's contact button) reads as a connector and hands back
     // "On WhatsApp" as the locality.
-    for (const m of combinedText.matchAll(/\b(?:in|at|near|located)\s+([A-Za-z\s,]+?)(?:\s*,|\s*\n|\s*\d|\s*₹|\s*\.)/gi)) {
+    for (const m of combinedText.matchAll(
+      /\b(?:in|at|near|located)\s+([A-Za-z\s,]+?)(?:\s*,|\s*\n|\s*\d|\s*₹|\s*\.)/gi
+    )) {
       if (isUsableLocation(m[1])) {
         propertyLocation = m[1].trim();
         break;
@@ -710,7 +828,9 @@ export function parsePortalLead(
     }
 
     if (!propertyLocation) {
-      const locationAfterType = combinedText.match(/(?:Apartment|Flat|House|Villa|Plot|Land|Industrial)\s+in\s+([A-Za-z\s,]+)/i);
+      const locationAfterType = combinedText.match(
+        /(?:Apartment|Flat|House|Villa|Plot|Land|Industrial)\s+in\s+([A-Za-z\s,]+)/i
+      );
       if (locationAfterType && isUsableLocation(locationAfterType[1])) {
         propertyLocation = locationAfterType[1].trim();
       }
@@ -721,8 +841,13 @@ export function parsePortalLead(
       // e.g. "5 BHK Villa, Devanahalli, 8400 sq. ft., ₹16.0 Cr" — the
       // location directly follows the property type, before the next
       // comma, with no "in/at/near" connector at all.
-      const locationAfterTypeComma = combinedText.match(/(?:Apartment|Flat|House|Villa|Plot|Land|Industrial|Commercial|Studio|Penthouse)s?\s*,\s*([A-Za-z][A-Za-z\s]*?)\s*,/i);
-      if (locationAfterTypeComma && isUsableLocation(locationAfterTypeComma[1])) {
+      const locationAfterTypeComma = combinedText.match(
+        /(?:Apartment|Flat|House|Villa|Plot|Land|Industrial|Commercial|Studio|Penthouse)s?\s*,\s*([A-Za-z][A-Za-z\s]*?)\s*,/i
+      );
+      if (
+        locationAfterTypeComma &&
+        isUsableLocation(locationAfterTypeComma[1])
+      ) {
         propertyLocation = locationAfterTypeComma[1].trim();
       }
     }
@@ -730,7 +855,9 @@ export function parsePortalLead(
 
   // 3. Area
   if (!areaSqft) {
-    const areaMatch = combinedText.match(/([\d,]+)\s*(?:sq\.?\s*ft\.?|sqft|sq\.?\s*feet)/i);
+    const areaMatch = combinedText.match(
+      /([\d,]+)\s*(?:sq\.?\s*ft\.?|sqft|sq\.?\s*feet)/i
+    );
     if (areaMatch) {
       areaSqft = parseInt(areaMatch[1].replace(/,/g, ''));
     }
@@ -738,7 +865,9 @@ export function parsePortalLead(
 
   // 4. Price
   if (!propertyPrice) {
-    const priceMatch = combinedText.match(/₹?\s*([\d.]+)\s*(Cr|Crore|Lakh|L)\b/i);
+    const priceMatch = combinedText.match(
+      /₹?\s*([\d.]+)\s*(Cr|Crore|Lakh|L)\b/i
+    );
     if (priceMatch) {
       const priceValue = parseFloat(priceMatch[1]);
       const unit = priceMatch[2].toLowerCase();
@@ -751,7 +880,11 @@ export function parsePortalLead(
   }
 
   // Clean values from HTML wrappers or carriage returns
-  const cleanLine = (str: string) => str.replace(/<[^>]*>/g, '').split(/[\r\n]/)[0].trim();
+  const cleanLine = (str: string) =>
+    str
+      .replace(/<[^>]*>/g, '')
+      .split(/[\r\n]/)[0]
+      .trim();
 
   return {
     name: name ? cleanLine(name) : 'Portal Lead',
@@ -786,14 +919,32 @@ export function extractPropertyType(text: string): string | null {
   ) {
     return 'Commercial Building';
   }
-  if (lower.includes('industrial land') || lower.includes('industrial plot')) return 'Industrial Land';
-  if (lower.includes('industrial building') || lower.includes('industry building')) return 'Industrial Building';
-  if (lower.includes('industrial shed') || lower.includes('industrial factory')) return 'Industrial Shed';
-  if (lower.includes('warehouse') || lower.includes('godown')) return 'Warehouse/ Godown';
+  if (lower.includes('industrial land') || lower.includes('industrial plot'))
+    return 'Industrial Land';
+  if (
+    lower.includes('industrial building') ||
+    lower.includes('industry building')
+  )
+    return 'Industrial Building';
+  if (lower.includes('industrial shed') || lower.includes('industrial factory'))
+    return 'Industrial Shed';
+  if (lower.includes('warehouse') || lower.includes('godown'))
+    return 'Warehouse/ Godown';
   if (lower.includes('commercial land')) return 'Commercial Land';
-  if (lower.includes('commercial office') || lower.includes('office space') || lower.includes('office in it park')) return 'Commercial Office Space';
-  if (lower.includes('commercial showroom') || lower.includes('showroom')) return 'Commercial Showroom';
-  if (lower.includes('commercial shop') || lower.includes('retail shop') || lower.includes(' shop')) return 'Commercial Shop';
+  if (
+    lower.includes('commercial office') ||
+    lower.includes('office space') ||
+    lower.includes('office in it park')
+  )
+    return 'Commercial Office Space';
+  if (lower.includes('commercial showroom') || lower.includes('showroom'))
+    return 'Commercial Showroom';
+  if (
+    lower.includes('commercial shop') ||
+    lower.includes('retail shop') ||
+    lower.includes(' shop')
+  )
+    return 'Commercial Shop';
   if (lower.includes('penthouse')) return 'Penthouse';
   if (lower.includes('studio apartment')) return 'Studio Apartment';
   // Specific residential structure types must be checked BEFORE the
@@ -802,11 +953,27 @@ export function extractPropertyType(text: string): string | null {
   // silently reclassifying villas/houses as apartments whenever a BHK
   // count was mentioned alongside them.
   if (lower.includes('villa')) return 'Villa';
-  if (lower.includes('farm house') || lower.includes('farmland') || lower.includes('farm land')) return 'Farm House';
+  if (
+    lower.includes('farm house') ||
+    lower.includes('farmland') ||
+    lower.includes('farm land')
+  )
+    return 'Farm House';
   if (lower.includes('agricultural land')) return 'Agricultural Land';
   if (lower.includes('builder floor')) return 'Builder Floor Apartment';
   if (lower.includes('house')) return 'Residential House';
-  if (lower.includes('flat') || lower.includes('apartment') || lower.includes('bhk')) return 'Flat/ Apartment';
-  if (lower.includes('residential land') || lower.includes('residential plot') || lower.includes(' plot') || lower.includes(' land')) return 'Residential Land/ Plot';
+  if (
+    lower.includes('flat') ||
+    lower.includes('apartment') ||
+    lower.includes('bhk')
+  )
+    return 'Flat/ Apartment';
+  if (
+    lower.includes('residential land') ||
+    lower.includes('residential plot') ||
+    lower.includes(' plot') ||
+    lower.includes(' land')
+  )
+    return 'Residential Land/ Plot';
   return null;
 }

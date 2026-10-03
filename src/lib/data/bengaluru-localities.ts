@@ -13,128 +13,206 @@ const templates: LocalityTemplate[] = [
     name: 'HSR Layout',
     type: 'sector',
     count: 7,
-    mains: ['27th Main Road', '19th Main Road', '14th Main Road', '5th Main Road', '17th Cross Road', '22nd Cross Road'],
-    crosses: ['1st Cross', '2nd Cross', '3rd Cross', '4th Cross', '5th Cross', '12th Cross', '19th Cross']
+    mains: [
+      '27th Main Road',
+      '19th Main Road',
+      '14th Main Road',
+      '5th Main Road',
+      '17th Cross Road',
+      '22nd Cross Road',
+    ],
+    crosses: [
+      '1st Cross',
+      '2nd Cross',
+      '3rd Cross',
+      '4th Cross',
+      '5th Cross',
+      '12th Cross',
+      '19th Cross',
+    ],
   },
   {
     name: 'Koramangala',
     type: 'block',
     count: 8,
-    mains: ['80 Feet Road', '100 Feet Road', '1st Main Road', '4th Main Road', 'Intermediate Ring Road'],
-    crosses: ['1st Cross', '2nd Cross', '3rd Cross', '5th Cross', '8th Cross', '12th Cross']
+    mains: [
+      '80 Feet Road',
+      '100 Feet Road',
+      '1st Main Road',
+      '4th Main Road',
+      'Intermediate Ring Road',
+    ],
+    crosses: [
+      '1st Cross',
+      '2nd Cross',
+      '3rd Cross',
+      '5th Cross',
+      '8th Cross',
+      '12th Cross',
+    ],
   },
   {
     name: 'Jayanagar',
     type: 'block',
     count: 9,
-    mains: ['Rashtreeya Vidyalaya Road', '11th Main Road', '9th Main Road', '30th Cross Road'],
-    crosses: ['1st Cross', '2nd Cross', '4th Cross', '8th Cross', '12th Cross']
+    mains: [
+      'Rashtreeya Vidyalaya Road',
+      '11th Main Road',
+      '9th Main Road',
+      '30th Cross Road',
+    ],
+    crosses: ['1st Cross', '2nd Cross', '4th Cross', '8th Cross', '12th Cross'],
   },
   {
     name: 'JP Nagar',
     type: 'phase',
     count: 9,
-    mains: ['24th Main Road', '15th Cross Road', 'Kanakapura Road', 'Outer Ring Road'],
-    crosses: ['1st Cross', '2nd Cross', '5th Cross', '10th Cross', '14th Cross']
+    mains: [
+      '24th Main Road',
+      '15th Cross Road',
+      'Kanakapura Road',
+      'Outer Ring Road',
+    ],
+    crosses: [
+      '1st Cross',
+      '2nd Cross',
+      '5th Cross',
+      '10th Cross',
+      '14th Cross',
+    ],
   },
   {
     name: 'BTM Layout',
     type: 'stage',
     count: 2,
-    mains: ['Outer Ring Road', '16th Main Road', '29th Main Road', '7th Cross Road'],
-    crosses: ['1st Cross', '2nd Cross', '5th Cross', '10th Cross']
+    mains: [
+      'Outer Ring Road',
+      '16th Main Road',
+      '29th Main Road',
+      '7th Cross Road',
+    ],
+    crosses: ['1st Cross', '2nd Cross', '5th Cross', '10th Cross'],
   },
   {
     name: 'Indiranagar',
     type: 'stage',
     count: 2,
-    mains: ['100 Feet Road', '80 Feet Road', 'Double Road', 'CMH Road', '12th Main Road', '17th Main Road'],
-    crosses: ['1st Cross', '2nd Cross', '5th Cross', '9th Cross']
+    mains: [
+      '100 Feet Road',
+      '80 Feet Road',
+      'Double Road',
+      'CMH Road',
+      '12th Main Road',
+      '17th Main Road',
+    ],
+    crosses: ['1st Cross', '2nd Cross', '5th Cross', '9th Cross'],
   },
   {
     name: 'HRBR Layout',
     type: 'block',
     count: 3,
     mains: ['80 Feet Road', 'Kammanahalli Main Road', 'Outer Ring Road'],
-    crosses: ['1st Cross', '2nd Cross', '3rd Cross', '5th Cross']
+    crosses: ['1st Cross', '2nd Cross', '3rd Cross', '5th Cross'],
   },
   {
     name: 'Banashankari',
     type: 'stage',
     count: 6,
-    mains: ['Outer Ring Road', 'Katriguppe Main Road', 'Kathriguppe 80 Feet Road'],
-    crosses: ['1st Cross', '2nd Cross', '4th Cross', '10th Cross']
+    mains: [
+      'Outer Ring Road',
+      'Katriguppe Main Road',
+      'Kathriguppe 80 Feet Road',
+    ],
+    crosses: ['1st Cross', '2nd Cross', '4th Cross', '10th Cross'],
   },
   {
     name: 'Rajajinagar',
     type: 'block',
     count: 6,
     mains: ['Dr. Rajkumar Road', 'Chord Road', '10th Main Road'],
-    crosses: ['1st Cross', '2nd Cross', '5th Cross', '8th Cross']
-  }
+    crosses: ['1st Cross', '2nd Cross', '5th Cross', '8th Cross'],
+  },
 ];
 
 const standardLocalities = [
   {
     name: 'Whitefield',
-    subareas: ['ITPL', 'ECC Road', 'Hope Farm', 'Kadugodi', 'Nallurhalli', 'Hagadur', 'Borewell Road'],
-    mains: ['ITPL Main Road', 'Whitefield Main Road', 'Borewell Road', 'Channasandra Main Road'],
-    crosses: ['1st Cross', '2nd Cross', '3rd Cross']
+    subareas: [
+      'ITPL',
+      'ECC Road',
+      'Hope Farm',
+      'Kadugodi',
+      'Nallurhalli',
+      'Hagadur',
+      'Borewell Road',
+    ],
+    mains: [
+      'ITPL Main Road',
+      'Whitefield Main Road',
+      'Borewell Road',
+      'Channasandra Main Road',
+    ],
+    crosses: ['1st Cross', '2nd Cross', '3rd Cross'],
   },
   {
     name: 'Bellandur',
     subareas: ['Green Glen Layout', 'Kasavanahalli', 'Haralur Road', 'Ibblur'],
     mains: ['Outer Ring Road', 'Haralur Main Road', 'Kasavanahalli Main Road'],
-    crosses: ['1st Cross', '2nd Cross', '3rd Cross', '4th Cross']
+    crosses: ['1st Cross', '2nd Cross', '3rd Cross', '4th Cross'],
   },
   {
     name: 'Marathahalli',
     subareas: ['Munnekollal', 'Sanjay Nagar', 'Ashwath Nagar', 'Spice Garden'],
     mains: ['Outer Ring Road', 'Kundalahalli Main Road', 'Varthur Road'],
-    crosses: ['1st Cross', '2nd Cross', '3rd Cross']
+    crosses: ['1st Cross', '2nd Cross', '3rd Cross'],
   },
   {
     name: 'Hebbal',
     subareas: ['Kempapura', 'RT Nagar', 'Ganganagar', 'Nagavara'],
     mains: ['Bellary Road', 'Outer Ring Road', 'Kempapura Main Road'],
-    crosses: ['1st Cross', '2nd Cross', '3rd Cross']
+    crosses: ['1st Cross', '2nd Cross', '3rd Cross'],
   },
   {
     name: 'Malleshwaram',
     subareas: ['Sampige Road', 'Margosa Road'],
-    mains: ['Sampige Road', 'Margosa Road', '15th Cross Road', 'Dr. Rajkumar Road'],
-    crosses: ['1st Cross', '2nd Cross', '3rd Cross']
+    mains: [
+      'Sampige Road',
+      'Margosa Road',
+      '15th Cross Road',
+      'Dr. Rajkumar Road',
+    ],
+    crosses: ['1st Cross', '2nd Cross', '3rd Cross'],
   },
   {
     name: 'Electronic City',
     subareas: ['Phase 1', 'Phase 2'],
     mains: ['Hosur Road', 'Neeladri Road', 'Bettadasanapura Road'],
-    crosses: ['1st Cross', '2nd Cross', '3rd Cross']
+    crosses: ['1st Cross', '2nd Cross', '3rd Cross'],
   },
   {
     name: 'Yelahanka',
     subareas: ['Yelahanka New Town', 'Yelahanka Old Town'],
     mains: ['Doddaballapur Road', 'Major Sandeep Unnikrishnan Road'],
-    crosses: ['1st Cross', '2nd Cross', '3rd Cross']
+    crosses: ['1st Cross', '2nd Cross', '3rd Cross'],
   },
   {
     name: 'Basavanagudi',
     subareas: ['Gandhi Bazaar', 'DVG Road', 'Bull Temple Road'],
     mains: ['DVG Road', 'Bull Temple Road', 'KR Road'],
-    crosses: ['1st Cross', '2nd Cross']
+    crosses: ['1st Cross', '2nd Cross'],
   },
   {
     name: 'Sadashivanagar',
     subareas: ['Ramanashree Road', 'Armane Nagar'],
     mains: ['Bellary Road', 'Ramanashree Road'],
-    crosses: ['1st Cross', '2nd Cross']
+    crosses: ['1st Cross', '2nd Cross'],
   },
   {
     name: 'Kalyan Nagar',
     subareas: ['HRBR Layout', 'Babusapalya'],
     mains: ['Kammanahalli Main Road', '80 Feet Road', 'Outer Ring Road'],
-    crosses: ['1st Cross', '2nd Cross', '3rd Cross']
-  }
+    crosses: ['1st Cross', '2nd Cross', '3rd Cross'],
+  },
 ];
 
 let cachedDetailed: string[] = [];
@@ -157,7 +235,7 @@ export function getMajorAreas(): string[] {
   const set = new Set<string>();
 
   // Add the base sublocalities
-  POPULAR_SUBLOCALITIES.forEach(a => set.add(a));
+  POPULAR_SUBLOCALITIES.forEach((a) => set.add(a));
 
   // Expand templates
   for (const t of templates) {
@@ -185,7 +263,11 @@ export function getDetailedLocalities(): string[] {
 
   const set = new Set<string>();
 
-  const addPermutations = (base: string, mains: string[], crosses: string[]) => {
+  const addPermutations = (
+    base: string,
+    mains: string[],
+    crosses: string[]
+  ) => {
     set.add(base);
     for (const main of mains) {
       set.add(`${base}, ${main}`);
@@ -225,7 +307,7 @@ export function getDetailedLocalities(): string[] {
   }
 
   // Fallback to basic POPULAR_SUBLOCALITIES
-  POPULAR_SUBLOCALITIES.forEach(a => set.add(a));
+  POPULAR_SUBLOCALITIES.forEach((a) => set.add(a));
 
   cachedDetailed = Array.from(set).sort();
   return cachedDetailed;

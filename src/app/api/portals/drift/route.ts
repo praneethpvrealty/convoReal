@@ -12,10 +12,7 @@ import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
 // dismiss and nothing to go stale.
 
 export type PortalDriftKind =
-  | 'withdrawn_stock'
-  | 'stale_expiry'
-  | 'likely_lapsed'
-  | 'details_drift';
+  'withdrawn_stock' | 'stale_expiry' | 'likely_lapsed' | 'details_drift';
 
 export interface PortalDriftFinding {
   portal: string;

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 // ============================================================
 // Token Safe panel — shared by the owner deal room and the bidder's
@@ -7,14 +7,14 @@
 // actions render; the server enforces them again.
 // ============================================================
 
-import { useState } from "react";
-import { toast } from "sonner";
-import { Landmark, ShieldCheck } from "lucide-react";
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { Landmark, ShieldCheck } from 'lucide-react';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 export interface TokenEscrow {
   id: string;
@@ -22,13 +22,20 @@ export interface TokenEscrow {
   refund_conditions: string | null;
   provider: string;
   provider_ref: string | null;
-  status: "proposed" | "accepted" | "funded" | "released" | "refunded" | "disputed" | "cancelled";
-  proposed_by: "owner" | "bidder";
+  status:
+    | 'proposed'
+    | 'accepted'
+    | 'funded'
+    | 'released'
+    | 'refunded'
+    | 'disputed'
+    | 'cancelled';
+  proposed_by: 'owner' | 'bidder';
   owner_confirmed_at: string | null;
   bidder_confirmed_at: string | null;
 }
 
-const inr = (minor: number) => `₹${(minor / 100).toLocaleString("en-IN")}`;
+const inr = (minor: number) => `₹${(minor / 100).toLocaleString('en-IN')}`;
 
 export function TokenSafePanel({
   role,
@@ -36,29 +43,31 @@ export function TokenSafePanel({
   escrow,
   onChanged,
 }: {
-  role: "owner" | "bidder";
+  role: 'owner' | 'bidder';
   /** POST target; receives { action, ... }. */
   endpoint: string;
   escrow: TokenEscrow | null;
   onChanged: (escrow: TokenEscrow | null) => void;
 }) {
-  const [amount, setAmount] = useState("");
-  const [conditions, setConditions] = useState("");
-  const [provider, setProvider] = useState<"manual_escrow" | "direct">("manual_escrow");
-  const [reference, setReference] = useState("");
+  const [amount, setAmount] = useState('');
+  const [conditions, setConditions] = useState('');
+  const [provider, setProvider] = useState<'manual_escrow' | 'direct'>(
+    'manual_escrow'
+  );
+  const [reference, setReference] = useState('');
   const [busy, setBusy] = useState(false);
 
   const act = async (action: string, extra: Record<string, unknown> = {}) => {
     setBusy(true);
     try {
       const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, ...extra }),
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) {
-        toast.error(body?.error || "Could not update Token Safe");
+        toast.error(body?.error || 'Could not update Token Safe');
         return;
       }
       onChanged((body?.escrow as TokenEscrow) ?? null);
@@ -67,28 +76,31 @@ export function TokenSafePanel({
     }
   };
 
-  const live = escrow && !["cancelled"].includes(escrow.status) ? escrow : null;
+  const live = escrow && !['cancelled'].includes(escrow.status) ? escrow : null;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+    <div className="border-primary/30 bg-primary/5 flex flex-col gap-3 rounded-xl border p-4">
       <div className="flex items-center gap-2">
-        <Landmark className="h-4 w-4 text-primary" />
+        <Landmark className="text-primary h-4 w-4" />
         <p className="text-sm font-black">Token Safe</p>
-        <span className="rounded-full border px-2 py-0.5 text-[9px] font-black uppercase text-muted-foreground">
+        <span className="text-muted-foreground rounded-full border px-2 py-0.5 text-[9px] font-black uppercase">
           Optional
         </span>
       </div>
 
       {!live ? (
         <>
-          <p className="text-xs font-medium text-muted-foreground">
-            Secure the token payment so neither side can back out silently — the amount and refund
-            conditions are agreed upfront, and both parties confirm before it&apos;s treated as
-            released. You can also just record a direct UPI/cheque token for the paper trail.
+          <p className="text-muted-foreground text-xs font-medium">
+            Secure the token payment so neither side can back out silently — the
+            amount and refund conditions are agreed upfront, and both parties
+            confirm before it&apos;s treated as released. You can also just
+            record a direct UPI/cheque token for the paper trail.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="ts-amount" className="text-xs font-bold">Token amount (₹)</Label>
+              <Label htmlFor="ts-amount" className="text-xs font-bold">
+                Token amount (₹)
+              </Label>
               <Input
                 id="ts-amount"
                 inputMode="numeric"
@@ -99,11 +111,11 @@ export function TokenSafePanel({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs font-bold">How</Label>
-              <div className="flex rounded-lg border bg-muted/40 p-0.5">
+              <div className="bg-muted/40 flex rounded-lg border p-0.5">
                 {(
                   [
-                    { v: "manual_escrow", label: "Via escrow" },
-                    { v: "direct", label: "Direct + receipt" },
+                    { v: 'manual_escrow', label: 'Via escrow' },
+                    { v: 'direct', label: 'Direct + receipt' },
                   ] as const
                 ).map((opt) => (
                   <button
@@ -111,7 +123,9 @@ export function TokenSafePanel({
                     type="button"
                     onClick={() => setProvider(opt.v)}
                     className={`flex-1 cursor-pointer rounded-md px-2 py-1.5 text-[11px] font-bold transition-all ${
-                      provider === opt.v ? "bg-background shadow" : "text-muted-foreground"
+                      provider === opt.v
+                        ? 'bg-background shadow'
+                        : 'text-muted-foreground'
                     }`}
                   >
                     {opt.label}
@@ -121,7 +135,9 @@ export function TokenSafePanel({
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="ts-conditions" className="text-xs font-bold">Refund conditions</Label>
+            <Label htmlFor="ts-conditions" className="text-xs font-bold">
+              Refund conditions
+            </Label>
             <Textarea
               id="ts-conditions"
               rows={2}
@@ -135,68 +151,90 @@ export function TokenSafePanel({
             disabled={busy}
             className="text-xs font-bold"
             onClick={() => {
-              const value = Number(amount.replace(/[,\s]/g, ""));
+              const value = Number(amount.replace(/[,\s]/g, ''));
               if (!Number.isFinite(value) || value <= 0) {
-                toast.error("Enter a valid token amount");
+                toast.error('Enter a valid token amount');
                 return;
               }
-              act("propose", {
+              act('propose', {
                 amount: value,
                 refund_conditions: conditions.trim() || undefined,
                 provider,
               });
             }}
           >
-            {busy ? "Proposing…" : "Propose Token Safe"}
+            {busy ? 'Proposing…' : 'Propose Token Safe'}
           </Button>
         </>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold">
             <span>
-              Token: <span className="font-black text-primary">{inr(live.amount_minor)}</span>
+              Token:{' '}
+              <span className="text-primary font-black">
+                {inr(live.amount_minor)}
+              </span>
             </span>
             <span className="text-muted-foreground">
-              {live.provider === "direct" ? "Direct payment + receipt" : "Via escrow service"}
+              {live.provider === 'direct'
+                ? 'Direct payment + receipt'
+                : 'Via escrow service'}
             </span>
             <span className="rounded-full border px-2 py-0.5 text-[10px] font-black uppercase">
               {live.status}
             </span>
           </div>
           {live.refund_conditions && (
-            <p className="rounded-lg bg-muted/40 px-3 py-2 text-[11px] font-medium text-muted-foreground">
+            <p className="bg-muted/40 text-muted-foreground rounded-lg px-3 py-2 text-[11px] font-medium">
               Refund terms: {live.refund_conditions}
             </p>
           )}
 
-          {live.status === "proposed" &&
+          {live.status === 'proposed' &&
             (live.proposed_by === role ? (
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] font-semibold text-muted-foreground">
+                <p className="text-muted-foreground text-[11px] font-semibold">
                   Waiting for the other party to accept…
                 </p>
-                <Button variant="outline" size="sm" disabled={busy} className="text-xs font-bold" onClick={() => act("cancel")}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  className="text-xs font-bold"
+                  onClick={() => act('cancel')}
+                >
                   Withdraw proposal
                 </Button>
               </div>
             ) : (
               <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" disabled={busy} className="text-xs font-bold" onClick={() => act("decline")}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  className="text-xs font-bold"
+                  onClick={() => act('decline')}
+                >
                   Decline
                 </Button>
-                <Button size="sm" disabled={busy} className="text-xs font-bold" onClick={() => act("accept")}>
+                <Button
+                  size="sm"
+                  disabled={busy}
+                  className="text-xs font-bold"
+                  onClick={() => act('accept')}
+                >
                   Accept terms
                 </Button>
               </div>
             ))}
 
-          {live.status === "accepted" &&
-            (role === "bidder" ? (
+          {live.status === 'accepted' &&
+            (role === 'bidder' ? (
               <div className="flex flex-col gap-2">
-                <p className="text-[11px] font-semibold text-muted-foreground">
-                  {live.provider === "direct"
-                    ? "Pay the token directly (UPI/cheque), then record the reference here."
-                    : "Fund the escrow with your provider, then record the escrow reference here."}
+                <p className="text-muted-foreground text-[11px] font-semibold">
+                  {live.provider === 'direct'
+                    ? 'Pay the token directly (UPI/cheque), then record the reference here.'
+                    : 'Fund the escrow with your provider, then record the escrow reference here.'}
                 </p>
                 <div className="flex gap-2">
                   <Input
@@ -208,33 +246,43 @@ export function TokenSafePanel({
                   <Button
                     size="sm"
                     disabled={busy}
-                    className="text-xs font-bold shrink-0"
-                    onClick={() => act("mark-funded", { provider_ref: reference })}
+                    className="shrink-0 text-xs font-bold"
+                    onClick={() =>
+                      act('mark-funded', { provider_ref: reference })
+                    }
                   >
                     Mark paid
                   </Button>
                 </div>
               </div>
             ) : (
-              <p className="text-[11px] font-semibold text-muted-foreground">
+              <p className="text-muted-foreground text-[11px] font-semibold">
                 Terms agreed — waiting for the buyer to pay the token.
               </p>
             ))}
 
-          {live.status === "funded" && (
+          {live.status === 'funded' && (
             <div className="flex flex-col gap-2">
-              <p className="text-[11px] font-semibold text-muted-foreground">
-                Token paid{live.provider_ref ? ` (ref: ${live.provider_ref})` : ""}. When the
-                agreement to sell is signed, both sides confirm and the token is treated as
-                released to the owner.
+              <p className="text-muted-foreground text-[11px] font-semibold">
+                Token paid
+                {live.provider_ref ? ` (ref: ${live.provider_ref})` : ''}. When
+                the agreement to sell is signed, both sides confirm and the
+                token is treated as released to the owner.
               </p>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[11px] font-bold">
-                  <ConfirmDot done={Boolean(live.owner_confirmed_at)} /> Owner ·{" "}
+                  <ConfirmDot done={Boolean(live.owner_confirmed_at)} /> Owner ·{' '}
                   <ConfirmDot done={Boolean(live.bidder_confirmed_at)} /> Buyer
                 </p>
-                {!(role === "owner" ? live.owner_confirmed_at : live.bidder_confirmed_at) && (
-                  <Button size="sm" disabled={busy} className="text-xs font-bold" onClick={() => act("confirm-release")}>
+                {!(role === 'owner'
+                  ? live.owner_confirmed_at
+                  : live.bidder_confirmed_at) && (
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    className="text-xs font-bold"
+                    onClick={() => act('confirm-release')}
+                  >
                     <ShieldCheck className="mr-1 h-3.5 w-3.5" />
                     Confirm agreement signed
                   </Button>
@@ -243,20 +291,21 @@ export function TokenSafePanel({
             </div>
           )}
 
-          {live.status === "released" && (
+          {live.status === 'released' && (
             <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400">
-              ✅ Token released — the property is blocked for this buyer. Best of luck with the
-              registration!
+              ✅ Token released — the property is blocked for this buyer. Best
+              of luck with the registration!
             </p>
           )}
-          {live.status === "refunded" && (
-            <p className="text-xs font-semibold text-muted-foreground">
+          {live.status === 'refunded' && (
+            <p className="text-muted-foreground text-xs font-semibold">
               Token refunded to the buyer per the agreed conditions.
             </p>
           )}
-          {live.status === "disputed" && (
+          {live.status === 'disputed' && (
             <p className="text-xs font-semibold text-amber-600">
-              This token is under dispute with the escrow provider — our support team will follow up.
+              This token is under dispute with the escrow provider — our support
+              team will follow up.
             </p>
           )}
         </>
@@ -268,7 +317,7 @@ export function TokenSafePanel({
 function ConfirmDot({ done }: { done: boolean }) {
   return (
     <span
-      className={`inline-block h-2 w-2 rounded-full ${done ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
+      className={`inline-block h-2 w-2 rounded-full ${done ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`}
     />
   );
 }

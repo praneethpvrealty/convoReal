@@ -46,7 +46,7 @@ function RateCell({
   const pct = percent(value, total);
   return (
     <div className="flex items-center gap-2">
-      <span className="w-10 text-right text-xs tabular-nums text-slate-300">
+      <span className="w-10 text-right text-xs text-slate-300 tabular-nums">
         {pct}%
       </span>
       <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-800">
@@ -80,7 +80,9 @@ export default function BroadcastsContent() {
       if (fetchError) throw fetchError;
       setBroadcasts(data ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load broadcasts');
+      setError(
+        err instanceof Error ? err.message : 'Failed to load broadcasts'
+      );
     } finally {
       setLoading(false);
     }
@@ -92,7 +94,7 @@ export default function BroadcastsContent() {
 
   const anySending = useMemo(
     () => broadcasts.some((b) => b.status === 'sending'),
-    [broadcasts],
+    [broadcasts]
   );
 
   useEffect(() => {
@@ -134,7 +136,11 @@ export default function BroadcastsContent() {
   if (loading) {
     return (
       <div className="flex h-64 flex-col items-center justify-center text-slate-400">
-        <SignalWaveLoader size={104} label="Loading broadcasts" className="mb-3" />
+        <SignalWaveLoader
+          size={104}
+          label="Loading broadcasts"
+          className="mb-3"
+        />
         <ConvoRealLoader size={20} className="mb-2" />
         <p className="text-sm">Loading broadcasts...</p>
       </div>
@@ -162,7 +168,7 @@ export default function BroadcastsContent() {
           aria-label="Broadcast in progress"
           className="broadcast-indeterminate fixed inset-x-0 top-0 z-40 h-0.5 overflow-hidden bg-slate-800"
         >
-          <div className="broadcast-indeterminate-bar h-0.5 bg-primary" />
+          <div className="broadcast-indeterminate-bar bg-primary h-0.5" />
           <style jsx>{`
             .broadcast-indeterminate-bar {
               width: 33%;
@@ -209,7 +215,7 @@ export default function BroadcastsContent() {
             gateReason="create broadcasts"
             onClick={() => router.push('/broadcasts/new')}
             data-tour="new-broadcast"
-            className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 mt-4"
           >
             <Plus className="h-4 w-4" />
             New Broadcast
@@ -221,7 +227,9 @@ export default function BroadcastsContent() {
             <TableHeader>
               <TableRow className="border-slate-800 hover:bg-transparent">
                 <TableHead className="text-slate-400">Name</TableHead>
-                <TableHead className="hidden text-slate-400 md:table-cell">Template</TableHead>
+                <TableHead className="hidden text-slate-400 md:table-cell">
+                  Template
+                </TableHead>
                 <TableHead className="hidden text-right text-slate-400 sm:table-cell">
                   Recipients
                 </TableHead>
@@ -238,7 +246,9 @@ export default function BroadcastsContent() {
                   </span>
                 </TableHead>
                 <TableHead className="text-slate-400">Status</TableHead>
-                <TableHead className="hidden text-slate-400 sm:table-cell">Date</TableHead>
+                <TableHead className="hidden text-slate-400 sm:table-cell">
+                  Date
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

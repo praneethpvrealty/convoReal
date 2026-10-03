@@ -2643,11 +2643,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         onChange={(e) =>
                           setEditLeadTemp(
                             e.target.value as
-                              | 'HOT'
-                              | 'COLD'
-                              | 'Not Responding'
-                              | 'Dead'
-                              | ''
+                              'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''
                           )
                         }
                         className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:outline-none"
@@ -2724,9 +2720,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           onChange={(e) =>
                             setEditFeedbackStatus(
                               e.target.value as
-                                | 'not_requested'
-                                | 'requested'
-                                | 'collected'
+                                'not_requested' | 'requested' | 'collected'
                             )
                           }
                           className="focus:border-primary mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white focus:outline-none"
@@ -2935,14 +2929,20 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                 className="focus:border-primary h-8 rounded-md border border-slate-700 bg-slate-800 px-1.5 text-xs text-white focus:outline-none disabled:opacity-40"
                               >
                                 {BUDGET_UNIT_OPTIONS.map((option) => (
-                                  <option key={option.value} value={option.value}>
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
                                     {option.label}
                                   </option>
                                 ))}
                               </select>
                             </div>
                             <PriceHint
-                              value={budgetToRupees(editMinBudget, editMinBudgetUnit)}
+                              value={budgetToRupees(
+                                editMinBudget,
+                                editMinBudgetUnit
+                              )}
                               compact
                               className="block text-[10px]"
                             />
@@ -2970,14 +2970,20 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                 className="focus:border-primary h-8 rounded-md border border-slate-700 bg-slate-800 px-1.5 text-xs text-white focus:outline-none disabled:opacity-40"
                               >
                                 {BUDGET_UNIT_OPTIONS.map((option) => (
-                                  <option key={option.value} value={option.value}>
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
                                     {option.label}
                                   </option>
                                 ))}
                               </select>
                             </div>
                             <PriceHint
-                              value={budgetToRupees(editMaxBudget, editMaxBudgetUnit)}
+                              value={budgetToRupees(
+                                editMaxBudget,
+                                editMaxBudgetUnit
+                              )}
                               compact
                               className="block text-[10px]"
                             />
@@ -3014,7 +3020,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           <span className="block font-medium text-white">
                             Already rented / pre-leased only
                           </span>
-                          Exclude vacant properties from this buyer&apos;s matches.
+                          Exclude vacant properties from this buyer&apos;s
+                          matches.
                         </span>
                       </label>
 
@@ -4081,14 +4088,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               contactId &&
               contact &&
               contact.classification !== 'Agent' && (
-              <SellerPageDialog
-                open={sellerPageOpen}
-                onOpenChange={setSellerPageOpen}
-                contactId={contactId}
-                contactName={contact.name || ''}
-                contactPhone={contact.phone ?? null}
-              />
-            )}
+                <SellerPageDialog
+                  open={sellerPageOpen}
+                  onOpenChange={setSellerPageOpen}
+                  contactId={contactId}
+                  contactName={contact.name || ''}
+                  contactPhone={contact.phone ?? null}
+                />
+              )}
             {/* Move to Engine WhatsApp Dialog */}
             {contact && hasPhone(contact) && (
               <MoveToEngineDialog

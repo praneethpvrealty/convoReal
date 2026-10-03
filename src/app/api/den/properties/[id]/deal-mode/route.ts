@@ -8,52 +8,63 @@
 // an immediate sweep for that property.
 // ============================================================
 
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
-import { UserFacingError } from "@/lib/auth/account";
-import { withDenAuth, denAdmin } from "@/lib/den/auth";
-import { runDealModeSweep } from "@/lib/den/matching-sweep";
-import { DEAL_MODES, loadOwnedProperty, type DealMode } from "@/lib/den/properties";
+import { UserFacingError } from '@/lib/auth/account';
+import { withDenAuth, denAdmin } from '@/lib/den/auth';
+import { runDealModeSweep } from '@/lib/den/matching-sweep';
+import {
+  DEAL_MODES,
+  loadOwnedProperty,
+  type DealMode,
+} from '@/lib/den/properties';
 
 export const PUT = withDenAuth(async (ctx, req, routeCtx) => {
   const { id } = await routeCtx.params;
   const existing = await loadOwnedProperty(ctx, id);
-  if (!existing) throw new UserFacingError("Property not found", 404);
+  if (!existing) throw new UserFacingError('Property not found', 404);
 
-  const body = (await req.json().catch(() => null)) as { deal_mode?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as {
+    deal_mode?: unknown;
+  } | null;
   const dealMode = body?.deal_mode as DealMode | undefined;
   if (!dealMode || !DEAL_MODES.includes(dealMode)) {
-    throw new UserFacingError("deal_mode must be one of: off, soft, aggressive");
+    throw new UserFacingError(
+      'deal_mode must be one of: off, soft, aggressive'
+    );
   }
 
   const db = denAdmin();
   const { error } = await db
-    .from("properties")
+    .from('properties')
     .update({
       deal_mode: dealMode,
       deal_mode_updated_at: new Date().toISOString(),
-      deal_mode_set_by: "owner",
+      deal_mode_set_by: 'owner',
       updated_at: new Date().toISOString(),
     })
-    .eq("id", id);
+    .eq('id', id);
   if (error) {
-    console.error("[den deal-mode PUT] update failed:", error);
-    return NextResponse.json({ error: "Could not update Deal Mode" }, { status: 500 });
+    console.error('[den deal-mode PUT] update failed:', error);
+    return NextResponse.json(
+      { error: 'Could not update Deal Mode' },
+      { status: 500 }
+    );
   }
 
   // Aggressive means "alert matching buyers NOW" — sweep just this
   // property immediately instead of waiting for the cron. Soft mode
   // rides the next scheduled sweep. Fire-and-forget: a sweep failure
   // must never fail the toggle.
-  if (dealMode === "aggressive" && existing.is_published) {
+  if (dealMode === 'aggressive' && existing.is_published) {
     runDealModeSweep(db, { propertyId: id }).catch((err) =>
-      console.error("[den deal-mode PUT] immediate sweep failed:", err),
+      console.error('[den deal-mode PUT] immediate sweep failed:', err)
     );
   }
 
   return NextResponse.json({
     property_id: id,
     deal_mode: dealMode,
-    was: existing.deal_mode ?? "off",
+    was: existing.deal_mode ?? 'off',
   });
 });

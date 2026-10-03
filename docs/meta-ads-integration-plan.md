@@ -107,7 +107,7 @@ ALTER TABLE ctwa_referrals ENABLE ROW LEVEL SECURITY;
   was wired in — additive branch, no behavior change when absent). Logic:
   1. `if (!message.referral?.source_id && !message.referral?.ctwa_clid) return;`
   2. Insert `ctwa_referrals` row (best-effort, try/catch, never blocks message processing).
-  3. Stamp the contact — only *upgrade* generic values, never overwrite meaningful ones
+  3. Stamp the contact — only _upgrade_ generic values, never overwrite meaningful ones
      (same philosophy as the property-code matcher at ~line 718):
      - `source`: set to `'meta_ctwa_ad'` only if currently null/empty.
      - `referrer`: set to `Instagram/Facebook Ad — "{headline}"` only if currently null.
@@ -162,13 +162,13 @@ ALTER TABLE meta_ads_config ENABLE ROW LEVEL SECURITY;  -- no policies; service-
 
 ### 4.2 Routes (all under `src/app/api/meta-ads/`)
 
-| Route | Auth | Behavior |
-|---|---|---|
-| `GET /api/meta-ads/config` | `requireRole('viewer')` | Connection status + chosen assets. **Never returns the token.** |
-| `GET /api/meta-ads/oauth/start` | `requireRole('owner')` | 302 to `https://www.facebook.com/vXX.X/dialog/oauth` with `client_id`, `redirect_uri`, `scope=ads_management,ads_read,business_management,pages_show_list,instagram_basic`, and `state` = HMAC-signed `{accountId, nonce, ts}` (sign with `META_ADS_APP_SECRET`; also set nonce in an httpOnly cookie — verify both on callback). |
-| `GET /api/meta-ads/oauth/callback` | session (owner) | Verify state+nonce → exchange `code` → short token → long-lived (`grant_type=fb_exchange_token`) → encrypt+upsert `meta_ads_config` → fetch `/me/adaccounts?fields=id,name,currency,account_status` and `/me/accounts?fields=id,name,instagram_business_account` → if exactly one of each, auto-select; else redirect to `settings?tab=ads&select=1`. |
-| `POST /api/meta-ads/config/select` | `requireRole('owner')` | Persist chosen `ad_account_id` / `page_id` / `ig_account_id`. Validate the ids belong to the token by re-fetching, don't trust the client. |
-| `POST /api/meta-ads/disconnect` | `requireRole('owner')` | Best-effort `DELETE /me/permissions`, then set `status='disconnected'` and null the token. Keep the row + `ad_campaigns` history. |
+| Route                              | Auth                    | Behavior                                                                                                                                                                                                                                                                                                                                              |
+| ---------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/meta-ads/config`         | `requireRole('viewer')` | Connection status + chosen assets. **Never returns the token.**                                                                                                                                                                                                                                                                                       |
+| `GET /api/meta-ads/oauth/start`    | `requireRole('owner')`  | 302 to `https://www.facebook.com/vXX.X/dialog/oauth` with `client_id`, `redirect_uri`, `scope=ads_management,ads_read,business_management,pages_show_list,instagram_basic`, and `state` = HMAC-signed `{accountId, nonce, ts}` (sign with `META_ADS_APP_SECRET`; also set nonce in an httpOnly cookie — verify both on callback).                     |
+| `GET /api/meta-ads/oauth/callback` | session (owner)         | Verify state+nonce → exchange `code` → short token → long-lived (`grant_type=fb_exchange_token`) → encrypt+upsert `meta_ads_config` → fetch `/me/adaccounts?fields=id,name,currency,account_status` and `/me/accounts?fields=id,name,instagram_business_account` → if exactly one of each, auto-select; else redirect to `settings?tab=ads&select=1`. |
+| `POST /api/meta-ads/config/select` | `requireRole('owner')`  | Persist chosen `ad_account_id` / `page_id` / `ig_account_id`. Validate the ids belong to the token by re-fetching, don't trust the client.                                                                                                                                                                                                            |
+| `POST /api/meta-ads/disconnect`    | `requireRole('owner')`  | Best-effort `DELETE /me/permissions`, then set `status='disconnected'` and null the token. Keep the row + `ad_campaigns` history.                                                                                                                                                                                                                     |
 
 **Graph client:** new `src/lib/meta-ads/client.ts` — thin fetch wrapper reusing
 `META_API_VERSION` from `src/lib/whatsapp/meta-api.ts` and mirroring its friendly error-mapping
@@ -255,14 +255,14 @@ already created, mark nothing locally, return the mapped error):
 2. **Image**: `POST /act_{ad}/adimages` with the chosen listing photo (fetch bytes server-side
    from the Supabase public URL) → `image_hash`.
 3. **Campaign**: `POST /act_{ad}/campaigns` — `{ name: "ConvoReal – {property_code} – {title}",
-   objective: 'OUTCOME_ENGAGEMENT', special_ad_categories: [], status: 'PAUSED' }`.
+objective: 'OUTCOME_ENGAGEMENT', special_ad_categories: [], status: 'PAUSED' }`.
    (`special_ad_categories: ['HOUSING']` only if ad-account country requires it — US/CA; for
    India-targeted ads pass `[]`. Leave a code comment; do not hardcode away the field.)
 4. **Ad set**: `POST /act_{ad}/adsets` — `{ campaign_id, destination_type: 'WHATSAPP',
-   optimization_goal: 'CONVERSATIONS', billing_event: 'IMPRESSIONS',
-   daily_budget: <paise>, bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-   promoted_object: { page_id }, targeting: { geo_locations: … , age_min: 22 },
-   status: 'PAUSED', end_time?: now+duration_days }`.
+optimization_goal: 'CONVERSATIONS', billing_event: 'IMPRESSIONS',
+daily_budget: <paise>, bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+promoted_object: { page_id }, targeting: { geo_locations: … , age_min: 22 },
+status: 'PAUSED', end_time?: now+duration_days }`.
    Targeting: if the property has `latitude`/`longitude` (migration 093), use
    `custom_locations: [{ latitude, longitude, radius: radius_km, distance_unit: 'kilometer' }]`;
    else fall back to the property's city. Placements: omit (Advantage+ automatic).
@@ -271,8 +271,8 @@ already created, mark nothing locally, return the mapped error):
    Link it in Meta Business settings and retry."
 5. **Creative**: `POST /act_{ad}/adcreatives` — `object_story_spec` with `page_id`
    (+ `instagram_actor_id` if `ig_account_id` set), `link_data: { message: primary_text,
-   name: headline, image_hash, link: <wa.me link for the business number>,
-   call_to_action: { type: 'WHATSAPP_MESSAGE' } }`.
+name: headline, image_hash, link: <wa.me link for the business number>,
+call_to_action: { type: 'WHATSAPP_MESSAGE' } }`.
 6. **Ad**: `POST /act_{ad}/ads` `{ adset_id, creative: {creative_id}, status: 'PAUSED' }`.
 7. Insert `ad_campaigns` row (status `PAUSED`), then — final step — flip campaign to `ACTIVE`
    via `POST /{campaign_id}` `{ status: 'ACTIVE' }` and update local status. Creating everything

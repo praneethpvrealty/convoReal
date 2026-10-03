@@ -9,7 +9,11 @@
 // look like?" live in exactly one place.
 // ============================================================
 
-import type { ParsedPropertyDraft, ParsedContactDraft, ParsedContactDraftsContainer } from '@/lib/ai/gemini';
+import type {
+  ParsedPropertyDraft,
+  ParsedContactDraft,
+  ParsedContactDraftsContainer,
+} from '@/lib/ai/gemini';
 import { sameDraftSubject } from '@/lib/contacts/draft-match';
 import {
   googleMapsUrlForCoordinates,
@@ -45,7 +49,9 @@ export function deriveDraftStatus(isValid: boolean): DraftStatus {
  * — a failed or timed-out lookup just leaves the
  * draft as-is so it doesn't block the WhatsApp reply.
  */
-export async function backfillLocationFromMapLink(draft: ParsedPropertyDraft): Promise<ParsedPropertyDraft> {
+export async function backfillLocationFromMapLink(
+  draft: ParsedPropertyDraft
+): Promise<ParsedPropertyDraft> {
   const pinnedCoords = parseCoordinatePair(draft.location);
   const source = pinnedCoords
     ? googleMapsUrlForCoordinates(pinnedCoords.latitude, pinnedCoords.longitude)
@@ -55,7 +61,10 @@ export async function backfillLocationFromMapLink(draft: ParsedPropertyDraft): P
   if (!pinnedCoords && draft.location && draft.latitude != null) return draft;
 
   const derived = pinnedCoords
-    ? await resolveLocationFromCoordinates(pinnedCoords.latitude, pinnedCoords.longitude)
+    ? await resolveLocationFromCoordinates(
+        pinnedCoords.latitude,
+        pinnedCoords.longitude
+      )
     : await resolveLocationFromGoogleMapLink(source);
   if (!derived) return draft;
 
@@ -119,11 +128,13 @@ export function validateDraft(draft: ParsedPropertyDraft): {
 
   return {
     isValid: missingFields.length === 0,
-    missingFields
+    missingFields,
   };
 }
 
-export function validateContactDraftsContainer(container: ParsedContactDraftsContainer): {
+export function validateContactDraftsContainer(
+  container: ParsedContactDraftsContainer
+): {
   isValid: boolean;
   missingFields: string[];
   invalidCount: number;
@@ -153,7 +164,7 @@ export function validateContactDraftsContainer(container: ParsedContactDraftsCon
   return {
     isValid: invalidCount === 0,
     missingFields,
-    invalidCount
+    invalidCount,
   };
 }
 
@@ -170,36 +181,41 @@ export function formatDraftPreviewMessage(
   nextStatus: string,
   missingFields: string[]
 ): string {
-  const isCommOrLand = draft.type ? (
-    draft.type.toLowerCase().includes('commercial') ||
-    draft.type.toLowerCase().includes('industrial') ||
-    draft.type.toLowerCase().includes('warehouse') ||
-    draft.type.toLowerCase().includes('godown') ||
-    draft.type.toLowerCase().includes('agricultural') ||
-    draft.type.toLowerCase().includes('land') ||
-    draft.type.toLowerCase().includes('plot')
-  ) : false;
+  const isCommOrLand = draft.type
+    ? draft.type.toLowerCase().includes('commercial') ||
+      draft.type.toLowerCase().includes('industrial') ||
+      draft.type.toLowerCase().includes('warehouse') ||
+      draft.type.toLowerCase().includes('godown') ||
+      draft.type.toLowerCase().includes('agricultural') ||
+      draft.type.toLowerCase().includes('land') ||
+      draft.type.toLowerCase().includes('plot')
+    : false;
 
   const isRent = draft.listing_type === 'Rent';
   const isJointDevelopment = draft.listing_type === 'JV/JD';
 
-  let reply = `${header}\n\n` +
-    `*Title:* ${draft.title || '❓ _Missing_'}\n`;
+  let reply = `${header}\n\n` + `*Title:* ${draft.title || '❓ _Missing_'}\n`;
 
   if (isJointDevelopment) {
     const owner = draft.owner_share_percent;
     const builder = draft.builder_share_percent;
-    reply += `*Deal:* JV / Joint Development\n` +
+    reply +=
+      `*Deal:* JV / Joint Development\n` +
       `*Structure:* ${draft.jv_structure || '_Not specified_'}\n` +
       `*Owner : Builder Share:* ${owner || builder ? `${owner ?? '?'} : ${builder ?? '?'}` : '_Not specified_'}\n` +
       `*Goodwill:* ${draft.goodwill_amount ? '₹' + draft.goodwill_amount.toLocaleString('en-IN') : '_Not specified_'}\n` +
-      (draft.advance ? `*Refundable Advance:* ₹${draft.advance.toLocaleString('en-IN')}\n` : '') +
-      (draft.price ? `*Expected Project Value:* ₹${draft.price.toLocaleString('en-IN')}\n` : '');
+      (draft.advance
+        ? `*Refundable Advance:* ₹${draft.advance.toLocaleString('en-IN')}\n`
+        : '') +
+      (draft.price
+        ? `*Expected Project Value:* ₹${draft.price.toLocaleString('en-IN')}\n`
+        : '');
   } else if (isRent) {
-    reply += `*Rent:* ${draft.rent_per_month ? '₹' + draft.rent_per_month.toLocaleString('en-IN') + '/month' : '❓ _Missing_'}\n` +
-             `*Maintenance:* ${draft.maintenance ? '₹' + draft.maintenance.toLocaleString('en-IN') + '/month' : '_Not specified_'}\n` +
-             `*Advance:* ${draft.advance ? '₹' + draft.advance.toLocaleString('en-IN') : '_Not specified_'}\n` +
-             `*GST:* ${draft.gst ? (draft.gst <= 100 ? draft.gst + '%' : '₹' + draft.gst.toLocaleString('en-IN')) : '_Not specified_'}\n`;
+    reply +=
+      `*Rent:* ${draft.rent_per_month ? '₹' + draft.rent_per_month.toLocaleString('en-IN') + '/month' : '❓ _Missing_'}\n` +
+      `*Maintenance:* ${draft.maintenance ? '₹' + draft.maintenance.toLocaleString('en-IN') + '/month' : '_Not specified_'}\n` +
+      `*Advance:* ${draft.advance ? '₹' + draft.advance.toLocaleString('en-IN') : '_Not specified_'}\n` +
+      `*GST:* ${draft.gst ? (draft.gst <= 100 ? draft.gst + '%' : '₹' + draft.gst.toLocaleString('en-IN')) : '_Not specified_'}\n`;
   } else {
     reply += `*Price:* ${draft.price ? '₹' + draft.price.toLocaleString('en-IN') : '❓ _Missing_'}\n`;
     if (draft.price_per_sqft) {
@@ -209,21 +225,26 @@ export function formatDraftPreviewMessage(
           ? draft.price_from_rate
             ? ' _(price auto-calculated from area)_'
             : ''
-          : ' _(share the land area and I\'ll calculate the price)_'
+          : " _(share the land area and I'll calculate the price)_"
       }\n`;
     }
   }
 
-  reply += `*Location:* ${draft.location || '❓ _Missing_'}\n` +
+  reply +=
+    `*Location:* ${draft.location || '❓ _Missing_'}\n` +
     `*Type:* ${draft.type || '❓ _Missing_'}\n` +
     `*Area:* ${draft.area_sqft ? draft.area_sqft + ' Sq.Ft.' : '_Not specified_'}\n` +
-    (draft.land_area ? `*Land Area:* ${draft.land_area} ${draft.land_area_unit || 'Sq.Ft.'}\n` : '') +
+    (draft.land_area
+      ? `*Land Area:* ${draft.land_area} ${draft.land_area_unit || 'Sq.Ft.'}\n`
+      : '') +
     (draft.dimensions ? `*Dimensions:* ${draft.dimensions}\n` : '') +
     (draft.khata_epid || draft.khata_form
       ? `*e-Khata:* ${[draft.khata_form ? `Form-${draft.khata_form}` : null, draft.khata_epid ? `ePID ${draft.khata_epid}` : null].filter(Boolean).join(' · ')}\n`
       : '') +
     (draft.year_built ? `*Year Built:* ${draft.year_built}\n` : '') +
-    (isCommOrLand ? '' : `*Beds/Baths:* ${draft.bedrooms ? draft.bedrooms + ' BHK' : '_Not specified_'} / ${draft.bathrooms ? draft.bathrooms + ' Bath' : '_Not specified_'}\n`);
+    (isCommOrLand
+      ? ''
+      : `*Beds/Baths:* ${draft.bedrooms ? draft.bedrooms + ' BHK' : '_Not specified_'} / ${draft.bathrooms ? draft.bathrooms + ' Bath' : '_Not specified_'}\n`);
 
   if (!isRent && draft.rental_income) {
     reply += `*Rent:* ₹${draft.rental_income.toLocaleString('en-IN')}/month\n`;
@@ -241,19 +262,26 @@ export function formatDraftPreviewMessage(
     reply += `*Nearby Highlights:* ${draft.nearby_highlights.join(', ')}\n`;
   }
   if (draft.owner_contact_name) {
-    const rolePart = draft.owner_contact_role ? ` [${draft.owner_contact_role}]` : '';
-    const phonePart = draft.owner_contact_phone ? ` (${draft.owner_contact_phone})` : '';
+    const rolePart = draft.owner_contact_role
+      ? ` [${draft.owner_contact_role}]`
+      : '';
+    const phonePart = draft.owner_contact_phone
+      ? ` (${draft.owner_contact_phone})`
+      : '';
     reply += `*Listing Owner/Agent:* ${draft.owner_contact_name}${phonePart}${rolePart}\n`;
     if (draft.owner_contact_name_tag) {
       reply += `*Name Tag:* 🏷️ ${draft.owner_contact_name_tag}\n`;
     }
   }
 
-  reply += (draft.video_url || draft.youtube_video_id ? `*Video:* Attached 🎬\n` : '') +
+  reply +=
+    (draft.video_url || draft.youtube_video_id
+      ? `*Video:* Attached 🎬\n`
+      : '') +
     `*Images:* ${draft.images.length} attached\n` +
     `*Documents:* ${(draft.documents || []).length} attached\n\n` +
     (nextStatus === 'awaiting_confirmation'
-      ? "✅ All mandatory fields populated!\n• Use the buttons below to Confirm or Cancel.\n• Send more updates to correct details."
+      ? '✅ All mandatory fields populated!\n• Use the buttons below to Confirm or Cancel.\n• Send more updates to correct details.'
       : `⚠️ *Still missing:* ${missingFields.join(', ')}.\n• Use the Cancel button below to discard.\n• Reply with details to complete.`);
 
   return reply;
@@ -281,16 +309,21 @@ export function formatContactDraftsPreview(
       const draft = container.contacts[idx];
       const duplicateWarning = duplicateWarnings[idx] ?? '';
 
-      reply += `*Contact #${idx + 1}:*\n` +
+      reply +=
+        `*Contact #${idx + 1}:*\n` +
         `• *Name:* ${draft.name || '❓ _Missing_'}\n` +
         (draft.name_tag ? `• *Name Tag:* 🏷️ ${draft.name_tag}\n` : '') +
         `• *Phone:* ${draft.phone || '❓ _Missing_'}\n` +
         `• *Email:* ${draft.email || '_Not specified_'}\n` +
         `• *Company:* ${draft.company || '_Not specified_'}\n` +
         `• *Role/Classification:* ${draft.classification || 'Others'}\n` +
-        (draft.referrer_name ? `• *Referrer:* ${draft.referrer_name}${draft.referrer_phone ? ' (' + draft.referrer_phone + ')' : ''}\n` : '') +
+        (draft.referrer_name
+          ? `• *Referrer:* ${draft.referrer_name}${draft.referrer_phone ? ' (' + draft.referrer_phone + ')' : ''}\n`
+          : '') +
         `• *Notes:* ${draft.notes || '_No notes_'}\n` +
-        (draft.requirements ? `• *Requirements:* ${draft.requirements}\n` : '') +
+        (draft.requirements
+          ? `• *Requirements:* ${draft.requirements}\n`
+          : '') +
         (duplicateWarning ? `${duplicateWarning}\n` : '') +
         `\n`;
     }
@@ -310,7 +343,10 @@ export function formatContactDraftsPreview(
 /** Combines two free-text fields (notes / requirements), trimming and
  *  de-duplicating so re-forwarding overlapping details doesn't pile up
  *  repeated sentences. Returns null when both are empty. */
-export function mergeFreeText(a: string | null | undefined, b: string | null | undefined): string | null {
+export function mergeFreeText(
+  a: string | null | undefined,
+  b: string | null | undefined
+): string | null {
   const left = (a || '').trim();
   const right = (b || '').trim();
   if (!left) return right || null;
@@ -325,7 +361,10 @@ export function mergeFreeText(a: string | null | undefined, b: string | null | u
  *  follow-up screenshot that lacks them doesn't blank them out; the
  *  classification upgrades away from the generic 'Others'; free-text
  *  notes/requirements are concatenated. */
-export function mergeContactDraft(base: ParsedContactDraft, add: ParsedContactDraft): ParsedContactDraft {
+export function mergeContactDraft(
+  base: ParsedContactDraft,
+  add: ParsedContactDraft
+): ParsedContactDraft {
   return {
     name: base.name ?? add.name,
     name_tag: base.name_tag ?? add.name_tag,
@@ -361,7 +400,9 @@ export function mergeContactDraftsContainer(
   if (existingContacts.length === 0) return { contacts: incomingContacts };
 
   const merged = existingContacts.map((base, idx) =>
-    incomingContacts[idx] ? mergeContactDraft(base, incomingContacts[idx]) : base
+    incomingContacts[idx]
+      ? mergeContactDraft(base, incomingContacts[idx])
+      : base
   );
   if (incomingContacts.length > existingContacts.length) {
     merged.push(...incomingContacts.slice(existingContacts.length));
@@ -392,11 +433,21 @@ export function applyExplicitContactDraftUpdate(
 
   const updates: Partial<Record<'name' | 'company' | 'email', string>> = {};
   for (const segment of segments) {
-    const match = segment.match(/^([a-z][a-z _-]*?)\s*(?::|\s-\s|\bis\b)\s*(.+)$/i);
-    const field = match && EXPLICIT_CONTACT_FIELDS[match[1].trim().toLowerCase().replace(/[\s_-]+/g, ' ')];
+    const match = segment.match(
+      /^([a-z][a-z _-]*?)\s*(?::|\s-\s|\bis\b)\s*(.+)$/i
+    );
+    const field =
+      match &&
+      EXPLICIT_CONTACT_FIELDS[
+        match[1]
+          .trim()
+          .toLowerCase()
+          .replace(/[\s_-]+/g, ' ')
+      ];
     const value = match?.[2]?.trim();
     if (!field || !value || updates[field]) return null;
-    if (field === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return null;
+    if (field === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+      return null;
     updates[field] = value;
   }
   if (!updates.name) return null;

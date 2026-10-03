@@ -46,10 +46,10 @@ reaches a customer. See [Boundaries](#boundaries).
 
 ## Requirements
 
-| | |
-|---|---|
-| Plan | **Agency** — API access is an Agency-plan feature |
-| Role | **Admin or owner**, to create the API key |
+|                 |                                                      |
+| --------------- | ---------------------------------------------------- |
+| Plan            | **Agency** — API access is an Agency-plan feature    |
+| Role            | **Admin or owner**, to create the API key            |
 | On your machine | Node.js 20+, and an MCP client (e.g. Claude Desktop) |
 
 ---
@@ -124,7 +124,7 @@ against it with the real engine. You get a list ordered by score with the reason
 each person is on it — "Type you asked for · In your area · Within budget" —
 plus their phone number and stated requirement.
 
-Follow up with *"which of those haven't been contacted in the last month?"* and
+Follow up with _"which of those haven't been contacted in the last month?"_ and
 it filters on `last_contacted_at` without another search.
 
 ### Working a buyer
@@ -171,7 +171,7 @@ Owners ranked by live stock, with the value sitting behind each one.
 > **"What's my buyers' average budget?"**
 
 Average, median, and the full range across buyers who have stated one — plus how
-many have said they have *no* ceiling, counted separately rather than dragged
+many have said they have _no_ ceiling, counted separately rather than dragged
 through the average as zeros.
 
 > **"Who are my biggest buyers and are they actively shortlisting?"**
@@ -196,12 +196,12 @@ land where your team will see them, not just in a chat transcript.
 
 ## The sixteen tools
 
-| Area | Tools |
-|---|---|
-| Inventory | `search_properties`, `get_property`, `match_contacts_for_property` |
-| Contacts | `search_contacts`, `get_contact`, `match_properties_for_contact`, `list_contact_notes`, **`create_contact`**, **`add_contact_note`** |
-| Workspace | `list_radar_events`, `list_deals`, `get_agenda`, **`create_todo`** |
-| Portfolio | `get_portfolio_summary`, `list_portfolio_owners`, `list_portfolio_buyers` |
+| Area      | Tools                                                                                                                                |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Inventory | `search_properties`, `get_property`, `match_contacts_for_property`                                                                   |
+| Contacts  | `search_contacts`, `get_contact`, `match_properties_for_contact`, `list_contact_notes`, **`create_contact`**, **`add_contact_note`** |
+| Workspace | `list_radar_events`, `list_deals`, `get_agenda`, **`create_todo`**                                                                   |
+| Portfolio | `get_portfolio_summary`, `list_portfolio_owners`, `list_portfolio_buyers`                                                            |
 
 All prefixed `convoreal_`. **Bold** = requires the `write` scope. Full parameter
 reference in [`mcp/README.md`](../mcp/README.md).
@@ -223,7 +223,7 @@ omitted rather than shown as ₹0. Same for asking prices when nothing is
 available.
 
 **Agent-referred listings don't count toward an owner.** On those the owner field
-holds the *referring agent*, so counting them would credit the wrong person.
+holds the _referring agent_, so counting them would credit the wrong person.
 They are excluded from owner stock and bid counts.
 
 **Radar is a snapshot, not a live score.** See [Triage](#triage) above.
@@ -241,7 +241,7 @@ Deliberate, not missing:
 - **No billing, credits or member management.**
 - **No deletes.** The only writes are create-contact, append-note, create-task.
 - **No other tenant's data**, and nothing behind a `/den` or `/buyer` login. The
-  Portfolio tools report on *your own* linked owners and buyers — people already
+  Portfolio tools report on _your own_ linked owners and buyers — people already
   in your contact list.
 
 ---
@@ -264,11 +264,11 @@ that workspace's inventory and contacts.
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| Server missing from the client | Bad path or key | Run `node mcp/dist/index.js` by hand; it prints the reason |
-| `402 plan_upgrade_required` | Workspace is not on Agency | Upgrade, or use the app |
-| `401 Invalid API key` | Revoked, expired, or mistyped | Issue a new key |
-| `403 insufficient_scope` | Read-only key, write tool | Issue a key with `["read","write"]` |
-| `429` | More than 120 calls/minute | Ask fewer, broader questions |
-| Empty Portfolio numbers | No portal logins yet | Expected — see above |
+| Symptom                        | Cause                         | Fix                                                        |
+| ------------------------------ | ----------------------------- | ---------------------------------------------------------- |
+| Server missing from the client | Bad path or key               | Run `node mcp/dist/index.js` by hand; it prints the reason |
+| `402 plan_upgrade_required`    | Workspace is not on Agency    | Upgrade, or use the app                                    |
+| `401 Invalid API key`          | Revoked, expired, or mistyped | Issue a new key                                            |
+| `403 insufficient_scope`       | Read-only key, write tool     | Issue a key with `["read","write"]`                        |
+| `429`                          | More than 120 calls/minute    | Ask fewer, broader questions                               |
+| Empty Portfolio numbers        | No portal logins yet          | Expected — see above                                       |

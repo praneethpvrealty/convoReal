@@ -102,15 +102,25 @@ describe('unavailableListingReply', () => {
   it('[PRP-014] stays silent for an available or unverified listing', () => {
     expect(unavailableListingReply('Sandeep', 'Plot', 'Available')).toBeNull();
     expect(unavailableListingReply('Sandeep', 'Plot', null)).toBeNull();
-    expect(unavailableListingReply('Sandeep', 'Plot', 'Pending Review')).toBeNull();
+    expect(
+      unavailableListingReply('Sandeep', 'Plot', 'Pending Review')
+    ).toBeNull();
   });
 
   it('[PRP-014] promises an update when an under-contract listing frees up and asks for requirements and budget', () => {
-    const text = unavailableListingReply('Sandeep Kumar', 'JP Nagar Plot', 'Under Contract');
-    expect(text).toMatch(/^Hi Sandeep, thank you for your interest in \*JP Nagar Plot\*/);
+    const text = unavailableListingReply(
+      'Sandeep Kumar',
+      'JP Nagar Plot',
+      'Under Contract'
+    );
+    expect(text).toMatch(
+      /^Hi Sandeep, thank you for your interest in \*JP Nagar Plot\*/
+    );
     expect(text).toMatch(/I'm sorry/);
     expect(text).toMatch(/under contract with another buyer/);
-    expect(text).toMatch(/If it becomes available again, we'll come back and update you/);
+    expect(text).toMatch(
+      /If it becomes available again, we'll come back and update you/
+    );
     expect(text).toMatch(/requirements and budget/);
   });
 
@@ -132,6 +142,8 @@ describe('unavailableListingReply', () => {
   });
 
   it('greets a placeholder-named portal lead without the placeholder', () => {
-    expect(unavailableListingReply('99acres Lead', 'Plot', 'Sold')).toMatch(/^Hi, thank you/);
+    expect(unavailableListingReply('99acres Lead', 'Plot', 'Sold')).toMatch(
+      /^Hi, thank you/
+    );
   });
 });

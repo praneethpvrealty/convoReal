@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { continueRender, delayRender, useCurrentFrame, useVideoConfig } from 'remotion';
+import {
+  continueRender,
+  delayRender,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
 import { injectFonts } from './fonts';
 
 export const SWITCHBOARD_DURATION_MS = 36200;
@@ -17,7 +22,8 @@ const AGENT_ARRIVE_BASE = S2 + 2350;
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const lerp = (a: number, b: number, p: number) => a + (b - a) * p;
 const easeOut = (p: number) => 1 - (1 - p) ** 3;
-const easeOutBack = (p: number) => 1 + 2.70158 * (p - 1) ** 3 + 1.70158 * (p - 1) ** 2;
+const easeOutBack = (p: number) =>
+  1 + 2.70158 * (p - 1) ** 3 + 1.70158 * (p - 1) ** 2;
 const rnd = (seed: number) => {
   const s = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
   return s - Math.floor(s);
@@ -70,25 +76,55 @@ const MSGS1: Msg[] = [
 }));
 
 const BADGE_VALUES = [3, 7, 12, 19, 27, 38, 52, 67, 81, 94, 99, 132];
-const BADGE_STEPS = MSGS1.map((m, i) => ({ t: m.t0 + FALL1, v: BADGE_VALUES[i] }));
+const BADGE_STEPS = MSGS1.map((m, i) => ({
+  t: m.t0 + FALL1,
+  v: BADGE_VALUES[i],
+}));
 
 const MSGS3 = [
   { text: '3 BHK in Koramangala?', tag: 'Buyer · Koramangala', agent: 0 },
   { text: 'Visit Sunday 11 am?', tag: 'Site visit · HSR', agent: 1 },
-  { text: 'New lead: Rahul', src: 'MagicBricks', sc: '#f97316', tag: 'Portal lead', agent: 2 },
+  {
+    text: 'New lead: Rahul',
+    src: 'MagicBricks',
+    sc: '#f97316',
+    tag: 'Portal lead',
+    agent: 2,
+  },
   { text: 'Budget ₹1.2 Cr, 2 BHK', tag: 'Buyer · Indiranagar', agent: 0 },
   { text: 'Reschedule to 5 pm?', tag: 'Site visit · Whitefield', agent: 1 },
-  { text: 'New lead: Ananya', src: '99acres', sc: '#3b82f6', tag: 'Portal lead', agent: 2 },
+  {
+    text: 'New lead: Ananya',
+    src: '99acres',
+    sc: '#3b82f6',
+    tag: 'Portal lead',
+    agent: 2,
+  },
 ].map((m, i) => {
   const t0 = S3 + 600 + i * 1500;
-  return { ...m, t0, x0: 220 + rnd(i * 11.3) * 360, stampT: t0 + 1410, absorbT: t0 + 2150, arrive: t0 + 3100 };
+  return {
+    ...m,
+    t0,
+    x0: 220 + rnd(i * 11.3) * 360,
+    stampT: t0 + 1410,
+    absorbT: t0 + 2150,
+    arrive: t0 + 3100,
+  };
 });
 
 const bezier = (p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): Pt => {
   const u = 1 - t;
   return {
-    x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
-    y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
+    x:
+      u * u * u * p0.x +
+      3 * u * u * t * p1.x +
+      3 * u * t * t * p2.x +
+      t * t * t * p3.x,
+    y:
+      u * u * u * p0.y +
+      3 * u * u * t * p1.y +
+      3 * u * t * t * p2.y +
+      t * t * t * p3.y,
   };
 };
 
@@ -99,10 +135,20 @@ const THREADS = AGENTS.map((a, i) => {
   const p2 = { x: p3.x - 85, y: p3.y };
   const pts: Pt[] = [];
   for (let k = 0; k <= 40; k++) pts.push(bezier(p0, p1, p2, p3, k / 40));
-  return { pts, p0, color: a.color, drawStart: S2 + 1600 + i * 300, mid: bezier(p0, p1, p2, p3, 0.5) };
+  return {
+    pts,
+    p0,
+    color: a.color,
+    drawStart: S2 + 1600 + i * 300,
+    mid: bezier(p0, p1, p2, p3, 0.5),
+  };
 });
 
-const WIRE_LABELS = ['Buyers → Priya', 'Site visits → Arjun', 'Portals → Meera'].map((text, i) => ({
+const WIRE_LABELS = [
+  'Buyers → Priya',
+  'Site visits → Arjun',
+  'Portals → Meera',
+].map((text, i) => ({
   text,
   x: THREADS[i].mid.x,
   y: THREADS[i].mid.y - 28,
@@ -110,10 +156,30 @@ const WIRE_LABELS = ['Buyers → Priya', 'Site visits → Arjun', 'Portals → M
 }));
 
 const CAPTIONS = [
-  { t0: 100, tone: '', eyebrow: '01 · Today', head: 'Every buyer pings one personal number. Chats pile up — and bounce.' },
-  { t0: S2, tone: 'violet', eyebrow: '02 · The ConvoReal engine', head: 'One shared inbox. Rules route every chat to the right agent.' },
-  { t0: S3, tone: 'gold', eyebrow: '03 · After ConvoReal', head: 'Answered, assigned, and tagged — in minutes, not hours.' },
-  { t0: 29500, tone: 'gold', eyebrow: 'ConvoReal', head: 'One inbox. Whole team. Zero missed leads.' },
+  {
+    t0: 100,
+    tone: '',
+    eyebrow: '01 · Today',
+    head: 'Every buyer pings one personal number. Chats pile up — and bounce.',
+  },
+  {
+    t0: S2,
+    tone: 'violet',
+    eyebrow: '02 · The ConvoReal engine',
+    head: 'One shared inbox. Rules route every chat to the right agent.',
+  },
+  {
+    t0: S3,
+    tone: 'gold',
+    eyebrow: '03 · After ConvoReal',
+    head: 'Answered, assigned, and tagged — in minutes, not hours.',
+  },
+  {
+    t0: 29500,
+    tone: 'gold',
+    eyebrow: 'ConvoReal',
+    head: 'One inbox. Whole team. Zero missed leads.',
+  },
 ];
 
 function renderBackground(ctx: Ctx) {
@@ -170,7 +236,10 @@ function drawBubble(
   const gray = opts.gray ?? 0;
   ctx.beginPath();
   ctx.roundRect(-w / 2, -h / 2, w, h, 11);
-  ctx.fillStyle = gray > 0 ? `rgb(${lerp(31, 42, gray)},${lerp(44, 44, gray)},${lerp(52, 44, gray)})` : '#1f2c34';
+  ctx.fillStyle =
+    gray > 0
+      ? `rgb(${lerp(31, 42, gray)},${lerp(44, 44, gray)},${lerp(52, 44, gray)})`
+      : '#1f2c34';
   ctx.shadowColor = 'rgba(0,0,0,0.7)';
   ctx.shadowBlur = 14;
   ctx.fill();
@@ -335,10 +404,19 @@ function drawBubbles1(ctx: Ctx, t: number) {
       const p = age / FALL1;
       const x = lerp(m.x0, PHONE.x + m.off, easeOut(p));
       const y = lerp(-40, PHONE.y - 115, Math.pow(p, 1.3));
-      drawBubble(ctx, m, x, y, p < 0.05 ? p * 20 : 1, { rotate: (1 - p) * m.dir * 5 });
+      drawBubble(ctx, m, x, y, p < 0.05 ? p * 20 : 1, {
+        rotate: (1 - p) * m.dir * 5,
+      });
     } else if (m.land) {
       const p = clamp01((age - FALL1) / 320);
-      drawBubble(ctx, m, PHONE.x + m.off * (1 - p), PHONE.y - 115 + p * 40, 1 - p, { scale: 1 - 0.75 * p });
+      drawBubble(
+        ctx,
+        m,
+        PHONE.x + m.off * (1 - p),
+        PHONE.y - 115 + p * 40,
+        1 - p,
+        { scale: 1 - 0.75 * p }
+      );
     } else {
       const dt = (age - FALL1) / 1000;
       if (dt > 1.15) return;
@@ -360,10 +438,15 @@ function drawBubbles3(ctx: Ctx, t: number) {
       const p = clamp01(age / FALL3);
       const x = lerp(m.x0, PANEL.x, easeOut(p));
       const y = lerp(-40, PANEL.y - 82, Math.pow(p, 1.25));
-      drawBubble(ctx, m, x, y, p < 0.05 ? p * 20 : 1, { chipP: clamp01((t - m.stampT) / 300) });
+      drawBubble(ctx, m, x, y, p < 0.05 ? p * 20 : 1, {
+        chipP: clamp01((t - m.stampT) / 300),
+      });
     } else {
       const p = clamp01((t - m.absorbT) / 300);
-      drawBubble(ctx, m, PANEL.x, PANEL.y - 82 + p * 36, 1 - p, { scale: 1 - 0.7 * p, chipP: 1 - p });
+      drawBubble(ctx, m, PANEL.x, PANEL.y - 82 + p * 36, 1 - p, {
+        scale: 1 - 0.7 * p,
+        chipP: 1 - p,
+      });
     }
   }
 }
@@ -431,7 +514,11 @@ function drawThreads(ctx: Ctx, t: number) {
     ctx.shadowColor = '#8b5cf6';
     ctx.shadowBlur = 8;
     ctx.beginPath();
-    th.pts.slice(0, n).forEach((pt, k) => (k === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
+    th.pts
+      .slice(0, n)
+      .forEach((pt, k) =>
+        k === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)
+      );
     ctx.stroke();
     if (p < 1) {
       const head = th.pts[n - 1];
@@ -507,7 +594,13 @@ function drawSparks(ctx: Ctx, t: number) {
       ctx.shadowColor = a0.color;
       ctx.shadowBlur = 6;
       ctx.beginPath();
-      ctx.arc(a0.x - 94 + Math.cos(an) * v * T, a0.y + (Math.sin(an) * v - 1) * T, 2.2, 0, Math.PI * 2);
+      ctx.arc(
+        a0.x - 94 + Math.cos(an) * v * T,
+        a0.y + (Math.sin(an) * v - 1) * T,
+        2.2,
+        0,
+        Math.PI * 2
+      );
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -572,7 +665,8 @@ function drawAgents(ctx: Ctx, t: number) {
 
     const tickAge = t - last;
     if (tickAge >= 0 && tickAge < 900) {
-      ctx.globalAlpha = clamp01(inP) * clamp01(tickAge / 120) * clamp01((900 - tickAge) / 300);
+      ctx.globalAlpha =
+        clamp01(inP) * clamp01(tickAge / 120) * clamp01((900 - tickAge) / 300);
       ctx.fillStyle = '#53bdeb';
       ctx.font = font(800, 11);
       ctx.textAlign = 'right';
@@ -730,11 +824,17 @@ function drawCaption(ctx: Ctx, t: number) {
   const cap = CAPTIONS[idx];
   let alpha = clamp01((t - cap.t0 - 380) / 420);
   const next = CAPTIONS[idx + 1];
-  if (next && t > next.t0 - 380) alpha = Math.min(alpha, clamp01((next.t0 - t) / 380));
+  if (next && t > next.t0 - 380)
+    alpha = Math.min(alpha, clamp01((next.t0 - t) / 380));
   if (alpha <= 0) return;
   ctx.save();
   ctx.globalAlpha = alpha;
-  const eyeColor = cap.tone === 'gold' ? '#f5c044' : cap.tone === 'violet' ? '#a78bfa' : '#8d99b2';
+  const eyeColor =
+    cap.tone === 'gold'
+      ? '#f5c044'
+      : cap.tone === 'violet'
+        ? '#a78bfa'
+        : '#8d99b2';
   ctx.font = font(700, 23);
   const lines = wrapText(ctx, cap.head, 430);
   const headH = lines.length * 28;
@@ -777,7 +877,6 @@ function drawBrand(ctx: Ctx) {
   ctx.restore();
   ctx.textBaseline = 'alphabetic';
 }
-
 
 function drawCTA(ctx: Ctx, t: number, T0: number, kicker: string) {
   const p = clamp01((t - T0) / 700);
@@ -890,7 +989,11 @@ export const SwitchboardVideo = () => {
       setFontsReady(true);
       continueRender(handle);
     };
-    Promise.all(['400', '600', '700', '800'].map((w) => document.fonts.load(`${w} 16px Manrope`)))
+    Promise.all(
+      ['400', '600', '700', '800'].map((w) =>
+        document.fonts.load(`${w} 16px Manrope`)
+      )
+    )
       .then(finish)
       .catch(finish);
     const to = setTimeout(finish, 5000);
@@ -904,5 +1007,12 @@ export const SwitchboardVideo = () => {
     ctx.clearRect(0, 0, 1920, 1080);
     draw(ctx, (frame / fps) * 1000);
   }, [frame, fps, fontsReady]);
-  return <canvas ref={ref} width={1920} height={1080} style={{ width: '100%', height: '100%' }} />;
+  return (
+    <canvas
+      ref={ref}
+      width={1920}
+      height={1080}
+      style={{ width: '100%', height: '100%' }}
+    />
+  );
 };

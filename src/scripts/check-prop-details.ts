@@ -2,27 +2,29 @@ import { supabaseAdmin } from '../lib/supabase/admin';
 
 async function checkDetails() {
   const supabase = supabaseAdmin();
-  console.log("Fetching property details for PROP-1082...");
+  console.log('Fetching property details for PROP-1082...');
   const { data: prop, error: propError } = await supabase
-    .from("properties")
-    .select("*")
-    .ilike("property_code", "%1082%")
+    .from('properties')
+    .select('*')
+    .ilike('property_code', '%1082%')
     .maybeSingle();
 
   if (propError) {
-    console.error("Property fetch error:", propError);
+    console.error('Property fetch error:', propError);
     return;
   }
   if (!prop) {
-    console.log("Property not found. Let's list properties containing 1082 in code or title...");
+    console.log(
+      "Property not found. Let's list properties containing 1082 in code or title..."
+    );
     const { data: props } = await supabase
-      .from("properties")
-      .select("id, property_code, title, type, location, sublocality, price");
-    console.log("All properties:", props);
+      .from('properties')
+      .select('id, property_code, title, type, location, sublocality, price');
+    console.log('All properties:', props);
     return;
   }
 
-  console.log("Property PROP-1082 Details:", {
+  console.log('Property PROP-1082 Details:', {
     id: prop.id,
     property_code: prop.property_code,
     title: prop.title,
@@ -34,17 +36,17 @@ async function checkDetails() {
     price: prop.price,
     bedrooms: prop.bedrooms,
     rental_income: prop.rental_income,
-    roi: prop.roi
+    roi: prop.roi,
   });
 
-  console.log("\nFetching contact Surya...");
+  console.log('\nFetching contact Surya...');
   const { data: contacts, error: contactError } = await supabase
-    .from("contacts")
-    .select("*")
-    .ilike("name", "%Surya%");
+    .from('contacts')
+    .select('*')
+    .ilike('name', '%Surya%');
 
   if (contactError) {
-    console.error("Contact fetch error:", contactError);
+    console.error('Contact fetch error:', contactError);
     return;
   }
 
@@ -52,9 +54,9 @@ async function checkDetails() {
   for (const contact of contacts || []) {
     // Fetch contact notes
     const { data: notes } = await supabase
-      .from("contact_notes")
-      .select("note_text")
-      .eq("contact_id", contact.id);
+      .from('contact_notes')
+      .select('note_text')
+      .eq('contact_id', contact.id);
 
     console.log({
       id: contact.id,
@@ -75,7 +77,7 @@ async function checkDetails() {
       pref_bhk_min: contact.pref_bhk_min,
       pref_bhk_max: contact.pref_bhk_max,
       pref_extracted_at: contact.pref_extracted_at,
-      notes: notes?.map(n => n.note_text) || []
+      notes: notes?.map((n) => n.note_text) || [],
     });
   }
 }

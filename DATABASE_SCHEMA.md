@@ -13,6 +13,7 @@ is_account_member(target_account_id UUID, min_role account_role_enum DEFAULT 'vi
 ```
 
 ### Member Role Hierarchy:
+
 - `owner` (Value: 4) - Full control, billing, ownership transfer.
 - `admin` (Value: 3) - User management, settings manipulation.
 - `agent` (Value: 2) - Standard operational data modification (contacts, properties, chats, tasks).
@@ -25,15 +26,19 @@ is_account_member(target_account_id UUID, min_role account_role_enum DEFAULT 'vi
 ### Group A: Tenancy & Profiles
 
 #### 1. `accounts`
+
 Represents an agency/tenant workspace.
+
 - `id` (UUID, PK): Unique identifier.
 - `name` (TEXT): Workspace name.
 - `owner_user_id` (UUID, FK -> `auth.users`): Reference to the account creator.
 - `created_at` / `updated_at` (TIMESTAMPTZ).
-- *Unique Index*: `idx_accounts_one_per_owner` (Ensures each user owns at most one account).
+- _Unique Index_: `idx_accounts_one_per_owner` (Ensures each user owns at most one account).
 
 #### 2. `profiles`
+
 Extends default Auth users with workspace attributes.
+
 - `user_id` (UUID, PK, FK -> `auth.users`): Reference to core authentication.
 - `full_name` (TEXT): Display name.
 - `email` (TEXT): Profile email address.
@@ -43,7 +48,9 @@ Extends default Auth users with workspace attributes.
 - `calendar_archived_view` (TEXT, migration 20261001060000, default `greyed`, one of `greyed` / `hidden` / `listed`): The user's own choice of how the calendar shows archived appointments (CAL-011), written by the web calendar and the mobile app on their own row under `profiles_update`, so it follows the user across browsers and devices.
 
 #### 3. `account_invitations`
+
 Pending team member invitations.
+
 - `id` (UUID, PK).
 - `account_id` (UUID, FK -> `accounts`).
 - `token_hash` (TEXT, UNIQUE): SHA-256 hash of the invite token.
@@ -55,7 +62,9 @@ Pending team member invitations.
 ### Group B: Contacts Book
 
 #### 4. `contacts`
+
 The Engine address book.
+
 - `id` (UUID, PK).
 - `account_id` (UUID, FK -> `accounts`).
 - `name` (TEXT): Contact full name.
@@ -78,17 +87,23 @@ The Engine address book.
 - `seller_page_slug` (TEXT, unique when set): The seller's public page at `/seller/<slug>`. NULL means the page is off; a new value retires the old link.
 
 #### 5. `tags` & `contact_tags`
+
 Labels for categorization.
+
 - `tags`: `id`, `name`, `color` (Hex string), `account_id`.
 - `contact_tags`: many-to-many lookup table referencing `contact_id` and `tag_id`.
 
 #### 6. `custom_fields` & `contact_custom_values`
+
 User-defined contact attributes.
+
 - `custom_fields`: Defines extra columns dynamically.
 - `contact_custom_values`: Stores matching values.
 
 #### 7. `contact_notes`
+
 Timeline log entries. Doubles as a per-contact to-do list — a note can be ticked off (`contact-sidebar.tsx`).
+
 - `id` (UUID, PK, default `uuid_generate_v4()`).
 - `contact_id` (UUID, NOT NULL, FK → `contacts`).
 - `account_id` (UUID, NOT NULL, FK → `accounts`).
@@ -100,7 +115,9 @@ Timeline log entries. Doubles as a per-contact to-do list — a note can be tick
 > The column is `note_text`, not `content`, and the author column is `user_id`, not `author_id`. This entry named both wrongly until Aug 2026, and at least one insert was written against the wrong names — PostgREST rejects it, and a caller that wraps the insert in a `try/catch` swallows the rejection, so the note silently never appears. Both `account_id` and `user_id` are NOT NULL and must be supplied explicitly.
 
 #### 7b. `liaisons` (migration 147)
+
 Liaisoning people directory — the government-office fixers (khata transfer, EC, registration, BBMP work) with the fees they quoted per service.
+
 - `id` (UUID, PK).
 - `account_id` (UUID, FK -> `accounts`).
 - `user_id` (UUID, FK -> `auth.users`): Creator.
@@ -112,14 +129,18 @@ Liaisoning people directory — the government-office fixers (khata transfer, EC
 - RLS: members read, `agent`+ modify.
 
 #### 7c. `liaison_jobs` & `liaison_job_payments` (migration 148)
+
 Jobs & payments ledger on top of the directory — one row per actual engagement ("khata transfer for property X"), with cash movement tracked both ways.
+
 - `liaison_jobs`: `id`, `account_id`, `user_id`, `liaison_id` (FK -> `liaisons`, CASCADE), `service_name` (TEXT snapshot), `contact_id` (FK -> `contacts`, SET NULL), `property_id` (FK -> `properties`, SET NULL), `client_charge` / `liaison_fee` (NUMERIC, agreed for this job), `status` (`open` | `completed` | `cancelled`), `notes`, `completed_at`.
 - `liaison_job_payments`: `id`, `account_id`, `job_id` (FK -> `liaison_jobs`, CASCADE), `user_id`, `direction` (`in` = received from client, `out` = paid to liaison), `amount` (NUMERIC > 0), `paid_on` (DATE), `note`.
 - Balances (charge − received, fee − paid) and margin (agreed: charge − fee; realized: received − paid) are computed in the UI, never stored.
 - RLS on both: members read, `agent`+ modify.
 
 #### 7d. `liaison_workflows` (migration 149)
+
 Client-shareable process explanations — e.g. "Change name in the khata document": case login → ARO approval → JD review/transfer → DC approval → khata issued. Rendered into a WhatsApp message via `buildWorkflowMessage`.
+
 - `id`, `account_id`, `user_id`, `service_name` (TEXT, NOT NULL), `description` (TEXT, client-facing intro).
 - `stages` (JSONB): ordered array of `{ name, authority, duration_days, description }` — array order is the process order; overall timeline is the sum of stage durations, computed in the UI.
 - RLS: members read, `agent`+ modify.
@@ -129,7 +150,9 @@ Client-shareable process explanations — e.g. "Change name in the khata documen
 ### Group C: Properties & Showcases
 
 #### 8. `properties`
+
 Real estate inventory catalog.
+
 - `id` (UUID, PK).
 - `property_code` (TEXT, UNIQUE): Human-readable code (e.g., `PROP-1002`).
 - `account_id` (UUID, FK -> `accounts`).
@@ -162,11 +185,15 @@ Real estate inventory catalog.
 - `is_published` (BOOLEAN): Visible on the public showcase catalog.
 
 #### 9. `showcase_settings`
+
 Public listing portal branding config.
+
 - `id`, `account_id`, `logo_url`, `brand_name`, `theme_color`, `currency` (Default: `'INR'`).
 
 #### 10. `rera_projects`
- Global (no `account_id`) project registry behind the project autocomplete.
+
+Global (no `account_id`) project registry behind the project autocomplete.
+
 - `id`, `rera_registration_number` (TEXT, UNIQUE, nullable), `name`, `promoter_name`, `project_type`, `sublocality`, `city`, `state`, `address`.
 - `source` (TEXT): `'rera'` (imported from the RERA portal — the only rows whose registration number is trusted), `'curated'` (seed list in `/api/projects/sync`) or `'ai'` (Gemini suggestion, unverified). Only `'rera'` rows may carry a `rera_registration_number`; AI output never writes one.
 
@@ -175,7 +202,9 @@ Public listing portal branding config.
 ### Group D: WhatsApp Logs & Integrations
 
 #### 11. `conversations`
+
 Metadata tracking active chat threads.
+
 - `id` (UUID, PK).
 - `account_id` (UUID, FK -> `accounts`).
 - `contact_phone` (TEXT): Normalized recipient phone.
@@ -183,7 +212,9 @@ Metadata tracking active chat threads.
 - `unread_count` (INTEGER).
 
 #### 12. `messages`
+
 Individual message records.
+
 - `id` (UUID, PK).
 - `conversation_id` (UUID, FK -> `conversations`).
 - `direction` (TEXT): `'inbound'` or `'outbound'`.
@@ -196,20 +227,27 @@ Individual message records.
 - `ingest_seq` (BIGINT, migration 20260923120000): insertion order from `messages_ingest_seq`, set by default on every new row and NULL on rows older than the migration. `created_at` holds Meta's second-resolution timestamp, so lines sent in the same second tie on it; readers that need arrival order sort `created_at DESC, ingest_seq DESC NULLS LAST, id DESC`.
 
 #### 13. `message_reactions`
+
 - `id`, `message_id`, `reaction` (TEXT emoji), `agent_id` (`profiles.user_id`).
 
 #### 14. `message_templates`
+
 Approved WhatsApp message templates.
+
 - `id`, `account_id`, `template_name`, `language`, `category`, `status`, `body_text`, `header_type`.
 
 #### 15. `whatsapp_config`
+
 WhatsApp Cloud API access parameters.
+
 - `id`, `account_id`, `phone_number_id`, `waba_id`, `access_token`.
 - `flows_private_key` / `flows_public_key` / `flows_key_registered_at`: RSA-2048 keypair for the native Meta Flows encrypted data-exchange endpoint (private key stored AES-256-GCM encrypted). (migration 125)
-- *Unique Constraint*: `UNIQUE(account_id)` (One configured number per company).
+- _Unique Constraint_: `UNIQUE(account_id)` (One configured number per company).
 
 #### 15a. `whatsapp_number_profiles` (migration 20260918190000)
+
 Every Official API number an account has saved, so a brokerage that owns more than one WhatsApp number can switch the live one without re-entering the token or the two-step PIN. `whatsapp_config` remains the single live number that every consumer reads; activating a profile copies it there (credentials plus `registered_at`), and the outgoing number is snapshotted back into its own profile first.
+
 - `id` (UUID, PK), `account_id` (UUID, FK -> `accounts`), `created_by` (UUID, FK -> `auth.users`).
 - `label` (TEXT): optional name shown in Settings; falls back to `verified_name` / `display_phone_number`.
 - `phone_number_id` (TEXT, UNIQUE across the instance — a number belongs to one brokerage, live or saved), `display_phone_number`, `verified_name`, `waba_id`.
@@ -222,19 +260,25 @@ Every Official API number an account has saved, so a brokerage that owns more th
 - Related (migration 20260918200000): `whatsapp_config.previous_display_phone_number` / `number_changed_at` record the last switch of the live number; the number-change notice is offered and sent as a precursor for 7 days from `number_changed_at`.
 
 #### 15a-ii. `whatsapp_number_change_notices` (migration 20260918200000)
+
 Ledger of which contacts have been told that the brokerage messages from a new number — one row per `(account_id, contact_id, phone_number_id)` (UNIQUE), claimed before the send and deleted when the send is skipped or fails, so a contact receives the `contact_number_update` notice once per number whether it went by the "notify recent contacts" action or as the dispatcher's precursor.
+
 - `trigger` (TEXT): `'manual' | 'precursor'`. `channel` (TEXT): `'pending' | 'template' | 'freeform'`.
 - `message_id` (UUID, FK -> `messages`, SET NULL), `sent_at`, `previous_display_phone_number`.
 - `whatsapp_number_change_audience(p_account_id, p_since, p_phone_number_id)`: legacy number-change audience function retained for migration compatibility.
 - `whatsapp_number_change_audience_v2(p_account_id, p_since, p_phone_number_id, p_changed_at)`: SECURITY DEFINER, guarded by `is_account_member()`; contacts with a conversation touched since `p_since`, at least one message before `p_changed_at`, not dead/archived/chain-only/merged, and no ledger row for that number. Capped at 500.
 
 #### 15a-iii. `whatsapp_retired_number_replies` (migration 20260919043000)
+
 One row per `(account_id, phone_number_id, sender_phone)` (UNIQUE) recording when a retired saved number last auto-replied to a sender, so each sender hears from it at most once per 24 hours. Claimed before the send (insert, or an update guarded by `last_replied_at < now - 24h`) and rolled back when Meta rejects the reply.
+
 - `reply_count` (INTEGER), `last_replied_at` (TIMESTAMPTZ).
 - Written only by the service-role webhook path; RLS: members read, admins delete.
 
 #### 15a-iv. `conversation_qualification_leases` (migration 20260923060000)
+
 One row per conversation (UNIQUE `conversation_id`) while a webhook runs the inbound handler chain for it (qualification, flows, automations and the other automated replies), so overlapping webhooks for one lead are handled one at a time.
+
 - `holder` (UUID), `expires_at` (TIMESTAMPTZ), `pending_message_ids` (TEXT[], migration 20260923120000): WhatsApp ids of lines whose webhooks gave up waiting and left them for the holder.
 - `claim_conversation_qualification_lease(p_account_id, p_conversation_id, p_holder, p_ttl_seconds)`: inserts the lease or takes over an expired one in one statement and returns whether it was claimed. A takeover keeps the crashed holder's pending ids.
 - `renew_conversation_qualification_lease(p_conversation_id, p_holder, p_ttl_seconds)`: the holder's heartbeat; returns whether it still holds the lease.
@@ -244,7 +288,9 @@ One row per conversation (UNIQUE `conversation_id`) while a webhook runs the inb
 - Written only by the service-role webhook path; RLS: members read.
 
 #### 15a-v. `conversation_deferred_messages` (migration 20260923130000)
+
 The handler context of an inbound message whose webhook gave up waiting for its conversation's lease, so the holder can rerun the whole inbound chain for it. UNIQUE (`conversation_id`, `message_id`).
+
 - `message_id` (TEXT): the WhatsApp message id, also appended to the lease's `pending_message_ids`.
 - `payload` (JSONB): the raw inbound message plus what the webhook resolved before the lease (sender, contact and conversation rows, parsed content, routing, enquiry match, first-inbound flag, owner check). Never the access token.
 - `defer_conversation_message(p_account_id, p_conversation_id, p_message_id, p_payload)`: in one transaction adds the id to a live lease's pending ids and stores the payload; false when no live lease exists. SECURITY DEFINER, execute granted to the service role only.
@@ -252,37 +298,47 @@ The handler context of an inbound message whose webhook gave up waiting for its 
 - Written only by the service-role webhook path; RLS: members read.
 
 #### 15b. `whatsapp_meta_flows` (migration 125)
+
 Registry of native Meta WhatsApp Flows (form-screen flows) created per account via the Graph API. Distinct from the in-app chatbot flow builder tables (`flows` / `flow_runs`).
+
 - `id` (UUID, PK), `account_id` (UUID, FK -> `accounts`).
 - `flow_key` (TEXT): internal blueprint id, e.g. `'preference_intake'`.
 - `meta_flow_id` (TEXT): Meta's flow id.
 - `status` (TEXT): `'draft' | 'published' | 'deprecated' | 'error'`.
 - `flow_json_version`, `last_synced_at`, `last_error`.
-- *Unique Constraint*: `UNIQUE(account_id, flow_key)`.
+- _Unique Constraint_: `UNIQUE(account_id, flow_key)`.
 
 #### 15c. `whatsapp_meta_flow_sessions` (migration 125)
+
 One row per flow message sent to a contact; maps Meta's opaque `flow_token` back to tenant + contact.
+
 - `id` (UUID, PK), `account_id`, `contact_id` (FKs).
 - `flow_key` (TEXT), `flow_token` (TEXT, UNIQUE).
 - `status` (TEXT): `'sent' | 'opened' | 'completed' | 'expired' | 'cancelled'`.
 - `prefill` (JSONB) / `response` (JSONB), `expires_at`, `completed_at`.
 
 #### 15d. `owner_digest_settings` (migration 126)
+
 Per-account cadence for WhatsApp status digests to property owners.
+
 - `id` (UUID, PK), `account_id` (UUID, FK, UNIQUE).
 - `frequency` (TEXT): `'off' | 'daily' | 'weekly'` (weekly = Monday IST).
 
 #### 15e. `owner_digest_log` (migration 126)
+
 Dedup ledger — one row per digest attempted per owner per IST day (insert-as-claim, like `agent_digest_log`).
+
 - `id` (UUID, PK), `account_id`, `owner_contact_id` (FKs).
 - `digest_date` (DATE), `period_start` / `period_end` (TIMESTAMPTZ).
 - `stats` (JSONB): per-property counters snapshot.
 - `channel` (TEXT): `'freeform' | 'template' | 'consent_requested' | 'failed' | 'skipped_no_template'`.
-- *Unique Constraint*: `UNIQUE(account_id, owner_contact_id, digest_date)`.
+- _Unique Constraint_: `UNIQUE(account_id, owner_contact_id, digest_date)`.
 - Related (migration 126): `contacts.owner_digest_consent` (TEXT `'pending' | 'granted' | 'declined'`, set only by the owner's own WhatsApp reply — always overrides the account setting) and `contacts.owner_digest_consent_requested_at` (TIMESTAMPTZ, one-time consent ask).
 
 #### 15f. `whatsapp_reply_bridges` (migration 171)
+
 Maps an agent-facing WhatsApp ping back to the lead thread it is about, so a quote-reply to the ping (`context.id` = the stored wamid) is delivered to the lead instead of being read as owner-chatbot input. One row per bridge message: the ping, the "✅ Sent" ack, and each relayed lead reply.
+
 - `id` (UUID, PK), `account_id` (UUID, FK -> `accounts`).
 - `agent_user_id` (UUID, FK -> `auth.users`) / `agent_phone` (TEXT): the staff member pinged; replies are accepted only from this phone.
 - `notification_message_id` (TEXT, UNIQUE): wamid of the outbound bridge message.
@@ -295,7 +351,9 @@ Maps an agent-facing WhatsApp ping back to the lead thread it is about, so a quo
 ### Group E: Calendar & Checklists
 
 #### 16. `appointments`
+
 Calendar bookings and site viewings.
+
 - `id` (UUID, PK).
 - `account_id` (UUID, FK -> `accounts`).
 - `title` (TEXT) / `description` (TEXT).
@@ -311,7 +369,9 @@ Calendar bookings and site viewings.
 - `agenda` / `minutes` / `outcome` (TEXT, migration 128): Type-specific structured notes — pre-event agenda (meetings, calls, follow-ups, document work; included in the assignee's pre-event brief), post-event minutes (meetings, calls), and post-event outcome (site visits, follow-ups, document work). Per-type visibility config lives in `src/components/calendar/event-types.ts`.
 
 #### 16b. `appointment_reminder_log` (migration 127)
+
 Per-recipient delivery claims for client appointment reminders — one row per `(appointment_id, contact_id, reminder_type)` (UNIQUE). The cron inserts a claim before each WhatsApp send and deletes it if the send fails, so partial failures retry only the missed recipients without duplicating the delivered ones.
+
 - `account_id` / `appointment_id` / `contact_id` (UUID FKs, CASCADE).
 - `reminder_type` (TEXT): CHECK `('morning', '1h', 'manual')` (migration 290).
 - `wa_message_id` (TEXT, migration 141): the outbound reminder's WhatsApp id, so a button reply maps back to the appointment.
@@ -321,7 +381,9 @@ Per-recipient delivery claims for client appointment reminders — one row per `
 - `rearmed_at` (TIMESTAMPTZ, migration 20260929110500): `appointments.reminders_rearmed_at` as the sweep that made the claim read it. A claim from another generation is superseded — the cron takes it over and sends again — however new its clock, so a sweep that read the appointment before a re-arm can never leave a claim that counts as coverage.
 
 #### 17. `todos`
+
 Tasks list with reference linkages.
+
 - `id` (UUID, PK).
 - `account_id` (UUID, FK -> `accounts`).
 - `title` (TEXT).
@@ -337,11 +399,13 @@ Tasks list with reference linkages.
 Used by `chatbot-engine.ts` to store half-parsed details from conversations while waiting for user confirmation.
 
 #### 18. `property_draft_sessions`
+
 - `contact_id` (UUID, PK, FK -> `contacts`).
 - `draft_data` (JSONB): Contains parsed property JSON.
 - `created_at` / `updated_at`.
 
 #### 19. `contact_draft_sessions`
+
 - `contact_id` (UUID, PK, FK -> `contacts`).
 - `draft_data` (JSONB): Container parsing multiple bulk contact profiles.
 
@@ -350,17 +414,22 @@ Used by `chatbot-engine.ts` to store half-parsed details from conversations whil
 ### Group G: Deals & Pipelines
 
 #### 20. `pipelines` & `pipeline_stages`
+
 - `pipelines`: `id`, `name`, `account_id`.
 - `pipeline_stages`: `id`, `pipeline_id`, `name`, `order_index`.
 
 #### 21. `deals`
+
 Engine sale opportunities.
+
 - `id`, `account_id`, `contact_id`, `stage_id`, `title`, `amount` (NUMERIC), `brokerage_percent` / `brokerage_amount`, `brokerage_paid_at`, `property_id` (UUID, FK -> `properties`).
 - Co-broking (migration `20260928042711`): `deal_position` (`direct` / `buyer_side` / `seller_side` / `intermediary`) and `co_broker_payout_total` (trigger-kept sum of payouts). `brokerage_amount` is what the brokerage collects; its own share is `brokerage_amount - co_broker_payout_total`, which every dashboard function counts.
 - `deal_co_broker_payouts`: one row per broker the brokerage pays — `payee_name`, optional `stakeholder_id` (→ `deal_stakeholders`, same deal), `side`, `share_percent`, `amount`, `paid_at`, `paid_amount`, `instrument_ref`, `notes`, `position`. Guards: a paid payout is never removed, at most 20 per deal, account must match the deal's. Internal only.
 
 #### 22. Journey Mind Map (migrations 131 + 138)
+
 Per-(contact × property) funnel tracking behind the `/journey` canvas — records where every shared property/interested contact stands and where the dropped ones fell off.
+
 - `journey_stages`: `id`, `account_id`, `name`, `color`, `position`. Account-level ordered stage list, customisable; app-seeds Shared → Shortlisted → Visited → Owner Meeting → Token & Legal → Registration → Brokerage Paid on first visit.
 - `journey_items`: `id`, `account_id`, `contact_id`, `property_id`, `stage_id` (furthest stage reached, FK RESTRICT), `status` (`active`/`dropped`), `source` (`manual`/`whatsapp_share`/`chat_import`/`inquiry_import`, migration 138), `hidden` (true = off-canvas, waits in the Captured tray; WhatsApp share auto-capture arrives hidden), `drop_reason`, `dropped_at`, `planned_stage_id` + `planned_at` (expected next step, migration 142 — ghost node on the map; cleared on any stage move), `notes`, `created_by`. UNIQUE(account_id, contact_id, property_id).
 - `journey_events`: append-only history per item — `event_type` (`added`/`advanced`/`moved`/`dropped`/`reactivated`/`hidden`/`unhidden`/`planned`/`plan_cleared`), `from_stage_id`, `to_stage_id`, `reason`, `created_by`.
@@ -402,7 +471,7 @@ them by construction; their data access happens through `/api/den/*`
 - `den_contact_links`: Bridge from a Den user to tenant-scoped `contacts`
   rows matched by phone (one per account — the same owner may be managed by
   several agencies). `status` active/revoked; unique `(den_user_id,
-  contact_id)`.
+contact_id)`.
 - `find_den_owner_contacts(p_phone_last10)`: SECURITY DEFINER lookup used by
   the linking flow — digit-normalized phone match + owner classification
   (or referenced by any `properties.owner_contact_id`).
@@ -501,6 +570,7 @@ them by construction; their data access happens through `/api/den/*`
 ## 3. Database Indexes Strategy
 
 To guarantee rapid loading times, the schema includes target indices:
+
 1. **Tenancy Indexing**: `idx_[table]_account` on `account_id` across all parent tables.
 2. **Search Indexing**:
    - `idx_contacts_status` on `contacts(status)`

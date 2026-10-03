@@ -127,6 +127,22 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
+  # Prettier covers every area at once (web, mobile, docs, workflows), so
+  # this job is not gated on a change detector: a docs-only or mobile-only
+  # pull request would otherwise merge formatting drift unseen.
+  format:
+    name: Format
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+
   typecheck:
     name: Typecheck
     needs: changes
@@ -238,7 +254,6 @@ jobs:
       - name: Bundle
         run: npx expo export --output-dir "$RUNNER_TEMP/expo-bundle" --platform android
 
-
   go-ingress:
     name: Go ingress test
     needs: changes
@@ -307,7 +322,8 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [changes, lint, typecheck, test, build, mobile, go-ingress, audit]
+    needs:
+      [changes, format, lint, typecheck, test, build, mobile, go-ingress, audit]
     runs-on: ubuntu-latest
     permissions:
       statuses: write

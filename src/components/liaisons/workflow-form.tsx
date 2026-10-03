@@ -15,7 +15,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowDown, ArrowUp, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Loader2,
+  Plus,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
 import { WORKFLOW_TEMPLATES } from '@/lib/liaisons/workflow-templates';
 
 /** Editable row: duration kept as string while typing. */
@@ -26,7 +33,12 @@ interface StageRow {
   description: string;
 }
 
-const EMPTY_ROW: StageRow = { name: '', authority: '', duration_days: '', description: '' };
+const EMPTY_ROW: StageRow = {
+  name: '',
+  authority: '',
+  duration_days: '',
+  description: '',
+};
 
 function toRows(stages: LiaisonWorkflowStage[]): StageRow[] {
   return stages.map((s) => ({
@@ -47,7 +59,12 @@ interface WorkflowFormProps {
   onSaved: () => void;
 }
 
-export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: WorkflowFormProps) {
+export function WorkflowForm({
+  open,
+  onOpenChange,
+  workflow,
+  onSaved,
+}: WorkflowFormProps) {
   const isEdit = !!workflow;
 
   const [serviceName, setServiceName] = useState('');
@@ -64,7 +81,9 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
   }, [open, workflow]);
 
   const updateStage = (index: number, patch: Partial<StageRow>) => {
-    setStages((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    setStages((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, ...patch } : row))
+    );
   };
 
   const moveStage = (index: number, delta: -1 | 1) => {
@@ -106,8 +125,10 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
         throw new Error(data?.error ?? 'Request failed');
       }
       const draft = await res.json();
-      if (typeof draft.service_name === 'string') setServiceName(draft.service_name);
-      if (typeof draft.description === 'string') setDescription(draft.description);
+      if (typeof draft.service_name === 'string')
+        setServiceName(draft.service_name);
+      if (typeof draft.description === 'string')
+        setDescription(draft.description);
       setStages(toRows(Array.isArray(draft.stages) ? draft.stages : []));
       toast.success('Draft ready — review and adjust before saving');
     } catch (err) {
@@ -148,7 +169,9 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
         }),
       };
 
-      const url = isEdit ? `/api/liaison-workflows/${workflow.id}` : '/api/liaison-workflows';
+      const url = isEdit
+        ? `/api/liaison-workflows/${workflow.id}`
+        : '/api/liaison-workflows';
       const method = isEdit ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
@@ -165,7 +188,9 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
       onSaved();
     } catch (err) {
       console.error('Error saving workflow:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to save workflow');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to save workflow'
+      );
     } finally {
       setSaving(false);
     }
@@ -173,14 +198,14 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-slate-700 bg-slate-900 text-slate-200 sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-white">
             {isEdit ? 'Edit Workflow' : 'New Workflow'}
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Define the process stage by stage — who approves what and how long each
-            step takes — then share it with clients on WhatsApp.
+            Define the process stage by stage — who approves what and how long
+            each step takes — then share it with clients on WhatsApp.
           </DialogDescription>
         </DialogHeader>
 
@@ -195,13 +220,13 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
                 value={serviceName}
                 onChange={(e) => setServiceName(e.target.value)}
                 placeholder="e.g. Change name in the khata document"
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 flex-1"
+                className="flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
               <Button
                 type="button"
                 onClick={handleGenerate}
                 disabled={generating}
-                className="bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-xs font-bold gap-1.5 cursor-pointer shrink-0"
+                className="bg-primary/15 hover:bg-primary/25 text-primary border-primary/30 shrink-0 cursor-pointer gap-1.5 border text-xs font-bold"
               >
                 {generating ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -212,8 +237,8 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
               </Button>
             </div>
             <p className="text-[10px] text-slate-500">
-              Name any process and AI drafts the stages, authorities and timelines —
-              or start from a ready-made template below.
+              Name any process and AI drafts the stages, authorities and
+              timelines — or start from a ready-made template below.
             </p>
           </div>
 
@@ -226,20 +251,22 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional opening line, e.g. Here is how your khata name change will move through BBMP."
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-14 resize-none"
+              className="h-14 resize-none border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
             />
           </div>
 
           <div className="space-y-2 border-t border-slate-800 pt-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label className="text-xs text-slate-300">Stages (in order)</Label>
+              <Label className="text-xs text-slate-300">
+                Stages (in order)
+              </Label>
               <div className="flex gap-2">
                 <select
                   value=""
                   onChange={(e) => {
                     if (e.target.value) loadTemplate(e.target.value);
                   }}
-                  className="h-7 rounded-lg border border-slate-700 bg-slate-800 px-2 text-xs text-slate-300 outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer max-w-52"
+                  className="focus:border-primary focus:ring-primary h-7 max-w-52 cursor-pointer rounded-lg border border-slate-700 bg-slate-800 px-2 text-xs text-slate-300 outline-none focus:ring-1"
                 >
                   <option value="">Load a template...</option>
                   {WORKFLOW_TEMPLATES.map((t) => (
@@ -252,8 +279,10 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => setStages((prev) => [...prev, { ...EMPTY_ROW }])}
-                  className="h-7 text-xs border-slate-700 text-slate-300 hover:bg-slate-800 gap-1 cursor-pointer"
+                  onClick={() =>
+                    setStages((prev) => [...prev, { ...EMPTY_ROW }])
+                  }
+                  className="h-7 cursor-pointer gap-1 border-slate-700 text-xs text-slate-300 hover:bg-slate-800"
                 >
                   <Plus className="size-3" />
                   Add stage
@@ -268,21 +297,23 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
                   className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/40 p-2"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                    <span className="bg-primary/10 text-primary flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold">
                       {index + 1}
                     </span>
                     <Input
                       value={row.name}
-                      onChange={(e) => updateStage(index, { name: e.target.value })}
+                      onChange={(e) =>
+                        updateStage(index, { name: e.target.value })
+                      }
                       placeholder="Stage, e.g. ARO verification & approval"
-                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs flex-1"
+                      className="h-8 flex-1 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                     />
                     <button
                       type="button"
                       onClick={() => moveStage(index, -1)}
                       disabled={index === 0}
                       aria-label="Move stage up"
-                      className="text-slate-500 hover:text-white disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                      className="cursor-pointer text-slate-500 hover:text-white disabled:cursor-default disabled:opacity-30"
                     >
                       <ArrowUp className="size-3.5" />
                     </button>
@@ -291,7 +322,7 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
                       onClick={() => moveStage(index, 1)}
                       disabled={index === stages.length - 1}
                       aria-label="Move stage down"
-                      className="text-slate-500 hover:text-white disabled:opacity-30 cursor-pointer disabled:cursor-default"
+                      className="cursor-pointer text-slate-500 hover:text-white disabled:cursor-default disabled:opacity-30"
                     >
                       <ArrowDown className="size-3.5" />
                     </button>
@@ -301,17 +332,19 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
                       variant="ghost"
                       onClick={() => removeStage(index)}
                       aria-label="Remove stage"
-                      className="h-8 w-8 p-0 text-slate-500 hover:text-red-400 hover:bg-slate-800 cursor-pointer shrink-0"
+                      className="h-8 w-8 shrink-0 cursor-pointer p-0 text-slate-500 hover:bg-slate-800 hover:text-red-400"
                     >
                       <Trash2 className="size-3.5" />
                     </Button>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-[1fr_8rem] gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_8rem]">
                     <Input
                       value={row.authority}
-                      onChange={(e) => updateStage(index, { authority: e.target.value })}
+                      onChange={(e) =>
+                        updateStage(index, { authority: e.target.value })
+                      }
                       placeholder="Authority, e.g. ARO"
-                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                      className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                     />
                     <Input
                       value={row.duration_days}
@@ -322,14 +355,16 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
                       }
                       placeholder="Days"
                       inputMode="numeric"
-                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                      className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                     />
                   </div>
                   <Input
                     value={row.description}
-                    onChange={(e) => updateStage(index, { description: e.target.value })}
+                    onChange={(e) =>
+                      updateStage(index, { description: e.target.value })
+                    }
                     placeholder="What happens here (shown to the client)"
-                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                    className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                   />
                 </div>
               ))}
@@ -337,7 +372,7 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
           </div>
         </div>
 
-        <DialogFooter className="bg-slate-900 border-slate-700">
+        <DialogFooter className="border-slate-700 bg-slate-900">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

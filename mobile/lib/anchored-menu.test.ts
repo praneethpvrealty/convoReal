@@ -11,14 +11,22 @@ const base = {
 
 describe('anchoredMenuLayout', () => {
   it('centres the menu on the press point when there is room', () => {
-    const { left, top } = anchoredMenuLayout({ ...base, anchorX: 200, anchorY: 100 });
+    const { left, top } = anchoredMenuLayout({
+      ...base,
+      anchorX: 200,
+      anchorY: 100,
+    });
     expect(left).toBe(75);
     expect(top).toBe(114);
   });
 
   it('keeps the menu inside the left and right margins', () => {
-    expect(anchoredMenuLayout({ ...base, anchorX: 0, anchorY: 100 }).left).toBe(12);
-    expect(anchoredMenuLayout({ ...base, anchorX: 400, anchorY: 100 }).left).toBe(138);
+    expect(anchoredMenuLayout({ ...base, anchorX: 0, anchorY: 100 }).left).toBe(
+      12
+    );
+    expect(
+      anchoredMenuLayout({ ...base, anchorX: 400, anchorY: 100 }).left
+    ).toBe(138);
   });
 
   it('flips above the anchor when the menu would overflow the bottom', () => {

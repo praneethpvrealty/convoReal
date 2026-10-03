@@ -14,12 +14,21 @@
 // ============================================================
 
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, cleanup, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  cleanup,
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { ApiKeysTab } from '@/components/settings/api-keys-tab';
 
-const auth = vi.hoisted(() => ({ canManageMembers: true, accountRole: 'admin' }));
+const auth = vi.hoisted(() => ({
+  canManageMembers: true,
+  accountRole: 'admin',
+}));
 const plan = vi.hoisted(() => ({ allowed: true }));
 
 vi.mock('@/hooks/use-auth', () => ({
@@ -58,7 +67,7 @@ function renderPanel() {
   return render(
     <QueryClientProvider client={client}>
       <ApiKeysTab />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 }
 
@@ -77,7 +86,10 @@ describe('ApiKeysTab', () => {
   it('lists existing keys by prefix, never by secret', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify({ keys: [LIVE_KEY] }), { status: 200 })),
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ keys: [LIVE_KEY] }), { status: 200 })
+      )
     );
 
     renderPanel();
@@ -96,7 +108,7 @@ describe('ApiKeysTab', () => {
           return new Response(JSON.stringify({ secret }), { status: 201 });
         }
         return new Response(JSON.stringify({ keys: [] }), { status: 200 });
-      }),
+      })
     );
 
     renderPanel();
@@ -116,7 +128,9 @@ describe('ApiKeysTab', () => {
   it('creates a read-only key unless writes are explicitly enabled', async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (init?.method === 'POST') {
-        return new Response(JSON.stringify({ secret: 'cvr_sk_x' }), { status: 201 });
+        return new Response(JSON.stringify({ secret: 'cvr_sk_x' }), {
+          status: 201,
+        });
       }
       return new Response(JSON.stringify({ keys: [] }), { status: 200 });
     });
@@ -131,16 +145,23 @@ describe('ApiKeysTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /create key/i }));
 
     await waitFor(() => {
-      const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+      const post = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit)?.method === 'POST'
+      );
       expect(post).toBeTruthy();
-      expect(JSON.parse((post![1] as RequestInit).body as string).scopes).toEqual(['read']);
+      expect(
+        JSON.parse((post![1] as RequestInit).body as string).scopes
+      ).toEqual(['read']);
     });
   });
 
   it('asks for confirmation before revoking, and names the key', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify({ keys: [LIVE_KEY] }), { status: 200 })),
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ keys: [LIVE_KEY] }), { status: 200 })
+      )
     );
 
     renderPanel();
@@ -160,9 +181,9 @@ describe('ApiKeysTab', () => {
             JSON.stringify({
               keys: [{ ...LIVE_KEY, revoked_at: '2026-08-05T00:00:00.000Z' }],
             }),
-            { status: 200 },
-          ),
-      ),
+            { status: 200 }
+          )
+      )
     );
 
     renderPanel();
@@ -180,9 +201,9 @@ describe('ApiKeysTab', () => {
             JSON.stringify({
               keys: [{ ...LIVE_KEY, expires_at: '2020-01-01T00:00:00.000Z' }],
             }),
-            { status: 200 },
-          ),
-      ),
+            { status: 200 }
+          )
+      )
     );
 
     renderPanel();
@@ -194,12 +215,17 @@ describe('ApiKeysTab', () => {
     plan.allowed = false;
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify({ keys: [LIVE_KEY] }), { status: 200 })),
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ keys: [LIVE_KEY] }), { status: 200 })
+      )
     );
 
     renderPanel();
 
-    expect(await screen.findByText(/API access is on the Agency plan/i)).toBeTruthy();
+    expect(
+      await screen.findByText(/API access is on the Agency plan/i)
+    ).toBeTruthy();
     // Still listed — an admin needs to see what exists in order to
     // revoke it, whatever the plan says. Awaited separately: the plan
     // banner renders from a hook and the list from a query, so the
@@ -210,13 +236,16 @@ describe('ApiKeysTab', () => {
   it('shows nothing to a non-admin and does not even fetch the list', async () => {
     auth.canManageMembers = false;
     const fetchMock = vi.fn(
-      async () => new Response(JSON.stringify({ keys: [LIVE_KEY] }), { status: 200 }),
+      async () =>
+        new Response(JSON.stringify({ keys: [LIVE_KEY] }), { status: 200 })
     );
     vi.stubGlobal('fetch', fetchMock);
 
     renderPanel();
 
-    expect(screen.getByText(/managed by workspace admins and owners/i)).toBeTruthy();
+    expect(
+      screen.getByText(/managed by workspace admins and owners/i)
+    ).toBeTruthy();
     expect(screen.queryByText('Claude Desktop')).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -225,8 +254,11 @@ describe('ApiKeysTab', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(
-        async () => new Response(JSON.stringify({ error: 'Failed to load API keys' }), { status: 500 }),
-      ),
+        async () =>
+          new Response(JSON.stringify({ error: 'Failed to load API keys' }), {
+            status: 500,
+          })
+      )
     );
 
     renderPanel();

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 // ============================================================
 // /buyer/verify-phone — the mandatory WhatsApp gate for Google
@@ -9,27 +9,27 @@
 // page or API works until this completes.
 // ============================================================
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-import { createClient } from "@/lib/supabase/client";
-import { toAuthPhone } from "@/lib/whatsapp/phone-utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { createClient } from '@/lib/supabase/client';
+import { toAuthPhone } from '@/lib/whatsapp/phone-utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Phone, ShieldCheck, ArrowLeft } from "lucide-react";
+} from '@/components/ui/card';
+import { Phone, ShieldCheck, ArrowLeft } from 'lucide-react';
 
 export default function BuyerVerifyPhonePage() {
   const router = useRouter();
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -44,13 +44,13 @@ export default function BuyerVerifyPhonePage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        router.replace("/buyer/login");
+        router.replace('/buyer/login');
         return;
       }
       // Already verified (e.g. OTP login landed here by accident) —
       // straight into the portal.
       if (user.phone && user.phone_confirmed_at) {
-        router.replace("/buyer");
+        router.replace('/buyer');
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,7 +64,9 @@ export default function BuyerVerifyPhonePage() {
     setInfo(null);
     const p = cleanPhone();
     if (!p) {
-      setError("Enter a valid WhatsApp number (e.g. 9900277111 or +919900277111)");
+      setError(
+        'Enter a valid WhatsApp number (e.g. 9900277111 or +919900277111)'
+      );
       return;
     }
     setLoading(true);
@@ -75,7 +77,7 @@ export default function BuyerVerifyPhonePage() {
       setLoading(false);
       return;
     }
-    setInfo("Code sent to your WhatsApp!");
+    setInfo('Code sent to your WhatsApp!');
     setOtpSent(true);
     setLoading(false);
   };
@@ -90,7 +92,7 @@ export default function BuyerVerifyPhonePage() {
     const { error } = await supabase.auth.verifyOtp({
       phone: p,
       token: otp.trim(),
-      type: "phone_change",
+      type: 'phone_change',
     });
     if (error) {
       setError(error.message);
@@ -98,25 +100,28 @@ export default function BuyerVerifyPhonePage() {
       return;
     }
     // Finish buyer identity + contact linking, then enter.
-    await fetch("/api/buyer/auth/complete", { method: "POST" }).catch(() => null);
-    const target = new URLSearchParams(window.location.search).get("next") || "";
-    window.location.href = /^\/buyer(\/|$)/.test(target) ? target : "/buyer";
+    await fetch('/api/buyer/auth/complete', { method: 'POST' }).catch(
+      () => null
+    );
+    const target =
+      new URLSearchParams(window.location.search).get('next') || '';
+    window.location.href = /^\/buyer(\/|$)/.test(target) ? target : '/buyer';
   };
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4">
-      <div className="pointer-events-none absolute top-1/4 left-1/4 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[120px]" />
+      <div className="bg-primary/10 pointer-events-none absolute top-1/4 left-1/4 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[120px]" />
       <Card className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-slate-800/80 bg-slate-900/60 p-2 shadow-2xl backdrop-blur-xl">
         <CardHeader className="items-center pb-2 text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 shadow-inner">
-            <ShieldCheck className="h-6 w-6 text-primary" />
+          <div className="border-primary/20 bg-primary/10 mb-2 flex h-12 w-12 items-center justify-center rounded-2xl border shadow-inner">
+            <ShieldCheck className="text-primary h-6 w-6" />
           </div>
           <CardTitle className="text-2xl font-black tracking-tight text-white">
             Verify your WhatsApp
           </CardTitle>
           <CardDescription className="font-medium text-slate-400">
-            One last step — your WhatsApp number is how we find your enquiries and keep you
-            updated.
+            One last step — your WhatsApp number is how we find your enquiries
+            and keep you updated.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
@@ -134,7 +139,10 @@ export default function BuyerVerifyPhonePage() {
           {!otpSent ? (
             <form onSubmit={handleSendOtp} className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="verify-phone" className="text-xs font-bold text-slate-300">
+                <Label
+                  htmlFor="verify-phone"
+                  className="text-xs font-bold text-slate-300"
+                >
                   WhatsApp Number
                 </Label>
                 <div className="relative">
@@ -146,23 +154,26 @@ export default function BuyerVerifyPhonePage() {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     required
-                    className="h-10 rounded-xl border-slate-800 bg-slate-950 pl-10 text-white placeholder:text-slate-600 focus-visible:border-primary focus-visible:ring-primary/20"
+                    className="focus-visible:border-primary focus-visible:ring-primary/20 h-10 rounded-xl border-slate-800 bg-slate-950 pl-10 text-white placeholder:text-slate-600"
                   />
                 </div>
               </div>
               <Button
                 type="submit"
                 disabled={loading}
-                className="mt-1 h-10 w-full rounded-xl bg-primary text-xs font-bold text-white transition-all hover:bg-primary-hover disabled:opacity-50"
+                className="bg-primary hover:bg-primary-hover mt-1 h-10 w-full rounded-xl text-xs font-bold text-white transition-all disabled:opacity-50"
               >
-                {loading ? "Sending code…" : "Send WhatsApp Code"}
+                {loading ? 'Sending code…' : 'Send WhatsApp Code'}
               </Button>
             </form>
           ) : (
             <form onSubmit={handleVerify} className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <div className="mb-1 flex items-center justify-between">
-                  <Label htmlFor="verify-otp" className="text-xs font-bold text-slate-300">
+                  <Label
+                    htmlFor="verify-otp"
+                    className="text-xs font-bold text-slate-300"
+                  >
                     Verification Code
                   </Label>
                   <button
@@ -171,9 +182,9 @@ export default function BuyerVerifyPhonePage() {
                       setOtpSent(false);
                       setInfo(null);
                       setError(null);
-                      setOtp("");
+                      setOtp('');
                     }}
-                    className="flex cursor-pointer items-center gap-1 text-[11px] font-bold text-primary hover:underline"
+                    className="text-primary flex cursor-pointer items-center gap-1 text-[11px] font-bold hover:underline"
                   >
                     <ArrowLeft className="size-3" /> Change Number
                   </button>
@@ -186,17 +197,19 @@ export default function BuyerVerifyPhonePage() {
                   maxLength={6}
                   placeholder="6-digit code"
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  onChange={(e) =>
+                    setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))
+                  }
                   required
-                  className="h-12 rounded-xl border-slate-800 bg-slate-950 text-center text-xl font-bold tracking-[0.4em] text-white placeholder:text-sm placeholder:font-medium placeholder:tracking-normal placeholder:text-slate-600 focus-visible:border-primary focus-visible:ring-primary/20"
+                  className="focus-visible:border-primary focus-visible:ring-primary/20 h-12 rounded-xl border-slate-800 bg-slate-950 text-center text-xl font-bold tracking-[0.4em] text-white placeholder:text-sm placeholder:font-medium placeholder:tracking-normal placeholder:text-slate-600"
                 />
               </div>
               <Button
                 type="submit"
                 disabled={loading || otp.length !== 6}
-                className="mt-1 h-10 w-full rounded-xl bg-primary text-xs font-bold text-white transition-all hover:bg-primary-hover disabled:opacity-50"
+                className="bg-primary hover:bg-primary-hover mt-1 h-10 w-full rounded-xl text-xs font-bold text-white transition-all disabled:opacity-50"
               >
-                {loading ? "Verifying…" : "Verify & View My Properties"}
+                {loading ? 'Verifying…' : 'Verify & View My Properties'}
               </Button>
             </form>
           )}

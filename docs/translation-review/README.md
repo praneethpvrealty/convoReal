@@ -7,14 +7,14 @@ can check it before it reaches a buyer under your brand.
 One sheet per language, each showing the English source beside the
 current translation with a blank column for corrections:
 
-| Language | Sheet |
-|----------|-------|
-| हिन्दी (Hindi) | [`hi.md`](./hi.md) |
-| ಕನ್ನಡ (Kannada) | [`kn.md`](./kn.md) |
-| தமிழ் (Tamil) | [`ta.md`](./ta.md) |
-| తెలుగు (Telugu) | [`te.md`](./te.md) |
+| Language           | Sheet              |
+| ------------------ | ------------------ |
+| हिन्दी (Hindi)     | [`hi.md`](./hi.md) |
+| ಕನ್ನಡ (Kannada)    | [`kn.md`](./kn.md) |
+| தமிழ் (Tamil)      | [`ta.md`](./ta.md) |
+| తెలుగు (Telugu)    | [`te.md`](./te.md) |
 | മലയാളം (Malayalam) | [`ml.md`](./ml.md) |
-| मराठी (Marathi) | [`mr.md`](./mr.md) |
+| मराठी (Marathi)    | [`mr.md`](./mr.md) |
 
 Sixteen strings per language — 9 button labels and 7 message bodies.
 
@@ -25,7 +25,7 @@ two separate steps and they answer different questions:
 
 1. **Is the shipped copy good?** — answered by these sheets. A
    correction becomes an edit to `template-copy.ts` and a PR, which
-   fixes the wording for *every* account.
+   fixes the wording for _every_ account.
 
 2. **Does this brokerage accept it for their own sends?** — answered in
    the app. The gate is `message_templates.translation_reviewed_at`, a

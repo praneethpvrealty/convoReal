@@ -42,15 +42,15 @@ MIME if that is what arrived — `parseMimeEmail()` handles both). Add the
 
 Lead emails — the enquiry path, already partly covered:
 
-| | 99acres | MagicBricks | Housing |
-|---|---|---|---|
-| enquiry, buyer named | | ✅ `route.test.ts` | |
-| enquiry, name masked by the portal | | | ✅ `route.test.ts` |
-| enquiry quoting an ad id | ✅ | ✅ | ✅ |
-| enquiry with no ad id at all | | | |
-| enquiry on a *project*, not a listing | | | |
-| owner/broker enquiry rather than a buyer | | | |
-| enquiry forwarded by the agent, not direct | | | |
+|                                            | 99acres | MagicBricks        | Housing            |
+| ------------------------------------------ | ------- | ------------------ | ------------------ |
+| enquiry, buyer named                       |         | ✅ `route.test.ts` |                    |
+| enquiry, name masked by the portal         |         |                    | ✅ `route.test.ts` |
+| enquiry quoting an ad id                   | ✅      | ✅                 | ✅                 |
+| enquiry with no ad id at all               |         |                    |                    |
+| enquiry on a _project_, not a listing      |         |                    |                    |
+| owner/broker enquiry rather than a buyer   |         |                    |                    |
+| enquiry forwarded by the agent, not direct |         |                    |                    |
 
 Listing-lifecycle emails — the reason for this folder. These arrive
 today and `checkIsNonLeadEmail()` discards them as "not a lead", which
@@ -62,15 +62,15 @@ ready to be filed as a buyer. The lifecycle patterns in
 `checkIsNonLeadEmail()` and the fixture-driven test in `route.test.ts`
 are what now stop that.)
 
-| | 99acres | MagicBricks | Housing |
-|---|---|---|---|
-| listing posted / went live | ✅ `99acres-posted-live.txt` | ✅ `magicbricks-posted-screening.txt` | ✅ `housing-publish-received.txt`, `housing-live.txt` |
-| listing edited (price, area, description) | | | |
-| listing expiring soon | | | |
-| listing expired / taken down | | | |
-| listing rejected or needs attention | | | |
-| paid boost / refresh applied | | ✅ `magicbricks-refreshed.txt` | |
-| weekly performance digest | | | |
+|                                           | 99acres                      | MagicBricks                           | Housing                                               |
+| ----------------------------------------- | ---------------------------- | ------------------------------------- | ----------------------------------------------------- |
+| listing posted / went live                | ✅ `99acres-posted-live.txt` | ✅ `magicbricks-posted-screening.txt` | ✅ `housing-publish-received.txt`, `housing-live.txt` |
+| listing edited (price, area, description) |                              |                                       |                                                       |
+| listing expiring soon                     |                              |                                       |                                                       |
+| listing expired / taken down              |                              |                                       |                                                       |
+| listing rejected or needs attention       |                              |                                       |                                                       |
+| paid boost / refresh applied              |                              | ✅ `magicbricks-refreshed.txt`        |                                                       |
+| weekly performance digest                 |                              |                                       |                                                       |
 
 What the collected samples establish about identity — the thing a sync
 consumer has to resolve before it can update anything:
@@ -79,7 +79,7 @@ consumer has to resolve before it can update anything:
   that lead emails' bare numeric ids do not carry. Whether the buyer-side
   id is the same number without the prefix is unconfirmed; do not assume
   it when building the consumer.
-- **MagicBricks quotes the id only when posting** (subject *and* body).
+- **MagicBricks quotes the id only when posting** (subject _and_ body).
   Its refresh confirmation carries **no id at all** — just the snapshot
   (type, area, price, locality) plus `Refreshed Date` / `Expiring On`.
   Resolving a refresh to a `property_portal_listings` row means matching
@@ -114,6 +114,6 @@ const [subject, ...rest] = raw.split('\n');
 expect(parsePortalLead(subject, rest.join('\n'), '', from)).toMatchObject({ ... });
 ```
 
-Keep the assertions about *what was extracted*, not about the file's
+Keep the assertions about _what was extracted_, not about the file's
 bytes — a portal re-wording its template should fail a parse assertion,
 not a snapshot diff.

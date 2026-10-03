@@ -10,7 +10,9 @@ import {
 } from '@/lib/ai/listing-derivations';
 import type { ParsedPropertyDraft } from '@/lib/ai/gemini';
 
-function makeDraft(overrides: Partial<ParsedPropertyDraft> = {}): ParsedPropertyDraft {
+function makeDraft(
+  overrides: Partial<ParsedPropertyDraft> = {}
+): ParsedPropertyDraft {
   return {
     title: null,
     price: null,
@@ -77,9 +79,18 @@ describe('extractDimensionsFromText', () => {
 
 describe('extractRateQuote', () => {
   it('reads a per-sqft rate', () => {
-    expect(extractRateQuote('Price - 10500 per sqft.')).toEqual({ perSqft: 10500, amount: 10500 });
-    expect(extractRateQuote('₹4,500/sq.ft.')).toEqual({ perSqft: 4500, amount: 4500 });
-    expect(extractRateQuote('10500 psf')).toEqual({ perSqft: 10500, amount: 10500 });
+    expect(extractRateQuote('Price - 10500 per sqft.')).toEqual({
+      perSqft: 10500,
+      amount: 10500,
+    });
+    expect(extractRateQuote('₹4,500/sq.ft.')).toEqual({
+      perSqft: 4500,
+      amount: 4500,
+    });
+    expect(extractRateQuote('10500 psf')).toEqual({
+      perSqft: 10500,
+      amount: 10500,
+    });
   });
 
   it('normalizes other units to per-sqft', () => {
@@ -122,13 +133,19 @@ describe('applyListingDerivations', () => {
   });
 
   it('remembers a rate quoted before the area is known', () => {
-    const derived = applyListingDerivations(makeDraft(), 'Price - 10500 per sqft.');
+    const derived = applyListingDerivations(
+      makeDraft(),
+      'Price - 10500 per sqft.'
+    );
     expect(derived.price_per_sqft).toBe(10500);
     expect(derived.price).toBeNull();
   });
 
   it('calculates the price once the area arrives in a later message', () => {
-    const withRate = applyListingDerivations(makeDraft({ type: 'Residential Land/ Plot' }), 'Price - 10500 per sqft.');
+    const withRate = applyListingDerivations(
+      makeDraft({ type: 'Residential Land/ Plot' }),
+      'Price - 10500 per sqft.'
+    );
     const withArea = applyListingDerivations(
       { ...withRate, land_area: 2400, land_area_unit: 'Sq.Ft.' },
       'Land area - 2400 sqft',
@@ -139,15 +156,27 @@ describe('applyListingDerivations', () => {
   });
 
   it('calculates the price from a dimension given after the rate', () => {
-    const withRate = applyListingDerivations(makeDraft({ type: 'Residential Land/ Plot' }), 'Price - 10500 per sqft.');
-    const withSize = applyListingDerivations({ ...withRate }, 'Size - 60*40', withRate);
+    const withRate = applyListingDerivations(
+      makeDraft({ type: 'Residential Land/ Plot' }),
+      'Price - 10500 per sqft.'
+    );
+    const withSize = applyListingDerivations(
+      { ...withRate },
+      'Size - 60*40',
+      withRate
+    );
     expect(withSize.land_area).toBe(2400);
     expect(withSize.price).toBe(25200000);
   });
 
   it('treats a rate the model filed as the total price as a rate', () => {
     const derived = applyListingDerivations(
-      makeDraft({ price: 10500, land_area: 2400, land_area_unit: 'Sq.Ft.', type: 'Residential Land/ Plot' }),
+      makeDraft({
+        price: 10500,
+        land_area: 2400,
+        land_area_unit: 'Sq.Ft.',
+        type: 'Residential Land/ Plot',
+      }),
       'Price - 10500 per sqft.'
     );
     expect(derived.price_per_sqft).toBe(10500);
@@ -156,30 +185,55 @@ describe('applyListingDerivations', () => {
 
   it('re-derives the price when the area is corrected', () => {
     const first = applyListingDerivations(
-      makeDraft({ type: 'Residential Land/ Plot', land_area: 2400, land_area_unit: 'Sq.Ft.' }),
+      makeDraft({
+        type: 'Residential Land/ Plot',
+        land_area: 2400,
+        land_area_unit: 'Sq.Ft.',
+      }),
       'Price - 10500 per sqft.'
     );
     expect(first.price).toBe(25200000);
-    const corrected = applyListingDerivations({ ...first, land_area: 1200 }, 'Land area is 1200 sqft', first);
+    const corrected = applyListingDerivations(
+      { ...first, land_area: 1200 },
+      'Land area is 1200 sqft',
+      first
+    );
     expect(corrected.price).toBe(12600000);
   });
 
   it('never overwrites a total price the user states outright', () => {
     const first = applyListingDerivations(
-      makeDraft({ type: 'Residential Land/ Plot', land_area: 2400, land_area_unit: 'Sq.Ft.' }),
+      makeDraft({
+        type: 'Residential Land/ Plot',
+        land_area: 2400,
+        land_area_unit: 'Sq.Ft.',
+      }),
       'Price - 10500 per sqft.'
     );
-    const explicit = applyListingDerivations({ ...first, price: 20000000 }, 'Price is 2 Cr', first);
+    const explicit = applyListingDerivations(
+      { ...first, price: 20000000 },
+      'Price is 2 Cr',
+      first
+    );
     expect(explicit.price).toBe(20000000);
     expect(explicit.price_from_rate).toBe(false);
 
-    const later = applyListingDerivations({ ...explicit, land_area: 3000 }, 'Land area 3000 sqft', explicit);
+    const later = applyListingDerivations(
+      { ...explicit, land_area: 3000 },
+      'Land area 3000 sqft',
+      explicit
+    );
     expect(later.price).toBe(20000000);
   });
 
   it('prices a built structure off its built-up area', () => {
     const derived = applyListingDerivations(
-      makeDraft({ type: 'Flat/ Apartment', area_sqft: 1450, land_area: 2400, land_area_unit: 'Sq.Ft.' }),
+      makeDraft({
+        type: 'Flat/ Apartment',
+        area_sqft: 1450,
+        land_area: 2400,
+        land_area_unit: 'Sq.Ft.',
+      }),
       '8000 per sqft'
     );
     expect(derived.price).toBe(11600000);
@@ -196,10 +250,18 @@ describe('applyListingDerivations', () => {
 
 describe('extractYouTubeVideoId', () => {
   it('reads the common YouTube URL shapes', () => {
-    expect(extractYouTubeVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
-    expect(extractYouTubeVideoId('https://youtu.be/dQw4w9WgXcQ?t=10')).toBe('dQw4w9WgXcQ');
-    expect(extractYouTubeVideoId('https://youtube.com/shorts/abc123XYZ_-')).toBe('abc123XYZ_-');
-    expect(extractYouTubeVideoId('https://m.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(
+      extractYouTubeVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+    ).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('https://youtu.be/dQw4w9WgXcQ?t=10')).toBe(
+      'dQw4w9WgXcQ'
+    );
+    expect(
+      extractYouTubeVideoId('https://youtube.com/shorts/abc123XYZ_-')
+    ).toBe('abc123XYZ_-');
+    expect(
+      extractYouTubeVideoId('https://m.youtube.com/watch?v=dQw4w9WgXcQ')
+    ).toBe('dQw4w9WgXcQ');
   });
 
   it('finds the link inside a longer listing message', () => {
@@ -211,12 +273,18 @@ describe('extractYouTubeVideoId', () => {
   });
 
   it('drops trailing sentence punctuation', () => {
-    expect(extractYouTubeVideoId('Video here: https://youtu.be/dQw4w9WgXcQ.')).toBe('dQw4w9WgXcQ');
+    expect(
+      extractYouTubeVideoId('Video here: https://youtu.be/dQw4w9WgXcQ.')
+    ).toBe('dQw4w9WgXcQ');
   });
 
   it('ignores non-YouTube links and plain text', () => {
-    expect(extractYouTubeVideoId('https://example.com/watch?v=dQw4w9WgXcQ')).toBeNull();
-    expect(extractYouTubeVideoId('https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ')).toBeNull();
+    expect(
+      extractYouTubeVideoId('https://example.com/watch?v=dQw4w9WgXcQ')
+    ).toBeNull();
+    expect(
+      extractYouTubeVideoId('https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ')
+    ).toBeNull();
     expect(extractYouTubeVideoId('30x40 site near Isha, 1.8 Cr')).toBeNull();
     expect(extractYouTubeVideoId(null)).toBeNull();
   });
@@ -224,12 +292,18 @@ describe('extractYouTubeVideoId', () => {
 
 describe('applyListingDerivations — YouTube link', () => {
   it('attaches a link found in the message', () => {
-    const derived = applyListingDerivations(makeDraft(), 'Walkthrough: https://youtu.be/dQw4w9WgXcQ');
+    const derived = applyListingDerivations(
+      makeDraft(),
+      'Walkthrough: https://youtu.be/dQw4w9WgXcQ'
+    );
     expect(derived.youtube_video_id).toBe('dQw4w9WgXcQ');
   });
 
   it('keeps the link across later corrections that omit it', () => {
-    const first = applyListingDerivations(makeDraft(), 'https://youtu.be/dQw4w9WgXcQ');
+    const first = applyListingDerivations(
+      makeDraft(),
+      'https://youtu.be/dQw4w9WgXcQ'
+    );
     const corrected = applyListingDerivations(
       { ...first, youtube_video_id: undefined },
       'Price is 1.8 Cr',
@@ -239,18 +313,35 @@ describe('applyListingDerivations — YouTube link', () => {
   });
 
   it('replaces the link when a new one is shared', () => {
-    const first = applyListingDerivations(makeDraft(), 'https://youtu.be/dQw4w9WgXcQ');
-    const replaced = applyListingDerivations(first, 'Updated video https://youtu.be/abc123XYZ_-', first);
+    const first = applyListingDerivations(
+      makeDraft(),
+      'https://youtu.be/dQw4w9WgXcQ'
+    );
+    const replaced = applyListingDerivations(
+      first,
+      'Updated video https://youtu.be/abc123XYZ_-',
+      first
+    );
     expect(replaced.youtube_video_id).toBe('abc123XYZ_-');
   });
 });
 
 describe('detectJointDevelopment', () => {
   it('reads the abbreviations and the spelled-out phrases', () => {
-    expect(detectJointDevelopment('12 acres available for an apartment JD behind Brigade')).toBe(true);
-    expect(detectJointDevelopment('Open for JV on revenue share basis')).toBe(true);
-    expect(detectJointDevelopment('Land offered for joint development')).toBe(true);
-    expect(detectJointDevelopment('Joint Venture with a reputed builder')).toBe(true);
+    expect(
+      detectJointDevelopment(
+        '12 acres available for an apartment JD behind Brigade'
+      )
+    ).toBe(true);
+    expect(detectJointDevelopment('Open for JV on revenue share basis')).toBe(
+      true
+    );
+    expect(detectJointDevelopment('Land offered for joint development')).toBe(
+      true
+    );
+    expect(detectJointDevelopment('Joint Venture with a reputed builder')).toBe(
+      true
+    );
   });
 
   it('ignores a name that merely starts with the same letters', () => {
@@ -279,7 +370,10 @@ describe('applyListingDerivations — joint development', () => {
 
   it('normalizes the structure the model reported', () => {
     const derived = applyListingDerivations(
-      makeDraft({ listing_type: 'JV/JD', jv_structure: 'area sharing' as never })
+      makeDraft({
+        listing_type: 'JV/JD',
+        jv_structure: 'area sharing' as never,
+      })
     );
     expect(derived.jv_structure).toBe('Area Share');
   });
@@ -318,7 +412,11 @@ describe('applyListingDerivations — joint development', () => {
 
   it('keeps a project value the lister stated outright', () => {
     const derived = applyListingDerivations(
-      makeDraft({ listing_type: 'JV/JD', price: 5000000000, price_from_rate: false }),
+      makeDraft({
+        listing_type: 'JV/JD',
+        price: 5000000000,
+        price_from_rate: false,
+      }),
       'Expected project value is 500 Cr'
     );
     expect(derived.price).toBe(5000000000);
@@ -326,7 +424,11 @@ describe('applyListingDerivations — joint development', () => {
 
   it('still prices a plain land sale off its per-acre rate', () => {
     const derived = applyListingDerivations(
-      makeDraft({ type: 'Agricultural Land', land_area: 2, land_area_unit: 'Acre' }),
+      makeDraft({
+        type: 'Agricultural Land',
+        land_area: 2,
+        land_area_unit: 'Acre',
+      }),
       'Selling at 1.2 Cr per acre'
     );
     expect(derived.price).toBe(24000000);

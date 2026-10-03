@@ -1,12 +1,16 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { stageIndexOf, type JourneyMode, type JourneyPriority } from '@/components/journey/shared'
+import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  stageIndexOf,
+  type JourneyMode,
+  type JourneyPriority,
+} from '@/components/journey/shared';
 import {
   loadDealDeadlines,
   summarizeDeadlines,
   todayDateKey,
-} from '@/lib/deals/deadlines'
-import { loadTodaysAgenda } from '@/lib/today/queries'
-import type { JourneyItem, JourneyStage } from '@/types'
+} from '@/lib/deals/deadlines';
+import { loadTodaysAgenda } from '@/lib/today/queries';
+import type { JourneyItem, JourneyStage } from '@/types';
 import {
   FOCUS_TOP_N,
   rankJourneys,
@@ -15,9 +19,9 @@ import {
   summarizeTasks,
   type JourneyCandidate,
   type RequestCandidate,
-} from './rank'
-import type { FocusSnapshot } from './types'
-import { isLiveJourneyState, type JourneyLifecycleRow } from './lifecycle'
+} from './rank';
+import type { FocusSnapshot } from './types';
+import { isLiveJourneyState, type JourneyLifecycleRow } from './lifecycle';
 
 /**
  * Loaders behind GET /api/focus. They expect an RLS-scoped client —
@@ -26,26 +30,26 @@ import { isLiveJourneyState, type JourneyLifecycleRow } from './lifecycle'
  * tenant's agenda.
  */
 
-type DB = SupabaseClient
+type DB = SupabaseClient;
 
-const DAY_MS = 86_400_000
+const DAY_MS = 86_400_000;
 
 /** How far back an unanswered inquiry still counts as actionable. */
-const INQUIRY_LOOKBACK_DAYS = 14
+const INQUIRY_LOOKBACK_DAYS = 14;
 
 /** Journeys are grouped in memory, same as the Journey overview. */
-const JOURNEY_ITEM_LIMIT = 2000
+const JOURNEY_ITEM_LIMIT = 2000;
 
 function one<T>(v: T | T[] | null | undefined): T | null {
-  if (v === null || v === undefined) return null
-  return Array.isArray(v) ? (v[0] ?? null) : v
+  if (v === null || v === undefined) return null;
+  return Array.isArray(v) ? (v[0] ?? null) : v;
 }
 
 // --- Journeys -----------------------------------------------------------
 
 interface JourneyRow extends Omit<JourneyItem, 'contact' | 'property'> {
-  contact: { id: string; name: string | null; phone: string | null } | null
-  property: { id: string; title: string; property_code: string | null } | null
+  contact: { id: string; name: string | null; phone: string | null } | null;
+  property: { id: string; title: string; property_code: string | null } | null;
 }
 
 /**
@@ -55,13 +59,13 @@ interface JourneyRow extends Omit<JourneyItem, 'contact' | 'property'> {
  */
 export async function loadJourneyCandidates(
   db: DB,
-  accountId: string,
+  accountId: string
 ): Promise<JourneyCandidate[]> {
   const [itemsRes, stagesRes, prioritiesRes, statesRes] = await Promise.all([
     db
       .from('journey_items')
       .select(
-        'id, contact_id, property_id, stage_id, status, hidden, updated_at, contact:contacts(id, name, phone), property:properties(id, title, property_code)',
+        'id, contact_id, property_id, stage_id, status, hidden, updated_at, contact:contacts(id, name, phone), property:properties(id, title, property_code)'
       )
       .eq('account_id', accountId)
       .eq('status', 'active')
@@ -82,11 +86,11 @@ export async function loadJourneyCandidates(
       .from('journey_overview_states')
       .select('mode, subject_id, lifecycle_status, archived_at')
       .eq('account_id', accountId),
-  ])
-  if (itemsRes.error) throw itemsRes.error
-  if (stagesRes.error) throw stagesRes.error
-  if (prioritiesRes.error) throw prioritiesRes.error
-  if (statesRes.error) throw statesRes.error
+  ]);
+  if (itemsRes.error) throw itemsRes.error;
+  if (stagesRes.error) throw stagesRes.error;
+  if (prioritiesRes.error) throw prioritiesRes.error;
+  if (statesRes.error) throw statesRes.error;
 
   // A journey closed or archived on the overview is not a live one
   // here either: Focus ranks what the Journey tab still shows as active.
@@ -94,25 +98,30 @@ export async function loadJourneyCandidates(
     ((statesRes.data ?? []) as JourneyLifecycleRow[]).map((r) => [
       `${r.mode}:${r.subject_id}`,
       r,
-    ]),
-  )
+    ])
+  );
 
-  const stages = (stagesRes.data ?? []) as JourneyStage[]
+  const stages = (stagesRes.data ?? []) as JourneyStage[];
   const priorities = new Map<string, JourneyPriority>(
     (
       (prioritiesRes.data ?? []) as {
-        mode: JourneyMode
-        subject_id: string
-        priority: JourneyPriority
+        mode: JourneyMode;
+        subject_id: string;
+        priority: JourneyPriority;
       }[]
-    ).map((r) => [`${r.mode}:${r.subject_id}`, r.priority]),
-  )
+    ).map((r) => [`${r.mode}:${r.subject_id}`, r.priority])
+  );
 
-  const byKey = new Map<string, JourneyCandidate>()
+  const byKey = new Map<string, JourneyCandidate>();
   for (const raw of (itemsRes.data ?? []) as unknown as JourneyRow[]) {
-    const contact = one(raw.contact)
-    const property = one(raw.property)
-    const subjects: { mode: JourneyMode; id: string; name: string; detail: string | null }[] = [
+    const contact = one(raw.contact);
+    const property = one(raw.property);
+    const subjects: {
+      mode: JourneyMode;
+      id: string;
+      name: string;
+      detail: string | null;
+    }[] = [
       {
         mode: 'buyer',
         id: raw.contact_id,
@@ -125,50 +134,60 @@ export async function loadJourneyCandidates(
         name: property?.title || 'Untitled property',
         detail: property?.property_code ?? null,
       },
-    ]
+    ];
 
     for (const subject of subjects) {
-      const key = `${subject.mode}:${subject.id}`
-      if (!isLiveJourneyState(states.get(key))) continue
-      let candidate = byKey.get(key)
+      const key = `${subject.mode}:${subject.id}`;
+      if (!isLiveJourneyState(states.get(key))) continue;
+      let candidate = byKey.get(key);
       if (!candidate) {
         candidate = {
           mode: subject.mode,
           subjectId: subject.id,
-          subject: { id: subject.id, name: subject.name, detail: subject.detail },
+          subject: {
+            id: subject.id,
+            name: subject.name,
+            detail: subject.detail,
+          },
           priority: priorities.get(key) ?? null,
           furthestStageIdx: -1,
           furthestStageName: null,
           lastUpdated: raw.updated_at,
           activeCount: 0,
           itemIds: [],
-        }
-        byKey.set(key, candidate)
+        };
+        byKey.set(key, candidate);
       }
-      candidate.activeCount += 1
-      candidate.itemIds.push(raw.id)
-      const idx = stageIndexOf(raw as JourneyItem, stages)
+      candidate.activeCount += 1;
+      candidate.itemIds.push(raw.id);
+      const idx = stageIndexOf(raw as JourneyItem, stages);
       if (idx > candidate.furthestStageIdx) {
-        candidate.furthestStageIdx = idx
-        candidate.furthestStageName = stages[idx]?.name ?? null
+        candidate.furthestStageIdx = idx;
+        candidate.furthestStageName = stages[idx]?.name ?? null;
       }
-      if (raw.updated_at > candidate.lastUpdated) candidate.lastUpdated = raw.updated_at
+      if (raw.updated_at > candidate.lastUpdated)
+        candidate.lastUpdated = raw.updated_at;
     }
   }
 
-  return Array.from(byKey.values())
+  return Array.from(byKey.values());
 }
 
 // --- Requests -----------------------------------------------------------
 
 interface InquiryRow {
-  contact_id: string
-  property_id: string
-  inquiry_source: string | null
-  inquiry_date: string | null
-  created_at: string
-  contact: { id: string; name: string | null; phone: string | null; last_contacted_at: string | null } | null
-  property: { id: string; title: string; property_code: string | null } | null
+  contact_id: string;
+  property_id: string;
+  inquiry_source: string | null;
+  inquiry_date: string | null;
+  created_at: string;
+  contact: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+    last_contacted_at: string | null;
+  } | null;
+  property: { id: string; title: string; property_code: string | null } | null;
 }
 
 /**
@@ -176,66 +195,80 @@ interface InquiryRow {
  * whose contact has not been touched since they asked. A contact
  * contacted after the inquiry landed is, by definition, handled.
  */
-async function loadInquiryRequests(db: DB, accountId: string): Promise<RequestCandidate[]> {
-  const since = new Date(Date.now() - INQUIRY_LOOKBACK_DAYS * DAY_MS).toISOString()
+async function loadInquiryRequests(
+  db: DB,
+  accountId: string
+): Promise<RequestCandidate[]> {
+  const since = new Date(
+    Date.now() - INQUIRY_LOOKBACK_DAYS * DAY_MS
+  ).toISOString();
   const { data, error } = await db
     .from('contact_property_inquiries')
     .select(
-      'contact_id, property_id, inquiry_source, inquiry_date, created_at, contact:contacts(id, name, phone, last_contacted_at), property:properties(id, title, property_code)',
+      'contact_id, property_id, inquiry_source, inquiry_date, created_at, contact:contacts(id, name, phone, last_contacted_at), property:properties(id, title, property_code)'
     )
     .eq('account_id', accountId)
     .gte('inquiry_date', since)
-    .order('inquiry_date', { ascending: false })
-  if (error) throw error
+    .order('inquiry_date', { ascending: false });
+  if (error) throw error;
 
-  const out: RequestCandidate[] = []
+  const out: RequestCandidate[] = [];
   for (const raw of (data ?? []) as unknown as InquiryRow[]) {
-    const contact = one(raw.contact)
-    const property = one(raw.property)
-    const receivedAt = raw.inquiry_date ?? raw.created_at
-    if (!contact || !receivedAt) continue
-    if (contact.last_contacted_at && contact.last_contacted_at >= receivedAt) continue
+    const contact = one(raw.contact);
+    const property = one(raw.property);
+    const receivedAt = raw.inquiry_date ?? raw.created_at;
+    if (!contact || !receivedAt) continue;
+    if (contact.last_contacted_at && contact.last_contacted_at >= receivedAt)
+      continue;
 
     out.push({
       id: `inquiry:${raw.contact_id}:${raw.property_id}`,
       kind: 'inquiry',
       title: `${contact.name || contact.phone || 'A lead'} asked about ${property?.title ?? 'a listing'}`,
-      detail: [raw.inquiry_source, property?.property_code].filter(Boolean).join(' · ') || null,
+      detail:
+        [raw.inquiry_source, property?.property_code]
+          .filter(Boolean)
+          .join(' · ') || null,
       receivedAt,
       expiresAt: null,
       href: `/contacts?contactId=${raw.contact_id}`,
-    })
+    });
   }
-  return out
+  return out;
 }
 
 interface MatchEventRow {
-  id: string
-  kind: 'new_property' | 'buyer_updated'
-  matches: { id: string; name: string }[] | null
-  created_at: string
-  property: { id: string; title: string } | null
-  contact: { id: string; name: string | null; phone: string | null } | null
+  id: string;
+  kind: 'new_property' | 'buyer_updated';
+  matches: { id: string; name: string }[] | null;
+  created_at: string;
+  property: { id: string; title: string } | null;
+  contact: { id: string; name: string | null; phone: string | null } | null;
 }
 
 /** Unresolved Match Radar events — the engine's suggestions. */
-async function loadMatchRequests(db: DB, accountId: string): Promise<RequestCandidate[]> {
+async function loadMatchRequests(
+  db: DB,
+  accountId: string
+): Promise<RequestCandidate[]> {
   const { data, error } = await db
     .from('match_events')
-    .select('id, kind, matches, created_at, property:properties(id, title), contact:contacts(id, name, phone)')
+    .select(
+      'id, kind, matches, created_at, property:properties(id, title), contact:contacts(id, name, phone)'
+    )
     .eq('account_id', accountId)
     .eq('status', 'new')
-    .order('created_at', { ascending: false })
-  if (error) throw error
+    .order('created_at', { ascending: false });
+  if (error) throw error;
 
   return ((data ?? []) as unknown as MatchEventRow[]).map((raw) => {
-    const property = one(raw.property)
-    const contact = one(raw.contact)
-    const count = raw.matches?.length ?? 0
+    const property = one(raw.property);
+    const contact = one(raw.contact);
+    const count = raw.matches?.length ?? 0;
     const subject =
       raw.kind === 'new_property'
         ? (property?.title ?? 'A new listing')
-        : (contact?.name || contact?.phone || 'A buyer')
+        : contact?.name || contact?.phone || 'A buyer';
     return {
       id: `match:${raw.id}`,
       kind: 'match' as const,
@@ -247,17 +280,17 @@ async function loadMatchRequests(db: DB, accountId: string): Promise<RequestCand
       receivedAt: raw.created_at,
       expiresAt: null,
       href: '/dashboard?tab=radar',
-    }
-  })
+    };
+  });
 }
 
 interface SubmissionRow {
-  id: string
-  code: string
-  submitter_name: string | null
-  raw_text: string
-  created_at: string
-  expires_at: string
+  id: string;
+  code: string;
+  submitter_name: string | null;
+  raw_text: string;
+  created_at: string;
+  expires_at: string;
 }
 
 /**
@@ -265,16 +298,19 @@ interface SubmissionRow {
  * that dies in 24 hours. Expired rows are already dead — skip them
  * rather than rank something nobody can act on.
  */
-async function loadSubmissionRequests(db: DB, accountId: string): Promise<RequestCandidate[]> {
-  const nowIso = new Date().toISOString()
+async function loadSubmissionRequests(
+  db: DB,
+  accountId: string
+): Promise<RequestCandidate[]> {
+  const nowIso = new Date().toISOString();
   const { data, error } = await db
     .from('public_listing_submissions')
     .select('id, code, submitter_name, raw_text, created_at, expires_at')
     .eq('account_id', accountId)
     .eq('status', 'pending')
     .gt('expires_at', nowIso)
-    .order('expires_at', { ascending: true })
-  if (error) throw error
+    .order('expires_at', { ascending: true });
+  if (error) throw error;
 
   return ((data ?? []) as SubmissionRow[]).map((raw) => ({
     id: `submission:${raw.id}`,
@@ -284,41 +320,48 @@ async function loadSubmissionRequests(db: DB, accountId: string): Promise<Reques
     receivedAt: raw.created_at,
     expiresAt: raw.expires_at,
     href: '/inventory',
-  }))
+  }));
 }
 
 interface BidRow {
-  id: string
-  amount: number
-  bid_type: string
-  message: string | null
-  created_at: string
-  expires_at: string | null
-  property: { id: string; title: string } | null
+  id: string;
+  amount: number;
+  bid_type: string;
+  message: string | null;
+  created_at: string;
+  expires_at: string | null;
+  property: { id: string; title: string } | null;
 }
 
 /** Live offers on this account's inventory, awaiting an answer. */
-async function loadBidRequests(db: DB, accountId: string): Promise<RequestCandidate[]> {
+async function loadBidRequests(
+  db: DB,
+  accountId: string
+): Promise<RequestCandidate[]> {
   const { data, error } = await db
     .from('property_bids')
-    .select('id, amount, bid_type, message, created_at, expires_at, property:properties(id, title)')
+    .select(
+      'id, amount, bid_type, message, created_at, expires_at, property:properties(id, title)'
+    )
     .eq('owner_account_id', accountId)
     .eq('status', 'pending')
-    .order('created_at', { ascending: false })
-  if (error) throw error
+    .order('created_at', { ascending: false });
+  if (error) throw error;
 
   return ((data ?? []) as unknown as BidRow[]).map((raw) => {
-    const property = one(raw.property)
+    const property = one(raw.property);
     return {
       id: `bid:${raw.id}`,
       kind: 'bid' as const,
       title: `Offer on ${property?.title ?? 'a listing'}`,
-      detail: raw.message?.trim() || `${raw.bid_type === 'rent' ? 'Rent' : 'Sale'} bid`,
+      detail:
+        raw.message?.trim() ||
+        `${raw.bid_type === 'rent' ? 'Rent' : 'Sale'} bid`,
       receivedAt: raw.created_at,
       expiresAt: raw.expires_at,
       href: property ? `/inventory?propertyId=${property.id}` : '/inventory',
-    }
-  })
+    };
+  });
 }
 
 /**
@@ -328,37 +371,49 @@ async function loadBidRequests(db: DB, accountId: string): Promise<RequestCandid
  */
 export async function loadRequestCandidates(
   db: DB,
-  accountId: string,
+  accountId: string
 ): Promise<RequestCandidate[]> {
   const loaders: [string, Promise<RequestCandidate[]>][] = [
     ['inquiries', loadInquiryRequests(db, accountId)],
     ['matches', loadMatchRequests(db, accountId)],
     ['submissions', loadSubmissionRequests(db, accountId)],
     ['bids', loadBidRequests(db, accountId)],
-  ]
-  const settled = await Promise.allSettled(loaders.map(([, p]) => p))
+  ];
+  const settled = await Promise.allSettled(loaders.map(([, p]) => p));
 
-  const out: RequestCandidate[] = []
+  const out: RequestCandidate[] = [];
   settled.forEach((result, i) => {
-    if (result.status === 'fulfilled') out.push(...result.value)
-    else console.error(`[focus] ${loaders[i][0]} request loader failed:`, result.reason)
-  })
-  return out
+    if (result.status === 'fulfilled') out.push(...result.value);
+    else
+      console.error(
+        `[focus] ${loaders[i][0]} request loader failed:`,
+        result.reason
+      );
+  });
+  return out;
 }
 
 // --- Snapshot -----------------------------------------------------------
 
 /** Everything the Focus screen renders, ranked and ready. */
-export async function loadFocusSnapshot(db: DB, accountId: string): Promise<FocusSnapshot> {
-  const nowMs = Date.now()
-  const [agenda, deadlines, journeyCandidates, requestCandidates] = await Promise.all([
-    loadTodaysAgenda(db),
-    loadDealDeadlines(db, accountId, todayDateKey(new Date(nowMs), 'Asia/Kolkata')),
-    loadJourneyCandidates(db, accountId),
-    loadRequestCandidates(db, accountId),
-  ])
+export async function loadFocusSnapshot(
+  db: DB,
+  accountId: string
+): Promise<FocusSnapshot> {
+  const nowMs = Date.now();
+  const [agenda, deadlines, journeyCandidates, requestCandidates] =
+    await Promise.all([
+      loadTodaysAgenda(db),
+      loadDealDeadlines(
+        db,
+        accountId,
+        todayDateKey(new Date(nowMs), 'Asia/Kolkata')
+      ),
+      loadJourneyCandidates(db, accountId),
+      loadRequestCandidates(db, accountId),
+    ]);
 
-  const requests = rankRequests(requestCandidates, nowMs)
+  const requests = rankRequests(requestCandidates, nowMs);
 
   return {
     tasks: summarizeTasks(agenda.appointments, agenda.todos, nowMs),
@@ -369,5 +424,5 @@ export async function loadFocusSnapshot(db: DB, accountId: string): Promise<Focu
     },
     requests: { top: requests.slice(0, FOCUS_TOP_N), all: requests },
     generatedAt: new Date(nowMs).toISOString(),
-  }
+  };
 }

@@ -104,11 +104,11 @@ from the semantic cache. Ceilings live in `RATE_LIMITS.copilot*`
 
 The helper answers three different products from one codebase:
 
-| Audience | Surface | Route | Mounted by |
-|---|---|---|---|
-| `agent` | staff dashboard | `/api/copilot` | `CopilotWidget` (tours + nudges) |
-| `owner` | Portfolio (owners) | `/api/den/copilot` | `PortalHelper` |
-| `buyer` | Portfolio (buyers) | `/api/buyer/copilot` | `PortalHelper` |
+| Audience | Surface            | Route                | Mounted by                       |
+| -------- | ------------------ | -------------------- | -------------------------------- |
+| `agent`  | staff dashboard    | `/api/copilot`       | `CopilotWidget` (tours + nudges) |
+| `owner`  | Portfolio (owners) | `/api/den/copilot`   | `PortalHelper`                   |
+| `buyer`  | Portfolio (buyers) | `/api/buyer/copilot` | `PortalHelper`                   |
 
 Each route does its own auth — staff resolve an account, portals resolve a
 Den/Buyer context — then calls the shared engine (`engine.ts`). Portals get no

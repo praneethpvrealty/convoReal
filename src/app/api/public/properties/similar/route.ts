@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
-import { storagePublicUrl } from "@/lib/storage/url";
-import { toPublicListingView } from "@/lib/inventory/showcase-visibility";
-import type { Property } from "@/types";
+import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { storagePublicUrl } from '@/lib/storage/url';
+import { toPublicListingView } from '@/lib/inventory/showcase-visibility';
+import type { Property } from '@/types';
 
 /**
  * GET /api/public/properties/similar
@@ -28,8 +28,10 @@ const RESULT_LIMIT = 4;
 
 // Haversine distance in km (for geo-proximity bonus)
 function haversineKm(
-  lat1: number, lon1: number,
-  lat2: number, lon2: number
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
 ): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -37,88 +39,139 @@ function haversineKm(
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos((lat1 * Math.PI) / 180) *
-    Math.cos((lat2 * Math.PI) / 180) *
-    Math.sin(dLon / 2) ** 2;
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 // Scoring needs location/coords/privacy fields server-side; the response
 // is reduced through toPublicListingView so none of them leave the box.
 const CANDIDATE_COLUMNS = [
-  "id", "account_id", "user_id", "title", "description", "price",
-  "location", "sublocality", "city", "state", "type", "status",
-  "listing_type", "location_privacy", "showcase_visibility",
-  "bedrooms", "bathrooms",
-  "area_sqft", "area_unit",
-  "land_area", "land_area_unit", "super_built_area", "project",
-  "land_zone", "ideal_for", "dimensions", "road_width", "road_width_unit",
-  "facing_direction", "nearby_highlights", "is_published", "features",
+  'id',
+  'account_id',
+  'user_id',
+  'title',
+  'description',
+  'price',
+  'location',
+  'sublocality',
+  'city',
+  'state',
+  'type',
+  'status',
+  'listing_type',
+  'location_privacy',
+  'showcase_visibility',
+  'bedrooms',
+  'bathrooms',
+  'area_sqft',
+  'area_unit',
+  'land_area',
+  'land_area_unit',
+  'super_built_area',
+  'project',
+  'land_zone',
+  'ideal_for',
+  'dimensions',
+  'road_width',
+  'road_width_unit',
+  'facing_direction',
+  'nearby_highlights',
+  'is_published',
+  'features',
   // Count only — never serialized out (see the public list route).
-  "images", "private_images", "property_code",
-  "rental_income", "roi", "listing_source", "rent_per_month",
-  "maintenance", "advance", "gst", "jv_structure", "owner_share_percent",
-  "builder_share_percent", "goodwill_amount", "bts_lease_years",
-  "bts_lock_in_years", "bts_escalation_percent", "latitude", "longitude",
-  "created_at", "updated_at",
-].join(", ");
+  'images',
+  'private_images',
+  'property_code',
+  'rental_income',
+  'roi',
+  'listing_source',
+  'rent_per_month',
+  'maintenance',
+  'advance',
+  'gst',
+  'jv_structure',
+  'owner_share_percent',
+  'builder_share_percent',
+  'goodwill_amount',
+  'bts_lease_years',
+  'bts_lock_in_years',
+  'bts_escalation_percent',
+  'latitude',
+  'longitude',
+  'created_at',
+  'updated_at',
+].join(', ');
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const accountId = searchParams.get("account_id");
-    const propertyId = searchParams.get("property_id");
+    const accountId = searchParams.get('account_id');
+    const propertyId = searchParams.get('property_id');
 
     if (!accountId || !propertyId) {
       return NextResponse.json(
-        { error: "Missing required 'account_id' and 'property_id' query parameters" },
+        {
+          error:
+            "Missing required 'account_id' and 'property_id' query parameters",
+        },
         { status: 400 }
       );
     }
 
     // Seed property attributes (passed as query params to avoid a second DB call)
-    const seedType = searchParams.get("type") || "";
-    const seedListingType = searchParams.get("listing_type") || "";
-    const seedPrice = parseFloat(searchParams.get("price") || "0") || 0;
-    const seedRent = parseFloat(searchParams.get("rent") || "0") || 0;
-    const seedBedrooms = parseInt(searchParams.get("bedrooms") || "0", 10) || 0;
-    const seedLocation = (searchParams.get("location") || "").toLowerCase();
-    const seedSublocality = (searchParams.get("sublocality") || "").toLowerCase();
-    const seedCity = (searchParams.get("city") || "").toLowerCase();
-    const seedLat = parseFloat(searchParams.get("lat") || "0") || 0;
-    const seedLon = parseFloat(searchParams.get("lon") || "0") || 0;
+    const seedType = searchParams.get('type') || '';
+    const seedListingType = searchParams.get('listing_type') || '';
+    const seedPrice = parseFloat(searchParams.get('price') || '0') || 0;
+    const seedRent = parseFloat(searchParams.get('rent') || '0') || 0;
+    const seedBedrooms = parseInt(searchParams.get('bedrooms') || '0', 10) || 0;
+    const seedLocation = (searchParams.get('location') || '').toLowerCase();
+    const seedSublocality = (
+      searchParams.get('sublocality') || ''
+    ).toLowerCase();
+    const seedCity = (searchParams.get('city') || '').toLowerCase();
+    const seedLat = parseFloat(searchParams.get('lat') || '0') || 0;
+    const seedLon = parseFloat(searchParams.get('lon') || '0') || 0;
 
     // Effective price for comparison (rent / built-to-suit use rent_per_month)
     const seedEffectivePrice =
-      seedListingType === "Rent" || seedListingType === "Built to Suit" ? seedRent : seedPrice;
+      seedListingType === 'Rent' || seedListingType === 'Built to Suit'
+        ? seedRent
+        : seedPrice;
 
     const client = supabaseAdmin();
 
     // Fetch a broad candidate pool — same account, published, available, excluding current property
     const { data: rawCandidates, error } = await client
-      .from("properties")
+      .from('properties')
       .select(CANDIDATE_COLUMNS)
-      .eq("account_id", accountId)
-      .eq("is_published", true)
-      .eq("status", "Available")
-      .neq("id", propertyId)
-      .order("created_at", { ascending: false })
+      .eq('account_id', accountId)
+      .eq('is_published', true)
+      .eq('status', 'Available')
+      .neq('id', propertyId)
+      .order('created_at', { ascending: false })
       .limit(CANDIDATE_LIMIT);
 
     const candidates = (rawCandidates ?? []) as unknown as Property[];
 
     if (error) {
-      console.error("[GET /api/public/properties/similar] Fetch error:", error);
+      console.error('[GET /api/public/properties/similar] Fetch error:', error);
       return NextResponse.json(
-        { error: "Failed to fetch similar properties" },
+        { error: 'Failed to fetch similar properties' },
         { status: 500 }
       );
     }
 
     if (candidates.length === 0) {
-      return NextResponse.json({ data: [] }, {
-        headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=300" },
-      });
+      return NextResponse.json(
+        { data: [] },
+        {
+          headers: {
+            'Cache-Control': 'public, max-age=120, stale-while-revalidate=300',
+          },
+        }
+      );
     }
 
     // Score each candidate
@@ -133,51 +186,54 @@ export async function GET(request: Request) {
       const reasons: string[] = [];
 
       // 1. Location match — sublocality is the strongest signal
-      const pSublocality = (p.sublocality || "").toLowerCase();
-      const pLocation = (p.location || "").toLowerCase();
-      const pCity = (p.city || "").toLowerCase();
+      const pSublocality = (p.sublocality || '').toLowerCase();
+      const pLocation = (p.location || '').toLowerCase();
+      const pCity = (p.city || '').toLowerCase();
 
       if (seedSublocality && pSublocality && pSublocality === seedSublocality) {
         score += 30;
-        reasons.push("same_area");
-      } else if (seedLocation && pLocation && (
-        pLocation.includes(seedLocation) || seedLocation.includes(pLocation)
-      )) {
+        reasons.push('same_area');
+      } else if (
+        seedLocation &&
+        pLocation &&
+        (pLocation.includes(seedLocation) || seedLocation.includes(pLocation))
+      ) {
         score += 25;
-        reasons.push("similar_location");
+        reasons.push('similar_location');
       }
 
       if (seedCity && pCity && pCity === seedCity) {
         score += 10;
-        reasons.push("same_city");
+        reasons.push('same_city');
       }
 
       // 2. Listing type match (Sale vs Rent)
       if (seedListingType && p.listing_type === seedListingType) {
         score += 20;
-        reasons.push("same_listing_type");
+        reasons.push('same_listing_type');
       }
 
       // 3. Property type match
       if (seedType && p.type === seedType) {
         score += 15;
-        reasons.push("same_type");
+        reasons.push('same_type');
       }
 
       // 4. Price band (±30%)
       if (seedEffectivePrice > 0) {
-        const pEffectivePrice = p.listing_type === "Rent" || p.listing_type === "Built to Suit"
-          ? (p.rent_per_month || 0)
-          : (p.price || 0);
+        const pEffectivePrice =
+          p.listing_type === 'Rent' || p.listing_type === 'Built to Suit'
+            ? p.rent_per_month || 0
+            : p.price || 0;
 
         if (pEffectivePrice > 0) {
           const ratio = pEffectivePrice / seedEffectivePrice;
           if (ratio >= 0.7 && ratio <= 1.3) {
             score += 20;
-            reasons.push("similar_price");
+            reasons.push('similar_price');
           } else if (ratio >= 0.5 && ratio <= 1.5) {
             score += 10;
-            reasons.push("near_price");
+            reasons.push('near_price');
           }
         }
       }
@@ -187,10 +243,10 @@ export async function GET(request: Request) {
         const diff = Math.abs(p.bedrooms - seedBedrooms);
         if (diff === 0) {
           score += 10;
-          reasons.push("exact_bedrooms");
+          reasons.push('exact_bedrooms');
         } else if (diff === 1) {
           score += 5;
-          reasons.push("near_bedrooms");
+          reasons.push('near_bedrooms');
         }
       }
 
@@ -199,10 +255,10 @@ export async function GET(request: Request) {
         const dist = haversineKm(seedLat, seedLon, p.latitude, p.longitude);
         if (dist < 2) {
           score += 5;
-          reasons.push("very_close");
+          reasons.push('very_close');
         } else if (dist < 5) {
           score += 3;
-          reasons.push("nearby");
+          reasons.push('nearby');
         }
       }
 
@@ -212,7 +268,10 @@ export async function GET(request: Request) {
     // Sort by score descending, then by recency
     scored.sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return new Date(b.property.created_at).getTime() - new Date(a.property.created_at).getTime();
+      return (
+        new Date(b.property.created_at).getTime() -
+        new Date(a.property.created_at).getTime()
+      );
     });
 
     // Return top N that have at least some relevance (score > 0)
@@ -225,27 +284,33 @@ export async function GET(request: Request) {
       relevant.push(...filler);
     }
 
-    return NextResponse.json({
-      data: relevant.map((s) => {
-        const view = toPublicListingView(s.property, { revealExact: false });
-        return {
-          ...view,
-          images: Array.isArray(view.images)
-            ? view.images.map(storagePublicUrl)
-            : view.images,
-          _similarity_score: s.score,
-          _match_reasons: s.matchReasons,
-        };
-      }),
-    }, {
-      headers: {
-        "Cache-Control": "public, max-age=120, stale-while-revalidate=300",
-      },
-    });
-  } catch (err) {
-    console.error("[GET /api/public/properties/similar] Unexpected error:", err);
     return NextResponse.json(
-      { error: "Internal server error" },
+      {
+        data: relevant.map((s) => {
+          const view = toPublicListingView(s.property, { revealExact: false });
+          return {
+            ...view,
+            images: Array.isArray(view.images)
+              ? view.images.map(storagePublicUrl)
+              : view.images,
+            _similarity_score: s.score,
+            _match_reasons: s.matchReasons,
+          };
+        }),
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, max-age=120, stale-while-revalidate=300',
+        },
+      }
+    );
+  } catch (err) {
+    console.error(
+      '[GET /api/public/properties/similar] Unexpected error:',
+      err
+    );
+    return NextResponse.json(
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

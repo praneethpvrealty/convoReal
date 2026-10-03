@@ -28,7 +28,10 @@ export async function GET(
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       'unknown';
-    const limit = await checkRateLimit(`shareGrantImage:${ip}`, GRANT_IMAGE_LIMIT);
+    const limit = await checkRateLimit(
+      `shareGrantImage:${ip}`,
+      GRANT_IMAGE_LIMIT
+    );
     if (!limit.success) return rateLimitResponse(limit);
 
     const admin = supabaseAdmin();
@@ -44,9 +47,7 @@ export async function GET(
 
     const grant = data as unknown as ShareGrant & {
       property:
-        | { private_images?: string[] }
-        | { private_images?: string[] }[]
-        | null;
+        { private_images?: string[] } | { private_images?: string[] }[] | null;
       contact: { phone?: string } | { phone?: string }[] | null;
     };
 

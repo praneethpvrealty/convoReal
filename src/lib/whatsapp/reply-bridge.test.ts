@@ -14,12 +14,17 @@ import {
 describe('extractRelayText', () => {
   it('takes the body of a text message', () => {
     expect(
-      extractRelayText({ type: 'text', text: { body: 'On my way' } }, 'On my way'),
+      extractRelayText(
+        { type: 'text', text: { body: 'On my way' } },
+        'On my way'
+      )
     ).toEqual({ ok: true, text: 'On my way' });
   });
 
   it('trims surrounding whitespace', () => {
-    expect(extractRelayText({ type: 'text', text: { body: '  hi  ' } }, null)).toEqual({
+    expect(
+      extractRelayText({ type: 'text', text: { body: '  hi  ' } }, null)
+    ).toEqual({
       ok: true,
       text: 'hi',
     });
@@ -33,14 +38,24 @@ describe('extractRelayText', () => {
   });
 
   it('rejects a text message with nothing in it', () => {
-    expect(extractRelayText({ type: 'text', text: { body: '   ' } }, null)).toEqual({
+    expect(
+      extractRelayText({ type: 'text', text: { body: '   ' } }, null)
+    ).toEqual({
       ok: false,
       reason: 'empty',
     });
   });
 
   it('rejects media, location and interactive replies', () => {
-    for (const type of ['image', 'audio', 'video', 'document', 'location', 'interactive', 'button']) {
+    for (const type of [
+      'image',
+      'audio',
+      'video',
+      'document',
+      'location',
+      'interactive',
+      'button',
+    ]) {
       expect(extractRelayText({ type }, 'caption')).toEqual({
         ok: false,
         reason: 'unsupported_type',
@@ -80,25 +95,32 @@ describe('ack + relay copy', () => {
   });
 
   it('points a closed window at the inbox instead of inviting a reply', () => {
-    const ack = buildWindowClosedAck('Gaurav', 'https://app.test/inbox?conversation=c1');
+    const ack = buildWindowClosedAck(
+      'Gaurav',
+      'https://app.test/inbox?conversation=c1'
+    );
     expect(ack).toContain('24 hours');
     expect(ack).toContain('https://app.test/inbox?conversation=c1');
     expect(ack).not.toContain(BRIDGE_REPLY_HINT);
   });
 
   it('explains an unsupported reply without inviting another', () => {
-    const media = buildUnsupportedAck('Gaurav', 'unsupported_type', 'https://app.test/inbox');
+    const media = buildUnsupportedAck(
+      'Gaurav',
+      'unsupported_type',
+      'https://app.test/inbox'
+    );
     expect(media).toContain('Only text replies');
     expect(media).not.toContain(BRIDGE_REPLY_HINT);
-    expect(buildUnsupportedAck('Gaurav', 'empty', 'https://app.test/inbox')).toContain(
-      'no text to send',
-    );
+    expect(
+      buildUnsupportedAck('Gaurav', 'empty', 'https://app.test/inbox')
+    ).toContain('no text to send');
   });
 
   it('surfaces the delivery error verbatim', () => {
-    expect(buildFailureAck('Gaurav', 'Recipient not in allowed list')).toContain(
-      'Recipient not in allowed list',
-    );
+    expect(
+      buildFailureAck('Gaurav', 'Recipient not in allowed list')
+    ).toContain('Recipient not in allowed list');
   });
 
   it('names the lead and truncates a long relayed body', () => {

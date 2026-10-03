@@ -17,7 +17,7 @@ import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { signOut, useAuthStore } from '@/lib/auth-store';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { spacing, useTheme , fonts } from '@/lib/theme';
+import { spacing, useTheme, fonts } from '@/lib/theme';
 
 /**
  * Native mirror of the web's WhatsappPhoneVerify (migration 137 gate):
@@ -41,11 +41,15 @@ export default function VerifyPhoneScreen() {
     setInfo(null);
     const cleanPhone = cleanPhoneInput(phone);
     if (!cleanPhone) {
-      setError('Enter a valid WhatsApp number (e.g. 9900277111 or +919900277111)');
+      setError(
+        'Enter a valid WhatsApp number (e.g. 9900277111 or +919900277111)'
+      );
       return;
     }
     setBusy(true);
-    const { error: updateError } = await supabase.auth.updateUser({ phone: cleanPhone });
+    const { error: updateError } = await supabase.auth.updateUser({
+      phone: cleanPhone,
+    });
     setBusy(false);
     if (updateError) {
       setError(updateError.message);
@@ -91,61 +95,80 @@ export default function VerifyPhoneScreen() {
           keyboardDismissMode="on-drag"
         >
           <GlassCard style={styles.formCard}>
-          <View style={{ alignItems: 'center', gap: spacing.sm }}>
-            <View style={[styles.iconBadge, { backgroundColor: colors.successSoft }]}>
-              <Ionicons name="logo-whatsapp" size={34} color={colors.success} />
-            </View>
-            <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>
-              Verify your WhatsApp number
-            </Text>
-            <Text style={[styles.body, { color: colors.textMuted }]}>
-              ConvoReal requires every team member to verify their WhatsApp number
-              with a one-time code before using the Engine.
-            </Text>
-          </View>
-
-          {error ? <Banner kind="error" text={error} /> : null}
-          {info && !error ? <Banner kind="success" text={info} /> : null}
-
-          {stage === 'phone' ? (
-            <>
-              <TextField
-                icon="call-outline"
-                placeholder="WhatsApp number · e.g. 99002 77111"
-                keyboardType="phone-pad"
-                autoComplete="tel"
-                value={phone}
-                onChangeText={setPhone}
-              />
-              <PrimaryButton
-                label="Send code on WhatsApp"
-                busy={busy}
-                disabled={!phone.trim()}
-                onPress={sendCode}
-              />
-            </>
-          ) : (
-            <>
-              <OtpInput value={otp} onChange={setOtp} onComplete={verify} />
-              <PrimaryButton
-                label="Verify"
-                busy={busy}
-                disabled={otp.length < 6}
-                onPress={() => verify(otp)}
-              />
-              <Pressable
-                onPress={() => setStage('phone')}
-                hitSlop={10}
-                accessibilityRole="button"
-                style={{ alignItems: 'center', paddingVertical: 10 }}
+            <View style={{ alignItems: 'center', gap: spacing.sm }}>
+              <View
+                style={[
+                  styles.iconBadge,
+                  { backgroundColor: colors.successSoft },
+                ]}
               >
-                <Text style={{ color: colors.textMuted, fontSize: 13.5, fontFamily: f.semibold }}>
-                  Change number
-                </Text>
-              </Pressable>
-            </>
-          )}
+                <Ionicons
+                  name="logo-whatsapp"
+                  size={34}
+                  color={colors.success}
+                />
+              </View>
+              <Text
+                style={[
+                  styles.title,
+                  { color: colors.text, fontFamily: f.extrabold },
+                ]}
+              >
+                Verify your WhatsApp number
+              </Text>
+              <Text style={[styles.body, { color: colors.textMuted }]}>
+                ConvoReal requires every team member to verify their WhatsApp
+                number with a one-time code before using the Engine.
+              </Text>
+            </View>
 
+            {error ? <Banner kind="error" text={error} /> : null}
+            {info && !error ? <Banner kind="success" text={info} /> : null}
+
+            {stage === 'phone' ? (
+              <>
+                <TextField
+                  icon="call-outline"
+                  placeholder="WhatsApp number · e.g. 99002 77111"
+                  keyboardType="phone-pad"
+                  autoComplete="tel"
+                  value={phone}
+                  onChangeText={setPhone}
+                />
+                <PrimaryButton
+                  label="Send code on WhatsApp"
+                  busy={busy}
+                  disabled={!phone.trim()}
+                  onPress={sendCode}
+                />
+              </>
+            ) : (
+              <>
+                <OtpInput value={otp} onChange={setOtp} onComplete={verify} />
+                <PrimaryButton
+                  label="Verify"
+                  busy={busy}
+                  disabled={otp.length < 6}
+                  onPress={() => verify(otp)}
+                />
+                <Pressable
+                  onPress={() => setStage('phone')}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  style={{ alignItems: 'center', paddingVertical: 10 }}
+                >
+                  <Text
+                    style={{
+                      color: colors.textMuted,
+                      fontSize: 13.5,
+                      fontFamily: f.semibold,
+                    }}
+                  >
+                    Change number
+                  </Text>
+                </Pressable>
+              </>
+            )}
           </GlassCard>
           <Pressable
             onPress={() => signOut()}
@@ -153,7 +176,9 @@ export default function VerifyPhoneScreen() {
             accessibilityRole="button"
             style={{ alignItems: 'center', paddingVertical: 10 }}
           >
-            <Text style={{ color: colors.textFaint, fontSize: 13.5 }}>Sign out</Text>
+            <Text style={{ color: colors.textFaint, fontSize: 13.5 }}>
+              Sign out
+            </Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -162,7 +187,12 @@ export default function VerifyPhoneScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl, gap: spacing.lg },
+  scroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: spacing.xl,
+    gap: spacing.lg,
+  },
   formCard: { padding: spacing.xl, gap: spacing.xl },
   iconBadge: {
     width: 68,

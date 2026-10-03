@@ -5,22 +5,87 @@
 // Role/trade/context words that mark where the qualifier starts. Lowercase.
 const DESCRIPTOR_WORDS = new Set([
   // finance & channels
-  'bank', 'dsa', 'loan', 'loans', 'finance', 'insurance', 'chit', 'chits',
+  'bank',
+  'dsa',
+  'loan',
+  'loans',
+  'finance',
+  'insurance',
+  'chit',
+  'chits',
   // real-estate roles
-  'agent', 'broker', 'builder', 'developer', 'owner', 'buyer', 'seller',
-  'tenant', 'lead', 'ref', 'referral', 'client',
-  'realty', 'realtors', 'properties', 'property', 'estate', 'land', 'lands',
-  'site', 'sites', 'plot', 'plots', 'layout', 'flat', 'flats', 'pg', 'rent',
-  'rental', 'resale',
+  'agent',
+  'broker',
+  'builder',
+  'developer',
+  'owner',
+  'buyer',
+  'seller',
+  'tenant',
+  'lead',
+  'ref',
+  'referral',
+  'client',
+  'realty',
+  'realtors',
+  'properties',
+  'property',
+  'estate',
+  'land',
+  'lands',
+  'site',
+  'sites',
+  'plot',
+  'plots',
+  'layout',
+  'flat',
+  'flats',
+  'pg',
+  'rent',
+  'rental',
+  'resale',
   // trades & services
-  'driver', 'plumber', 'electrician', 'painter', 'carpenter', 'contractor',
-  'mason', 'borewell', 'tiles', 'granite', 'marble', 'steel', 'cement',
-  'sand', 'bricks', 'interior', 'interiors', 'fabrication', 'welding',
+  'driver',
+  'plumber',
+  'electrician',
+  'painter',
+  'carpenter',
+  'contractor',
+  'mason',
+  'borewell',
+  'tiles',
+  'granite',
+  'marble',
+  'steel',
+  'cement',
+  'sand',
+  'bricks',
+  'interior',
+  'interiors',
+  'fabrication',
+  'welding',
   // professionals & offices
-  'advocate', 'lawyer', 'auditor', 'surveyor', 'valuer', 'notary', 'engineer',
-  'architect', 'office', 'shop', 'store', 'agency', 'travels', 'courier',
+  'advocate',
+  'lawyer',
+  'auditor',
+  'surveyor',
+  'valuer',
+  'notary',
+  'engineer',
+  'architect',
+  'office',
+  'shop',
+  'store',
+  'agency',
+  'travels',
+  'courier',
   // registration / civic context
-  'khata', 'registration', 'survey', 'panchayat', 'corporation', 'court',
+  'khata',
+  'registration',
+  'survey',
+  'panchayat',
+  'corporation',
+  'court',
 ]);
 
 // Acronyms like DSA, SBI, HDFC, LIC, CA — all-caps, 2+ letters. Single
@@ -30,7 +95,9 @@ function isDescriptorToken(token: string): boolean {
   if (!bare) return false;
   if (/\d/.test(bare)) return true;
   if (DESCRIPTOR_WORDS.has(bare.toLowerCase())) return true;
-  return bare.length >= 2 && bare === bare.toUpperCase() && /^[A-Z]+$/.test(bare);
+  return (
+    bare.length >= 2 && bare === bare.toUpperCase() && /^[A-Z]+$/.test(bare)
+  );
 }
 
 const LOCALITY_SUFFIXES = new Set([
@@ -48,9 +115,7 @@ const LOCALITY_SUFFIXES = new Set([
 function localityQualifierStart(tokens: string[]): number | null {
   for (let index = 1; index < tokens.length - 1; index++) {
     const prefix = tokens[index].replace(/[^\p{L}]/gu, '');
-    const suffix = tokens[index + 1]
-      .replace(/[^\p{L}]/gu, '')
-      .toLowerCase();
+    const suffix = tokens[index + 1].replace(/[^\p{L}]/gu, '').toLowerCase();
     if (
       prefix.length >= 2 &&
       prefix.length <= 4 &&
@@ -95,8 +160,21 @@ export function suggestNameTagSplit(fullName: string): NameTagSplit | null {
 // first name ("Dr Murali") rather than becoming a second name of their own,
 // and never set `salutation`, which is an explicit choice.
 const HONORIFICS = new Set([
-  'dr', 'mr', 'mrs', 'ms', 'miss', 'prof', 'adv', 'er', 'ca', 'capt', 'col',
-  'shri', 'smt', 'sri', 'sir',
+  'dr',
+  'mr',
+  'mrs',
+  'ms',
+  'miss',
+  'prof',
+  'adv',
+  'er',
+  'ca',
+  'capt',
+  'col',
+  'shri',
+  'smt',
+  'sri',
+  'sir',
 ]);
 
 function isNamePrefixToken(token: string): boolean {
@@ -126,7 +204,10 @@ export function splitImportedName(fullName: string): ImportedNameSplit {
   }
 
   let firstNameEnd = 1;
-  while (firstNameEnd < tokens.length && isNamePrefixToken(tokens[firstNameEnd - 1])) {
+  while (
+    firstNameEnd < tokens.length &&
+    isNamePrefixToken(tokens[firstNameEnd - 1])
+  ) {
     firstNameEnd++;
   }
 

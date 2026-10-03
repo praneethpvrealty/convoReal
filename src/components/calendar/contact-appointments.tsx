@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * All appointments involving one contact — upcoming first, recent
@@ -10,21 +10,21 @@
  * SCHEDULE tab; reusable for any contact surface.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { format, isPast } from "date-fns";
-import { CalendarDays, CalendarPlus, MapPin as MapPinIcon } from "lucide-react";
+import { useCallback, useEffect, useState } from 'react';
+import { format, isPast } from 'date-fns';
+import { CalendarDays, CalendarPlus, MapPin as MapPinIcon } from 'lucide-react';
 
-import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
-import { useCan } from "@/hooks/use-can";
-import { Button } from "@/components/ui/button";
-import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
-import { ScheduleDialog } from "@/components/calendar/schedule-dialog";
+import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
+import { useCan } from '@/hooks/use-can';
+import { Button } from '@/components/ui/button';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import {
   EVENT_TYPES,
   type EventTypeKey,
-} from "@/components/calendar/event-types";
-import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from "@/lib/copilot/actions";
+} from '@/components/calendar/event-types';
+import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from '@/lib/copilot/actions';
 
 interface AppointmentRow {
   id: string;
@@ -32,20 +32,24 @@ interface AppointmentRow {
   start_time: string;
   end_time?: string | null;
   location?: string | null;
-  status: "scheduled" | "completed" | "cancelled";
+  status: 'scheduled' | 'completed' | 'cancelled';
   event_type?: EventTypeKey | null;
-  property?: { id: string; title: string; property_code?: string | null } | null;
+  property?: {
+    id: string;
+    title: string;
+    property_code?: string | null;
+  } | null;
 }
 
-const STATUS_BADGES: Record<AppointmentRow["status"], string> = {
-  scheduled: "bg-primary/10 text-primary",
-  completed: "bg-emerald-500/10 text-emerald-300",
-  cancelled: "bg-red-500/10 text-red-300",
+const STATUS_BADGES: Record<AppointmentRow['status'], string> = {
+  scheduled: 'bg-primary/10 text-primary',
+  completed: 'bg-emerald-500/10 text-emerald-300',
+  cancelled: 'bg-red-500/10 text-red-300',
 };
 
 export function ContactAppointments({ contactId }: { contactId: string }) {
   const supabase = createClient();
-  const canEdit = useCan("send-messages");
+  const canEdit = useCan('send-messages');
 
   const [rows, setRows] = useState<AppointmentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,14 +58,14 @@ export function ContactAppointments({ contactId }: { contactId: string }) {
   const load = useCallback(async () => {
     // Primary attendee OR one of several (contact_ids array contains).
     const { data, error } = await supabase
-      .from("appointments")
+      .from('appointments')
       .select(
-        "id, title, start_time, end_time, location, status, event_type, property:properties(id, title, property_code)",
+        'id, title, start_time, end_time, location, status, event_type, property:properties(id, title, property_code)'
       )
       .or(`contact_id.eq.${contactId},contact_ids.cs.{${contactId}}`)
-      .order("start_time", { ascending: false })
+      .order('start_time', { ascending: false })
       .limit(50);
-    if (error) console.error("Failed to load appointments:", error.message);
+    if (error) console.error('Failed to load appointments:', error.message);
     setRows((data ?? []) as unknown as AppointmentRow[]);
     setLoading(false);
   }, [supabase, contactId]);
@@ -78,29 +82,26 @@ export function ContactAppointments({ contactId }: { contactId: string }) {
       setRows((current) =>
         current.map((appointment) =>
           appointment.id === appointmentId
-            ? { ...appointment, status: "completed" }
-            : appointment,
-        ),
+            ? { ...appointment, status: 'completed' }
+            : appointment
+        )
       );
     };
-    window.addEventListener(
-      COPILOT_APPOINTMENT_COMPLETED_EVENT,
-      markCompleted,
-    );
+    window.addEventListener(COPILOT_APPOINTMENT_COMPLETED_EVENT, markCompleted);
     return () =>
       window.removeEventListener(
         COPILOT_APPOINTMENT_COMPLETED_EVENT,
-        markCompleted,
+        markCompleted
       );
   }, []);
 
   const upcoming = rows
-    .filter((r) => r.status === "scheduled" && !isPast(new Date(r.start_time)))
+    .filter((r) => r.status === 'scheduled' && !isPast(new Date(r.start_time)))
     .sort((a, b) => a.start_time.localeCompare(b.start_time));
   const history = rows.filter((r) => !upcoming.includes(r));
 
   const renderRow = (appt: AppointmentRow) => {
-    const meta = EVENT_TYPES[appt.event_type ?? "other"] ?? EVENT_TYPES.other;
+    const meta = EVENT_TYPES[appt.event_type ?? 'other'] ?? EVENT_TYPES.other;
     const Icon = meta.icon;
     return (
       <div
@@ -109,8 +110,8 @@ export function ContactAppointments({ contactId }: { contactId: string }) {
       >
         <span
           className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
-            meta.chip,
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border',
+            meta.chip
           )}
         >
           <Icon className="size-3.5" />
@@ -122,8 +123,8 @@ export function ContactAppointments({ contactId }: { contactId: string }) {
             </span>
             <span
               className={cn(
-                "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
-                STATUS_BADGES[appt.status],
+                'shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold tracking-wide uppercase',
+                STATUS_BADGES[appt.status]
               )}
             >
               {appt.status}
@@ -131,7 +132,7 @@ export function ContactAppointments({ contactId }: { contactId: string }) {
           </div>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400">
             <span>
-              {format(new Date(appt.start_time), "EEE, d MMM yyyy · h:mm a")}
+              {format(new Date(appt.start_time), 'EEE, d MMM yyyy · h:mm a')}
             </span>
             {appt.location && (
               <span className="inline-flex items-center gap-1">
@@ -143,7 +144,7 @@ export function ContactAppointments({ contactId }: { contactId: string }) {
               <span className="truncate text-slate-500">
                 {appt.property.property_code
                   ? `[${appt.property.property_code}] `
-                  : ""}
+                  : ''}
                 {appt.property.title}
               </span>
             )}
@@ -166,9 +167,9 @@ export function ContactAppointments({ contactId }: { contactId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold text-white">Schedule</h3>
-          <p className="mt-0.5 text-xs text-slate-450">
-            Every appointment involving this contact — as the main attendee
-            or one of several.
+          <p className="text-slate-450 mt-0.5 text-xs">
+            Every appointment involving this contact — as the main attendee or
+            one of several.
           </p>
         </div>
         {canEdit && (
@@ -190,15 +191,15 @@ export function ContactAppointments({ contactId }: { contactId: string }) {
             Nothing scheduled yet
           </h4>
           <p className="mx-auto max-w-xs text-xs text-slate-400">
-            Site visits, calls, and meetings involving this contact will show
-            up here.
+            Site visits, calls, and meetings involving this contact will show up
+            here.
           </p>
         </div>
       ) : (
         <>
           {upcoming.length > 0 && (
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
                 Upcoming ({upcoming.length})
               </p>
               <div className="space-y-2">{upcoming.map(renderRow)}</div>
@@ -206,7 +207,7 @@ export function ContactAppointments({ contactId }: { contactId: string }) {
           )}
           {history.length > 0 && (
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
                 History ({history.length})
               </p>
               <div className="space-y-2">{history.map(renderRow)}</div>

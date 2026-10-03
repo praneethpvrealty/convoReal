@@ -1,5 +1,15 @@
-export const SIGNUP_STAGES = ['landed', 'submitted', 'failed', 'succeeded'] as const;
-export const SIGNUP_GATES = ['no_invite', 'beta', 'team_invite', 'bypass'] as const;
+export const SIGNUP_STAGES = [
+  'landed',
+  'submitted',
+  'failed',
+  'succeeded',
+] as const;
+export const SIGNUP_GATES = [
+  'no_invite',
+  'beta',
+  'team_invite',
+  'bypass',
+] as const;
 
 export type SignupStage = (typeof SIGNUP_STAGES)[number];
 export type SignupGate = (typeof SIGNUP_GATES)[number];
@@ -16,7 +26,11 @@ export interface GateInput {
  * wins over the bypass, so someone who taps the escape hatch and then
  * arrives with a real invite is not filed as a bypass.
  */
-export function signupGate({ betaToken, inviteToken, bypassGate }: GateInput): SignupGate {
+export function signupGate({
+  betaToken,
+  inviteToken,
+  bypassGate,
+}: GateInput): SignupGate {
   if (betaToken) return 'beta';
   if (inviteToken) return 'team_invite';
   if (bypassGate) return 'bypass';

@@ -41,7 +41,10 @@ function tokens(name: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
-function prefixMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+function prefixMatch(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean {
   const ta = tokens(a);
   const tb = tokens(b);
   if (!ta.length || !tb.length) return false;
@@ -85,7 +88,9 @@ export function matchContactByExactName(
 ): BookContact | null {
   const wanted = tokens(draftName).join(' ');
   if (!wanted) return null;
-  const hits = book.filter((contact) => tokens(contact.name).join(' ') === wanted);
+  const hits = book.filter(
+    (contact) => tokens(contact.name).join(' ') === wanted
+  );
   return hits.length === 1 ? hits[0] : null;
 }
 
@@ -180,7 +185,8 @@ export function enrichmentFor(
     .filter(Boolean)
     .join('\n');
   const held = (existing.requirements || '').trim();
-  const fresh = brief && !held.toLowerCase().includes(brief.toLowerCase()) ? brief : null;
+  const fresh =
+    brief && !held.toLowerCase().includes(brief.toLowerCase()) ? brief : null;
   if (fresh) changed.push('requirements');
 
   return {

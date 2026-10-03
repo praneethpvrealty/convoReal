@@ -34,12 +34,7 @@ export type LearnedFactSource =
   | 'daily_sweep';
 
 export type ValueKind =
-  | 'currency'
-  | 'rate'
-  | 'count'
-  | 'percent'
-  | 'boolean'
-  | 'list';
+  'currency' | 'rate' | 'count' | 'percent' | 'boolean' | 'list';
 
 /**
  * How an approved fact reaches the record. Most are a column write.

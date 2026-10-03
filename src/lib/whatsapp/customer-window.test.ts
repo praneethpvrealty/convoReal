@@ -11,7 +11,9 @@ const NOW = Date.parse('2026-07-27T12:00:00.000Z');
 
 describe('isWithinCustomerWindow', () => {
   it('allows a message sent moments ago', () => {
-    expect(isWithinCustomerWindow(new Date(NOW - 60_000).toISOString(), NOW)).toBe(true);
+    expect(
+      isWithinCustomerWindow(new Date(NOW - 60_000).toISOString(), NOW)
+    ).toBe(true);
   });
 
   it('allows the last millisecond inside the window', () => {
@@ -40,16 +42,24 @@ describe('isWithinCustomerWindow', () => {
 
 describe('isReengagementError', () => {
   it("recognises Meta's numeric code", () => {
-    expect(isReengagementError(new Error('Meta API error 131047: blocked'))).toBe(true);
+    expect(
+      isReengagementError(new Error('Meta API error 131047: blocked'))
+    ).toBe(true);
   });
 
   it('recognises the human-readable variants regardless of case', () => {
-    expect(isReengagementError(new Error('Re-Engagement message required'))).toBe(true);
-    expect(isReengagementError(new Error('outside the 24 HOURS window'))).toBe(true);
+    expect(
+      isReengagementError(new Error('Re-Engagement message required'))
+    ).toBe(true);
+    expect(isReengagementError(new Error('outside the 24 HOURS window'))).toBe(
+      true
+    );
   });
 
   it('recognises our own pre-flight throw', () => {
-    expect(isReengagementError(new Error(CUSTOMER_WINDOW_EXPIRED_MESSAGE))).toBe(true);
+    expect(
+      isReengagementError(new Error(CUSTOMER_WINDOW_EXPIRED_MESSAGE))
+    ).toBe(true);
   });
 
   it('accepts a bare string', () => {
@@ -57,7 +67,9 @@ describe('isReengagementError', () => {
   });
 
   it('leaves unrelated failures alone', () => {
-    expect(isReengagementError(new Error('Contact phone number not found'))).toBe(false);
+    expect(
+      isReengagementError(new Error('Contact phone number not found'))
+    ).toBe(false);
     expect(isReengagementError(null)).toBe(false);
     expect(isReengagementError({ code: 131047 })).toBe(false);
   });

@@ -43,11 +43,17 @@ describe('normalizeWidgetIds', () => {
   });
 
   it('drops unknown ids and non-strings, preserving order', () => {
-    expect(normalizeWidgetIds(['deals', 'bogus', 42, 'inbox'])).toEqual(['deals', 'inbox']);
+    expect(normalizeWidgetIds(['deals', 'bogus', 42, 'inbox'])).toEqual([
+      'deals',
+      'inbox',
+    ]);
   });
 
   it('dedupes repeated ids', () => {
-    expect(normalizeWidgetIds(['inbox', 'inbox', 'calendar'])).toEqual(['inbox', 'calendar']);
+    expect(normalizeWidgetIds(['inbox', 'inbox', 'calendar'])).toEqual([
+      'inbox',
+      'calendar',
+    ]);
   });
 });
 
@@ -73,8 +79,16 @@ describe('moveWidget', () => {
   const list: WidgetId[] = ['inbox', 'calendar', 'deals'];
 
   it('swaps with the neighbour in the given direction', () => {
-    expect(moveWidget(list, 'calendar', 'up')).toEqual(['calendar', 'inbox', 'deals']);
-    expect(moveWidget(list, 'calendar', 'down')).toEqual(['inbox', 'deals', 'calendar']);
+    expect(moveWidget(list, 'calendar', 'up')).toEqual([
+      'calendar',
+      'inbox',
+      'deals',
+    ]);
+    expect(moveWidget(list, 'calendar', 'down')).toEqual([
+      'inbox',
+      'deals',
+      'calendar',
+    ]);
   });
 
   it('clamps at the edges', () => {

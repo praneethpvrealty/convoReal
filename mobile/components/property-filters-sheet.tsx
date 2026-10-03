@@ -62,9 +62,9 @@ export function PropertyFiltersSheet({
     key: K,
     value: PropertyFilters[K]
   ) {
-    set({ [key]: filters[key] === value ? null : value } as Partial<
-      PropertyFilters
-    >);
+    set({
+      [key]: filters[key] === value ? null : value,
+    } as Partial<PropertyFilters>);
   }
 
   const count = activePropertyFilterCount(filters);

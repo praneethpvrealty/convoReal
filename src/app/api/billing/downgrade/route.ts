@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     if (!isDowngrade(limits.plan, newPlan)) {
       return NextResponse.json(
         { error: `${newPlan} is not a downgrade from ${limits.plan}` },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -33,7 +33,10 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (!sub) {
-      return NextResponse.json({ error: 'No subscription found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'No subscription found' },
+        { status: 404 }
+      );
     }
 
     const effectiveAt = sub.current_period_end ?? new Date().toISOString();

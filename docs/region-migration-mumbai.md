@@ -6,10 +6,10 @@ The whole stack currently runs in AWS Sydney (per
 `docs/production-deployment.md`): Supabase (database, auth, storage),
 Upstash Redis, and Vercel functions matched to it. The team and every
 customer are in India. Round-trip latency Bangalore ↔ Sydney is
-~140–170 ms per request; pages like Contacts issue 6–8 *sequential*
+~140–170 ms per request; pages like Contacts issue 6–8 _sequential_
 database round trips (profiles → exclusion list → main page → four
 count queries → tags), so every screen pays 1–1.5 s of pure network
-latency on a *good* connection — and multiples of that on flaky
+latency on a _good_ connection — and multiples of that on flaky
 mobile data. Mumbai is ~15–40 ms from Bangalore: roughly a **5–8×
 reduction** in time-to-data for every page, plus faster WhatsApp
 webhook processing end-to-end.
@@ -20,12 +20,12 @@ into it.
 
 ## What moves
 
-| Component | From | To | Effort |
-|---|---|---|---|
-| Supabase project (DB + auth + storage) | Sydney | New project, Mumbai `ap-south-1` | The main event |
-| Upstash Redis | Sydney | New DB, `ap-south-1` | Minutes — it's a queue/cache, no data worth moving (drain first, see step 1) |
-| Vercel functions | Sydney | `bom1` (Mumbai) | One dashboard setting |
-| Go ingress (Railway/Render) | (wherever it runs) | Asia region | Redeploy with new env |
+| Component                              | From               | To                               | Effort                                                                       |
+| -------------------------------------- | ------------------ | -------------------------------- | ---------------------------------------------------------------------------- |
+| Supabase project (DB + auth + storage) | Sydney             | New project, Mumbai `ap-south-1` | The main event                                                               |
+| Upstash Redis                          | Sydney             | New DB, `ap-south-1`             | Minutes — it's a queue/cache, no data worth moving (drain first, see step 1) |
+| Vercel functions                       | Sydney             | `bom1` (Mumbai)                  | One dashboard setting                                                        |
+| Go ingress (Railway/Render)            | (wherever it runs) | Asia region                      | Redeploy with new env                                                        |
 
 ## Runbook
 

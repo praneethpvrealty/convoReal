@@ -1,20 +1,23 @@
-import { NextResponse } from 'next/server'
-import { toErrorResponse } from '@/lib/auth/account'
-import { requirePlatformAdmin } from '@/lib/auth/platform-admin'
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import { NextResponse } from 'next/server';
+import { toErrorResponse } from '@/lib/auth/account';
+import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import {
   evaluateChallenge,
   isUpgradeDirection,
   shouldRegrantCredits,
   type OtpChallengeRow,
-} from '@/lib/billing/admin-plan-override'
-import { grantSubscriptionCredits } from '@/lib/credits/grant'
-import type { SubscriptionPlanForCredits } from '@/lib/credits/types'
-import { supabaseAdmin } from '@/lib/supabase/admin'
-
+} from '@/lib/billing/admin-plan-override';
+import { grantSubscriptionCredits } from '@/lib/credits/grant';
+import type { SubscriptionPlanForCredits } from '@/lib/credits/types';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 function isPaidPlan(plan: string): plan is SubscriptionPlanForCredits {
-  return plan === 'solo_pro' || plan === 'team' || plan === 'agency'
+  return plan === 'solo_pro' || plan === 'team' || plan === 'agency';
 }
 
 const FAILURE_STATUS: Record<string, number> = {
@@ -26,7 +29,7 @@ const FAILURE_STATUS: Record<string, number> = {
   account_mismatch: 401,
   plan_mismatch: 401,
   wrong_code: 401,
-}
+};
 
 /**
  * POST /api/admin/organizations/[id]/plan
@@ -43,41 +46,46 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  let auth: { userId: string }
+  let auth: { userId: string };
   try {
-    auth = await requirePlatformAdmin()
+    auth = await requirePlatformAdmin();
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
   try {
-    const limit = await checkRateLimit(`admin:plan-otp:${auth.userId}`, RATE_LIMITS.adminOtp)
-    if (!limit.success) return rateLimitResponse(limit)
+    const limit = await checkRateLimit(
+      `admin:plan-otp:${auth.userId}`,
+      RATE_LIMITS.adminOtp
+    );
+    if (!limit.success) return rateLimitResponse(limit);
 
-    const { id: accountId } = await params
-    const body = await request.json().catch(() => null)
+    const { id: accountId } = await params;
+    const body = await request.json().catch(() => null);
     const { challengeId, code, plan } = (body ?? {}) as {
-      challengeId?: string
-      code?: string
-      plan?: string
-    }
+      challengeId?: string;
+      code?: string;
+      plan?: string;
+    };
 
     if (!challengeId || !code || !plan) {
       return NextResponse.json(
         { error: 'challengeId, code, and plan are required' },
         { status: 400 }
-      )
+      );
     }
 
-    const admin = supabaseAdmin()
+    const admin = supabaseAdmin();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: challengeRow } = await (admin as any)
       .from('admin_plan_otp_challenges')
-      .select('id, admin_user_id, account_id, from_plan, to_plan, code_hash, attempts, expires_at, used_at')
+      .select(
+        'id, admin_user_id, account_id, from_plan, to_plan, code_hash, attempts, expires_at, used_at'
+      )
       .eq('id', challengeId)
-      .maybeSingle()
+      .maybeSingle();
 
-    const challenge = challengeRow as OtpChallengeRow | null
+    const challenge = challengeRow as OtpChallengeRow | null;
 
     const result = evaluateChallenge(challenge, {
       code,
@@ -85,7 +93,7 @@ export async function POST(
       adminUserId: auth.userId,
       accountId,
       plan,
-    })
+    });
 
     if (!result.ok) {
       if (result.incrementAttempts && challenge) {
@@ -93,17 +101,17 @@ export async function POST(
         await (admin as any)
           .from('admin_plan_otp_challenges')
           .update({ attempts: challenge.attempts + 1 })
-          .eq('id', challengeId)
+          .eq('id', challengeId);
       }
       return NextResponse.json(
         { error: 'Verification failed', reason: result.reason },
         { status: FAILURE_STATUS[result.reason] ?? 401 }
-      )
+      );
     }
 
     // challenge is guaranteed non-null here (evaluateChallenge only
     // returns ok:true when the row exists and passed every check).
-    const verified = challenge as OtpChallengeRow
+    const verified = challenge as OtpChallengeRow;
 
     // Mark used immediately (single-use) before mutating billing state,
     // so a retry with the same code can never apply the change twice.
@@ -111,16 +119,16 @@ export async function POST(
     await (admin as any)
       .from('admin_plan_otp_challenges')
       .update({ used_at: new Date().toISOString() })
-      .eq('id', challengeId)
+      .eq('id', challengeId);
 
-    const fromPlan = verified.from_plan
-    const toPlan = verified.to_plan
+    const fromPlan = verified.from_plan;
+    const toPlan = verified.to_plan;
 
     const { data: existingSub } = await admin
       .from('subscriptions')
       .select('current_period_end')
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
 
     // Upsert — a brand-new account may have no subscriptions row yet
     // (account_plan_limits COALESCEs a missing row to 'starter').
@@ -136,11 +144,17 @@ export async function POST(
           pending_plan_effective_at: null,
         },
         { onConflict: 'account_id' }
-      )
+      );
 
     if (upsertError) {
-      console.error('[admin/organizations/plan] subscriptions upsert failed:', upsertError)
-      return NextResponse.json({ error: 'Failed to update subscription' }, { status: 500 })
+      console.error(
+        '[admin/organizations/plan] subscriptions upsert failed:',
+        upsertError
+      );
+      return NextResponse.json(
+        { error: 'Failed to update subscription' },
+        { status: 500 }
+      );
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -151,10 +165,12 @@ export async function POST(
       to_plan: toPlan,
       metadata: {
         actor_user_id: auth.userId,
-        direction: isUpgradeDirection(fromPlan, toPlan) ? 'upgrade' : 'downgrade',
+        direction: isUpgradeDirection(fromPlan, toPlan)
+          ? 'upgrade'
+          : 'downgrade',
         via: 'admin_otp',
       },
-    })
+    });
 
     // Upgrade re-grants the target plan's monthly credit allowance
     // immediately, mirroring the self-serve upgrade route. Downgrade
@@ -162,23 +178,30 @@ export async function POST(
     // until the next natural cycle (confirmed decision).
     if (shouldRegrantCredits(fromPlan, toPlan) && isPaidPlan(toPlan)) {
       const periodEnd =
-        (existingSub as { current_period_end?: string | null } | null)?.current_period_end ??
-        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        (existingSub as { current_period_end?: string | null } | null)
+          ?.current_period_end ??
+        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       await grantSubscriptionCredits(accountId, toPlan, 'monthly', {
         isNewCycle: false,
         periodEnd,
       }).catch((err) =>
-        console.error('[admin/organizations/plan] grantSubscriptionCredits failed:', err)
-      )
+        console.error(
+          '[admin/organizations/plan] grantSubscriptionCredits failed:',
+          err
+        )
+      );
     }
 
     console.log(
       `[admin/organizations/plan] account ${accountId} plan ${fromPlan} -> ${toPlan} by admin ${auth.userId} (OTP verified)`
-    )
+    );
 
-    return NextResponse.json({ success: true, accountId, plan: toPlan })
+    return NextResponse.json({ success: true, accountId, plan: toPlan });
   } catch (error) {
-    console.error('[admin/organizations/plan] error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('[admin/organizations/plan] error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

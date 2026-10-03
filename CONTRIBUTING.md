@@ -76,7 +76,7 @@ logs will get to a fix fastest.
 - Fill in the PR template, especially the **Test plan**.
 - One logical change per PR.
 - Commit-message first line is imperative + terse; the body explains
-  the *why*, the diff shows the *what*.
+  the _why_, the diff shows the _what_.
 
 Changes that need extra care in review:
 
@@ -90,15 +90,15 @@ Changes that need extra care in review:
 
 ## Dev-loop reference
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Turbopack dev server on port 3000. |
-| `npm run build` | Production build. Next also runs its own typecheck here. |
-| `npm run typecheck` | `tsc --noEmit`. Fast TS-only pass. |
-| `npm run lint` | ESLint. |
-| `npm test` | Vitest unit tests. No network, dummy secrets. |
-| `npm run format` | Prettier write. |
-| `npm run format:check` | Prettier in check-only mode. |
+| Command                | What it does                                             |
+| ---------------------- | -------------------------------------------------------- |
+| `npm run dev`          | Turbopack dev server on port 3000.                       |
+| `npm run build`        | Production build. Next also runs its own typecheck here. |
+| `npm run typecheck`    | `tsc --noEmit`. Fast TS-only pass.                       |
+| `npm run lint`         | ESLint.                                                  |
+| `npm test`             | Vitest unit tests. No network, dummy secrets.            |
+| `npm run format`       | Prettier write.                                          |
+| `npm run format:check` | Prettier in check-only mode.                             |
 
 CI (`.github/workflows/ci.yml`) runs `lint`, `typecheck`, `test`, and
 `build` for the web app, plus `lint`, `typecheck`, `test` for `mobile/`.

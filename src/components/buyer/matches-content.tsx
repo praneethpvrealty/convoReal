@@ -103,7 +103,9 @@ export function BuyerMatchesContent() {
   }, []);
 
   if (feed === null) {
-    return <p className="text-muted-foreground text-sm">Finding your matches…</p>;
+    return (
+      <p className="text-muted-foreground text-sm">Finding your matches…</p>
+    );
   }
 
   return (
@@ -131,14 +133,20 @@ export function BuyerMatchesContent() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <SlidersHorizontal className="text-muted-foreground/40 h-10 w-10" />
-            <p className="text-sm font-semibold">Tell us what you&apos;re after</p>
+            <p className="text-sm font-semibold">
+              Tell us what you&apos;re after
+            </p>
             <p className="text-muted-foreground max-w-sm text-xs">
-              Add a budget and the areas you&apos;d consider, and matching listings will
-              start showing up here — and on WhatsApp as new ones land.
+              Add a budget and the areas you&apos;d consider, and matching
+              listings will start showing up here — and on WhatsApp as new ones
+              land.
             </p>
             <Link
               href="/buyer/preferences"
-              className={cn(buttonVariants({ size: 'sm' }), 'mt-1 text-xs font-bold')}
+              className={cn(
+                buttonVariants({ size: 'sm' }),
+                'mt-1 text-xs font-bold'
+              )}
             >
               Set my preferences
             </Link>
@@ -148,14 +156,19 @@ export function BuyerMatchesContent() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <Sparkles className="text-muted-foreground/40 h-10 w-10" />
-            <p className="text-sm font-semibold">Nothing fits your brief just yet</p>
+            <p className="text-sm font-semibold">
+              Nothing fits your brief just yet
+            </p>
             <p className="text-muted-foreground max-w-sm text-xs">
-              Widening the budget or adding an area usually helps. Your agent is looking
-              too — plenty never reaches a website.
+              Widening the budget or adding an area usually helps. Your agent is
+              looking too — plenty never reaches a website.
             </p>
             <Link
               href="/buyer/preferences"
-              className={cn(buttonVariants({ size: 'sm' }), 'mt-1 text-xs font-bold')}
+              className={cn(
+                buttonVariants({ size: 'sm' }),
+                'mt-1 text-xs font-bold'
+              )}
             >
               Adjust my preferences
             </Link>
@@ -196,7 +209,9 @@ export function BuyerMatchesContent() {
                   <div className="flex items-start justify-between gap-2">
                     <p className="line-clamp-2 text-sm font-bold">{p.title}</p>
                     {price && (
-                      <p className="text-primary shrink-0 text-sm font-black">{price}</p>
+                      <p className="text-primary shrink-0 text-sm font-black">
+                        {price}
+                      </p>
                     )}
                   </div>
                   {locality && (
@@ -219,7 +234,8 @@ export function BuyerMatchesContent() {
                     {p.area_sqft ? (
                       <span className="flex items-center gap-1">
                         <Ruler className="h-3 w-3" />{' '}
-                        {p.area_sqft.toLocaleString('en-IN')} {p.area_unit || 'sqft'}
+                        {p.area_sqft.toLocaleString('en-IN')}{' '}
+                        {p.area_unit || 'sqft'}
                       </span>
                     ) : null}
                   </div>
@@ -261,8 +277,8 @@ export function BuyerMatchesContent() {
 
       {feed.pool_capped && (
         <p className="text-muted-foreground text-[11px]">
-          Showing the best of the most recent listings — your agent can search the full
-          inventory.
+          Showing the best of the most recent listings — your agent can search
+          the full inventory.
         </p>
       )}
 
@@ -274,19 +290,24 @@ export function BuyerMatchesContent() {
               Direct from owners
             </h2>
             <p className="text-muted-foreground text-xs">
-              Owners selling directly, matched to your brief. Details open up once your
-              agent makes the introduction.
+              Owners selling directly, matched to your brief. Details open up
+              once your agent makes the introduction.
             </p>
           </div>
           {feed.deal_mode.map((match) => (
-            <Card key={match.event_id} className="border-amber-500/30 bg-amber-500/5">
+            <Card
+              key={match.event_id}
+              className="border-amber-500/30 bg-amber-500/5"
+            >
               <CardContent className="flex flex-wrap items-center gap-4">
                 <span className="flex h-14 w-20 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
                   <Lock className="h-5 w-5 text-amber-600" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">
-                    {match.listing.bedrooms ? `${match.listing.bedrooms} BHK ` : ''}
+                    {match.listing.bedrooms
+                      ? `${match.listing.bedrooms} BHK `
+                      : ''}
                     {match.listing.type}
                   </p>
                   <p className="text-muted-foreground flex items-center gap-1 truncate text-xs">

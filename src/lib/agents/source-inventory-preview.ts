@@ -83,7 +83,9 @@ export async function readSourceInventoryPreview(
       : { data: [], error: null };
   if (propertyResult.error) throw propertyResult.error;
 
-  const properties = ((propertyResult.data ?? []) as SourcePropertyRow[]).filter(
+  const properties = (
+    (propertyResult.data ?? []) as SourcePropertyRow[]
+  ).filter(
     (row) => sourceAccountByContact.get(row.owner_contact_id) === row.account_id
   );
   const propertyAccountById = new Map<string, string>();

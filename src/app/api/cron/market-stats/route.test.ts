@@ -53,7 +53,7 @@ describe('market-stats cron auth', () => {
   it('rejects a wrong same-length secret (401, constant-time path)', async () => {
     process.env.AUTOMATION_CRON_SECRET = 'sekret';
     const res = await GET(
-      new Request(url, { headers: { 'x-cron-secret': 'wrong6' } }),
+      new Request(url, { headers: { 'x-cron-secret': 'wrong6' } })
     );
     expect(res.status).toBe(401);
   });
@@ -61,7 +61,7 @@ describe('market-stats cron auth', () => {
   it('rejects a wrong Bearer token (401)', async () => {
     process.env.AUTOMATION_CRON_SECRET = 'sekret';
     const res = await GET(
-      new Request(url, { headers: { authorization: 'Bearer nope' } }),
+      new Request(url, { headers: { authorization: 'Bearer nope' } })
     );
     expect(res.status).toBe(401);
   });
@@ -71,7 +71,7 @@ describe('market-stats disabled short-circuit', () => {
   it('returns skipped when authorized but config is disabled (default)', async () => {
     process.env.AUTOMATION_CRON_SECRET = 'sekret';
     const res = await GET(
-      new Request(url, { headers: { 'x-cron-secret': 'sekret' } }),
+      new Request(url, { headers: { 'x-cron-secret': 'sekret' } })
     );
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ skipped: 'disabled' });
@@ -80,7 +80,7 @@ describe('market-stats disabled short-circuit', () => {
   it("accepts Vercel Cron's Authorization: Bearer against CRON_SECRET", async () => {
     process.env.CRON_SECRET = 'vercel-secret';
     const res = await GET(
-      new Request(url, { headers: { authorization: 'Bearer vercel-secret' } }),
+      new Request(url, { headers: { authorization: 'Bearer vercel-secret' } })
     );
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ skipped: 'disabled' });

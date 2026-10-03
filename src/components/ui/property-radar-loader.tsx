@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils';
 
 /**
  * A location pin broadcasting expanding rings, like an active radar
@@ -15,15 +15,19 @@ export function PropertyRadarLoader({
   label = 'Loading',
   className,
 }: {
-  size?: number
-  label?: string
-  className?: string
+  size?: number;
+  label?: string;
+  className?: string;
 }) {
-  const inline = size <= 32
-  const ringCount = inline ? 2 : 3
+  const inline = size <= 32;
+  const ringCount = inline ? 2 : 3;
 
   return (
-    <div role="status" aria-label={label} className={cn('inline-flex', className)}>
+    <div
+      role="status"
+      aria-label={label}
+      className={cn('inline-flex', className)}
+    >
       <svg
         className={cn('pin-loader', inline && 'pin-loader-inline')}
         width={size}
@@ -46,5 +50,5 @@ export function PropertyRadarLoader({
         </g>
       </svg>
     </div>
-  )
+  );
 }

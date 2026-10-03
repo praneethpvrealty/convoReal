@@ -19,10 +19,20 @@ import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { OptionSheet } from '@/components/option-sheet';
-import { PropertyFloorPlans, type FloorPlanDraft } from '@/components/property-floor-plans';
+import {
+  PropertyFloorPlans,
+  type FloorPlanDraft,
+} from '@/components/property-floor-plans';
 import { PropertyPhotoEditor } from '@/components/property-photo-editor';
 import { PropertyVideoEditor } from '@/components/property-video-editor';
-import { Banner, FilterChip, PriceHint, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
+import {
+  Banner,
+  FilterChip,
+  PriceHint,
+  PrimaryButton,
+  SectionLabel,
+  TextField,
+} from '@/components/ui';
 import { pickAndUploadFloorPlan } from '@/lib/floor-plan-upload';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { formatInr } from '@/lib/format';
@@ -68,7 +78,13 @@ import type { Property } from '@/lib/types';
 import type { FloorTenancy } from '@shared/lib/inventory/floor-tenancies';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 
-const STATUSES = ['Available', 'Under Contract', 'Sold', 'Off Market', 'Archived'] as const;
+const STATUSES = [
+  'Available',
+  'Under Contract',
+  'Sold',
+  'Off Market',
+  'Archived',
+] as const;
 const ROAD_WIDTH_UNITS = ['Feet', 'Meters'];
 
 // String drafts of lib/inventory/floor-tenancies rows (web parity).
@@ -148,7 +164,9 @@ export default function PropertyEditScreen() {
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: true, title: 'Edit property' }} />
       {isLoading || !property ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+        >
           <ConvoRealLoader />
         </View>
       ) : (
@@ -164,42 +182,69 @@ function EditForm({ property }: { property: Property }) {
   const [images, setImages] = useState<string[]>(property.images ?? []);
   const [title, setTitle] = useState(property.title);
   const [type, setType] = useState(property.type ?? '');
-  const [listingType, setListingType] = useState<string>(property.listing_type ?? 'Sale');
-  const [price, setPrice] = useState(property.price ? String(property.price) : '');
-  const [rent, setRent] = useState(property.rent_per_month ? String(property.rent_per_month) : '');
+  const [listingType, setListingType] = useState<string>(
+    property.listing_type ?? 'Sale'
+  );
+  const [price, setPrice] = useState(
+    property.price ? String(property.price) : ''
+  );
+  const [rent, setRent] = useState(
+    property.rent_per_month ? String(property.rent_per_month) : ''
+  );
   const [maintenance, setMaintenance] = useState(
     property.maintenance ? String(property.maintenance) : ''
   );
   const [status, setStatus] = useState(property.status ?? 'Available');
-  const [soldPrice, setSoldPrice] = useState(property.sold_price ? String(property.sold_price) : '');
-  const [bedrooms, setBedrooms] = useState(property.bedrooms ? String(property.bedrooms) : '');
-  const [bathrooms, setBathrooms] = useState(property.bathrooms ? String(property.bathrooms) : '');
-  const [area, setArea] = useState(property.area_sqft ? String(property.area_sqft) : '');
+  const [soldPrice, setSoldPrice] = useState(
+    property.sold_price ? String(property.sold_price) : ''
+  );
+  const [bedrooms, setBedrooms] = useState(
+    property.bedrooms ? String(property.bedrooms) : ''
+  );
+  const [bathrooms, setBathrooms] = useState(
+    property.bathrooms ? String(property.bathrooms) : ''
+  );
+  const [area, setArea] = useState(
+    property.area_sqft ? String(property.area_sqft) : ''
+  );
   const [areaUnit, setAreaUnit] = useState(property.area_unit || 'Sq.Ft.');
-  const [landArea, setLandArea] = useState(property.land_area ? String(property.land_area) : '');
-  const [landAreaUnit, setLandAreaUnit] = useState(property.land_area_unit || 'Sq.Ft.');
+  const [landArea, setLandArea] = useState(
+    property.land_area ? String(property.land_area) : ''
+  );
+  const [landAreaUnit, setLandAreaUnit] = useState(
+    property.land_area_unit || 'Sq.Ft.'
+  );
   const [superBuilt, setSuperBuilt] = useState(
     property.super_built_area ? String(property.super_built_area) : ''
   );
   const [totalFloors, setTotalFloors] = useState(
     property.total_floors != null ? String(property.total_floors) : ''
   );
-  const [ownershipStatus, setOwnershipStatus] = useState(property.ownership_status ?? '');
+  const [ownershipStatus, setOwnershipStatus] = useState(
+    property.ownership_status ?? ''
+  );
   const [landZone, setLandZone] = useState(property.land_zone ?? '');
   const [legalStatus, setLegalStatus] = useState(property.legal_status ?? '');
-  const [conversionType, setConversionType] = useState(property.conversion_type ?? '');
+  const [conversionType, setConversionType] = useState(
+    property.conversion_type ?? ''
+  );
   const [dimensions, setDimensions] = useState(property.dimensions ?? '');
   const [roadWidth, setRoadWidth] = useState(
     property.road_width != null ? String(property.road_width) : ''
   );
-  const [roadWidthUnit, setRoadWidthUnit] = useState(property.road_width_unit || 'Feet');
+  const [roadWidthUnit, setRoadWidthUnit] = useState(
+    property.road_width_unit || 'Feet'
+  );
   const [facing, setFacing] = useState(property.facing_direction ?? '');
   const [khataEpid, setKhataEpid] = useState(property.khata_epid ?? '');
   const [khataForm, setKhataForm] = useState<string>(property.khata_form ?? '');
   const [yearBuilt, setYearBuilt] = useState(
     property.year_built != null ? String(property.year_built) : ''
   );
-  const [pin, setPin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [pin, setPin] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [readingKhata, setReadingKhata] = useState(false);
   const khataCost = useAppConfig()?.ai_costs?.listing_parse;
   const [khataReview, setKhataReview] = useState<{
@@ -215,7 +260,9 @@ function EditForm({ property }: { property: Property }) {
     property.showcase_visibility === 'teaser'
   );
   const [features, setFeatures] = useState<string[]>(property.features ?? []);
-  const [nearby, setNearby] = useState<string[]>(property.nearby_highlights ?? []);
+  const [nearby, setNearby] = useState<string[]>(
+    property.nearby_highlights ?? []
+  );
   const [tenancies, setTenancies] = useState<TenancyDraft[]>(
     (property.floor_tenancies ?? []).map((ft) => ({
       floor: ft.floor ?? '',
@@ -225,7 +272,8 @@ function EditForm({ property }: { property: Property }) {
       advance: ft.advance != null ? String(ft.advance) : '',
       lease_start: ft.lease_start ?? '',
       lease_end: ft.lease_end ?? '',
-      lock_in_months: ft.lock_in_months != null ? String(ft.lock_in_months) : '',
+      lock_in_months:
+        ft.lock_in_months != null ? String(ft.lock_in_months) : '',
       maintenance: ft.maintenance ?? '',
       notes: ft.notes ?? '',
       floor_plan: ft.floor_plan ?? '',
@@ -252,7 +300,9 @@ function EditForm({ property }: { property: Property }) {
   const [error, setError] = useState<string | null>(null);
   const [planBusyIdx, setPlanBusyIdx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
-  const [sheet, setSheet] = useState<'type' | 'features' | 'nearby' | 'owner' | null>(null);
+  const [sheet, setSheet] = useState<
+    'type' | 'features' | 'nearby' | 'owner' | null
+  >(null);
 
   const isRent = listingType === 'Rent' || listingType === 'Built to Suit';
   const isCommercial = hasCommercialBuildingFields(type);
@@ -272,7 +322,9 @@ function EditForm({ property }: { property: Property }) {
   }
 
   function updateTenancy(idx: number, key: keyof TenancyDraft, value: string) {
-    setTenancies((prev) => prev.map((t, i) => (i === idx ? { ...t, [key]: value } : t)));
+    setTenancies((prev) =>
+      prev.map((t, i) => (i === idx ? { ...t, [key]: value } : t))
+    );
   }
 
   // Same picker and bucket the Floor Plans editor uses; only the field
@@ -290,7 +342,9 @@ function EditForm({ property }: { property: Property }) {
       haptic.success();
     } else if (outcome.status === 'error') {
       haptic.warn();
-      setError(outcome.message ? `${outcome.title}: ${outcome.message}` : outcome.title);
+      setError(
+        outcome.message ? `${outcome.title}: ${outcome.message}` : outcome.title
+      );
     }
   }
 
@@ -327,7 +381,9 @@ function EditForm({ property }: { property: Property }) {
       setError(
         e instanceof EKhataPickError
           ? e.message
-          : friendlyError(e instanceof ApiError ? e.message : 'Could not read this e-Khata.')
+          : friendlyError(
+              e instanceof ApiError ? e.message : 'Could not read this e-Khata.'
+            )
       );
     } finally {
       setReadingKhata(false);
@@ -340,30 +396,46 @@ function EditForm({ property }: { property: Property }) {
     for (const key of keys) {
       if (key === 'address' && fields.address) setLocation(fields.address);
       if (key === 'city') setCity('Bengaluru');
-      if (key === 'pin' && fields.latitude !== undefined && fields.longitude !== undefined) {
+      if (
+        key === 'pin' &&
+        fields.latitude !== undefined &&
+        fields.longitude !== undefined
+      ) {
         setPin({ latitude: fields.latitude, longitude: fields.longitude });
       }
       if (key === 'land_area' && fields.site_area_sqft) {
         setLandArea(String(fields.site_area_sqft));
         setLandAreaUnit('Sq.Ft.');
       }
-      if (key === 'dimensions' && fields.site_frontage_ft && fields.site_depth_ft) {
+      if (
+        key === 'dimensions' &&
+        fields.site_frontage_ft &&
+        fields.site_depth_ft
+      ) {
         setDimensions(`${fields.site_frontage_ft}x${fields.site_depth_ft}`);
       }
       if (key === 'built_up_area' && fields.built_up_sqft) {
         setArea(String(fields.built_up_sqft));
         setAreaUnit('Sq.Ft.');
       }
-      if (key === 'year_built' && fields.year_built) setYearBuilt(String(fields.year_built));
+      if (key === 'year_built' && fields.year_built)
+        setYearBuilt(String(fields.year_built));
       if (key === 'khata_epid' && fields.epid) setKhataEpid(fields.epid);
-      if (key === 'khata_form' && fields.khata_form) setKhataForm(fields.khata_form);
+      if (key === 'khata_form' && fields.khata_form)
+        setKhataForm(fields.khata_form);
     }
     haptic.success();
     setKhataReview(null);
   }
 
-  const tenancyTotal = tenancies.reduce((sum, t) => sum + (num(t.monthly_rent) ?? 0), 0);
-  const advanceTotal = tenancies.reduce((sum, t) => sum + (num(t.advance) ?? 0), 0);
+  const tenancyTotal = tenancies.reduce(
+    (sum, t) => sum + (num(t.monthly_rent) ?? 0),
+    0
+  );
+  const advanceTotal = tenancies.reduce(
+    (sum, t) => sum + (num(t.advance) ?? 0),
+    0
+  );
 
   async function save() {
     if (!title.trim()) {
@@ -391,7 +463,7 @@ function EditForm({ property }: { property: Property }) {
       super_built_area: isLand ? null : num(superBuilt),
       total_floors: showTotalFloors ? num(totalFloors) : null,
       ownership_status: isLand ? ownershipStatus || null : null,
-      land_zone: isRawLand ? landZone || null : property.land_zone ?? null,
+      land_zone: isRawLand ? landZone || null : (property.land_zone ?? null),
       legal_status: isRawLand ? legalStatus || null : null,
       conversion_type: isRawLand ? conversionType || null : null,
       dimensions: isApartment ? null : dimensions.trim() || null,
@@ -471,7 +543,11 @@ function EditForm({ property }: { property: Property }) {
     } catch (e) {
       setSaving(false);
       haptic.warn();
-      setError(friendlyError(e instanceof ApiError ? e.message : 'Could not save changes.'));
+      setError(
+        friendlyError(
+          e instanceof ApiError ? e.message : 'Could not save changes.'
+        )
+      );
       return;
     }
     setSaving(false);
@@ -508,7 +584,11 @@ function EditForm({ property }: { property: Property }) {
           }}
         />
 
-        <PropertyFloorPlans plans={floorPlans} onChange={setFloorPlans} isLand={isLand} />
+        <PropertyFloorPlans
+          plans={floorPlans}
+          onChange={setFloorPlans}
+          isLand={isLand}
+        />
 
         <TextField label="Title" value={title} onChangeText={setTitle} />
 
@@ -554,7 +634,12 @@ function EditForm({ property }: { property: Property }) {
           </View>
         ) : (
           <View style={{ gap: 4 }}>
-            <TextField label="Price (₹)" value={price} onChangeText={setPrice} keyboardType="numeric" />
+            <TextField
+              label="Price (₹)"
+              value={price}
+              onChangeText={setPrice}
+              keyboardType="numeric"
+            />
             <PriceHint value={price} />
           </View>
         )}
@@ -562,7 +647,12 @@ function EditForm({ property }: { property: Property }) {
         <SectionLabel text="Status" />
         <View style={styles.chips}>
           {STATUSES.map((s) => (
-            <FilterChip key={s} label={s} active={status === s} onPress={() => setStatus(s)} />
+            <FilterChip
+              key={s}
+              label={s}
+              active={status === s}
+              onPress={() => setStatus(s)}
+            />
           ))}
         </View>
 
@@ -577,7 +667,8 @@ function EditForm({ property }: { property: Property }) {
             />
             <PriceHint value={soldPrice} />
             <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
-              Optional — improves your area’s price accuracy. Never shown to buyers.
+              Optional — improves your area’s price accuracy. Never shown to
+              buyers.
             </Text>
           </View>
         ) : null}
@@ -587,10 +678,20 @@ function EditForm({ property }: { property: Property }) {
         {showBedsBaths ? (
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
-              <TextField label="Bedrooms" value={bedrooms} onChangeText={setBedrooms} keyboardType="numeric" />
+              <TextField
+                label="Bedrooms"
+                value={bedrooms}
+                onChangeText={setBedrooms}
+                keyboardType="numeric"
+              />
             </View>
             <View style={{ flex: 1 }}>
-              <TextField label="Bathrooms" value={bathrooms} onChangeText={setBathrooms} keyboardType="numeric" />
+              <TextField
+                label="Bathrooms"
+                value={bathrooms}
+                onChangeText={setBathrooms}
+                keyboardType="numeric"
+              />
             </View>
           </View>
         ) : null}
@@ -599,36 +700,74 @@ function EditForm({ property }: { property: Property }) {
         {isLand ? (
           <>
             <View style={{ flex: 1 }}>
-              <TextField label="Land area" value={landArea} onChangeText={setLandArea} keyboardType="numeric" />
+              <TextField
+                label="Land area"
+                value={landArea}
+                onChangeText={setLandArea}
+                keyboardType="numeric"
+              />
             </View>
             <View style={styles.chips}>
               {AREA_UNITS.map((u) => (
-                <FilterChip key={u} label={u} active={landAreaUnit === u} onPress={() => setLandAreaUnit(u)} />
+                <FilterChip
+                  key={u}
+                  label={u}
+                  active={landAreaUnit === u}
+                  onPress={() => setLandAreaUnit(u)}
+                />
               ))}
             </View>
-            <TextField label="Dimensions (e.g. 80x50)" value={dimensions} onChangeText={setDimensions} />
+            <TextField
+              label="Dimensions (e.g. 80x50)"
+              value={dimensions}
+              onChangeText={setDimensions}
+            />
           </>
         ) : (
           <>
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
-                <TextField label={`Built-up area (${areaUnit})`} value={area} onChangeText={setArea} keyboardType="numeric" />
+                <TextField
+                  label={`Built-up area (${areaUnit})`}
+                  value={area}
+                  onChangeText={setArea}
+                  keyboardType="numeric"
+                />
               </View>
               <View style={{ flex: 1 }}>
-                <TextField label="Super built (sqft)" value={superBuilt} onChangeText={setSuperBuilt} keyboardType="numeric" />
+                <TextField
+                  label="Super built (sqft)"
+                  value={superBuilt}
+                  onChangeText={setSuperBuilt}
+                  keyboardType="numeric"
+                />
               </View>
             </View>
             {!isApartment ? (
               <>
                 <View style={{ flex: 1 }}>
-                  <TextField label="Land area" value={landArea} onChangeText={setLandArea} keyboardType="numeric" />
+                  <TextField
+                    label="Land area"
+                    value={landArea}
+                    onChangeText={setLandArea}
+                    keyboardType="numeric"
+                  />
                 </View>
                 <View style={styles.chips}>
                   {AREA_UNITS.map((u) => (
-                    <FilterChip key={u} label={u} active={landAreaUnit === u} onPress={() => setLandAreaUnit(u)} />
+                    <FilterChip
+                      key={u}
+                      label={u}
+                      active={landAreaUnit === u}
+                      onPress={() => setLandAreaUnit(u)}
+                    />
                   ))}
                 </View>
-                <TextField label="Dimensions (e.g. 80x50)" value={dimensions} onChangeText={setDimensions} />
+                <TextField
+                  label="Dimensions (e.g. 80x50)"
+                  value={dimensions}
+                  onChangeText={setDimensions}
+                />
               </>
             ) : null}
           </>
@@ -748,10 +887,18 @@ function EditForm({ property }: { property: Property }) {
         ) : null}
 
         <SectionLabel text="Location" />
-        <TextField label="Address / area" value={location} onChangeText={setLocation} />
+        <TextField
+          label="Address / area"
+          value={location}
+          onChangeText={setLocation}
+        />
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
-            <TextField label="Locality" value={sublocality} onChangeText={setSublocality} />
+            <TextField
+              label="Locality"
+              value={sublocality}
+              onChangeText={setSublocality}
+            />
           </View>
           <View style={{ flex: 1 }}>
             <TextField label="City" value={city} onChangeText={setCity} />
@@ -788,16 +935,22 @@ function EditForm({ property }: { property: Property }) {
         {isCommercial ? (
           <>
             <SectionLabel text="Floor-wise tenancy (Rent roll)" />
-            <Text style={{ fontSize: 12.5, color: colors.textMuted, marginTop: -6 }}>
-              For pre-leased buildings — tenant, rent (excluding GST), lease period, lock-in and
-              maintenance per floor. Internal to your Engine; never shown on the showcase.
+            <Text
+              style={{ fontSize: 12.5, color: colors.textMuted, marginTop: -6 }}
+            >
+              For pre-leased buildings — tenant, rent (excluding GST), lease
+              period, lock-in and maintenance per floor. Internal to your
+              Engine; never shown on the showcase.
             </Text>
             {tenancies.map((t, i) => (
               <View
                 key={i}
                 style={[
                   styles.tenancyCard,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
                 ]}
               >
                 <View style={styles.tenancyHeader}>
@@ -813,12 +966,18 @@ function EditForm({ property }: { property: Property }) {
                     Floor / Unit {i + 1}
                   </Text>
                   <Pressable
-                    onPress={() => setTenancies((prev) => prev.filter((_, idx) => idx !== i))}
+                    onPress={() =>
+                      setTenancies((prev) => prev.filter((_, idx) => idx !== i))
+                    }
                     hitSlop={10}
                     accessibilityRole="button"
                     accessibilityLabel={`Remove floor ${i + 1}`}
                   >
-                    <Ionicons name="trash-outline" size={17} color={colors.danger} />
+                    <Ionicons
+                      name="trash-outline"
+                      size={17}
+                      color={colors.danger}
+                    />
                   </Pressable>
                 </View>
                 <View style={styles.row}>
@@ -889,7 +1048,9 @@ function EditForm({ property }: { property: Property }) {
                     <TextField
                       label="Lock-in (months)"
                       value={t.lock_in_months}
-                      onChangeText={(v) => updateTenancy(i, 'lock_in_months', v)}
+                      onChangeText={(v) =>
+                        updateTenancy(i, 'lock_in_months', v)
+                      }
                       keyboardType="numeric"
                       placeholder="36"
                     />
@@ -913,7 +1074,10 @@ function EditForm({ property }: { property: Property }) {
                   {t.floor_plan ? (
                     <Image
                       source={{ uri: storagePublicUrl(t.floor_plan) }}
-                      style={[styles.tenancyPlanThumb, { borderColor: colors.border }]}
+                      style={[
+                        styles.tenancyPlanThumb,
+                        { borderColor: colors.border },
+                      ]}
                       resizeMode="contain"
                     />
                   ) : (
@@ -924,7 +1088,11 @@ function EditForm({ property }: { property: Property }) {
                         { borderColor: colors.border },
                       ]}
                     >
-                      <Ionicons name="grid-outline" size={16} color={colors.textFaint} />
+                      <Ionicons
+                        name="grid-outline"
+                        size={16}
+                        color={colors.textFaint}
+                      />
                     </View>
                   )}
                   <Text
@@ -947,7 +1115,13 @@ function EditForm({ property }: { property: Property }) {
                     {planBusyIdx === i ? (
                       <ActivityIndicator size="small" color={colors.primary} />
                     ) : (
-                      <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
+                      <Text
+                        style={{
+                          fontSize: 12.5,
+                          fontFamily: f.bold,
+                          color: colors.primary,
+                        }}
+                      >
                         {t.floor_plan ? 'Replace' : 'Attach'}
                       </Text>
                     )}
@@ -962,7 +1136,11 @@ function EditForm({ property }: { property: Property }) {
                       accessibilityRole="button"
                       accessibilityLabel={`Remove floor plan for floor ${i + 1}`}
                     >
-                      <Ionicons name="close-circle-outline" size={18} color={colors.textMuted} />
+                      <Ionicons
+                        name="close-circle-outline"
+                        size={18}
+                        color={colors.textMuted}
+                      />
                     </Pressable>
                   ) : null}
                 </View>
@@ -975,30 +1153,62 @@ function EditForm({ property }: { property: Property }) {
               }}
               accessibilityRole="button"
               accessibilityLabel="Add floor to rent roll"
-              style={[styles.addFloorRow, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              style={[
+                styles.addFloorRow,
+                { borderColor: colors.border, backgroundColor: colors.surface },
+              ]}
             >
               <Ionicons name="add" size={18} color={colors.primary} />
-              <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontFamily: f.semibold,
+                  color: colors.primary,
+                }}
+              >
                 Add floor
               </Text>
             </Pressable>
             {tenancyTotal > 0 || advanceTotal > 0 ? (
               <View style={{ gap: 4 }}>
                 {tenancyTotal > 0 ? (
-                  <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontFamily: f.bold,
+                      color: colors.text,
+                    }}
+                  >
                     Total monthly rent:{' '}
-                    <Text style={{ color: colors.primary }}>{formatInr(tenancyTotal)}</Text>{' '}
-                    <Text style={{ fontFamily: f.medium, color: colors.textMuted }}>
+                    <Text style={{ color: colors.primary }}>
+                      {formatInr(tenancyTotal)}
+                    </Text>{' '}
+                    <Text
+                      style={{ fontFamily: f.medium, color: colors.textMuted }}
+                    >
                       (excluding GST)
                     </Text>
                   </Text>
                 ) : null}
                 {advanceTotal > 0 ? (
-                  <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontFamily: f.bold,
+                      color: colors.text,
+                    }}
+                  >
                     Total advance:{' '}
-                    <Text style={{ color: colors.primary }}>{formatInr(advanceTotal)}</Text>{' '}
+                    <Text style={{ color: colors.primary }}>
+                      {formatInr(advanceTotal)}
+                    </Text>{' '}
                     {tenancyTotal > 0 ? (
-                      <Text style={{ fontFamily: f.medium, color: colors.textMuted }}>
+                      <Text
+                        style={{
+                          fontFamily: f.medium,
+                          color: colors.textMuted,
+                        }}
+                      >
                         ({(advanceTotal / tenancyTotal).toFixed(1)}× rent)
                       </Text>
                     ) : null}
@@ -1016,16 +1226,23 @@ function EditForm({ property }: { property: Property }) {
           onInputChange={setTagInput}
         />
 
-        <TextField label="Description" value={description} onChangeText={setDescription} multiline />
+        <TextField
+          label="Description"
+          value={description}
+          onChangeText={setDescription}
+          multiline
+        />
 
         <View style={styles.publishRow}>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}>
+            <Text
+              style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}
+            >
               Confidential listing
             </Text>
             <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-              Anyone with the link sees only the type, locality and a price
-              band until you approve them on WhatsApp.
+              Anyone with the link sees only the type, locality and a price band
+              until you approve them on WhatsApp.
             </Text>
           </View>
           <Switch
@@ -1038,7 +1255,9 @@ function EditForm({ property }: { property: Property }) {
 
         <View style={styles.publishRow}>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}>
+            <Text
+              style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}
+            >
               Published on showcase
             </Text>
             <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
@@ -1054,7 +1273,9 @@ function EditForm({ property }: { property: Property }) {
         </View>
 
         <PrimaryButton label="Save changes" busy={saving} onPress={save} />
-        <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
+        <Text
+          style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}
+        >
           Documents and deal terms are still edited in the web app's full form.
         </Text>
       </ScrollView>
@@ -1080,7 +1301,10 @@ function EditForm({ property }: { property: Property }) {
         onClose={() => setSheet(null)}
         title="Features & amenities"
         multi
-        groups={AMENITIES_BY_CATEGORY.map((c) => ({ group: c.category, options: c.items }))}
+        groups={AMENITIES_BY_CATEGORY.map((c) => ({
+          group: c.category,
+          options: c.items,
+        }))}
         selected={features}
         onChange={setFeatures}
       />
@@ -1163,7 +1387,12 @@ function TenancyDateField({
   return (
     <View style={{ flex: 1, gap: 6 }}>
       <SectionLabel text={label} style={{ color: colors.textMuted }} />
-      <View style={[styles.select, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.select,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
         <Pressable
           onPress={() => setOpen((o) => !o)}
           accessibilityRole="button"
@@ -1190,7 +1419,11 @@ function TenancyDateField({
             <Ionicons name="close-circle" size={17} color={colors.textFaint} />
           </Pressable>
         ) : (
-          <Ionicons name="calendar-outline" size={16} color={colors.textFaint} />
+          <Ionicons
+            name="calendar-outline"
+            size={16}
+            color={colors.textFaint}
+          />
         )}
       </View>
       {open ? (
@@ -1224,7 +1457,10 @@ function SelectField({
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={label}
-        style={[styles.select, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        style={[
+          styles.select,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
       >
         <Text
           style={{
@@ -1244,7 +1480,11 @@ function SelectField({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
+  container: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.xl,
+  },
   row: { flexDirection: 'row', gap: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   select: {

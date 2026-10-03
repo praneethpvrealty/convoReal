@@ -14,7 +14,9 @@ describe('coerceCallAnalysis', () => {
     expect(result.transcript).toContain('Lawyer: The report is ready.');
     expect(result.summary).toContain('legal report');
     expect(result.key_points).toHaveLength(2);
-    expect(result.action_items).toEqual(['Lawyer to share the sale draft by Friday']);
+    expect(result.action_items).toEqual([
+      'Lawyer to share the sale draft by Friday',
+    ]);
     expect(result.update_draft).toContain('Dr. Ravi');
   });
 

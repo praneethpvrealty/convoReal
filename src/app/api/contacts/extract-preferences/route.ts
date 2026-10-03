@@ -30,11 +30,16 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as { contactIds?: string[] };
 
     const contactIds = Array.isArray(body.contactIds)
-      ? body.contactIds.filter((id) => typeof id === 'string').slice(0, MAX_CONTACTS_PER_REQUEST)
+      ? body.contactIds
+          .filter((id) => typeof id === 'string')
+          .slice(0, MAX_CONTACTS_PER_REQUEST)
       : [];
 
     if (contactIds.length === 0) {
-      return NextResponse.json({ error: 'contactIds is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'contactIds is required' },
+        { status: 400 }
+      );
     }
 
     const { data: contacts, error } = await ctx.supabase
@@ -58,7 +63,10 @@ export async function POST(request: NextRequest) {
         const contact = queue.shift();
         if (!contact) break;
 
-        const sourceText = buildPreferenceSourceText(contact.requirements, contact.contact_notes);
+        const sourceText = buildPreferenceSourceText(
+          contact.requirements,
+          contact.contact_notes
+        );
         const hash = preferenceSourceHash(sourceText);
         if (hash === contact.pref_source_hash) {
           skipped++;
@@ -66,7 +74,9 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          const prefs = sourceText ? await extractContactPreferences(sourceText) : EMPTY_PREFERENCES;
+          const prefs = sourceText
+            ? await extractContactPreferences(sourceText)
+            : EMPTY_PREFERENCES;
           const { error: updateErr } = await ctx.supabase
             .from('contacts')
             // Batch enrichment over contacts read a moment ago; the
@@ -104,13 +114,23 @@ export async function POST(request: NextRequest) {
           // must never fail the extraction response).
           import('@/lib/radar/engine')
             .then(({ generateMatchEventForContact, radarAdminClient }) =>
-              generateMatchEventForContact(radarAdminClient(), ctx.accountId, contact.id)
+              generateMatchEventForContact(
+                radarAdminClient(),
+                ctx.accountId,
+                contact.id
+              )
             )
             .catch((radarErr) => {
-              console.error(`[extract-preferences] Radar error for ${contact.id}:`, radarErr);
+              console.error(
+                `[extract-preferences] Radar error for ${contact.id}:`,
+                radarErr
+              );
             });
         } catch (err) {
-          console.error(`[extract-preferences] Failed for contact ${contact.id}:`, err);
+          console.error(
+            `[extract-preferences] Failed for contact ${contact.id}:`,
+            err
+          );
           failed++;
         }
       }
@@ -120,7 +140,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ updated, skipped, failed });
   } catch (err) {
-    console.error('[POST /api/contacts/extract-preferences] Unexpected error:', err);
+    console.error(
+      '[POST /api/contacts/extract-preferences] Unexpected error:',
+      err
+    );
     return toErrorResponse(err);
   }
 }

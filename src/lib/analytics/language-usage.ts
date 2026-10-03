@@ -67,7 +67,7 @@ function toNumber(v: unknown): number {
  */
 export async function getLanguageUsage(
   db: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<LanguageUsageSummary> {
   const [usageRes, coverageRes] = await Promise.all([
     db.rpc('language_usage_stats', { p_account_id: accountId }),
@@ -85,13 +85,13 @@ export async function getLanguageUsage(
     ((usageRes.data ?? []) as Record<string, unknown>[]).map((r) => [
       String(r.language),
       r,
-    ]),
+    ])
   );
   const coverage = new Map<string, Record<string, unknown>>(
     ((coverageRes.data ?? []) as Record<string, unknown>[]).map((r) => [
       String(r.language),
       r,
-    ]),
+    ])
   );
 
   const rows: LanguageUsageRow[] = LANGUAGE_CODES.map((code) => {
@@ -115,8 +115,9 @@ export async function getLanguageUsage(
 
   return {
     rows: [...rows].sort((a, b) => b.contacts - a.contacts),
-    activeLanguageCount: rows.filter((r) => r.language !== 'en' && r.contacts > 0)
-      .length,
+    activeLanguageCount: rows.filter(
+      (r) => r.language !== 'en' && r.contacts > 0
+    ).length,
     unservedContacts: rows
       .filter((r) => r.unservedDemand)
       .reduce((sum, r) => sum + r.contacts, 0),

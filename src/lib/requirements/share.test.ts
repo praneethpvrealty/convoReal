@@ -59,20 +59,26 @@ describe('formatRequirement — full', () => {
 
 describe('budget lines', () => {
   it('states a range when both bounds are set', () => {
-    expect(formatRequirement({ ...base, min_budget: 24000000 }, 'masked')).toContain(
-      '₹2.4 Cr – ₹3 Cr'
-    );
+    expect(
+      formatRequirement({ ...base, min_budget: 24000000 }, 'masked')
+    ).toContain('₹2.4 Cr – ₹3 Cr');
   });
 
   it('says so when the client stated no limit', () => {
     expect(
-      formatRequirement({ ...base, no_budget: true, max_budget: null }, 'masked')
+      formatRequirement(
+        { ...base, no_budget: true, max_budget: null },
+        'masked'
+      )
     ).toContain('No limit stated');
   });
 
   it('does not invent a budget that was never given', () => {
     expect(
-      formatRequirement({ ...base, max_budget: null, min_budget: null }, 'masked')
+      formatRequirement(
+        { ...base, max_budget: null, min_budget: null },
+        'masked'
+      )
     ).toContain('Not specified');
   });
 });

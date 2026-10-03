@@ -13,8 +13,8 @@
 // them) since the previous session.
 // ============================================================
 
-import { normalizePhone } from "@/lib/whatsapp/phone-utils";
-import { denAdmin, type DenContactLink } from "./auth";
+import { normalizePhone } from '@/lib/whatsapp/phone-utils';
+import { denAdmin, type DenContactLink } from './auth';
 
 export interface CompleteDenAuthResult {
   denUserId: string;
@@ -36,16 +36,16 @@ export async function completeDenAuth(args: {
   const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
 
   const { data: existing } = await db
-    .from("den_users")
-    .select("id, display_name")
-    .eq("auth_user_id", args.authUserId)
+    .from('den_users')
+    .select('id, display_name')
+    .eq('auth_user_id', args.authUserId)
     .maybeSingle();
 
   let denUserId: string;
   if (existing) {
     denUserId = existing.id as string;
     await db
-      .from("den_users")
+      .from('den_users')
       .update({
         phone,
         phone_normalized: last10,
@@ -55,29 +55,29 @@ export async function completeDenAuth(args: {
           : {}),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", denUserId);
+      .eq('id', denUserId);
   } else {
     const { data: created, error: createErr } = await db
-      .from("den_users")
+      .from('den_users')
       .insert({
         auth_user_id: args.authUserId,
         phone,
         phone_normalized: last10,
         display_name: args.displayName || null,
       })
-      .select("id")
+      .select('id')
       .single();
     if (createErr || !created) {
       // A racing completion (double-submit) may have inserted first —
       // unique(auth_user_id) makes the loser safe to re-read.
       const { data: raced } = await db
-        .from("den_users")
-        .select("id")
-        .eq("auth_user_id", args.authUserId)
+        .from('den_users')
+        .select('id')
+        .eq('auth_user_id', args.authUserId)
         .maybeSingle();
       if (!raced) {
-        console.error("[completeDenAuth] den_users insert failed:", createErr);
-        throw new Error("Could not create your Portfolio profile");
+        console.error('[completeDenAuth] den_users insert failed:', createErr);
+        throw new Error('Could not create your Portfolio profile');
       }
       denUserId = raced.id as string;
     } else {
@@ -87,15 +87,23 @@ export async function completeDenAuth(args: {
 
   // Owner-contact discovery across ALL tenant accounts (service-role
   // RPC — digit-normalized matching happens in SQL).
-  const { data: matches, error: matchErr } = await db.rpc("find_den_owner_contacts", {
-    p_phone_last10: last10,
-  });
+  const { data: matches, error: matchErr } = await db.rpc(
+    'find_den_owner_contacts',
+    {
+      p_phone_last10: last10,
+    }
+  );
   if (matchErr) {
-    console.error("[completeDenAuth] find_den_owner_contacts failed:", matchErr);
+    console.error(
+      '[completeDenAuth] find_den_owner_contacts failed:',
+      matchErr
+    );
   }
 
   if (matches && matches.length > 0) {
-    const rows = (matches as Array<{ contact_id: string; account_id: string }>).map((m) => ({
+    const rows = (
+      matches as Array<{ contact_id: string; account_id: string }>
+    ).map((m) => ({
       den_user_id: denUserId,
       account_id: m.account_id,
       contact_id: m.contact_id,
@@ -104,19 +112,20 @@ export async function completeDenAuth(args: {
     // Idempotent: existing (den_user, contact) pairs are left untouched
     // (including any an admin marked 'revoked' — upsert with
     // ignoreDuplicates never resurrects them).
-    const { error: linkErr } = await db
-      .from("den_contact_links")
-      .upsert(rows, { onConflict: "den_user_id,contact_id", ignoreDuplicates: true });
+    const { error: linkErr } = await db.from('den_contact_links').upsert(rows, {
+      onConflict: 'den_user_id,contact_id',
+      ignoreDuplicates: true,
+    });
     if (linkErr) {
-      console.error("[completeDenAuth] link upsert failed:", linkErr);
+      console.error('[completeDenAuth] link upsert failed:', linkErr);
     }
   }
 
   const { data: linkRows } = await db
-    .from("den_contact_links")
-    .select("id, account_id, contact_id, account:accounts(id, name)")
-    .eq("den_user_id", denUserId)
-    .eq("status", "active");
+    .from('den_contact_links')
+    .select('id, account_id, contact_id, account:accounts(id, name)')
+    .eq('den_user_id', denUserId)
+    .eq('status', 'active');
 
   const links: DenContactLink[] = (linkRows || []).map((row) => {
     const account = Array.isArray(row.account) ? row.account[0] : row.account;

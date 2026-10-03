@@ -81,7 +81,7 @@ export function ProjectUnitsDialog({
       let query = supabase
         .from('properties')
         .select(
-          'id, title, price, area_sqft, bedrooms, status, unit_no, tower, floor_number, project, project_id',
+          'id, title, price, area_sqft, bedrooms, status, unit_no, tower, floor_number, project, project_id'
         )
         .eq('account_id', accountId)
         .order('created_at', { ascending: false })
@@ -101,7 +101,7 @@ export function ProjectUnitsDialog({
         ? await supabase
             .from('properties')
             .select(
-              'id, title, price, area_sqft, bedrooms, status, unit_no, tower, floor_number, project, project_id',
+              'id, title, price, area_sqft, bedrooms, status, unit_no, tower, floor_number, project, project_id'
             )
             .eq('account_id', accountId)
             .eq('project_id', project.id)
@@ -113,7 +113,9 @@ export function ProjectUnitsDialog({
       const all = [...byId.values()];
       setRows(all);
 
-      const mine = new Set(all.filter((r) => r.project_id === project.id).map((r) => r.id));
+      const mine = new Set(
+        all.filter((r) => r.project_id === project.id).map((r) => r.id)
+      );
       setSelected(mine);
       setInitial(mine);
     } catch (err) {
@@ -148,8 +150,18 @@ export function ProjectUnitsDialog({
 
     setSaving(true);
     try {
-      const attached = await setUnitsProject(supabase, accountId, toAttach, project.id);
-      const detached = await setUnitsProject(supabase, accountId, toDetach, null);
+      const attached = await setUnitsProject(
+        supabase,
+        accountId,
+        toAttach,
+        project.id
+      );
+      const detached = await setUnitsProject(
+        supabase,
+        accountId,
+        toDetach,
+        null
+      );
 
       // setUnitsProject returns rows actually moved: RLS refusing a
       // write comes back as zero, and reporting success on that would
@@ -166,7 +178,9 @@ export function ProjectUnitsDialog({
       onOpenChange(false);
     } catch (err) {
       console.error('Unit attach failed:', err);
-      toast.error(err instanceof Error ? err.message : 'Could not update units');
+      toast.error(
+        err instanceof Error ? err.message : 'Could not update units'
+      );
     } finally {
       setSaving(false);
     }
@@ -211,9 +225,10 @@ export function ProjectUnitsDialog({
             </p>
           ) : (
             rows.map((row) => {
-              const takenByAnother = !!row.project_id && row.project_id !== project?.id;
+              const takenByAnother =
+                !!row.project_id && row.project_id !== project?.id;
               const rate = formatRatePerSqft(
-                unitRatePerSqft(row.price, row.area_sqft),
+                unitRatePerSqft(row.price, row.area_sqft)
               );
               const label = [row.tower, row.unit_no].filter(Boolean).join(' ');
               return (
@@ -235,7 +250,7 @@ export function ProjectUnitsDialog({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm text-white">
                       {label && (
-                        <span className="mr-1.5 font-mono text-xs text-primary">
+                        <span className="text-primary mr-1.5 font-mono text-xs">
                           {label}
                         </span>
                       )}

@@ -1,16 +1,34 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
-import { ApiError, placeDetails, placesAutocomplete, sessionToken } from '@/lib/api';
+import {
+  ApiError,
+  placeDetails,
+  placesAutocomplete,
+  sessionToken,
+} from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AreaOfInterestGeo } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 
 /** Quick-add chips — same shortlist the web offers (areas-of-interest-input.tsx). */
-const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Indiranagar', 'Jayanagar', 'Not specific'];
+const SUGGESTED_AREAS = [
+  'Whitefield',
+  'Koramangala',
+  'Indiranagar',
+  'Jayanagar',
+  'Not specific',
+];
 
 /**
  * Native areas-of-interest picker with Google Places geo resolution —
@@ -58,14 +76,18 @@ export function AreasOfInterestInput({
     },
   });
 
-  const hasArea = (name: string) => areas.some((a) => a.toLowerCase() === name.toLowerCase());
+  const hasArea = (name: string) =>
+    areas.some((a) => a.toLowerCase() === name.toLowerCase());
 
   function addName(name: string, geoEntry?: AreaOfInterestGeo) {
     const clean = name.trim();
     if (!clean) return;
     const nextAreas = hasArea(clean) ? areas : [...areas, clean];
     const nextGeo = geoEntry
-      ? [...geo.filter((g) => g.name.toLowerCase() !== clean.toLowerCase()), geoEntry]
+      ? [
+          ...geo.filter((g) => g.name.toLowerCase() !== clean.toLowerCase()),
+          geoEntry,
+        ]
       : geo;
     onChange(nextAreas, nextGeo);
   }
@@ -94,32 +116,48 @@ export function AreasOfInterestInput({
       const { place } = await placeDetails(s.place_id, session.current);
       session.current = sessionToken(); // sessions are single-purchase
       if (Number.isFinite(place.latitude) && Number.isFinite(place.longitude)) {
-        onChange(
-          hasArea(name) ? areas : [...areas, name],
-          [
-            ...geo.filter((g) => g.name.toLowerCase() !== name.toLowerCase()),
-            { name, lat: place.latitude, lng: place.longitude },
-          ]
-        );
+        onChange(hasArea(name) ? areas : [...areas, name], [
+          ...geo.filter((g) => g.name.toLowerCase() !== name.toLowerCase()),
+          { name, lat: place.latitude, lng: place.longitude },
+        ]);
       }
     } catch {
       // Keep the name-only area — matching falls back to the locality table.
     }
   }
 
-  const hasGeo = (name: string) => geo.some((g) => g.name.toLowerCase() === name.toLowerCase());
+  const hasGeo = (name: string) =>
+    geo.some((g) => g.name.toLowerCase() === name.toLowerCase());
 
   return (
     <View style={{ gap: spacing.sm }}>
       {areas.length ? (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+        <View
+          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+        >
           {areas.map((a) => (
             <View
               key={a}
-              style={[styles.chip, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
+              style={[
+                styles.chip,
+                {
+                  backgroundColor: colors.primarySoft,
+                  borderColor: colors.primary,
+                },
+              ]}
             >
-              {hasGeo(a) ? <Ionicons name="location" size={12} color={colors.primary} /> : null}
-              <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.primary }}>{a}</Text>
+              {hasGeo(a) ? (
+                <Ionicons name="location" size={12} color={colors.primary} />
+              ) : null}
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: f.semibold,
+                  color: colors.primary,
+                }}
+              >
+                {a}
+              </Text>
               <Pressable
                 onPress={() => removeArea(a)}
                 hitSlop={6}
@@ -134,14 +172,27 @@ export function AreasOfInterestInput({
       ) : null}
 
       <View>
-        <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            gap: spacing.sm,
+            alignItems: 'center',
+          }}
+        >
           <View
             style={[
               styles.inputWrap,
-              { backgroundColor: colors.surfaceRaised, borderColor: focused ? colors.primary : colors.border },
+              {
+                backgroundColor: colors.surfaceRaised,
+                borderColor: focused ? colors.primary : colors.border,
+              },
             ]}
           >
-            <Ionicons name="location-outline" size={16} color={colors.textFaint} />
+            <Ionicons
+              name="location-outline"
+              size={16}
+              color={colors.textFaint}
+            />
             <TextInput
               value={input}
               onChangeText={setInput}
@@ -154,7 +205,9 @@ export function AreasOfInterestInput({
               autoCapitalize="words"
               style={[styles.input, { color: colors.text }]}
             />
-            {enabled && isFetching ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+            {enabled && isFetching ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : null}
           </View>
           <Pressable
             onPress={manualAdd}
@@ -167,8 +220,15 @@ export function AreasOfInterestInput({
         </View>
 
         {enabled && isError ? (
-          <Text style={{ fontSize: 12, color: colors.textMuted, paddingTop: spacing.xs }}>
-            Couldn&rsquo;t load suggestions. Tap + to add &ldquo;{debounced}&rdquo; anyway.
+          <Text
+            style={{
+              fontSize: 12,
+              color: colors.textMuted,
+              paddingTop: spacing.xs,
+            }}
+          >
+            Couldn&rsquo;t load suggestions. Tap + to add &ldquo;{debounced}
+            &rdquo; anyway.
           </Text>
         ) : null}
 
@@ -176,7 +236,10 @@ export function AreasOfInterestInput({
           <View
             style={[
               styles.suggestions,
-              { backgroundColor: colors.surfaceWell, borderColor: colors.glassBorder },
+              {
+                backgroundColor: colors.surfaceWell,
+                borderColor: colors.glassBorder,
+              },
             ]}
           >
             {suggestions.map((s, i) => (
@@ -185,38 +248,76 @@ export function AreasOfInterestInput({
                 onPress={() => pick(s)}
                 style={[
                   styles.suggestionRow,
-                  i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+                  i > 0 && {
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: colors.border,
+                  },
                 ]}
               >
-                <Ionicons name="location-outline" size={15} color={colors.primary} />
+                <Ionicons
+                  name="location-outline"
+                  size={15}
+                  color={colors.primary}
+                />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }} numberOfLines={1}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontFamily: f.semibold,
+                      color: colors.text,
+                    }}
+                    numberOfLines={1}
+                  >
                     {s.main_text}
                   </Text>
                   {s.secondary_text ? (
-                    <Text style={{ fontSize: 11.5, color: colors.textFaint }} numberOfLines={1}>
+                    <Text
+                      style={{ fontSize: 11.5, color: colors.textFaint }}
+                      numberOfLines={1}
+                    >
                       {s.secondary_text}
                     </Text>
                   ) : null}
                 </View>
-                <Ionicons name="add-circle-outline" size={16} color={colors.textFaint} />
+                <Ionicons
+                  name="add-circle-outline"
+                  size={16}
+                  color={colors.textFaint}
+                />
               </Pressable>
             ))}
           </View>
         ) : null}
       </View>
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-        <Text style={{ fontSize: 11, color: colors.textFaint }}>Quick add:</Text>
+      <View
+        style={{
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          gap: 6,
+          alignItems: 'center',
+        }}
+      >
+        <Text style={{ fontSize: 11, color: colors.textFaint }}>
+          Quick add:
+        </Text>
         {SUGGESTED_AREAS.filter((a) => !hasArea(a)).map((a) => (
           <Pressable
             key={a}
             onPress={() => addName(a)}
             accessibilityRole="button"
             accessibilityLabel={`Add ${a}`}
-            style={[styles.quickChip, { borderColor: colors.border, backgroundColor: colors.surfaceSunken }]}
+            style={[
+              styles.quickChip,
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.surfaceSunken,
+              },
+            ]}
           >
-            <Text style={{ fontSize: 11.5, color: colors.textMuted }}>+ {a}</Text>
+            <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+              + {a}
+            </Text>
           </Pressable>
         ))}
       </View>

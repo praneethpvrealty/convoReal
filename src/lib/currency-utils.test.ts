@@ -26,12 +26,16 @@ describe('equivalentPriceLabel', () => {
 
   it('returns nothing for input that is not a positive amount', () => {
     for (const v of ['', null, undefined, '0', 0, -1, 'abc', NaN, Infinity]) {
-      expect(equivalentPriceLabel(v as string | number | null | undefined)).toBe('');
+      expect(
+        equivalentPriceLabel(v as string | number | null | undefined)
+      ).toBe('');
     }
   });
 
   it('uses the symbol and plain grouping for non-INR currencies', () => {
-    expect(equivalentPriceLabel(1500000, 'USD')).toBe('Equivalent to: $1,500,000');
+    expect(equivalentPriceLabel(1500000, 'USD')).toBe(
+      'Equivalent to: $1,500,000'
+    );
     expect(equivalentPriceLabel(2000, 'GBP')).toBe('Equivalent to: £2,000');
   });
 

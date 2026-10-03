@@ -62,7 +62,10 @@ export function LocalityAutocomplete({
   // Close the dropdown on outside click
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     }
@@ -141,34 +144,41 @@ export function LocalityAutocomplete({
   return (
     <div ref={containerRef} className="relative">
       <div className="relative">
-        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500 pointer-events-none" />
+        <MapPin className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500" />
         <Input
           value={value}
           disabled={disabled}
           onChange={(e) => handleInput(e.target.value)}
           onFocus={() => suggestions.length > 0 && setOpen(true)}
           placeholder={placeholder}
-          className={className ?? 'pl-9 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9'}
+          className={
+            className ??
+            'h-9 border-slate-700 bg-slate-800 pl-9 text-white placeholder:text-slate-500'
+          }
         />
         {loading && (
-          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-slate-500 animate-spin" />
+          <Loader2 className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-slate-500" />
         )}
       </div>
 
       {open && suggestions.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
+        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900 shadow-xl">
           {suggestions.map((s) => (
             <button
               key={s.place_id}
               type="button"
               onClick={() => handlePick(s)}
-              className="w-full text-left px-3 py-2 hover:bg-slate-800 transition-colors flex items-start gap-2"
+              className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-slate-800"
             >
-              <MapPin className="size-3.5 text-primary mt-0.5 shrink-0" />
+              <MapPin className="text-primary mt-0.5 size-3.5 shrink-0" />
               <span className="min-w-0">
-                <span className="block text-xs font-semibold text-white truncate">{s.main_text}</span>
+                <span className="block truncate text-xs font-semibold text-white">
+                  {s.main_text}
+                </span>
                 {s.secondary_text && (
-                  <span className="block text-[10px] text-slate-500 truncate">{s.secondary_text}</span>
+                  <span className="block truncate text-[10px] text-slate-500">
+                    {s.secondary_text}
+                  </span>
                 )}
               </span>
             </button>

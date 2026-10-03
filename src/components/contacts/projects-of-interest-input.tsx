@@ -42,7 +42,7 @@ export function ProjectsOfInterestInput({
         value={projectsText}
         onChange={(e) => handleTextChange(e.target.value)}
         placeholder="Type project (e.g. Purva Westend, Prestige Lakeside)..."
-        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs w-full focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
+        className="focus-visible:ring-primary h-8 w-full border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-offset-0"
       />
 
       <div className="flex items-center space-x-2 pt-2">
@@ -52,11 +52,11 @@ export function ProjectsOfInterestInput({
           checked={strict}
           disabled={projects.length === 0}
           onChange={(e) => onStrictChange(e.target.checked)}
-          className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3.5 disabled:opacity-40"
+          className="text-primary size-3.5 rounded border-slate-700 bg-slate-800 focus:ring-0 focus:ring-offset-0 disabled:opacity-40"
         />
         <label
           htmlFor={`${idPrefix}-strict-project-match`}
-          className="text-[11px] text-slate-400 font-medium cursor-pointer select-none"
+          className="cursor-pointer text-[11px] font-medium text-slate-400 select-none"
         >
           Only these projects (hides every other listing from this client)
         </label>

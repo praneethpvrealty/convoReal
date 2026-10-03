@@ -35,7 +35,7 @@ describe('projectPriceHeadline', () => {
   it('drops the "from" when there is nothing to range over', () => {
     // A repeated range reads like a bug.
     expect(
-      projectPriceHeadline(stats({ min_price: 18500000, max_price: 18500000 })),
+      projectPriceHeadline(stats({ min_price: 18500000, max_price: 18500000 }))
     ).toBe('₹1.85 Cr');
   });
 
@@ -44,21 +44,26 @@ describe('projectPriceHeadline', () => {
     // distinction that matters to a buyer is that it is gone.
     expect(
       projectPriceHeadline(
-        stats({ available: 0, sold_or_contract: 12, min_price: null, max_price: null }),
-      ),
+        stats({
+          available: 0,
+          sold_or_contract: 12,
+          min_price: null,
+          max_price: null,
+        })
+      )
     ).toBe('Sold out');
   });
 
   it('says price on request rather than implying free', () => {
-    expect(projectPriceHeadline(stats({ min_price: null, max_price: null }))).toBe(
-      'Price on request',
-    );
+    expect(
+      projectPriceHeadline(stats({ min_price: null, max_price: null }))
+    ).toBe('Price on request');
   });
 
   it('does not call an empty project sold out', () => {
-    expect(projectPriceHeadline(stats({ units: 0, available: 0, min_price: null }))).toBe(
-      'Price on request',
-    );
+    expect(
+      projectPriceHeadline(stats({ units: 0, available: 0, min_price: null }))
+    ).toBe('Price on request');
   });
 });
 
@@ -69,13 +74,17 @@ describe('projectRateHeadline', () => {
 
   it('drops the range when every unit asks the same rate', () => {
     expect(
-      projectRateHeadline(stats({ min_rate_per_sqft: 8200, max_rate_per_sqft: 8200 })),
+      projectRateHeadline(
+        stats({ min_rate_per_sqft: 8200, max_rate_per_sqft: 8200 })
+      )
     ).toBe('₹8,200/sqft');
   });
 
   it('is empty when no available unit has both a price and an area', () => {
     expect(
-      projectRateHeadline(stats({ min_rate_per_sqft: null, max_rate_per_sqft: null })),
+      projectRateHeadline(
+        stats({ min_rate_per_sqft: null, max_rate_per_sqft: null })
+      )
     ).toBe('');
   });
 });
@@ -99,11 +108,15 @@ describe('projectBhkRange', () => {
   });
 
   it('states one when they are all the same', () => {
-    expect(projectBhkRange(stats({ min_bedrooms: 3, max_bedrooms: 3 }))).toBe('3 BHK');
+    expect(projectBhkRange(stats({ min_bedrooms: 3, max_bedrooms: 3 }))).toBe(
+      '3 BHK'
+    );
   });
 
   it('is empty for land or commercial, which have no BHK', () => {
-    expect(projectBhkRange(stats({ min_bedrooms: null, max_bedrooms: null }))).toBe('');
+    expect(
+      projectBhkRange(stats({ min_bedrooms: null, max_bedrooms: null }))
+    ).toBe('');
   });
 });
 
@@ -113,17 +126,23 @@ describe('projectAvailabilityLine', () => {
   });
 
   it('says nothing about sold when none are', () => {
-    expect(projectAvailabilityLine(stats({ sold_or_contract: 0 }))).toBe('12 units');
+    expect(projectAvailabilityLine(stats({ sold_or_contract: 0 }))).toBe(
+      '12 units'
+    );
   });
 
   it('is singular for one', () => {
     expect(
-      projectAvailabilityLine(stats({ units: 1, available: 1, sold_or_contract: 0 })),
+      projectAvailabilityLine(
+        stats({ units: 1, available: 1, sold_or_contract: 0 })
+      )
     ).toBe('1 unit');
   });
 
   it('tells the agent an empty project is empty', () => {
-    expect(projectAvailabilityLine(stats({ units: 0 }))).toBe('No units added yet');
+    expect(projectAvailabilityLine(stats({ units: 0 }))).toBe(
+      'No units added yet'
+    );
   });
 });
 
@@ -140,8 +159,12 @@ describe('unitPremiumPercent', () => {
 
   it('is null rather than a wrong number when either side is missing', () => {
     expect(unitPremiumPercent(null, stats())).toBeNull();
-    expect(unitPremiumPercent(8200, stats({ min_rate_per_sqft: null }))).toBeNull();
-    expect(unitPremiumPercent(8200, stats({ min_rate_per_sqft: 0 }))).toBeNull();
+    expect(
+      unitPremiumPercent(8200, stats({ min_rate_per_sqft: null }))
+    ).toBeNull();
+    expect(
+      unitPremiumPercent(8200, stats({ min_rate_per_sqft: 0 }))
+    ).toBeNull();
   });
 });
 
@@ -165,7 +188,7 @@ describe('unitStatsFromProperties', () => {
       area_sqft: number | null;
       bedrooms: number | null;
       status: string;
-    }> = {},
+    }> = {}
   ) => ({
     price: 14582000,
     area_sqft: 1779,

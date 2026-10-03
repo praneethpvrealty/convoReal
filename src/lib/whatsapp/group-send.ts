@@ -55,7 +55,7 @@ export interface GroupSendResult {
 }
 
 export async function sendGroupMessage(
-  args: GroupSendArgs,
+  args: GroupSendArgs
 ): Promise<GroupSendResult> {
   const refusal = refuseGroupSend(args.kind);
   if (refusal) return { success: false, error: refusal };
@@ -77,7 +77,8 @@ export async function sendGroupMessage(
     // is no id to address.
     return {
       success: false,
-      error: 'This group is still being created on WhatsApp — try again shortly.',
+      error:
+        'This group is still being created on WhatsApp — try again shortly.',
     };
   }
   if (!groupIsSendable(group.status)) {
@@ -121,7 +122,10 @@ export async function sendGroupMessage(
   try {
     if (args.kind === 'media') {
       if (!args.mediaKind || !args.mediaLink) {
-        return { success: false, error: 'mediaKind and mediaLink are required' };
+        return {
+          success: false,
+          error: 'mediaKind and mediaLink are required',
+        };
       }
       const result = await sendMediaMessage({
         phoneNumberId: config.phone_number_id,
@@ -156,7 +160,8 @@ export async function sendGroupMessage(
     };
   }
 
-  const contentType = args.kind === 'media' ? args.mediaKind || 'document' : 'text';
+  const contentType =
+    args.kind === 'media' ? args.mediaKind || 'document' : 'text';
   const contentText =
     args.kind === 'media' ? args.mediaCaption || null : args.text || null;
 
@@ -181,7 +186,10 @@ export async function sendGroupMessage(
   if (insertError) {
     // Meta already has it; reporting failure would invite a resend that
     // sends it twice.
-    console.error('[group-send] sent but DB insert failed:', insertError.message);
+    console.error(
+      '[group-send] sent but DB insert failed:',
+      insertError.message
+    );
     return {
       success: true,
       whatsappMessageId: waMessageId,
@@ -193,7 +201,8 @@ export async function sendGroupMessage(
     .from('conversations')
     .update({
       last_message_text:
-        contentText?.trim() || (args.kind === 'media' ? `[${contentType}]` : ''),
+        contentText?.trim() ||
+        (args.kind === 'media' ? `[${contentType}]` : ''),
       last_message_at: new Date().toISOString(),
     })
     .eq('id', conversation.id);

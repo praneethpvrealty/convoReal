@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Single source of truth for the flow editor's state.
@@ -41,17 +41,17 @@ import {
   useRef,
   useState,
   type ReactNode,
-} from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+} from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 import {
   validateFlowForActivation,
   type ValidationIssue,
-} from "@/lib/flows/validate";
-import { unlinkNodeReferences } from "@/lib/flows/edges";
-import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
-import { NODE_META, slugify, type BuilderNode, type NodeType } from "./shared";
+} from '@/lib/flows/validate';
+import { unlinkNodeReferences } from '@/lib/flows/edges';
+import type { FlowNodeRow, FlowRow } from '@/lib/flows/types';
+import { NODE_META, slugify, type BuilderNode, type NodeType } from './shared';
 
 // ============================================================
 // State shape
@@ -60,10 +60,10 @@ import { NODE_META, slugify, type BuilderNode, type NodeType } from "./shared";
 export interface BuilderState {
   name: string;
   description: string;
-  trigger_type: "keyword" | "first_inbound_message" | "manual";
+  trigger_type: 'keyword' | 'first_inbound_message' | 'manual';
   trigger_config: Record<string, unknown>;
   entry_node_id: string | null;
-  status: FlowRow["status"];
+  status: FlowRow['status'];
   nodes: BuilderNode[];
 }
 
@@ -80,9 +80,7 @@ export interface FlowEditorContextValue {
    * setters below would force them to fan out the update.
    */
   setState: (
-    updaterOrValue:
-      | BuilderState
-      | ((prev: BuilderState) => BuilderState),
+    updaterOrValue: BuilderState | ((prev: BuilderState) => BuilderState)
   ) => void;
   dirty: boolean;
   saving: boolean;
@@ -101,7 +99,7 @@ export interface FlowEditorContextValue {
 
   // Actions
   save: () => Promise<void>;
-  setStatus: (status: BuilderState["status"]) => Promise<void>;
+  setStatus: (status: BuilderState['status']) => Promise<void>;
   deleteFlow: () => Promise<void>;
 
   /**
@@ -132,67 +130,65 @@ export function uniqueNodeKey(base: string, existing: BuilderNode[]): string {
 
 export function defaultConfigFor(type: NodeType): Record<string, unknown> {
   switch (type) {
-    case "start":
-      return { next_node_key: "" };
-    case "send_message":
-      return { text: "", next_node_key: "" };
-    case "send_buttons":
+    case 'start':
+      return { next_node_key: '' };
+    case 'send_message':
+      return { text: '', next_node_key: '' };
+    case 'send_buttons':
       return {
-        text: "",
-        buttons: [{ reply_id: "yes", title: "Yes", next_node_key: "" }],
+        text: '',
+        buttons: [{ reply_id: 'yes', title: 'Yes', next_node_key: '' }],
       };
-    case "send_list":
+    case 'send_list':
       return {
-        text: "",
-        button_label: "View options",
+        text: '',
+        button_label: 'View options',
         sections: [
           {
-            title: "",
-            rows: [
-              { reply_id: "row_1", title: "Option 1", next_node_key: "" },
-            ],
+            title: '',
+            rows: [{ reply_id: 'row_1', title: 'Option 1', next_node_key: '' }],
           },
         ],
       };
-    case "send_media":
+    case 'send_media':
       return {
-        media_type: "image",
-        media_url: "",
-        caption: "",
-        filename: "",
-        next_node_key: "",
+        media_type: 'image',
+        media_url: '',
+        caption: '',
+        filename: '',
+        next_node_key: '',
       };
-    case "send_property_listings":
+    case 'send_property_listings':
       return {
-        intro_text: "",
-        empty_text: "",
+        intro_text: '',
+        empty_text: '',
         limit: 5,
-        filter_type: "",
-        filter_listing_type: "",
-        next_node_key: "",
+        filter_type: '',
+        filter_listing_type: '',
+        next_node_key: '',
       };
-    case "collect_input":
+    case 'collect_input':
       return {
-        prompt_text: "",
-        var_key: "answer",
-        next_node_key: "",
+        prompt_text: '',
+        var_key: 'answer',
+        next_node_key: '',
       };
-    case "condition":
+    case 'condition':
       return {
-        subject: "var",
-        subject_key: "",
-        operator: "equals",
-        value: "",
-        true_next: "",
-        false_next: "",
+        subject: 'var',
+        subject_key: '',
+        operator: 'equals',
+        value: '',
+        true_next: '',
+        false_next: '',
       };
-    case "set_tag":
-      return { mode: "add", tag_id: "", next_node_key: "" };
-    case "handoff":
-      return { note: "" };
-    case "start_property_intake":
-      return { intro_text: "" };
-    case "end":
+    case 'set_tag':
+      return { mode: 'add', tag_id: '', next_node_key: '' };
+    case 'handoff':
+      return { note: '' };
+    case 'start_property_intake':
+      return { intro_text: '' };
+    case 'end':
       return {};
   }
 }
@@ -206,9 +202,7 @@ const FlowEditorCtx = createContext<FlowEditorContextValue | null>(null);
 export function useFlowEditor(): FlowEditorContextValue {
   const ctx = useContext(FlowEditorCtx);
   if (!ctx) {
-    throw new Error(
-      "useFlowEditor must be called inside <FlowEditorProvider>",
-    );
+    throw new Error('useFlowEditor must be called inside <FlowEditorProvider>');
   }
   return ctx;
 }
@@ -232,7 +226,7 @@ export function FlowEditorProvider({
 
   const [state, setStateRaw] = useState<BuilderState>(() => ({
     name: initialFlow.name,
-    description: initialFlow.description ?? "",
+    description: initialFlow.description ?? '',
     trigger_type: initialFlow.trigger_type,
     trigger_config: initialFlow.trigger_config as Record<string, unknown>,
     entry_node_id: initialFlow.entry_node_id,
@@ -279,7 +273,7 @@ export function FlowEditorProvider({
         window.clearTimeout(flashTimeoutRef.current);
       }
     },
-    [],
+    []
   );
 
   // Browser-level reload / tab-close / external-link guard. SPA
@@ -293,10 +287,10 @@ export function FlowEditorProvider({
       e.preventDefault();
       // Modern browsers ignore the return value but require something
       // truthy to actually show the native prompt.
-      e.returnValue = "";
+      e.returnValue = '';
     };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
   // ---- Validation ----
@@ -309,13 +303,13 @@ export function FlowEditorProvider({
           trigger_config: state.trigger_config,
           entry_node_id: state.entry_node_id,
         },
-        state.nodes,
+        state.nodes
       ),
-    [state],
+    [state]
   );
   const canActivate = useMemo(
-    () => issues.every((i) => i.severity !== "error"),
-    [issues],
+    () => issues.every((i) => i.severity !== 'error'),
+    [issues]
   );
 
   // ---- Save (PUT) ----
@@ -323,8 +317,8 @@ export function FlowEditorProvider({
     setSaving(true);
     try {
       const res = await fetch(`/api/flows/${initialFlow.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: state.name,
           description: state.description || null,
@@ -339,9 +333,9 @@ export function FlowEditorProvider({
         throw new Error(json.error ?? `Save failed: ${res.status}`);
       }
       setDirty(false);
-      toast.success("Saved.");
+      toast.success('Saved.');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Save failed";
+      const msg = err instanceof Error ? err.message : 'Save failed';
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -350,9 +344,9 @@ export function FlowEditorProvider({
 
   // ---- Activate / Pause / Archive ----
   const setStatus = useCallback(
-    async (next: BuilderState["status"]) => {
-      if (next === "active" && !canActivate) {
-        toast.error("Fix the issues below before activating.");
+    async (next: BuilderState['status']) => {
+      if (next === 'active' && !canActivate) {
+        toast.error('Fix the issues below before activating.');
         return;
       }
       setActivating(true);
@@ -360,12 +354,12 @@ export function FlowEditorProvider({
         // Always save first so the activation validator sees the
         // latest state — the user shouldn't have to remember "save
         // then activate".
-        if (next === "active") {
+        if (next === 'active') {
           await save();
         }
         const res = await fetch(`/api/flows/${initialFlow.id}/activate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: next }),
         });
         if (!res.ok) {
@@ -374,36 +368,36 @@ export function FlowEditorProvider({
         }
         setStateRaw((s) => ({ ...s, status: next }));
         toast.success(
-          next === "active"
-            ? "Flow activated."
-            : next === "archived"
-              ? "Archived."
-              : "Saved as draft.",
+          next === 'active'
+            ? 'Flow activated.'
+            : next === 'archived'
+              ? 'Archived.'
+              : 'Saved as draft.'
         );
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Status update failed";
+        const msg = err instanceof Error ? err.message : 'Status update failed';
         toast.error(msg);
       } finally {
         setActivating(false);
       }
     },
-    [canActivate, save, initialFlow.id],
+    [canActivate, save, initialFlow.id]
   );
 
   // ---- Delete ----
   const deleteFlow = useCallback(async () => {
     const yes = window.confirm(
-      `Delete "${state.name}"? Any active runs end immediately. This can't be undone.`,
+      `Delete "${state.name}"? Any active runs end immediately. This can't be undone.`
     );
     if (!yes) return;
     try {
       const res = await fetch(`/api/flows/${initialFlow.id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
-      router.push("/flows");
+      router.push('/flows');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Delete failed";
+      const msg = err instanceof Error ? err.message : 'Delete failed';
       toast.error(msg);
     }
   }, [initialFlow.id, router, state.name]);
@@ -414,11 +408,11 @@ export function FlowEditorProvider({
       setState((s) => ({
         ...s,
         nodes: s.nodes.map((n) =>
-          n.node_key === key ? { ...n, ...patch } : n,
+          n.node_key === key ? { ...n, ...patch } : n
         ),
       }));
     },
-    [setState],
+    [setState]
   );
 
   const updateNodeConfig = useCallback(
@@ -428,11 +422,11 @@ export function FlowEditorProvider({
         nodes: s.nodes.map((n) =>
           n.node_key === key
             ? { ...n, config: { ...n.config, ...configPatch } }
-            : n,
+            : n
         ),
       }));
     },
-    [setState],
+    [setState]
   );
 
   const updateNodePosition = useCallback(
@@ -442,11 +436,11 @@ export function FlowEditorProvider({
         nodes: s.nodes.map((n) =>
           n.node_key === key
             ? { ...n, position_x: Math.round(x), position_y: Math.round(y) }
-            : n,
+            : n
         ),
       }));
     },
-    [setState],
+    [setState]
   );
 
   const addNode = useCallback(
@@ -469,12 +463,12 @@ export function FlowEditorProvider({
           // the entry automatically. Saves a click.
           entry_node_id:
             s.entry_node_id ??
-            (type === "start" ? node_key : s.entry_node_id ?? null),
+            (type === 'start' ? node_key : (s.entry_node_id ?? null)),
         };
       });
       return createdKey;
     },
-    [setState],
+    [setState]
   );
 
   const removeNode = useCallback(
@@ -487,12 +481,12 @@ export function FlowEditorProvider({
         ...s,
         nodes: unlinkNodeReferences(
           s.nodes.filter((n) => n.node_key !== key),
-          key,
+          key
         ),
         entry_node_id: s.entry_node_id === key ? null : s.entry_node_id,
       }));
     },
-    [setState],
+    [setState]
   );
 
   const value = useMemo<FlowEditorContextValue>(
@@ -535,8 +529,10 @@ export function FlowEditorProvider({
       deleteFlow,
       flashKey,
       requestFlash,
-    ],
+    ]
   );
 
-  return <FlowEditorCtx.Provider value={value}>{children}</FlowEditorCtx.Provider>;
+  return (
+    <FlowEditorCtx.Provider value={value}>{children}</FlowEditorCtx.Provider>
+  );
 }

@@ -167,7 +167,9 @@ export function storageErrorMessage(result: {
  * plainly an image, video or audio is a document, which is also how
  * Meta treats it.
  */
-export function attachmentKind(mimeType: string | null | undefined): AttachmentKind {
+export function attachmentKind(
+  mimeType: string | null | undefined
+): AttachmentKind {
   const bare = mimeType?.split(';')[0].trim().toLowerCase() ?? '';
   if (bare.startsWith('image/')) return 'image';
   if (bare.startsWith('video/')) return 'video';

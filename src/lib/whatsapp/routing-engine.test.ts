@@ -16,7 +16,11 @@ type QueryInfo = {
   isCount: boolean;
 };
 
-let resolver: (info: QueryInfo) => { data: unknown; error: unknown; count?: number };
+let resolver: (info: QueryInfo) => {
+  data: unknown;
+  error: unknown;
+  count?: number;
+};
 
 function makeBuilder(table: string, isCount: boolean) {
   const info: QueryInfo = { table, filters: {}, notNullColumns: [], isCount };
@@ -31,8 +35,9 @@ function makeBuilder(table: string, isCount: boolean) {
     }),
     order: vi.fn(() => builder),
     maybeSingle: vi.fn(() => Promise.resolve(resolver(info))),
-    then: (resolve: (v: { data: unknown; error: unknown; count?: number }) => unknown) =>
-      Promise.resolve(resolver(info)).then(resolve),
+    then: (
+      resolve: (v: { data: unknown; error: unknown; count?: number }) => unknown
+    ) => Promise.resolve(resolver(info)).then(resolve),
   };
   return builder;
 }
@@ -40,8 +45,9 @@ function makeBuilder(table: string, isCount: boolean) {
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({
     from: vi.fn((table: string) => ({
-      select: vi.fn((_selectArg: string, opts?: { count?: string; head?: boolean }) =>
-        makeBuilder(table, Boolean(opts?.count)),
+      select: vi.fn(
+        (_selectArg: string, opts?: { count?: string; head?: boolean }) =>
+          makeBuilder(table, Boolean(opts?.count))
       ),
     })),
   })),
@@ -60,7 +66,10 @@ describe('resolveRouting', () => {
   it("rule 2: routes to the contact's explicitly assigned agent when still a valid account member", async () => {
     resolver = (info) => {
       if (info.table === 'profiles' && info.filters.user_id === 'agent-1') {
-        return { data: { account_id: 'acc-1', team_id: 'team-1' }, error: null };
+        return {
+          data: { account_id: 'acc-1', team_id: 'team-1' },
+          error: null,
+        };
       }
       return { data: null, error: null };
     };
@@ -85,7 +94,10 @@ describe('resolveRouting', () => {
     resolver = (info) => {
       if (info.table === 'profiles' && info.filters.user_id === 'stale-agent') {
         // Agent moved to a different account — invalid.
-        return { data: { account_id: 'other-acc', team_id: null }, error: null };
+        return {
+          data: { account_id: 'other-acc', team_id: null },
+          error: null,
+        };
       }
       if (info.table === 'routing_rules') return { data: [], error: null };
       if (info.table === 'profiles') return { data: [], error: null };
@@ -109,13 +121,23 @@ describe('resolveRouting', () => {
       if (info.table === 'routing_rules') {
         return {
           data: [
-            { id: 'r1', rule_type: 'locality_match', match_value: 'whitefield', target_team_id: null, target_agent_id: 'agent-2', priority: 100 },
+            {
+              id: 'r1',
+              rule_type: 'locality_match',
+              match_value: 'whitefield',
+              target_team_id: null,
+              target_agent_id: 'agent-2',
+              priority: 100,
+            },
           ],
           error: null,
         };
       }
       if (info.table === 'profiles' && info.filters.user_id === 'agent-2') {
-        return { data: { account_id: 'acc-1', team_id: 'team-2' }, error: null };
+        return {
+          data: { account_id: 'acc-1', team_id: 'team-2' },
+          error: null,
+        };
       }
       return { data: null, error: null };
     };
@@ -138,9 +160,18 @@ describe('resolveRouting', () => {
   it("rule 3: falls back to an agent's own coverage_areas when no routing_rules row matches", async () => {
     resolver = (info) => {
       if (info.table === 'routing_rules') return { data: [], error: null };
-      if (info.table === 'profiles' && info.notNullColumns.includes('coverage_areas')) {
+      if (
+        info.table === 'profiles' &&
+        info.notNullColumns.includes('coverage_areas')
+      ) {
         return {
-          data: [{ user_id: 'agent-3', team_id: 'team-3', coverage_areas: ['HSR Layout', 'Koramangala'] }],
+          data: [
+            {
+              user_id: 'agent-3',
+              team_id: 'team-3',
+              coverage_areas: ['HSR Layout', 'Koramangala'],
+            },
+          ],
           error: null,
         };
       }
@@ -167,7 +198,14 @@ describe('resolveRouting', () => {
       if (info.table === 'routing_rules') {
         return {
           data: [
-            { id: 'r2', rule_type: 'source_match', match_value: 'MagicBricks', target_team_id: 'team-4', target_agent_id: null, priority: 100 },
+            {
+              id: 'r2',
+              rule_type: 'source_match',
+              match_value: 'MagicBricks',
+              target_team_id: 'team-4',
+              target_agent_id: null,
+              priority: 100,
+            },
           ],
           error: null,
         };
@@ -196,12 +234,24 @@ describe('resolveRouting', () => {
     resolver = (info) => {
       if (info.table === 'routing_rules') {
         return {
-          data: [{ id: 'r3', rule_type: 'fallback', match_value: null, target_team_id: 'team-5', target_agent_id: null, priority: 999 }],
+          data: [
+            {
+              id: 'r3',
+              rule_type: 'fallback',
+              match_value: null,
+              target_team_id: 'team-5',
+              target_agent_id: null,
+              priority: 999,
+            },
+          ],
           error: null,
         };
       }
       if (info.table === 'profiles' && info.filters.team_id === 'team-5') {
-        return { data: [{ user_id: 'busy-agent' }, { user_id: 'free-agent' }], error: null };
+        return {
+          data: [{ user_id: 'busy-agent' }, { user_id: 'free-agent' }],
+          error: null,
+        };
       }
       if (info.table === 'conversations') {
         // busy-agent has 3 open conversations, free-agent has 0.

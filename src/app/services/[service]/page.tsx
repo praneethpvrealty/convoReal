@@ -27,7 +27,7 @@ export async function generateMetadata({
   if (!context) return {};
 
   const slug = (await params).service;
-  const dbService = context.services.find(s => s.slug === slug);
+  const dbService = context.services.find((s) => s.slug === slug);
   const authService = getAuthorityService(slug);
 
   if (!dbService && !authService) return {};
@@ -36,8 +36,10 @@ export async function generateMetadata({
   const origin = await resolveRequestOrigin();
 
   if (dbService) {
-    const title = dbService.meta_title || `${dbService.title} | ${businessName}`;
-    const description = dbService.meta_description || dbService.description || '';
+    const title =
+      dbService.meta_title || `${dbService.title} | ${businessName}`;
+    const description =
+      dbService.meta_description || dbService.description || '';
     return {
       title: { absolute: title },
       description: description,
@@ -63,7 +65,7 @@ export async function generateMetadata({
       },
     };
   }
-  
+
   return {};
 }
 
@@ -72,7 +74,7 @@ export default async function ServicePage({ params, searchParams }: PageProps) {
   if (!context) notFound();
 
   const slug = (await params).service;
-  const dbService = context.services.find(s => s.slug === slug);
+  const dbService = context.services.find((s) => s.slug === slug);
   const authService = getAuthorityService(slug);
 
   if (!dbService && !authService) notFound();
@@ -88,7 +90,8 @@ export default async function ServicePage({ params, searchParams }: PageProps) {
 
   if (dbService) {
     const url = `${origin}/services/${dbService.slug}`;
-    const description = dbService.meta_description || dbService.description || '';
+    const description =
+      dbService.meta_description || dbService.description || '';
     return (
       <main className="min-h-screen bg-slate-50 text-slate-950">
         {[
@@ -129,17 +132,19 @@ export default async function ServicePage({ params, searchParams }: PageProps) {
           <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
             {dbService.description}
           </p>
-          
+
           {dbService.content && (
-            <section className="mt-12 rounded-2xl border bg-white p-7 prose prose-slate max-w-none">
-              <div dangerouslySetInnerHTML={{ __html: dbService.content.replace(/\n/g, '<br />') }} />
+            <section className="prose prose-slate mt-12 max-w-none rounded-2xl border bg-white p-7">
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: dbService.content.replace(/\n/g, '<br />'),
+                }}
+              />
             </section>
           )}
 
           <aside className="mt-12 rounded-2xl bg-slate-900 p-7 text-white">
-            <h2 className="text-2xl font-semibold">
-              Ready to learn more?
-            </h2>
+            <h2 className="text-2xl font-semibold">Ready to learn more?</h2>
             <p className="mt-2 text-slate-300">
               Contact {businessName} to discuss this service in detail.
             </p>

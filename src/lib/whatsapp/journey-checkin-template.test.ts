@@ -48,29 +48,32 @@ describe('buildJourneyCheckinTemplatePayload', () => {
 
   it('shares the close label with the enquiry templates, so one handler covers all', () => {
     expect(JOURNEY_CHECKIN_CLOSE_BUTTON).toBe(ENQUIRY_NOTICE_CLOSE_BUTTON);
-    const labels = (buildJourneyCheckinTemplatePayload(ORIGIN).buttons ?? []).map(
-      (b) => b.text,
-    );
+    const labels = (
+      buildJourneyCheckinTemplatePayload(ORIGIN).buttons ?? []
+    ).map((b) => b.text);
     expect(labels).toContain(JOURNEY_CHECKIN_KEEP_BUTTON);
     expect(labels).toContain(JOURNEY_CHECKIN_CLOSE_BUTTON);
   });
 
   it('is offered for one-tap creation when the account has no row', () => {
     expect(missingEngineTemplates([]).map((t) => t.name)).toContain(
-      JOURNEY_CHECKIN_TEMPLATE_NAME,
+      JOURNEY_CHECKIN_TEMPLATE_NAME
     );
     expect(
-      missingEngineTemplates([JOURNEY_CHECKIN_TEMPLATE_NAME]).map((t) => t.name),
+      missingEngineTemplates([JOURNEY_CHECKIN_TEMPLATE_NAME]).map((t) => t.name)
     ).not.toContain(JOURNEY_CHECKIN_TEMPLATE_NAME);
   });
 });
 
 describe('journeyCheckinUrlSuffix', () => {
   it('matches the shape the URL button was reviewed with', () => {
-    const example = (buildJourneyCheckinTemplatePayload(ORIGIN).buttons ?? []).find(
-      (b) => b.type === 'URL',
-    )?.example;
-    const suffix = journeyCheckinUrlSuffix({ id: 'uuid-1', property_code: 'PROP-7' }, 'c1');
+    const example = (
+      buildJourneyCheckinTemplatePayload(ORIGIN).buttons ?? []
+    ).find((b) => b.type === 'URL')?.example;
+    const suffix = journeyCheckinUrlSuffix(
+      { id: 'uuid-1', property_code: 'PROP-7' },
+      'c1'
+    );
     expect(suffix).toBe('?property_id=PROP-7&v=c1');
     // Same parameter names and order as the reviewed sample.
     expect([...new URLSearchParams(suffix).keys()]).toEqual([
@@ -79,26 +82,36 @@ describe('journeyCheckinUrlSuffix', () => {
   });
 
   it('falls back to the id when the listing has no code, and escapes both', () => {
-    expect(journeyCheckinUrlSuffix({ id: 'uu id', property_code: null }, 'c/1')).toBe(
-      '?property_id=uu%20id&v=c%2F1',
-    );
+    expect(
+      journeyCheckinUrlSuffix({ id: 'uu id', property_code: null }, 'c/1')
+    ).toBe('?property_id=uu%20id&v=c%2F1');
   });
 });
 
 describe('buildJourneyCheckinParams', () => {
   it('greets by first name and signs with the brokerage', () => {
     expect(
-      buildJourneyCheckinParams('Supreeth Kumar', 'Aryavarta Ventures', '3 BHK at Prestige'),
+      buildJourneyCheckinParams(
+        'Supreeth Kumar',
+        'Aryavarta Ventures',
+        '3 BHK at Prestige'
+      )
     ).toEqual(['Supreeth', 'Aryavarta Ventures', '3 BHK at Prestige']);
   });
 
   it('never greets a placeholder lead name, and never sends unsigned', () => {
-    const [name, brand] = buildJourneyCheckinParams('Housing Lead', '  ', 'A listing');
+    const [name, brand] = buildJourneyCheckinParams(
+      'Housing Lead',
+      '  ',
+      'A listing'
+    );
     expect(name).toBe('there');
     expect(brand.length).toBeGreaterThan(0);
   });
 
   it('falls back rather than sending an empty param', () => {
-    expect(buildJourneyCheckinParams(null, 'Acme', '   ')[2]).toBe('your enquiry');
+    expect(buildJourneyCheckinParams(null, 'Acme', '   ')[2]).toBe(
+      'your enquiry'
+    );
   });
 });

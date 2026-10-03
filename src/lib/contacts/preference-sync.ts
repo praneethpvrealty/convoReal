@@ -35,13 +35,13 @@ export interface PreferenceSyncResult {
 export async function syncContactPreferences(
   db: SupabaseClient,
   accountId: string,
-  contactId: string,
+  contactId: string
 ): Promise<PreferenceSyncResult> {
   try {
     const { data: contact } = await db
       .from('contacts')
       .select(
-        'id, requirements, pref_source_hash, pref_listing_types, contact_notes (note_text)',
+        'id, requirements, pref_source_hash, pref_listing_types, contact_notes (note_text)'
       )
       .eq('id', contactId)
       .eq('account_id', accountId)
@@ -50,7 +50,7 @@ export async function syncContactPreferences(
 
     const sourceText = buildPreferenceSourceText(
       contact.requirements as string | null,
-      contact.contact_notes as { note_text: string }[] | null,
+      contact.contact_notes as { note_text: string }[] | null
     );
     if (!sourceText.trim()) return { status: 'nothing-to-extract' };
 
@@ -58,9 +58,14 @@ export async function syncContactPreferences(
     if (hash === contact.pref_source_hash) return { status: 'unchanged' };
 
     try {
-      await burnCredits(accountId, 'contact_parse', AI_FEATURE_COSTS.contact_parse, {
-        hardBlock: false,
-      });
+      await burnCredits(
+        accountId,
+        'contact_parse',
+        AI_FEATURE_COSTS.contact_parse,
+        {
+          hardBlock: false,
+        }
+      );
     } catch (err) {
       console.error('[preference-sync] credit burn failed (non-fatal):', err);
     }
@@ -83,7 +88,7 @@ export async function syncContactPreferences(
         pref_requires_tenanted: prefs.requires_tenanted,
         pref_listing_types: mergedListingTypes(
           prefs.listing_types,
-          contact.pref_listing_types as string[] | null,
+          contact.pref_listing_types as string[] | null
         ),
         pref_source_hash: hash,
         pref_extracted_at: new Date().toISOString(),
@@ -94,7 +99,10 @@ export async function syncContactPreferences(
 
     return { status: 'updated' };
   } catch (err) {
-    console.error('[preference-sync] failed:', err instanceof Error ? err.message : err);
+    console.error(
+      '[preference-sync] failed:',
+      err instanceof Error ? err.message : err
+    );
     return { status: 'failed' };
   }
 }

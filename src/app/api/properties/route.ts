@@ -1,32 +1,44 @@
-import { after, NextResponse } from "next/server";
-import { requireRole, toErrorResponse } from "@/lib/auth/account";
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
-import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-helper";
-import { CATEGORY_SUBTYPES, parsePropertyQuery } from "@/lib/search-parser";
-import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
-import { boundingBox, haversineKm } from "@/lib/geo";
+import { after, NextResponse } from 'next/server';
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
+import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
+import { CATEGORY_SUBTYPES, parsePropertyQuery } from '@/lib/search-parser';
+import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
+import { boundingBox, haversineKm } from '@/lib/geo';
 import {
   LOCALITY_MATCH_FIELDS,
   localityStemProbe,
   normalizeLocalityLabel,
   rowMatchesLocality,
-} from "@/lib/locality-match";
-import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
-import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
-import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
-import { sanitizeFloorPlans } from "@/lib/inventory/floor-plans";
-import { isoDateOrNull } from "@/lib/inventory/iso-date";
-import { maskPropertyForViewer } from "@/lib/inventory/location-guard";
-import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
-import { rentalYieldPercent } from "@/lib/inventory/rental-yield";
-import { khataColumns } from "@/lib/inventory/e-khata-fields";
-import type { Property } from "@/types";
-import { syncAgentSourceInventory } from "@/lib/agents/source-inventory-sync";
+} from '@/lib/locality-match';
+import { geocodeAddress, hasGoogleMapsKey } from '@/lib/maps/google-places';
+import { resolveCoordinatesFromMapLink } from '@/lib/maps/resolve-location';
+import { sanitizeFloorTenancies } from '@/lib/inventory/floor-tenancies';
+import { sanitizeFloorPlans } from '@/lib/inventory/floor-plans';
+import { isoDateOrNull } from '@/lib/inventory/iso-date';
+import { maskPropertyForViewer } from '@/lib/inventory/location-guard';
+import { SQFT_PER_AREA_UNIT } from '@/lib/inventory/property-options';
+import { rentalYieldPercent } from '@/lib/inventory/rental-yield';
+import { khataColumns } from '@/lib/inventory/e-khata-fields';
+import type { Property } from '@/types';
+import { syncAgentSourceInventory } from '@/lib/agents/source-inventory-sync';
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 25;
-const ALLOWED_SORT_FIELDS = ["created_at", "updated_at", "title", "price", "location", "status", "is_published"] as const;
-type SortField = typeof ALLOWED_SORT_FIELDS[number];
+const ALLOWED_SORT_FIELDS = [
+  'created_at',
+  'updated_at',
+  'title',
+  'price',
+  'location',
+  'status',
+  'is_published',
+] as const;
+type SortField = (typeof ALLOWED_SORT_FIELDS)[number];
 
 // Tiered location search: candidates fetched per tier before in-memory
 // merge/sort/pagination. Generous for per-account inventory sizes.
@@ -55,7 +67,7 @@ function localityOrFilter(locations: string[]): string {
       const clean = location.replace(/"/g, '\\"');
       return `location.ilike."%${clean}%",sublocality.ilike."%${clean}%",city.ilike."%${clean}%"`;
     })
-    .join(",");
+    .join(',');
 }
 
 /** land_area_unit values → sqft factor. Shared with the property form
@@ -71,13 +83,15 @@ const LAND_UNIT_TO_SQFT = SQFT_PER_AREA_UNIT;
  * sqft threshold is pre-converted into each known unit and paired with
  * an exact unit match.
  */
-function areaFilter(op: "gte" | "lte", sqft: number): string {
+function areaFilter(op: 'gte' | 'lte', sqft: number): string {
   const branches = [`area_sqft.${op}.${sqft}`];
   for (const [unit, factor] of Object.entries(LAND_UNIT_TO_SQFT)) {
     const threshold = +(sqft / factor).toFixed(4);
-    branches.push(`and(land_area_unit.eq."${unit}",land_area.${op}.${threshold})`);
+    branches.push(
+      `and(land_area_unit.eq."${unit}",land_area.${op}.${threshold})`
+    );
   }
-  return branches.join(",");
+  return branches.join(',');
 }
 
 /**
@@ -90,12 +104,12 @@ function areaFilter(op: "gte" | "lte", sqft: number): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function markGeocodeAttempted(supabase: any, id: string): Promise<void> {
   await supabase
-    .from("properties")
+    .from('properties')
     // Marking a failed geocode while listing; the response does not
     // depend on this write landing.
     // eslint-disable-next-line convoreal/supabase-write-guard
     .update({ geocode_attempted_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq('id', id);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -110,21 +124,28 @@ async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
           : null;
         if (pinned) {
           await supabase
-            .from("properties")
+            .from('properties')
             // Backfilling a derived pin while listing; the response uses
             // the value below either way.
             // eslint-disable-next-line convoreal/supabase-write-guard
             .update({ latitude: pinned.latitude, longitude: pinned.longitude })
-            .eq("id", row.id);
-          return { ...row, latitude: pinned.latitude, longitude: pinned.longitude };
+            .eq('id', row.id);
+          return {
+            ...row,
+            latitude: pinned.latitude,
+            longitude: pinned.longitude,
+          };
         }
       } catch (pinErr) {
-        console.warn("[GET /api/properties] Map-pin coordinates failed:", pinErr);
+        console.warn(
+          '[GET /api/properties] Map-pin coordinates failed:',
+          pinErr
+        );
       }
 
       const address = [row.location, row.city, row.state]
-        .filter((part: unknown) => typeof part === "string" && part.trim())
-        .join(", ");
+        .filter((part: unknown) => typeof part === 'string' && part.trim())
+        .join(', ');
       if (!address) {
         await markGeocodeAttempted(supabase, row.id);
         return row;
@@ -136,7 +157,7 @@ async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
           return row;
         }
         await supabase
-          .from("properties")
+          .from('properties')
           // Geocode backfill while listing; the response uses the value
           // below whether or not the row took it.
           // eslint-disable-next-line convoreal/supabase-write-guard
@@ -145,10 +166,10 @@ async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
             longitude: geo.longitude,
             locality_place_id: row.locality_place_id || geo.place_id,
           })
-          .eq("id", row.id);
+          .eq('id', row.id);
         return { ...row, latitude: geo.latitude, longitude: geo.longitude };
       } catch (err) {
-        console.warn("[GET /api/properties] On-the-fly geocode failed:", err);
+        console.warn('[GET /api/properties] On-the-fly geocode failed:', err);
         return row;
       }
     })
@@ -159,57 +180,75 @@ async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
 // Lists properties for the user's account with pagination and filtering
 export async function GET(request: Request) {
   try {
-    const ctx = await requireRole("viewer");
-    if (ctx.role !== "viewer") {
+    const ctx = await requireRole('viewer');
+    if (ctx.role !== 'viewer') {
       try {
         await syncAgentSourceInventory(ctx);
       } catch (error) {
-        console.error("[GET /api/properties] Source inventory sync failed:", error);
+        console.error(
+          '[GET /api/properties] Source inventory sync failed:',
+          error
+        );
       }
     }
     const { searchParams } = new URL(request.url);
 
-    const page = Math.max(0, parseInt(searchParams.get("page") || "0", 10));
-    const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get("limit") || String(DEFAULT_LIMIT), 10)));
-    const search = searchParams.get("search")?.trim() || "";
-    const type = searchParams.get("type")?.trim() || "";
-    const status = searchParams.get("status")?.trim() || "";
-    const excludeArchived = searchParams.get("exclude_archived") === "true";
-    const isPublished = searchParams.get("is_published");
-    const listingSource = searchParams.get("listing_source")?.trim() || "";
-    const listingType = searchParams.get("listing_type")?.trim() || "";
-    const minPrice = searchParams.get("min_price");
-    const maxPrice = searchParams.get("max_price");
-    const sort = (ALLOWED_SORT_FIELDS.includes(searchParams.get("sort") as SortField)
-      ? searchParams.get("sort")
-      : "created_at") as SortField;
-    const order = searchParams.get("order") === "asc" ? "asc" : "desc";
+    const page = Math.max(0, parseInt(searchParams.get('page') || '0', 10));
+    const limit = Math.min(
+      MAX_LIMIT,
+      Math.max(
+        1,
+        parseInt(searchParams.get('limit') || String(DEFAULT_LIMIT), 10)
+      )
+    );
+    const search = searchParams.get('search')?.trim() || '';
+    const type = searchParams.get('type')?.trim() || '';
+    const status = searchParams.get('status')?.trim() || '';
+    const excludeArchived = searchParams.get('exclude_archived') === 'true';
+    const isPublished = searchParams.get('is_published');
+    const listingSource = searchParams.get('listing_source')?.trim() || '';
+    const listingType = searchParams.get('listing_type')?.trim() || '';
+    const minPrice = searchParams.get('min_price');
+    const maxPrice = searchParams.get('max_price');
+    const sort = (
+      ALLOWED_SORT_FIELDS.includes(searchParams.get('sort') as SortField)
+        ? searchParams.get('sort')
+        : 'created_at'
+    ) as SortField;
+    const order = searchParams.get('order') === 'asc' ? 'asc' : 'desc';
 
     // Tiered location search params (set when the agent picks a locality
     // from autocomplete): exact locality matches rank first, then
     // properties within radius_km sorted by distance.
-    const nearLat = parseFloat(searchParams.get("near_lat") || "");
-    const nearLng = parseFloat(searchParams.get("near_lng") || "");
+    const nearLat = parseFloat(searchParams.get('near_lat') || '');
+    const nearLng = parseFloat(searchParams.get('near_lng') || '');
     const hasNear = Number.isFinite(nearLat) && Number.isFinite(nearLng);
     const radiusKm = Math.min(
       MAX_RADIUS_KM,
-      Math.max(0.5, parseFloat(searchParams.get("radius_km") || "") || DEFAULT_RADIUS_KM)
+      Math.max(
+        0.5,
+        parseFloat(searchParams.get('radius_km') || '') || DEFAULT_RADIUS_KM
+      )
     );
-    const nearPlaceId = searchParams.get("near_place_id")?.trim() || "";
-    const nearLabel = normalizeLocalityLabel(searchParams.get("near_label") || "");
-    const locations = [...new Set(
-      searchParams
-        .getAll("location")
-        .map(normalizeLocalityLabel)
-        .filter(Boolean)
-        .map((location) => location.toLowerCase())
-    )].slice(0, 8);
+    const nearPlaceId = searchParams.get('near_place_id')?.trim() || '';
+    const nearLabel = normalizeLocalityLabel(
+      searchParams.get('near_label') || ''
+    );
+    const locations = [
+      ...new Set(
+        searchParams
+          .getAll('location')
+          .map(normalizeLocalityLabel)
+          .filter(Boolean)
+          .map((location) => location.toLowerCase())
+      ),
+    ].slice(0, 8);
 
     const from = page * limit;
     const to = from + limit - 1;
 
     const SELECT_COLUMNS =
-      "*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)";
+      '*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)';
 
     // Shared filter chain used by both the plain listing query and the
     // two tiered-location candidate queries.
@@ -220,37 +259,50 @@ export async function GET(request: Request) {
         // Parse natural language search: "3 BHK villa in Whitefield under 2 Cr"
         const parsed = parsePropertyQuery(search);
 
-        if (parsed.minPrice !== null) { query = query.gte("price", parsed.minPrice); priceBounded = true; }
-        if (parsed.maxPrice !== null) { query = query.lte("price", parsed.maxPrice); priceBounded = true; }
-        if (parsed.minArea !== null) query = query.or(areaFilter("gte", parsed.minArea));
-        if (parsed.maxArea !== null) query = query.or(areaFilter("lte", parsed.maxArea));
-        if (parsed.bedrooms !== null) query = query.eq("bedrooms", parsed.bedrooms);
+        if (parsed.minPrice !== null) {
+          query = query.gte('price', parsed.minPrice);
+          priceBounded = true;
+        }
+        if (parsed.maxPrice !== null) {
+          query = query.lte('price', parsed.maxPrice);
+          priceBounded = true;
+        }
+        if (parsed.minArea !== null)
+          query = query.or(areaFilter('gte', parsed.minArea));
+        if (parsed.maxArea !== null)
+          query = query.or(areaFilter('lte', parsed.maxArea));
+        if (parsed.bedrooms !== null)
+          query = query.eq('bedrooms', parsed.bedrooms);
 
         // Apply listing type (rent vs sale) from NL query — only if the
         // dedicated listing_type param wasn't already set via the dropdown
         if (parsed.listingType && !listingType) {
-          query = query.eq("listing_type", parsed.listingType);
+          query = query.eq('listing_type', parsed.listingType);
         }
 
         if (parsed.rentYielding) {
-          query = query.or("rental_income.gt.0,roi.gt.0");
+          query = query.or('rental_income.gt.0,roi.gt.0');
         }
 
         // Apply listing source (owner vs agent) from NL query — the dropdown
         // param wins, same as listing type above.
         if (parsed.listingSource && !listingSource) {
-          query = query.eq("listing_source", parsed.listingSource);
+          query = query.eq('listing_source', parsed.listingSource);
         }
 
         // Apply type filter from NL query ONLY when the dropdown type filter
         // hasn't been set — they would conflict and produce zero results otherwise.
         if (parsed.types.length > 0 && !type) {
-          query = query.in("type", parsed.types);
+          query = query.in('type', parsed.types);
         }
 
         // Apply location filter from NL query — skipped when a locality was
         // picked from autocomplete (the tiered search owns location then).
-        if (!hasNear && parsed.locations.length > 0 && !parsed.remainingSearch) {
+        if (
+          !hasNear &&
+          parsed.locations.length > 0 &&
+          !parsed.remainingSearch
+        ) {
           query = query.or(localityOrFilter(parsed.locations));
         }
 
@@ -259,15 +311,15 @@ export async function GET(request: Request) {
           const term = `"%${parsed.remainingSearch.replace(/"/g, '\\"')}%"`;
           query = query.or(
             `title.ilike.${term},` +
-            `location.ilike.${term},` +
-            `sublocality.ilike.${term},` +
-            `city.ilike.${term},` +
-            `project.ilike.${term},` +
-            `description.ilike.${term},` +
-            `ideal_for.ilike.${term},` +
-            `notes.ilike.${term},` +
-            `tags_text.ilike.${term},` +
-            `property_code.ilike.${term}`
+              `location.ilike.${term},` +
+              `sublocality.ilike.${term},` +
+              `city.ilike.${term},` +
+              `project.ilike.${term},` +
+              `description.ilike.${term},` +
+              `ideal_for.ilike.${term},` +
+              `notes.ilike.${term},` +
+              `tags_text.ilike.${term},` +
+              `property_code.ilike.${term}`
           );
         }
       }
@@ -278,33 +330,46 @@ export async function GET(request: Request) {
 
       if (type) {
         if (type in CATEGORY_SUBTYPES) {
-          query = query.in("type", CATEGORY_SUBTYPES[type]);
+          query = query.in('type', CATEGORY_SUBTYPES[type]);
         } else {
-          query = query.eq("type", type);
+          query = query.eq('type', type);
         }
       }
 
       if (status) {
-        const statuses = status.split(",").map((s) => s.trim()).filter(Boolean);
-        query = statuses.length > 1 ? query.in("status", statuses) : query.eq("status", status);
+        const statuses = status
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        query =
+          statuses.length > 1
+            ? query.in('status', statuses)
+            : query.eq('status', status);
       }
       if (excludeArchived) {
-        if (status) throw new Error("Cannot combine status and exclude_archived");
-        query = query.neq("status", "Archived");
+        if (status)
+          throw new Error('Cannot combine status and exclude_archived');
+        query = query.neq('status', 'Archived');
       }
-      if (isPublished !== null && isPublished !== "") {
-        query = query.eq("is_published", isPublished === "true");
+      if (isPublished !== null && isPublished !== '') {
+        query = query.eq('is_published', isPublished === 'true');
       }
-      if (listingSource) query = query.eq("listing_source", listingSource);
-      if (listingType) query = query.eq("listing_type", listingType);
+      if (listingSource) query = query.eq('listing_source', listingSource);
+      if (listingType) query = query.eq('listing_type', listingType);
 
-      if (minPrice !== null && minPrice !== "") {
+      if (minPrice !== null && minPrice !== '') {
         const min = Number(minPrice);
-        if (!isNaN(min)) { query = query.gte("price", min); priceBounded = true; }
+        if (!isNaN(min)) {
+          query = query.gte('price', min);
+          priceBounded = true;
+        }
       }
-      if (maxPrice !== null && maxPrice !== "") {
+      if (maxPrice !== null && maxPrice !== '') {
         const max = Number(maxPrice);
-        if (!isNaN(max)) { query = query.lte("price", max); priceBounded = true; }
+        if (!isNaN(max)) {
+          query = query.lte('price', max);
+          priceBounded = true;
+        }
       }
 
       // JV/JD listings save with a nominal price of 0 when no project
@@ -312,8 +377,8 @@ export async function GET(request: Request) {
       // surface every JV deal. Keep them — and other rows with no
       // recorded price — out of price-bounded searches unless the
       // caller filtered to JV/JD or asked for JV in the query itself.
-      if (priceBounded && listingType !== "JV/JD" && !JV_INTENT.test(search)) {
-        query = query.neq("listing_type", "JV/JD").gt("price", 0);
+      if (priceBounded && listingType !== 'JV/JD' && !JV_INTENT.test(search)) {
+        query = query.neq('listing_type', 'JV/JD').gt('price', 0);
       }
 
       return query;
@@ -336,30 +401,32 @@ export async function GET(request: Request) {
         if (stem) probes.push(stem);
         for (const probe of probes) {
           const term = `%${probe}%`;
-          exactParts.push(...LOCALITY_MATCH_FIELDS.map((field) => `${field}.ilike.${term}`));
+          exactParts.push(
+            ...LOCALITY_MATCH_FIELDS.map((field) => `${field}.ilike.${term}`)
+          );
         }
       }
 
       // Tier 2 candidates: coordinates inside the radius bounding box.
       const nearbyQuery = applyFilters(
         ctx.supabase
-          .from("properties")
+          .from('properties')
           .select(SELECT_COLUMNS)
-          .eq("account_id", ctx.accountId)
-          .gte("latitude", box.minLat)
-          .lte("latitude", box.maxLat)
-          .gte("longitude", box.minLng)
-          .lte("longitude", box.maxLng)
+          .eq('account_id', ctx.accountId)
+          .gte('latitude', box.minLat)
+          .lte('latitude', box.maxLat)
+          .gte('longitude', box.minLng)
+          .lte('longitude', box.maxLng)
           .limit(NEAR_SEARCH_CAP)
       );
 
       const exactQuery = exactParts.length
         ? applyFilters(
             ctx.supabase
-              .from("properties")
+              .from('properties')
               .select(SELECT_COLUMNS)
-              .eq("account_id", ctx.accountId)
-              .or(exactParts.join(","))
+              .eq('account_id', ctx.accountId)
+              .or(exactParts.join(','))
               .limit(NEAR_SEARCH_CAP)
           )
         : Promise.resolve({ data: [], error: null });
@@ -372,11 +439,11 @@ export async function GET(request: Request) {
       const ungeocodedQuery = hasGoogleMapsKey()
         ? applyFilters(
             ctx.supabase
-              .from("properties")
+              .from('properties')
               .select(SELECT_COLUMNS)
-              .eq("account_id", ctx.accountId)
-              .is("latitude", null)
-              .not("location", "is", null)
+              .eq('account_id', ctx.accountId)
+              .is('latitude', null)
+              .not('location', 'is', null)
               .or(
                 `geocode_attempted_at.is.null,geocode_attempted_at.lt.${new Date(
                   Date.now() - GEOCODE_RETRY_AFTER_MS
@@ -393,8 +460,14 @@ export async function GET(request: Request) {
       ]);
       const queryError = exactRes.error || nearbyRes.error;
       if (queryError) {
-        console.error("[GET /api/properties] Near-search select error:", queryError);
-        return NextResponse.json({ error: "Failed to fetch properties" }, { status: 500 });
+        console.error(
+          '[GET /api/properties] Near-search select error:',
+          queryError
+        );
+        return NextResponse.json(
+          { error: 'Failed to fetch properties' },
+          { status: 500 }
+        );
       }
 
       // The healing tier is best-effort — a failure here must not take
@@ -402,16 +475,26 @@ export async function GET(request: Request) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let geocodedRows: any[] = [];
       if (ungeocodedRes.error) {
-        console.warn("[GET /api/properties] Ungeocoded-tier select error:", ungeocodedRes.error);
+        console.warn(
+          '[GET /api/properties] Ungeocoded-tier select error:',
+          ungeocodedRes.error
+        );
       } else if ((ungeocodedRes.data || []).length > 0) {
-        geocodedRows = await geocodeRowsOnTheFly(ctx.supabase, ungeocodedRes.data || []);
+        geocodedRows = await geocodeRowsOnTheFly(
+          ctx.supabase,
+          ungeocodedRes.data || []
+        );
       }
 
       // Geocoded rows go first so their freshly resolved coordinates win
       // over the coordinate-less duplicates from the exact tier.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const byId = new Map<string, any>();
-      for (const row of [...geocodedRows, ...(exactRes.data || []), ...(nearbyRes.data || [])]) {
+      for (const row of [
+        ...geocodedRows,
+        ...(exactRes.data || []),
+        ...(nearbyRes.data || []),
+      ]) {
         if (!byId.has(row.id)) byId.set(row.id, row);
       }
 
@@ -419,25 +502,34 @@ export async function GET(request: Request) {
       const tiered = [...byId.values()].flatMap((row: any) => {
         const hasCoords = row.latitude != null && row.longitude != null;
         const distanceKm = hasCoords
-          ? haversineKm(nearLat, nearLng, Number(row.latitude), Number(row.longitude))
+          ? haversineKm(
+              nearLat,
+              nearLng,
+              Number(row.latitude),
+              Number(row.longitude)
+            )
           : null;
 
         const isExact =
           (nearPlaceId && row.locality_place_id === nearPlaceId) ||
           (!!nearLabel && rowMatchesLocality(row, nearLabel));
 
-        if (!isExact && (distanceKm === null || distanceKm > radiusKm)) return [];
+        if (!isExact && (distanceKm === null || distanceKm > radiusKm))
+          return [];
 
-        return [{
-          ...row,
-          distance_km: distanceKm !== null ? Math.round(distanceKm * 10) / 10 : null,
-          location_tier: isExact ? "exact" : "nearby",
-        }];
+        return [
+          {
+            ...row,
+            distance_km:
+              distanceKm !== null ? Math.round(distanceKm * 10) / 10 : null,
+            location_tier: isExact ? 'exact' : 'nearby',
+          },
+        ];
       });
 
       tiered.sort((a, b) => {
         if (a.location_tier !== b.location_tier) {
-          return a.location_tier === "exact" ? -1 : 1;
+          return a.location_tier === 'exact' ? -1 : 1;
         }
         const da = a.distance_km ?? Number.POSITIVE_INFINITY;
         const db = b.distance_km ?? Number.POSITIVE_INFINITY;
@@ -449,7 +541,9 @@ export async function GET(request: Request) {
       return NextResponse.json({
         data: tiered
           .slice(from, from + limit)
-          .map((row) => maskPropertyForViewer(row, { role: ctx.role, userId: ctx.userId })),
+          .map((row) =>
+            maskPropertyForViewer(row, { role: ctx.role, userId: ctx.userId })
+          ),
         pagination: {
           page,
           limit,
@@ -462,19 +556,19 @@ export async function GET(request: Request) {
     // ── Plain listing path (unchanged behavior) ─────────────────────
     const query = applyFilters(
       ctx.supabase
-        .from("properties")
-        .select(SELECT_COLUMNS, { count: "exact" })
-        .eq("account_id", ctx.accountId)
-        .order(sort, { ascending: order === "asc" })
+        .from('properties')
+        .select(SELECT_COLUMNS, { count: 'exact' })
+        .eq('account_id', ctx.accountId)
+        .order(sort, { ascending: order === 'asc' })
         .range(from, to)
     );
 
     const { data, error, count } = await query;
 
     if (error) {
-      console.error("[GET /api/properties] Select error:", error);
+      console.error('[GET /api/properties] Select error:', error);
       return NextResponse.json(
-        { error: "Failed to fetch properties" },
+        { error: 'Failed to fetch properties' },
         { status: 500 }
       );
     }
@@ -499,7 +593,7 @@ export async function GET(request: Request) {
 // Creates a new property listing
 export async function POST(request: Request) {
   try {
-    const ctx = await requireRole("agent");
+    const ctx = await requireRole('agent');
 
     // Rate limiting to prevent abuse
     const limit = await checkRateLimit(
@@ -509,13 +603,13 @@ export async function POST(request: Request) {
     if (!limit.success) return rateLimitResponse(limit);
 
     // Plan gate: Starter plan is limited to 10 properties
-    const gate = await checkPlanLimit(ctx, "properties");
+    const gate = await checkPlanLimit(ctx, 'properties');
     if (!gate.allowed) return gateResponse(gate);
 
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json(
-        { error: "Invalid request body" },
+        { error: 'Invalid request body' },
         { status: 400 }
       );
     }
@@ -597,135 +691,203 @@ export async function POST(request: Request) {
     } = body;
 
     // Validation
-    if (typeof title !== "string" || title.trim().length === 0) {
+    if (typeof title !== 'string' || title.trim().length === 0) {
       return NextResponse.json(
         { error: "'title' is required and must be a string" },
         { status: 400 }
       );
     }
 
-    const VALID_LISTING_TYPES = ["Sale", "Rent", "JV/JD", "Built to Suit"];
-    const parsedListingType = VALID_LISTING_TYPES.includes(listing_type) ? listing_type : "Sale";
-    const isRentLike = parsedListingType === "Rent" || parsedListingType === "Built to Suit";
+    const VALID_LISTING_TYPES = ['Sale', 'Rent', 'JV/JD', 'Built to Suit'];
+    const parsedListingType = VALID_LISTING_TYPES.includes(listing_type)
+      ? listing_type
+      : 'Sale';
+    const isRentLike =
+      parsedListingType === 'Rent' || parsedListingType === 'Built to Suit';
     let parsedPrice = price;
     if (isRentLike && (parsedPrice === undefined || parsedPrice === null)) {
       parsedPrice = rent_per_month || 0;
     }
     // JV/JD's project value is optional — a price band isn't always known upfront.
-    if (parsedListingType === "JV/JD" && (parsedPrice === undefined || parsedPrice === null)) {
+    if (
+      parsedListingType === 'JV/JD' &&
+      (parsedPrice === undefined || parsedPrice === null)
+    ) {
       parsedPrice = 0;
     }
 
-    if (typeof parsedPrice !== "number" || parsedPrice < 0) {
+    if (typeof parsedPrice !== 'number' || parsedPrice < 0) {
       return NextResponse.json(
         { error: "'price' is required and must be a non-negative number" },
         { status: 400 }
       );
     }
 
-    if (typeof location !== "string" || location.trim().length === 0) {
+    if (typeof location !== 'string' || location.trim().length === 0) {
       return NextResponse.json(
         { error: "'location' is required and must be a string" },
         { status: 400 }
       );
     }
 
-    if (typeof type !== "string" || type.trim().length === 0) {
+    if (typeof type !== 'string' || type.trim().length === 0) {
       return NextResponse.json(
         { error: "'type' is required and must be a string" },
         { status: 400 }
       );
     }
 
-    const validStatus = typeof status === "string" && status.trim().length > 0 ? status.trim() : "Available";
+    const validStatus =
+      typeof status === 'string' && status.trim().length > 0
+        ? status.trim()
+        : 'Available';
 
     const insertData = {
       account_id: ctx.accountId,
       user_id: ctx.userId,
       title: title.trim(),
-      description: typeof description === "string" ? description.trim() : null,
+      description: typeof description === 'string' ? description.trim() : null,
       price: parsedPrice,
       location: location.trim(),
       type: type.trim(),
       status: validStatus,
-      bedrooms: typeof bedrooms === "number" ? bedrooms : null,
-      bathrooms: typeof bathrooms === "number" ? bathrooms : null,
-      furnishing: typeof furnishing === "string" ? furnishing.trim() || null : null,
+      bedrooms: typeof bedrooms === 'number' ? bedrooms : null,
+      bathrooms: typeof bathrooms === 'number' ? bathrooms : null,
+      furnishing:
+        typeof furnishing === 'string' ? furnishing.trim() || null : null,
       possession_date: isoDateOrNull(possession_date),
-      floor_number: typeof floor_number === "number" ? floor_number : null,
-      total_floors: typeof total_floors === "number" ? total_floors : null,
-      balconies: typeof balconies === "number" ? balconies : null,
-      flooring: typeof flooring === "string" ? flooring.trim() || null : null,
-      power_backup: typeof power_backup === "string" ? power_backup.trim() || null : null,
-      area_sqft: typeof area_sqft === "number" ? area_sqft : null,
-      area_unit: typeof area_unit === "string" ? area_unit.trim() : "Sq.Ft.",
-      land_area: typeof land_area === "number" ? land_area : null,
-      land_area_unit: typeof land_area_unit === "string" ? land_area_unit.trim() : "Sq.Ft.",
-      super_built_area: typeof super_built_area === "number" ? super_built_area : null,
-      sublocality: typeof sublocality === "string" ? sublocality.trim() : null,
-      city: typeof city === "string" ? city.trim() : null,
-      state: typeof state === "string" ? state.trim() : null,
-      project: typeof project === "string" ? project.trim() : null,
-      land_zone: typeof land_zone === "string" ? land_zone.trim() : null,
-      ideal_for: typeof ideal_for === "string" ? ideal_for.trim() : null,
-      ownership_status: typeof ownership_status === "string" ? ownership_status.trim() || null : null,
-      land_use_zoning: typeof land_use_zoning === "string" ? land_use_zoning.trim() || null : null,
-      legal_status: typeof legal_status === "string" ? legal_status.trim() || null : null,
-      conversion_type: typeof conversion_type === "string" ? conversion_type.trim() || null : null,
-      deal_remarks: typeof deal_remarks === "string" ? deal_remarks.trim() || null : null,
-      dimensions: typeof dimensions === "string" ? dimensions.trim() : null,
-      road_width: typeof road_width === "number" ? road_width : null,
-      road_width_unit: typeof road_width_unit === "string" ? road_width_unit.trim() : "Feet",
-      facing_direction: typeof facing_direction === "string" ? facing_direction.trim() : null,
+      floor_number: typeof floor_number === 'number' ? floor_number : null,
+      total_floors: typeof total_floors === 'number' ? total_floors : null,
+      balconies: typeof balconies === 'number' ? balconies : null,
+      flooring: typeof flooring === 'string' ? flooring.trim() || null : null,
+      power_backup:
+        typeof power_backup === 'string' ? power_backup.trim() || null : null,
+      area_sqft: typeof area_sqft === 'number' ? area_sqft : null,
+      area_unit: typeof area_unit === 'string' ? area_unit.trim() : 'Sq.Ft.',
+      land_area: typeof land_area === 'number' ? land_area : null,
+      land_area_unit:
+        typeof land_area_unit === 'string' ? land_area_unit.trim() : 'Sq.Ft.',
+      super_built_area:
+        typeof super_built_area === 'number' ? super_built_area : null,
+      sublocality: typeof sublocality === 'string' ? sublocality.trim() : null,
+      city: typeof city === 'string' ? city.trim() : null,
+      state: typeof state === 'string' ? state.trim() : null,
+      project: typeof project === 'string' ? project.trim() : null,
+      land_zone: typeof land_zone === 'string' ? land_zone.trim() : null,
+      ideal_for: typeof ideal_for === 'string' ? ideal_for.trim() : null,
+      ownership_status:
+        typeof ownership_status === 'string'
+          ? ownership_status.trim() || null
+          : null,
+      land_use_zoning:
+        typeof land_use_zoning === 'string'
+          ? land_use_zoning.trim() || null
+          : null,
+      legal_status:
+        typeof legal_status === 'string' ? legal_status.trim() || null : null,
+      conversion_type:
+        typeof conversion_type === 'string'
+          ? conversion_type.trim() || null
+          : null,
+      deal_remarks:
+        typeof deal_remarks === 'string' ? deal_remarks.trim() || null : null,
+      dimensions: typeof dimensions === 'string' ? dimensions.trim() : null,
+      road_width: typeof road_width === 'number' ? road_width : null,
+      road_width_unit:
+        typeof road_width_unit === 'string' ? road_width_unit.trim() : 'Feet',
+      facing_direction:
+        typeof facing_direction === 'string' ? facing_direction.trim() : null,
       ...khataColumns(body),
-      nearby_highlights: Array.isArray(nearby_highlights) ? nearby_highlights.filter(h => typeof h === "string") : [],
-      owner_contact_id: typeof owner_contact_id === "string" && owner_contact_id.trim().length > 0 ? owner_contact_id.trim() : null,
-      is_published: typeof is_published === "boolean" ? is_published : false,
-      features: Array.isArray(features) ? features.filter(f => typeof f === "string") : [],
-      images: Array.isArray(images) ? images.filter(img => typeof img === "string") : [],
-      documents: Array.isArray(documents) ? documents.filter(d => typeof d === "string") : [],
-      google_map_link: typeof google_map_link === "string" ? google_map_link.trim() : null,
+      nearby_highlights: Array.isArray(nearby_highlights)
+        ? nearby_highlights.filter((h) => typeof h === 'string')
+        : [],
+      owner_contact_id:
+        typeof owner_contact_id === 'string' &&
+        owner_contact_id.trim().length > 0
+          ? owner_contact_id.trim()
+          : null,
+      is_published: typeof is_published === 'boolean' ? is_published : false,
+      features: Array.isArray(features)
+        ? features.filter((f) => typeof f === 'string')
+        : [],
+      images: Array.isArray(images)
+        ? images.filter((img) => typeof img === 'string')
+        : [],
+      documents: Array.isArray(documents)
+        ? documents.filter((d) => typeof d === 'string')
+        : [],
+      google_map_link:
+        typeof google_map_link === 'string' ? google_map_link.trim() : null,
       location_privacy:
-        location_privacy === "exact" || location_privacy === "locality" ? location_privacy : null,
+        location_privacy === 'exact' || location_privacy === 'locality'
+          ? location_privacy
+          : null,
       showcase_visibility:
-        showcase_visibility === "teaser" || showcase_visibility === "open"
+        showcase_visibility === 'teaser' || showcase_visibility === 'open'
           ? showcase_visibility
           : null,
-      rental_income: typeof rental_income === "number" ? rental_income : null,
+      rental_income: typeof rental_income === 'number' ? rental_income : null,
       // Derived here rather than trusted: a rental's price is its
       // monthly rent, so a client that divides one by the other stores a
       // 1200% yield. See src/lib/inventory/rental-yield.ts.
       roi: rentalYieldPercent(
         parsedListingType,
         parsedPrice,
-        typeof rental_income === "number" ? rental_income : null
+        typeof rental_income === 'number' ? rental_income : null
       ),
       floor_tenancies: sanitizeFloorTenancies(floor_tenancies),
       floor_plans: sanitizeFloorPlans(floor_plans),
-      listing_source: listing_source === "agent" ? "agent" : "owner",
+      listing_source: listing_source === 'agent' ? 'agent' : 'owner',
       listing_type: parsedListingType,
-      rent_per_month: typeof rent_per_month === "number" ? rent_per_month : null,
-      maintenance: typeof maintenance === "number" ? maintenance : null,
-      advance: typeof advance === "number" ? advance : null,
-      gst: typeof gst === "number" ? gst : null,
-      jv_structure: ["Revenue Share", "Area Share", "Hybrid"].includes(jv_structure) ? jv_structure : null,
-      owner_share_percent: typeof owner_share_percent === "number" ? owner_share_percent : null,
-      builder_share_percent: typeof builder_share_percent === "number" ? builder_share_percent : null,
-      goodwill_amount: typeof goodwill_amount === "number" ? goodwill_amount : null,
-      bts_lease_years: typeof bts_lease_years === "number" ? bts_lease_years : null,
-      bts_lock_in_years: typeof bts_lock_in_years === "number" ? bts_lock_in_years : null,
-      bts_escalation_percent: typeof bts_escalation_percent === "number" ? bts_escalation_percent : null,
-      notes: typeof notes === "string" ? notes.trim() || null : null,
+      rent_per_month:
+        typeof rent_per_month === 'number' ? rent_per_month : null,
+      maintenance: typeof maintenance === 'number' ? maintenance : null,
+      advance: typeof advance === 'number' ? advance : null,
+      gst: typeof gst === 'number' ? gst : null,
+      jv_structure: ['Revenue Share', 'Area Share', 'Hybrid'].includes(
+        jv_structure
+      )
+        ? jv_structure
+        : null,
+      owner_share_percent:
+        typeof owner_share_percent === 'number' ? owner_share_percent : null,
+      builder_share_percent:
+        typeof builder_share_percent === 'number'
+          ? builder_share_percent
+          : null,
+      goodwill_amount:
+        typeof goodwill_amount === 'number' ? goodwill_amount : null,
+      bts_lease_years:
+        typeof bts_lease_years === 'number' ? bts_lease_years : null,
+      bts_lock_in_years:
+        typeof bts_lock_in_years === 'number' ? bts_lock_in_years : null,
+      bts_escalation_percent:
+        typeof bts_escalation_percent === 'number'
+          ? bts_escalation_percent
+          : null,
+      notes: typeof notes === 'string' ? notes.trim() || null : null,
       tags: Array.isArray(tags)
-        ? tags.filter((t) => typeof t === "string" && t.trim().length > 0).map((t) => t.trim())
+        ? tags
+            .filter((t) => typeof t === 'string' && t.trim().length > 0)
+            .map((t) => t.trim())
         : [],
-      latitude: typeof latitude === "number" && Number.isFinite(latitude) ? latitude : null,
-      longitude: typeof longitude === "number" && Number.isFinite(longitude) ? longitude : null,
+      latitude:
+        typeof latitude === 'number' && Number.isFinite(latitude)
+          ? latitude
+          : null,
+      longitude:
+        typeof longitude === 'number' && Number.isFinite(longitude)
+          ? longitude
+          : null,
       locality_place_id:
-        typeof locality_place_id === "string" ? locality_place_id.trim() || null : null,
+        typeof locality_place_id === 'string'
+          ? locality_place_id.trim() || null
+          : null,
       geocode_attempted_at: null as string | null,
       locality_canonical:
-        typeof locality_canonical === "string" ? locality_canonical.trim() || null : null,
+        typeof locality_canonical === 'string'
+          ? locality_canonical.trim() || null
+          : null,
     };
 
     // A map pin is an exact point; coordinates derived from address text
@@ -734,70 +896,108 @@ export async function POST(request: Request) {
     // the locality centroid autocomplete supplies.
     if (insertData.google_map_link) {
       try {
-        const pinned = await resolveCoordinatesFromMapLink(insertData.google_map_link);
+        const pinned = await resolveCoordinatesFromMapLink(
+          insertData.google_map_link
+        );
         if (pinned) {
           insertData.latitude = pinned.latitude;
           insertData.longitude = pinned.longitude;
         }
       } catch (pinErr) {
-        console.warn("[POST /api/properties] Map-pin coordinates failed:", pinErr);
+        console.warn(
+          '[POST /api/properties] Map-pin coordinates failed:',
+          pinErr
+        );
       }
     }
 
     // Best-effort geocode when the location was typed rather than picked
     // from autocomplete (e.g. WhatsApp-intake listings) so radius search
     // covers these properties too. Never blocks the save on failure.
-    if (insertData.latitude === null && insertData.location && hasGoogleMapsKey()) {
+    if (
+      insertData.latitude === null &&
+      insertData.location &&
+      hasGoogleMapsKey()
+    ) {
       try {
         const geo = await geocodeAddress(
-          [insertData.location, insertData.city, insertData.state].filter(Boolean).join(", ")
+          [insertData.location, insertData.city, insertData.state]
+            .filter(Boolean)
+            .join(', ')
         );
         if (geo) {
           insertData.latitude = geo.latitude;
           insertData.longitude = geo.longitude;
-          insertData.locality_place_id = insertData.locality_place_id || geo.place_id;
+          insertData.locality_place_id =
+            insertData.locality_place_id || geo.place_id;
         } else {
           insertData.geocode_attempted_at = new Date().toISOString();
         }
       } catch (geoErr) {
-        console.warn("[POST /api/properties] Geocode fallback failed:", geoErr);
+        console.warn('[POST /api/properties] Geocode fallback failed:', geoErr);
       }
     }
 
-    if (!allow_probable_duplicate && insertData.latitude !== null && insertData.longitude !== null) {
-      const { assessPropertyDuplicate } = await import("@/lib/inventory/property-duplicates");
+    if (
+      !allow_probable_duplicate &&
+      insertData.latitude !== null &&
+      insertData.longitude !== null
+    ) {
+      const { assessPropertyDuplicate } =
+        await import('@/lib/inventory/property-duplicates');
       const box = boundingBox(insertData.latitude, insertData.longitude, 0.1);
       const { data: nearbyRows, error: nearbyError } = await ctx.supabase
-        .from("properties")
-        .select("id, property_code, title, type, listing_type, project, area_sqft, land_area, price, floor_number, location, latitude, longitude")
-        .eq("account_id", ctx.accountId)
-        .gte("latitude", box.minLat)
-        .lte("latitude", box.maxLat)
-        .gte("longitude", box.minLng)
-        .lte("longitude", box.maxLng)
+        .from('properties')
+        .select(
+          'id, property_code, title, type, listing_type, project, area_sqft, land_area, price, floor_number, location, latitude, longitude'
+        )
+        .eq('account_id', ctx.accountId)
+        .gte('latitude', box.minLat)
+        .lte('latitude', box.maxLat)
+        .gte('longitude', box.minLng)
+        .lte('longitude', box.maxLng)
         .limit(20);
 
       if (nearbyError) {
-        console.error("[POST /api/properties] Duplicate candidate lookup failed:", nearbyError);
+        console.error(
+          '[POST /api/properties] Duplicate candidate lookup failed:',
+          nearbyError
+        );
       } else {
         const candidates = (nearbyRows ?? [])
           .map((candidate) => {
-            if (candidate.latitude == null || candidate.longitude == null) return null;
+            if (candidate.latitude == null || candidate.longitude == null)
+              return null;
             const assessment = assessPropertyDuplicate(
-              { ...insertData, latitude: insertData.latitude as number, longitude: insertData.longitude as number },
-              { ...candidate, latitude: Number(candidate.latitude), longitude: Number(candidate.longitude) }
+              {
+                ...insertData,
+                latitude: insertData.latitude as number,
+                longitude: insertData.longitude as number,
+              },
+              {
+                ...candidate,
+                latitude: Number(candidate.latitude),
+                longitude: Number(candidate.longitude),
+              }
             );
             return assessment ? { ...candidate, ...assessment } : null;
           })
-          .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null)
-          .sort((left, right) => right.score - left.score || left.distanceMeters - right.distanceMeters)
+          .filter(
+            (candidate): candidate is NonNullable<typeof candidate> =>
+              candidate !== null
+          )
+          .sort(
+            (left, right) =>
+              right.score - left.score ||
+              left.distanceMeters - right.distanceMeters
+          )
           .slice(0, 5);
 
         if (candidates.length > 0) {
           return NextResponse.json(
             {
-              error: "A nearby listing may already represent this property.",
-              code: "PROBABLE_PROPERTY_DUPLICATE",
+              error: 'A nearby listing may already represent this property.',
+              code: 'PROBABLE_PROPERTY_DUPLICATE',
               radiusMeters: 100,
               candidates,
             },
@@ -808,35 +1008,37 @@ export async function POST(request: Request) {
     }
 
     const { data: rawData, error: insertError } = await ctx.supabase
-      .from("properties")
+      .from('properties')
       .insert(insertData)
-      .select("id")
+      .select('id')
       .single();
 
     if (insertError || !rawData) {
-      console.error("[POST /api/properties] Insert error:", insertError);
+      console.error('[POST /api/properties] Insert error:', insertError);
       return NextResponse.json(
-        { error: "Failed to create property" },
+        { error: 'Failed to create property' },
         { status: 500 }
       );
     }
 
     if (interested_contact_ids !== undefined) {
-      const interestedContactIds = Array.isArray(interested_contact_ids) ? interested_contact_ids : [];
+      const interestedContactIds = Array.isArray(interested_contact_ids)
+        ? interested_contact_ids
+        : [];
 
       // Link the new ones
       if (interestedContactIds.length > 0) {
         const { data: linkedContacts } = await ctx.supabase
-          .from("contacts")
+          .from('contacts')
           .update({ last_inquired_property_id: rawData.id })
-          .in("id", interestedContactIds)
-          .select("id");
+          .in('id', interestedContactIds)
+          .select('id');
         // The listing exists either way; an unlinked contact is a log
         // line rather than a failed creation.
         if (linkedContacts?.length !== interestedContactIds.length) {
           console.warn(
-            "[api/properties] Interested contacts not all linked:",
-            `${linkedContacts?.length ?? 0} of ${interestedContactIds.length}`,
+            '[api/properties] Interested contacts not all linked:',
+            `${linkedContacts?.length ?? 0} of ${interestedContactIds.length}`
           );
         }
       }
@@ -844,38 +1046,43 @@ export async function POST(request: Request) {
 
     // Fetch the final created property with relations
     const { data: finalData, error: fetchError } = await ctx.supabase
-      .from("properties")
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)")
-      .eq("id", rawData.id)
-      .eq("account_id", ctx.accountId)
+      .from('properties')
+      .select(
+        '*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)'
+      )
+      .eq('id', rawData.id)
+      .eq('account_id', ctx.accountId)
       .single();
 
     if (fetchError || !finalData) {
-      console.error("[POST /api/properties] Fetch final error:", fetchError);
+      console.error('[POST /api/properties] Fetch final error:', fetchError);
       return NextResponse.json(
-        { error: "Failed to retrieve created property" },
+        { error: 'Failed to retrieve created property' },
         { status: 500 }
       );
     }
 
-    autoSyncPropertyCatalogIfNeeded(ctx.supabase, finalData.id, ctx.accountId).catch((err) => {
-      console.error("[POST /api/properties] Auto-sync background error:", err);
+    autoSyncPropertyCatalogIfNeeded(
+      ctx.supabase,
+      finalData.id,
+      ctx.accountId
+    ).catch((err) => {
+      console.error('[POST /api/properties] Auto-sync background error:', err);
     });
 
     // Keep the response fast while ensuring the match-and-alert work is
     // allowed to finish after this serverless request returns.
     after(async () => {
       try {
-        const { generateMatchEventForProperty, radarAdminClient } = await import(
-          "@/lib/radar/engine"
-        );
+        const { generateMatchEventForProperty, radarAdminClient } =
+          await import('@/lib/radar/engine');
         await generateMatchEventForProperty(
           radarAdminClient(),
           ctx.accountId,
           finalData.id
         );
       } catch (err) {
-        console.error("[POST /api/properties] Radar background error:", err);
+        console.error('[POST /api/properties] Radar background error:', err);
       }
     });
 

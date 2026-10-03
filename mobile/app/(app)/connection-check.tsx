@@ -44,11 +44,19 @@ export default function ConnectionCheckScreen() {
         setRunning(false);
         return;
       }
-      push('Signed in as', session.user.phone || session.user.email || session.user.id, true);
+      push(
+        'Signed in as',
+        session.user.phone || session.user.email || session.user.id,
+        true
+      );
       const expMin = session.expires_at
         ? Math.round((session.expires_at * 1000 - Date.now()) / 60000)
         : null;
-      push('Access token expires', expMin === null ? 'unknown' : `${expMin} min`, (expMin ?? 0) > 0);
+      push(
+        'Access token expires',
+        expMin === null ? 'unknown' : `${expMin} min`,
+        (expMin ?? 0) > 0
+      );
 
       // Device → GoTrue directly: is this token valid for the project
       // the APP is configured against?
@@ -60,7 +68,8 @@ export default function ConnectionCheckScreen() {
       );
 
       // Device → GoTrue refresh: does the refresh token still work?
-      const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+      const { data: refreshed, error: refreshError } =
+        await supabase.auth.refreshSession();
       push(
         'Refresh token',
         refreshError ? `dead — ${refreshError.message}` : 'works',
@@ -80,7 +89,11 @@ export default function ConnectionCheckScreen() {
         }
       };
       const configured = await probe(ENV.apiBaseUrl);
-      push('API with token (configured base)', configured, configured === 'HTTP 200');
+      push(
+        'API with token (configured base)',
+        configured,
+        configured === 'HTTP 200'
+      );
       try {
         const u = new URL(ENV.apiBaseUrl);
         if (!u.hostname.startsWith('www.')) {
@@ -98,16 +111,33 @@ export default function ConnectionCheckScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Stack.Screen options={{ headerShown: true, title: 'Connection check' }} />
-      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+      <Stack.Screen
+        options={{ headerShown: true, title: 'Connection check' }}
+      />
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        ]}
+      >
         {rows.map((r) => (
-          <View key={r.label} style={[styles.row, { borderTopColor: colors.border }]}>
-            <Text style={{ fontSize: 12, color: colors.textFaint }}>{r.label}</Text>
+          <View
+            key={r.label}
+            style={[styles.row, { borderTopColor: colors.border }]}
+          >
+            <Text style={{ fontSize: 12, color: colors.textFaint }}>
+              {r.label}
+            </Text>
             <Text
               style={{
                 fontSize: 14,
                 fontFamily: f.semibold,
-                color: r.ok === undefined ? colors.text : r.ok ? colors.success : colors.danger,
+                color:
+                  r.ok === undefined
+                    ? colors.text
+                    : r.ok
+                      ? colors.success
+                      : colors.danger,
               }}
             >
               {r.value}
@@ -115,16 +145,23 @@ export default function ConnectionCheckScreen() {
           </View>
         ))}
         {running ? (
-          <Text style={{ fontSize: 12.5, color: colors.textMuted, padding: spacing.md }}>
+          <Text
+            style={{
+              fontSize: 12.5,
+              color: colors.textMuted,
+              padding: spacing.md,
+            }}
+          >
             Running checks…
           </Text>
         ) : null}
       </View>
       <Text style={{ fontSize: 12, color: colors.textFaint, lineHeight: 17 }}>
-        Reading this: if "Token valid at app project" is green but the API probes are red, the
-        server and app point at different Supabase projects (or the server rejects the header).
-        If it's red with a dead refresh token, sign out and back in. Screenshot this screen when
-        reporting connection problems.
+        Reading this: if "Token valid at app project" is green but the API
+        probes are red, the server and app point at different Supabase projects
+        (or the server rejects the header). If it's red with a dead refresh
+        token, sign out and back in. Screenshot this screen when reporting
+        connection problems.
       </Text>
     </ScrollView>
   );

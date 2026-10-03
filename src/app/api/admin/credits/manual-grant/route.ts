@@ -15,7 +15,6 @@ interface RazorpayPaymentsResponse {
   items?: RazorpayPayment[];
 }
 
-
 // POST /api/admin/credits/manual-grant
 // Body: { orderId: string }
 // Super-admin fallback for a captured Razorpay top-up that the webhook
@@ -34,7 +33,10 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const orderId = String(body?.orderId ?? '');
     if (!orderId) {
-      return NextResponse.json({ error: 'orderId is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'orderId is required' },
+        { status: 400 }
+      );
     }
 
     const admin = supabaseAdmin();
@@ -51,31 +53,47 @@ export async function POST(request: Request) {
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!keyId || !keySecret) {
-      return NextResponse.json({ error: 'Razorpay not configured' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Razorpay not configured' },
+        { status: 500 }
+      );
     }
 
     const rzAuth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-    const rzRes = await fetch(`https://api.razorpay.com/v1/orders/${orderId}/payments`, {
-      headers: { Authorization: `Basic ${rzAuth}` },
-    });
+    const rzRes = await fetch(
+      `https://api.razorpay.com/v1/orders/${orderId}/payments`,
+      {
+        headers: { Authorization: `Basic ${rzAuth}` },
+      }
+    );
 
     if (!rzRes.ok) {
       const errBody = await rzRes.json().catch(() => ({}));
-      console.error('[admin/credits/manual-grant] Razorpay API error:', errBody);
-      return NextResponse.json({ error: 'Failed to fetch payment status from Razorpay' }, { status: 502 });
+      console.error(
+        '[admin/credits/manual-grant] Razorpay API error:',
+        errBody
+      );
+      return NextResponse.json(
+        { error: 'Failed to fetch payment status from Razorpay' },
+        { status: 502 }
+      );
     }
 
     const rzData = (await rzRes.json()) as RazorpayPaymentsResponse;
-    const capturedPayment = (rzData.items ?? []).find((p) => p.status === 'captured');
+    const capturedPayment = (rzData.items ?? []).find(
+      (p) => p.status === 'captured'
+    );
 
     if (!capturedPayment) {
       return NextResponse.json(
         { success: false, message: 'No captured payment found for this order' },
-        { status: 402 },
+        { status: 402 }
       );
     }
 
-    console.log(`[admin/credits/manual-grant] Granting credits for order ${orderId} by super-admin ${auth.userId}`);
+    console.log(
+      `[admin/credits/manual-grant] Granting credits for order ${orderId} by super-admin ${auth.userId}`
+    );
 
     const result = await creditPurchase({
       accountId: order.account_id,
@@ -106,6 +124,9 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     console.error('[admin/credits/manual-grant] Error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

@@ -1,17 +1,20 @@
-import { createBrowserClient } from '@supabase/ssr'
-import { navigatorLock, NavigatorLockAcquireTimeoutError } from '@supabase/auth-js'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr';
+import {
+  navigatorLock,
+  NavigatorLockAcquireTimeoutError,
+} from '@supabase/auth-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Singleton instance — one client shared across the whole browser session.
 // Creating multiple clients causes auth-lock contention ("Lock was released
 // because another request stole it") and intermittent fetch failures.
-let browserClient: SupabaseClient | undefined
+let browserClient: SupabaseClient | undefined;
 
 // How long to wait for the cross-tab auth Web Lock before giving up and
 // running the operation lock-less. Must stay BELOW the AuthProvider's 3s
 // getSession safety timer — the fallback has to deliver the session
 // before that timer gives up with user=null and the shell redirects.
-const LOCK_ACQUIRE_TIMEOUT_MS = 2_000
+const LOCK_ACQUIRE_TIMEOUT_MS = 2_000;
 
 /**
  * navigatorLock wrapper that can never wedge the app.
@@ -37,9 +40,9 @@ const LOCK_ACQUIRE_TIMEOUT_MS = 2_000
 async function resilientNavigatorLock<R>(
   name: string,
   acquireTimeout: number,
-  fn: () => Promise<R>,
+  fn: () => Promise<R>
 ): Promise<R> {
-  if (acquireTimeout === 0) return navigatorLock(name, 0, fn)
+  if (acquireTimeout === 0) return navigatorLock(name, 0, fn);
   // Cap every wait at LOCK_ACQUIRE_TIMEOUT_MS. In practice acquireTimeout
   // arrives as `undefined` here (supabase-js explicitly forwards its
   // destructured-but-unset lockAcquireTimeout, clobbering auth-js's 5000
@@ -49,22 +52,22 @@ async function resilientNavigatorLock<R>(
   const waitMs =
     Number.isFinite(acquireTimeout) && acquireTimeout > 0
       ? Math.min(acquireTimeout, LOCK_ACQUIRE_TIMEOUT_MS)
-      : LOCK_ACQUIRE_TIMEOUT_MS
+      : LOCK_ACQUIRE_TIMEOUT_MS;
   try {
-    return await navigatorLock(name, waitMs, fn)
+    return await navigatorLock(name, waitMs, fn);
   } catch (err) {
     if (err instanceof NavigatorLockAcquireTimeoutError) {
       console.warn(
-        `[supabase] auth lock "${name}" still held after ${waitMs}ms — proceeding without lock`,
-      )
-      return fn()
+        `[supabase] auth lock "${name}" still held after ${waitMs}ms — proceeding without lock`
+      );
+      return fn();
     }
-    throw err
+    throw err;
   }
 }
 
 export function createClient() {
-  if (browserClient) return browserClient
+  if (browserClient) return browserClient;
 
   browserClient = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -74,7 +77,7 @@ export function createClient() {
         lock: resilientNavigatorLock,
       },
     }
-  )
+  );
 
-  return browserClient
+  return browserClient;
 }

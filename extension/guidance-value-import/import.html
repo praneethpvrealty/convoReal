@@ -16,16 +16,28 @@
         --bad: #f87171;
         --accent: #8b5cf6;
       }
-      * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
         padding: 24px;
         background: var(--bg);
         color: var(--text);
-        font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font:
+          14px/1.45 system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
       }
-      h1 { font-size: 20px; margin: 0 0 4px; }
-      p { margin: 0 0 12px; color: var(--muted); }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 4px;
+      }
+      p {
+        margin: 0 0 12px;
+        color: var(--muted);
+      }
       .panel {
         background: var(--panel);
         border: 1px solid var(--border);
@@ -33,9 +45,20 @@
         padding: 16px;
         margin-bottom: 16px;
       }
-      .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
-      label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
-      input[type='text'], input[type='number'] {
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: end;
+      }
+      label {
+        display: grid;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      input[type='text'],
+      input[type='number'] {
         background: #0b1220;
         color: var(--text);
         border: 1px solid var(--border);
@@ -43,7 +66,10 @@
         padding: 6px 8px;
         min-width: 320px;
       }
-      input[type='number'] { min-width: 80px; width: 80px; }
+      input[type='number'] {
+        min-width: 80px;
+        width: 80px;
+      }
       button {
         background: var(--accent);
         color: white;
@@ -53,45 +79,93 @@
         font-weight: 600;
         cursor: pointer;
       }
-      button.secondary { background: #334155; }
-      button:disabled { opacity: 0.5; cursor: default; }
-      .stats { display: flex; gap: 16px; flex-wrap: wrap; font-weight: 600; }
-      #status { margin-top: 8px; color: var(--text); }
-      table { width: 100%; border-collapse: collapse; font-size: 13px; }
-      th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-      th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
-      .scroll { max-height: 60vh; overflow: auto; }
-      .done { color: var(--ok); }
-      .failed { color: var(--bad); }
-      .working { color: var(--warn); }
-      .muted { color: var(--muted); }
+      button.secondary {
+        background: #334155;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .stats {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        font-weight: 600;
+      }
+      #status {
+        margin-top: 8px;
+        color: var(--text);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+        position: sticky;
+        top: 0;
+        background: var(--panel);
+      }
+      .scroll {
+        max-height: 60vh;
+        overflow: auto;
+      }
+      .done {
+        color: var(--ok);
+      }
+      .failed {
+        color: var(--bad);
+      }
+      .working {
+        color: var(--warn);
+      }
+      .muted {
+        color: var(--muted);
+      }
     </style>
   </head>
   <body>
     <h1>Guidance value import</h1>
     <p>
-      Reads the IGR revised guidelines value table, downloads every PDF in
-      this browser, uploads it to ConvoReal and waits while ConvoReal reads its
+      Reads the IGR revised guidelines value table, downloads every PDF in this
+      browser, uploads it to ConvoReal and waits while ConvoReal reads its
       rates. Already imported notifications are skipped and unfinished ones
       resume. Keep this tab open until it says finished.
     </p>
 
     <div class="panel">
       <div class="row">
-        <label>ConvoReal address
+        <label
+          >ConvoReal address
           <input id="engineUrl" type="text" />
         </label>
-        <label>IGR page
+        <label
+          >IGR page
           <input id="igrUrl" type="text" />
         </label>
-        <label>In parallel
+        <label
+          >In parallel
           <input id="concurrency" type="number" min="1" max="4" />
         </label>
         <label>
-          <span><input id="includeCorrigenda" type="checkbox" /> BDA corrigenda</span>
+          <span
+            ><input id="includeCorrigenda" type="checkbox" /> BDA
+            corrigenda</span
+          >
         </label>
         <label>
-          <span><input id="batchMode" type="checkbox" /> Half price (batch, results within hours)</span>
+          <span
+            ><input id="batchMode" type="checkbox" /> Half price (batch, results
+            within hours)</span
+          >
         </label>
         <button id="start">Start</button>
         <button id="stop" class="secondary" disabled>Stop</button>
@@ -112,7 +186,13 @@
     <div class="panel scroll">
       <table>
         <thead>
-          <tr><th>District</th><th>SRO</th><th>Type</th><th>State</th><th>Detail</th></tr>
+          <tr>
+            <th>District</th>
+            <th>SRO</th>
+            <th>Type</th>
+            <th>State</th>
+            <th>Detail</th>
+          </tr>
         </thead>
         <tbody id="rows"></tbody>
       </table>

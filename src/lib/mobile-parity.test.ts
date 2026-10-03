@@ -1532,7 +1532,7 @@ describe('mobile/lib/map-links.ts mirrors the pin resolver', () => {
   it('resolves pins in the same order of truth', () => {
     for (const line of [
       'const linkCoordinates = link ? extractCoordinatesFromMapUrl(link) : null;',
-      'linkCoordinates ?? toCoordinates(source.latitude ?? NaN, source.longitude ?? NaN);',
+      'linkCoordinates ??\n    toCoordinates(source.latitude ?? NaN, source.longitude ?? NaN);',
       'if (!linkCoordinates && link) {',
     ]) {
       expect(source).toContain(line);
@@ -1742,7 +1742,7 @@ describe('mobile/lib/format.ts mirrors priceInWords', () => {
 
   it('trims trailing zeros the same way, so 12000000 is ₹1.2 Crore', () => {
     expect(block).toContain(
-      `toFixed(2).replace(/\\.00$/, '').replace(/\\.(\\d)0$/, '.$1')`
+      `.toFixed(2)\n      .replace(/\\.00$/, '')\n      .replace(/\\.(\\d)0$/, '.$1');`
     );
   });
 
@@ -2956,8 +2956,8 @@ describe('[TXW-017] Deals is one surface with a board, journeys and records on b
   });
 
   it('retires the separate Journey entry and keeps the old links landing', () => {
-    expect(webSidebar).not.toContain('href: "/journey"');
-    expect(webSidebar).toContain('href: "/deals"');
+    expect(webSidebar).not.toContain("href: '/journey'");
+    expect(webSidebar).toContain("href: '/deals'");
     expect(mobileMenu).toContain("label: 'Deals: journeys'");
     expect(mobileIntent).toContain("q.get('view') === 'journey'");
   });
@@ -2993,7 +2993,7 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
 
   it('reads mirrored stages through the one sync function on web and mobile', () => {
     expect(webSource('lib/journey/capture.ts')).toContain(
-      '"sync_journey_stages_from_pipeline"'
+      "'sync_journey_stages_from_pipeline'"
     );
     expect(mobileSource('app/(app)/journey.tsx')).toContain(
       "'sync_journey_stages_from_pipeline'"
@@ -3194,8 +3194,8 @@ describe('[TXW-018] journey stages mirror the pipeline on every surface', () => 
       'REFERENCES pipeline_stages(id) ON DELETE SET NULL'
     );
     const settings = webSource('components/pipelines/pipeline-settings.tsx');
-    expect(settings).toContain('.from("journey_items")');
-    expect(settings).toContain('"Move journey items out of this stage first"');
+    expect(settings).toContain(".from('journey_items')");
+    expect(settings).toContain("'Move journey items out of this stage first'");
     const backfill = readFileSync(
       join(
         process.cwd(),
@@ -3825,7 +3825,7 @@ describe('[CAL-008] deal dates are pinned on both calendars through the one dead
     expect(webCalendar).toContain('{DEAL_DATE_META.label}');
     expect(mobileCalendar).toContain('void refetchDealDatesRef.current();');
     expect(webCalendar).toContain(
-      'view === "team" && typeFilter === "deal" ? "all" : typeFilter;'
+      "view === 'team' && typeFilter === 'deal' ? 'all' : typeFilter;"
     );
     expect(mobileUpcoming).toContain(
       "| { kind: 'deal'; dueAt: number; dealDate: D };"
@@ -3868,10 +3868,10 @@ describe('[CAL-009] the to-do list is lightweight on both surfaces', () => {
     );
     const webSmartAdd = webSource('components/calendar/smart-add-bar.tsx');
     expect(webSmartAdd).toContain(
-      'contact_id: kind === "todo" ? null : resolved?.contact?.id || null'
+      "contact_id: kind === 'todo' ? null : resolved?.contact?.id || null"
     );
     expect(webSmartAdd).toContain(
-      'property_id: kind === "todo" ? null : resolved?.property?.id || null'
+      "property_id: kind === 'todo' ? null : resolved?.property?.id || null"
     );
   });
 });
@@ -3916,14 +3916,14 @@ describe('[CAL-010] appointment status changes are offered identically on both s
       '`/api/deals/${d.dealId}/milestones/${d.milestoneId}`'
     );
     expect(webCalendar).toContain(
-      'body: JSON.stringify({ status: "completed", source: "web" })'
+      "body: JSON.stringify({ status: 'completed', source: 'web' })"
     );
     expect(mobileCalendar).toContain(
       'await updateDealMilestone(dealDate.dealId, dealDate.milestoneId, {'
     );
     expect(mobileCalendar).toContain("status: 'completed',");
     expect(webTasksList).toContain(
-      'canEdit && dealDate.kind === "milestone" && dealDate.milestoneId'
+      "canEdit && dealDate.kind === 'milestone' && dealDate.milestoneId"
     );
     expect(mobileCalendar).toContain(
       "canEdit && dealDate.kind === 'milestone' && dealDate.milestoneId"
@@ -3933,7 +3933,7 @@ describe('[CAL-010] appointment status changes are offered identically on both s
       'onClick={() => openContactChat(todo.contact_id!)}'
     );
     expect(mobileCalendar).toContain(
-      'await openContactChat(todo.contact!, { draftText: draft.message });'
+      'await openContactChat(todo.contact!, {\n                  draftText: draft.message,\n                });'
     );
   });
 
@@ -3984,7 +3984,7 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
     expect(archiveSort).toContain(
       'return !!appointment.archived_at && canArchiveAppointment(appointment.status);'
     );
-    expect(webCalendar).toContain('fetch("/api/appointments/archive", {');
+    expect(webCalendar).toContain("fetch('/api/appointments/archive', {");
     expect(
       mobileCalendar.match(/'\/api\/appointments\/archive'/g)
     ).toHaveLength(2);
@@ -4005,11 +4005,11 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
     expect(webCalendar).toContain('events={listedAppointments.visible}');
     expect(webCalendar).not.toContain('events={filteredAppointments}');
     expect(webCalendar).toContain(
-      'withoutArchivedAppointments(filteredAppointments, archivedOnCalendar(archivedView))'
+      'withoutArchivedAppointments(\n        filteredAppointments,\n        archivedOnCalendar(archivedView)'
     );
     expect(mobileCalendar).toContain('archivedOnCalendar(archivedView)');
     expect(webCalendar).toContain(
-      'const archivedView = archivedViewQuery.data ?? "greyed";'
+      "const archivedView = archivedViewQuery.data ?? 'greyed';"
     );
     expect(mobileCalendar).toContain(
       "const archivedView = archivedViewQuery.data ?? 'greyed';"
@@ -4026,7 +4026,7 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
     }
     expect(mobileCalendar).toContain('void refetchArchivedView();');
     expect(webCalendar).toContain(
-      'isArchivedAppointment(appt) && ARCHIVED_EVENT_CHIP'
+      'isArchivedAppointment(appt) &&\n                                  ARCHIVED_EVENT_CHIP'
     );
     for (const view of ['week-view.tsx', 'team-view.tsx']) {
       expect(webSource(`components/calendar/${view}`)).toContain(
@@ -4044,7 +4044,7 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
       'canArchiveAppointment(appointment.status) ? ('
     );
     expect(webCalendar).toContain(
-      'archiveAppointments(archivableTaskIds, true, "archive-done")'
+      "archiveAppointments(\n                        archivableTaskIds,\n                        true,\n                        'archive-done'"
     );
     expect(mobileCalendar).toContain(
       '...(upcomingAppointmentsQuery.data ?? [])]'
@@ -4053,7 +4053,7 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
     expect(mobileCalendar).toContain('ARCHIVED_VIEWS.map((mode) => (');
     expect(webAgenda).not.toContain('Show archived');
     expect(webCalendar).toContain(
-      'withoutArchivedAppointments(filteredAppointments, archivedInLists(archivedView))'
+      'withoutArchivedAppointments(\n        filteredAppointments,\n        archivedInLists(archivedView)'
     );
     expect(
       mobileCalendar.match(/archivedInLists\(archivedView\)/g)
@@ -4081,7 +4081,7 @@ describe('[CAL-012] tasks are sorted by date and time the same way on both surfa
     expect(mobileTasks).toContain(
       "export * from '@shared/lib/calendar/archive-sort';"
     );
-    expect(webCalendar).toContain('useState<TaskSortMode>("upcoming")');
+    expect(webCalendar).toContain("useState<TaskSortMode>('upcoming')");
     expect(mobileCalendar).toContain("useState<TaskSortMode>('upcoming')");
     expect(webCalendar).toContain('sortTasksByTime(');
     expect(mobileCalendar.match(/sortTasksByTime\(/g)).toHaveLength(2);

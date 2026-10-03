@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import { generateJson } from '@/lib/ai/gemini';
 import { sanitizeStages } from '@/lib/liaisons/workflows';
 
@@ -36,7 +40,10 @@ const SYSTEM_INSTRUCTION =
 function stripFences(raw: string): string {
   let cleaned = raw.trim();
   if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(json)?/, '').replace(/```$/, '').trim();
+    cleaned = cleaned
+      .replace(/^```(json)?/, '')
+      .replace(/```$/, '')
+      .trim();
   }
   return cleaned;
 }
@@ -49,20 +56,26 @@ export async function POST(request: Request) {
     // AI call — same posture as copilot chat, tighter than adminAction.
     const limit = await checkRateLimit(
       `liaisonWorkflowGen:${ctx.userId}`,
-      RATE_LIMITS.copilotChat,
+      RATE_LIMITS.copilotChat
     );
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = await request.json().catch(() => null);
     if (!body) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
     }
 
     const { process, details } = body;
 
     // Validation
     if (typeof process !== 'string' || process.trim().length === 0) {
-      return NextResponse.json({ error: "'process' is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "'process' is required" },
+        { status: 400 }
+      );
     }
 
     const prompt =
@@ -79,18 +92,24 @@ export async function POST(request: Request) {
     try {
       parsed = JSON.parse(stripFences(raw)) as Record<string, unknown>;
     } catch {
-      console.error('[POST /api/liaison-workflows/generate] Unparseable AI response:', raw);
+      console.error(
+        '[POST /api/liaison-workflows/generate] Unparseable AI response:',
+        raw
+      );
       return NextResponse.json(
         { error: 'AI returned an unreadable draft — please try again.' },
-        { status: 502 },
+        { status: 502 }
       );
     }
 
     const stages = sanitizeStages(parsed.stages);
     if (stages.length === 0) {
       return NextResponse.json(
-        { error: 'AI could not draft stages for this process — try adding more detail.' },
-        { status: 502 },
+        {
+          error:
+            'AI could not draft stages for this process — try adding more detail.',
+        },
+        { status: 502 }
       );
     }
 
@@ -100,7 +119,9 @@ export async function POST(request: Request) {
           ? parsed.service_name.trim()
           : process.trim(),
       description:
-        typeof parsed.description === 'string' ? parsed.description.trim() || null : null,
+        typeof parsed.description === 'string'
+          ? parsed.description.trim() || null
+          : null,
       stages,
     });
   } catch (err) {

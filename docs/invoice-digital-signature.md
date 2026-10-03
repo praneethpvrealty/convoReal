@@ -25,24 +25,24 @@ Two rules meet on a brokerage invoice.
 digital signature of the supplier or their authorised representative,
 with a proviso: the signature is not required where the invoice is
 issued **in accordance with the IT Act's provisions**. That proviso is
-what an electronic signature is for. It is also why an *unsigned* PDF
+what an electronic signature is for. It is also why an _unsigned_ PDF
 with no audit trail is the weakest option, not the neutral one — the
 renderer therefore stamps "This is a computer-generated invoice" on
 anything issued with `signature_mode = 'none'`.
 
 ## 2. Three tiers, and what each costs to build
 
-| Tier | Legal standing | Runs on a server? | What it needs |
-| --- | --- | --- | --- |
-| `image` | Electronic signature (s.3A/s.5). Admissible; no s.85B presumption on its own — the audit trail is what gives it weight | Yes | Nothing. **Implemented.** |
-| `dsc` | Digital signature (s.3). Presumption under Evidence Act s.85B | Only with an **HSM-held** certificate | A Class 3 **document signer** certificate from a CCA-licensed CA (eMudhra, Sify, (n)Code, Capricorn, Verasys…), held in an HSM or a cloud signing service |
-| `esign` | Electronic signature (s.3A, Second Schedule) | Yes | A commercial agreement with a CCA-empanelled **eSign Service Provider** (eMudhra, Protean/NSDL, C-DAC…), plus per-signature cost |
+| Tier    | Legal standing                                                                                                         | Runs on a server?                     | What it needs                                                                                                                                             |
+| ------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `image` | Electronic signature (s.3A/s.5). Admissible; no s.85B presumption on its own — the audit trail is what gives it weight | Yes                                   | Nothing. **Implemented.**                                                                                                                                 |
+| `dsc`   | Digital signature (s.3). Presumption under Evidence Act s.85B                                                          | Only with an **HSM-held** certificate | A Class 3 **document signer** certificate from a CCA-licensed CA (eMudhra, Sify, (n)Code, Capricorn, Verasys…), held in an HSM or a cloud signing service |
+| `esign` | Electronic signature (s.3A, Second Schedule)                                                                           | Yes                                   | A commercial agreement with a CCA-empanelled **eSign Service Provider** (eMudhra, Protean/NSDL, C-DAC…), plus per-signature cost                          |
 
 The thing worth knowing before choosing: **a Class 3 DSC on a USB token
 cannot be used by a server.** The private key never leaves the token by
 design, so signing requires a human with the token plugged into a
 machine running a PKCS#11 client. Server-side DSC signing means an
-*organisational* certificate held in an HSM — a different product from
+_organisational_ certificate held in an HSM — a different product from
 the CA, usually sold with a per-year or per-signature contract.
 
 Both `dsc` and `esign` therefore need a commercial decision the product
@@ -120,7 +120,7 @@ around itself, so the file cannot grow or shrink after the hash is taken.
 invoice this feature was modelled on shows `IGST @ NIL / SGST @ NIL /
 CGST @ NIL` with GSTIN marked `NA` and a note that turnover is below
 ₹20 lakh. A supplier who is not registered for GST does not issue a
-*tax invoice* and does not show tax rows — they issue an ordinary
+_tax invoice_ and does not show tax rows — they issue an ordinary
 commercial invoice. The `nil` mode prints the rows because that is what
 the existing document does, and changing it silently would have been a
 change to a legal document nobody asked for. Worth a five-minute
@@ -137,12 +137,12 @@ the IRP rather than by the firm.
 
 ## 6. Pointers
 
-| What | Where |
-| --- | --- |
-| Signature modes and the settings columns | `supabase/migrations/20260914120000_invoice_settings.sql` |
-| Frozen signature block, `document_hash`, audit trail | `supabase/migrations/20260914120100_invoices.sql` |
-| PAdES placeholder and `/ByteRange` patching | `src/lib/invoices/pdf-writer.ts` |
-| Where the signature is drawn on the page | `src/lib/invoices/pdf.ts` |
-| Hashing and re-render comparison | `src/lib/invoices/server.ts`, `src/app/api/invoices/[id]/pdf/route.ts` |
-| Audit events | `logInvoiceEvent` in `src/lib/invoices/server.ts` |
-| Tests covering the seam | `src/lib/invoices/pdf.test.ts` (`describe('signature field')`) |
+| What                                                 | Where                                                                  |
+| ---------------------------------------------------- | ---------------------------------------------------------------------- |
+| Signature modes and the settings columns             | `supabase/migrations/20260914120000_invoice_settings.sql`              |
+| Frozen signature block, `document_hash`, audit trail | `supabase/migrations/20260914120100_invoices.sql`                      |
+| PAdES placeholder and `/ByteRange` patching          | `src/lib/invoices/pdf-writer.ts`                                       |
+| Where the signature is drawn on the page             | `src/lib/invoices/pdf.ts`                                              |
+| Hashing and re-render comparison                     | `src/lib/invoices/server.ts`, `src/app/api/invoices/[id]/pdf/route.ts` |
+| Audit events                                         | `logInvoiceEvent` in `src/lib/invoices/server.ts`                      |
+| Tests covering the seam                              | `src/lib/invoices/pdf.test.ts` (`describe('signature field')`)         |

@@ -28,14 +28,18 @@ import { languageForMetaCode } from '@/lib/languages';
 import { engineCopyKey } from '@/lib/whatsapp/engine-templates';
 import { copyRevision } from '@/lib/whatsapp/template-copy';
 import { shippedCopy } from '@/lib/whatsapp/template-drift';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function POST(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   let ctx: AccountContext;
   try {
@@ -48,13 +52,16 @@ export async function POST(
   try {
     const limit = await checkRateLimit(
       `admin:templateAdopt:${userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
     const { id } = await params;
     if (!UUID_RE.test(id)) {
-      return NextResponse.json({ error: 'Invalid template id' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid template id' },
+        { status: 400 }
+      );
     }
 
     const { data: existing, error: loadErr } = await supabase
@@ -66,10 +73,16 @@ export async function POST(
 
     if (loadErr) {
       console.error('[POST templates/draft/adopt] load error:', loadErr);
-      return NextResponse.json({ error: 'Failed to load template' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to load template' },
+        { status: 500 }
+      );
     }
     if (!existing) {
-      return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Template not found' },
+        { status: 404 }
+      );
     }
     if (existing.meta_template_id) {
       return NextResponse.json(
@@ -78,19 +91,21 @@ export async function POST(
             'This template already exists on Meta. Use Edit to take the new wording — that re-opens Meta review, and the template keeps sending its current copy until the review clears.',
           code: 'ALREADY_ON_META',
         },
-        { status: 409 },
+        { status: 409 }
       );
     }
 
     const key = engineCopyKey(existing.name as string);
-    const language = languageForMetaCode((existing.language as string) ?? 'en_US');
+    const language = languageForMetaCode(
+      (existing.language as string) ?? 'en_US'
+    );
     if (!key || !language) {
       return NextResponse.json(
         {
           error: 'There is no ConvoReal wording behind this template to take.',
           code: 'NOT_ENGINE_TEMPLATE',
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -113,14 +128,19 @@ export async function POST(
       })
       .eq('id', id)
       .eq('account_id', accountId)
-      .select('id, body_text, footer_text, copy_revision, translation_reviewed_at');
+      .select(
+        'id, body_text, footer_text, copy_revision, translation_reviewed_at'
+      );
 
     if (error) {
       console.error('[POST templates/draft/adopt] update error:', error);
       return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
     }
     if (!data || data.length === 0) {
-      return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Template not found' },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({ data: data[0] });

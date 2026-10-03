@@ -9,20 +9,23 @@ const supabase = createClient(
 
 async function main() {
   const email = 'praneethpvrealty@gmail.com';
-  const { data: { users }, error: listErr } = await supabase.auth.admin.listUsers();
+  const {
+    data: { users },
+    error: listErr,
+  } = await supabase.auth.admin.listUsers();
   if (listErr) {
     console.error('List error:', listErr);
     return;
   }
-  const user = users.find(u => u.email === email);
+  const user = users.find((u) => u.email === email);
   if (!user) {
     console.error('User not found:', email);
     return;
   }
-  const { error } = await supabase.auth.admin.updateUserById(
-    user.id,
-    { password: 'password123', email_confirm: true }
-  );
+  const { error } = await supabase.auth.admin.updateUserById(user.id, {
+    password: 'password123',
+    email_confirm: true,
+  });
   if (error) {
     console.error('Error updating password:', error);
   } else {

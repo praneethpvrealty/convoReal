@@ -35,7 +35,10 @@ export function anchoredMenuLayout({
   const x = Math.min(Math.max(anchorX, 0), frameWidth);
   const y = Math.min(Math.max(anchorY, 0), frameHeight);
 
-  const left = Math.max(margin, Math.min(x - menuWidth / 2, frameWidth - menuWidth - margin));
+  const left = Math.max(
+    margin,
+    Math.min(x - menuWidth / 2, frameWidth - menuWidth - margin)
+  );
 
   const roomBelow = frameHeight - y - gap - margin;
   const roomAbove = y - gap - margin;
@@ -43,7 +46,9 @@ export function anchoredMenuLayout({
 
   const maxHeight = Math.max(0, below ? roomBelow : roomAbove);
   const height = Math.min(contentHeight, maxHeight);
-  const top = below ? Math.max(margin, y + gap) : Math.max(margin, y - gap - height);
+  const top = below
+    ? Math.max(margin, y + gap)
+    : Math.max(margin, y - gap - height);
 
   return { left, top, maxHeight };
 }

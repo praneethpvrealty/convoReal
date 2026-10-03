@@ -30,20 +30,20 @@ import type {
   SendPropertyListingsNodeConfig,
   StartNodeConfig,
   StartPropertyIntakeNodeConfig,
-} from "./types";
+} from './types';
 
 export type FlowTemplateNodeType =
-  | "start"
-  | "send_message"
-  | "send_buttons"
-  | "send_list"
-  | "send_property_listings"
-  | "collect_input"
-  | "condition"
-  | "set_tag"
-  | "handoff"
-  | "start_property_intake"
-  | "end";
+  | 'start'
+  | 'send_message'
+  | 'send_buttons'
+  | 'send_list'
+  | 'send_property_listings'
+  | 'collect_input'
+  | 'condition'
+  | 'set_tag'
+  | 'handoff'
+  | 'start_property_intake'
+  | 'end';
 
 export interface FlowTemplateNode {
   node_key: string;
@@ -65,8 +65,8 @@ export interface FlowTemplate {
   name: string;
   description: string;
   /** Used by the gallery to surface a relevant icon. lucide-react name. */
-  icon: "MessageSquare" | "HelpCircle" | "UserPlus";
-  trigger_type: "keyword" | "first_inbound_message" | "manual";
+  icon: 'MessageSquare' | 'HelpCircle' | 'UserPlus';
+  trigger_type: 'keyword' | 'first_inbound_message' | 'manual';
   trigger_config: KeywordTriggerConfig | Record<string, unknown>;
   entry_node_id: string;
   nodes: FlowTemplateNode[];
@@ -76,52 +76,55 @@ export interface FlowTemplate {
 // 1. Welcome menu — the example from the owner's brief
 // ============================================================
 const WELCOME_MENU: FlowTemplate = {
-  slug: "welcome_menu",
-  name: "Welcome menu",
+  slug: 'welcome_menu',
+  name: 'Welcome menu',
   description:
     "Greet customers who type a keyword and route them to the right agent based on whether they're new or existing.",
-  icon: "MessageSquare",
-  trigger_type: "keyword",
-  trigger_config: { keywords: ["support", "help", "hi"], match_type: "contains" },
-  entry_node_id: "start",
+  icon: 'MessageSquare',
+  trigger_type: 'keyword',
+  trigger_config: {
+    keywords: ['support', 'help', 'hi'],
+    match_type: 'contains',
+  },
+  entry_node_id: 'start',
   nodes: [
     {
-      node_key: "start",
-      node_type: "start",
-      config: { next_node_key: "welcome" },
+      node_key: 'start',
+      node_type: 'start',
+      config: { next_node_key: 'welcome' },
     },
     {
-      node_key: "welcome",
-      node_type: "send_buttons",
+      node_key: 'welcome',
+      node_type: 'send_buttons',
       config: {
-        text: "Hi! 👋 Welcome to support. Are you an existing customer or new here?",
-        footer_text: "Tap a button below to continue.",
+        text: 'Hi! 👋 Welcome to support. Are you an existing customer or new here?',
+        footer_text: 'Tap a button below to continue.',
         buttons: [
           {
-            reply_id: "existing",
-            title: "Existing customer",
-            next_node_key: "existing_handoff",
+            reply_id: 'existing',
+            title: 'Existing customer',
+            next_node_key: 'existing_handoff',
           },
           {
-            reply_id: "new",
-            title: "New customer",
-            next_node_key: "new_handoff",
+            reply_id: 'new',
+            title: 'New customer',
+            next_node_key: 'new_handoff',
           },
         ],
       } as SendButtonsNodeConfig,
     },
     {
-      node_key: "existing_handoff",
-      node_type: "handoff",
+      node_key: 'existing_handoff',
+      node_type: 'handoff',
       config: {
-        note: "Existing customer needs assistance — please check account history before replying.",
+        note: 'Existing customer needs assistance — please check account history before replying.',
       } as HandoffNodeConfig,
     },
     {
-      node_key: "new_handoff",
-      node_type: "handoff",
+      node_key: 'new_handoff',
+      node_type: 'handoff',
       config: {
-        note: "New customer — share pricing + onboarding link.",
+        note: 'New customer — share pricing + onboarding link.',
       } as HandoffNodeConfig,
     },
   ],
@@ -131,57 +134,57 @@ const WELCOME_MENU: FlowTemplate = {
 // 2. FAQ bot — list-message answers, fully automated
 // ============================================================
 const FAQ_BOT: FlowTemplate = {
-  slug: "faq_bot",
-  name: "FAQ bot",
+  slug: 'faq_bot',
+  name: 'FAQ bot',
   description:
-    "Answer common questions automatically. Customer picks a topic from a list; the bot replies with the answer and ends.",
-  icon: "HelpCircle",
-  trigger_type: "keyword",
+    'Answer common questions automatically. Customer picks a topic from a list; the bot replies with the answer and ends.',
+  icon: 'HelpCircle',
+  trigger_type: 'keyword',
   trigger_config: {
-    keywords: ["faq", "question", "info"],
-    match_type: "contains",
+    keywords: ['faq', 'question', 'info'],
+    match_type: 'contains',
   },
-  entry_node_id: "start",
+  entry_node_id: 'start',
   nodes: [
     {
-      node_key: "start",
-      node_type: "start",
-      config: { next_node_key: "topics" },
+      node_key: 'start',
+      node_type: 'start',
+      config: { next_node_key: 'topics' },
     },
     {
-      node_key: "topics",
-      node_type: "send_list",
+      node_key: 'topics',
+      node_type: 'send_list',
       config: {
-        text: "What can I help you with?",
-        button_label: "View topics",
+        text: 'What can I help you with?',
+        button_label: 'View topics',
         sections: [
           {
-            title: "Common questions",
+            title: 'Common questions',
             rows: [
               {
-                reply_id: "hours",
-                title: "Opening hours",
-                next_node_key: "answer_hours",
+                reply_id: 'hours',
+                title: 'Opening hours',
+                next_node_key: 'answer_hours',
               },
               {
-                reply_id: "pricing",
-                title: "Pricing",
-                next_node_key: "answer_pricing",
+                reply_id: 'pricing',
+                title: 'Pricing',
+                next_node_key: 'answer_pricing',
               },
               {
-                reply_id: "refunds",
-                title: "Refund policy",
-                next_node_key: "answer_refunds",
+                reply_id: 'refunds',
+                title: 'Refund policy',
+                next_node_key: 'answer_refunds',
               },
             ],
           },
           {
-            title: "Other",
+            title: 'Other',
             rows: [
               {
-                reply_id: "human",
-                title: "Talk to a human",
-                next_node_key: "human_handoff",
+                reply_id: 'human',
+                title: 'Talk to a human',
+                next_node_key: 'human_handoff',
               },
             ],
           },
@@ -189,39 +192,39 @@ const FAQ_BOT: FlowTemplate = {
       } as SendListNodeConfig,
     },
     {
-      node_key: "answer_hours",
-      node_type: "send_message",
+      node_key: 'answer_hours',
+      node_type: 'send_message',
       config: {
         text: "We're open Mon–Fri, 9am–6pm local time. Weekend support is limited to urgent issues.",
-        next_node_key: "end",
+        next_node_key: 'end',
       } as SendMessageNodeConfig,
     },
     {
-      node_key: "answer_pricing",
-      node_type: "send_message",
+      node_key: 'answer_pricing',
+      node_type: 'send_message',
       config: {
-        text: "Our pricing starts at $9/mo. Visit https://example.com/pricing for the full breakdown.",
-        next_node_key: "end",
+        text: 'Our pricing starts at $9/mo. Visit https://example.com/pricing for the full breakdown.',
+        next_node_key: 'end',
       } as SendMessageNodeConfig,
     },
     {
-      node_key: "answer_refunds",
-      node_type: "send_message",
+      node_key: 'answer_refunds',
+      node_type: 'send_message',
       config: {
         text: "Refunds are honored within 30 days of purchase. Reply with your order number and we'll process it.",
-        next_node_key: "end",
+        next_node_key: 'end',
       } as SendMessageNodeConfig,
     },
     {
-      node_key: "human_handoff",
-      node_type: "handoff",
+      node_key: 'human_handoff',
+      node_type: 'handoff',
       config: {
-        note: "Customer asked to talk to a human from the FAQ bot.",
+        note: 'Customer asked to talk to a human from the FAQ bot.',
       } as HandoffNodeConfig,
     },
     {
-      node_key: "end",
-      node_type: "end",
+      node_key: 'end',
+      node_type: 'end',
       config: {},
     },
   ],
@@ -231,60 +234,60 @@ const FAQ_BOT: FlowTemplate = {
 // 3. Lead capture — collect_input chain, ends in a handoff
 // ============================================================
 const LEAD_CAPTURE: FlowTemplate = {
-  slug: "lead_capture",
-  name: "Lead capture",
+  slug: 'lead_capture',
+  name: 'Lead capture',
   description:
-    "Greet first-time inbounds, capture name + email + company, then hand off to sales with the answers in the note.",
-  icon: "UserPlus",
-  trigger_type: "first_inbound_message",
+    'Greet first-time inbounds, capture name + email + company, then hand off to sales with the answers in the note.',
+  icon: 'UserPlus',
+  trigger_type: 'first_inbound_message',
   trigger_config: {},
-  entry_node_id: "start",
+  entry_node_id: 'start',
   nodes: [
     {
-      node_key: "start",
-      node_type: "start",
-      config: { next_node_key: "intro" },
+      node_key: 'start',
+      node_type: 'start',
+      config: { next_node_key: 'intro' },
     },
     {
-      node_key: "intro",
-      node_type: "send_message",
+      node_key: 'intro',
+      node_type: 'send_message',
       config: {
         text: "Welcome! 👋 I'll ask a few quick questions so we can get you to the right person.",
-        next_node_key: "ask_name",
+        next_node_key: 'ask_name',
       } as SendMessageNodeConfig,
     },
     {
-      node_key: "ask_name",
-      node_type: "collect_input",
+      node_key: 'ask_name',
+      node_type: 'collect_input',
       config: {
         prompt_text: "What's your name?",
-        var_key: "name",
-        next_node_key: "ask_email",
+        var_key: 'name',
+        next_node_key: 'ask_email',
       } as CollectInputNodeConfig,
     },
     {
-      node_key: "ask_email",
-      node_type: "collect_input",
+      node_key: 'ask_email',
+      node_type: 'collect_input',
       config: {
         prompt_text: "Thanks {{vars.name}}! What's your work email?",
-        var_key: "email",
-        next_node_key: "ask_company",
+        var_key: 'email',
+        next_node_key: 'ask_company',
       } as CollectInputNodeConfig,
     },
     {
-      node_key: "ask_company",
-      node_type: "collect_input",
+      node_key: 'ask_company',
+      node_type: 'collect_input',
       config: {
         prompt_text: "Almost done — what's your company name?",
-        var_key: "company",
-        next_node_key: "handoff",
+        var_key: 'company',
+        next_node_key: 'handoff',
       } as CollectInputNodeConfig,
     },
     {
-      node_key: "handoff",
-      node_type: "handoff",
+      node_key: 'handoff',
+      node_type: 'handoff',
       config: {
-        note: "New lead — name={{vars.name}}, email={{vars.email}}, company={{vars.company}}.",
+        note: 'New lead — name={{vars.name}}, email={{vars.email}}, company={{vars.company}}.',
       } as HandoffNodeConfig,
     },
   ],
@@ -294,165 +297,165 @@ const LEAD_CAPTURE: FlowTemplate = {
 // 4. Real Estate Onboarding & Showcase — list-message and buttons template
 // ============================================================
 const REAL_ESTATE_ONBOARDING: FlowTemplate = {
-  slug: "real_estate_onboarding",
-  name: "Real Estate Showcase",
+  slug: 'real_estate_onboarding',
+  name: 'Real Estate Showcase',
   description:
-    "Onboard real estate customers, segment by Buy/Rent preferences and budget, showcase matching property listings, and capture details for agents.",
-  icon: "MessageSquare",
-  trigger_type: "keyword",
+    'Onboard real estate customers, segment by Buy/Rent preferences and budget, showcase matching property listings, and capture details for agents.',
+  icon: 'MessageSquare',
+  trigger_type: 'keyword',
   trigger_config: {
     keywords: [
-      "hi",
-      "hello",
-      "hey",
-      "menu",
-      "show properties",
-      "show me properties",
-      "buy property",
-      "rent property",
-      "looking to buy",
-      "looking to rent",
-      "want to buy",
-      "want to rent",
+      'hi',
+      'hello',
+      'hey',
+      'menu',
+      'show properties',
+      'show me properties',
+      'buy property',
+      'rent property',
+      'looking to buy',
+      'looking to rent',
+      'want to buy',
+      'want to rent',
     ],
-    match_type: "contains",
+    match_type: 'contains',
   },
-  entry_node_id: "start",
+  entry_node_id: 'start',
   nodes: [
     {
-      node_key: "start",
-      node_type: "start",
-      config: { next_node_key: "welcome" },
+      node_key: 'start',
+      node_type: 'start',
+      config: { next_node_key: 'welcome' },
     },
     {
-      node_key: "welcome",
-      node_type: "send_buttons",
+      node_key: 'welcome',
+      node_type: 'send_buttons',
       config: {
         text: "Welcome! 🏡 Let's help you find your dream property. What are you looking to do?",
-        footer_text: "Select a requirement option below:",
+        footer_text: 'Select a requirement option below:',
         buttons: [
           {
-            reply_id: "buy",
-            title: "Buy Property",
-            next_node_key: "ask_buy_budget",
+            reply_id: 'buy',
+            title: 'Buy Property',
+            next_node_key: 'ask_buy_budget',
           },
           {
-            reply_id: "rent",
-            title: "Rent Property",
-            next_node_key: "ask_rent_budget",
+            reply_id: 'rent',
+            title: 'Rent Property',
+            next_node_key: 'ask_rent_budget',
           },
           {
-            reply_id: "list",
-            title: "List My Property",
-            next_node_key: "seller_handoff",
+            reply_id: 'list',
+            title: 'List My Property',
+            next_node_key: 'seller_handoff',
           },
         ],
       } as SendButtonsNodeConfig,
     },
     {
-      node_key: "ask_buy_budget",
-      node_type: "collect_input",
+      node_key: 'ask_buy_budget',
+      node_type: 'collect_input',
       config: {
         prompt_text:
           "Great choice! 💰 What's your budget range for the purchase? This helps us match you with the right properties.\n\n_For example: 50L–1Cr, 1–2 Cr, 2–5 Cr, 5–10 Cr, 10–25 Cr, 25–50 Cr, 50 Cr+_",
-        var_key: "budget",
-        budget_context: "sale",
-        next_node_key: "ask_buy_locality",
+        var_key: 'budget',
+        budget_context: 'sale',
+        next_node_key: 'ask_buy_locality',
       } as CollectInputNodeConfig,
     },
     {
-      node_key: "ask_buy_locality",
-      node_type: "collect_input",
+      node_key: 'ask_buy_locality',
+      node_type: 'collect_input',
       config: {
         prompt_text:
           "📍 Which area are you looking at? Tell me a locality or two and I'll show you what we have there.\n\n_For example: Koramangala, HSR Layout, Whitefield_",
-        var_key: "locality",
-        next_node_key: "buy_menu",
+        var_key: 'locality',
+        next_node_key: 'buy_menu',
       } as CollectInputNodeConfig,
     },
     {
-      node_key: "ask_rent_budget",
-      node_type: "collect_input",
+      node_key: 'ask_rent_budget',
+      node_type: 'collect_input',
       config: {
         prompt_text:
           "💰 What's your monthly rent budget? This helps us match you with the right properties.\n\n_For example: 25K–50K, 50K–1L, 1L+_",
-        var_key: "budget",
-        budget_context: "rent",
-        next_node_key: "ask_rent_locality",
+        var_key: 'budget',
+        budget_context: 'rent',
+        next_node_key: 'ask_rent_locality',
       } as CollectInputNodeConfig,
     },
     {
-      node_key: "ask_rent_locality",
-      node_type: "collect_input",
+      node_key: 'ask_rent_locality',
+      node_type: 'collect_input',
       config: {
         prompt_text:
           "📍 Which area are you looking at? Tell me a locality or two and I'll show you what we have there.\n\n_For example: Koramangala, HSR Layout, Whitefield_",
-        var_key: "locality",
-        next_node_key: "rent_menu",
+        var_key: 'locality',
+        next_node_key: 'rent_menu',
       } as CollectInputNodeConfig,
     },
     {
-      node_key: "buy_menu",
-      node_type: "send_list",
+      node_key: 'buy_menu',
+      node_type: 'send_list',
       config: {
         text: "Let's explore our buying options. What type of property interests you?",
-        button_label: "View Collections",
+        button_label: 'View Collections',
         sections: [
           {
-            title: "Residential Properties",
+            title: 'Residential Properties',
             rows: [
               {
-                reply_id: "buy_villas",
-                title: "Luxury Villas",
-                description: "Premium villas in gated communities",
-                next_node_key: "villas_showcase",
+                reply_id: 'buy_villas',
+                title: 'Luxury Villas',
+                description: 'Premium villas in gated communities',
+                next_node_key: 'villas_showcase',
               },
               {
-                reply_id: "buy_apartments",
-                title: "Premium Apartments",
-                description: "2, 3, & 4 BHK luxury residences",
-                next_node_key: "apartments_showcase",
+                reply_id: 'buy_apartments',
+                title: 'Premium Apartments',
+                description: '2, 3, & 4 BHK luxury residences',
+                next_node_key: 'apartments_showcase',
               },
               {
-                reply_id: "buy_pgs",
-                title: "PGs / Hostels",
-                description: "Paying guest accommodations",
-                next_node_key: "pgs_showcase",
+                reply_id: 'buy_pgs',
+                title: 'PGs / Hostels',
+                description: 'Paying guest accommodations',
+                next_node_key: 'pgs_showcase',
               },
               {
-                reply_id: "buy_vacant_plots",
-                title: "Vacant Plots",
-                description: "Residential plots for construction",
-                next_node_key: "vacant_plots_showcase",
+                reply_id: 'buy_vacant_plots',
+                title: 'Vacant Plots',
+                description: 'Residential plots for construction',
+                next_node_key: 'vacant_plots_showcase',
               },
             ],
           },
           {
-            title: "Commercial & Industrial",
+            title: 'Commercial & Industrial',
             rows: [
               {
-                reply_id: "buy_commercial_plots",
-                title: "Commercial Vacant Plots",
-                description: "Plots zoned for commercial use",
-                next_node_key: "commercial_plots_showcase",
+                reply_id: 'buy_commercial_plots',
+                title: 'Commercial Vacant Plots',
+                description: 'Plots zoned for commercial use',
+                next_node_key: 'commercial_plots_showcase',
               },
               {
-                reply_id: "buy_farmland",
-                title: "Farm Land",
-                description: "Agricultural and farm land parcels",
-                next_node_key: "farmland_showcase",
+                reply_id: 'buy_farmland',
+                title: 'Farm Land',
+                description: 'Agricultural and farm land parcels',
+                next_node_key: 'farmland_showcase',
               },
               {
-                reply_id: "buy_yield_buildings",
-                title: "Rent Yielding Buildings",
-                description: "Commercial buildings with tenants",
-                next_node_key: "yield_buildings_showcase",
+                reply_id: 'buy_yield_buildings',
+                title: 'Rent Yielding Buildings',
+                description: 'Commercial buildings with tenants',
+                next_node_key: 'yield_buildings_showcase',
               },
               {
-                reply_id: "buy_industry_land",
-                title: "Industry Lands",
-                description: "Industrial zones and KIADB plots",
-                next_node_key: "industry_land_showcase",
+                reply_id: 'buy_industry_land',
+                title: 'Industry Lands',
+                description: 'Industrial zones and KIADB plots',
+                next_node_key: 'industry_land_showcase',
               },
             ],
           },
@@ -460,323 +463,367 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       } as SendListNodeConfig,
     },
     {
-      node_key: "rent_menu",
-      node_type: "send_buttons",
+      node_key: 'rent_menu',
+      node_type: 'send_buttons',
       config: {
-        text: "Looking for rental properties? We have excellent listings in prime locations. Select your preference:",
+        text: 'Looking for rental properties? We have excellent listings in prime locations. Select your preference:',
         buttons: [
           {
-            reply_id: "rent_2bhk",
-            title: "2 BHK Apartments",
-            next_node_key: "rent_2bhk_info",
+            reply_id: 'rent_2bhk',
+            title: '2 BHK Apartments',
+            next_node_key: 'rent_2bhk_info',
           },
           {
-            reply_id: "rent_3bhk",
-            title: "3 BHK & Penthouse",
-            next_node_key: "rent_3bhk_info",
+            reply_id: 'rent_3bhk',
+            title: '3 BHK & Penthouse',
+            next_node_key: 'rent_3bhk_info',
           },
           {
-            reply_id: "rent_commercial",
-            title: "Commercial Space",
-            next_node_key: "rent_commercial_info",
+            reply_id: 'rent_commercial',
+            title: 'Commercial Space',
+            next_node_key: 'rent_commercial_info',
           },
         ],
       } as SendButtonsNodeConfig,
     },
     {
-      node_key: "villas_showcase",
-      node_type: "send_property_listings",
+      node_key: 'villas_showcase',
+      node_type: 'send_property_listings',
       config: {
-        intro_text: "🏡 *Luxury Villas & Independent Houses*\n\nHere are our current listings:",
+        intro_text:
+          '🏡 *Luxury Villas & Independent Houses*\n\nHere are our current listings:',
         empty_text:
-          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          '🔍 *Nothing matching that in our live listings right now.*\n\n' +
           "Don't lose hope — this is where the engine earns its keep. It keeps " +
-          "hunting as new properties come in, and the moment one fits what " +
+          'hunting as new properties come in, and the moment one fits what ' +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Villa", "Residential House"],
-        filter_listing_type: "Sale",
-        next_node_key: "post_listings",
-        empty_next_node_key: "no_match_followup",
+        filter_types: ['Villa', 'Residential House'],
+        filter_listing_type: 'Sale',
+        next_node_key: 'post_listings',
+        empty_next_node_key: 'no_match_followup',
       } as SendPropertyListingsNodeConfig,
     },
     {
-      node_key: "apartments_showcase",
-      node_type: "send_property_listings",
+      node_key: 'apartments_showcase',
+      node_type: 'send_property_listings',
       config: {
-        intro_text: "🏢 *Premium Apartments & Flats*\n\nHere are our current listings:",
+        intro_text:
+          '🏢 *Premium Apartments & Flats*\n\nHere are our current listings:',
         empty_text:
-          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          '🔍 *Nothing matching that in our live listings right now.*\n\n' +
           "Don't lose hope — this is where the engine earns its keep. It keeps " +
-          "hunting as new properties come in, and the moment one fits what " +
+          'hunting as new properties come in, and the moment one fits what ' +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Flat/ Apartment", "Builder Floor Apartment", "Penthouse", "Studio Apartment"],
-        filter_listing_type: "Sale",
-        next_node_key: "post_listings",
-        empty_next_node_key: "no_match_followup",
+        filter_types: [
+          'Flat/ Apartment',
+          'Builder Floor Apartment',
+          'Penthouse',
+          'Studio Apartment',
+        ],
+        filter_listing_type: 'Sale',
+        next_node_key: 'post_listings',
+        empty_next_node_key: 'no_match_followup',
       } as SendPropertyListingsNodeConfig,
     },
     {
-      node_key: "plots_showcase",
-      node_type: "send_property_listings",
+      node_key: 'plots_showcase',
+      node_type: 'send_property_listings',
       config: {
-        intro_text: "🌾 *Residential Plots & Land*\n\nHere are our current listings:",
+        intro_text:
+          '🌾 *Residential Plots & Land*\n\nHere are our current listings:',
         empty_text:
-          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          '🔍 *Nothing matching that in our live listings right now.*\n\n' +
           "Don't lose hope — this is where the engine earns its keep. It keeps " +
-          "hunting as new properties come in, and the moment one fits what " +
+          'hunting as new properties come in, and the moment one fits what ' +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Residential Land/ Plot"],
-        filter_listing_type: "Sale",
-        next_node_key: "post_listings",
-        empty_next_node_key: "no_match_followup",
+        filter_types: ['Residential Land/ Plot'],
+        filter_listing_type: 'Sale',
+        next_node_key: 'post_listings',
+        empty_next_node_key: 'no_match_followup',
       } as SendPropertyListingsNodeConfig,
     },
     {
-      node_key: "pgs_showcase",
-      node_type: "send_property_listings",
+      node_key: 'pgs_showcase',
+      node_type: 'send_property_listings',
       config: {
-        intro_text: "🏠 *PGs & Hostels*\n\nHere are our current listings:",
+        intro_text: '🏠 *PGs & Hostels*\n\nHere are our current listings:',
         empty_text:
-          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          '🔍 *Nothing matching that in our live listings right now.*\n\n' +
           "Don't lose hope — this is where the engine earns its keep. It keeps " +
-          "hunting as new properties come in, and the moment one fits what " +
+          'hunting as new properties come in, and the moment one fits what ' +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Residential PG building", "PG/ Hostel"],
-        next_node_key: "post_listings",
-        empty_next_node_key: "no_match_followup",
+        filter_types: ['Residential PG building', 'PG/ Hostel'],
+        next_node_key: 'post_listings',
+        empty_next_node_key: 'no_match_followup',
       } as SendPropertyListingsNodeConfig,
     },
     {
-      node_key: "vacant_plots_showcase",
-      node_type: "send_property_listings",
+      node_key: 'vacant_plots_showcase',
+      node_type: 'send_property_listings',
       config: {
-        intro_text: "📐 *Residential Vacant Plots*\n\nHere are our current listings:",
+        intro_text:
+          '📐 *Residential Vacant Plots*\n\nHere are our current listings:',
         empty_text:
-          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          '🔍 *Nothing matching that in our live listings right now.*\n\n' +
           "Don't lose hope — this is where the engine earns its keep. It keeps " +
-          "hunting as new properties come in, and the moment one fits what " +
+          'hunting as new properties come in, and the moment one fits what ' +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Residential Land/ Plot"],
-        filter_listing_type: "Sale",
-        next_node_key: "post_listings",
-        empty_next_node_key: "no_match_followup",
+        filter_types: ['Residential Land/ Plot'],
+        filter_listing_type: 'Sale',
+        next_node_key: 'post_listings',
+        empty_next_node_key: 'no_match_followup',
       } as SendPropertyListingsNodeConfig,
     },
     {
-      node_key: "commercial_plots_showcase",
-      node_type: "send_property_listings",
+      node_key: 'commercial_plots_showcase',
+      node_type: 'send_property_listings',
       config: {
-        intro_text: "🏗️ *Commercial Vacant Plots*\n\nHere are our current listings:",
+        intro_text:
+          '🏗️ *Commercial Vacant Plots*\n\nHere are our current listings:',
         empty_text:
-          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          '🔍 *Nothing matching that in our live listings right now.*\n\n' +
           "Don't lose hope — this is where the engine earns its keep. It keeps " +
-          "hunting as new properties come in, and the moment one fits what " +
+          'hunting as new properties come in, and the moment one fits what ' +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Commercial Plot", "Commercial Land"],
-        filter_listing_type: "Sale",
-        next_node_key: "post_listings",
-        empty_next_node_key: "no_match_followup",
+        filter_types: ['Commercial Plot', 'Commercial Land'],
+        filter_listing_type: 'Sale',
+        next_node_key: 'post_listings',
+        empty_next_node_key: 'no_match_followup',
       } as SendPropertyListingsNodeConfig,
     },
     {
-      node_key: "farmland_showcase",
-      node_type: "send_property_listings",
+      node_key: 'farmland_showcase',
+      node_type: 'send_property_listings',
       config: {
-        intro_text: "🌱 *Farm Land*\n\nHere are our current listings:",
+        intro_text: '🌱 *Farm Land*\n\nHere are our current listings:',
         empty_text:
-          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          '🔍 *Nothing matching that in our live listings right now.*\n\n' +
           "Don't lose hope — this is where the engine earns its keep. It keeps " +
-          "hunting as new properties come in, and the moment one fits what " +
+          'hunting as new properties come in, and the moment one fits what ' +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Agricultural Land", "Farm House"],
-        filter_listing_type: "Sale",
-        next_node_key: "post_listings",
-        empty_next_node_key: "no_match_followup",
+        filter_types: ['Agricultural Land', 'Farm House'],
+        filter_listing_type: 'Sale',
+        next_node_key: 'post_listings',
+        empty_next_node_key: 'no_match_followup',
       } as SendPropertyListingsNodeConfig,
     },
     {
-      node_key: "yield_buildings_showcase",
-      node_type: "send_property_listings",
+      node_key: 'yield_buildings_showcase',
+      node_type: 'send_property_listings',
       config: {
-        intro_text: "🏦 *Rent Yielding Buildings*\n\nHere are our current listings:",
+        intro_text:
+          '🏦 *Rent Yielding Buildings*\n\nHere are our current listings:',
         empty_text:
-          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          '🔍 *Nothing matching that in our live listings right now.*\n\n' +
           "Don't lose hope — this is where the engine earns its keep. It keeps " +
-          "hunting as new properties come in, and the moment one fits what " +
+          'hunting as new properties come in, and the moment one fits what ' +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Commercial Office Space", "Office in IT Park/ SEZ", "Commercial Shop", "Commercial Showroom", "Commercial Building", "Warehouse/ Godown"],
-        filter_listing_type: "Sale",
-        next_node_key: "post_listings",
-        empty_next_node_key: "no_match_followup",
+        filter_types: [
+          'Commercial Office Space',
+          'Office in IT Park/ SEZ',
+          'Commercial Shop',
+          'Commercial Showroom',
+          'Commercial Building',
+          'Warehouse/ Godown',
+        ],
+        filter_listing_type: 'Sale',
+        next_node_key: 'post_listings',
+        empty_next_node_key: 'no_match_followup',
       } as SendPropertyListingsNodeConfig,
     },
     {
-      node_key: "industry_land_showcase",
-      node_type: "send_property_listings",
+      node_key: 'industry_land_showcase',
+      node_type: 'send_property_listings',
       config: {
-        intro_text: "🏭 *Industry Lands*\n\nHere are our current listings:",
+        intro_text: '🏭 *Industry Lands*\n\nHere are our current listings:',
         empty_text:
-          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          '🔍 *Nothing matching that in our live listings right now.*\n\n' +
           "Don't lose hope — this is where the engine earns its keep. It keeps " +
-          "hunting as new properties come in, and the moment one fits what " +
+          'hunting as new properties come in, and the moment one fits what ' +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Industrial Land", "Industrial Building", "Industrial Shed"],
-        filter_listing_type: "Sale",
-        next_node_key: "post_listings",
-        empty_next_node_key: "no_match_followup",
+        filter_types: [
+          'Industrial Land',
+          'Industrial Building',
+          'Industrial Shed',
+        ],
+        filter_listing_type: 'Sale',
+        next_node_key: 'post_listings',
+        empty_next_node_key: 'no_match_followup',
       } as SendPropertyListingsNodeConfig,
     },
     {
-      node_key: "rent_2bhk_info",
-      node_type: "send_property_listings",
+      node_key: 'rent_2bhk_info',
+      node_type: 'send_property_listings',
       config: {
-        intro_text: "🔑 *2 BHK Homes for Rent*\n\nHere are our current listings:",
+        intro_text:
+          '🔑 *2 BHK Homes for Rent*\n\nHere are our current listings:',
         empty_text:
-          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          '🔍 *Nothing matching that in our live listings right now.*\n\n' +
           "Don't lose hope — this is where the engine earns its keep. It keeps " +
-          "hunting as new properties come in, and the moment one fits what " +
+          'hunting as new properties come in, and the moment one fits what ' +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Flat/ Apartment", "Builder Floor Apartment", "Studio Apartment", "Residential House"],
-        filter_listing_type: "Rent",
-        next_node_key: "post_listings",
-        empty_next_node_key: "no_match_followup",
+        filter_types: [
+          'Flat/ Apartment',
+          'Builder Floor Apartment',
+          'Studio Apartment',
+          'Residential House',
+        ],
+        filter_listing_type: 'Rent',
+        next_node_key: 'post_listings',
+        empty_next_node_key: 'no_match_followup',
       } as SendPropertyListingsNodeConfig,
     },
     {
-      node_key: "rent_3bhk_info",
-      node_type: "send_property_listings",
+      node_key: 'rent_3bhk_info',
+      node_type: 'send_property_listings',
       config: {
-        intro_text: "🔑 *3 BHK & Penthouses for Rent*\n\nHere are our current listings:",
+        intro_text:
+          '🔑 *3 BHK & Penthouses for Rent*\n\nHere are our current listings:',
         empty_text:
-          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          '🔍 *Nothing matching that in our live listings right now.*\n\n' +
           "Don't lose hope — this is where the engine earns its keep. It keeps " +
-          "hunting as new properties come in, and the moment one fits what " +
+          'hunting as new properties come in, and the moment one fits what ' +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Flat/ Apartment", "Builder Floor Apartment", "Penthouse", "Villa", "Residential House"],
-        filter_listing_type: "Rent",
-        next_node_key: "post_listings",
-        empty_next_node_key: "no_match_followup",
+        filter_types: [
+          'Flat/ Apartment',
+          'Builder Floor Apartment',
+          'Penthouse',
+          'Villa',
+          'Residential House',
+        ],
+        filter_listing_type: 'Rent',
+        next_node_key: 'post_listings',
+        empty_next_node_key: 'no_match_followup',
       } as SendPropertyListingsNodeConfig,
     },
     {
-      node_key: "rent_commercial_info",
-      node_type: "send_property_listings",
+      node_key: 'rent_commercial_info',
+      node_type: 'send_property_listings',
       config: {
-        intro_text: "🏢 *Commercial Space for Rent*\n\nHere are our current listings:",
+        intro_text:
+          '🏢 *Commercial Space for Rent*\n\nHere are our current listings:',
         empty_text:
-          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          '🔍 *Nothing matching that in our live listings right now.*\n\n' +
           "Don't lose hope — this is where the engine earns its keep. It keeps " +
-          "hunting as new properties come in, and the moment one fits what " +
+          'hunting as new properties come in, and the moment one fits what ' +
           "you've told me, you'll hear about it here.",
         limit: 5,
-        filter_types: ["Commercial Office Space", "Office in IT Park/ SEZ", "Commercial Shop", "Commercial Showroom", "Commercial Building", "Warehouse/ Godown"],
-        filter_listing_type: "Rent",
-        next_node_key: "post_listings",
-        empty_next_node_key: "no_match_followup",
+        filter_types: [
+          'Commercial Office Space',
+          'Office in IT Park/ SEZ',
+          'Commercial Shop',
+          'Commercial Showroom',
+          'Commercial Building',
+          'Warehouse/ Godown',
+        ],
+        filter_listing_type: 'Rent',
+        next_node_key: 'post_listings',
+        empty_next_node_key: 'no_match_followup',
       } as SendPropertyListingsNodeConfig,
     },
     {
-      node_key: "no_match_followup",
-      node_type: "send_buttons",
+      node_key: 'no_match_followup',
+      node_type: 'send_buttons',
       config: {
-        text: "Shall I keep you posted the moment something matches? 🔔",
+        text: 'Shall I keep you posted the moment something matches? 🔔',
         buttons: [
           {
-            reply_id: "subscribe_matches",
-            title: "Yes, keep me posted",
-            next_node_key: "match_subscribed",
+            reply_id: 'subscribe_matches',
+            title: 'Yes, keep me posted',
+            next_node_key: 'match_subscribed',
           },
           {
-            reply_id: "browse_other",
-            title: "See other options",
-            next_node_key: "buy_menu",
+            reply_id: 'browse_other',
+            title: 'See other options',
+            next_node_key: 'buy_menu',
           },
           {
-            reply_id: "talk_to_agent_nomatch",
-            title: "Talk to an Agent",
-            next_node_key: "thank_you",
+            reply_id: 'talk_to_agent_nomatch',
+            title: 'Talk to an Agent',
+            next_node_key: 'thank_you',
           },
         ],
-        interest_node_key: "thank_you",
+        interest_node_key: 'thank_you',
       } as SendButtonsNodeConfig,
     },
     {
-      node_key: "match_subscribed",
-      node_type: "send_message",
+      node_key: 'match_subscribed',
+      node_type: 'send_message',
       config: {
         text: "✅ *You're on the list.*\n\nI've saved what you're after — type, budget and area — and the engine now watches every new listing against it. The moment one matches, you'll get a message here. No need to check back.\n\nAnd you don't have to wait for me: our full catalogue is open to browse whenever you like, at the link above.\n\n_Reply STOP ALERTS anytime to turn these off._",
         grants_alerts_consent: true,
-        next_node_key: "handoff_onboarding",
+        next_node_key: 'handoff_onboarding',
       } as SendMessageNodeConfig,
     },
     {
-      node_key: "post_listings",
-      node_type: "send_buttons",
+      node_key: 'post_listings',
+      node_type: 'send_buttons',
       config: {
         text: "Interested in any of these? *Reply with its number* (e.g. 2) to open its full details. I'll also notify our consultant to call you and arrange a site visit. 👇",
         buttons: [
           {
-            reply_id: "explore_more",
-            title: "View More Categories",
-            next_node_key: "buy_menu",
+            reply_id: 'explore_more',
+            title: 'View More Categories',
+            next_node_key: 'buy_menu',
           },
           {
-            reply_id: "talk_to_agent",
-            title: "Talk to an Agent",
-            next_node_key: "thank_you",
+            reply_id: 'talk_to_agent',
+            title: 'Talk to an Agent',
+            next_node_key: 'thank_you',
           },
         ],
-        interest_node_key: "thank_you",
+        interest_node_key: 'thank_you',
       } as SendButtonsNodeConfig,
     },
     {
-      node_key: "collect_email",
-      node_type: "collect_input",
+      node_key: 'collect_email',
+      node_type: 'collect_input',
       config: {
-        prompt_text: "Please reply with your email address to receive files and contact from our specialist:",
-        var_key: "email",
-        validation: "email",
-        next_node_key: "thank_you",
+        prompt_text:
+          'Please reply with your email address to receive files and contact from our specialist:',
+        var_key: 'email',
+        validation: 'email',
+        next_node_key: 'thank_you',
       } as CollectInputNodeConfig,
     },
     {
-      node_key: "thank_you",
-      node_type: "send_message",
+      node_key: 'thank_you',
+      node_type: 'send_message',
       config: {
-        text: "🙏 *Thank you!* One of our specialists is being notified right now and will call you shortly with options that fit your budget.\n\nFor anything urgent, call us on *{{account.contact_phone}}*\n\nWe look forward to helping you find your perfect property! 🏡",
-        next_node_key: "handoff_onboarding",
+        text: '🙏 *Thank you!* One of our specialists is being notified right now and will call you shortly with options that fit your budget.\n\nFor anything urgent, call us on *{{account.contact_phone}}*\n\nWe look forward to helping you find your perfect property! 🏡',
+        next_node_key: 'handoff_onboarding',
       } as SendMessageNodeConfig,
     },
     {
-      node_key: "handoff_onboarding",
-      node_type: "handoff",
+      node_key: 'handoff_onboarding',
+      node_type: 'handoff',
       config: {
-        note: "Real Estate Buyer/Tenant Lead! Budget: {{vars.budget}}. Interested in: {{vars.interested_property}}. Captured email: {{vars.email}}.",
+        note: 'Real Estate Buyer/Tenant Lead! Budget: {{vars.budget}}. Interested in: {{vars.interested_property}}. Captured email: {{vars.email}}.',
       } as HandoffNodeConfig,
     },
     {
-      node_key: "seller_handoff",
-      node_type: "start_property_intake",
+      node_key: 'seller_handoff',
+      node_type: 'start_property_intake',
       config: {
         intro_text:
-          "📋 *List Your Property*\n\n" +
-          "Ready to get your property in front of serious buyers? Just share a few details and photos, " +
+          '📋 *List Your Property*\n\n' +
+          'Ready to get your property in front of serious buyers? Just share a few details and photos, ' +
           "and we'll put together a polished listing for you.\n\n" +
-          "• 📸 *Photos* — any angle, as many as you have\n" +
-          "• 📝 *Details* — location, price, type, BHK, area, amenities, anything else worth mentioning\n\n" +
+          '• 📸 *Photos* — any angle, as many as you have\n' +
+          '• 📝 *Details* — location, price, type, BHK, area, amenities, anything else worth mentioning\n\n' +
           "Send it all at once or a bit at a time — we'll piece it together and show you a preview before it goes live.\n\n" +
-          "_Type *cancel* anytime to stop._",
+          '_Type *cancel* anytime to stop._',
       } as StartPropertyIntakeNodeConfig,
     },
   ],

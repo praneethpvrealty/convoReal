@@ -12,12 +12,16 @@ export async function GET(request: Request) {
     if (!error) {
       const next = requestUrl.searchParams.get('next') || '/dashboard';
       if (invite) {
-        return NextResponse.redirect(`${requestUrl.origin}/join/${encodeURIComponent(invite)}`);
+        return NextResponse.redirect(
+          `${requestUrl.origin}/join/${encodeURIComponent(invite)}`
+        );
       }
       return NextResponse.redirect(`${requestUrl.origin}${next}`);
     }
   }
 
   // Return the user to an error page or login screen if the exchange fails
-  return NextResponse.redirect(`${requestUrl.origin}/login?error=OAuth+authentication+failed`);
+  return NextResponse.redirect(
+    `${requestUrl.origin}/login?error=OAuth+authentication+failed`
+  );
 }

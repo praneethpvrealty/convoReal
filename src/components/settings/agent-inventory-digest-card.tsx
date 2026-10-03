@@ -4,7 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import {
@@ -59,7 +65,9 @@ export function AgentInventoryDigestCard() {
           .maybeSingle(),
         supabase
           .from('message_templates')
-          .select('id, name, status, category, meta_template_id, last_submitted_at')
+          .select(
+            'id, name, status, category, meta_template_id, last_submitted_at'
+          )
           .eq('account_id', accountId)
           .in('name', AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES)
           .order('last_submitted_at', { ascending: false, nullsFirst: false }),
@@ -68,9 +76,14 @@ export function AgentInventoryDigestCard() {
       // Mirrors the send path: the shared owner template wins, and a
       // legacy agent-specific row is the fallback that still delivers.
       const shared = (templates || []).find(
-        (t) => t.name === AGENT_INVENTORY_DIGEST_TEMPLATE_NAME && t.status === 'APPROVED'
+        (t) =>
+          t.name === AGENT_INVENTORY_DIGEST_TEMPLATE_NAME &&
+          t.status === 'APPROVED'
       );
-      const template = shared ?? (templates || []).find((t) => t.status === 'APPROVED') ?? null;
+      const template =
+        shared ??
+        (templates || []).find((t) => t.status === 'APPROVED') ??
+        null;
       setTemplateStatus(template?.status ?? null);
       setTemplateCategory(template?.category ?? null);
       setTemplateName(template?.name ?? null);
@@ -93,12 +106,18 @@ export function AgentInventoryDigestCard() {
       const { error } = await supabase
         .from('agent_inventory_digest_settings')
         .upsert(
-          { account_id: accountId, frequency: value, updated_at: new Date().toISOString() },
+          {
+            account_id: accountId,
+            frequency: value,
+            updated_at: new Date().toISOString(),
+          },
           { onConflict: 'account_id' }
         );
       if (error) throw error;
       toast.success(
-        value === 'off' ? 'Agent digests turned off' : `Agent digests set to ${value}`
+        value === 'off'
+          ? 'Agent digests turned off'
+          : `Agent digests set to ${value}`
       );
     } catch (err) {
       setFrequency(previous);
@@ -109,20 +128,21 @@ export function AgentInventoryDigestCard() {
     }
   };
 
-  const sharesOwnerTemplate = templateName === AGENT_INVENTORY_DIGEST_TEMPLATE_NAME;
+  const sharesOwnerTemplate =
+    templateName === AGENT_INVENTORY_DIGEST_TEMPLATE_NAME;
   const miscategorized = templateCategory === 'Marketing';
 
   const statusBadge = (status: string | null) =>
     status === 'APPROVED' ? (
-      <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+      <Badge className="border border-emerald-500/30 bg-emerald-500/15 text-emerald-400">
         Approved
       </Badge>
     ) : status === 'PENDING' ? (
-      <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/30">
+      <Badge className="border border-amber-500/30 bg-amber-500/15 text-amber-400">
         Pending approval
       </Badge>
     ) : status ? (
-      <Badge className="bg-red-500/15 text-red-400 border border-red-500/30">
+      <Badge className="border border-red-500/30 bg-red-500/15 text-red-400">
         {status.toLowerCase()}
       </Badge>
     ) : (
@@ -132,52 +152,57 @@ export function AgentInventoryDigestCard() {
     );
 
   return (
-    <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+    <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
       <CardHeader>
         <div className="flex items-center gap-2">
-          <Share2 className="size-4 text-primary" />
+          <Share2 className="text-primary size-4" />
           <CardTitle className="text-white">Agent Inventory Digest</CardTitle>
         </div>
         <CardDescription className="text-slate-400">
-          Automatic WhatsApp reach updates to partner agents whose inventory you list as
-          agent-referred: how many direct buyers their listings were shared with and how many
-          more were reached through downstream partner agents. Agents not yet on ConvoReal get
-          a signup invite once they reply and the chat is open; their &quot;STOP UPDATES&quot;
-          reply always overrides this setting.
+          Automatic WhatsApp reach updates to partner agents whose inventory you
+          list as agent-referred: how many direct buyers their listings were
+          shared with and how many more were reached through downstream partner
+          agents. Agents not yet on ConvoReal get a signup invite once they
+          reply and the chat is open; their &quot;STOP UPDATES&quot; reply
+          always overrides this setting.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {loading ? (
-          <div className="flex items-center gap-2 text-slate-400 text-sm">
-            <Loader2 className="size-4 animate-spin" /> Loading digest settings...
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <Loader2 className="size-4 animate-spin" /> Loading digest
+            settings...
           </div>
         ) : (
           <>
-            <div className="space-y-2 max-w-xs">
+            <div className="max-w-xs space-y-2">
               <Label className="text-slate-300">Frequency</Label>
               <Select
                 value={frequency}
                 onValueChange={(v) => handleFrequencyChange(v as Frequency)}
                 disabled={saving}
               >
-                <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-200">
+                <SelectTrigger className="border-slate-700 bg-slate-800 text-slate-200">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="off">Off</SelectItem>
                   <SelectItem value="daily">Daily (mornings, IST)</SelectItem>
-                  <SelectItem value="weekly">Weekly (Monday mornings, IST)</SelectItem>
+                  <SelectItem value="weekly">
+                    Weekly (Monday mornings, IST)
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {frequency !== 'off' && (
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
+              <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
                 <p className="text-sm text-slate-300">
-                  Partner agents usually haven&apos;t messaged you in the last 24 hours, so
-                  the digest needs a pre-approved template. It shares the Owner Property
-                  Digest template rather than having one of its own — submit that one in the
-                  Owner Digest tab and both digests are covered.
+                  Partner agents usually haven&apos;t messaged you in the last
+                  24 hours, so the digest needs a pre-approved template. It
+                  shares the Owner Property Digest template rather than having
+                  one of its own — submit that one in the Owner Digest tab and
+                  both digests are covered.
                 </p>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
                   <div className="min-w-0">
@@ -188,23 +213,26 @@ export function AgentInventoryDigestCard() {
                         : 'The recurring reach summary sent to each source agent.'}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">{statusBadge(templateStatus)}</div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {statusBadge(templateStatus)}
+                  </div>
                 </div>
                 {!templateStatus && (
                   <p className="text-xs text-amber-400">
-                    No approved template yet — submit the Status digest in the Owner Digest
-                    tab. Until then, agents with an open chat still get the full free-form
-                    breakdown; the rest are skipped.
+                    No approved template yet — submit the Status digest in the
+                    Owner Digest tab. Until then, agents with an open chat still
+                    get the full free-form breakdown; the rest are skipped.
                   </p>
                 )}
                 {miscategorized && !sharesOwnerTemplate && (
                   <p className="text-xs text-amber-400">
-                    Digests are going out on {templateName}, which Meta categorised as
-                    Marketing — billed at the marketing rate and requiring marketing opt-in.
-                    Submitting the Owner Digest template moves them onto its Utility
-                    category. A template&apos;s category is fixed once Meta approves it, so
-                    the only way to change this one is an appeal in WhatsApp Manager
-                    (Business Support) within 60 days.
+                    Digests are going out on {templateName}, which Meta
+                    categorised as Marketing — billed at the marketing rate and
+                    requiring marketing opt-in. Submitting the Owner Digest
+                    template moves them onto its Utility category. A
+                    template&apos;s category is fixed once Meta approves it, so
+                    the only way to change this one is an appeal in WhatsApp
+                    Manager (Business Support) within 60 days.
                   </p>
                 )}
               </div>

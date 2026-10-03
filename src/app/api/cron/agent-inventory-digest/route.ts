@@ -1,6 +1,6 @@
-import { timingSafeEqual } from 'node:crypto'
-import { NextResponse } from 'next/server'
-import { sendAgentInventoryDigests } from '@/lib/agents/inventory-digest'
+import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { sendAgentInventoryDigests } from '@/lib/agents/inventory-digest';
 
 /**
  * Agent inventory digest cron — messages each SOURCE AGENT (the partner
@@ -23,27 +23,31 @@ import { sendAgentInventoryDigests } from '@/lib/agents/inventory-digest'
  * (503) when no secret is configured.
  */
 export async function GET(request: Request) {
-  const expected = process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET
+  const expected =
+    process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET;
   if (!expected) {
-    return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
+    return NextResponse.json({ error: 'cron not configured' }, { status: 503 });
   }
   const supplied =
     request.headers.get('x-cron-secret') ||
     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
-    ''
-  const suppliedBuf = Buffer.from(supplied)
-  const expectedBuf = Buffer.from(expected)
-  if (suppliedBuf.length !== expectedBuf.length || !timingSafeEqual(suppliedBuf, expectedBuf)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    '';
+  const suppliedBuf = Buffer.from(supplied);
+  const expectedBuf = Buffer.from(expected);
+  if (
+    suppliedBuf.length !== expectedBuf.length ||
+    !timingSafeEqual(suppliedBuf, expectedBuf)
+  ) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const result = await sendAgentInventoryDigests()
-    console.log('[agent-inventory-digest]', JSON.stringify(result))
-    return NextResponse.json(result)
+    const result = await sendAgentInventoryDigests();
+    console.log('[agent-inventory-digest]', JSON.stringify(result));
+    return NextResponse.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('[agent-inventory-digest] run failed:', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[agent-inventory-digest] run failed:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

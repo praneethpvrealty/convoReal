@@ -8,10 +8,7 @@ import {
 } from '@/lib/matching';
 import { contactHandle } from '@/lib/contacts/reachability';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
-import {
-  loadContactParties,
-  partyDisplayName,
-} from '@/lib/contacts/parties';
+import { loadContactParties, partyDisplayName } from '@/lib/contacts/parties';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import {
   deliverRealtimeBuyerAlerts,
@@ -130,26 +127,27 @@ export async function generateMatchEventForProperty(
   propertyId: string
 ): Promise<void> {
   try {
-    const [{ data: property }, { data: contacts }, { data: rejected }] = await Promise.all([
-      db
-        .from('properties')
-        .select('*')
-        .eq('id', propertyId)
-        .eq('account_id', accountId)
-        .maybeSingle(),
-      db
-        .from('contacts')
-        .select('*, contact_notes(note_text)')
-        .eq('account_id', accountId)
-        .eq('status', 'active')
-        .in('classification', ['Buyer', 'Owner & Buyer', 'Agent']),
-      db
-        .from('listing_feedback')
-        .select('contact_id')
-        .eq('account_id', accountId)
-        .eq('property_id', propertyId)
-        .eq('verdict', 'rejected'),
-    ]);
+    const [{ data: property }, { data: contacts }, { data: rejected }] =
+      await Promise.all([
+        db
+          .from('properties')
+          .select('*')
+          .eq('id', propertyId)
+          .eq('account_id', accountId)
+          .maybeSingle(),
+        db
+          .from('contacts')
+          .select('*, contact_notes(note_text)')
+          .eq('account_id', accountId)
+          .eq('status', 'active')
+          .in('classification', ['Buyer', 'Owner & Buyer', 'Agent']),
+        db
+          .from('listing_feedback')
+          .select('contact_id')
+          .eq('account_id', accountId)
+          .eq('property_id', propertyId)
+          .eq('verdict', 'rejected'),
+      ]);
 
     if (!property || !contacts || contacts.length === 0) return;
 
@@ -158,7 +156,9 @@ export async function generateMatchEventForProperty(
     // event and wastes two of its capped slots.
     const parties = await loadContactParties(db, accountId);
     const rejectedContactIds = new Set(
-      ((rejected ?? []) as { contact_id: string }[]).map((row) => row.contact_id)
+      ((rejected ?? []) as { contact_id: string }[]).map(
+        (row) => row.contact_id
+      )
     );
     const eligibleContacts = await attachInquiredListingTypes(
       db,
@@ -176,19 +176,21 @@ export async function generateMatchEventForProperty(
 
     if (results.length === 0) return;
 
-    const targets: MatchEventTarget[] = results.slice(0, MAX_TARGETS).map((r) => ({
-      id: r.contact.id,
-      name:
-        partyDisplayName(r.party ?? null, [
-          r.contact.name ?? '',
-          ...(r.alsoMatched ?? []).map((c) => c.name ?? ''),
-        ]) ||
-        r.contact.name ||
-        contactHandle(r.contact),
-      detail: contactHandle(r.contact) || null,
-      score: r.score,
-      chips: chipsFromDetails(r.details),
-    }));
+    const targets: MatchEventTarget[] = results
+      .slice(0, MAX_TARGETS)
+      .map((r) => ({
+        id: r.contact.id,
+        name:
+          partyDisplayName(r.party ?? null, [
+            r.contact.name ?? '',
+            ...(r.alsoMatched ?? []).map((c) => c.name ?? ''),
+          ]) ||
+          r.contact.name ||
+          contactHandle(r.contact),
+        detail: contactHandle(r.contact) || null,
+        score: r.score,
+        chips: chipsFromDetails(r.details),
+      }));
 
     await upsertEvent(
       db,
@@ -228,7 +230,9 @@ export function rankProperties(
 
   const matched: RankedPropertyMatch[] = [];
   const exactEnquiryId =
-    contact.requirement_active !== false && !contact.is_dead && !contact.is_archived
+    contact.requirement_active !== false &&
+    !contact.is_dead &&
+    !contact.is_archived
       ? contact.last_inquired_property_id
       : null;
 
@@ -241,10 +245,14 @@ export function rankProperties(
       }
 
       const hasBudgetPreference =
-        (sourceContact.min_budget != null && Number(sourceContact.min_budget) > 0) ||
-        (sourceContact.max_budget != null && Number(sourceContact.max_budget) > 0) ||
-        (sourceContact.pref_budget_min != null && Number(sourceContact.pref_budget_min) > 0) ||
-        (sourceContact.pref_budget_max != null && Number(sourceContact.pref_budget_max) > 0);
+        (sourceContact.min_budget != null &&
+          Number(sourceContact.min_budget) > 0) ||
+        (sourceContact.max_budget != null &&
+          Number(sourceContact.max_budget) > 0) ||
+        (sourceContact.pref_budget_min != null &&
+          Number(sourceContact.pref_budget_min) > 0) ||
+        (sourceContact.pref_budget_max != null &&
+          Number(sourceContact.pref_budget_max) > 0);
 
       if (!hasBudgetPreference) {
         matched.push({
@@ -342,7 +350,8 @@ export async function rankPropertiesForContact(
     ]);
 
   if (!contact || !properties || properties.length === 0) return [];
-  if (!isRadarContactClassification((contact as Contact).classification)) return [];
+  if (!isRadarContactClassification((contact as Contact).classification))
+    return [];
 
   // Rejected outright, or already sent once — either way, offering it
   // again spends trust the thread has not got to spare.

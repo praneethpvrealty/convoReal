@@ -8,20 +8,15 @@
 // property_bid_events audit row.
 // ============================================================
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEN_BID_EXPIRY_DAYS } from "./costs";
-import { sendDenNotification } from "./notify";
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { DEN_BID_EXPIRY_DAYS } from './costs';
+import { sendDenNotification } from './notify';
 
-export const DEN_BID_RECEIVED_TEMPLATE_NAME = "den_bid_received";
-export const DEN_BID_UPDATE_TEMPLATE_NAME = "den_bid_update";
+export const DEN_BID_RECEIVED_TEMPLATE_NAME = 'den_bid_received';
+export const DEN_BID_UPDATE_TEMPLATE_NAME = 'den_bid_update';
 
 export type BidStatus =
-  | "pending"
-  | "accepted"
-  | "rejected"
-  | "countered"
-  | "withdrawn"
-  | "expired";
+  'pending' | 'accepted' | 'rejected' | 'countered' | 'withdrawn' | 'expired';
 
 export interface BidRow {
   id: string;
@@ -32,7 +27,7 @@ export interface BidRow {
   bidder_contact_id: string | null;
   unlock_id: string;
   amount: number;
-  bid_type: "sale" | "rent";
+  bid_type: 'sale' | 'rent';
   message: string | null;
   status: BidStatus;
   counter_amount: number | null;
@@ -44,23 +39,26 @@ export interface BidRow {
 }
 
 export function bidExpiryIso(now: Date = new Date()): string {
-  return new Date(now.getTime() + DEN_BID_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  return new Date(
+    now.getTime() + DEN_BID_EXPIRY_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
 }
 
 export async function appendBidEvent(
   db: SupabaseClient,
   bidId: string,
-  actor: "owner" | "bidder" | "system",
+  actor: 'owner' | 'bidder' | 'system',
   event: string,
-  payload?: Record<string, unknown>,
+  payload?: Record<string, unknown>
 ): Promise<void> {
-  const { error } = await db.from("property_bid_events").insert({
+  const { error } = await db.from('property_bid_events').insert({
     bid_id: bidId,
     actor,
     event,
     payload: payload ?? null,
   });
-  if (error) console.error("[den-bids] audit insert failed (non-fatal):", error.message);
+  if (error)
+    console.error('[den-bids] audit insert failed (non-fatal):', error.message);
 }
 
 /**
@@ -72,29 +70,31 @@ export async function transitionBid(
   bidId: string,
   from: BidStatus[],
   to: BidStatus,
-  extra: Record<string, unknown> = {},
+  extra: Record<string, unknown> = {}
 ): Promise<BidRow | null> {
-  const terminal = ["accepted", "rejected", "withdrawn", "expired"].includes(to);
+  const terminal = ['accepted', 'rejected', 'withdrawn', 'expired'].includes(
+    to
+  );
   const { data, error } = await db
-    .from("property_bids")
+    .from('property_bids')
     .update({
       status: to,
       updated_at: new Date().toISOString(),
       ...(terminal ? { resolved_at: new Date().toISOString() } : {}),
       ...extra,
     })
-    .eq("id", bidId)
-    .in("status", from)
-    .select("*")
+    .eq('id', bidId)
+    .in('status', from)
+    .select('*')
     .maybeSingle();
   if (error) {
-    console.error("[den-bids] transition failed:", error.message);
+    console.error('[den-bids] transition failed:', error.message);
     return null;
   }
   return (data as BidRow) ?? null;
 }
 
-const inr = (n: number) => `₹${Number(n).toLocaleString("en-IN")}`;
+const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`;
 
 /** WhatsApp ping to the OWNER contact (via the managing agency's
  *  sender) when a bid lands or changes. Best-effort. */
@@ -105,19 +105,21 @@ export async function notifyOwnerOfBid(
     ownerContactId: string;
     propertyTitle: string;
     amount: number;
-    kind: "new" | "withdrawn";
+    kind: 'new' | 'withdrawn';
     bidderAgency: string | null;
-  },
+  }
 ): Promise<boolean> {
   const { data: ownerContact } = await db
-    .from("contacts")
-    .select("id, name")
-    .eq("id", args.ownerContactId)
+    .from('contacts')
+    .select('id, name')
+    .eq('id', args.ownerContactId)
     .maybeSingle();
-  const firstName = (ownerContact?.name as string | undefined)?.trim().split(/\s+/)[0] || "there";
-  const via = args.bidderAgency ? ` via ${args.bidderAgency}` : "";
+  const firstName =
+    (ownerContact?.name as string | undefined)?.trim().split(/\s+/)[0] ||
+    'there';
+  const via = args.bidderAgency ? ` via ${args.bidderAgency}` : '';
   const text =
-    args.kind === "new"
+    args.kind === 'new'
       ? `💰 *New offer on your property!*\n\nHi ${firstName}, you've received an offer of *${inr(args.amount)}* on *${args.propertyTitle}*${via}.\n\nOpen your Portfolio to accept, reject or counter it.`
       : `An offer of ${inr(args.amount)} on *${args.propertyTitle}* was withdrawn by the buyer.`;
   return sendDenNotification(db, {
@@ -137,16 +139,16 @@ export async function notifyBidderOfOutcome(
     bidderAccountId: string;
     bidderContactId: string | null;
     propertyTitle: string;
-    outcome: "accepted" | "rejected" | "countered";
+    outcome: 'accepted' | 'rejected' | 'countered';
     counterAmount?: number | null;
-  },
+  }
 ): Promise<boolean> {
   if (!args.bidderContactId) return false;
   const text =
-    args.outcome === "accepted"
+    args.outcome === 'accepted'
       ? `🎉 *Offer accepted!* The owner of *${args.propertyTitle}* accepted your offer. Your agent will share the owner's contact details to take it forward.`
-      : args.outcome === "countered"
-        ? `↩️ The owner of *${args.propertyTitle}* made a counter-offer${args.counterAmount ? ` of *${inr(args.counterAmount)}*` : ""}. Ask your agent for details.`
+      : args.outcome === 'countered'
+        ? `↩️ The owner of *${args.propertyTitle}* made a counter-offer${args.counterAmount ? ` of *${inr(args.counterAmount)}*` : ''}. Ask your agent for details.`
         : `The owner of *${args.propertyTitle}* declined your offer. Your agent can help you find similar options.`;
   return sendDenNotification(db, {
     accountId: args.bidderAccountId,

@@ -56,11 +56,12 @@ const SAME_SESSION_WINDOW_MS = 2 * 60 * 1000;
  */
 export async function trackDocumentView(
   db: SupabaseClient,
-  docRequest: DocRequestForTracking,
+  docRequest: DocRequestForTracking
 ): Promise<void> {
   const now = Date.now();
   const withinSameSession = docRequest.last_viewed_at
-    ? now - new Date(docRequest.last_viewed_at).getTime() < SAME_SESSION_WINDOW_MS
+    ? now - new Date(docRequest.last_viewed_at).getTime() <
+      SAME_SESSION_WINDOW_MS
     : false;
 
   try {
@@ -82,7 +83,9 @@ export async function trackDocumentView(
     // already counted moments ago; don't log the interaction twice.
     if (withinSameSession) return;
 
-    const normalized = normalizePhoneWithCountryCode(docRequest.requester_phone);
+    const normalized = normalizePhoneWithCountryCode(
+      docRequest.requester_phone
+    );
     if (!normalized) return;
     const cleanPhone = normalized.replace(/\D/g, '');
 
@@ -90,12 +93,17 @@ export async function trackDocumentView(
       .from('contacts')
       .select('id, user_id')
       .eq('account_id', docRequest.account_id)
-      .or(`phone.eq."${String(docRequest.requester_phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${cleanPhone}`)
+      .or(
+        `phone.eq."${String(docRequest.requester_phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${cleanPhone}`
+      )
       .maybeSingle();
 
     if (!contact) return;
 
-    await db.from('contacts').update({ last_contacted_at: nowIso }).eq('id', contact.id);
+    await db
+      .from('contacts')
+      .update({ last_contacted_at: nowIso })
+      .eq('id', contact.id);
 
     const noteText = isFirstView
       ? '📂 Opened the shared property documents.'

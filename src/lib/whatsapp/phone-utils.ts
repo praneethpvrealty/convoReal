@@ -6,9 +6,9 @@ import { BRANDING } from '@/config/branding';
  * e.g. "+370 63949836" → "37063949836"
  */
 export function sanitizePhoneForMeta(phone: unknown): string {
-  if (phone === null || phone === undefined) return ''
-  const phoneStr = String(phone)
-  return phoneStr.replace(/\D/g, '')
+  if (phone === null || phone === undefined) return '';
+  const phoneStr = String(phone);
+  return phoneStr.replace(/\D/g, '');
 }
 
 /**
@@ -16,9 +16,9 @@ export function sanitizePhoneForMeta(phone: unknown): string {
  * Used for comparing phone numbers in different formats.
  */
 export function normalizePhone(phone: unknown): string {
-  if (phone === null || phone === undefined) return ''
-  const phoneStr = String(phone)
-  return phoneStr.replace(/\D/g, '')
+  if (phone === null || phone === undefined) return '';
+  const phoneStr = String(phone);
+  return phoneStr.replace(/\D/g, '');
 }
 
 /**
@@ -26,30 +26,33 @@ export function normalizePhone(phone: unknown): string {
  * If the number is a local number (e.g. 10 digits in India), it prefixes it with the default country code.
  * Strips leading zeros (e.g. domestic trunk prefixes like '0') before prefixing.
  */
-export function normalizePhoneWithCountryCode(phone: unknown, defaultCountryCode: string = BRANDING.defaultCountryCode || '91'): string {
-  if (phone === null || phone === undefined) return ''
-  const phoneStr = String(phone)
-  
+export function normalizePhoneWithCountryCode(
+  phone: unknown,
+  defaultCountryCode: string = BRANDING.defaultCountryCode || '91'
+): string {
+  if (phone === null || phone === undefined) return '';
+  const phoneStr = String(phone);
+
   // 1. Remove all non-digits
-  let digits = phoneStr.replace(/\D/g, '')
-  
+  let digits = phoneStr.replace(/\D/g, '');
+
   // 2. Strip leading international double zero prefix (e.g. 0091... -> 91...)
   if (digits.startsWith('00')) {
-    digits = digits.slice(2)
+    digits = digits.slice(2);
   }
-  
+
   // 3. Strip leading single zero domestic trunk prefix (e.g. 09876543210 -> 9876543210)
   // only if the remaining length is 10 digits
   if (digits.startsWith('0') && digits.length === 11) {
-    digits = digits.slice(1)
+    digits = digits.slice(1);
   }
-  
+
   // 4. If the digits length matches a local 10-digit number, prefix with the default country code
   if (digits.length === 10) {
-    digits = defaultCountryCode + digits
+    digits = defaultCountryCode + digits;
   }
-  
-  return digits ? '+' + digits : ''
+
+  return digits ? '+' + digits : '';
 }
 
 /**
@@ -66,13 +69,13 @@ export function normalizePhoneWithCountryCode(phone: unknown, defaultCountryCode
  * "+91-99002-77111" reached Supabase with its dashes.
  */
 export function toAuthPhone(raw: unknown): string | null {
-  const e164 = normalizePhoneWithCountryCode(raw)
-  const digits = e164.replace(/\D/g, '')
+  const e164 = normalizePhoneWithCountryCode(raw);
+  const digits = e164.replace(/\D/g, '');
   // E.164 caps at 15 digits; below 11 cannot carry a country code and a
   // subscriber number, and normalizePhoneWithCountryCode has already
   // added the default code to a bare 10-digit local number.
-  if (digits.length < 11 || digits.length > 15) return null
-  return e164
+  if (digits.length < 11 || digits.length > 15) return null;
+  return e164;
 }
 
 /**
@@ -81,13 +84,13 @@ export function toAuthPhone(raw: unknown): string | null {
  * by comparing the last 8 digits.
  */
 export function phonesMatch(phone1: string, phone2: string): boolean {
-  const n1 = normalizePhone(phone1)
-  const n2 = normalizePhone(phone2)
-  if (n1 === n2) return true
+  const n1 = normalizePhone(phone1);
+  const n2 = normalizePhone(phone2);
+  if (n1 === n2) return true;
   if (n1.length >= 8 && n2.length >= 8) {
-    return n1.slice(-8) === n2.slice(-8)
+    return n1.slice(-8) === n2.slice(-8);
   }
-  return false
+  return false;
 }
 
 /**
@@ -95,7 +98,7 @@ export function phonesMatch(phone1: string, phone2: string): boolean {
  * Accepts with or without + prefix.
  */
 export function isValidE164(phone: string): boolean {
-  return /^\+?[1-9]\d{6,14}$/.test(phone)
+  return /^\+?[1-9]\d{6,14}$/.test(phone);
 }
 
 /**
@@ -120,36 +123,36 @@ export function isValidE164(phone: string): boolean {
  * @returns deduplicated list of variants, original first
  */
 export function phoneVariants(sanitized: string): string[] {
-  if (!sanitized) return []
-  const seen = new Set<string>()
+  if (!sanitized) return [];
+  const seen = new Set<string>();
   const push = (v: string) => {
-    if (v && !seen.has(v)) seen.add(v)
-  }
+    if (v && !seen.has(v)) seen.add(v);
+  };
 
   // 1. Original
-  push(sanitized)
+  push(sanitized);
 
   // 2. Insert a 0 after each plausible country-code length
   for (const ccLen of [1, 2, 3]) {
-    if (sanitized.length <= ccLen) continue
-    const cc = sanitized.slice(0, ccLen)
-    const rest = sanitized.slice(ccLen)
+    if (sanitized.length <= ccLen) continue;
+    const cc = sanitized.slice(0, ccLen);
+    const rest = sanitized.slice(ccLen);
     if (!rest.startsWith('0')) {
-      push(cc + '0' + rest)
+      push(cc + '0' + rest);
     }
   }
 
   // 3. Remove a leading 0 after each plausible country-code length
   for (const ccLen of [1, 2, 3]) {
-    if (sanitized.length <= ccLen + 1) continue
-    const cc = sanitized.slice(0, ccLen)
-    const rest = sanitized.slice(ccLen)
+    if (sanitized.length <= ccLen + 1) continue;
+    const cc = sanitized.slice(0, ccLen);
+    const rest = sanitized.slice(ccLen);
     if (rest.startsWith('0')) {
-      push(cc + rest.slice(1))
+      push(cc + rest.slice(1));
     }
   }
 
-  return [...seen]
+  return [...seen];
 }
 
 /**
@@ -158,5 +161,5 @@ export function phoneVariants(sanitized: string): string[] {
  * Detected via error code 131030 or the standard error text.
  */
 export function isRecipientNotAllowedError(message: string): boolean {
-  return /131030|not in allowed list|not in the allowed list/i.test(message)
+  return /131030|not in allowed list|not in the allowed list/i.test(message);
 }

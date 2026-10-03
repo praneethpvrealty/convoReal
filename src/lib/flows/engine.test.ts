@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from 'vitest';
 import {
   matchReplyId,
   findReplyIdAcrossNodes,
@@ -23,191 +23,226 @@ import {
   preferLocality,
   type ShownListing,
   type ListingRow,
-} from "./engine";
-import { getFlowTemplate } from "./templates";
-import type { KeywordTriggerConfig } from "./types";
+} from './engine';
+import { getFlowTemplate } from './templates';
+import type { KeywordTriggerConfig } from './types';
 
-describe("matchReplyId", () => {
-  it("returns null for nodes without options", () => {
+describe('matchReplyId', () => {
+  it('returns null for nodes without options', () => {
     expect(
-      matchReplyId({ node_type: "start", config: { next_node_key: "x" } }, "y"),
+      matchReplyId({ node_type: 'start', config: { next_node_key: 'x' } }, 'y')
     ).toBeNull();
     expect(
-      matchReplyId({ node_type: "send_message", config: {} }, "y"),
+      matchReplyId({ node_type: 'send_message', config: {} }, 'y')
     ).toBeNull();
-    expect(matchReplyId({ node_type: "end", config: {} }, "y")).toBeNull();
+    expect(matchReplyId({ node_type: 'end', config: {} }, 'y')).toBeNull();
   });
 
-  it("matches the buttons array on a send_buttons node", () => {
+  it('matches the buttons array on a send_buttons node', () => {
     const node = {
-      node_type: "send_buttons",
+      node_type: 'send_buttons',
       config: {
-        text: "Pick one",
+        text: 'Pick one',
         buttons: [
-          { reply_id: "yes", title: "Yes", next_node_key: "confirmed" },
-          { reply_id: "no", title: "No", next_node_key: "declined" },
+          { reply_id: 'yes', title: 'Yes', next_node_key: 'confirmed' },
+          { reply_id: 'no', title: 'No', next_node_key: 'declined' },
         ],
       },
     };
-    expect(matchReplyId(node, "yes")).toBe("confirmed");
-    expect(matchReplyId(node, "no")).toBe("declined");
+    expect(matchReplyId(node, 'yes')).toBe('confirmed');
+    expect(matchReplyId(node, 'no')).toBe('declined');
   });
 
-  it("returns null when no button reply_id matches", () => {
+  it('returns null when no button reply_id matches', () => {
     const node = {
-      node_type: "send_buttons",
+      node_type: 'send_buttons',
       config: {
-        text: "Pick",
+        text: 'Pick',
         buttons: [
-          { reply_id: "a", title: "A", next_node_key: "to_a" },
-          { reply_id: "b", title: "B", next_node_key: "to_b" },
+          { reply_id: 'a', title: 'A', next_node_key: 'to_a' },
+          { reply_id: 'b', title: 'B', next_node_key: 'to_b' },
         ],
       },
     };
-    expect(matchReplyId(node, "c")).toBeNull();
-    expect(matchReplyId(node, "")).toBeNull();
+    expect(matchReplyId(node, 'c')).toBeNull();
+    expect(matchReplyId(node, '')).toBeNull();
   });
 
-  it("searches across all sections in a send_list node", () => {
+  it('searches across all sections in a send_list node', () => {
     const node = {
-      node_type: "send_list",
+      node_type: 'send_list',
       config: {
-        text: "Pick an order",
-        button_label: "View",
+        text: 'Pick an order',
+        button_label: 'View',
         sections: [
           {
-            title: "Recent",
+            title: 'Recent',
             rows: [
-              { reply_id: "o1", title: "Order 1", next_node_key: "ord_1" },
+              { reply_id: 'o1', title: 'Order 1', next_node_key: 'ord_1' },
             ],
           },
           {
-            title: "Older",
+            title: 'Older',
             rows: [
-              { reply_id: "o2", title: "Order 2", next_node_key: "ord_2" },
-              { reply_id: "o3", title: "Order 3", next_node_key: "ord_3" },
+              { reply_id: 'o2', title: 'Order 2', next_node_key: 'ord_2' },
+              { reply_id: 'o3', title: 'Order 3', next_node_key: 'ord_3' },
             ],
           },
         ],
       },
     };
-    expect(matchReplyId(node, "o1")).toBe("ord_1");
-    expect(matchReplyId(node, "o2")).toBe("ord_2");
-    expect(matchReplyId(node, "o3")).toBe("ord_3");
-    expect(matchReplyId(node, "o99")).toBeNull();
+    expect(matchReplyId(node, 'o1')).toBe('ord_1');
+    expect(matchReplyId(node, 'o2')).toBe('ord_2');
+    expect(matchReplyId(node, 'o3')).toBe('ord_3');
+    expect(matchReplyId(node, 'o99')).toBeNull();
   });
 
-  it("returns null when send_list has no sections / empty sections", () => {
+  it('returns null when send_list has no sections / empty sections', () => {
     expect(
       matchReplyId(
-        { node_type: "send_list", config: { text: "x", sections: [] } },
-        "x",
-      ),
+        { node_type: 'send_list', config: { text: 'x', sections: [] } },
+        'x'
+      )
     ).toBeNull();
     expect(
       matchReplyId(
         {
-          node_type: "send_list",
-          config: { text: "x", sections: [{ rows: [] }] },
+          node_type: 'send_list',
+          config: { text: 'x', sections: [{ rows: [] }] },
         },
-        "x",
-      ),
+        'x'
+      )
     ).toBeNull();
   });
 });
 
-describe("findReplyIdAcrossNodes — stale-button branch switch", () => {
+describe('findReplyIdAcrossNodes — stale-button branch switch', () => {
   // The bug from the field: welcome node offers Buy / List buttons;
   // customer taps "Buy Property", flow advances to the buy branch,
   // then the customer taps "List My Property" on the OLD welcome
   // bubble. The current node doesn't know that reply_id — the flow
   // must find it on the welcome node and switch branches.
   const welcome = {
-    node_key: "welcome",
-    node_type: "send_buttons",
+    node_key: 'welcome',
+    node_type: 'send_buttons',
     config: {
-      text: "What are you looking to do?",
+      text: 'What are you looking to do?',
       buttons: [
-        { reply_id: "buy", title: "Buy Property", next_node_key: "buy_branch" },
-        { reply_id: "list", title: "List My Property", next_node_key: "list_branch" },
+        { reply_id: 'buy', title: 'Buy Property', next_node_key: 'buy_branch' },
+        {
+          reply_id: 'list',
+          title: 'List My Property',
+          next_node_key: 'list_branch',
+        },
       ],
     },
   };
   const buyBranch = {
-    node_key: "buy_branch",
-    node_type: "send_buttons",
+    node_key: 'buy_branch',
+    node_type: 'send_buttons',
     config: {
-      text: "What type of property interests you?",
+      text: 'What type of property interests you?',
       buttons: [
-        { reply_id: "flat", title: "Flat", next_node_key: "flat_q" },
-        { reply_id: "plot", title: "Plot", next_node_key: "plot_q" },
+        { reply_id: 'flat', title: 'Flat', next_node_key: 'flat_q' },
+        { reply_id: 'plot', title: 'Plot', next_node_key: 'plot_q' },
       ],
     },
   };
 
-  it("finds a reply_id owned by an earlier node and returns its branch target", () => {
-    const hit = findReplyIdAcrossNodes([welcome, buyBranch], "list", "buy_branch");
-    expect(hit).toEqual({ node_key: "welcome", next_node_key: "list_branch" });
+  it('finds a reply_id owned by an earlier node and returns its branch target', () => {
+    const hit = findReplyIdAcrossNodes(
+      [welcome, buyBranch],
+      'list',
+      'buy_branch'
+    );
+    expect(hit).toEqual({ node_key: 'welcome', next_node_key: 'list_branch' });
   });
 
-  it("skips the excluded (current) node so its own misses stay misses", () => {
-    expect(findReplyIdAcrossNodes([buyBranch], "unknown", "buy_branch")).toBeNull();
+  it('skips the excluded (current) node so its own misses stay misses', () => {
+    expect(
+      findReplyIdAcrossNodes([buyBranch], 'unknown', 'buy_branch')
+    ).toBeNull();
   });
 
-  it("returns null when no node in the flow owns the reply_id", () => {
-    expect(findReplyIdAcrossNodes([welcome, buyBranch], "nope", null)).toBeNull();
+  it('returns null when no node in the flow owns the reply_id', () => {
+    expect(
+      findReplyIdAcrossNodes([welcome, buyBranch], 'nope', null)
+    ).toBeNull();
   });
 
-  it("searches send_list rows too", () => {
+  it('searches send_list rows too', () => {
     const listNode = {
-      node_key: "areas",
-      node_type: "send_list",
+      node_key: 'areas',
+      node_type: 'send_list',
       config: {
-        text: "Pick an area",
-        button_label: "Areas",
+        text: 'Pick an area',
+        button_label: 'Areas',
         sections: [
-          { title: "North", rows: [{ reply_id: "devanahalli", title: "Devanahalli", next_node_key: "devanahalli_q" }] },
+          {
+            title: 'North',
+            rows: [
+              {
+                reply_id: 'devanahalli',
+                title: 'Devanahalli',
+                next_node_key: 'devanahalli_q',
+              },
+            ],
+          },
         ],
       },
     };
-    const hit = findReplyIdAcrossNodes([welcome, listNode], "devanahalli", "welcome");
-    expect(hit).toEqual({ node_key: "areas", next_node_key: "devanahalli_q" });
+    const hit = findReplyIdAcrossNodes(
+      [welcome, listNode],
+      'devanahalli',
+      'welcome'
+    );
+    expect(hit).toEqual({ node_key: 'areas', next_node_key: 'devanahalli_q' });
   });
 });
 
-describe("appendUnmatchedText — free-text capture for handoff context", () => {
-  it("stores fresh text verbatim (whitespace collapsed)", () => {
+describe('appendUnmatchedText — free-text capture for handoff context', () => {
+  it('stores fresh text verbatim (whitespace collapsed)', () => {
     expect(
-      appendUnmatchedText(null, "80000 rented house\n three floor building  near devanahalli"),
-    ).toBe("80000 rented house three floor building near devanahalli");
+      appendUnmatchedText(
+        null,
+        '80000 rented house\n three floor building  near devanahalli'
+      )
+    ).toBe('80000 rented house three floor building near devanahalli');
   });
 
-  it("appends to existing requirements with a separator", () => {
-    expect(appendUnmatchedText("3BHK in JP Nagar", "budget 80 lakhs")).toBe(
-      "3BHK in JP Nagar | budget 80 lakhs",
+  it('appends to existing requirements with a separator', () => {
+    expect(appendUnmatchedText('3BHK in JP Nagar', 'budget 80 lakhs')).toBe(
+      '3BHK in JP Nagar | budget 80 lakhs'
     );
   });
 
-  it("skips noise-length text", () => {
-    expect(appendUnmatchedText("existing", "ok")).toBeNull();
-    expect(appendUnmatchedText(null, "  hi ")).toBeNull();
+  it('skips noise-length text', () => {
+    expect(appendUnmatchedText('existing', 'ok')).toBeNull();
+    expect(appendUnmatchedText(null, '  hi ')).toBeNull();
   });
 
-  it("skips text already present (case-insensitive)", () => {
-    expect(appendUnmatchedText("Budget 80 Lakhs near HSR", "budget 80 lakhs")).toBeNull();
+  it('skips text already present (case-insensitive)', () => {
+    expect(
+      appendUnmatchedText('Budget 80 Lakhs near HSR', 'budget 80 lakhs')
+    ).toBeNull();
   });
 
-  it("caps total length keeping the newest content", () => {
-    const existing = "x".repeat(UNMATCHED_TEXT_MAX_LENGTH);
-    const merged = appendUnmatchedText(existing, "three floor building near devanahalli");
+  it('caps total length keeping the newest content', () => {
+    const existing = 'x'.repeat(UNMATCHED_TEXT_MAX_LENGTH);
+    const merged = appendUnmatchedText(
+      existing,
+      'three floor building near devanahalli'
+    );
     expect(merged).not.toBeNull();
     expect(merged!.length).toBe(UNMATCHED_TEXT_MAX_LENGTH);
-    expect(merged!.endsWith("three floor building near devanahalli")).toBe(true);
+    expect(merged!.endsWith('three floor building near devanahalli')).toBe(
+      true
+    );
   });
 });
 
-describe("REPROMPT_BODY_TEXT", () => {
-  it("is apologetic, short, and points at the buttons", () => {
+describe('REPROMPT_BODY_TEXT', () => {
+  it('is apologetic, short, and points at the buttons', () => {
     expect(REPROMPT_BODY_TEXT).toMatch(/didn't quite catch/i);
     expect(REPROMPT_BODY_TEXT).toMatch(/tap one of the options/i);
     // WhatsApp interactive body cap is 1024 chars — stay far under.
@@ -215,180 +250,190 @@ describe("REPROMPT_BODY_TEXT", () => {
   });
 });
 
-describe("real_estate_onboarding entry keywords", () => {
+describe('real_estate_onboarding entry keywords', () => {
   // The shipped list is openers only. Bare intent words — buy, rent,
   // properties, homes, listing — were never sent on their own in six
   // months of inbound, but appeared inside ~150 longer messages, each a
   // false trigger. The phrases keep the entries that actually happen:
   // the "Show Properties" template button is the funnel's busiest door.
-  const cfg = getFlowTemplate("real_estate_onboarding")!
+  const cfg = getFlowTemplate('real_estate_onboarding')!
     .trigger_config as KeywordTriggerConfig;
 
   it.each([
     '🔘 Button: "Show Properties"',
-    "Hi",
-    "Hi sir",
-    "Show me properties",
-    "Show properties",
-    "Buy Property",
-    "hey there",
-    "menu",
-    "Looking to rent a 2BHK in Whitefield",
-  ])("[INB-012] opens on %j", (text) => {
+    'Hi',
+    'Hi sir',
+    'Show me properties',
+    'Show properties',
+    'Buy Property',
+    'hey there',
+    'menu',
+    'Looking to rent a 2BHK in Whitefield',
+  ])('[INB-012] opens on %j', (text) => {
     expect(matchesKeywordTrigger(text, cfg)).toBe(true);
   });
 
   it.each([
     [
-      "Please send me the following details..",
-      "1.How old is this building?",
-      "2.Who are the tenants and rent received per tenant??",
-      "3.Number of Floors",
-      "4.tenure of the lease agreements with tenant",
-    ].join("\n"),
-    "Is the rent negotiable?",
-    "Are there commercial properties for sale?",
-    "Is this listing still available?",
-    "How many homes are in the project?",
-    "Should I buy this one?",
-    "Commercial good rental property\nAround 10 cr",
-    "I want to invest around 2 cr",
-  ])("[INB-012] stays out of %j", (text) => {
+      'Please send me the following details..',
+      '1.How old is this building?',
+      '2.Who are the tenants and rent received per tenant??',
+      '3.Number of Floors',
+      '4.tenure of the lease agreements with tenant',
+    ].join('\n'),
+    'Is the rent negotiable?',
+    'Are there commercial properties for sale?',
+    'Is this listing still available?',
+    'How many homes are in the project?',
+    'Should I buy this one?',
+    'Commercial good rental property\nAround 10 cr',
+    'I want to invest around 2 cr',
+  ])('[INB-012] stays out of %j', (text) => {
     expect(matchesKeywordTrigger(text, cfg)).toBe(false);
   });
 });
 
-describe("matchesKeywordTrigger — word boundaries", () => {
+describe('matchesKeywordTrigger — word boundaries', () => {
   // The showcase funnel ships with "hi" among its keywords. Naive
   // substring matching made it fire on "which"/"this", restarting the
   // welcome funnel underneath a live agent conversation.
-  const cfg = { keywords: ["hello", "hi", "buy", "rent"] };
+  const cfg = { keywords: ['hello', 'hi', 'buy', 'rent'] };
 
-  it("does not match a keyword buried inside another word", () => {
+  it('does not match a keyword buried inside another word', () => {
     expect(
       matchesKeywordTrigger(
-        "There are two building pics in the link above. Which one is the one we are talking here.",
-        cfg,
-      ),
+        'There are two building pics in the link above. Which one is the one we are talking here.',
+        cfg
+      )
     ).toBe(false);
-    expect(matchesKeywordTrigger("Is this still available?", cfg)).toBe(false);
-    expect(matchesKeywordTrigger("The parking is behind the block", cfg)).toBe(false);
-    expect(matchesKeywordTrigger("current tenant pays maintenance", cfg)).toBe(false);
+    expect(matchesKeywordTrigger('Is this still available?', cfg)).toBe(false);
+    expect(matchesKeywordTrigger('The parking is behind the block', cfg)).toBe(
+      false
+    );
+    expect(matchesKeywordTrigger('current tenant pays maintenance', cfg)).toBe(
+      false
+    );
   });
 
-  it("still matches the keyword as a whole word", () => {
-    expect(matchesKeywordTrigger("hi there", cfg)).toBe(true);
-    expect(matchesKeywordTrigger("I want to buy a plot", cfg)).toBe(true);
-    expect(matchesKeywordTrigger("Hello!", cfg)).toBe(true);
-    expect(matchesKeywordTrigger("looking to RENT.", cfg)).toBe(true);
+  it('still matches the keyword as a whole word', () => {
+    expect(matchesKeywordTrigger('hi there', cfg)).toBe(true);
+    expect(matchesKeywordTrigger('I want to buy a plot', cfg)).toBe(true);
+    expect(matchesKeywordTrigger('Hello!', cfg)).toBe(true);
+    expect(matchesKeywordTrigger('looking to RENT.', cfg)).toBe(true);
   });
 
-  it("matches multi-word keywords as a phrase", () => {
+  it('matches multi-word keywords as a phrase', () => {
     expect(
-      matchesKeywordTrigger("can we book a site visit", { keywords: ["site visit"] }),
+      matchesKeywordTrigger('can we book a site visit', {
+        keywords: ['site visit'],
+      })
     ).toBe(true);
     expect(
-      matchesKeywordTrigger("the site visitor logged in", { keywords: ["site visit"] }),
+      matchesKeywordTrigger('the site visitor logged in', {
+        keywords: ['site visit'],
+      })
     ).toBe(false);
   });
 
-  it("falls back to plain containment for keywords with no word characters", () => {
-    expect(matchesKeywordTrigger("sounds good 👍 thanks", { keywords: ["👍"] })).toBe(true);
+  it('falls back to plain containment for keywords with no word characters', () => {
+    expect(
+      matchesKeywordTrigger('sounds good 👍 thanks', { keywords: ['👍'] })
+    ).toBe(true);
   });
 });
 
-describe("matchesKeywordTrigger", () => {
-  it("returns false for empty text", () => {
-    expect(matchesKeywordTrigger("", { keywords: ["hi"] })).toBe(false);
+describe('matchesKeywordTrigger', () => {
+  it('returns false for empty text', () => {
+    expect(matchesKeywordTrigger('', { keywords: ['hi'] })).toBe(false);
   });
 
-  it("returns false when keywords array is empty", () => {
-    expect(matchesKeywordTrigger("anything", { keywords: [] })).toBe(false);
+  it('returns false when keywords array is empty', () => {
+    expect(matchesKeywordTrigger('anything', { keywords: [] })).toBe(false);
   });
 
   it("default match_type='contains' does case-insensitive substring", () => {
-    const cfg = { keywords: ["support"] };
-    expect(matchesKeywordTrigger("I need SUPPORT please", cfg)).toBe(true);
-    expect(matchesKeywordTrigger("Support is great", cfg)).toBe(true);
-    expect(matchesKeywordTrigger("Help me", cfg)).toBe(false);
+    const cfg = { keywords: ['support'] };
+    expect(matchesKeywordTrigger('I need SUPPORT please', cfg)).toBe(true);
+    expect(matchesKeywordTrigger('Support is great', cfg)).toBe(true);
+    expect(matchesKeywordTrigger('Help me', cfg)).toBe(false);
   });
 
   it("match_type='exact' compares the whole string case-insensitively", () => {
-    const cfg = { keywords: ["help"], match_type: "exact" as const };
-    expect(matchesKeywordTrigger("help", cfg)).toBe(true);
-    expect(matchesKeywordTrigger("HELP", cfg)).toBe(true);
-    expect(matchesKeywordTrigger("help me", cfg)).toBe(false);
+    const cfg = { keywords: ['help'], match_type: 'exact' as const };
+    expect(matchesKeywordTrigger('help', cfg)).toBe(true);
+    expect(matchesKeywordTrigger('HELP', cfg)).toBe(true);
+    expect(matchesKeywordTrigger('help me', cfg)).toBe(false);
   });
 
-  it("case_sensitive=true preserves case", () => {
+  it('case_sensitive=true preserves case', () => {
     const cfg = {
-      keywords: ["Support"],
+      keywords: ['Support'],
       case_sensitive: true,
     };
-    expect(matchesKeywordTrigger("I need Support", cfg)).toBe(true);
-    expect(matchesKeywordTrigger("I need support", cfg)).toBe(false);
+    expect(matchesKeywordTrigger('I need Support', cfg)).toBe(true);
+    expect(matchesKeywordTrigger('I need support', cfg)).toBe(false);
   });
 
-  it("matches any one of multiple keywords", () => {
-    const cfg = { keywords: ["help", "support", "issue"] };
-    expect(matchesKeywordTrigger("I have an issue", cfg)).toBe(true);
-    expect(matchesKeywordTrigger("I need Help!", cfg)).toBe(true);
-    expect(matchesKeywordTrigger("nothing to see here", cfg)).toBe(false);
+  it('matches any one of multiple keywords', () => {
+    const cfg = { keywords: ['help', 'support', 'issue'] };
+    expect(matchesKeywordTrigger('I have an issue', cfg)).toBe(true);
+    expect(matchesKeywordTrigger('I need Help!', cfg)).toBe(true);
+    expect(matchesKeywordTrigger('nothing to see here', cfg)).toBe(false);
   });
 
-  it("skips empty strings in the keywords array", () => {
-    const cfg = { keywords: ["", "support", ""] };
-    expect(matchesKeywordTrigger("support center", cfg)).toBe(true);
-    expect(matchesKeywordTrigger("nope", cfg)).toBe(false);
+  it('skips empty strings in the keywords array', () => {
+    const cfg = { keywords: ['', 'support', ''] };
+    expect(matchesKeywordTrigger('support center', cfg)).toBe(true);
+    expect(matchesKeywordTrigger('nope', cfg)).toBe(false);
   });
 });
 
-describe("node classification helpers", () => {
-  it("isAutoAdvancing covers start + send_message + send_media + condition + set_tag", () => {
-    expect(isAutoAdvancing("start")).toBe(true);
-    expect(isAutoAdvancing("send_message")).toBe(true);
-    expect(isAutoAdvancing("send_media")).toBe(true);
-    expect(isAutoAdvancing("condition")).toBe(true);
-    expect(isAutoAdvancing("set_tag")).toBe(true);
-    expect(isAutoAdvancing("send_buttons")).toBe(false);
-    expect(isAutoAdvancing("send_list")).toBe(false);
-    expect(isAutoAdvancing("collect_input")).toBe(false);
-    expect(isAutoAdvancing("handoff")).toBe(false);
-    expect(isAutoAdvancing("end")).toBe(false);
+describe('node classification helpers', () => {
+  it('isAutoAdvancing covers start + send_message + send_media + condition + set_tag', () => {
+    expect(isAutoAdvancing('start')).toBe(true);
+    expect(isAutoAdvancing('send_message')).toBe(true);
+    expect(isAutoAdvancing('send_media')).toBe(true);
+    expect(isAutoAdvancing('condition')).toBe(true);
+    expect(isAutoAdvancing('set_tag')).toBe(true);
+    expect(isAutoAdvancing('send_buttons')).toBe(false);
+    expect(isAutoAdvancing('send_list')).toBe(false);
+    expect(isAutoAdvancing('collect_input')).toBe(false);
+    expect(isAutoAdvancing('handoff')).toBe(false);
+    expect(isAutoAdvancing('end')).toBe(false);
   });
 
-  it("isSuspending covers the input-requiring nodes", () => {
-    expect(isSuspending("send_buttons")).toBe(true);
-    expect(isSuspending("send_list")).toBe(true);
-    expect(isSuspending("collect_input")).toBe(true);
-    expect(isSuspending("start")).toBe(false);
-    expect(isSuspending("send_message")).toBe(false);
-    expect(isSuspending("condition")).toBe(false);
-    expect(isSuspending("set_tag")).toBe(false);
-    expect(isSuspending("handoff")).toBe(false);
-    expect(isSuspending("end")).toBe(false);
+  it('isSuspending covers the input-requiring nodes', () => {
+    expect(isSuspending('send_buttons')).toBe(true);
+    expect(isSuspending('send_list')).toBe(true);
+    expect(isSuspending('collect_input')).toBe(true);
+    expect(isSuspending('start')).toBe(false);
+    expect(isSuspending('send_message')).toBe(false);
+    expect(isSuspending('condition')).toBe(false);
+    expect(isSuspending('set_tag')).toBe(false);
+    expect(isSuspending('handoff')).toBe(false);
+    expect(isSuspending('end')).toBe(false);
   });
 
-  it("isTerminal covers handoff + end", () => {
-    expect(isTerminal("handoff")).toBe(true);
-    expect(isTerminal("end")).toBe(true);
-    expect(isTerminal("start")).toBe(false);
-    expect(isTerminal("send_buttons")).toBe(false);
-    expect(isTerminal("condition")).toBe(false);
+  it('isTerminal covers handoff + end', () => {
+    expect(isTerminal('handoff')).toBe(true);
+    expect(isTerminal('end')).toBe(true);
+    expect(isTerminal('start')).toBe(false);
+    expect(isTerminal('send_buttons')).toBe(false);
+    expect(isTerminal('condition')).toBe(false);
   });
 
-  it("the three classifications are mutually exclusive for known node types", () => {
+  it('the three classifications are mutually exclusive for known node types', () => {
     const types = [
-      "start",
-      "send_message",
-      "send_buttons",
-      "send_list",
-      "send_media",
-      "collect_input",
-      "condition",
-      "set_tag",
-      "handoff",
-      "end",
+      'start',
+      'send_message',
+      'send_buttons',
+      'send_list',
+      'send_media',
+      'collect_input',
+      'condition',
+      'set_tag',
+      'handoff',
+      'end',
     ];
     for (const t of types) {
       const flags = [isAutoAdvancing(t), isSuspending(t), isTerminal(t)];
@@ -398,393 +443,432 @@ describe("node classification helpers", () => {
   });
 });
 
-describe("evaluateConditionPredicate", () => {
-  it("present: true when subject has a value", () => {
+describe('evaluateConditionPredicate', () => {
+  it('present: true when subject has a value', () => {
     expect(
       evaluateConditionPredicate({
-        operator: "present",
-        subjectValue: "alice@example.com",
+        operator: 'present',
+        subjectValue: 'alice@example.com',
         configValue: undefined,
-      }),
+      })
     ).toBe(true);
   });
 
-  it("present: false when subject is undefined or empty", () => {
+  it('present: false when subject is undefined or empty', () => {
     expect(
       evaluateConditionPredicate({
-        operator: "present",
+        operator: 'present',
         subjectValue: undefined,
         configValue: undefined,
-      }),
+      })
     ).toBe(false);
     expect(
       evaluateConditionPredicate({
-        operator: "present",
-        subjectValue: "",
+        operator: 'present',
+        subjectValue: '',
         configValue: undefined,
-      }),
+      })
     ).toBe(false);
   });
 
-  it("absent: inverse of present", () => {
+  it('absent: inverse of present', () => {
     expect(
       evaluateConditionPredicate({
-        operator: "absent",
+        operator: 'absent',
         subjectValue: undefined,
         configValue: undefined,
-      }),
+      })
     ).toBe(true);
     expect(
       evaluateConditionPredicate({
-        operator: "absent",
-        subjectValue: "x",
+        operator: 'absent',
+        subjectValue: 'x',
         configValue: undefined,
-      }),
+      })
     ).toBe(false);
   });
 
-  it("equals: exact string comparison; case-sensitive", () => {
+  it('equals: exact string comparison; case-sensitive', () => {
     expect(
       evaluateConditionPredicate({
-        operator: "equals",
-        subjectValue: "VIP",
-        configValue: "VIP",
-      }),
+        operator: 'equals',
+        subjectValue: 'VIP',
+        configValue: 'VIP',
+      })
     ).toBe(true);
     expect(
       evaluateConditionPredicate({
-        operator: "equals",
-        subjectValue: "vip",
-        configValue: "VIP",
-      }),
+        operator: 'equals',
+        subjectValue: 'vip',
+        configValue: 'VIP',
+      })
     ).toBe(false);
   });
 
-  it("equals: undefined subject never matches (even against empty)", () => {
+  it('equals: undefined subject never matches (even against empty)', () => {
     expect(
       evaluateConditionPredicate({
-        operator: "equals",
+        operator: 'equals',
         subjectValue: undefined,
-        configValue: "",
-      }),
+        configValue: '',
+      })
     ).toBe(false);
   });
 
-  it("contains: substring match", () => {
+  it('contains: substring match', () => {
     expect(
       evaluateConditionPredicate({
-        operator: "contains",
-        subjectValue: "support@example.com",
-        configValue: "@example.com",
-      }),
+        operator: 'contains',
+        subjectValue: 'support@example.com',
+        configValue: '@example.com',
+      })
     ).toBe(true);
     expect(
       evaluateConditionPredicate({
-        operator: "contains",
-        subjectValue: "support@other.com",
-        configValue: "@example.com",
-      }),
+        operator: 'contains',
+        subjectValue: 'support@other.com',
+        configValue: '@example.com',
+      })
     ).toBe(false);
   });
 
-  it("contains: undefined subject never matches", () => {
+  it('contains: undefined subject never matches', () => {
     expect(
       evaluateConditionPredicate({
-        operator: "contains",
+        operator: 'contains',
         subjectValue: undefined,
-        configValue: "anything",
-      }),
+        configValue: 'anything',
+      })
     ).toBe(false);
   });
 });
 
-describe("splitByBudget", () => {
+describe('splitByBudget', () => {
   const row = (id: string, price: number | null): ListingRow => ({
     id,
     title: `Listing ${id}`,
-    location: "Bangalore",
-    type: "Commercial Shop",
+    location: 'Bangalore',
+    type: 'Commercial Shop',
     bedrooms: null,
     area_sqft: null,
     price,
     property_code: `PROP-${id}`,
-    listing_type: "Sale",
+    listing_type: 'Sale',
   });
 
-  it("leads with what the lead can actually afford", () => {
+  it('leads with what the lead can actually afford', () => {
     const { withinBudget, aboveBudget } = splitByBudget(
-      [row("a", 320_000_000), row("b", 103_000_000), row("c", 18_000_000)],
-      "1-2cr",
-      5,
+      [row('a', 320_000_000), row('b', 103_000_000), row('c', 18_000_000)],
+      '1-2cr',
+      5
     );
-    expect(withinBudget.map((p) => p.id)).toEqual(["c"]);
+    expect(withinBudget.map((p) => p.id)).toEqual(['c']);
     expect(aboveBudget).toHaveLength(0);
   });
 
-  it("honours both ends of a stated budget range", () => {
+  it('honours both ends of a stated budget range', () => {
     const { withinBudget } = splitByBudget(
-      [row("too-low", 20_000_000), row("fit", 105_000_000)],
-      "10-15cr",
-      5,
+      [row('too-low', 20_000_000), row('fit', 105_000_000)],
+      '10-15cr',
+      5
     );
-    expect(withinBudget.map((p) => p.id)).toEqual(["fit"]);
+    expect(withinBudget.map((p) => p.id)).toEqual(['fit']);
   });
 
-  it("allows only a small stretch above the confirmed budget", () => {
+  it('allows only a small stretch above the confirmed budget', () => {
     const { aboveBudget } = splitByBudget(
-      [row("dear", 500_000_000), row("near", 21_000_000)],
-      "1-2cr",
-      5,
+      [row('dear', 500_000_000), row('near', 21_000_000)],
+      '1-2cr',
+      5
     );
-    expect(aboveBudget.map((p) => p.id)).toEqual(["near"]);
+    expect(aboveBudget.map((p) => p.id)).toEqual(['near']);
   });
 
-  it("holds the next budget range back and drops far higher prices", () => {
+  it('holds the next budget range back and drops far higher prices', () => {
     const { withinBudget, aboveBudget, nextBudget } = splitByBudget(
       [
-        row("fit", 150_000_000),
-        row("stretch", 160_000_000),
-        row("next", 180_000_000),
-        row("far", 280_000_000),
+        row('fit', 150_000_000),
+        row('stretch', 160_000_000),
+        row('next', 180_000_000),
+        row('far', 280_000_000),
       ],
-      "up to 150000000",
-      5,
+      'up to 150000000',
+      5
     );
-    expect(withinBudget.map((p) => p.id)).toEqual(["fit"]);
-    expect(aboveBudget.map((p) => p.id)).toEqual(["stretch"]);
-    expect(nextBudget.map((p) => p.id)).toEqual(["next"]);
+    expect(withinBudget.map((p) => p.id)).toEqual(['fit']);
+    expect(aboveBudget.map((p) => p.id)).toEqual(['stretch']);
+    expect(nextBudget.map((p) => p.id)).toEqual(['next']);
   });
 
-  it("never spends a slot on a stretch listing while in-budget stock remains", () => {
-    const within = [row("w1", 10_000_000), row("w2", 11_000_000), row("w3", 12_000_000)];
+  it('never spends a slot on a stretch listing while in-budget stock remains', () => {
+    const within = [
+      row('w1', 10_000_000),
+      row('w2', 11_000_000),
+      row('w3', 12_000_000),
+    ];
     const { withinBudget, aboveBudget } = splitByBudget(
-      [...within, row("over", 900_000_000)],
-      "1-2cr",
-      3,
+      [...within, row('over', 900_000_000)],
+      '1-2cr',
+      3
     );
     expect(withinBudget).toHaveLength(3);
     expect(aboveBudget).toHaveLength(0);
   });
 
-  it("keeps price-on-request listings rather than dropping them", () => {
-    const { withinBudget } = splitByBudget([row("poa", null)], "1-2cr", 5);
-    expect(withinBudget.map((p) => p.id)).toEqual(["poa"]);
+  it('keeps price-on-request listings rather than dropping them', () => {
+    const { withinBudget } = splitByBudget([row('poa', null)], '1-2cr', 5);
+    expect(withinBudget.map((p) => p.id)).toEqual(['poa']);
   });
 
-  it("is a no-op when no budget was collected", () => {
-    const rows = [row("a", 320_000_000), row("b", 18_000_000)];
+  it('is a no-op when no budget was collected', () => {
+    const rows = [row('a', 320_000_000), row('b', 18_000_000)];
     const { withinBudget, aboveBudget } = splitByBudget(rows, null, 5);
-    expect(withinBudget.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(withinBudget.map((p) => p.id)).toEqual(['a', 'b']);
     expect(aboveBudget).toHaveLength(0);
   });
 
-  it("is a no-op when the budget text means nothing", () => {
-    const rows = [row("a", 320_000_000)];
-    expect(splitByBudget(rows, "not sure yet", 5).withinBudget).toHaveLength(1);
+  it('is a no-op when the budget text means nothing', () => {
+    const rows = [row('a', 320_000_000)];
+    expect(splitByBudget(rows, 'not sure yet', 5).withinBudget).toHaveLength(1);
   });
 });
 
-describe("effectiveBudgetText", () => {
-  it("uses the newly confirmed contact budget over a stale active-flow value", () => {
-    expect(effectiveBudgetText("up to 150000000", "₹61 Cr")).toBe(
-      "up to 150000000",
+describe('effectiveBudgetText', () => {
+  it('uses the newly confirmed contact budget over a stale active-flow value', () => {
+    expect(effectiveBudgetText('up to 150000000', '₹61 Cr')).toBe(
+      'up to 150000000'
     );
   });
 
-  it("falls back to the flow value before the contact has confirmed one", () => {
-    expect(effectiveBudgetText(null, "₹15 Cr")).toBe("₹15 Cr");
+  it('falls back to the flow value before the contact has confirmed one', () => {
+    expect(effectiveBudgetText(null, '₹15 Cr')).toBe('₹15 Cr');
   });
 });
 
-describe("buildPostListingsPrompt", () => {
-  it("offers the next budget range only when matching inventory exists there", () => {
+describe('buildPostListingsPrompt', () => {
+  it('offers the next budget range only when matching inventory exists there', () => {
     const text = buildPostListingsPrompt(2);
-    expect(text).toContain("Reply with its number");
-    expect(text).toContain("2 properties in the next budget range");
-    expect(text).toContain("Would you like to explore them?");
+    expect(text).toContain('Reply with its number');
+    expect(text).toContain('2 properties in the next budget range');
+    expect(text).toContain('Would you like to explore them?');
   });
 
-  it("does not tease a higher budget range when none is available", () => {
-    expect(buildPostListingsPrompt(0)).not.toContain("next budget range");
+  it('does not tease a higher budget range when none is available', () => {
+    expect(buildPostListingsPrompt(0)).not.toContain('next budget range');
   });
 });
 
-describe("matchListingSelection", () => {
+describe('matchListingSelection', () => {
   const shown: ShownListing[] = [
-    { n: 1, id: "p1", title: "Hoodi office", code: "PROP-1091" },
-    { n: 2, id: "p2", title: "BTM corner", code: "PROP-1077" },
-    { n: 3, id: "p3", title: "Whitefield", code: null },
+    { n: 1, id: 'p1', title: 'Hoodi office', code: 'PROP-1091' },
+    { n: 2, id: 'p2', title: 'BTM corner', code: 'PROP-1077' },
+    { n: 3, id: 'p3', title: 'Whitefield', code: null },
   ];
 
-  it("resolves a bare number to the listing that carried it", () => {
-    expect(matchListingSelection("2", shown)?.id).toBe("p2");
+  it('resolves a bare number to the listing that carried it', () => {
+    expect(matchListingSelection('2', shown)?.id).toBe('p2');
   });
 
-  it("tolerates how people actually type it", () => {
-    expect(matchListingSelection(" 3 ", shown)?.id).toBe("p3");
-    expect(matchListingSelection("no 1", shown)?.id).toBe("p1");
-    expect(matchListingSelection("#2", shown)?.id).toBe("p2");
-    expect(matchListingSelection("2.", shown)?.id).toBe("p2");
+  it('tolerates how people actually type it', () => {
+    expect(matchListingSelection(' 3 ', shown)?.id).toBe('p3');
+    expect(matchListingSelection('no 1', shown)?.id).toBe('p1');
+    expect(matchListingSelection('#2', shown)?.id).toBe('p2');
+    expect(matchListingSelection('2.', shown)?.id).toBe('p2');
   });
 
-  it("ignores a number nobody was shown", () => {
-    expect(matchListingSelection("7", shown)).toBeNull();
-    expect(matchListingSelection("0", shown)).toBeNull();
+  it('ignores a number nobody was shown', () => {
+    expect(matchListingSelection('7', shown)).toBeNull();
+    expect(matchListingSelection('0', shown)).toBeNull();
   });
 
-  it("does not mistake a phone number or a price for a selection", () => {
-    expect(matchListingSelection("call me on 9880012345", shown)).toBeNull();
-    expect(matchListingSelection("1-2cr", shown)).toBeNull();
-    expect(matchListingSelection("9880012345", shown)).toBeNull();
+  it('does not mistake a phone number or a price for a selection', () => {
+    expect(matchListingSelection('call me on 9880012345', shown)).toBeNull();
+    expect(matchListingSelection('1-2cr', shown)).toBeNull();
+    expect(matchListingSelection('9880012345', shown)).toBeNull();
   });
 
-  it("leaves an ambiguous multi-pick to an agent", () => {
-    expect(matchListingSelection("2 and 3", shown)).toBeNull();
+  it('leaves an ambiguous multi-pick to an agent', () => {
+    expect(matchListingSelection('2 and 3', shown)).toBeNull();
   });
 
-  it("is inert when no listings were shown", () => {
-    expect(matchListingSelection("2", [])).toBeNull();
+  it('is inert when no listings were shown', () => {
+    expect(matchListingSelection('2', [])).toBeNull();
   });
 });
 
-describe("buildListingInterestReply", () => {
-  it("acknowledges the property, links its details and promises the callback", () => {
+describe('buildListingInterestReply', () => {
+  it('acknowledges the property, links its details and promises the callback', () => {
     const text = buildListingInterestReply({
       n: 5,
-      id: "p5",
-      title: "Commercial Building on 6600 Sq.Ft. Plot at BSK",
-      code: "PROP-1062",
-      url: "https://aryavartaventures.convoreal.com/?property_id=PROP-1062&v=c1",
+      id: 'p5',
+      title: 'Commercial Building on 6600 Sq.Ft. Plot at BSK',
+      code: 'PROP-1062',
+      url: 'https://aryavartaventures.convoreal.com/?property_id=PROP-1062&v=c1',
     });
 
-    expect(text).toContain("Commercial Building on 6600 Sq.Ft. Plot at BSK (PROP-1062)");
-    expect(text).toContain("View photos and full property details");
-    expect(text).toContain("property_id=PROP-1062");
-    expect(text).toContain("consultants has been notified");
-    expect(text).toContain("will call you shortly");
+    expect(text).toContain(
+      'Commercial Building on 6600 Sq.Ft. Plot at BSK (PROP-1062)'
+    );
+    expect(text).toContain('View photos and full property details');
+    expect(text).toContain('property_id=PROP-1062');
+    expect(text).toContain('consultants has been notified');
+    expect(text).toContain('will call you shortly');
   });
 });
 
-describe("resolveInterestTarget", () => {
+describe('resolveInterestTarget', () => {
   const buttons = [
-    { reply_id: "explore_more", title: "View More Categories", next_node_key: "buy_menu" },
-    { reply_id: "talk_to_agent", title: "Talk to an Agent", next_node_key: "collect_email" },
+    {
+      reply_id: 'explore_more',
+      title: 'View More Categories',
+      next_node_key: 'buy_menu',
+    },
+    {
+      reply_id: 'talk_to_agent',
+      title: 'Talk to an Agent',
+      next_node_key: 'collect_email',
+    },
   ];
 
-  it("uses the explicit key when the node declares one", () => {
-    expect(
-      resolveInterestTarget({ text: "x", buttons, interest_node_key: "book_visit" }),
-    ).toBe("book_visit");
-  });
-
-  it("finds the agent branch in flows seeded before the key existed", () => {
-    expect(resolveInterestTarget({ text: "x", buttons })).toBe("collect_email");
-  });
-
-  it("degrades to the last button rather than dropping the lead", () => {
+  it('uses the explicit key when the node declares one', () => {
     expect(
       resolveInterestTarget({
-        text: "x",
-        buttons: [
-          { reply_id: "a", title: "See more", next_node_key: "menu" },
-          { reply_id: "b", title: "Reach out", next_node_key: "email" },
-        ],
-      }),
-    ).toBe("email");
+        text: 'x',
+        buttons,
+        interest_node_key: 'book_visit',
+      })
+    ).toBe('book_visit');
   });
 
-  it("returns null when there is nowhere to go", () => {
-    expect(resolveInterestTarget({ text: "x", buttons: [] })).toBeNull();
+  it('finds the agent branch in flows seeded before the key existed', () => {
+    expect(resolveInterestTarget({ text: 'x', buttons })).toBe('collect_email');
+  });
+
+  it('degrades to the last button rather than dropping the lead', () => {
+    expect(
+      resolveInterestTarget({
+        text: 'x',
+        buttons: [
+          { reply_id: 'a', title: 'See more', next_node_key: 'menu' },
+          { reply_id: 'b', title: 'Reach out', next_node_key: 'email' },
+        ],
+      })
+    ).toBe('email');
+  });
+
+  it('returns null when there is nowhere to go', () => {
+    expect(resolveInterestTarget({ text: 'x', buttons: [] })).toBeNull();
   });
 });
 
-describe("buildHandoffBrief", () => {
-  it("gives an agent everything the funnel collected, in reading order", () => {
+describe('buildHandoffBrief', () => {
+  it('gives an agent everything the funnel collected, in reading order', () => {
     expect(
       buildHandoffBrief({
-        budget: "1-2cr",
-        category: "Rent Yielding Buildings",
-        intent: "Buying",
-        interested_property: "BTM corner (PROP-1077)",
-      }),
+        budget: '1-2cr',
+        category: 'Rent Yielding Buildings',
+        intent: 'Buying',
+        interested_property: 'BTM corner (PROP-1077)',
+      })
     ).toBe(
-      "Looking to: Buying · Type: Rent Yielding Buildings · Budget: 1-2cr · Interested in: BTM corner (PROP-1077)",
+      'Looking to: Buying · Type: Rent Yielding Buildings · Budget: 1-2cr · Interested in: BTM corner (PROP-1077)'
     );
   });
 
-  it("skips what the funnel never got", () => {
-    expect(buildHandoffBrief({ budget: "1-2cr" })).toBe("Budget: 1-2cr");
+  it('skips what the funnel never got', () => {
+    expect(buildHandoffBrief({ budget: '1-2cr' })).toBe('Budget: 1-2cr');
   });
 
   it("includes the selected property's direct link for the consultant", () => {
     expect(
       buildHandoffBrief({
-        interested_property: "BSK commercial building (PROP-1062)",
-        interested_property_link: "https://example.com/?property_id=PROP-1062",
-      }),
+        interested_property: 'BSK commercial building (PROP-1062)',
+        interested_property_link: 'https://example.com/?property_id=PROP-1062',
+      })
     ).toBe(
-      "Interested in: BSK commercial building (PROP-1062) · Property link: https://example.com/?property_id=PROP-1062",
+      'Interested in: BSK commercial building (PROP-1062) · Property link: https://example.com/?property_id=PROP-1062'
     );
   });
 
-  it("ignores engine bookkeeping and blank answers", () => {
+  it('ignores engine bookkeeping and blank answers', () => {
     expect(
       buildHandoffBrief({
-        budget: "  ",
-        __shown_listings: [{ n: 1, id: "p1", title: "x", code: null }],
-      }),
-    ).toBe("");
+        budget: '  ',
+        __shown_listings: [{ n: 1, id: 'p1', title: 'x', code: null }],
+      })
+    ).toBe('');
   });
 
-  it("is empty for a run that captured nothing", () => {
-    expect(buildHandoffBrief({})).toBe("");
-    expect(buildHandoffBrief(null)).toBe("");
+  it('is empty for a run that captured nothing', () => {
+    expect(buildHandoffBrief({})).toBe('');
+    expect(buildHandoffBrief(null)).toBe('');
   });
 });
 
-describe("preferLocality", () => {
+describe('preferLocality', () => {
   const rows = [
-    { sublocality: "Whitefield", location: "Whitefield, Bangalore" },
-    { sublocality: "Koramangala", location: "5th Block, Koramangala, Bangalore" },
-    { sublocality: "HSR Layout", location: "Sector 2, HSR Layout, Bangalore" },
+    { sublocality: 'Whitefield', location: 'Whitefield, Bangalore' },
+    {
+      sublocality: 'Koramangala',
+      location: '5th Block, Koramangala, Bangalore',
+    },
+    { sublocality: 'HSR Layout', location: 'Sector 2, HSR Layout, Bangalore' },
   ];
 
-  it("puts the named area first without dropping the rest", () => {
-    const out = preferLocality(rows, "Koramangala");
-    expect(out.map((r) => r.sublocality)).toEqual(["Koramangala", "Whitefield", "HSR Layout"]);
+  it('puts the named area first without dropping the rest', () => {
+    const out = preferLocality(rows, 'Koramangala');
+    expect(out.map((r) => r.sublocality)).toEqual([
+      'Koramangala',
+      'Whitefield',
+      'HSR Layout',
+    ]);
   });
 
-  it("reads more than one area from a free-text answer", () => {
-    const out = preferLocality(rows, "Koramangala and HSR");
-    expect(out.slice(0, 2).map((r) => r.sublocality)).toEqual(["Koramangala", "HSR Layout"]);
+  it('reads more than one area from a free-text answer', () => {
+    const out = preferLocality(rows, 'Koramangala and HSR');
+    expect(out.slice(0, 2).map((r) => r.sublocality)).toEqual([
+      'Koramangala',
+      'HSR Layout',
+    ]);
   });
 
-  it("handles commas and slashes the way people type them", () => {
-    expect(preferLocality(rows, "HSR Layout, Whitefield")[0].sublocality).toBe("Whitefield");
-    expect(preferLocality(rows, "Koramangala/HSR")[0].sublocality).toBe("Koramangala");
-  });
-
-  it("matches the full location line, not only the sublocality", () => {
-    const out = preferLocality(rows, "5th Block");
-    expect(out[0].sublocality).toBe("Koramangala");
-  });
-
-  it("keeps the original order when the area matches nothing", () => {
-    expect(preferLocality(rows, "Chennai").map((r) => r.sublocality)).toEqual(
-      rows.map((r) => r.sublocality),
+  it('handles commas and slashes the way people type them', () => {
+    expect(preferLocality(rows, 'HSR Layout, Whitefield')[0].sublocality).toBe(
+      'Whitefield'
+    );
+    expect(preferLocality(rows, 'Koramangala/HSR')[0].sublocality).toBe(
+      'Koramangala'
     );
   });
 
-  it("is a no-op for an unanswered or throwaway reply", () => {
+  it('matches the full location line, not only the sublocality', () => {
+    const out = preferLocality(rows, '5th Block');
+    expect(out[0].sublocality).toBe('Koramangala');
+  });
+
+  it('keeps the original order when the area matches nothing', () => {
+    expect(preferLocality(rows, 'Chennai').map((r) => r.sublocality)).toEqual(
+      rows.map((r) => r.sublocality)
+    );
+  });
+
+  it('is a no-op for an unanswered or throwaway reply', () => {
     expect(preferLocality(rows, null)).toEqual(rows);
-    expect(preferLocality(rows, "any")).toEqual(rows);
+    expect(preferLocality(rows, 'any')).toEqual(rows);
   });
 });
 
 describe('splitByBudget in a rental context', () => {
   const row = (id: string, price: number): ListingRow => ({
-    id, title: `Listing ${id}`, location: 'Bangalore', type: 'Flat/ Apartment',
-    bedrooms: 3, area_sqft: null, price, property_code: null, listing_type: 'Rent',
+    id,
+    title: `Listing ${id}`,
+    location: 'Bangalore',
+    type: 'Flat/ Apartment',
+    bedrooms: 3,
+    area_sqft: null,
+    price,
+    property_code: null,
+    listing_type: 'Rent',
   });
 
   it('reads "35 to 45" as a monthly rent band, not rupees', () => {
@@ -792,54 +876,67 @@ describe('splitByBudget in a rental context', () => {
       [row('cheap', 40_000), row('dear', 620_000)],
       '35 to 45',
       5,
-      'rent',
+      'rent'
     );
     expect(withinBudget.map((p) => p.id)).toEqual(['cheap']);
     expect(aboveBudget).toHaveLength(0);
   });
 
   it('without the context every listing is above a Rs 45 ceiling', () => {
-    const { withinBudget } = splitByBudget([row('cheap', 40_000)], '35 to 45', 5);
+    const { withinBudget } = splitByBudget(
+      [row('cheap', 40_000)],
+      '35 to 45',
+      5
+    );
     expect(withinBudget).toHaveLength(0);
   });
 });
 
-describe("isAcknowledgementOnly", () => {
-  it("recognises a bare acknowledgement, whatever its punctuation", () => {
-    for (const text of ["Okay", "ok", "OK.", "thanks!", "Thank you", "👍", "noted", "sari"]) {
+describe('isAcknowledgementOnly', () => {
+  it('recognises a bare acknowledgement, whatever its punctuation', () => {
+    for (const text of [
+      'Okay',
+      'ok',
+      'OK.',
+      'thanks!',
+      'Thank you',
+      '👍',
+      'noted',
+      'sari',
+    ]) {
       expect(isAcknowledgementOnly(text)).toBe(true);
     }
   });
 
-  it("leaves anything carrying content to the fallback policy", () => {
+  it('leaves anything carrying content to the fallback policy', () => {
     for (const text of [
-      "ok but what about the price",
-      "2",
-      "3 bhk in whitefield",
-      "okay send me the photos",
-      "",
+      'ok but what about the price',
+      '2',
+      '3 bhk in whitefield',
+      'okay send me the photos',
+      '',
     ]) {
       expect(isAcknowledgementOnly(text)).toBe(false);
     }
   });
 
-  it("does not swallow a negative reaction", () => {
-    for (const text of ["👎", "❌", "😡"]) {
+  it('does not swallow a negative reaction', () => {
+    for (const text of ['👎', '❌', '😡']) {
       expect(isAcknowledgementOnly(text)).toBe(false);
     }
   });
 });
 
-describe("browseAllHint", () => {
-  it("offers the catalog without waiting on an agent or a match", () => {
-    const line = browseAllHint("https://acme.convoreal.com/?v=c1");
-    expect(line).toContain("https://acme.convoreal.com/?v=c1");
+describe('browseAllHint', () => {
+  it('offers the catalog without waiting on an agent or a match', () => {
+    const line = browseAllHint('https://acme.convoreal.com/?v=c1');
+    expect(line).toContain('https://acme.convoreal.com/?v=c1');
     expect(line).toMatch(/anytime/i);
   });
 });
 
-describe("SUBSCRIBE_UNCONFIRMED_TEXT", () => {
-  it("never claims a subscription the write did not record", () => {
+describe('SUBSCRIBE_UNCONFIRMED_TEXT', () => {
+  it('never claims a subscription the write did not record', () => {
     expect(SUBSCRIBE_UNCONFIRMED_TEXT).not.toMatch(/on the list/i);
     expect(SUBSCRIBE_UNCONFIRMED_TEXT).toMatch(/team|specialist/i);
   });

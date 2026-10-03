@@ -455,7 +455,8 @@ export async function POST(request: Request) {
         userId: profile.user_id,
         disposition: payload.disposition,
         statedBudgetMin: payload.budgetMin,
-        statedBudgetMax: payload.qualification?.statedBudget ?? payload.budgetMax,
+        statedBudgetMax:
+          payload.qualification?.statedBudget ?? payload.budgetMax,
         areas:
           (payload.qualification?.statedAreas?.length ?? 0) > 0
             ? payload.qualification!.statedAreas

@@ -39,13 +39,16 @@ const PER_MONTH_RE = /^[\s.,)]*(?:per\s*month|\/\s*month|p\.?m\.?\b|monthly)/i;
 
 /** "60*40", "60 x 40 ft", "60×40" → the two sides in feet. Rejects a
  *  third factor ("30x40x50", an irregular plot) rather than guessing. */
-const DIMENSION_RE = /(\d{1,5}(?:\.\d+)?)\s*(?:ft\.?|feet|')?\s*[x×*]\s*(\d{1,5}(?:\.\d+)?)\s*(?:ft\.?|feet|')?(?!\s*[x×*])/i;
+const DIMENSION_RE =
+  /(\d{1,5}(?:\.\d+)?)\s*(?:ft\.?|feet|')?\s*[x×*]\s*(\d{1,5}(?:\.\d+)?)\s*(?:ft\.?|feet|')?(?!\s*[x×*])/i;
 
 const MIN_DIMENSION_FT = 5;
 const MAX_DIMENSION_FT = 10_000;
 
 /** "60*40" → 2400 Sq.Ft. */
-export function parseDimensionsToSqft(dimensions: string | null | undefined): number | null {
+export function parseDimensionsToSqft(
+  dimensions: string | null | undefined
+): number | null {
   if (!dimensions) return null;
   const match = dimensions.match(DIMENSION_RE);
   if (!match) return null;
@@ -59,7 +62,9 @@ export function parseDimensionsToSqft(dimensions: string | null | undefined): nu
 
 /** Backstop for when the model leaves `dimensions` null on a message
  *  that plainly carries one ("Size - 60*40"). */
-export function extractDimensionsFromText(text: string | null | undefined): string | null {
+export function extractDimensionsFromText(
+  text: string | null | undefined
+): string | null {
   if (!text) return null;
   const match = text.match(DIMENSION_RE);
   if (!match) return null;
@@ -78,7 +83,9 @@ export interface RateQuote {
 /** "Price - 10500 per sqft" → { perSqft: 10500, amount: 10500 };
  *  "1.2 Cr per acre" → { perSqft: 275.48, amount: 12000000 }.
  *  Rental rates ("₹85 per sqft per month") are deliberately ignored. */
-export function extractRateQuote(text: string | null | undefined): RateQuote | null {
+export function extractRateQuote(
+  text: string | null | undefined
+): RateQuote | null {
   if (!text) return null;
   const normalized = text.replace(/\bp\.?s\.?f\.?\b/gi, 'per sqft');
   const match = normalized.match(RATE_RE);
@@ -92,7 +99,8 @@ export function extractRateQuote(text: string | null | undefined): RateQuote | n
   const unitKey = canonicalAreaUnit(match[3]);
   if (!unitKey) return null;
 
-  const amount = base * (match[2] ? AMOUNT_MULTIPLIER[match[2].toLowerCase()] ?? 1 : 1);
+  const amount =
+    base * (match[2] ? (AMOUNT_MULTIPLIER[match[2].toLowerCase()] ?? 1) : 1);
   const sqftPerUnit = toSquareFeet(1, unitKey);
   if (!sqftPerUnit) return null;
   const perSqft = amount / sqftPerUnit;
@@ -109,7 +117,9 @@ const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{6,20}$/;
  *  message rather than a forwarded MP4. The model has no field for it,
  *  so the ID is lifted deterministically here. Trailing punctuation is
  *  stripped — "…youtu.be/abc123XYZ_-." ends a sentence, not an ID. */
-export function extractYouTubeVideoId(text: string | null | undefined): string | null {
+export function extractYouTubeVideoId(
+  text: string | null | undefined
+): string | null {
   if (!text) return null;
   const match = text.match(YOUTUBE_URL_RE);
   if (!match) return null;
@@ -131,7 +141,10 @@ export function extractYouTubeVideoId(text: string | null | undefined): string |
     const id = parsed.searchParams.get('v') || '';
     return YOUTUBE_ID_RE.test(id) ? id : null;
   }
-  if ((parts[0] === 'embed' || parts[0] === 'shorts' || parts[0] === 'live') && parts[1]) {
+  if (
+    (parts[0] === 'embed' || parts[0] === 'shorts' || parts[0] === 'live') &&
+    parts[1]
+  ) {
     return YOUTUBE_ID_RE.test(parts[1]) ? parts[1] : null;
   }
   return null;
@@ -146,12 +159,19 @@ const JOINT_DEVELOPMENT_PHRASE_RE = /\bjoint\s*(?:development|venture)\b/i;
 /** A JD offer reaches us as prose — "12 acres available for an apartment
  *  JD" — and the model still files it as a sale with a missing price,
  *  which is the one thing a joint development will never have. */
-export function detectJointDevelopment(text: string | null | undefined): boolean {
+export function detectJointDevelopment(
+  text: string | null | undefined
+): boolean {
   if (!text) return false;
-  return JOINT_DEVELOPMENT_ABBR_RE.test(text) || JOINT_DEVELOPMENT_PHRASE_RE.test(text);
+  return (
+    JOINT_DEVELOPMENT_ABBR_RE.test(text) ||
+    JOINT_DEVELOPMENT_PHRASE_RE.test(text)
+  );
 }
 
-function normalizeJvStructure(raw: unknown): ParsedPropertyDraft['jv_structure'] {
+function normalizeJvStructure(
+  raw: unknown
+): ParsedPropertyDraft['jv_structure'] {
   if (typeof raw !== 'string') return null;
   const lower = raw.toLowerCase();
   if (lower.includes('revenue')) return 'Revenue Share';
@@ -160,8 +180,11 @@ function normalizeJvStructure(raw: unknown): ParsedPropertyDraft['jv_structure']
   return null;
 }
 
-function normalizeSharePercent(value: number | null | undefined): number | null {
-  if (value == null || !Number.isFinite(value) || value <= 0 || value > 100) return null;
+function normalizeSharePercent(
+  value: number | null | undefined
+): number | null {
+  if (value == null || !Number.isFinite(value) || value <= 0 || value > 100)
+    return null;
   return value;
 }
 
@@ -175,8 +198,11 @@ function isLandOrPlot(type: ParsedPropertyDraft['type']): boolean {
  *  built-up area for everything else, falling back to whichever is known. */
 function priceableAreaSqft(draft: ParsedPropertyDraft): number | null {
   const landSqft = toSquareFeet(draft.land_area, draft.land_area_unit);
-  const builtUpSqft = draft.area_sqft && draft.area_sqft > 0 ? draft.area_sqft : null;
-  return isLandOrPlot(draft.type) ? landSqft ?? builtUpSqft : builtUpSqft ?? landSqft;
+  const builtUpSqft =
+    draft.area_sqft && draft.area_sqft > 0 ? draft.area_sqft : null;
+  return isLandOrPlot(draft.type)
+    ? (landSqft ?? builtUpSqft)
+    : (builtUpSqft ?? landSqft);
 }
 
 /**
@@ -218,7 +244,11 @@ export function applyListingDerivations(
       next.price = null;
       next.price_from_rate = true;
     }
-  } else if (previousDraft && next.price && next.price !== previousDraft.price) {
+  } else if (
+    previousDraft &&
+    next.price &&
+    next.price !== previousDraft.price
+  ) {
     next.price_from_rate = false;
   }
 
@@ -228,9 +258,14 @@ export function applyListingDerivations(
   const jointDevelopment =
     next.listing_type === 'JV/JD' ||
     (next.listing_type !== 'Rent' &&
-      (detectJointDevelopment(rawText) || (!previousDraft && detectJointDevelopment(next.title))));
+      (detectJointDevelopment(rawText) ||
+        (!previousDraft && detectJointDevelopment(next.title))));
 
-  if (next.price_per_sqft && next.listing_type !== 'Rent' && !jointDevelopment) {
+  if (
+    next.price_per_sqft &&
+    next.listing_type !== 'Rent' &&
+    !jointDevelopment
+  ) {
     const areaSqft = priceableAreaSqft(next);
     if (areaSqft && (!next.price || next.price_from_rate)) {
       next.price = Math.round(next.price_per_sqft * areaSqft);
@@ -243,8 +278,10 @@ export function applyListingDerivations(
     next.jv_structure = normalizeJvStructure(next.jv_structure);
     const owner = normalizeSharePercent(next.owner_share_percent);
     const builder = normalizeSharePercent(next.builder_share_percent);
-    next.owner_share_percent = owner ?? (builder !== null ? 100 - builder : null);
-    next.builder_share_percent = builder ?? (owner !== null ? 100 - owner : null);
+    next.owner_share_percent =
+      owner ?? (builder !== null ? 100 - builder : null);
+    next.builder_share_percent =
+      builder ?? (owner !== null ? 100 - owner : null);
     // "Goodwill and advance 2.5 Cr per acre" is a rate on the deal, not
     // on the land. Multiplying it by the site gives the goodwill total
     // over again, not a project value — that is FAR × the selling price
@@ -261,7 +298,11 @@ export function applyListingDerivations(
   // Last, so it reads the price this function settled on rather than the
   // one the model guessed — and so a draft that turned out to be a
   // rental loses the yield the previous pass gave it.
-  next.roi = rentalYieldPercent(next.listing_type, next.price, next.rental_income);
+  next.roi = rentalYieldPercent(
+    next.listing_type,
+    next.price,
+    next.rental_income
+  );
 
   return next;
 }

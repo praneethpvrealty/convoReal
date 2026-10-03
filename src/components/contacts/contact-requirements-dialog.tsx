@@ -147,8 +147,7 @@ export function ContactRequirementsDialog({
 
   async function readResponse(response: Response): Promise<RequirementResult> {
     const body = (await response.json().catch(() => ({}))) as
-      | RequirementResult
-      | { error?: string };
+      RequirementResult | { error?: string };
     if (!response.ok || !('data' in body)) {
       throw new Error(
         ('error' in body && body.error) || 'Could not save the requirement'
@@ -218,17 +217,14 @@ export function ContactRequirementsDialog({
     }
     setDeleting(key);
     try {
-      const response = await fetch(
-        `/api/contacts/${contact.id}/requirements`,
-        {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            target,
-            profile_id: profileId,
-          }),
-        }
-      );
+      const response = await fetch(`/api/contacts/${contact.id}/requirements`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target,
+          profile_id: profileId,
+        }),
+      });
       const body = (await response.json().catch(() => ({}))) as {
         error?: string;
       };
@@ -315,316 +311,314 @@ export function ContactRequirementsDialog({
   const content = (
     <>
       <DialogHeader className="min-w-0">
-          <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-            {view !== 'overview' ? (
-              <button
-                type="button"
-                onClick={() => setView('overview')}
-                className="rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
-                aria-label="Back to requirements"
-              >
-                <ArrowLeft className="size-4" />
-              </button>
-            ) : (
-              <ClipboardCheck className="text-primary size-5" />
-            )}
-            {view === 'overview'
-              ? 'Requirements'
-              : view === 'add'
-                ? 'Create a brief'
-                : 'Request requirements and budget'}
-          </DialogTitle>
-          <DialogDescription className="break-words text-sm text-slate-400">
-            {view === 'overview'
-              ? `Review every active brief for ${name} from one place.`
-              : view === 'add'
-                ? 'Paste a personal WhatsApp message. It becomes a separate structured brief.'
-                : `Send ${name} the pre-filled WhatsApp form from your connected business number.`}
-          </DialogDescription>
+        <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+          {view !== 'overview' ? (
+            <button
+              type="button"
+              onClick={() => setView('overview')}
+              className="rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
+              aria-label="Back to requirements"
+            >
+              <ArrowLeft className="size-4" />
+            </button>
+          ) : (
+            <ClipboardCheck className="text-primary size-5" />
+          )}
+          {view === 'overview'
+            ? 'Requirements'
+            : view === 'add'
+              ? 'Create a brief'
+              : 'Request requirements and budget'}
+        </DialogTitle>
+        <DialogDescription className="text-sm break-words text-slate-400">
+          {view === 'overview'
+            ? `Review every active brief for ${name} from one place.`
+            : view === 'add'
+              ? 'Paste a personal WhatsApp message. It becomes a separate structured brief.'
+              : `Send ${name} the pre-filled WhatsApp form from your connected business number.`}
+        </DialogDescription>
       </DialogHeader>
 
-        {view === 'overview' ? (
-          <div className="min-w-0 space-y-4">
-            <div className="grid min-w-0 gap-3 md:grid-cols-2">
-              <Button
-                variant="outline"
-                onClick={() => setView('add')}
-                className="h-auto w-full min-w-0 justify-start whitespace-normal border-sky-500/20 bg-sky-500/5 px-4 py-3 text-sky-300"
-              >
-                <FilePlus2 className="mt-0.5 size-4 shrink-0" />
-                <span className="min-w-0 text-left">
-                  <span className="block text-sm font-semibold leading-5">
-                    Add a brief
-                  </span>
-                  <span className="mt-0.5 block break-words text-xs font-normal leading-5 text-slate-300/80">
-                    Paste a message to create another matching requirement.
-                  </span>
+      {view === 'overview' ? (
+        <div className="min-w-0 space-y-4">
+          <div className="grid min-w-0 gap-3 md:grid-cols-2">
+            <Button
+              variant="outline"
+              onClick={() => setView('add')}
+              className="h-auto w-full min-w-0 justify-start border-sky-500/20 bg-sky-500/5 px-4 py-3 whitespace-normal text-sky-300"
+            >
+              <FilePlus2 className="mt-0.5 size-4 shrink-0" />
+              <span className="min-w-0 text-left">
+                <span className="block text-sm leading-5 font-semibold">
+                  Add a brief
                 </span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setView('ask')}
-                disabled={!contact.phone}
-                className="h-auto w-full min-w-0 justify-start whitespace-normal border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-emerald-300"
-              >
-                <Send className="mt-0.5 size-4 shrink-0" />
-                <span className="min-w-0 text-left">
-                  <span className="block text-sm font-semibold leading-5">
-                    Ask buyer
-                  </span>
-                  <span className="mt-0.5 block break-words text-xs font-normal leading-5 text-slate-300/80">
-                    Send a WhatsApp form so the buyer confirms latest needs.
-                  </span>
+                <span className="mt-0.5 block text-xs leading-5 font-normal break-words text-slate-300/80">
+                  Paste a message to create another matching requirement.
                 </span>
-              </Button>
-            </div>
+              </span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setView('ask')}
+              disabled={!contact.phone}
+              className="h-auto w-full min-w-0 justify-start border-emerald-500/20 bg-emerald-500/5 px-4 py-3 whitespace-normal text-emerald-300"
+            >
+              <Send className="mt-0.5 size-4 shrink-0" />
+              <span className="min-w-0 text-left">
+                <span className="block text-sm leading-5 font-semibold">
+                  Ask buyer
+                </span>
+                <span className="mt-0.5 block text-xs leading-5 font-normal break-words text-slate-300/80">
+                  Send a WhatsApp form so the buyer confirms latest needs.
+                </span>
+              </span>
+            </Button>
+          </div>
 
-            <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-bold text-white">
-                    Primary requirement
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Used by the buyer form and Match Radar. Editing re-reads the
-                    text into structured matching fields.
-                  </p>
-                </div>
-                <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400">
-                  Active
-                </span>
-              </div>
-              <Textarea
-                value={primaryText}
-                onChange={(event) => setPrimaryText(event.target.value)}
-                placeholder="Property type, location, size, budget and any must-haves"
-                className="min-h-28 border-slate-700 bg-slate-900 text-white placeholder:text-slate-600"
-                maxLength={4000}
-              />
-              {primarySummary(contact) ? (
-                <p className="text-xs text-slate-500">
-                  Structured now: {primarySummary(contact)}
-                </p>
-              ) : null}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => saveRequirement('primary', primaryText)}
-                  disabled={
-                    !primaryText.trim() || saving !== null || deleting !== null
-                  }
-                >
-                  {saving === 'primary' ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Save className="size-4" />
-                  )}
-                  {saving === 'primary'
-                    ? 'Reading and matching…'
-                    : 'Save primary requirement'}
-                </Button>
-                {contact.requirements?.trim() ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => deleteRequirement('primary')}
-                    disabled={saving !== null || deleting !== null}
-                    className="border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
-                  >
-                    {deleting === 'primary' ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="size-4" />
-                    )}
-                    Delete
-                  </Button>
-                ) : null}
-              </div>
-            </section>
-
-            <section className="space-y-3">
+          <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-bold text-white">
-                  Additional requirements
+                  Primary requirement
                 </h3>
                 <p className="mt-1 text-xs text-slate-500">
-                  Each brief is matched independently, so locations, sizes and
-                  budgets never get mixed together.
+                  Used by the buyer form and Match Radar. Editing re-reads the
+                  text into structured matching fields.
                 </p>
               </div>
-              {profiles.length ? (
-                profiles.map((profile) => (
-                  <div
-                    key={profile.id}
-                    className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h4 className="text-sm font-semibold text-slate-100">
-                          {profile.title}
-                        </h4>
-                        {profileSummary(profile) ? (
-                          <p className="mt-1 text-xs text-slate-500">
-                            {profileSummary(profile)}
-                          </p>
-                        ) : null}
-                      </div>
-                      <span className="rounded-full bg-sky-500/10 px-2 py-1 text-[10px] font-bold text-sky-400">
-                        Separate brief
-                      </span>
-                    </div>
-                    <Textarea
-                      value={profileDrafts[profile.id] ?? profile.raw_text}
-                      onChange={(event) =>
-                        setProfileDrafts((current) => ({
-                          ...current,
-                          [profile.id]: event.target.value,
-                        }))
-                      }
-                      className="min-h-24 border-slate-700 bg-slate-900 text-white"
-                      maxLength={4000}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          saveRequirement(
-                            'profile',
-                            profileDrafts[profile.id] ?? profile.raw_text,
-                            profile.id
-                          )
-                        }
-                        disabled={
-                          !(
-                            profileDrafts[profile.id] ?? profile.raw_text
-                          ).trim() ||
-                          saving !== null ||
-                          deleting !== null
-                        }
-                      >
-                        {saving === profile.id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Save className="size-4" />
-                        )}
-                        {saving === profile.id
-                          ? 'Reading and matching…'
-                          : 'Save changes'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          deleteRequirement('profile', profile.id)
-                        }
-                        disabled={saving !== null || deleting !== null}
-                        className="border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
-                      >
-                        {deleting === profile.id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="size-4" />
-                        )}
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-xl border border-dashed border-slate-700 p-5 text-center text-sm text-slate-500">
-                  No additional requirements yet.
-                </div>
-              )}
-            </section>
-
-            <div className="border-primary/20 bg-primary/5 flex items-start gap-2 rounded-xl border p-3 text-xs text-slate-300">
-              <Radar className="text-primary mt-0.5 size-4 shrink-0" />
-              <p>
-                {contact.buyer_alerts_consent === 'granted'
-                  ? 'Match Radar is watching these briefs. New matches can be sent from the connected business WhatsApp.'
-                  : 'Match Radar is watching these briefs. WhatsApp delivery starts after buyer alert consent is granted.'}
-              </p>
+              <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400">
+                Active
+              </span>
             </div>
-          </div>
-        ) : view === 'add' ? (
-          <div className="space-y-3">
-            <Label htmlFor="new-requirement" className="text-xs text-slate-300">
-              Requirement message
-            </Label>
             <Textarea
-              id="new-requirement"
-              value={addText}
-              onChange={(event) => setAddText(event.target.value)}
-              placeholder="For Dabaspete, 2–3 acres, for cold storage / warehouse on or close to STRR"
-              className="min-h-36 border-slate-700 bg-slate-950/60 text-white placeholder:text-slate-600"
+              value={primaryText}
+              onChange={(event) => setPrimaryText(event.target.value)}
+              placeholder="Property type, location, size, budget and any must-haves"
+              className="min-h-28 border-slate-700 bg-slate-900 text-white placeholder:text-slate-600"
               maxLength={4000}
-              autoFocus
             />
-            <div className="border-primary/20 bg-primary/5 flex items-start gap-2 rounded-xl border p-3 text-xs text-slate-300">
-              <Radar className="text-primary mt-0.5 size-4 shrink-0" />
-              <p>
-                AI extracts area, property type, size and budget, checks current
-                inventory, and saves this independently.
-              </p>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setView('overview')}>
-                Cancel
-              </Button>
-              <Button
-                onClick={addRequirement}
-                disabled={!addText.trim() || saving !== null}
-              >
-                {saving === 'add' ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <FilePlus2 className="size-4" />
-                )}
-                {saving === 'add' ? 'Reading and matching…' : 'Save to Engine'}
-              </Button>
-            </DialogFooter>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-300">
-              <div className="flex items-start gap-2">
-                <MessageSquareText className="mt-0.5 size-4 shrink-0 text-emerald-400" />
-                <p>
-                  The pre-filled form is sent from your connected ConvoReal
-                  WhatsApp number and recorded in Inbox—not from your personal
-                  WhatsApp.
-                </p>
-              </div>
-              <div className="flex items-start gap-2">
-                <Radar className="text-primary mt-0.5 size-4 shrink-0" />
-                <p>
-                  Only {name}&apos;s submitted response updates the primary
-                  brief. ConvoReal then re-runs matching and retains it for
-                  future Match Radar alerts.
-                </p>
-              </div>
-            </div>
-            {!contact.phone ? (
-              <p className="text-sm text-amber-400">
-                Add a phone number before sending the form.
+            {primarySummary(contact) ? (
+              <p className="text-xs text-slate-500">
+                Structured now: {primarySummary(contact)}
               </p>
             ) : null}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setView('overview')}>
-                Cancel
-              </Button>
-              <Button onClick={askBuyer} disabled={sending || !contact.phone}>
-                {sending ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={() => saveRequirement('primary', primaryText)}
+                disabled={
+                  !primaryText.trim() || saving !== null || deleting !== null
+                }
+              >
+                {saving === 'primary' ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <Send className="size-4" />
+                  <Save className="size-4" />
                 )}
-                {sending ? 'Sending from Engine…' : 'Send from Engine'}
+                {saving === 'primary'
+                  ? 'Reading and matching…'
+                  : 'Save primary requirement'}
               </Button>
-            </DialogFooter>
+              {contact.requirements?.trim() ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => deleteRequirement('primary')}
+                  disabled={saving !== null || deleting !== null}
+                  className="border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+                >
+                  {deleting === 'primary' ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-4" />
+                  )}
+                  Delete
+                </Button>
+              ) : null}
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                Additional requirements
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Each brief is matched independently, so locations, sizes and
+                budgets never get mixed together.
+              </p>
+            </div>
+            {profiles.length ? (
+              profiles.map((profile) => (
+                <div
+                  key={profile.id}
+                  className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-100">
+                        {profile.title}
+                      </h4>
+                      {profileSummary(profile) ? (
+                        <p className="mt-1 text-xs text-slate-500">
+                          {profileSummary(profile)}
+                        </p>
+                      ) : null}
+                    </div>
+                    <span className="rounded-full bg-sky-500/10 px-2 py-1 text-[10px] font-bold text-sky-400">
+                      Separate brief
+                    </span>
+                  </div>
+                  <Textarea
+                    value={profileDrafts[profile.id] ?? profile.raw_text}
+                    onChange={(event) =>
+                      setProfileDrafts((current) => ({
+                        ...current,
+                        [profile.id]: event.target.value,
+                      }))
+                    }
+                    className="min-h-24 border-slate-700 bg-slate-900 text-white"
+                    maxLength={4000}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        saveRequirement(
+                          'profile',
+                          profileDrafts[profile.id] ?? profile.raw_text,
+                          profile.id
+                        )
+                      }
+                      disabled={
+                        !(
+                          profileDrafts[profile.id] ?? profile.raw_text
+                        ).trim() ||
+                        saving !== null ||
+                        deleting !== null
+                      }
+                    >
+                      {saving === profile.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Save className="size-4" />
+                      )}
+                      {saving === profile.id
+                        ? 'Reading and matching…'
+                        : 'Save changes'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => deleteRequirement('profile', profile.id)}
+                      disabled={saving !== null || deleting !== null}
+                      className="border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+                    >
+                      {deleting === profile.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-4" />
+                      )}
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-700 p-5 text-center text-sm text-slate-500">
+                No additional requirements yet.
+              </div>
+            )}
+          </section>
+
+          <div className="border-primary/20 bg-primary/5 flex items-start gap-2 rounded-xl border p-3 text-xs text-slate-300">
+            <Radar className="text-primary mt-0.5 size-4 shrink-0" />
+            <p>
+              {contact.buyer_alerts_consent === 'granted'
+                ? 'Match Radar is watching these briefs. New matches can be sent from the connected business WhatsApp.'
+                : 'Match Radar is watching these briefs. WhatsApp delivery starts after buyer alert consent is granted.'}
+            </p>
           </div>
-        )}
+        </div>
+      ) : view === 'add' ? (
+        <div className="space-y-3">
+          <Label htmlFor="new-requirement" className="text-xs text-slate-300">
+            Requirement message
+          </Label>
+          <Textarea
+            id="new-requirement"
+            value={addText}
+            onChange={(event) => setAddText(event.target.value)}
+            placeholder="For Dabaspete, 2–3 acres, for cold storage / warehouse on or close to STRR"
+            className="min-h-36 border-slate-700 bg-slate-950/60 text-white placeholder:text-slate-600"
+            maxLength={4000}
+            autoFocus
+          />
+          <div className="border-primary/20 bg-primary/5 flex items-start gap-2 rounded-xl border p-3 text-xs text-slate-300">
+            <Radar className="text-primary mt-0.5 size-4 shrink-0" />
+            <p>
+              AI extracts area, property type, size and budget, checks current
+              inventory, and saves this independently.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setView('overview')}>
+              Cancel
+            </Button>
+            <Button
+              onClick={addRequirement}
+              disabled={!addText.trim() || saving !== null}
+            >
+              {saving === 'add' ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <FilePlus2 className="size-4" />
+              )}
+              {saving === 'add' ? 'Reading and matching…' : 'Save to Engine'}
+            </Button>
+          </DialogFooter>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-300">
+            <div className="flex items-start gap-2">
+              <MessageSquareText className="mt-0.5 size-4 shrink-0 text-emerald-400" />
+              <p>
+                The pre-filled form is sent from your connected ConvoReal
+                WhatsApp number and recorded in Inbox—not from your personal
+                WhatsApp.
+              </p>
+            </div>
+            <div className="flex items-start gap-2">
+              <Radar className="text-primary mt-0.5 size-4 shrink-0" />
+              <p>
+                Only {name}&apos;s submitted response updates the primary brief.
+                ConvoReal then re-runs matching and retains it for future Match
+                Radar alerts.
+              </p>
+            </div>
+          </div>
+          {!contact.phone ? (
+            <p className="text-sm text-amber-400">
+              Add a phone number before sending the form.
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setView('overview')}>
+              Cancel
+            </Button>
+            <Button onClick={askBuyer} disabled={sending || !contact.phone}>
+              {sending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Send className="size-4" />
+              )}
+              {sending ? 'Sending from Engine…' : 'Send from Engine'}
+            </Button>
+          </DialogFooter>
+        </div>
+      )}
     </>
   );
 

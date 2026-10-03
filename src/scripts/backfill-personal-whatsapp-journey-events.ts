@@ -121,7 +121,10 @@ async function fetchJourneyItems(contactId: string): Promise<JourneyItemRow[]> {
     .eq('contact_id', contactId);
 
   if (error) {
-    console.error(`  failed to load journey items for contact ${contactId}:`, error.message);
+    console.error(
+      `  failed to load journey items for contact ${contactId}:`,
+      error.message
+    );
     journeyItemsCache.set(key, []);
     return [];
   }
@@ -135,7 +138,7 @@ async function fetchMessagePage(offset: number): Promise<MessageRow[]> {
   let query = supabase
     .from('messages')
     .select(
-      'id, conversation_id, sender_id, sender_type, content_type, content_text, template_name, created_at, conversations!inner(account_id, contact_id)',
+      'id, conversation_id, sender_id, sender_type, content_type, content_text, template_name, created_at, conversations!inner(account_id, contact_id)'
     )
     .eq('sender_type', 'agent')
     .eq('conversations.account_id', accountId)
@@ -150,7 +153,9 @@ async function fetchMessagePage(offset: number): Promise<MessageRow[]> {
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to load personal WhatsApp messages: ${error.message}`);
+    throw new Error(
+      `Failed to load personal WhatsApp messages: ${error.message}`
+    );
   }
 
   return (data as MessageRow[]) ?? [];
@@ -230,7 +235,7 @@ async function backfillPersonalWhatsAppJourneyEvents() {
           failed++;
           console.error(
             `  failed to persist event for message ${message.id}, item ${item.id}:`,
-            outcome.error,
+            outcome.error
           );
         }
       }
@@ -251,12 +256,12 @@ async function backfillPersonalWhatsAppJourneyEvents() {
       `${dryRun ? 'Would skip' : 'Failed to write'} ${failed} events.`,
       `${skippedNoMessage} messages had no usable message text.`,
       `${skippedNoJourneyItem} messages had no journey items.`,
-    ].join(' '),
+    ].join(' ')
   );
 
   if (!dryRun) {
     console.log(
-      'Run this script again with --dry-run to review a future window without writing.',
+      'Run this script again with --dry-run to review a future window without writing.'
     );
   }
 }

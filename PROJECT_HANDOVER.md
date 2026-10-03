@@ -6,9 +6,10 @@ This document serves as a comprehensive project overview and state capture. If y
 
 ## 1. Safely Switching Models
 
-If you are switching the model (e.g. to **Claude Opus 4.6** or another LLM), you will **not** lose the progress on the codebase because all files, migrations, and local tests are committed and pushed to the remote repository. 
+If you are switching the model (e.g. to **Claude Opus 4.6** or another LLM), you will **not** lose the progress on the codebase because all files, migrations, and local tests are committed and pushed to the remote repository.
 
 To ensure the new model has full context:
+
 1. **Read this file** (`PROJECT_HANDOVER.md`) at the very start of the conversation.
 2. **Read CLAUDE.md and AGENTS.md** in the root directory.
 3. **Verify the database state** against `supabase/RUN_IN_SUPABASE_SQL_EDITOR.sql`.
@@ -20,7 +21,7 @@ To ensure the new model has full context:
 - **Core**: Next.js 15 (App Router, React 19, TypeScript)
 - **Styling**: Tailwind CSS & Shadcn UI (Lucide React Icons)
 - **Database**: Supabase (PostgreSQL, Realtime, row-level security (RLS), custom triggers, and functions)
-- **AI Integrations**: 
+- **AI Integrations**:
   - **Gemini API** (tiered failover chains in `src/lib/ai/gemini.ts`, full Flash starting on `gemini-3.8-flash`, with a daily cron retiring models Google stops serving). Used for description copywriting, chatbot message classification, and multi-contact parsing.
   - **Hugging Face / OpenAI / Google** options for AI Flyer generation.
 - **WhatsApp Integration**: Meta WhatsApp Cloud API (Graph API) for webhook status callbacks, interactive templates, and button messages.
@@ -137,14 +138,15 @@ convoreal/
    - Template-first delivery (`owner_property_digest` + `owner_digest_consent` Utility templates, `src/lib/whatsapp/owner-digest-template.ts`) with free-form upgrade when the 24h window is open.
    - **Consent-first & owner-authoritative**: each owner gets a one-time Yes/No consent request before any digest; `contacts.owner_digest_consent` ('pending'/'granted'/'declined') is set ONLY by the owner's own WhatsApp reply ("START UPDATES"/"STOP UPDATES" or the quick-reply buttons, handled in webhook-handler) and always overrides the account cadence set in Settings → WhatsApp "Owner Property Digest" (`owner-digest-card.tsx`, `owner_digest_settings` table).
 10. **Chatbot Concurrent Image-Upload Debounce**:
-   - Implemented `sendPropertyDraftPreviewDebounced` in `chatbot-engine.ts`.
-   - Pauses confirmation preview dispatches for 4 seconds, compares update timestamps in `property_draft_sessions`, and ensures only the last concurrent thread triggers a single compiled preview draft card (preventing duplicate or intermediate replies during concurrent multi-photo/document uploads).
+
+- Implemented `sendPropertyDraftPreviewDebounced` in `chatbot-engine.ts`.
+- Pauses confirmation preview dispatches for 4 seconds, compares update timestamps in `property_draft_sessions`, and ensures only the last concurrent thread triggers a single compiled preview draft card (preventing duplicate or intermediate replies during concurrent multi-photo/document uploads).
 
 ---
 
 ## 7. Pending Tasks
 
-*(Currently, all major milestones from the immediate roadmap have been successfully implemented and verified with clean TypeScript and ESLint type checks. Any subsequent features or enhancements will be appended here as requested.)*
+_(Currently, all major milestones from the immediate roadmap have been successfully implemented and verified with clean TypeScript and ESLint type checks. Any subsequent features or enhancements will be appended here as requested.)_
 
 ---
 

@@ -17,7 +17,7 @@ export interface JobTotals {
 
 export function computeJobTotals(
   job: Pick<LiaisonJob, 'client_charge' | 'liaison_fee'>,
-  payments: LiaisonJobPayment[],
+  payments: LiaisonJobPayment[]
 ): JobTotals {
   let received = 0;
   let paid = 0;
@@ -32,10 +32,14 @@ export function computeJobTotals(
   return {
     received,
     paid,
-    clientBalance: charge !== null && charge !== undefined ? charge - received : null,
+    clientBalance:
+      charge !== null && charge !== undefined ? charge - received : null,
     liaisonBalance: fee !== null && fee !== undefined ? fee - paid : null,
     agreedMargin:
-      charge !== null && charge !== undefined && fee !== null && fee !== undefined
+      charge !== null &&
+      charge !== undefined &&
+      fee !== null &&
+      fee !== undefined
         ? charge - fee
         : null,
     realizedMargin: received - paid,

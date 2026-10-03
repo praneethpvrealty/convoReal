@@ -85,13 +85,34 @@ export function matchableSqft(
  */
 export function interestFromTypeText(text: string): string | null {
   const lower = text.toLowerCase().replace(/site\s+visits?/g, ' ');
-  if (lower.includes('industrial') || lower.includes('industry') || lower.includes('warehouse') || lower.includes('factory') || lower.includes('shed') || lower.includes('godown')) return 'Industrial';
-  if (lower.includes('commercial') || lower.includes('office') || lower.includes('shop') || lower.includes('showroom')) return 'Commercial';
+  if (
+    lower.includes('industrial') ||
+    lower.includes('industry') ||
+    lower.includes('warehouse') ||
+    lower.includes('factory') ||
+    lower.includes('shed') ||
+    lower.includes('godown')
+  )
+    return 'Industrial';
+  if (
+    lower.includes('commercial') ||
+    lower.includes('office') ||
+    lower.includes('shop') ||
+    lower.includes('showroom')
+  )
+    return 'Commercial';
   if (lower.includes('villa')) return 'Villa';
-  if (lower.includes('farm house') || lower.includes('farmhouse')) return 'Farm House';
+  if (lower.includes('farm house') || lower.includes('farmhouse'))
+    return 'Farm House';
   if (lower.includes('penthouse')) return 'Penthouse';
   if (lower.includes('house')) return 'Residential House';
-  if (lower.includes('flat') || lower.includes('apartment') || lower.includes('bhk') || lower.includes('studio')) return 'Flat/ Apartment';
+  if (
+    lower.includes('flat') ||
+    lower.includes('apartment') ||
+    lower.includes('bhk') ||
+    lower.includes('studio')
+  )
+    return 'Flat/ Apartment';
   if (/\b(?:plots?|land|sites?)\b/.test(lower)) return 'Vacant plot';
   if (lower.includes('building')) return 'Vacant building';
   return null;
@@ -115,31 +136,39 @@ export function normalizeLocationString(str: string): string {
     .trim();
 }
 
-export function checkLocationMatch(parsedLoc: string, propertyLoc: string): boolean {
+export function checkLocationMatch(
+  parsedLoc: string,
+  propertyLoc: string
+): boolean {
   if (!parsedLoc || !propertyLoc) return false;
-  
+
   const normParsed = normalizeLocationString(parsedLoc);
   const normProperty = normalizeLocationString(propertyLoc);
-  
+
   // 1. Direct substring match on normalized strings
   if (normProperty.includes(normParsed) || normParsed.includes(normProperty)) {
     return true;
   }
-  
+
   // 2. Token overlap check
-  const parsedWords = normParsed.split(' ').filter(w => w.length > 1);
-  const propertyWords = normProperty.split(' ').filter(w => w.length > 1);
-  
+  const parsedWords = normParsed.split(' ').filter((w) => w.length > 1);
+  const propertyWords = normProperty.split(' ').filter((w) => w.length > 1);
+
   if (parsedWords.length === 0 || propertyWords.length === 0) return false;
-  
+
   // Check how many of the parsed location's words are in the property location
-  const matchCount = parsedWords.filter(w => propertyWords.includes(w)).length;
-  
+  const matchCount = parsedWords.filter((w) =>
+    propertyWords.includes(w)
+  ).length;
+
   // If the parsed location is longer (e.g. "Surya City Phase 2" has 4 words),
   // we require at least 75% of its words to be present in the property location.
   // If it's a short location (1 or 2 words), we require all of them to be present.
-  const threshold = parsedWords.length <= 2 ? parsedWords.length : Math.ceil(parsedWords.length * 0.75);
-  
+  const threshold =
+    parsedWords.length <= 2
+      ? parsedWords.length
+      : Math.ceil(parsedWords.length * 0.75);
+
   return matchCount >= threshold;
 }
 
@@ -147,26 +176,47 @@ export function checkIsNonLeadEmail(subject: string, sender: string): boolean {
   // System/notification emails
   if (/^noreply@|^no-reply@|^donotreply@|^mailer-daemon@/i.test(sender)) {
     // Exempt known portal lead senders even if they use a noreply address
-    const isPortalSender = /housing-mailer\.com|99acres\.com|magicbricks\.com/i.test(sender);
+    const isPortalSender =
+      /housing-mailer\.com|99acres\.com|magicbricks\.com/i.test(sender);
     if (!isPortalSender) {
       return true;
     }
   }
 
   // Account-related notifications
-  if (/account\s+(update|change|alert|notification|verify|security|suspension|deactivation)/i.test(subject)) return true;
+  if (
+    /account\s+(update|change|alert|notification|verify|security|suspension|deactivation)/i.test(
+      subject
+    )
+  )
+    return true;
 
   // Payment/billing notifications
-  if (/(payment|billing|invoice|subscription|renewal|expiry|expir)/i.test(subject)) return true;
+  if (
+    /(payment|billing|invoice|subscription|renewal|expiry|expir)/i.test(subject)
+  )
+    return true;
 
   // Newsletter/marketing blasts (not individual leads)
-  if (/(newsletter|weekly\s+digest|daily\s+update|marketing|promotional|unsubscribe)/i.test(subject)) return true;
+  if (
+    /(newsletter|weekly\s+digest|daily\s+update|marketing|promotional|unsubscribe)/i.test(
+      subject
+    )
+  )
+    return true;
 
   // Password reset / OTP
-  if (/(password|otp|one.time|reset.*password|forgot.*password)/i.test(subject)) return true;
+  if (/(password|otp|one.time|reset.*password|forgot.*password)/i.test(subject))
+    return true;
 
   // Property listing updates (not individual inquiries)
-  if (/(new\s+listings?\s+in|property\s+alert|price\s+drop|listing\s+update)/i.test(subject) && !/buyer\s+wants/i.test(subject)) return true;
+  if (
+    /(new\s+listings?\s+in|property\s+alert|price\s+drop|listing\s+update)/i.test(
+      subject
+    ) &&
+    !/buyer\s+wants/i.test(subject)
+  )
+    return true;
 
   // Listing-lifecycle mail from the portals about the agent's OWN ad —
   // posted, under review, live, refreshed. Never a lead, and the Housing
@@ -186,16 +236,28 @@ export function checkIsNonLeadEmail(subject: string, sender: string): boolean {
 
   // LinkedIn notifications
   if (/linkedin/i.test(sender)) return true;
-  if (/linkedin.*(?:notification|alert|update|connection|message|invite)/i.test(subject)) return true;
+  if (
+    /linkedin.*(?:notification|alert|update|connection|message|invite)/i.test(
+      subject
+    )
+  )
+    return true;
 
   // Social media notifications
-  if (/(?:facebook|twitter|instagram|youtube|tiktok).*notification/i.test(sender)) return true;
+  if (
+    /(?:facebook|twitter|instagram|youtube|tiktok).*notification/i.test(sender)
+  )
+    return true;
 
   // Marketing/savings/promotional content in subject
   // Exclude common real estate lead keywords like "sale", "offer", and "deal" unless they are explicitly marketing.
-  const isMarketing = 
-    /(exclusive|savings|discount|free|limited.time|act.now|buy.now)/i.test(subject) ||
-    /\b(clearance|flash|mega|big|super|promo|annual|holiday|seasonal)\s+sale\b/i.test(subject) ||
+  const isMarketing =
+    /(exclusive|savings|discount|free|limited.time|act.now|buy.now)/i.test(
+      subject
+    ) ||
+    /\b(clearance|flash|mega|big|super|promo|annual|holiday|seasonal)\s+sale\b/i.test(
+      subject
+    ) ||
     /\b(special|promo|limited|exclusive)\s+offer\b/i.test(subject) ||
     /\b(special|promo|limited|exclusive)\s+deal\b/i.test(subject);
 
@@ -238,8 +300,13 @@ export async function POST(request: Request) {
     // WhatsApp messages from a tenant's number.
     const expectedToken = process.env.LEADS_WEBHOOK_TOKEN;
     if (!expectedToken) {
-      console.error('[lead-webhook] LEADS_WEBHOOK_TOKEN is not set — rejecting request.');
-      return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 });
+      console.error(
+        '[lead-webhook] LEADS_WEBHOOK_TOKEN is not set — rejecting request.'
+      );
+      return NextResponse.json(
+        { error: 'Webhook not configured' },
+        { status: 503 }
+      );
     }
     const tokenBuf = Buffer.from(token);
     const expectedBuf = Buffer.from(expectedToken);
@@ -247,34 +314,45 @@ export async function POST(request: Request) {
       tokenBuf.length !== expectedBuf.length ||
       !timingSafeEqual(tokenBuf, expectedBuf)
     ) {
-      return NextResponse.json({ error: 'Unauthorized token' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized token' },
+        { status: 401 }
+      );
     }
 
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
       request.headers.get('x-real-ip') ||
       'unknown';
-    const limit = await checkRateLimit(`lead-webhook:${ip}`, LEAD_WEBHOOK_LIMIT);
+    const limit = await checkRateLimit(
+      `lead-webhook:${ip}`,
+      LEAD_WEBHOOK_LIMIT
+    );
     if (!limit.success) return rateLimitResponse(limit);
 
     const payload = await request.json();
-    
+
     sender = payload.from || payload.sender || '';
     subject = payload.subject || '';
     ledgerId = typeof payload.ledger_id === 'string' ? payload.ledger_id : null;
-    
+
     // Determine if the payload text/html contains raw MIME email headers
     const rawText = payload.text || payload.html || '';
-    
+
     // If the payload appears to be a raw MIME email (contains headers like Content-Type/Received)
-    const isMimeEmail = /Content-Type:/i.test(rawText) || /MIME-Version:/i.test(rawText) || /Received:/i.test(rawText);
-    
+    const isMimeEmail =
+      /Content-Type:/i.test(rawText) ||
+      /MIME-Version:/i.test(rawText) ||
+      /Received:/i.test(rawText);
+
     if (isMimeEmail) {
-      console.log('[lead-webhook] Raw MIME email detected. Parsing multipart MIME structure...');
+      console.log(
+        '[lead-webhook] Raw MIME email detected. Parsing multipart MIME structure...'
+      );
       const parsedMime = parseMimeEmail(rawText);
       htmlContent = parsedMime.html;
       bodyText = parsedMime.text || parsedMime.html; // Fallback to HTML body if plain text is empty
-      
+
       // Extract subject from MIME headers if missing or MIME-encoded
       const subjectMatch = rawText.match(/^Subject:\s*([^\r\n]+)/im);
       if (subjectMatch && (!subject || subject.includes('=?'))) {
@@ -294,7 +372,7 @@ export async function POST(request: Request) {
       subject = decodeMimeSubject(payload.subject || '');
       bodyText = payload.text || payload.html || '';
       htmlContent = payload.html || '';
-      
+
       // Decode Quoted-Printable body and html if they contain soft line breaks
       if (/=\r?\n/.test(bodyText)) {
         bodyText = decodeQuotedPrintable(bodyText);
@@ -305,33 +383,43 @@ export async function POST(request: Request) {
     }
 
     if (!bodyText) {
-      return NextResponse.json({ error: 'Empty email body text' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Empty email body text' },
+        { status: 400 }
+      );
     }
 
     // Auto-approve email forwarding confirmation request checks (e.g. Gmail forwarding setup)
-    const isVerificationEmail = /forwarding.*confirm/i.test(subject) || 
-                                 /verification/i.test(subject) || 
-                                 /confirm.*forward/i.test(subject) ||
-                                 /google.*forward/i.test(subject) ||
-                                 /forwarding.*confirm/i.test(bodyText) ||
-                                 /confirm.*forward/i.test(bodyText) ||
-                                 /confirmation\s*code/i.test(bodyText) ||
-                                 /automatically\s*forward/i.test(bodyText);
+    const isVerificationEmail =
+      /forwarding.*confirm/i.test(subject) ||
+      /verification/i.test(subject) ||
+      /confirm.*forward/i.test(subject) ||
+      /google.*forward/i.test(subject) ||
+      /forwarding.*confirm/i.test(bodyText) ||
+      /confirm.*forward/i.test(bodyText) ||
+      /confirmation\s*code/i.test(bodyText) ||
+      /automatically\s*forward/i.test(bodyText);
     if (isVerificationEmail) {
-      console.log(`[lead-webhook] Forwarding verification email received. Subject: ${subject}`);
-      
+      console.log(
+        `[lead-webhook] Forwarding verification email received. Subject: ${subject}`
+      );
+
       // Parse Gmail confirmation code
-      const codeMatch = bodyText.match(/(?:confirmation\s*code\s*:\s*|code\s*:\s*)(\d{8,12})/i);
+      const codeMatch = bodyText.match(
+        /(?:confirmation\s*code\s*:\s*|code\s*:\s*)(\d{8,12})/i
+      );
       // Parse Gmail confirmation link
-      const linkMatch = bodyText.match(/https:\/\/(?:mail|mail-settings)\.google\.com\/mail\/v?f-[^\s"'>]+/i);
-      
+      const linkMatch = bodyText.match(
+        /https:\/\/(?:mail|mail-settings)\.google\.com\/mail\/v?f-[^\s"'>]+/i
+      );
+
       console.log(`[lead-webhook] ==========================================`);
       console.log(`[lead-webhook] GMAIL FORWARDING VERIFICATION RECEIVED`);
       const code = codeMatch ? codeMatch[1] : null;
       const link = linkMatch ? linkMatch[0] : null;
-      
+
       console.log(
-        `[lead-webhook] confirmation received (code: ${code ? 'yes' : 'no'}, link: ${link ? 'yes' : 'no'}) — value stored to DB, not logged`,
+        `[lead-webhook] confirmation received (code: ${code ? 'yes' : 'no'}, link: ${link ? 'yes' : 'no'}) — value stored to DB, not logged`
       );
       console.log(`[lead-webhook] ==========================================`);
 
@@ -339,20 +427,28 @@ export async function POST(request: Request) {
         const supabase = supabaseAdmin();
         const { error: dbErr } = await supabase
           .from('email_sync_configs')
-          .upsert({
-            account_id: accountId,
-            last_verification_code: code,
-            last_verification_link: link,
-            last_verification_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }, {
-            onConflict: 'account_id',
-          });
+          .upsert(
+            {
+              account_id: accountId,
+              last_verification_code: code,
+              last_verification_link: link,
+              last_verification_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            {
+              onConflict: 'account_id',
+            }
+          );
 
         if (dbErr) {
-          console.error(`[lead-webhook] Failed to save verification to DB:`, dbErr);
+          console.error(
+            `[lead-webhook] Failed to save verification to DB:`,
+            dbErr
+          );
         } else {
-          console.log(`[lead-webhook] Saved forwarding verification to DB for account ${accountId}`);
+          console.log(
+            `[lead-webhook] Saved forwarding verification to DB for account ${accountId}`
+          );
         }
 
         await writeSyncLog({
@@ -365,7 +461,9 @@ export async function POST(request: Request) {
           bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
         });
       } else {
-        console.warn(`[lead-webhook] Received verification email but no account_id resolved.`);
+        console.warn(
+          `[lead-webhook] Received verification email but no account_id resolved.`
+        );
       }
 
       return NextResponse.json({
@@ -375,9 +473,11 @@ export async function POST(request: Request) {
     }
 
     const isNonLeadEmail = checkIsNonLeadEmail(subject, sender);
-    
+
     if (isNonLeadEmail) {
-      console.log(`[lead-webhook] Non-lead email filtered out. Subject: ${subject}, From: ${sender}`);
+      console.log(
+        `[lead-webhook] Non-lead email filtered out. Subject: ${subject}, From: ${sender}`
+      );
       // Still log it for audit but don't create a contact/conversation
       if (accountId) {
         await writeSyncLog({
@@ -386,11 +486,15 @@ export async function POST(request: Request) {
           sender,
           subject,
           status: 'ignored',
-          errorMessage: 'Filtered: non-lead email (notification/marketing/system)',
+          errorMessage:
+            'Filtered: non-lead email (notification/marketing/system)',
           bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
         });
       }
-      return NextResponse.json({ status: 'filtered', message: 'Non-lead email filtered out.' });
+      return NextResponse.json({
+        status: 'filtered',
+        message: 'Non-lead email filtered out.',
+      });
     }
 
     const parsed = parsePortalLead(subject, bodyText, htmlContent, sender);
@@ -403,14 +507,18 @@ export async function POST(request: Request) {
 
     // Dynamic resolution for Housing.com lead phone number
     // Also try HTML URL resolution if phone looks suspicious (e.g., Property ID or URL)
-    const isSuspiciousPhone = parsed.phone && (
-      /^(property\s*id|listing|ref)/i.test(parsed.phone) ||
-      parsed.phone.includes('/') ||
-      parsed.phone.includes('http') ||
-      (parsed.housingPropertyId && parsed.phone.replace(/\D/g, '') === parsed.housingPropertyId) ||
-      parsed.phone.replace(/\D/g, '').length < 10
-    );
-    if (parsed.source === 'Housing' && (!parsed.phone || parsed.phone === '' || isSuspiciousPhone)) {
+    const isSuspiciousPhone =
+      parsed.phone &&
+      (/^(property\s*id|listing|ref)/i.test(parsed.phone) ||
+        parsed.phone.includes('/') ||
+        parsed.phone.includes('http') ||
+        (parsed.housingPropertyId &&
+          parsed.phone.replace(/\D/g, '') === parsed.housingPropertyId) ||
+        parsed.phone.replace(/\D/g, '').length < 10);
+    if (
+      parsed.source === 'Housing' &&
+      (!parsed.phone || parsed.phone === '' || isSuspiciousPhone)
+    ) {
       const resolvedPhone = await resolveHousingPhone(htmlContent, bodyText);
       if (resolvedPhone) {
         parsed.phone = resolvedPhone;
@@ -423,7 +531,10 @@ export async function POST(request: Request) {
     //    "first whatsapp_config" — that let a lead be routed to (and an
     //    auto-reply sent from) an arbitrary tenant's WhatsApp number.
     if (!accountId) {
-      return NextResponse.json({ error: 'account_id is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'account_id is required' },
+        { status: 400 }
+      );
     }
 
     const { data: accountConfig } = await supabase
@@ -433,7 +544,10 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (!accountConfig) {
-      return NextResponse.json({ error: 'Invalid account ID' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid account ID' },
+        { status: 400 }
+      );
     }
 
     if (!parsed.phone) {
@@ -448,7 +562,10 @@ export async function POST(request: Request) {
         errorMessage: 'Failed to extract phone number from lead email',
         bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
       });
-      return NextResponse.json({ error: 'Failed to extract phone number from lead' }, { status: 422 });
+      return NextResponse.json(
+        { error: 'Failed to extract phone number from lead' },
+        { status: 422 }
+      );
     }
 
     const normalizedPhoneNum = normalizePhoneWithCountryCode(parsed.phone);
@@ -465,7 +582,10 @@ export async function POST(request: Request) {
         errorMessage: 'Extracted phone number is invalid',
         bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
       });
-      return NextResponse.json({ error: 'Extracted phone number is invalid' }, { status: 422 });
+      return NextResponse.json(
+        { error: 'Extracted phone number is invalid' },
+        { status: 422 }
+      );
     }
 
     // 2. Check if email lead sync is active for this account
@@ -488,7 +608,10 @@ export async function POST(request: Request) {
         errorMessage: 'Email lead synchronization is disabled for this account',
         bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
       });
-      return NextResponse.json({ error: 'Email lead synchronization is disabled for this account' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Email lead synchronization is disabled for this account' },
+        { status: 403 }
+      );
     }
 
     // Read the role suffix (e.g. "Jaffar (Broker)") before stripping it —
@@ -497,13 +620,18 @@ export async function POST(request: Request) {
     // an inquiry about the recipient's OWN listing ("…regarding your
     // plot"), an "(Owner)" suffix is the inquirer's portal account type,
     // not their role in this deal — they classify as Buyer.
-    const classificationFromSuffix = classifyPortalLead(parsed.name, `${subject}\n${bodyText}`);
+    const classificationFromSuffix = classifyPortalLead(
+      parsed.name,
+      `${subject}\n${bodyText}`
+    );
 
     // Strip owner/developer/builder suffixes from name
     // e.g. "Kg Subramanian (Owner)" -> "Kg Subramanian"
     const cleanName = stripOwnerSuffix(parsed.name);
     if (cleanName !== parsed.name) {
-      console.log(`[lead-webhook] Stripped owner suffix: "${parsed.name}" -> "${cleanName}"`);
+      console.log(
+        `[lead-webhook] Stripped owner suffix: "${parsed.name}" -> "${cleanName}"`
+      );
       parsed.name = cleanName;
     }
 
@@ -519,7 +647,9 @@ export async function POST(request: Request) {
     if (!isValidContactName(parsed.name)) {
       unusableName = parsed.name;
       parsed.name = placeholderLeadName(parsed.source);
-      console.log(`[lead-webhook] Unusable lead name "${unusableName}" — captured as "${parsed.name}"`);
+      console.log(
+        `[lead-webhook] Unusable lead name "${unusableName}" — captured as "${parsed.name}"`
+      );
     }
 
     // 3. Parse property preferences from requirement text.
@@ -548,31 +678,46 @@ export async function POST(request: Request) {
       }
       if (
         !propertyInterests.includes('Vacant plot') &&
-        /\b(?:plots?|land|sites?)\b/.test(reqLower.replace(/site\s+visits?/g, ' '))
+        /\b(?:plots?|land|sites?)\b/.test(
+          reqLower.replace(/site\s+visits?/g, ' ')
+        )
       ) {
         propertyInterests.push('Vacant plot');
       }
       if (
         !propertyInterests.includes('Commercial') &&
-        (reqLower.includes('commercial') || reqLower.includes('office') || reqLower.includes('shop'))
+        (reqLower.includes('commercial') ||
+          reqLower.includes('office') ||
+          reqLower.includes('shop'))
       ) {
         propertyInterests.push('Commercial');
       }
       if (
         !propertyInterests.includes('Industrial') &&
-        (reqLower.includes('industrial') || reqLower.includes('industry') || reqLower.includes('warehouse') || reqLower.includes('factory'))
+        (reqLower.includes('industrial') ||
+          reqLower.includes('industry') ||
+          reqLower.includes('warehouse') ||
+          reqLower.includes('factory'))
       ) {
         propertyInterests.push('Industrial');
       }
 
       // Check for popular locations mentioned
-      const popularLocalities = ['hsr', 'whitefield', 'koramangala', 'indiranagar', 'jayanagar', 'jp nagar'];
+      const popularLocalities = [
+        'hsr',
+        'whitefield',
+        'koramangala',
+        'indiranagar',
+        'jayanagar',
+        'jp nagar',
+      ];
       popularLocalities.forEach((loc) => {
         if (reqLower.includes(loc)) {
           // Capitalize first letter
-          const formatted = loc === 'hsr' || loc === 'jp nagar'
-            ? loc.toUpperCase()
-            : loc.charAt(0).toUpperCase() + loc.slice(1);
+          const formatted =
+            loc === 'hsr' || loc === 'jp nagar'
+              ? loc.toUpperCase()
+              : loc.charAt(0).toUpperCase() + loc.slice(1);
           areasOfInterest.push(formatted);
         }
       });
@@ -584,7 +729,9 @@ export async function POST(request: Request) {
     }
 
     if (parsed.propertyLocation) {
-      const mainArea = areaLabelFromListing({ location: parsed.propertyLocation });
+      const mainArea = areaLabelFromListing({
+        location: parsed.propertyLocation,
+      });
       if (mainArea) {
         const areaLower = mainArea.toLowerCase();
         let formattedArea = mainArea;
@@ -593,7 +740,10 @@ export async function POST(request: Request) {
         } else {
           formattedArea = mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
         }
-        if (!areasOfInterest.includes(formattedArea) && !inferredAreas.includes(formattedArea)) {
+        if (
+          !areasOfInterest.includes(formattedArea) &&
+          !inferredAreas.includes(formattedArea)
+        ) {
           inferredAreas.push(formattedArea);
         }
       }
@@ -648,7 +798,12 @@ export async function POST(request: Request) {
       }
     }
 
-    if (matchedPropertyIds.length === 0 && (parsed.propertyType || parsed.propertyLocation || parsed.housingPropertyId)) {
+    if (
+      matchedPropertyIds.length === 0 &&
+      (parsed.propertyType ||
+        parsed.propertyLocation ||
+        parsed.housingPropertyId)
+    ) {
       try {
         // Fetch user's published properties.
         const { data: properties } = await supabase
@@ -663,7 +818,9 @@ export async function POST(request: Request) {
         // listings share type/bedrooms/price bracket) resolve
         // deterministically to the newer listing, rather than whatever
         // order Postgres/the client happens to return rows in.
-        properties?.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+        properties?.sort((a, b) =>
+          (b.created_at ?? '').localeCompare(a.created_at ?? '')
+        );
 
         if (properties && properties.length > 0) {
           // Score and rank every property so the strongest location match is first.
@@ -674,13 +831,22 @@ export async function POST(request: Request) {
             if (parsed.propertyType && p.type) {
               const typeLower = parsed.propertyType.toLowerCase();
               const pTypeLower = p.type.toLowerCase();
-              if (typeLower.includes(pTypeLower) || pTypeLower.includes(typeLower)) {
+              if (
+                typeLower.includes(pTypeLower) ||
+                pTypeLower.includes(typeLower)
+              ) {
                 matchScore += 2;
               } else {
                 // Fuzzy word overlap for near-misses (e.g. "Industrial Building" vs "Industry Building")
-                const wordsA = typeLower.split(/[^a-z0-9]+/).filter((w: string) => w.length > 2);
-                const wordsB = pTypeLower.split(/[^a-z0-9]+/).filter((w: string) => w.length > 2);
-                const overlap = wordsA.filter((w: string) => wordsB.includes(w)).length;
+                const wordsA = typeLower
+                  .split(/[^a-z0-9]+/)
+                  .filter((w: string) => w.length > 2);
+                const wordsB = pTypeLower
+                  .split(/[^a-z0-9]+/)
+                  .filter((w: string) => w.length > 2);
+                const overlap = wordsA.filter((w: string) =>
+                  wordsB.includes(w)
+                ).length;
                 if (overlap > 0) {
                   matchScore += overlap;
                 }
@@ -701,8 +867,10 @@ export async function POST(request: Request) {
             let locationMatched = false;
             if (parsed.propertyLocation) {
               locationMatched = Boolean(
-                (p.location && checkLocationMatch(parsed.propertyLocation, p.location)) ||
-                (p.sublocality && checkLocationMatch(parsed.propertyLocation, p.sublocality))
+                (p.location &&
+                  checkLocationMatch(parsed.propertyLocation, p.location)) ||
+                (p.sublocality &&
+                  checkLocationMatch(parsed.propertyLocation, p.sublocality))
               );
               if (locationMatched) {
                 matchScore += 3;
@@ -713,7 +881,8 @@ export async function POST(request: Request) {
             let sizeMatched = false;
             const propertySqft = matchableSqft(p);
             if (parsed.areaSqft && propertySqft) {
-              const areaDiff = Math.abs(parsed.areaSqft - propertySqft) / propertySqft;
+              const areaDiff =
+                Math.abs(parsed.areaSqft - propertySqft) / propertySqft;
               if (areaDiff <= 0.1) {
                 matchScore += 2;
                 sizeMatched = true;
@@ -723,7 +892,8 @@ export async function POST(request: Request) {
             // Match by price (within 15% tolerance)
             let priceMatched = false;
             if (parsed.propertyPrice && p.price) {
-              const priceDiff = Math.abs(parsed.propertyPrice - p.price) / p.price;
+              const priceDiff =
+                Math.abs(parsed.propertyPrice - p.price) / p.price;
               if (priceDiff <= 0.15) {
                 matchScore += 2;
                 priceMatched = true;
@@ -737,7 +907,8 @@ export async function POST(request: Request) {
             // against a 4 BHK bungalow in HSR Layout. A listing is tagged
             // only when the enquiry points at it — its own locality, or
             // the ad's size and price together.
-            const identifiesListing = locationMatched || (sizeMatched && priceMatched);
+            const identifiesListing =
+              locationMatched || (sizeMatched && priceMatched);
 
             return { property: p, score: matchScore, identifiesListing };
           });
@@ -749,9 +920,11 @@ export async function POST(request: Request) {
           const matchedProperties = ranked.map((sp) => sp.property);
 
           if (matchedProperties.length > 0) {
-            matchedPropertyIds = matchedProperties.map(p => p.id);
+            matchedPropertyIds = matchedProperties.map((p) => p.id);
             topMatchScore = ranked[0].score;
-            console.log(`[lead-webhook] Matched ${matchedProperties.length} properties: ${matchedProperties.map(p => p.title).join(', ')} from ${parsed.source} inquiry`);
+            console.log(
+              `[lead-webhook] Matched ${matchedProperties.length} properties: ${matchedProperties.map((p) => p.title).join(', ')} from ${parsed.source} inquiry`
+            );
 
             // Find the maximum matching score
             const maxScore = ranked[0].score;
@@ -766,7 +939,9 @@ export async function POST(request: Request) {
             if (bestMatchedProperties.length > 0) {
               // Use the highest price from best matched properties as the inferred budget if the ad quoted none
               if (!inferredBudget) {
-                const maxPrice = Math.max(...bestMatchedProperties.map(p => p.price || 0));
+                const maxPrice = Math.max(
+                  ...bestMatchedProperties.map((p) => p.price || 0)
+                );
                 if (maxPrice > 0) {
                   inferredBudget = maxPrice;
                 }
@@ -781,9 +956,13 @@ export async function POST(request: Request) {
                   if (areaLower === 'hsr' || areaLower === 'jp nagar') {
                     formattedArea = mainArea.toUpperCase();
                   } else {
-                    formattedArea = mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
+                    formattedArea =
+                      mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
                   }
-                  if (!areasOfInterest.includes(formattedArea) && !inferredAreas.includes(formattedArea)) {
+                  if (
+                    !areasOfInterest.includes(formattedArea) &&
+                    !inferredAreas.includes(formattedArea)
+                  ) {
                     inferredAreas.push(formattedArea);
                   }
                 }
@@ -836,7 +1015,7 @@ export async function POST(request: Request) {
       .eq('account_id', accountId)
       .limit(1)
       .maybeSingle();
-    
+
     if (!profile) {
       await writeSyncLog({
         accountId,
@@ -851,7 +1030,10 @@ export async function POST(request: Request) {
         bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
         match: matchAudit,
       });
-      return NextResponse.json({ error: 'No user found for this account' }, { status: 422 });
+      return NextResponse.json(
+        { error: 'No user found for this account' },
+        { status: 422 }
+      );
     }
     const userId = profile.user_id;
 
@@ -871,16 +1053,20 @@ export async function POST(request: Request) {
       } = {};
       if (maxBudget) updatePayload.max_budget = maxBudget;
       else if (inferredBudget) updatePayload.pref_budget_max = inferredBudget;
-      if (areasOfInterest.length > 0) updatePayload.areas_of_interest = areasOfInterest;
+      if (areasOfInterest.length > 0)
+        updatePayload.areas_of_interest = areasOfInterest;
       if (inferredAreas.length > 0) {
-        const existingPrefAreas = (existingContact.pref_areas as string[] | null) ?? [];
+        const existingPrefAreas =
+          (existingContact.pref_areas as string[] | null) ?? [];
         updatePayload.pref_areas = [
           ...existingPrefAreas,
           ...inferredAreas.filter((a) => !existingPrefAreas.includes(a)),
         ];
       }
-      if (propertyInterests.length > 0) updatePayload.property_interests = propertyInterests;
-      if (matchedPropertyIds.length > 0) updatePayload.last_inquired_property_id = matchedPropertyIds[0];
+      if (propertyInterests.length > 0)
+        updatePayload.property_interests = propertyInterests;
+      if (matchedPropertyIds.length > 0)
+        updatePayload.last_inquired_property_id = matchedPropertyIds[0];
       // The ad this enquiry names, kept whether or not it resolved: an
       // unmapped id is exactly what the agent is asked to assert once.
       if (leadPortal && parsed.portalListingId) {
@@ -941,26 +1127,42 @@ export async function POST(request: Request) {
 
       // Auto-assign tags based on property interests and budget
       const tagsToAssign: string[] = [];
-      
+
       // Add property type tags
-      if (propertyInterests.includes('Flat/ Apartment') || propertyInterests.includes('Penthouse')) tagsToAssign.push('Residential', 'Flat/Apartment');
-      if (propertyInterests.includes('Villa')) tagsToAssign.push('Residential', 'Villa');
-      if (propertyInterests.includes('Residential House') || propertyInterests.includes('Farm House') || propertyInterests.includes('Vacant building')) tagsToAssign.push('Residential');
-      if (propertyInterests.includes('Vacant plot')) tagsToAssign.push('Plots/Land');
-      if (propertyInterests.includes('Commercial')) tagsToAssign.push('Commercial');
-      
+      if (
+        propertyInterests.includes('Flat/ Apartment') ||
+        propertyInterests.includes('Penthouse')
+      )
+        tagsToAssign.push('Residential', 'Flat/Apartment');
+      if (propertyInterests.includes('Villa'))
+        tagsToAssign.push('Residential', 'Villa');
+      if (
+        propertyInterests.includes('Residential House') ||
+        propertyInterests.includes('Farm House') ||
+        propertyInterests.includes('Vacant building')
+      )
+        tagsToAssign.push('Residential');
+      if (propertyInterests.includes('Vacant plot'))
+        tagsToAssign.push('Plots/Land');
+      if (propertyInterests.includes('Commercial'))
+        tagsToAssign.push('Commercial');
+
       // Add source tag
       if (parsed.source) tagsToAssign.push(`${parsed.source} Lead`);
-      
+
       // Add budget-based tags (ranges up to 150Cr+); stated budget first,
       // else the price point they inquired at
       const budgetForTags = maxBudget ?? inferredBudget;
       if (budgetForTags) {
         if (budgetForTags >= 1500000000) tagsToAssign.push('Budget 150Cr+');
-        else if (budgetForTags >= 1000000000) tagsToAssign.push('Budget 100-150Cr');
-        else if (budgetForTags >= 500000000) tagsToAssign.push('Budget 50-100Cr');
-        else if (budgetForTags >= 250000000) tagsToAssign.push('Budget 25-50Cr');
-        else if (budgetForTags >= 100000000) tagsToAssign.push('Budget 10-25Cr');
+        else if (budgetForTags >= 1000000000)
+          tagsToAssign.push('Budget 100-150Cr');
+        else if (budgetForTags >= 500000000)
+          tagsToAssign.push('Budget 50-100Cr');
+        else if (budgetForTags >= 250000000)
+          tagsToAssign.push('Budget 25-50Cr');
+        else if (budgetForTags >= 100000000)
+          tagsToAssign.push('Budget 10-25Cr');
         else if (budgetForTags >= 50000000) tagsToAssign.push('Budget 5-10Cr');
         else if (budgetForTags >= 20000000) tagsToAssign.push('Budget 2-5Cr');
         else if (budgetForTags >= 10000000) tagsToAssign.push('Budget 1-2Cr');
@@ -970,7 +1172,13 @@ export async function POST(request: Request) {
       }
 
       if (tagsToAssign.length > 0) {
-        await assignTagsToContact(supabase, accountId, userId, existingContact.id, tagsToAssign);
+        await assignTagsToContact(
+          supabase,
+          accountId,
+          userId,
+          existingContact.id,
+          tagsToAssign
+        );
       }
 
       // Find or create conversation for existing contact
@@ -994,7 +1202,9 @@ export async function POST(request: Request) {
       };
 
       if (profile) {
-        const { conversation, created } = await resolveConversation<{ id: string }>(supabase, {
+        const { conversation, created } = await resolveConversation<{
+          id: string;
+        }>(supabase, {
           accountId,
           contactId: existingContact.id,
           userId: profile.user_id,
@@ -1040,9 +1250,13 @@ export async function POST(request: Request) {
         forceSend: true,
       });
       if (!replyResult.success) {
-        console.error(`[lead-webhook] Auto-reply FAILED for existing contact ${existingContact.id}: ${replyResult.error}`);
+        console.error(
+          `[lead-webhook] Auto-reply FAILED for existing contact ${existingContact.id}: ${replyResult.error}`
+        );
       } else {
-        console.log(`[lead-webhook] Auto-reply SENT for existing contact ${existingContact.id}: messageId=${replyResult.messageId}`);
+        console.log(
+          `[lead-webhook] Auto-reply SENT for existing contact ${existingContact.id}: messageId=${replyResult.messageId}`
+        );
       }
 
       if (matchedPropertyIds.length > 0) {
@@ -1062,7 +1276,7 @@ export async function POST(request: Request) {
         accountId,
         triggerType: 'new_message_received',
         contactId: existingContact.id,
-      })
+      });
 
       return NextResponse.json({
         status: 'updated',
@@ -1089,10 +1303,13 @@ export async function POST(request: Request) {
         pref_budget_max: inferredBudget,
         areas_of_interest: areasOfInterest.length > 0 ? areasOfInterest : null,
         pref_areas: inferredAreas.length > 0 ? inferredAreas : null,
-        property_interests: propertyInterests.length > 0 ? propertyInterests : null,
-        last_inquired_property_id: matchedPropertyIds.length > 0 ? matchedPropertyIds[0] : null,
+        property_interests:
+          propertyInterests.length > 0 ? propertyInterests : null,
+        last_inquired_property_id:
+          matchedPropertyIds.length > 0 ? matchedPropertyIds[0] : null,
         lead_portal: leadPortal && parsed.portalListingId ? leadPortal : null,
-        lead_portal_listing_id: leadPortal && parsed.portalListingId ? parsed.portalListingId : null,
+        lead_portal_listing_id:
+          leadPortal && parsed.portalListingId ? parsed.portalListingId : null,
         status: 'pending_review',
       })
       .select('id, name')
@@ -1119,42 +1336,56 @@ export async function POST(request: Request) {
     // Record the inquiry in the junction table — top-scored match only,
     // same reasoning as the existing-contact branch above.
     if (matchedPropertyIds.length > 0 && newContact) {
-      await supabase
-        .from('contact_property_inquiries')
-        .upsert(
-          {
-            account_id: accountId,
-            contact_id: newContact.id,
-            property_id: matchedPropertyIds[0],
-            inquiry_source: parsed.source,
-          },
-          { onConflict: 'contact_id,property_id' }
-        );
+      await supabase.from('contact_property_inquiries').upsert(
+        {
+          account_id: accountId,
+          contact_id: newContact.id,
+          property_id: matchedPropertyIds[0],
+          inquiry_source: parsed.source,
+        },
+        { onConflict: 'contact_id,property_id' }
+      );
     }
 
     // Auto-assign tags based on property interests and budget
     if (newContact) {
       const tagsToAssign: string[] = [];
-      
+
       // Add property type tags
-      if (propertyInterests.includes('Flat/ Apartment') || propertyInterests.includes('Penthouse')) tagsToAssign.push('Residential', 'Flat/Apartment');
-      if (propertyInterests.includes('Villa')) tagsToAssign.push('Residential', 'Villa');
-      if (propertyInterests.includes('Residential House') || propertyInterests.includes('Farm House') || propertyInterests.includes('Vacant building')) tagsToAssign.push('Residential');
-      if (propertyInterests.includes('Vacant plot')) tagsToAssign.push('Plots/Land');
-      if (propertyInterests.includes('Commercial')) tagsToAssign.push('Commercial');
-      
+      if (
+        propertyInterests.includes('Flat/ Apartment') ||
+        propertyInterests.includes('Penthouse')
+      )
+        tagsToAssign.push('Residential', 'Flat/Apartment');
+      if (propertyInterests.includes('Villa'))
+        tagsToAssign.push('Residential', 'Villa');
+      if (
+        propertyInterests.includes('Residential House') ||
+        propertyInterests.includes('Farm House') ||
+        propertyInterests.includes('Vacant building')
+      )
+        tagsToAssign.push('Residential');
+      if (propertyInterests.includes('Vacant plot'))
+        tagsToAssign.push('Plots/Land');
+      if (propertyInterests.includes('Commercial'))
+        tagsToAssign.push('Commercial');
+
       // Add source tag
       if (parsed.source) tagsToAssign.push(`${parsed.source} Lead`);
-      
+
       // Add budget-based tags (ranges up to 150Cr+); stated budget first,
       // else the price point they inquired at
       const budgetForTags = maxBudget ?? inferredBudget;
       if (budgetForTags) {
         if (budgetForTags >= 1500000000) tagsToAssign.push('Budget 150Cr+');
-        else if (budgetForTags >= 1000000000) tagsToAssign.push('Budget 100-150Cr');
-        else if (budgetForTags >= 500000000) tagsToAssign.push('Budget 50-100Cr');
-        else if (budgetForTags >= 250000000) tagsToAssign.push('Budget 25-50Cr');
-        else if (budgetForTags >= 100000000) tagsToAssign.push('Budget 10-25Cr');
+        else if (budgetForTags >= 1000000000)
+          tagsToAssign.push('Budget 100-150Cr');
+        else if (budgetForTags >= 500000000)
+          tagsToAssign.push('Budget 50-100Cr');
+        else if (budgetForTags >= 250000000)
+          tagsToAssign.push('Budget 25-50Cr');
+        else if (budgetForTags >= 100000000)
+          tagsToAssign.push('Budget 10-25Cr');
         else if (budgetForTags >= 50000000) tagsToAssign.push('Budget 5-10Cr');
         else if (budgetForTags >= 20000000) tagsToAssign.push('Budget 2-5Cr');
         else if (budgetForTags >= 10000000) tagsToAssign.push('Budget 1-2Cr');
@@ -1164,12 +1395,20 @@ export async function POST(request: Request) {
       }
 
       if (tagsToAssign.length > 0) {
-        await assignTagsToContact(supabase, accountId, userId, newContact.id, tagsToAssign);
+        await assignTagsToContact(
+          supabase,
+          accountId,
+          userId,
+          newContact.id,
+          tagsToAssign
+        );
       }
     }
 
     // 5. Create active conversation thread
-    const { conversation, error: convErr } = await resolveConversation<{ id: string }>(supabase, {
+    const { conversation, error: convErr } = await resolveConversation<{
+      id: string;
+    }>(supabase, {
       accountId,
       contactId: newContact.id,
       userId,
@@ -1213,9 +1452,13 @@ export async function POST(request: Request) {
       forceSend: true,
     });
     if (!replyResult.success) {
-      console.error(`[lead-webhook] Auto-reply FAILED for new contact ${newContact.id}: ${replyResult.error}`);
+      console.error(
+        `[lead-webhook] Auto-reply FAILED for new contact ${newContact.id}: ${replyResult.error}`
+      );
     } else {
-      console.log(`[lead-webhook] Auto-reply SENT for new contact ${newContact.id}: messageId=${replyResult.messageId}`);
+      console.log(
+        `[lead-webhook] Auto-reply SENT for new contact ${newContact.id}: messageId=${replyResult.messageId}`
+      );
     }
 
     if (matchedPropertyIds.length > 0) {
@@ -1235,7 +1478,7 @@ export async function POST(request: Request) {
       accountId,
       triggerType: 'new_contact_created',
       contactId: newContact.id,
-    })
+    });
 
     return NextResponse.json({
       status: 'created',
@@ -1256,6 +1499,9 @@ export async function POST(request: Request) {
         bodyPreview: bodyText?.slice(0, BODY_PREVIEW_CHARS) || '',
       });
     }
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || 'Server error' },
+      { status: 500 }
+    );
   }
 }

@@ -4,14 +4,14 @@ name: inbox
 - launchApp
 - extendedWaitUntil:
     visible:
-      id: "inbox-search"
+      id: 'inbox-search'
     timeout: 15000
 - assertVisible:
-    id: "tab-contacts"
+    id: 'tab-contacts'
 - assertVisible:
-    id: "tab-properties"
+    id: 'tab-properties'
 - assertVisible:
-    id: "tab-calendar"
+    id: 'tab-calendar'
 - assertVisible:
-    id: "tab-more"
+    id: 'tab-more'
 - takeScreenshot: .maestro/shots/02-inbox

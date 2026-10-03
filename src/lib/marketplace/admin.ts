@@ -6,11 +6,11 @@
  * verified the caller is a super_admin.
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { getFlowTemplate, listFlowTemplates } from "@/lib/flows/templates";
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { getFlowTemplate, listFlowTemplates } from '@/lib/flows/templates';
 
 export interface MarketplaceItemCreateInput {
-  source_type: "template" | "flow";
+  source_type: 'template' | 'flow';
   source_id: string;
   name: string;
   description?: string | null;
@@ -27,38 +27,42 @@ export interface MarketplaceItemCreateInput {
 export async function createMarketplaceItemSnapshot(
   admin: SupabaseClient,
   input: MarketplaceItemCreateInput,
-  createdByUserId: string,
+  createdByUserId: string
 ): Promise<string> {
   const { nodes, ...itemData } = await resolveSource(admin, input);
 
   const { data: item, error: itemErr } = await admin
-    .from("marketplace_items")
+    .from('marketplace_items')
     .insert({
       ...itemData,
       created_by: createdByUserId,
       published: false, // publish is a separate step so we can snapshot first
     })
-    .select("id")
+    .select('id')
     .single();
 
   if (itemErr || !item) {
-    throw new Error(`Failed to create marketplace item: ${itemErr?.message ?? "unknown"}`);
+    throw new Error(
+      `Failed to create marketplace item: ${itemErr?.message ?? 'unknown'}`
+    );
   }
 
   if (nodes.length > 0) {
-    const { error: nodesErr } = await admin.from("marketplace_item_nodes").insert(
-      nodes.map((n) => ({
-        marketplace_item_id: item.id,
-        node_key: n.node_key,
-        node_type: n.node_type,
-        config: n.config,
-        position_x: n.position_x ?? 0,
-        position_y: n.position_y ?? 0,
-      })),
-    );
+    const { error: nodesErr } = await admin
+      .from('marketplace_item_nodes')
+      .insert(
+        nodes.map((n) => ({
+          marketplace_item_id: item.id,
+          node_key: n.node_key,
+          node_type: n.node_type,
+          config: n.config,
+          position_x: n.position_x ?? 0,
+          position_y: n.position_y ?? 0,
+        }))
+      );
     if (nodesErr) {
       // Roll back so we don't leave a headless marketplace item.
-      await admin.from("marketplace_items").delete().eq("id", item.id);
+      await admin.from('marketplace_items').delete().eq('id', item.id);
       throw new Error(`Failed to snapshot nodes: ${nodesErr.message}`);
     }
   }
@@ -67,12 +71,12 @@ export async function createMarketplaceItemSnapshot(
 }
 
 interface ResolvedSource {
-  source_type: "template" | "flow";
+  source_type: 'template' | 'flow';
   source_id: string;
   name: string;
   description: string | null;
   icon: string | null;
-  trigger_type: "keyword" | "first_inbound_message" | "manual";
+  trigger_type: 'keyword' | 'first_inbound_message' | 'manual';
   trigger_config: Record<string, unknown>;
   entry_node_id: string | null;
   fallback_policy: Record<string, unknown>;
@@ -87,15 +91,15 @@ interface ResolvedSource {
 
 async function resolveSource(
   admin: SupabaseClient,
-  input: MarketplaceItemCreateInput,
+  input: MarketplaceItemCreateInput
 ): Promise<ResolvedSource> {
-  if (input.source_type === "template") {
+  if (input.source_type === 'template') {
     const template = getFlowTemplate(input.source_id);
     if (!template) {
       throw new Error(`Unknown template slug: ${input.source_id}`);
     }
     return {
-      source_type: "template",
+      source_type: 'template',
       source_id: input.source_id,
       name: input.name?.trim() || template.name,
       description: input.description ?? template.description,
@@ -104,10 +108,10 @@ async function resolveSource(
       trigger_config: template.trigger_config as Record<string, unknown>,
       entry_node_id: template.entry_node_id,
       fallback_policy: {
-        on_unknown_reply: "reprompt",
+        on_unknown_reply: 'reprompt',
         max_reprompts: 2,
         on_timeout_hours: 24,
-        on_exhaust: "handoff",
+        on_exhaust: 'handoff',
       },
       nodes: template.nodes.map((n) => ({
         node_key: n.node_key,
@@ -121,29 +125,32 @@ async function resolveSource(
 
   // Flow source
   const { data: flow, error: flowErr } = await admin
-    .from("flows")
-    .select("*")
-    .eq("id", input.source_id)
+    .from('flows')
+    .select('*')
+    .eq('id', input.source_id)
     .single();
   if (flowErr || !flow) {
-    throw new Error(`Source flow not found: ${flowErr?.message ?? input.source_id}`);
+    throw new Error(
+      `Source flow not found: ${flowErr?.message ?? input.source_id}`
+    );
   }
 
   const { data: flowNodes, error: nodesErr } = await admin
-    .from("flow_nodes")
-    .select("*")
-    .eq("flow_id", input.source_id);
+    .from('flow_nodes')
+    .select('*')
+    .eq('flow_id', input.source_id);
   if (nodesErr) {
     throw new Error(`Failed to load source flow nodes: ${nodesErr.message}`);
   }
 
   return {
-    source_type: "flow",
+    source_type: 'flow',
     source_id: input.source_id,
     name: input.name?.trim() || flow.name,
     description: input.description ?? (flow.description as string | null),
     icon: input.icon ?? null,
-    trigger_type: flow.trigger_type as "keyword" | "first_inbound_message" | "manual",
+    trigger_type: flow.trigger_type as
+      'keyword' | 'first_inbound_message' | 'manual',
     trigger_config: flow.trigger_config as Record<string, unknown>,
     entry_node_id: flow.entry_node_id as string | null,
     fallback_policy: flow.fallback_policy as Record<string, unknown>,
@@ -165,18 +172,18 @@ async function resolveSource(
 export async function setMarketplaceItemPublished(
   admin: SupabaseClient,
   marketplaceItemId: string,
-  published: boolean,
+  published: boolean
 ): Promise<void> {
   const { error } = await admin
-    .from("marketplace_items")
+    .from('marketplace_items')
     .update({ published })
-    .eq("id", marketplaceItemId);
+    .eq('id', marketplaceItemId);
   if (error) {
     throw new Error(`Failed to update published flag: ${error.message}`);
   }
 
   if (published) {
-    await admin.rpc("publish_marketplace_item_to_existing_accounts", {
+    await admin.rpc('publish_marketplace_item_to_existing_accounts', {
       p_marketplace_item_id: marketplaceItemId,
     });
   }
@@ -189,19 +196,21 @@ export async function setMarketplaceItemPublished(
  */
 export async function refreshMarketplaceItemSnapshot(
   admin: SupabaseClient,
-  marketplaceItemId: string,
+  marketplaceItemId: string
 ): Promise<void> {
   const { data: item, error } = await admin
-    .from("marketplace_items")
-    .select("*")
-    .eq("id", marketplaceItemId)
+    .from('marketplace_items')
+    .select('*')
+    .eq('id', marketplaceItemId)
     .single();
   if (error || !item) {
-    throw new Error(`Marketplace item not found: ${error?.message ?? marketplaceItemId}`);
+    throw new Error(
+      `Marketplace item not found: ${error?.message ?? marketplaceItemId}`
+    );
   }
 
   const input: MarketplaceItemCreateInput = {
-    source_type: item.source_type as "template" | "flow",
+    source_type: item.source_type as 'template' | 'flow',
     source_id: item.source_id,
     name: item.name,
     description: item.description,
@@ -212,25 +221,30 @@ export async function refreshMarketplaceItemSnapshot(
   const { nodes, ...itemData } = await resolveSource(admin, input);
 
   const { error: updErr } = await admin
-    .from("marketplace_items")
+    .from('marketplace_items')
     .update(itemData)
-    .eq("id", marketplaceItemId);
+    .eq('id', marketplaceItemId);
   if (updErr) {
     throw new Error(`Failed to refresh item: ${updErr.message}`);
   }
 
-  await admin.from("marketplace_item_nodes").delete().eq("marketplace_item_id", marketplaceItemId);
+  await admin
+    .from('marketplace_item_nodes')
+    .delete()
+    .eq('marketplace_item_id', marketplaceItemId);
   if (nodes.length > 0) {
-    const { error: nodesErr } = await admin.from("marketplace_item_nodes").insert(
-      nodes.map((n) => ({
-        marketplace_item_id: marketplaceItemId,
-        node_key: n.node_key,
-        node_type: n.node_type,
-        config: n.config,
-        position_x: n.position_x,
-        position_y: n.position_y,
-      })),
-    );
+    const { error: nodesErr } = await admin
+      .from('marketplace_item_nodes')
+      .insert(
+        nodes.map((n) => ({
+          marketplace_item_id: marketplaceItemId,
+          node_key: n.node_key,
+          node_type: n.node_type,
+          config: n.config,
+          position_x: n.position_x,
+          position_y: n.position_y,
+        }))
+      );
     if (nodesErr) {
       throw new Error(`Failed to refresh nodes: ${nodesErr.message}`);
     }
@@ -241,14 +255,14 @@ export async function refreshMarketplaceItemSnapshot(
  * List available template sources for the admin publish picker.
  */
 export function listMarketplaceTemplateSources(): Array<{
-  source_type: "template";
+  source_type: 'template';
   source_id: string;
   name: string;
   description: string;
   node_count: number;
 }> {
   return listFlowTemplates().map((t) => ({
-    source_type: "template",
+    source_type: 'template',
     source_id: t.slug,
     name: t.name,
     description: t.description,

@@ -25,15 +25,19 @@
 // does the DB + Meta work.
 // ============================================================
 
-import { supabaseAdmin } from '@/lib/supabase/admin'
-import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
-import { phonesMatch, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import {
+  phonesMatch,
+  sanitizePhoneForMeta,
+  isValidE164,
+} from '@/lib/whatsapp/phone-utils';
 import {
   isWithinCustomerWindow,
   isReengagementError,
-} from '@/lib/whatsapp/customer-window'
-import { canSendMessages, isAccountRole } from '@/lib/auth/roles'
-import { BRANDING } from '@/config/branding'
+} from '@/lib/whatsapp/customer-window';
+import { canSendMessages, isAccountRole } from '@/lib/auth/roles';
+import { BRANDING } from '@/config/branding';
 
 /**
  * How long an answered bridge keeps mirroring the lead's messages to
@@ -41,37 +45,37 @@ import { BRANDING } from '@/config/branding'
  * it the agent could not reply free-form anyway, so a relay would be a
  * dead end.
  */
-export const BRIDGE_RELAY_WINDOW_MS = 24 * 60 * 60 * 1000
+export const BRIDGE_RELAY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Bridges older than this are pruned on the next registration. A bridge
  * is only usable while the lead's 24-hour window is open; the extra day
  * of slack keeps a late "why didn't this work?" diagnosis possible.
  */
-export const BRIDGE_PRUNE_AFTER_MS = 48 * 60 * 60 * 1000
+export const BRIDGE_PRUNE_AFTER_MS = 48 * 60 * 60 * 1000;
 
 /** Longest lead message body mirrored to the agent's WhatsApp. */
-const RELAY_PREVIEW_LIMIT = 900
+const RELAY_PREVIEW_LIMIT = 900;
 
 export interface ReplyBridgeRow {
-  id: string
-  account_id: string
-  agent_user_id: string
-  agent_phone: string
-  target_conversation_id: string
-  target_contact_id: string
-  last_agent_reply_at: string | null
-  created_at: string
+  id: string;
+  account_id: string;
+  agent_user_id: string;
+  agent_phone: string;
+  target_conversation_id: string;
+  target_contact_id: string;
+  last_agent_reply_at: string | null;
+  created_at: string;
 }
 
 interface RelayableMessage {
-  type: string
-  text?: { body: string }
+  type: string;
+  text?: { body: string };
 }
 
 export type RelayText =
   | { ok: true; text: string }
-  | { ok: false; reason: 'empty' | 'unsupported_type' }
+  | { ok: false; reason: 'empty' | 'unsupported_type' };
 
 /**
  * What of an inbound staff message can be forwarded to the lead.
@@ -82,61 +86,75 @@ export type RelayText =
  */
 export function extractRelayText(
   message: RelayableMessage,
-  contentText: string | null | undefined,
+  contentText: string | null | undefined
 ): RelayText {
-  if (message.type !== 'text') return { ok: false, reason: 'unsupported_type' }
-  const text = (message.text?.body ?? contentText ?? '').trim()
-  if (!text) return { ok: false, reason: 'empty' }
-  return { ok: true, text }
+  if (message.type !== 'text') return { ok: false, reason: 'unsupported_type' };
+  const text = (message.text?.body ?? contentText ?? '').trim();
+  if (!text) return { ok: false, reason: 'empty' };
+  return { ok: true, text };
 }
 
 /** Whether an answered bridge is still mirroring the lead's messages. */
 export function isBridgeFresh(
   lastAgentReplyAt: string | null | undefined,
-  now: number = Date.now(),
+  now: number = Date.now()
 ): boolean {
-  if (!lastAgentReplyAt) return false
-  const at = new Date(lastAgentReplyAt).getTime()
-  if (Number.isNaN(at)) return false
-  return now - at < BRIDGE_RELAY_WINDOW_MS
+  if (!lastAgentReplyAt) return false;
+  const at = new Date(lastAgentReplyAt).getTime();
+  if (Number.isNaN(at)) return false;
+  return now - at < BRIDGE_RELAY_WINDOW_MS;
 }
 
 /** Trailing hint that tells the agent this message is answerable. */
 export const BRIDGE_REPLY_HINT =
-  '_Reply to this message and I will send it straight to them._'
+  '_Reply to this message and I will send it straight to them._';
 
 export function buildSentAck(leadName: string): string {
-  return `✅ Sent to ${leadName}.\n\n${BRIDGE_REPLY_HINT}`
+  return `✅ Sent to ${leadName}.\n\n${BRIDGE_REPLY_HINT}`;
 }
 
-export function buildWindowClosedAck(leadName: string, inboxLink: string): string {
+export function buildWindowClosedAck(
+  leadName: string,
+  inboxLink: string
+): string {
   return [
     `⏳ Couldn't send to ${leadName}.`,
     '',
     `WhatsApp only allows a free-form reply within 24 hours of their last message. Open the Inbox to re-engage with an approved template:`,
     inboxLink,
-  ].join('\n')
+  ].join('\n');
 }
 
 export function buildUnsupportedAck(
   leadName: string,
   reason: 'empty' | 'unsupported_type',
-  inboxLink: string,
+  inboxLink: string
 ): string {
   const what =
     reason === 'empty'
       ? 'That reply had no text to send.'
-      : 'Only text replies can be sent from here.'
-  return [`⚠️ Nothing sent to ${leadName}. ${what}`, '', `Open the Inbox for media and templates:`, inboxLink].join('\n')
+      : 'Only text replies can be sent from here.';
+  return [
+    `⚠️ Nothing sent to ${leadName}. ${what}`,
+    '',
+    `Open the Inbox for media and templates:`,
+    inboxLink,
+  ].join('\n');
 }
 
 export function buildFailureAck(leadName: string, detail: string): string {
-  return `❌ Couldn't send to ${leadName}: ${detail}`
+  return `❌ Couldn't send to ${leadName}: ${detail}`;
 }
 
 /** The lead's message, mirrored into the agent's own WhatsApp chat. */
 export function buildLeadRelayText(leadName: string, body: string): string {
-  return [`💬 *${leadName}* replied`, '', body.slice(0, RELAY_PREVIEW_LIMIT), '', BRIDGE_REPLY_HINT].join('\n')
+  return [
+    `💬 *${leadName}* replied`,
+    '',
+    body.slice(0, RELAY_PREVIEW_LIMIT),
+    '',
+    BRIDGE_REPLY_HINT,
+  ].join('\n');
 }
 
 function inboxLink(conversationId: string): string {
@@ -145,8 +163,8 @@ function inboxLink(conversationId: string): string {
     process.env.NEXT_PUBLIC_APP_URL ||
     BRANDING.websiteUrl ||
     ''
-  ).replace(/\/+$/, '')
-  return `${base}/inbox?conversation=${conversationId}`
+  ).replace(/\/+$/, '');
+  return `${base}/inbox?conversation=${conversationId}`;
 }
 
 /**
@@ -160,29 +178,30 @@ function inboxLink(conversationId: string): string {
  * their thread to itself and relay their messages back to them.
  */
 export async function registerReplyBridge(args: {
-  accountId: string
-  agentUserId: string
-  agentPhone: string
-  wamid: string | null | undefined
-  conversationId: string
+  accountId: string;
+  agentUserId: string;
+  agentPhone: string;
+  wamid: string | null | undefined;
+  conversationId: string;
   /** Carried over when the bridge continues an already-answered thread. */
-  lastAgentReplyAt?: string | null
+  lastAgentReplyAt?: string | null;
 }): Promise<void> {
-  const { accountId, agentUserId, agentPhone, wamid, conversationId } = args
-  if (!wamid || !agentPhone || !conversationId) return
+  const { accountId, agentUserId, agentPhone, wamid, conversationId } = args;
+  if (!wamid || !agentPhone || !conversationId) return;
 
   try {
-    const admin = supabaseAdmin()
+    const admin = supabaseAdmin();
     const { data: conversation } = await admin
       .from('conversations')
       .select('id, account_id, contact_id, contact:contacts(phone)')
       .eq('id', conversationId)
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
 
-    const contactPhone = (conversation?.contact as { phone?: string } | null)?.phone
-    if (!conversation?.contact_id || !contactPhone) return
-    if (phonesMatch(contactPhone, agentPhone)) return
+    const contactPhone = (conversation?.contact as { phone?: string } | null)
+      ?.phone;
+    if (!conversation?.contact_id || !contactPhone) return;
+    if (phonesMatch(contactPhone, agentPhone)) return;
 
     const { error } = await admin.from('whatsapp_reply_bridges').upsert(
       {
@@ -194,40 +213,43 @@ export async function registerReplyBridge(args: {
         target_contact_id: conversation.contact_id as string,
         last_agent_reply_at: args.lastAgentReplyAt ?? null,
       },
-      { onConflict: 'notification_message_id' },
-    )
+      { onConflict: 'notification_message_id' }
+    );
     if (error) {
-      console.error('[reply-bridge] register failed:', error.message)
-      return
+      console.error('[reply-bridge] register failed:', error.message);
+      return;
     }
 
     await admin
       .from('whatsapp_reply_bridges')
       .delete()
       .eq('account_id', accountId)
-      .lt('created_at', new Date(Date.now() - BRIDGE_PRUNE_AFTER_MS).toISOString())
+      .lt(
+        'created_at',
+        new Date(Date.now() - BRIDGE_PRUNE_AFTER_MS).toISOString()
+      );
   } catch (err) {
-    console.error('[reply-bridge] register error:', err)
+    console.error('[reply-bridge] register error:', err);
   }
 }
 
 async function resolveBridge(
   wamid: string,
-  accountId: string,
+  accountId: string
 ): Promise<ReplyBridgeRow | null> {
   const { data, error } = await supabaseAdmin()
     .from('whatsapp_reply_bridges')
     .select(
-      'id, account_id, agent_user_id, agent_phone, target_conversation_id, target_contact_id, last_agent_reply_at, created_at',
+      'id, account_id, agent_user_id, agent_phone, target_conversation_id, target_contact_id, last_agent_reply_at, created_at'
     )
     .eq('notification_message_id', wamid)
     .eq('account_id', accountId)
-    .maybeSingle()
+    .maybeSingle();
   if (error) {
-    console.error('[reply-bridge] lookup failed:', error.message)
-    return null
+    console.error('[reply-bridge] lookup failed:', error.message);
+    return null;
   }
-  return (data as ReplyBridgeRow | null) ?? null
+  return (data as ReplyBridgeRow | null) ?? null;
 }
 
 /**
@@ -236,18 +258,23 @@ async function resolveBridge(
  * changed since the ping went out, and a viewer must never be able to
  * message a lead.
  */
-async function canStillSend(accountId: string, userId: string): Promise<boolean> {
+async function canStillSend(
+  accountId: string,
+  userId: string
+): Promise<boolean> {
   const { data } = await supabaseAdmin()
     .from('profiles')
     .select('account_role')
     .eq('account_id', accountId)
     .eq('user_id', userId)
-    .maybeSingle()
-  const role = (data as { account_role?: string } | null)?.account_role
-  return isAccountRole(role) && canSendMessages(role)
+    .maybeSingle();
+  const role = (data as { account_role?: string } | null)?.account_role;
+  return isAccountRole(role) && canSendMessages(role);
 }
 
-async function lastCustomerMessageAt(conversationId: string): Promise<string | null> {
+async function lastCustomerMessageAt(
+  conversationId: string
+): Promise<string | null> {
   const { data } = await supabaseAdmin()
     .from('messages')
     .select('created_at')
@@ -255,20 +282,20 @@ async function lastCustomerMessageAt(conversationId: string): Promise<string | n
     .eq('sender_type', 'customer')
     .order('created_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
-  return (data as { created_at?: string } | null)?.created_at ?? null
+    .maybeSingle();
+  return (data as { created_at?: string } | null)?.created_at ?? null;
 }
 
 /** Confirmation back to the agent, itself bridged so they can continue. */
 async function ackToAgent(args: {
-  accountId: string
-  bridge: ReplyBridgeRow
-  agentContactId: string
-  agentConversationId: string
-  text: string
+  accountId: string;
+  bridge: ReplyBridgeRow;
+  agentContactId: string;
+  agentConversationId: string;
+  text: string;
   /** Only a delivered reply keeps the thread answerable from WhatsApp. */
-  bridgeAck: boolean
-  lastAgentReplyAt?: string | null
+  bridgeAck: boolean;
+  lastAgentReplyAt?: string | null;
 }): Promise<void> {
   const ack = await sendWhatsAppMessageAndPersist({
     accountId: args.accountId,
@@ -278,8 +305,8 @@ async function ackToAgent(args: {
     kind: 'text',
     senderType: 'bot',
     text: args.text,
-  })
-  if (!args.bridgeAck) return
+  });
+  if (!args.bridgeAck) return;
   await registerReplyBridge({
     accountId: args.accountId,
     agentUserId: args.bridge.agent_user_id,
@@ -287,7 +314,7 @@ async function ackToAgent(args: {
     wamid: ack.whatsappMessageId,
     conversationId: args.bridge.target_conversation_id,
     lastAgentReplyAt: args.lastAgentReplyAt ?? null,
-  })
+  });
 }
 
 /**
@@ -301,24 +328,30 @@ async function ackToAgent(args: {
  * member it was sent to), leaving normal inbound processing untouched.
  */
 export async function handleBridgedAgentReply(args: {
-  message: { id: string; type: string; text?: { body: string }; context?: { id: string } }
-  contentText: string | null
-  accountId: string
-  senderPhone: string
+  message: {
+    id: string;
+    type: string;
+    text?: { body: string };
+    context?: { id: string };
+  };
+  contentText: string | null;
+  accountId: string;
+  senderPhone: string;
   /** The staff member's own contact/conversation — where acks go. */
-  agentContactId: string
-  agentConversationId: string
+  agentContactId: string;
+  agentConversationId: string;
 }): Promise<boolean> {
-  const wamid = args.message.context?.id
-  if (!wamid) return false
+  const wamid = args.message.context?.id;
+  if (!wamid) return false;
 
   try {
-    const bridge = await resolveBridge(wamid, args.accountId)
-    if (!bridge) return false
+    const bridge = await resolveBridge(wamid, args.accountId);
+    if (!bridge) return false;
 
     // A forwarded ping quoted by someone else is not authorization.
-    if (!phonesMatch(bridge.agent_phone, args.senderPhone)) return false
-    if (!(await canStillSend(args.accountId, bridge.agent_user_id))) return false
+    if (!phonesMatch(bridge.agent_phone, args.senderPhone)) return false;
+    if (!(await canStillSend(args.accountId, bridge.agent_user_id)))
+      return false;
 
     // The staff member's own thread is a workflow channel, not a lead —
     // their outgoing reply must not leave an unread badge on it. (The
@@ -327,21 +360,21 @@ export async function handleBridgedAgentReply(args: {
       .from('conversations')
       .update({ unread_count: 0 })
       .eq('id', args.agentConversationId)
-      .eq('account_id', args.accountId)
+      .eq('account_id', args.accountId);
 
-    const link = inboxLink(bridge.target_conversation_id)
+    const link = inboxLink(bridge.target_conversation_id);
     const { data: leadContact } = await supabaseAdmin()
       .from('contacts')
       .select('name, phone')
       .eq('id', bridge.target_contact_id)
       .eq('account_id', args.accountId)
-      .maybeSingle()
+      .maybeSingle();
     const leadName =
       (leadContact as { name?: string } | null)?.name ||
       (leadContact as { phone?: string } | null)?.phone ||
-      'the lead'
+      'the lead';
 
-    const relay = extractRelayText(args.message, args.contentText)
+    const relay = extractRelayText(args.message, args.contentText);
     if (!relay.ok) {
       await ackToAgent({
         accountId: args.accountId,
@@ -350,11 +383,15 @@ export async function handleBridgedAgentReply(args: {
         agentConversationId: args.agentConversationId,
         text: buildUnsupportedAck(leadName, relay.reason, link),
         bridgeAck: false,
-      })
-      return true
+      });
+      return true;
     }
 
-    if (!isWithinCustomerWindow(await lastCustomerMessageAt(bridge.target_conversation_id))) {
+    if (
+      !isWithinCustomerWindow(
+        await lastCustomerMessageAt(bridge.target_conversation_id)
+      )
+    ) {
       await ackToAgent({
         accountId: args.accountId,
         bridge,
@@ -362,8 +399,8 @@ export async function handleBridgedAgentReply(args: {
         agentConversationId: args.agentConversationId,
         text: buildWindowClosedAck(leadName, link),
         bridgeAck: false,
-      })
-      return true
+      });
+      return true;
     }
 
     const sent = await sendWhatsAppMessageAndPersist({
@@ -374,7 +411,7 @@ export async function handleBridgedAgentReply(args: {
       kind: 'text',
       senderType: 'agent',
       text: relay.text,
-    })
+    });
 
     if (!sent.success) {
       await ackToAgent({
@@ -386,12 +423,12 @@ export async function handleBridgedAgentReply(args: {
           ? buildWindowClosedAck(leadName, link)
           : buildFailureAck(leadName, sent.error || 'unknown error'),
         bridgeAck: false,
-      })
-      return true
+      });
+      return true;
     }
 
-    const repliedAt = new Date().toISOString()
-    const admin = supabaseAdmin()
+    const repliedAt = new Date().toISOString();
+    const admin = supabaseAdmin();
 
     // The agent has read and answered this thread from WhatsApp, so the
     // inbox badge must clear the same way sending from the composer does.
@@ -399,13 +436,13 @@ export async function handleBridgedAgentReply(args: {
       .from('conversations')
       .update({ unread_count: 0 })
       .eq('id', bridge.target_conversation_id)
-      .eq('account_id', args.accountId)
+      .eq('account_id', args.accountId);
 
     // Stamps the opt-in that starts mirroring the lead's replies.
     await admin
       .from('whatsapp_reply_bridges')
       .update({ last_agent_reply_at: repliedAt })
-      .eq('id', bridge.id)
+      .eq('id', bridge.id);
 
     await ackToAgent({
       accountId: args.accountId,
@@ -415,13 +452,13 @@ export async function handleBridgedAgentReply(args: {
       text: buildSentAck(leadName),
       bridgeAck: true,
       lastAgentReplyAt: repliedAt,
-    })
-    return true
+    });
+    return true;
   } catch (err) {
     // The quote matched a bridge — swallow rather than letting a partial
     // failure leak a reply meant for the lead into the chatbot flows.
-    console.error('[reply-bridge] handleBridgedAgentReply failed:', err)
-    return true
+    console.error('[reply-bridge] handleBridgedAgentReply failed:', err);
+    return true;
   }
 }
 
@@ -433,32 +470,35 @@ export async function handleBridgedAgentReply(args: {
  * to a ping. Returns true when a relay was delivered.
  */
 export async function relayLeadMessageToBridgedAgent(args: {
-  accountId: string
-  conversationId: string
-  leadName: string
-  body: string
+  accountId: string;
+  conversationId: string;
+  leadName: string;
+  body: string;
 }): Promise<boolean> {
   try {
     const { data, error } = await supabaseAdmin()
       .from('whatsapp_reply_bridges')
-      .select('id, account_id, agent_user_id, agent_phone, target_conversation_id, target_contact_id, last_agent_reply_at, created_at')
+      .select(
+        'id, account_id, agent_user_id, agent_phone, target_conversation_id, target_contact_id, last_agent_reply_at, created_at'
+      )
       .eq('account_id', args.accountId)
       .eq('target_conversation_id', args.conversationId)
       .not('last_agent_reply_at', 'is', null)
       .order('last_agent_reply_at', { ascending: false })
       .limit(1)
-      .maybeSingle()
+      .maybeSingle();
     if (error) {
-      console.error('[reply-bridge] relay lookup failed:', error.message)
-      return false
+      console.error('[reply-bridge] relay lookup failed:', error.message);
+      return false;
     }
 
-    const bridge = data as ReplyBridgeRow | null
-    if (!bridge || !isBridgeFresh(bridge.last_agent_reply_at)) return false
-    if (!(await canStillSend(args.accountId, bridge.agent_user_id))) return false
+    const bridge = data as ReplyBridgeRow | null;
+    if (!bridge || !isBridgeFresh(bridge.last_agent_reply_at)) return false;
+    if (!(await canStillSend(args.accountId, bridge.agent_user_id)))
+      return false;
 
-    const agentPhone = sanitizePhoneForMeta(bridge.agent_phone)
-    if (!isValidE164(agentPhone)) return false
+    const agentPhone = sanitizePhoneForMeta(bridge.agent_phone);
+    if (!isValidE164(agentPhone)) return false;
 
     const relayed = await sendWhatsAppMessageAndPersist({
       accountId: args.accountId,
@@ -467,8 +507,8 @@ export async function relayLeadMessageToBridgedAgent(args: {
       kind: 'text',
       senderType: 'bot',
       text: buildLeadRelayText(args.leadName, args.body),
-    })
-    if (!relayed.success) return false
+    });
+    if (!relayed.success) return false;
 
     await registerReplyBridge({
       accountId: args.accountId,
@@ -477,10 +517,10 @@ export async function relayLeadMessageToBridgedAgent(args: {
       wamid: relayed.whatsappMessageId,
       conversationId: bridge.target_conversation_id,
       lastAgentReplyAt: bridge.last_agent_reply_at,
-    })
-    return true
+    });
+    return true;
   } catch (err) {
-    console.error('[reply-bridge] relay error:', err)
-    return false
+    console.error('[reply-bridge] relay error:', err);
+    return false;
   }
 }

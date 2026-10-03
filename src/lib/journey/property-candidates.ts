@@ -102,10 +102,13 @@ export function rankJourneyPropertyCandidates<
         typeHits.length * 10 +
         tagHits.length * 15;
       if (title.length >= 8 && normalizedQuery.includes(title)) score += 400;
-      if (locality.length >= 4 && normalizedQuery.includes(locality)) score += 140;
+      if (locality.length >= 4 && normalizedQuery.includes(locality))
+        score += 140;
 
       const reasonParts = [
-        locationHits.length ? `location ${locationHits.slice(0, 2).join(', ')}` : '',
+        locationHits.length
+          ? `location ${locationHits.slice(0, 2).join(', ')}`
+          : '',
         titleHits.length ? `title ${titleHits.slice(0, 2).join(', ')}` : '',
         tagHits.length ? `tags ${tagHits.slice(0, 2).join(', ')}` : '',
       ].filter(Boolean);

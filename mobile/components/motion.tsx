@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -37,9 +43,14 @@ export function PressScale({
   contentStyle?: ViewStyle | ViewStyle[];
   onPress?: () => void;
   hapticOn?: boolean;
-} & Omit<React.ComponentProps<typeof Pressable>, 'style' | 'onPress' | 'children'>) {
+} & Omit<
+  React.ComponentProps<typeof Pressable>,
+  'style' | 'onPress' | 'children'
+>) {
   const scale = useSharedValue(1);
-  const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const animated = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   return (
     <Pressable
@@ -94,13 +105,25 @@ export function EnterRow({
  * loop; the second ring's initial delay offsets its phase so the
  * pulse reads as a continuous heartbeat.
  */
-function Ring({ size, color, delay }: { size: number; color: string; delay: number }) {
+function Ring({
+  size,
+  color,
+  delay,
+}: {
+  size: number;
+  color: string;
+  delay: number;
+}) {
   const progress = useSharedValue(0);
 
   useEffect(() => {
     progress.value = withDelay(
       delay,
-      withRepeat(withTiming(1, { duration: 1900, easing: Easing.out(Easing.quad) }), -1, false)
+      withRepeat(
+        withTiming(1, { duration: 1900, easing: Easing.out(Easing.quad) }),
+        -1,
+        false
+      )
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -143,7 +166,14 @@ export function PulseRing({
   children: React.ReactNode;
 }) {
   return (
-    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+    <View
+      style={{
+        width: size,
+        height: size,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
       <Ring size={size} color={color} delay={0} />
       <Ring size={size} color={color} delay={950} />
       {children}
@@ -187,7 +217,9 @@ export function AnimatedCounter({
     return () => cancelAnimationFrame(raf);
   }, [value]);
 
-  return <Text style={style}>{format ? format(display) : String(display)}</Text>;
+  return (
+    <Text style={style}>{format ? format(display) : String(display)}</Text>
+  );
 }
 
 // ------------------------------------------------------------------
@@ -216,7 +248,10 @@ function ConfettiPiece({ seed }: { seed: number }) {
   useEffect(() => {
     progress.value = withDelay(
       rand(7) * 250,
-      withTiming(1, { duration: 1400 + rand(8) * 600, easing: Easing.out(Easing.quad) })
+      withTiming(1, {
+        duration: 1400 + rand(8) * 600,
+        easing: Easing.out(Easing.quad),
+      })
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

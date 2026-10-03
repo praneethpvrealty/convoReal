@@ -20,7 +20,13 @@ describe('placeholderLeadName', () => {
 
 describe('isPlaceholderLeadName', () => {
   it('recognises every placeholder it mints', () => {
-    for (const source of ['Housing', '99acres', 'Magic Bricks', 'Others', null]) {
+    for (const source of [
+      'Housing',
+      '99acres',
+      'Magic Bricks',
+      'Others',
+      null,
+    ]) {
       expect(isPlaceholderLeadName(placeholderLeadName(source))).toBe(true);
     }
   });

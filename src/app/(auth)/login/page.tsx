@@ -1,22 +1,22 @@
-"use client";
+'use client';
 
-import { Suspense, useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { toAuthPhone } from "@/lib/whatsapp/phone-utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Suspense, useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
+import { toAuthPhone } from '@/lib/whatsapp/phone-utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { MessageSquare, UsersRound, Phone, ArrowLeft } from "lucide-react";
-import { reloadTo } from "@/lib/navigation";
+} from '@/components/ui/card';
+import { MessageSquare, UsersRound, Phone, ArrowLeft } from 'lucide-react';
+import { reloadTo } from '@/lib/navigation';
 
 export default function LoginPage() {
   return (
@@ -31,18 +31,18 @@ function LoginPageInner() {
   // Forwarded from `/join/<token>` when the visitor already has an
   // account. After a successful sign-in we send them to the join
   // page to accept rather than to /dashboard.
-  const inviteToken = searchParams.get("invite");
+  const inviteToken = searchParams.get('invite');
 
   const [activeTab, setActiveTab] = useState<'email' | 'phone'>('email');
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [phone, setPhone] = useState("");
-  const [otpValues, setOtpValues] = useState<string[]>(Array(6).fill(""));
-  const otp = otpValues.join("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [otpValues, setOtpValues] = useState<string[]>(Array(6).fill(''));
+  const otp = otpValues.join('');
   const [otpSent, setOtpSent] = useState(false);
 
   const handleOtpChange = (index: number, val: string) => {
-    const digit = val.replace(/\D/g, "");
+    const digit = val.replace(/\D/g, '');
     const nextOtp = [...otpValues];
     nextOtp[index] = digit.slice(-1);
     setOtpValues(nextOtp);
@@ -54,21 +54,24 @@ function LoginPageInner() {
     }
 
     // Auto-submit if all 6 digits are entered
-    const finalOtp = nextOtp.join("");
+    const finalOtp = nextOtp.join('');
     if (finalOtp.length === 6) {
       setTimeout(() => {
-        const form = document.getElementById("otp-form") as HTMLFormElement;
+        const form = document.getElementById('otp-form') as HTMLFormElement;
         form?.requestSubmit();
       }, 50);
     }
   };
 
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace") {
+  const handleOtpKeyDown = (
+    index: number,
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key === 'Backspace') {
       if (!otpValues[index] && index > 0) {
         // Clear previous box and focus it
         const nextOtp = [...otpValues];
-        nextOtp[index - 1] = "";
+        nextOtp[index - 1] = '';
         setOtpValues(nextOtp);
         const prevInput = document.getElementById(`otp-${index - 1}`);
         prevInput?.focus();
@@ -78,10 +81,13 @@ function LoginPageInner() {
 
   const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
-    const pasteData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    const pasteData = e.clipboardData
+      .getData('text')
+      .replace(/\D/g, '')
+      .slice(0, 6);
     if (pasteData.length > 0) {
       const newOtp = [...otpValues];
-      pasteData.split("").forEach((digit, idx) => {
+      pasteData.split('').forEach((digit, idx) => {
         if (idx < 6) newOtp[idx] = digit;
       });
       setOtpValues(newOtp);
@@ -108,7 +114,7 @@ function LoginPageInner() {
   useEffect(() => {
     if (otpSent) {
       setTimeout(() => {
-        const firstInput = document.getElementById("otp-0");
+        const firstInput = document.getElementById('otp-0');
         firstInput?.focus();
       }, 80);
     }
@@ -125,7 +131,12 @@ function LoginPageInner() {
       password,
     });
 
-    console.log('[LOGIN] Result → error:', error, '| session:', data?.session?.access_token ? 'present' : 'null');
+    console.log(
+      '[LOGIN] Result → error:',
+      error,
+      '| session:',
+      data?.session?.access_token ? 'present' : 'null'
+    );
 
     if (error) {
       console.error('[LOGIN] Auth error:', error.message, error.status);
@@ -135,8 +146,12 @@ function LoginPageInner() {
     }
 
     if (!data.session) {
-      console.error('[LOGIN] No session returned despite no error — email may not be confirmed');
-      setError('Login failed: no session returned. Your email may not be confirmed — check your inbox.');
+      console.error(
+        '[LOGIN] No session returned despite no error — email may not be confirmed'
+      );
+      setError(
+        'Login failed: no session returned. Your email may not be confirmed — check your inbox.'
+      );
       setLoading(false);
       return;
     }
@@ -161,7 +176,9 @@ function LoginPageInner() {
 
     const cleanPhone = toAuthPhone(phone);
     if (!cleanPhone) {
-      setError("Please enter a valid phone number (e.g. 9900277111 or +919900277111)");
+      setError(
+        'Please enter a valid phone number (e.g. 9900277111 or +919900277111)'
+      );
       setLoading(false);
       return;
     }
@@ -176,7 +193,7 @@ function LoginPageInner() {
       setError(error.message);
       setLoading(false);
     } else {
-      setSuccessMessage("Verification code sent to your WhatsApp!");
+      setSuccessMessage('Verification code sent to your WhatsApp!');
       setOtpSent(true);
       setLoading(false);
       setCountdown(60);
@@ -192,7 +209,9 @@ function LoginPageInner() {
     // looks up a different identity than the code was issued for.
     const cleanPhone = toAuthPhone(phone);
     if (!cleanPhone) {
-      setError("Please enter a valid phone number (e.g. 9900277111 or +919900277111)");
+      setError(
+        'Please enter a valid phone number (e.g. 9900277111 or +919900277111)'
+      );
       setLoading(false);
       return;
     }
@@ -201,7 +220,7 @@ function LoginPageInner() {
     const { data, error } = await supabase.auth.verifyOtp({
       phone: cleanPhone,
       token: otp.trim(),
-      type: "sms",
+      type: 'sms',
     });
 
     if (error) {
@@ -212,7 +231,7 @@ function LoginPageInner() {
     }
 
     if (!data.session) {
-      setError("Session establishment failed. Please try again.");
+      setError('Session establishment failed. Please try again.');
       setLoading(false);
       return;
     }
@@ -229,11 +248,14 @@ function LoginPageInner() {
     setError(null);
     setLoading(true);
     const redirectTo = `${window.location.origin}/auth/callback${
-      inviteToken ? `?invite=${encodeURIComponent(inviteToken)}` : ""
+      inviteToken ? `?invite=${encodeURIComponent(inviteToken)}` : ''
     }`;
-    console.log('[LOGIN] Attempting signInWithOAuth for Google, redirecting to:', redirectTo);
+    console.log(
+      '[LOGIN] Attempting signInWithOAuth for Google, redirecting to:',
+      redirectTo
+    );
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
+      provider: 'google',
       options: {
         redirectTo,
       },
@@ -247,42 +269,45 @@ function LoginPageInner() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-slate-950 px-4 overflow-hidden">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4">
       {/* Ambient radial glows */}
-      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-[400px] h-[400px] bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
-      
-      {/* Grid background pattern */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-50 pointer-events-none" />
+      <div className="bg-primary/10 pointer-events-none absolute top-1/4 left-1/4 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[120px]" />
+      <div className="pointer-events-none absolute right-1/4 bottom-1/4 h-[400px] w-[400px] translate-x-1/2 translate-y-1/2 rounded-full bg-indigo-500/10 blur-[100px]" />
 
-      <Card className="relative w-full max-w-md border border-slate-800/80 bg-slate-900/60 backdrop-blur-xl shadow-2xl hover:border-slate-700/50 transition-all duration-300 rounded-3xl overflow-hidden z-10 p-2">
-        <CardHeader className="items-center text-center pb-2">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 shadow-inner">
+      {/* Grid background pattern */}
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] bg-[size:4rem_4rem] opacity-50" />
+
+      <Card className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-slate-800/80 bg-slate-900/60 p-2 shadow-2xl backdrop-blur-xl transition-all duration-300 hover:border-slate-700/50">
+        <CardHeader className="items-center pb-2 text-center">
+          <div className="bg-primary/10 border-primary/20 mb-2 flex h-12 w-12 items-center justify-center rounded-2xl border shadow-inner">
             {inviteToken ? (
-              <UsersRound className="h-6 w-6 text-primary" />
+              <UsersRound className="text-primary h-6 w-6" />
             ) : (
-              <MessageSquare className="h-6 w-6 text-primary" />
+              <MessageSquare className="text-primary h-6 w-6" />
             )}
           </div>
-          <CardTitle className="text-2xl font-black text-white tracking-tight">
-            {inviteToken ? "Sign in to accept" : "Welcome back"}
+          <CardTitle className="text-2xl font-black tracking-tight text-white">
+            {inviteToken ? 'Sign in to accept' : 'Welcome back'}
           </CardTitle>
-          <CardDescription className="text-slate-400 font-medium">
+          <CardDescription className="font-medium text-slate-400">
             {inviteToken
               ? "Sign in and we'll take you to the invitation."
-              : "Sign in to your account"}
+              : 'Sign in to your account'}
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
-          
           {/* Tab Selection */}
-          <div className="flex bg-slate-950/70 p-1 rounded-xl border border-slate-850 mb-6">
+          <div className="border-slate-850 mb-6 flex rounded-xl border bg-slate-950/70 p-1">
             <button
               type="button"
-              onClick={() => { setActiveTab('email'); setError(null); setSuccessMessage(null); }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              onClick={() => {
+                setActiveTab('email');
+                setError(null);
+                setSuccessMessage(null);
+              }}
+              className={`flex-1 cursor-pointer rounded-lg py-2 text-xs font-bold transition-all ${
                 activeTab === 'email'
-                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                  ? 'bg-primary shadow-primary/20 text-white shadow-lg'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -290,10 +315,14 @@ function LoginPageInner() {
             </button>
             <button
               type="button"
-              onClick={() => { setActiveTab('phone'); setError(null); setSuccessMessage(null); }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              onClick={() => {
+                setActiveTab('phone');
+                setError(null);
+                setSuccessMessage(null);
+              }}
+              className={`flex-1 cursor-pointer rounded-lg py-2 text-xs font-bold transition-all ${
                 activeTab === 'phone'
-                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                  ? 'bg-primary shadow-primary/20 text-white shadow-lg'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -303,12 +332,12 @@ function LoginPageInner() {
 
           {/* Status alerts */}
           {error && (
-            <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400 font-medium mb-4">
+            <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-400">
               {error}
             </div>
           )}
           {successMessage && (
-            <div className="rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-400 font-medium mb-4">
+            <div className="mb-4 rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm font-medium text-green-400">
               {successMessage}
             </div>
           )}
@@ -317,7 +346,10 @@ function LoginPageInner() {
             /* Email Password Form */
             <form onSubmit={handleLogin} className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="email" className="text-slate-300 font-bold text-xs">
+                <Label
+                  htmlFor="email"
+                  className="text-xs font-bold text-slate-300"
+                >
                   Email Address
                 </Label>
                 <Input
@@ -327,18 +359,21 @@ function LoginPageInner() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="border-slate-800 bg-slate-950 text-white placeholder:text-slate-600 focus-visible:border-primary focus-visible:ring-primary/20 h-10 rounded-xl"
+                  className="focus-visible:border-primary focus-visible:ring-primary/20 h-10 rounded-xl border-slate-800 bg-slate-950 text-white placeholder:text-slate-600"
                 />
               </div>
 
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-slate-300 font-bold text-xs">
+                  <Label
+                    htmlFor="password"
+                    className="text-xs font-bold text-slate-300"
+                  >
                     Password
                   </Label>
                   <Link
                     href="/forgot-password"
-                    className="text-xs text-primary hover:text-primary/80 font-bold"
+                    className="text-primary hover:text-primary/80 text-xs font-bold"
                   >
                     Forgot password?
                   </Link>
@@ -350,16 +385,16 @@ function LoginPageInner() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="border-slate-800 bg-slate-950 text-white placeholder:text-slate-600 focus-visible:border-primary focus-visible:ring-primary/20 h-10 rounded-xl"
+                  className="focus-visible:border-primary focus-visible:ring-primary/20 h-10 rounded-xl border-slate-800 bg-slate-950 text-white placeholder:text-slate-600"
                 />
               </div>
 
               <Button
                 type="submit"
                 disabled={loading}
-                className="mt-2 h-10 w-full bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer hover:scale-101 hover:shadow-lg hover:shadow-primary/20 active:scale-99 transition-all disabled:opacity-50"
+                className="bg-primary hover:bg-primary-hover hover:shadow-primary/20 mt-2 h-10 w-full cursor-pointer rounded-xl text-xs font-bold text-white transition-all hover:scale-101 hover:shadow-lg active:scale-99 disabled:opacity-50"
               >
-                {loading ? "Signing in..." : "Sign in"}
+                {loading ? 'Signing in...' : 'Sign in'}
               </Button>
             </form>
           ) : (
@@ -368,11 +403,14 @@ function LoginPageInner() {
               {!otpSent ? (
                 <form onSubmit={handleSendOtp} className="flex flex-col gap-4">
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="phone" className="text-slate-300 font-bold text-xs">
+                    <Label
+                      htmlFor="phone"
+                      className="text-xs font-bold text-slate-300"
+                    >
                       Phone Number
                     </Label>
                     <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+                      <Phone className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500" />
                       <Input
                         id="phone"
                         type="tel"
@@ -380,10 +418,10 @@ function LoginPageInner() {
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         required
-                        className="pl-10 border-slate-800 bg-slate-950 text-white placeholder:text-slate-600 focus-visible:border-primary focus-visible:ring-primary/20 h-10 rounded-xl"
+                        className="focus-visible:border-primary focus-visible:ring-primary/20 h-10 rounded-xl border-slate-800 bg-slate-950 pl-10 text-white placeholder:text-slate-600"
                       />
                     </div>
-                    <p className="text-[10px] text-slate-500 font-medium">
+                    <p className="text-[10px] font-medium text-slate-500">
                       Enter with country code (e.g. +91 for India).
                     </p>
                   </div>
@@ -391,22 +429,31 @@ function LoginPageInner() {
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="mt-2 h-10 w-full bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer hover:scale-101 hover:shadow-lg hover:shadow-primary/20 active:scale-99 transition-all disabled:opacity-50"
+                    className="bg-primary hover:bg-primary-hover hover:shadow-primary/20 mt-2 h-10 w-full cursor-pointer rounded-xl text-xs font-bold text-white transition-all hover:scale-101 hover:shadow-lg active:scale-99 disabled:opacity-50"
                   >
-                    {loading ? "Sending code..." : "Send Verification Code"}
+                    {loading ? 'Sending code...' : 'Send Verification Code'}
                   </Button>
                 </form>
               ) : (
-                <form id="otp-form" onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
+                <form
+                  id="otp-form"
+                  onSubmit={handleVerifyOtp}
+                  className="flex flex-col gap-4"
+                >
                   <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between mb-1">
-                      <Label className="text-slate-300 font-bold text-xs">
+                    <div className="mb-1 flex items-center justify-between">
+                      <Label className="text-xs font-bold text-slate-300">
                         Verification Code
                       </Label>
                       <button
                         type="button"
-                        onClick={() => { setOtpSent(false); setSuccessMessage(null); setError(null); setOtpValues(Array(6).fill("")); }}
-                        className="flex items-center gap-1 text-[11px] text-primary hover:underline font-bold cursor-pointer"
+                        onClick={() => {
+                          setOtpSent(false);
+                          setSuccessMessage(null);
+                          setError(null);
+                          setOtpValues(Array(6).fill(''));
+                        }}
+                        className="text-primary flex cursor-pointer items-center gap-1 text-[11px] font-bold hover:underline"
                       >
                         <ArrowLeft className="size-3" /> Change Number
                       </button>
@@ -424,21 +471,25 @@ function LoginPageInner() {
                           onChange={(e) => handleOtpChange(idx, e.target.value)}
                           onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                           onPaste={idx === 0 ? handleOtpPaste : undefined}
-                          className="w-12 h-12 text-center text-xl font-bold bg-slate-950 border border-slate-850 focus:border-primary focus:ring-1 focus:ring-primary/30 rounded-xl text-white outline-none transition-all animate-fade-in"
+                          className="border-slate-850 focus:border-primary focus:ring-primary/30 animate-fade-in h-12 w-12 rounded-xl border bg-slate-950 text-center text-xl font-bold text-white transition-all outline-none focus:ring-1"
                         />
                       ))}
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs font-semibold px-1">
-                    <span className="text-slate-500">Didn&apos;t receive the code?</span>
+                  <div className="flex items-center justify-between px-1 text-xs font-semibold">
+                    <span className="text-slate-500">
+                      Didn&apos;t receive the code?
+                    </span>
                     {countdown > 0 ? (
-                      <span className="text-slate-400 font-mono">Resend in {countdown}s</span>
+                      <span className="font-mono text-slate-400">
+                        Resend in {countdown}s
+                      </span>
                     ) : (
                       <button
                         type="button"
                         onClick={() => handleSendOtp()}
-                        className="text-primary hover:underline font-bold cursor-pointer bg-transparent border-0 p-0"
+                        className="text-primary cursor-pointer border-0 bg-transparent p-0 font-bold hover:underline"
                       >
                         Resend code
                       </button>
@@ -448,9 +499,9 @@ function LoginPageInner() {
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="mt-2 h-10 w-full bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer hover:scale-101 hover:shadow-lg hover:shadow-primary/20 active:scale-99 transition-all disabled:opacity-50"
+                    className="bg-primary hover:bg-primary-hover hover:shadow-primary/20 mt-2 h-10 w-full cursor-pointer rounded-xl text-xs font-bold text-white transition-all hover:scale-101 hover:shadow-lg active:scale-99 disabled:opacity-50"
                   >
-                    {loading ? "Verifying..." : "Verify & Sign In"}
+                    {loading ? 'Verifying...' : 'Verify & Sign In'}
                   </Button>
                 </form>
               )}
@@ -463,7 +514,7 @@ function LoginPageInner() {
               <div className="w-full border-t border-slate-800" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-slate-900/40 backdrop-blur-xl px-2 text-slate-500 font-bold">
+              <span className="bg-slate-900/40 px-2 font-bold text-slate-500 backdrop-blur-xl">
                 or continue with
               </span>
             </div>
@@ -475,26 +526,44 @@ function LoginPageInner() {
             variant="outline"
             disabled={loading}
             onClick={handleGoogleLogin}
-            className="flex h-10 w-full items-center justify-center gap-2 border border-slate-800 bg-slate-950/80 text-slate-200 hover:bg-slate-900 hover:text-white disabled:opacity-50 hover:border-slate-700/80 transition-all rounded-xl font-bold text-xs cursor-pointer active:scale-99"
+            className="flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-950/80 text-xs font-bold text-slate-200 transition-all hover:border-slate-700/80 hover:bg-slate-900 hover:text-white active:scale-99 disabled:opacity-50"
           >
-            <svg className="h-4 w-4 mr-1 shrink-0" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+            <svg
+              className="mr-1 h-4 w-4 shrink-0"
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
               <g transform="matrix(1, 0, 0, 1, 0, 0)">
-                <path d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.6h3.29c1.92,-1.78 3.02,-4.4 3.02,-7.4C21.65,11.83 21.54,11.43 21.35,11.1z" fill="#4285F4" />
-                <path d="M12,20.5c2.3,0 4.23,-0.76 5.64,-2.08l-3.29,-2.6c-0.91,0.61 -2.07,0.98 -3.29,0.98 -2.25,0 -4.16,-1.52 -4.84,-3.57H2.88v2.7C4.29,18.73 7.89,20.5 12,20.5z" fill="#34A853" />
-                <path d="M7.16,13.23c-0.17,-0.52 -0.27,-1.07 -0.27,-1.64c0,-0.57 0.1,-1.12 0.27,-1.64V7.25H2.88C2.3,8.42 2,9.78 2,11.5c0,1.72 0.3,3.08 0.88,4.25l4.28,-3.27z" fill="#FBBC05" />
-                <path d="M12,5.2c1.25,0 2.37,0.43 3.25,1.28l2.44,-2.44C16.22,2.63 14.29,1.7 12,1.7c-4.11,0 -7.71,1.77 -9.12,4.55l4.28,3.27C7.84,6.72 9.75,5.2 12,5.2z" fill="#EA4335" />
+                <path
+                  d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.6h3.29c1.92,-1.78 3.02,-4.4 3.02,-7.4C21.65,11.83 21.54,11.43 21.35,11.1z"
+                  fill="#4285F4"
+                />
+                <path
+                  d="M12,20.5c2.3,0 4.23,-0.76 5.64,-2.08l-3.29,-2.6c-0.91,0.61 -2.07,0.98 -3.29,0.98 -2.25,0 -4.16,-1.52 -4.84,-3.57H2.88v2.7C4.29,18.73 7.89,20.5 12,20.5z"
+                  fill="#34A853"
+                />
+                <path
+                  d="M7.16,13.23c-0.17,-0.52 -0.27,-1.07 -0.27,-1.64c0,-0.57 0.1,-1.12 0.27,-1.64V7.25H2.88C2.3,8.42 2,9.78 2,11.5c0,1.72 0.3,3.08 0.88,4.25l4.28,-3.27z"
+                  fill="#FBBC05"
+                />
+                <path
+                  d="M12,5.2c1.25,0 2.37,0.43 3.25,1.28l2.44,-2.44C16.22,2.63 14.29,1.7 12,1.7c-4.11,0 -7.71,1.77 -9.12,4.55l4.28,3.27C7.84,6.72 9.75,5.2 12,5.2z"
+                  fill="#EA4335"
+                />
               </g>
             </svg>
             Sign in with Google
           </Button>
 
-          <p className="mt-6 text-center text-sm text-slate-400 font-medium">
-            Don&apos;t have an account?{" "}
+          <p className="mt-6 text-center text-sm font-medium text-slate-400">
+            Don&apos;t have an account?{' '}
             <Link
               href={
                 inviteToken
                   ? `/signup?invite=${encodeURIComponent(inviteToken)}`
-                  : "/signup"
+                  : '/signup'
               }
               className="text-primary hover:text-primary/80 font-bold transition-all"
             >
@@ -510,7 +579,9 @@ function LoginPageInner() {
             <span className="text-xs font-bold text-amber-400">
               Own a property? List &amp; manage it in your Portfolio
             </span>
-            <span className="shrink-0 text-xs font-black text-amber-400">→</span>
+            <span className="shrink-0 text-xs font-black text-amber-400">
+              →
+            </span>
           </Link>
         </CardContent>
       </Card>

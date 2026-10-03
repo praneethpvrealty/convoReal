@@ -14,14 +14,23 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { CreditTransaction } from './types';
 
-const EXPIRING_TYPES = ['referral_signup', 'referral_upgrade', 'referral_passive', 'promo', 'admin_grant'] as const;
+const EXPIRING_TYPES = [
+  'referral_signup',
+  'referral_upgrade',
+  'referral_passive',
+  'promo',
+  'admin_grant',
+] as const;
 
 /**
  * Finds unexpired grant transactions whose expires_at has passed and
  * haven't yet been offset by a matching 'expiry' transaction, deducts
  * the sum from the relevant bucket, and inserts an 'expiry' ledger row.
  */
-export async function expireStaleCredits(): Promise<{ accountsProcessed: number; totalExpired: number }> {
+export async function expireStaleCredits(): Promise<{
+  accountsProcessed: number;
+  totalExpired: number;
+}> {
   const supabase = supabaseAdmin();
   const now = new Date().toISOString();
 
@@ -33,14 +42,19 @@ export async function expireStaleCredits(): Promise<{ accountsProcessed: number;
     .lt('expires_at', now)
     .gt('amount', 0);
 
-  if (error) throw new Error(`[expireStaleCredits] fetch failed: ${error.message}`);
-  if (!staleTx || staleTx.length === 0) return { accountsProcessed: 0, totalExpired: 0 };
+  if (error)
+    throw new Error(`[expireStaleCredits] fetch failed: ${error.message}`);
+  if (!staleTx || staleTx.length === 0)
+    return { accountsProcessed: 0, totalExpired: 0 };
 
   // Already-expired transactions have a matching 'expiry' row
   // referencing them via description — check per-account bucket
   // totals against the wallet rather than tracking per-tx offset,
   // since this codebase has no per-transaction "offset" flag.
-  const byAccountAndBucket = new Map<string, { accountId: string; bucket: string; amount: number }>();
+  const byAccountAndBucket = new Map<
+    string,
+    { accountId: string; bucket: string; amount: number }
+  >();
   for (const tx of staleTx as CreditTransaction[]) {
     const key = `${tx.account_id}:${tx.bucket}`;
     const existing = byAccountAndBucket.get(key);
@@ -55,7 +69,8 @@ export async function expireStaleCredits(): Promise<{ accountsProcessed: number;
   const processedAccounts = new Set<string>();
 
   for (const { accountId, bucket, amount } of byAccountAndBucket.values()) {
-    if (bucket !== 'referral' && bucket !== 'promo' && bucket !== 'bonus') continue;
+    if (bucket !== 'referral' && bucket !== 'promo' && bucket !== 'bonus')
+      continue;
 
     const { data: alreadyExpired } = await supabase
       .from('credit_transactions')
@@ -64,18 +79,25 @@ export async function expireStaleCredits(): Promise<{ accountsProcessed: number;
       .eq('bucket', bucket)
       .eq('type', 'expiry');
 
-    const alreadyExpiredAmount = (alreadyExpired ?? []).reduce((sum, row) => sum + Math.abs(row.amount), 0);
+    const alreadyExpiredAmount = (alreadyExpired ?? []).reduce(
+      (sum, row) => sum + Math.abs(row.amount),
+      0
+    );
     const outstandingToExpire = amount - alreadyExpiredAmount;
     if (outstandingToExpire <= 0) continue;
 
     const { data: wallet } = await supabase
       .from('credit_wallets')
-      .select('monthly_credits, bonus_credits, referral_credits, purchased_credits, promo_credits')
+      .select(
+        'monthly_credits, bonus_credits, referral_credits, purchased_credits, promo_credits'
+      )
       .eq('account_id', accountId)
       .single();
     if (!wallet) continue;
 
-    const currentBucketValue = wallet[`${bucket}_credits` as keyof typeof wallet] as number;
+    const currentBucketValue = wallet[
+      `${bucket}_credits` as keyof typeof wallet
+    ] as number;
     const deduction = Math.min(outstandingToExpire, currentBucketValue);
     if (deduction <= 0) continue;
 
@@ -89,7 +111,10 @@ export async function expireStaleCredits(): Promise<{ accountsProcessed: number;
 
     await supabase
       .from('credit_wallets')
-      .update({ [`${bucket}_credits`]: newBucketValue, total_credits: newTotal })
+      .update({
+        [`${bucket}_credits`]: newBucketValue,
+        total_credits: newTotal,
+      })
       .eq('account_id', accountId);
 
     await supabase.from('credit_transactions').insert({

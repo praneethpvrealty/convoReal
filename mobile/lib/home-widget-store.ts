@@ -25,7 +25,8 @@ export const useHomeWidgets = create<HomeWidgetState>()(
       ids: [...DEFAULT_WIDGETS],
       add: (id) => set((s) => ({ ids: addWidget(s.ids, id) })),
       remove: (id) => set((s) => ({ ids: removeWidget(s.ids, id) })),
-      move: (id, direction) => set((s) => ({ ids: moveWidget(s.ids, id, direction) })),
+      move: (id, direction) =>
+        set((s) => ({ ids: moveWidget(s.ids, id, direction) })),
     }),
     {
       name: 'home-widgets',

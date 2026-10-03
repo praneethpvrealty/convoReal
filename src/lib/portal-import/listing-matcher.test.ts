@@ -89,10 +89,17 @@ describe('parser helpers', () => {
     expect(parseDateToken('12/01/2026')).toBe('2026-01-12');
     expect(parsePortalStatus('This listing has Expired')).toBe('expired');
     expect(parsePortalStatus('Under Screening')).toBe('under_review');
-    expect(inferPropertyType('Residential Plot in Sarjapur')).toBe('Residential Land/ Plot');
-    expect(inferPropertyType('Commercial Plot in Banashankari')).toBe('Commercial Plot');
+    expect(inferPropertyType('Residential Plot in Sarjapur')).toBe(
+      'Residential Land/ Plot'
+    );
+    expect(inferPropertyType('Commercial Plot in Banashankari')).toBe(
+      'Commercial Plot'
+    );
     expect(inferPropertyType('3 BHK Flat for sale')).toBe('Flat/ Apartment');
-    expect(extractLocation('3 BHK in HSR Layout, Bengaluru')).toEqual({ locality: 'HSR Layout', city: 'Bengaluru' });
+    expect(extractLocation('3 BHK in HSR Layout, Bengaluru')).toEqual({
+      locality: 'HSR Layout',
+      city: 'Bengaluru',
+    });
   });
 
   it('parses a realistic MagicBricks dashboard card', () => {
@@ -137,7 +144,12 @@ describe('matchListing — dedup guarantees', () => {
 
   it('tier 0: already-linked portal listing is linked, never re-imported', () => {
     const links: ExistingPortalLink[] = [
-      { property_id: 'p-hsr', portal: 'magicbricks', portal_listing_id: 'mb-1', listing_url: null },
+      {
+        property_id: 'p-hsr',
+        portal: 'magicbricks',
+        portal_listing_id: 'mb-1',
+        listing_url: null,
+      },
     ];
     const r = matchListing(listing({}), [inventory3bhk], links);
     expect(r.bucket).toBe('linked');
@@ -146,10 +158,19 @@ describe('matchListing — dedup guarantees', () => {
 
   it('tier 0: matches by normalized listing URL too', () => {
     const links: ExistingPortalLink[] = [
-      { property_id: 'p-hsr', portal: 'magicbricks', portal_listing_id: null, listing_url: 'https://www.magicbricks.com/propertyDetails/74829301?src=dash' },
+      {
+        property_id: 'p-hsr',
+        portal: 'magicbricks',
+        portal_listing_id: null,
+        listing_url:
+          'https://www.magicbricks.com/propertyDetails/74829301?src=dash',
+      },
     ];
     const r = matchListing(
-      listing({ portalListingId: 'other', listingUrl: 'http://magicbricks.com/propertyDetails/74829301' }),
+      listing({
+        portalListingId: 'other',
+        listingUrl: 'http://magicbricks.com/propertyDetails/74829301',
+      }),
       [inventory3bhk],
       links
     );
@@ -157,7 +178,19 @@ describe('matchListing — dedup guarantees', () => {
   });
 
   it('auto-matches a high-confidence unique match instead of creating a duplicate', () => {
-    const r = matchListing(listing({}), [inventory3bhk, prop({ id: 'other', location: 'Whitefield', bedrooms: 2, price: 8_000_000 })], []);
+    const r = matchListing(
+      listing({}),
+      [
+        inventory3bhk,
+        prop({
+          id: 'other',
+          location: 'Whitefield',
+          bedrooms: 2,
+          price: 8_000_000,
+        }),
+      ],
+      []
+    );
     expect(r.bucket).toBe('auto_matched');
     expect(r.propertyId).toBe('p-hsr');
     expect(r.confidence).toBeGreaterThanOrEqual(AUTO_MATCH_THRESHOLD);
@@ -173,26 +206,47 @@ describe('matchListing — dedup guarantees', () => {
       city: 'Bengaluru',
       bedrooms: 4,
     });
-    const r = matchListing(listing({ propertyType: 'Flat/ Apartment' }), [samePriceElsewhere], []);
+    const r = matchListing(
+      listing({ propertyType: 'Flat/ Apartment' }),
+      [samePriceElsewhere],
+      []
+    );
     expect(r.bucket).toBe('new');
   });
 
   it('category mismatch hard-fails the type gate', () => {
-    const commercial = prop({ id: 'p-shop', type: 'Commercial Shop', location: 'HSR Layout', city: 'Bengaluru', price: 12_500_000 });
+    const commercial = prop({
+      id: 'p-shop',
+      type: 'Commercial Shop',
+      location: 'HSR Layout',
+      city: 'Bengaluru',
+      price: 12_500_000,
+    });
     const s = scoreListingAgainstProperty(listing({}), commercial);
     expect(s.score).toBe(0);
   });
 
   it('two near-identical inventory rows go to review, not a coin-flip auto-match', () => {
     const twinA = { ...inventory3bhk, id: 'twin-a' };
-    const twinB = { ...inventory3bhk, id: 'twin-b', title: 'Luxury 3 BHK Apartment HSR' };
+    const twinB = {
+      ...inventory3bhk,
+      id: 'twin-b',
+      title: 'Luxury 3 BHK Apartment HSR',
+    };
     const r = matchListing(listing({}), [twinA, twinB], []);
     expect(r.bucket).toBe('review');
     expect(r.candidates.length).toBeGreaterThanOrEqual(2);
   });
 
   it('sale listing never matches a rent property', () => {
-    const rental = prop({ id: 'p-rent', listing_type: 'Rent', rent_per_month: 45_000, location: 'HSR Layout', city: 'Bengaluru', bedrooms: 3 });
+    const rental = prop({
+      id: 'p-rent',
+      listing_type: 'Rent',
+      rent_per_month: 45_000,
+      location: 'HSR Layout',
+      city: 'Bengaluru',
+      bedrooms: 3,
+    });
     const r = matchListing(listing({}), [rental], []);
     expect(r.bucket).toBe('new');
   });
@@ -207,7 +261,11 @@ describe('matchListing — dedup guarantees', () => {
 describe('excludeKnownPortalAliases', () => {
   it('keeps retained alias ids out of primary portal-link refreshes', () => {
     const rows = [
-      { portal: 'magicbricks', portal_listing_id: 'primary', property_id: 'p-1' },
+      {
+        portal: 'magicbricks',
+        portal_listing_id: 'primary',
+        property_id: 'p-1',
+      },
       { portal: 'magicbricks', portal_listing_id: 'alias', property_id: 'p-1' },
       { portal: 'housing', portal_listing_id: 'alias', property_id: 'p-2' },
     ];
@@ -226,8 +284,17 @@ describe('excludeKnownPortalAliases', () => {
 describe('groupCrossPortalDuplicates', () => {
   it('groups the same property harvested from two portals into one create', () => {
     const mb = listing({ portal: 'magicbricks', portalListingId: 'mb-1' });
-    const acres = listing({ portal: '99acres', portalListingId: 'ac-9', price: 12_600_000 });
-    const other = listing({ portal: '99acres', portalListingId: 'ac-10', locality: 'Sarjapur Road', price: 6_000_000 });
+    const acres = listing({
+      portal: '99acres',
+      portalListingId: 'ac-9',
+      price: 12_600_000,
+    });
+    const other = listing({
+      portal: '99acres',
+      portalListingId: 'ac-10',
+      locality: 'Sarjapur Road',
+      price: 6_000_000,
+    });
 
     const groups = groupCrossPortalDuplicates([
       { key: 'k1', parsed: mb },
@@ -240,7 +307,11 @@ describe('groupCrossPortalDuplicates', () => {
 
   it('same portal + same listing id always collapses', () => {
     const a = listing({ portalListingId: 'dup' });
-    const b = listing({ portalListingId: 'dup', price: 99_000_000, locality: 'Elsewhere' });
+    const b = listing({
+      portalListingId: 'dup',
+      price: 99_000_000,
+      locality: 'Elsewhere',
+    });
     const groups = groupCrossPortalDuplicates([
       { key: 'k1', parsed: a },
       { key: 'k2', parsed: b },
@@ -250,7 +321,12 @@ describe('groupCrossPortalDuplicates', () => {
 
   it('keeps distinct 2 BHK and 3 BHK in the same locality apart', () => {
     const a = listing({ portalListingId: 'a', bedrooms: 2, price: 8_900_000 });
-    const b = listing({ portal: '99acres', portalListingId: 'b', bedrooms: 3, price: 8_900_000 });
+    const b = listing({
+      portal: '99acres',
+      portalListingId: 'b',
+      bedrooms: 3,
+      price: 8_900_000,
+    });
     const groups = groupCrossPortalDuplicates([
       { key: 'k1', parsed: a },
       { key: 'k2', parsed: b },

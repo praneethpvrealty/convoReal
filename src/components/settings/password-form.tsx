@@ -81,10 +81,10 @@ export function PasswordForm() {
   };
 
   return (
-    <Card className="bg-slate-900/40 border-slate-800">
+    <Card className="border-slate-800 bg-slate-900/40">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
-          <KeyRound className="size-4 text-primary" />
+          <KeyRound className="text-primary size-4" />
           Password
         </CardTitle>
         <CardDescription className="text-slate-400">

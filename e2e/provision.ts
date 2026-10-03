@@ -13,7 +13,9 @@ const INVITE = `e2e-${randomBytes(9).toString('base64url')}`;
 
 async function main() {
   // Clean any prior run so this is repeatable.
-  const { data: existing } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const { data: existing } = await admin.auth.admin.listUsers({
+    perPage: 1000,
+  });
   const prior = existing?.users.find((u) => u.email === EMAIL);
   if (prior) {
     console.log('removing prior test user', prior.id);
@@ -23,9 +25,13 @@ async function main() {
 
   // Mint a real invite rather than bypassing the gate — the signup
   // trigger is what builds profile + account, and we want its output.
-  const { error: invErr } = await admin.rpc('hash_beta_token', { p_token: INVITE });
+  const { error: invErr } = await admin.rpc('hash_beta_token', {
+    p_token: INVITE,
+  });
   if (invErr) throw invErr;
-  const { data: hashed } = await admin.rpc('hash_beta_token', { p_token: INVITE });
+  const { data: hashed } = await admin.rpc('hash_beta_token', {
+    p_token: INVITE,
+  });
   const { error: insErr } = await admin.from('beta_invites').insert({
     code: INVITE,
     token_hash: hashed,
@@ -52,7 +58,9 @@ async function main() {
   if (suErr) throw suErr;
   const userId = created.user!.id;
   if (!created.user!.phone_confirmed_at) {
-    throw new Error('phone did not confirm; the shell will redirect to /verify-phone');
+    throw new Error(
+      'phone did not confirm; the shell will redirect to /verify-phone'
+    );
   }
   console.log('created', userId);
 
@@ -63,10 +71,14 @@ async function main() {
     .eq('user_id', userId)
     .maybeSingle();
   console.log('profile:', JSON.stringify(profile));
-  if (!profile?.account_id) throw new Error('trigger did not bootstrap an account');
+  if (!profile?.account_id)
+    throw new Error('trigger did not bootstrap an account');
 
   const { data: account } = await admin
-    .from('accounts').select('id, name').eq('id', profile.account_id).maybeSingle();
+    .from('accounts')
+    .select('id, name')
+    .eq('id', profile.account_id)
+    .maybeSingle();
   console.log('account:', JSON.stringify(account));
 
   // Prove the credentials actually log in, rather than assuming.
@@ -81,33 +93,71 @@ async function main() {
 
   writeFileSync(
     '.env.e2e.local',
-    `# Throwaway account for the Playwright harness. Gitignored.\nE2E_EMAIL=${EMAIL}\nE2E_PASSWORD=${PASSWORD}\nE2E_ACCOUNT_ID=${profile.account_id}\nE2E_USER_ID=${userId}\n`,
+    `# Throwaway account for the Playwright harness. Gitignored.\nE2E_EMAIL=${EMAIL}\nE2E_PASSWORD=${PASSWORD}\nE2E_ACCOUNT_ID=${profile.account_id}\nE2E_USER_ID=${userId}\n`
   );
   console.log('\ncredentials written to .env.e2e.local');
 }
 async function seedContactFollowupFixtures(accountId: string, userId: string) {
   const rows = [
-    { title: '3 BHK Apartment in Koramangala 5th Block', type: 'Flat/ Apartment', price: 18_000_000, sublocality: 'Koramangala', bedrooms: 3, area_sqft: 1650 },
-    { title: '2400 Sq.Ft. Residential Plot in HSR Layout', type: 'Residential Land/ Plot', price: 19_500_000, sublocality: 'HSR Layout', land_area: 2400 },
-    { title: 'Commercial Shop on BTM 100ft Road', type: 'Commercial Shop', price: 32_000_000, sublocality: 'BTM Layout', area_sqft: 900 },
-    { title: 'Farm Land near Devanahalli', type: 'Agricultural Land', price: 16_500_000, sublocality: 'Devanahalli', land_area: 43560 },
-    { title: 'Palm Grove', type: 'Flat/ Apartment', price: 30_000_000, sublocality: 'HSR Layout', bedrooms: 3, area_sqft: 1800, status: 'Sold' },
+    {
+      title: '3 BHK Apartment in Koramangala 5th Block',
+      type: 'Flat/ Apartment',
+      price: 18_000_000,
+      sublocality: 'Koramangala',
+      bedrooms: 3,
+      area_sqft: 1650,
+    },
+    {
+      title: '2400 Sq.Ft. Residential Plot in HSR Layout',
+      type: 'Residential Land/ Plot',
+      price: 19_500_000,
+      sublocality: 'HSR Layout',
+      land_area: 2400,
+    },
+    {
+      title: 'Commercial Shop on BTM 100ft Road',
+      type: 'Commercial Shop',
+      price: 32_000_000,
+      sublocality: 'BTM Layout',
+      area_sqft: 900,
+    },
+    {
+      title: 'Farm Land near Devanahalli',
+      type: 'Agricultural Land',
+      price: 16_500_000,
+      sublocality: 'Devanahalli',
+      land_area: 43560,
+    },
+    {
+      title: 'Palm Grove',
+      type: 'Flat/ Apartment',
+      price: 30_000_000,
+      sublocality: 'HSR Layout',
+      bedrooms: 3,
+      area_sqft: 1800,
+      status: 'Sold',
+    },
   ];
-  const { data: properties, error } = await admin.from('properties').insert(
-    rows.map((r) => ({
-      account_id: accountId,
-      city: 'Bangalore',
-      state: 'Karnataka',
-      location: `${r.sublocality}, Bangalore, Karnataka`,
-      status: 'status' in r ? r.status : 'Available',
-      listing_type: 'Sale',
-      is_published: true,
-      description: 'Seeded by the Claude E2E harness.',
-      ...r,
-    })),
-  ).select('id, title');
+  const { data: properties, error } = await admin
+    .from('properties')
+    .insert(
+      rows.map((r) => ({
+        account_id: accountId,
+        city: 'Bangalore',
+        state: 'Karnataka',
+        location: `${r.sublocality}, Bangalore, Karnataka`,
+        status: 'status' in r ? r.status : 'Available',
+        listing_type: 'Sale',
+        is_published: true,
+        description: 'Seeded by the Claude E2E harness.',
+        ...r,
+      }))
+    )
+    .select('id, title');
   if (error) throw error;
-  const palmGrove = properties?.find((property) => property.title === 'Palm Grove');
+  const palmGrove = properties?.find(
+    (property) => property.title === 'Palm Grove'
+  );
   const { error: contactError } = await admin.from('contacts').insert([
     {
       account_id: accountId,
@@ -139,4 +189,7 @@ async function seedContactFollowupFixtures(accountId: string, userId: string) {
   console.log(`seeded ${rows.length} listings and contact follow-up fixtures`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

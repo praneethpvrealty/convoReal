@@ -23,13 +23,7 @@ import { BRANDING } from '@/config/branding';
 import { PropertyBlueprintLoader } from '@/components/ui/property-blueprint-loader';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { useTopupModal } from '@/components/layout/topup-modal-context';
-import {
-  Sparkles,
-  Download,
-  Loader2,
-  RefreshCw,
-  Save,
-} from 'lucide-react';
+import { Sparkles, Download, Loader2, RefreshCw, Save } from 'lucide-react';
 
 interface FlyerCreatorDialogProps {
   open: boolean;
@@ -69,7 +63,9 @@ export function FlyerCreatorDialog({
   const [brandContact, setBrandContact] = useState('');
 
   // Image loading caches to avoid reloading during simple toggle modifications
-  const [bgImageElement, setBgImageElement] = useState<HTMLImageElement | null>(null);
+  const [bgImageElement, setBgImageElement] = useState<HTMLImageElement | null>(
+    null
+  );
   const [currency, setCurrency] = useState('INR');
 
   // Prefill defaults on open
@@ -77,10 +73,15 @@ export function FlyerCreatorDialog({
   const lastOpenRef = useRef<boolean>(false);
 
   useEffect(() => {
-    if (open && property && (open !== lastOpenRef.current || property.id !== lastPropertyIdRef.current)) {
+    if (
+      open &&
+      property &&
+      (open !== lastOpenRef.current ||
+        property.id !== lastPropertyIdRef.current)
+    ) {
       const hasOriginal = property.images && property.images.length > 0;
       setImageSource(hasOriginal ? 'original' : 'ai');
-      
+
       setAiPrompt(
         `A high-end, professional architectural photograph of a luxury ${property.type.toLowerCase()} in ${property.sublocality || property.city || 'Bangalore'}, clean composition, beautiful morning sunlight, modern real estate marketing photography style`
       );
@@ -126,21 +127,36 @@ export function FlyerCreatorDialog({
         body: JSON.stringify({
           prompt: aiPrompt.trim(),
           aspectRatio: '1:1',
-          image: (property && property.images && property.images.length > 0) ? storagePublicUrl(property.images[0]) : null,
+          image:
+            property && property.images && property.images.length > 0
+              ? storagePublicUrl(property.images[0])
+              : null,
         }),
       });
 
       if (!response.ok) {
         const errData = await response.json();
         if (response.status === 402) {
-          if (errData.upgradeRequired && typeof errData.upgradeRequired === 'string') {
-            toast.error(errData.error || 'AI features require a plan upgrade.', {
-              action: { label: 'Upgrade plan', onClick: () => router.push('/settings?tab=billing') },
-            });
+          if (
+            errData.upgradeRequired &&
+            typeof errData.upgradeRequired === 'string'
+          ) {
+            toast.error(
+              errData.error || 'AI features require a plan upgrade.',
+              {
+                action: {
+                  label: 'Upgrade plan',
+                  onClick: () => router.push('/settings?tab=billing'),
+                },
+              }
+            );
           } else {
-            toast.error(errData.error || `You've used all your credits for this month.`, {
-              action: { label: 'Buy credits', onClick: openTopupModal },
-            });
+            toast.error(
+              errData.error || `You've used all your credits for this month.`,
+              {
+                action: { label: 'Buy credits', onClick: openTopupModal },
+              }
+            );
           }
           return;
         }
@@ -153,7 +169,8 @@ export function FlyerCreatorDialog({
       toast.success('AI Listing image generated successfully!');
     } catch (err: unknown) {
       console.error(err);
-      const message = err instanceof Error ? err.message : 'Failed to generate image';
+      const message =
+        err instanceof Error ? err.message : 'Failed to generate image';
       toast.error(message);
     } finally {
       setGeneratingAiImage(false);
@@ -166,9 +183,10 @@ export function FlyerCreatorDialog({
     setBgImageElement(null);
 
     const hasOriginal = property.images && property.images.length > 0;
-    const urlToLoad = imageSource === 'original' && hasOriginal
-      ? storagePublicUrl(property.images[0])
-      : aiImageUrl;
+    const urlToLoad =
+      imageSource === 'original' && hasOriginal
+        ? storagePublicUrl(property.images[0])
+        : aiImageUrl;
 
     if (!urlToLoad) return;
 
@@ -180,7 +198,9 @@ export function FlyerCreatorDialog({
     img.onerror = () => {
       console.error('Failed to load image from URL:', urlToLoad);
       if (imageSource === 'original') {
-        toast.error('Could not load original property image. Falling back to placeholder background.');
+        toast.error(
+          'Could not load original property image. Falling back to placeholder background.'
+        );
       }
     };
     img.src = urlToLoad;
@@ -208,7 +228,10 @@ export function FlyerCreatorDialog({
       // Center-cover crop image drawing
       const imgRatio = bgImageElement.width / bgImageElement.height;
       const canvasRatio = width / height;
-      let sx = 0, sy = 0, sw = bgImageElement.width, sh = bgImageElement.height;
+      let sx = 0,
+        sy = 0,
+        sw = bgImageElement.width,
+        sh = bgImageElement.height;
       if (imgRatio > canvasRatio) {
         sw = bgImageElement.height * canvasRatio;
         sx = (bgImageElement.width - sw) / 2;
@@ -219,7 +242,14 @@ export function FlyerCreatorDialog({
       ctx.drawImage(bgImageElement, sx, sy, sw, sh, 0, 0, width, height);
     } else {
       // Background gradient placeholder when no image is loaded
-      const placeholderGrad = ctx.createRadialGradient(width/2, height/2, width/6, width/2, height/2, width*0.8);
+      const placeholderGrad = ctx.createRadialGradient(
+        width / 2,
+        height / 2,
+        width / 6,
+        width / 2,
+        height / 2,
+        width * 0.8
+      );
       placeholderGrad.addColorStop(0, '#1e293b');
       placeholderGrad.addColorStop(1, '#020617');
       ctx.fillStyle = placeholderGrad;
@@ -281,7 +311,10 @@ export function FlyerCreatorDialog({
     const truncateText = (text: string, maxWidth: number) => {
       if (ctx.measureText(text).width <= maxWidth) return text;
       let truncated = text;
-      while (truncated.length > 0 && ctx.measureText(truncated + '...').width > maxWidth) {
+      while (
+        truncated.length > 0 &&
+        ctx.measureText(truncated + '...').width > maxWidth
+      ) {
         truncated = truncated.slice(0, -1);
       }
       return truncated + '...';
@@ -326,7 +359,15 @@ export function FlyerCreatorDialog({
     const textWidth = ctx.measureText(categoryText).width;
     const padding = 20;
     const badgeW = textWidth + padding * 2;
-    drawRoundRect(width - badgeW - 48, 48, badgeW, 56, 12, 'rgba(15, 23, 42, 0.85)', 'rgba(255, 255, 255, 0.15)');
+    drawRoundRect(
+      width - badgeW - 48,
+      48,
+      badgeW,
+      56,
+      12,
+      'rgba(15, 23, 42, 0.85)',
+      'rgba(255, 255, 255, 0.15)'
+    );
     ctx.fillStyle = '#38bdf8'; // Sky blue text
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -356,11 +397,14 @@ export function FlyerCreatorDialog({
       ctx.textBaseline = 'alphabetic';
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 44px "Outfit", "Inter", sans-serif';
-      
-      const maxTitleWidth = showPrice ? (width - priceBadgeW - 136) : (width - 96);
+
+      const maxTitleWidth = showPrice ? width - priceBadgeW - 136 : width - 96;
       const titleLines = getWrappedLines(property.title, maxTitleWidth);
       if (titleLines.length > 2) {
-        titleLines[1] = truncateText(titleLines[1] + ' ' + titleLines.slice(2).join(' '), maxTitleWidth);
+        titleLines[1] = truncateText(
+          titleLines[1] + ' ' + titleLines.slice(2).join(' '),
+          maxTitleWidth
+        );
         titleLines.splice(2);
       }
 
@@ -375,17 +419,31 @@ export function FlyerCreatorDialog({
       if (showLocation) {
         ctx.fillStyle = '#94a3b8'; // Muted slate text
         ctx.font = '600 28px "Outfit", "Inter", sans-serif';
-        const locationText = truncateText(`📍 ${property.location}`, width - 96);
+        const locationText = truncateText(
+          `📍 ${property.location}`,
+          width - 96
+        );
         ctx.fillText(locationText, 48, height - 145);
       }
 
       // PRICE BADGE (Right side)
       if (showPrice) {
-        drawRoundRect(width - priceBadgeW - 48, height - 260, priceBadgeW, 80, 16, '#10b981'); // Emerald solid green
+        drawRoundRect(
+          width - priceBadgeW - 48,
+          height - 260,
+          priceBadgeW,
+          80,
+          16,
+          '#10b981'
+        ); // Emerald solid green
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(priceLabel, width - priceBadgeW - 48 + priceBadgeW / 2, height - 260 + 40);
+        ctx.fillText(
+          priceLabel,
+          width - priceBadgeW - 48 + priceBadgeW / 2,
+          height - 260 + 40
+        );
       }
 
       // BRANDING DETAILS BAR
@@ -403,11 +461,13 @@ export function FlyerCreatorDialog({
         if (brandContact) {
           ctx.fillStyle = '#f8fafc';
           ctx.textAlign = 'right';
-          const rightBrandText = truncateText(`📞 ${brandContact}`, width / 2 - 60);
+          const rightBrandText = truncateText(
+            `📞 ${brandContact}`,
+            width / 2 - 60
+          );
           ctx.fillText(rightBrandText, width - 48, height - 45);
         }
       }
-
     } else if (template === 'glassmorphism') {
       // FLOATING GLASS SLATE
       const cardW = width - 96;
@@ -416,7 +476,15 @@ export function FlyerCreatorDialog({
       const cardY = height - cardH - 48;
 
       // Draw glass backing (dark background with frosted borders)
-      drawRoundRect(cardX, cardY, cardW, cardH, 24, 'rgba(15, 23, 42, 0.88)', 'rgba(255, 255, 255, 0.18)');
+      drawRoundRect(
+        cardX,
+        cardY,
+        cardW,
+        cardH,
+        24,
+        'rgba(15, 23, 42, 0.88)',
+        'rgba(255, 255, 255, 0.18)'
+      );
 
       // Calculate price width first to constrain title width
       let priceW = 0;
@@ -431,11 +499,14 @@ export function FlyerCreatorDialog({
       ctx.textBaseline = 'top';
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 42px "Outfit", "Inter", sans-serif';
-      
-      const maxTitleWidth = showPrice ? (cardW - priceW - 112) : (cardW - 72);
+
+      const maxTitleWidth = showPrice ? cardW - priceW - 112 : cardW - 72;
       const titleLines = getWrappedLines(property.title, maxTitleWidth);
       if (titleLines.length > 2) {
-        titleLines[1] = truncateText(titleLines[1] + ' ' + titleLines.slice(2).join(' '), maxTitleWidth);
+        titleLines[1] = truncateText(
+          titleLines[1] + ' ' + titleLines.slice(2).join(' '),
+          maxTitleWidth
+        );
         titleLines.splice(2);
       }
 
@@ -453,7 +524,10 @@ export function FlyerCreatorDialog({
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         const locY = titleLines.length === 2 ? cardY + 120 : cardY + 100;
-        const locationText = truncateText(`📍 ${property.location}`, cardW - 72);
+        const locationText = truncateText(
+          `📍 ${property.location}`,
+          cardW - 72
+        );
         ctx.fillText(locationText, cardX + 36, locY);
       }
 
@@ -486,14 +560,23 @@ export function FlyerCreatorDialog({
         if (brandContact) {
           ctx.fillStyle = '#ffffff';
           ctx.textAlign = 'right';
-          const contactRightText = truncateText(`Contact: ${brandContact}`, cardW / 2 - 40);
+          const contactRightText = truncateText(
+            `Contact: ${brandContact}`,
+            cardW / 2 - 40
+          );
           ctx.fillText(contactRightText, cardX + cardW - 36, cardY + 184);
         }
       }
-
     } else if (template === 'vignette') {
       // RADIAL DARK VIGNETTE OVERLAY
-      const vignette = ctx.createRadialGradient(width/2, height/2, width/5, width/2, height/2, width*0.75);
+      const vignette = ctx.createRadialGradient(
+        width / 2,
+        height / 2,
+        width / 5,
+        width / 2,
+        height / 2,
+        width * 0.75
+      );
       vignette.addColorStop(0, 'rgba(2, 6, 23, 0.1)');
       vignette.addColorStop(0.6, 'rgba(2, 6, 23, 0.7)');
       vignette.addColorStop(1, 'rgba(2, 6, 23, 0.95)');
@@ -513,11 +596,14 @@ export function FlyerCreatorDialog({
       ctx.font = 'bold 48px "Outfit", "Inter", sans-serif';
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'center';
-      
+
       const maxTitleWidth = width - 160;
       const titleLines = getWrappedLines(property.title, maxTitleWidth);
       if (titleLines.length > 2) {
-        titleLines[1] = truncateText(titleLines[1] + ' ' + titleLines.slice(2).join(' '), maxTitleWidth);
+        titleLines[1] = truncateText(
+          titleLines[1] + ' ' + titleLines.slice(2).join(' '),
+          maxTitleWidth
+        );
         titleLines.splice(2);
       }
 
@@ -547,7 +633,10 @@ export function FlyerCreatorDialog({
       if (showLocation) {
         ctx.fillStyle = '#cbd5e1';
         ctx.font = '500 28px "Outfit", "Inter", sans-serif';
-        const locationText = truncateText(`📍 ${property.location}`, width - 160);
+        const locationText = truncateText(
+          `📍 ${property.location}`,
+          width - 160
+        );
         ctx.fillText(locationText, width / 2, height / 2 + 130);
       }
 
@@ -561,13 +650,26 @@ export function FlyerCreatorDialog({
         if (brandContact) {
           ctx.fillStyle = '#ffffff';
           ctx.font = '600 24px "Outfit", "Inter", sans-serif';
-          const contactText = truncateText(`Direct Hotline: ${brandContact}`, width - 160);
+          const contactText = truncateText(
+            `Direct Hotline: ${brandContact}`,
+            width - 160
+          );
           ctx.fillText(contactText, width / 2, height - 85);
         }
       }
     }
-
-  }, [property, template, bgImageElement, showPrice, showCode, showLocation, showBranding, brandName, brandContact, currency]);
+  }, [
+    property,
+    template,
+    bgImageElement,
+    showPrice,
+    showCode,
+    showLocation,
+    showBranding,
+    brandName,
+    brandContact,
+    currency,
+  ]);
 
   // Redraw whenever parameters change
   useEffect(() => {
@@ -599,11 +701,16 @@ export function FlyerCreatorDialog({
       console.log('[FlyerCreatorDialog] Converting canvas to blob...');
       const blob = await new Promise<Blob | null>((resolve) => {
         const timeout = setTimeout(() => {
-          console.warn('[FlyerCreatorDialog] toBlob timed out after 10s — trying toDataURL fallback');
+          console.warn(
+            '[FlyerCreatorDialog] toBlob timed out after 10s — trying toDataURL fallback'
+          );
           try {
             const dataUrl = canvas.toDataURL('image/png');
             const byteString = atob(dataUrl.split(',')[1]);
-            const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+            const mimeString = dataUrl
+              .split(',')[0]
+              .split(':')[1]
+              .split(';')[0];
             const ab = new ArrayBuffer(byteString.length);
             const ia = new Uint8Array(ab);
             for (let i = 0; i < byteString.length; i++) {
@@ -611,7 +718,10 @@ export function FlyerCreatorDialog({
             }
             resolve(new Blob([ab], { type: mimeString }));
           } catch (fallbackErr) {
-            console.error('[FlyerCreatorDialog] toDataURL fallback also failed (canvas tainted?):', fallbackErr);
+            console.error(
+              '[FlyerCreatorDialog] toDataURL fallback also failed (canvas tainted?):',
+              fallbackErr
+            );
             resolve(null);
           }
         }, 10000);
@@ -623,12 +733,18 @@ export function FlyerCreatorDialog({
           }, 'image/png');
         } catch (err) {
           clearTimeout(timeout);
-          console.error('[FlyerCreatorDialog] Canvas toBlob threw (tainted canvas):', err);
+          console.error(
+            '[FlyerCreatorDialog] Canvas toBlob threw (tainted canvas):',
+            err
+          );
           // Synchronous SecurityError on tainted canvas — try toDataURL fallback
           try {
             const dataUrl = canvas.toDataURL('image/png');
             const byteString = atob(dataUrl.split(',')[1]);
-            const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+            const mimeString = dataUrl
+              .split(',')[0]
+              .split(':')[1]
+              .split(';')[0];
             const ab = new ArrayBuffer(byteString.length);
             const ia = new Uint8Array(ab);
             for (let i = 0; i < byteString.length; i++) {
@@ -640,11 +756,13 @@ export function FlyerCreatorDialog({
           }
         }
       });
-      
+
       if (!blob) {
-        throw new Error('Failed to generate image blob. The canvas may be tainted by a cross-origin image. Try using "Generate with AI" for the background instead.');
+        throw new Error(
+          'Failed to generate image blob. The canvas may be tainted by a cross-origin image. Try using "Generate with AI" for the background instead.'
+        );
       }
-      
+
       console.log('[FlyerCreatorDialog] Blob created, size:', blob.size);
 
       // 2. Upload blob to Supabase Storage
@@ -665,7 +783,7 @@ export function FlyerCreatorDialog({
         console.error('[FlyerCreatorDialog] Upload error:', uploadError);
         throw new Error(`Failed to upload flyer: ${uploadError.message}`);
       }
-      
+
       console.log('[FlyerCreatorDialog] Upload successful');
 
       // 3. Store the bucket-relative object path
@@ -673,7 +791,10 @@ export function FlyerCreatorDialog({
 
       // 4. Update the property's images in the database (placing flyer at index 0)
       const currentImages = property.images || [];
-      const updatedImages = [storedPath, ...currentImages.filter(url => url !== storedPath)];
+      const updatedImages = [
+        storedPath,
+        ...currentImages.filter((url) => url !== storedPath),
+      ];
 
       console.log('[FlyerCreatorDialog] Updating property images...');
       const { data: saved, error: updateError } = await supabase
@@ -683,31 +804,46 @@ export function FlyerCreatorDialog({
         .select('id');
 
       if (!updateError && !saved?.length) {
-        throw new Error('Failed to save flyer url to property: listing not found.');
+        throw new Error(
+          'Failed to save flyer url to property: listing not found.'
+        );
       }
 
       if (updateError) {
-        console.error('[FlyerCreatorDialog] Database update error:', updateError);
-        throw new Error(`Failed to save flyer url to property: ${updateError.message}`);
+        console.error(
+          '[FlyerCreatorDialog] Database update error:',
+          updateError
+        );
+        throw new Error(
+          `Failed to save flyer url to property: ${updateError.message}`
+        );
       }
-      
+
       console.log('[FlyerCreatorDialog] Property updated successfully');
 
       if (!silent) {
-        toast.success('Flyer saved successfully as the default property photo!');
+        toast.success(
+          'Flyer saved successfully as the default property photo!'
+        );
         setImageSource('original');
       } else {
         console.log('[FlyerCreatorDialog] Flyer auto-saved to property images');
       }
-      
+
       // Invoke callback to refresh properties on the dashboard
       if (onSaved) {
         onSaved();
       }
     } catch (err) {
-      console.error('[FlyerCreatorDialog] Error saving flyer to property:', err);
+      console.error(
+        '[FlyerCreatorDialog] Error saving flyer to property:',
+        err
+      );
       if (!silent) {
-        const message = err instanceof Error ? err.message : 'Failed to save flyer to property.';
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Failed to save flyer to property.';
         toast.error(message);
       }
     } finally {
@@ -726,65 +862,78 @@ export function FlyerCreatorDialog({
       link.href = canvas.toDataURL('image/png');
       link.click();
       toast.success('AI Marketing Flyer downloaded successfully!');
-      
+
       // Auto-save the flyer to property images by default
       await uploadFlyerToProperty(true);
     } catch (err) {
       console.error(err);
-      toast.error('Download failed. Supabase storage bucket CORS headers might be blocking canvas operations. Try using an AI generated image.');
+      toast.error(
+        'Download failed. Supabase storage bucket CORS headers might be blocking canvas operations. Try using an AI generated image.'
+      );
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-4xl max-h-[92vh] flex flex-col min-h-0 overflow-hidden p-6 gap-0">
+      <DialogContent className="flex max-h-[92vh] min-h-0 flex-col gap-0 overflow-hidden border-slate-700 bg-slate-900 p-6 text-slate-200 sm:max-w-4xl">
         <DialogHeader className="mb-4 shrink-0">
-          <DialogTitle className="text-white flex items-center gap-2 text-xl font-black">
-            <Sparkles className="size-5 text-primary animate-pulse" />
+          <DialogTitle className="flex items-center gap-2 text-xl font-black text-white">
+            <Sparkles className="text-primary size-5 animate-pulse" />
             AI-Powered Flyer Creator
           </DialogTitle>
-          <DialogDescription className="text-slate-400 text-xs mt-0.5">
-            Modify backgrounds with AI text-to-image prompts and overlay listing details to make premium marketing graphics.
+          <DialogDescription className="mt-0.5 text-xs text-slate-400">
+            Modify backgrounds with AI text-to-image prompts and overlay listing
+            details to make premium marketing graphics.
           </DialogDescription>
         </DialogHeader>
 
         {/* Modal Main Panel */}
-        <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0 pr-1 pb-4">
-          
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto pr-1 pb-4 md:grid-cols-2">
           {/* LEFT: Live Preview Canvas */}
-          <div className="flex flex-col items-center justify-center bg-slate-950 border border-slate-800 rounded-xl p-4 self-start">
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2.5">Live Design Preview (1080x1080)</span>
-            <div className="relative w-full max-w-[340px] aspect-square bg-slate-900 border border-slate-800 rounded-lg overflow-hidden shadow-inner flex items-center justify-center">
+          <div className="flex flex-col items-center justify-center self-start rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <span className="mb-2.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+              Live Design Preview (1080x1080)
+            </span>
+            <div className="relative flex aspect-square w-full max-w-[340px] items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow-inner">
               <canvas
                 ref={canvasRef}
-                className="w-full h-full object-contain"
+                className="h-full w-full object-contain"
                 style={{ aspectRatio: '1/1' }}
               />
               {generatingAiImage && (
-                <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 gap-3 select-none">
-                  <PropertyBlueprintLoader size={56} label="Generating your image" />
-                  <p className="text-sm font-bold text-white">Google AI is generating your image...</p>
-                  <p className="text-xs text-slate-400">Usually takes 4-7 seconds. Please wait.</p>
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/80 p-6 text-center backdrop-blur-sm select-none">
+                  <PropertyBlueprintLoader
+                    size={56}
+                    label="Generating your image"
+                  />
+                  <p className="text-sm font-bold text-white">
+                    Google AI is generating your image...
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Usually takes 4-7 seconds. Please wait.
+                  </p>
                 </div>
               )}
             </div>
-            <div className="text-[10px] text-slate-500 text-center mt-3 max-w-[320px]">
-              Tip: AI-generated listing photos bypass browser CORS limitations, ensuring smooth downloading at all times.
+            <div className="mt-3 max-w-[320px] text-center text-[10px] text-slate-500">
+              Tip: AI-generated listing photos bypass browser CORS limitations,
+              ensuring smooth downloading at all times.
             </div>
           </div>
 
           {/* RIGHT: Flyer Settings Controls */}
           <div className="space-y-4 pr-1">
-            
             {/* Image Source Selection */}
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-350">Listing Image Background</Label>
-              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-lg border border-slate-800">
+              <Label className="text-slate-350 text-xs font-bold">
+                Listing Image Background
+              </Label>
+              <div className="grid grid-cols-2 gap-2 rounded-lg border border-slate-800 bg-slate-950 p-1">
                 <button
                   type="button"
                   onClick={() => setImageSource('original')}
                   disabled={!property?.images || property.images.length === 0}
-                  className={`py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  className={`cursor-pointer rounded-md py-1.5 text-xs font-bold transition-all ${
                     imageSource === 'original'
                       ? 'bg-slate-800 text-white shadow-sm'
                       : 'text-slate-400 hover:text-slate-200 disabled:opacity-30'
@@ -798,16 +947,18 @@ export function FlyerCreatorDialog({
                     if (aiImageUrl) setImageSource('ai');
                     else handleGenerateAIImage();
                   }}
-                  className={`py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                  className={`flex cursor-pointer items-center justify-center gap-1 rounded-md py-1.5 text-xs font-bold transition-all ${
                     imageSource === 'ai'
                       ? 'bg-slate-800 text-white shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <Sparkles className="size-3 text-primary" />
+                  <Sparkles className="text-primary size-3" />
                   {aiImageUrl ? 'AI Generated' : 'Generate with AI'}
                   {!aiImageUrl && (
-                    <span className="text-[9px] text-slate-500 font-normal">({AI_FEATURE_COSTS.image_enhance} cr)</span>
+                    <span className="text-[9px] font-normal text-slate-500">
+                      ({AI_FEATURE_COSTS.image_enhance} cr)
+                    </span>
                   )}
                 </button>
               </div>
@@ -815,18 +966,25 @@ export function FlyerCreatorDialog({
 
             {/* AI Generator prompt panel */}
             {(imageSource === 'ai' || !bgImageElement) && (
-              <div className="bg-slate-950/40 border border-slate-800 p-3 rounded-lg space-y-2.5 animate-fade-in">
+              <div className="animate-fade-in space-y-2.5 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="ai-prompt-input" className="text-xs font-semibold text-primary">
+                  <Label
+                    htmlFor="ai-prompt-input"
+                    className="text-primary text-xs font-semibold"
+                  >
                     AI Text-to-Image Prompt (Google AI)
                   </Label>
                   <Button
                     size="xs"
                     onClick={handleGenerateAIImage}
                     disabled={generatingAiImage}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground h-6 text-[10px] font-bold py-0 cursor-pointer flex items-center gap-1"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground flex h-6 cursor-pointer items-center gap-1 py-0 text-[10px] font-bold"
                   >
-                    {generatingAiImage ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+                    {generatingAiImage ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="size-3" />
+                    )}
                     Regenerate ({AI_FEATURE_COSTS.image_enhance} cr)
                   </Button>
                 </div>
@@ -835,7 +993,7 @@ export function FlyerCreatorDialog({
                   rows={3}
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
-                  className="bg-slate-800 border-slate-700 text-xs text-white placeholder:text-slate-500 rounded-md focus:ring-0 focus:border-slate-600 focus:outline-none"
+                  className="rounded-md border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500 focus:border-slate-600 focus:ring-0 focus:outline-none"
                   placeholder="Describe the background image details..."
                 />
               </div>
@@ -843,56 +1001,65 @@ export function FlyerCreatorDialog({
 
             {/* Template overlay style selector */}
             <div className="space-y-1.5">
-              <Label htmlFor="flyer-template" className="text-xs font-bold text-slate-350">Overlay Template Style</Label>
+              <Label
+                htmlFor="flyer-template"
+                className="text-slate-350 text-xs font-bold"
+              >
+                Overlay Template Style
+              </Label>
               <select
                 id="flyer-template"
                 value={template}
                 onChange={(e) => setTemplate(e.target.value as TemplateStyle)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white focus:border-primary focus:outline-none font-medium"
+                className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-white focus:outline-none"
               >
                 <option value="minimalist">Modern Minimalist Gradient</option>
-                <option value="glassmorphism">Floating Frosted Glass Card</option>
+                <option value="glassmorphism">
+                  Floating Frosted Glass Card
+                </option>
                 <option value="vignette">Radial Dark Vignette Frame</option>
               </select>
             </div>
 
             {/* Display visibility toggles */}
-            <div className="space-y-2 bg-slate-950/20 border border-slate-850 p-3.5 rounded-xl">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-2">Configure Overlay Details</span>
+            <div className="border-slate-850 space-y-2 rounded-xl border bg-slate-950/20 p-3.5">
+              <span className="mb-2 block text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                Configure Overlay Details
+              </span>
               <div className="grid grid-cols-2 gap-3">
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white transition-all">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300 transition-all select-none hover:text-white">
                   <input
                     type="checkbox"
                     checked={showPrice}
                     onChange={(e) => setShowPrice(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-900 text-primary focus:ring-0 h-4 w-4"
+                    className="text-primary h-4 w-4 rounded border-slate-700 bg-slate-900 focus:ring-0"
                   />
                   Show Listing Price
                 </label>
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white transition-all">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300 transition-all select-none hover:text-white">
                   <input
                     type="checkbox"
                     checked={showCode}
                     onChange={(e) => setShowCode(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-900 text-primary focus:ring-0 h-4 w-4"
+                    className="text-primary h-4 w-4 rounded border-slate-700 bg-slate-900 focus:ring-0"
                   />
                   Show Unique ID
                 </label>
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white transition-all">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300 transition-all select-none hover:text-white">
                   <input
                     type="checkbox"
                     checked={showLocation}
                     onChange={(e) => setShowLocation(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-900 text-primary focus:ring-0 h-4 w-4"
+                    className="text-primary h-4 w-4 rounded border-slate-700 bg-slate-900 focus:ring-0"
                   />
                   Show Full Location
                 </label>
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none hover:text-white transition-all">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300 transition-all select-none hover:text-white">
                   <input
                     type="checkbox"
                     checked={showBranding}
                     onChange={(e) => setShowBranding(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-900 text-primary focus:ring-0 h-4 w-4"
+                    className="text-primary h-4 w-4 rounded border-slate-700 bg-slate-900 focus:ring-0"
                   />
                   Show Agent Branding
                 </label>
@@ -901,23 +1068,33 @@ export function FlyerCreatorDialog({
 
             {/* Agent / Brand details custom overlay editor */}
             {showBranding && (
-              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-950/20 border border-slate-850 rounded-xl animate-fade-in">
+              <div className="border-slate-850 animate-fade-in grid grid-cols-2 gap-3 rounded-xl border bg-slate-950/20 p-3">
                 <div className="space-y-1">
-                  <Label htmlFor="brand-name-input" className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Company Brand Name</Label>
+                  <Label
+                    htmlFor="brand-name-input"
+                    className="text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                  >
+                    Company Brand Name
+                  </Label>
                   <Input
                     id="brand-name-input"
                     value={brandName}
                     onChange={(e) => setBrandName(e.target.value)}
-                    className="bg-slate-800 border-slate-700 text-white h-7 text-xs"
+                    className="h-7 border-slate-700 bg-slate-800 text-xs text-white"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="brand-contact-input" className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Agent Phone Callout</Label>
+                  <Label
+                    htmlFor="brand-contact-input"
+                    className="text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                  >
+                    Agent Phone Callout
+                  </Label>
                   <Input
                     id="brand-contact-input"
                     value={brandContact}
                     onChange={(e) => setBrandContact(e.target.value)}
-                    className="bg-slate-800 border-slate-700 text-white h-7 text-xs"
+                    className="h-7 border-slate-700 bg-slate-800 text-xs text-white"
                   />
                 </div>
               </div>
@@ -926,14 +1103,14 @@ export function FlyerCreatorDialog({
         </div>
 
         {/* Modal Footer Controls */}
-        <DialogFooter className="bg-slate-900 border-slate-700 pt-3 border-t shrink-0 flex items-center justify-end w-full">
+        <DialogFooter className="flex w-full shrink-0 items-center justify-end border-t border-slate-700 bg-slate-900 pt-3">
           <div className="flex gap-2">
             <Button
               type="button"
               variant="outline"
               disabled={savingToProperty}
               onClick={() => uploadFlyerToProperty(false)}
-              className="border-primary text-primary hover:bg-primary/10 font-semibold flex items-center gap-1.5 cursor-pointer"
+              className="border-primary text-primary hover:bg-primary/10 flex cursor-pointer items-center gap-1.5 font-semibold"
             >
               {savingToProperty ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -946,7 +1123,7 @@ export function FlyerCreatorDialog({
               type="button"
               disabled={savingToProperty}
               onClick={handleDownload}
-              className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold flex items-center gap-1.5"
+              className="bg-primary hover:bg-primary/95 text-primary-foreground flex items-center gap-1.5 font-semibold"
             >
               <Download className="size-4" />
               Download Flyer

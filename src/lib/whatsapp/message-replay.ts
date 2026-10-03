@@ -21,7 +21,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  *  replay, so pointing at one would silently do nothing. */
 export type ReplayableContentType = 'text' | 'image' | 'document' | 'video';
 
-const REPLAYABLE: ReplayableContentType[] = ['text', 'image', 'document', 'video'];
+const REPLAYABLE: ReplayableContentType[] = [
+  'text',
+  'image',
+  'document',
+  'video',
+];
 
 export interface ReplayableMessage {
   /** messages.id — for logging, not for WhatsApp. */
@@ -51,7 +56,8 @@ export function isReplayable(row: {
   content_text: string | null;
   media_url: string | null;
 }): boolean {
-  if (!REPLAYABLE.includes(row.content_type as ReplayableContentType)) return false;
+  if (!REPLAYABLE.includes(row.content_type as ReplayableContentType))
+    return false;
   if (row.content_text && row.content_text.trim()) return true;
   return mediaIdFromUrl(row.media_url) !== null;
 }

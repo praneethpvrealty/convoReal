@@ -1,8 +1,12 @@
-import { after, NextResponse } from "next/server";
-import { requireRole, toErrorResponse } from "@/lib/auth/account";
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
-import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-helper";
-import { sendWhatsAppMessageAndPersist } from "@/lib/whatsapp/meta-api-dispatcher";
+import { after, NextResponse } from 'next/server';
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
+import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 
 // POST /api/properties/[id]/approve
 //
@@ -25,7 +29,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ctx = await requireRole("agent");
+    const ctx = await requireRole('agent');
 
     const limit = await checkRateLimit(
       `agent:approveProperty:${ctx.userId}`,
@@ -36,7 +40,7 @@ export async function POST(
     const { id } = await params;
     if (!id) {
       return NextResponse.json(
-        { error: "Property ID is required" },
+        { error: 'Property ID is required' },
         { status: 400 }
       );
     }
@@ -44,51 +48,59 @@ export async function POST(
     // Load with owner join so we can send the notification in the same
     // request without a second round-trip.
     const { data: property, error: fetchError } = await ctx.supabase
-      .from("properties")
+      .from('properties')
       .select(
-        "id, title, location, status, owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)"
+        'id, title, location, status, owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
       )
-      .eq("id", id)
-      .eq("account_id", ctx.accountId)
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
       .maybeSingle();
 
     if (fetchError) {
-      console.error("[POST /api/properties/[id]/approve] Fetch error:", fetchError);
+      console.error(
+        '[POST /api/properties/[id]/approve] Fetch error:',
+        fetchError
+      );
       return NextResponse.json(
-        { error: "Failed to load property" },
+        { error: 'Failed to load property' },
         { status: 500 }
       );
     }
 
     if (!property) {
       return NextResponse.json(
-        { error: "Property not found or access denied" },
+        { error: 'Property not found or access denied' },
         { status: 404 }
       );
     }
 
-    if (property.status !== "Pending Review") {
+    if (property.status !== 'Pending Review') {
       return NextResponse.json(
-        { error: `Property is already "${property.status}" — can only approve "Pending Review" listings` },
+        {
+          error: `Property is already "${property.status}" — can only approve "Pending Review" listings`,
+        },
         { status: 409 }
       );
     }
 
     // Approve: mark Available + publish
     const { data: updated, error: updateError } = await ctx.supabase
-      .from("properties")
-      .update({ status: "Available", is_published: true })
-      .eq("id", id)
-      .eq("account_id", ctx.accountId)
+      .from('properties')
+      .update({ status: 'Available', is_published: true })
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
       .select(
-        "*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)"
+        '*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)'
       )
       .single();
 
     if (updateError) {
-      console.error("[POST /api/properties/[id]/approve] Update error:", updateError);
+      console.error(
+        '[POST /api/properties/[id]/approve] Update error:',
+        updateError
+      );
       return NextResponse.json(
-        { error: "Failed to approve property" },
+        { error: 'Failed to approve property' },
         { status: 500 }
       );
     }
@@ -97,7 +109,7 @@ export async function POST(
     autoSyncPropertyCatalogIfNeeded(ctx.supabase, id, ctx.accountId).catch(
       (err) => {
         console.error(
-          "[POST /api/properties/[id]/approve] Catalog sync error:",
+          '[POST /api/properties/[id]/approve] Catalog sync error:',
           err
         );
       }
@@ -107,12 +119,15 @@ export async function POST(
     // abandoned when the serverless invocation completes.
     after(async () => {
       try {
-        const { generateMatchEventForProperty, radarAdminClient } = await import(
-          "@/lib/radar/engine"
+        const { generateMatchEventForProperty, radarAdminClient } =
+          await import('@/lib/radar/engine');
+        await generateMatchEventForProperty(
+          radarAdminClient(),
+          ctx.accountId,
+          id
         );
-        await generateMatchEventForProperty(radarAdminClient(), ctx.accountId, id);
       } catch (err) {
-        console.error("[POST /api/properties/[id]/approve] Radar error:", err);
+        console.error('[POST /api/properties/[id]/approve] Radar error:', err);
       }
     });
 
@@ -123,11 +138,17 @@ export async function POST(
     let ownerName: string | null = null;
 
     const ownerData = property.owner;
-    const owner = (Array.isArray(ownerData) ? ownerData[0] : ownerData) as unknown as { id: string; name: string | null; phone: string | null; } | null;
+    const owner = (Array.isArray(ownerData)
+      ? ownerData[0]
+      : ownerData) as unknown as {
+      id: string;
+      name: string | null;
+      phone: string | null;
+    } | null;
 
     if (owner?.id && owner?.phone) {
       ownerName = owner.name ?? owner.phone;
-      const displayName = owner.name?.split(" ")[0] || "there";
+      const displayName = owner.name?.split(' ')[0] || 'there';
 
       const messageText =
         `Hi ${displayName}! 🎉 Great news — your property *${property.title}* at ${property.location} has been reviewed and approved by our team.\n\n` +
@@ -138,8 +159,8 @@ export async function POST(
           accountId: ctx.accountId,
           userId: ctx.userId,
           contactId: owner.id,
-          kind: "text",
-          senderType: "bot",
+          kind: 'text',
+          senderType: 'bot',
           text: messageText,
         });
 
@@ -156,7 +177,7 @@ export async function POST(
         }
       } catch (waErr) {
         console.error(
-          "[POST /api/properties/[id]/approve] WA notification exception (non-fatal):",
+          '[POST /api/properties/[id]/approve] WA notification exception (non-fatal):',
           waErr
         );
       }

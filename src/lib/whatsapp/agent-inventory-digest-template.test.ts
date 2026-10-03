@@ -17,8 +17,12 @@ describe('agent digest template wiring', () => {
     // Meta, and a category can never be edited afterwards. The owner
     // template is the one approved Utility asset — see this module's
     // header before adding a fifth name here.
-    expect(AGENT_INVENTORY_DIGEST_TEMPLATE_NAME).toBe(OWNER_DIGEST_TEMPLATE_NAME);
-    expect(AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES[0]).toBe(AGENT_INVENTORY_DIGEST_TEMPLATE_NAME);
+    expect(AGENT_INVENTORY_DIGEST_TEMPLATE_NAME).toBe(
+      OWNER_DIGEST_TEMPLATE_NAME
+    );
+    expect(AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES[0]).toBe(
+      AGENT_INVENTORY_DIGEST_TEMPLATE_NAME
+    );
   });
 
   it('keeps every burned agent name as a fallback, newest first', () => {
@@ -62,7 +66,12 @@ describe('buildAgentInventoryDigestParams', () => {
   });
 
   it('uses singular phrasing for one property and a fallback name', () => {
-    const params = buildAgentInventoryDigestParams(null, 1, 'this week', '1 direct buyer');
+    const params = buildAgentInventoryDigestParams(
+      null,
+      1,
+      'this week',
+      '1 direct buyer'
+    );
     expect(params[0]).toBe('there');
     expect(params[1]).toBe('your referred listing (this week)');
   });
@@ -78,8 +87,14 @@ describe('buildAgentInventoryDigestParams', () => {
 
 describe('countTemplateBodyParams', () => {
   it('counts distinct placeholders, so a legacy four-param body still sends', () => {
-    expect(countTemplateBodyParams('Hi {{1}}, activity on {{2}}: {{3}} Next step: {{4}}')).toBe(4);
-    expect(countTemplateBodyParams(buildOwnerDigestTemplatePayload().body_text)).toBe(3);
+    expect(
+      countTemplateBodyParams(
+        'Hi {{1}}, activity on {{2}}: {{3}} Next step: {{4}}'
+      )
+    ).toBe(4);
+    expect(
+      countTemplateBodyParams(buildOwnerDigestTemplatePayload().body_text)
+    ).toBe(3);
     expect(countTemplateBodyParams('{{1}} and {{1}} again')).toBe(1);
     expect(countTemplateBodyParams(null)).toBe(0);
   });

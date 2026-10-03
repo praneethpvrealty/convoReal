@@ -37,7 +37,11 @@ export function BugReportSheet() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'b') {
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === 'b'
+      ) {
         e.preventDefault();
         setOpen((v) => !v);
       }
@@ -72,7 +76,10 @@ export function BugReportSheet() {
             build_id: process.env.NEXT_PUBLIC_BUILD_ID ?? null,
           }),
         });
-        const data = (await res.json()) as { reference?: string; error?: string };
+        const data = (await res.json()) as {
+          reference?: string;
+          error?: string;
+        };
         if (!res.ok) {
           toast.error(data.error || 'Could not send that — try again.');
           return;
@@ -84,7 +91,7 @@ export function BugReportSheet() {
         setSaving(false);
       }
     },
-    [body, severity, saving],
+    [body, severity, saving]
   );
 
   if (!open) {
@@ -93,7 +100,7 @@ export function BugReportSheet() {
         type="button"
         onClick={() => setOpen(true)}
         title="Help & feedback (Ctrl+Shift+B)"
-        className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/90 px-3.5 py-2 text-xs font-medium text-slate-300 shadow-lg backdrop-blur transition-colors hover:border-slate-600 hover:text-white"
+        className="fixed right-4 bottom-4 z-40 flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/90 px-3.5 py-2 text-xs font-medium text-slate-300 shadow-lg backdrop-blur transition-colors hover:border-slate-600 hover:text-white"
       >
         <LifeBuoy className="size-3.5" />
         Help &amp; feedback
@@ -102,10 +109,10 @@ export function BugReportSheet() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
+    <div className="fixed right-4 bottom-4 z-40 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
       <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-          <LifeBuoy className="size-4 text-primary" />
+          <LifeBuoy className="text-primary size-4" />
           {reference ? 'Thanks — logged' : 'Help & feedback'}
         </h2>
         <button
@@ -120,26 +127,32 @@ export function BugReportSheet() {
 
       {reference ? (
         <div className="flex flex-col gap-3 p-4">
-          <div className="flex items-center gap-2.5 rounded-lg border border-primary/30 bg-primary/5 px-3.5 py-3">
-            <Check className="size-4 shrink-0 text-primary" />
+          <div className="border-primary/30 bg-primary/5 flex items-center gap-2.5 rounded-lg border px-3.5 py-3">
+            <Check className="text-primary size-4 shrink-0" />
             <p className="text-sm text-slate-200">
-              Filed as{' '}
-              <b className="font-mono text-white">{reference}</b>. Quote that
-              if you need to chase it.
+              Filed as <b className="font-mono text-white">{reference}</b>.
+              Quote that if you need to chase it.
             </p>
           </div>
           <p className="text-xs text-slate-500">
             We captured the page you were on and the exact build, so you
             don&apos;t have to describe either.
           </p>
-          <Button variant="outline" onClick={reset} className="border-slate-700">
+          <Button
+            variant="outline"
+            onClick={reset}
+            className="border-slate-700"
+          >
             Done
           </Button>
         </div>
       ) : (
         <form onSubmit={submit} className="flex flex-col gap-3.5 p-4">
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="bug-body" className="text-xs font-medium text-slate-400">
+            <label
+              htmlFor="bug-body"
+              className="text-xs font-medium text-slate-400"
+            >
               What do you need help with?
             </label>
             <textarea
@@ -149,7 +162,7 @@ export function BugReportSheet() {
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder="Ask a question, or tell us what went wrong."
-              className="w-full resize-none rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white placeholder:text-slate-600 focus-visible:border-primary focus-visible:outline-none"
+              className="focus-visible:border-primary w-full resize-none rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white placeholder:text-slate-600 focus-visible:outline-none"
             />
           </div>
 
@@ -168,7 +181,7 @@ export function BugReportSheet() {
                     'rounded-lg border px-2.5 py-2 text-xs transition-colors',
                     severity === s
                       ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-slate-700 text-slate-400 hover:text-white',
+                      : 'border-slate-700 text-slate-400 hover:text-white'
                   )}
                 >
                   {SEVERITY_LABEL[s]}

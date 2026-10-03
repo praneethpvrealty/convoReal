@@ -12,10 +12,7 @@ import {
 
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { SearchBar, SectionLabel } from '@/components/ui';
-import {
-  projectOptions,
-  type InterestFilter,
-} from '@/lib/contact-interest';
+import { projectOptions, type InterestFilter } from '@/lib/contact-interest';
 import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -133,8 +130,8 @@ export function InterestFilterSheet({
     >
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
         <Text style={{ fontSize: 12, color: colors.textMuted }}>
-          Show only contacts who enquired about one listing, or about
-          anything in one project.
+          Show only contacts who enquired about one listing, or about anything
+          in one project.
         </Text>
         <SearchBar
           value={search}

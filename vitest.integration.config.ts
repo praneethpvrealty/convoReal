@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from 'vitest/config';
 
 // Separate config for *.integration.test.ts files — these call the
 // real service_role Supabase client against the live database (no
@@ -10,8 +10,8 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   test: {
-    environment: "node",
-    include: ["src/**/*.integration.test.ts"],
+    environment: 'node',
+    include: ['src/**/*.integration.test.ts'],
     // No dummy secrets here — these tests load real credentials from
     // .env.local themselves (see credit-engine.integration.test.ts)
     // and skip entirely (describe.skipIf) if they're absent, so a

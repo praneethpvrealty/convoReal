@@ -9,49 +9,72 @@ import { validateTemplatePayload } from './template-validators';
 
 describe('buildPropertyEnquiryPhotosTemplatePayload', () => {
   it('passes the same validator the submit API runs', () => {
-    const payload = buildPropertyEnquiryPhotosTemplatePayload('https://www.convoreal.com');
+    const payload = buildPropertyEnquiryPhotosTemplatePayload(
+      'https://www.convoreal.com'
+    );
     expect(() => validateTemplatePayload(payload)).not.toThrow();
     expect(payload.name).toBe(PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME);
   });
 
   it('is Utility, because Marketing is what Meta frequency-caps', () => {
-    const payload = buildPropertyEnquiryPhotosTemplatePayload('https://www.convoreal.com');
+    const payload = buildPropertyEnquiryPhotosTemplatePayload(
+      'https://www.convoreal.com'
+    );
     expect(payload.category).toBe('Utility');
   });
 
   it('carries an image header with a review-time sample URL', () => {
-    const payload = buildPropertyEnquiryPhotosTemplatePayload('https://www.convoreal.com/');
+    const payload = buildPropertyEnquiryPhotosTemplatePayload(
+      'https://www.convoreal.com/'
+    );
     expect(payload.header_type).toBe('image');
-    expect(payload.header_media_url).toBe('https://www.convoreal.com/brand/app-icon-1024.png');
+    expect(payload.header_media_url).toBe(
+      'https://www.convoreal.com/brand/app-icon-1024.png'
+    );
   });
 
   it('carries no sales CTA anywhere — same classifier rules as property_enquiry_response', () => {
-    const payload = buildPropertyEnquiryPhotosTemplatePayload('https://www.convoreal.com');
+    const payload = buildPropertyEnquiryPhotosTemplatePayload(
+      'https://www.convoreal.com'
+    );
     const everything = [
       payload.body_text,
       ...(payload.buttons ?? []).map((b) => b.text),
       ...(payload.sample_values?.body ?? []),
     ].join('\n');
-    expect(everything).not.toMatch(/site visit|book|offer|discount|exclusive|premium|don'?t miss/i);
+    expect(everything).not.toMatch(
+      /site visit|book|offer|discount|exclusive|premium|don'?t miss/i
+    );
     expect(payload.body_text).not.toMatch(/[*_]|🏠|📍/);
     expect(payload.body_text).toMatch(/enquiry/i);
   });
 
   it('adds the map after the shared property-detail params', () => {
-    const photos = buildPropertyEnquiryPhotosTemplatePayload('https://www.convoreal.com');
-    const details = buildPropertyAlertTemplatePayload('https://www.convoreal.com');
-    const vars = (s: string) => [...s.matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1]).sort();
-    expect(photos.sample_values?.body?.slice(0, 5)).toEqual(details.sample_values?.body);
+    const photos = buildPropertyEnquiryPhotosTemplatePayload(
+      'https://www.convoreal.com'
+    );
+    const details = buildPropertyAlertTemplatePayload(
+      'https://www.convoreal.com'
+    );
+    const vars = (s: string) =>
+      [...s.matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1]).sort();
+    expect(photos.sample_values?.body?.slice(0, 5)).toEqual(
+      details.sample_values?.body
+    );
     expect(vars(photos.body_text)).toEqual(['1', '2', '3', '4', '5', '6']);
     expect(photos.sample_values?.body?.[5]).toContain('google.com/maps');
   });
 
   it('orders the quick reply before the dynamic URL button', () => {
-    const payload = buildPropertyEnquiryPhotosTemplatePayload('https://www.convoreal.com/');
+    const payload = buildPropertyEnquiryPhotosTemplatePayload(
+      'https://www.convoreal.com/'
+    );
     const types = (payload.buttons ?? []).map((b) => b.type);
     expect(types).toEqual(['QUICK_REPLY', 'URL']);
     const urlBtn = payload.buttons?.find((b) => b.type === 'URL');
-    expect(urlBtn && 'url' in urlBtn ? urlBtn.url : '').toBe('https://www.convoreal.com/{{1}}');
+    expect(urlBtn && 'url' in urlBtn ? urlBtn.url : '').toBe(
+      'https://www.convoreal.com/{{1}}'
+    );
   });
 });
 

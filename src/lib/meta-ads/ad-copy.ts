@@ -48,8 +48,10 @@ export const AD_COPY_SYSTEM_PROMPT =
   'Do not invent amenities or facts not provided.';
 
 function inr(n: number): string {
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(n % 10000000 === 0 ? 0 : 2)} Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(n % 100000 === 0 ? 0 : 2)} L`;
+  if (n >= 10000000)
+    return `₹${(n / 10000000).toFixed(n % 10000000 === 0 ? 0 : 2)} Cr`;
+  if (n >= 100000)
+    return `₹${(n / 100000).toFixed(n % 100000 === 0 ? 0 : 2)} L`;
   return `₹${n.toLocaleString('en-IN')}`;
 }
 
@@ -65,15 +67,19 @@ export function buildAdCopyPrompt(p: PropertyForCopy): string {
     if (p.rent_per_month) lines.push(`Rent: ${inr(p.rent_per_month)}/month`);
   } else if (p.listing_type === 'JV/JD') {
     if (p.owner_share_percent && p.builder_share_percent) {
-      lines.push(`Deal: Joint Venture/Development, ${p.owner_share_percent}:${p.builder_share_percent} owner:builder share`);
+      lines.push(
+        `Deal: Joint Venture/Development, ${p.owner_share_percent}:${p.builder_share_percent} owner:builder share`
+      );
     } else {
       lines.push('Deal: Joint Venture/Development opportunity');
     }
   } else if (p.price) {
     lines.push(`Price: ${inr(p.price)}`);
   }
-  if (p.features?.length) lines.push(`Features: ${p.features.slice(0, 5).join(', ')}`);
-  if (p.nearby_highlights?.length) lines.push(`Nearby: ${p.nearby_highlights.slice(0, 3).join(', ')}`);
+  if (p.features?.length)
+    lines.push(`Features: ${p.features.slice(0, 5).join(', ')}`);
+  if (p.nearby_highlights?.length)
+    lines.push(`Nearby: ${p.nearby_highlights.slice(0, 3).join(', ')}`);
   return `Property details:\n${lines.join('\n')}\n\nReturn the ad copy JSON now.`;
 }
 

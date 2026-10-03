@@ -36,7 +36,10 @@ function message(over: Partial<Message> = {}): Message {
   } as Message;
 }
 
-function renderToolbar(msg: Message, handlers: { onTogglePin?: () => void; onHide?: () => void } = {}) {
+function renderToolbar(
+  msg: Message,
+  handlers: { onTogglePin?: () => void; onHide?: () => void } = {}
+) {
   return render(
     <MessageActions
       message={msg}

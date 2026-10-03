@@ -29,7 +29,11 @@ interface CallRecordingAnalyzerProps {
 
 const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
 
-export function CallRecordingAnalyzer({ contactId, contactName, onAnalyzed }: CallRecordingAnalyzerProps) {
+export function CallRecordingAnalyzer({
+  contactId,
+  contactName,
+  onAnalyzed,
+}: CallRecordingAnalyzerProps) {
   const [mode, setMode] = useState<'recording' | 'transcript'>('recording');
   const [file, setFile] = useState<File | null>(null);
   const [transcript, setTranscript] = useState('');
@@ -53,7 +57,8 @@ export function CallRecordingAnalyzer({ contactId, contactName, onAnalyzed }: Ca
       if (mode === 'recording' && file) {
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+          reader.onload = () =>
+            resolve(String(reader.result).split(',')[1] || '');
           reader.onerror = () => reject(new Error('Could not read the file'));
           reader.readAsDataURL(file);
         });
@@ -88,19 +93,21 @@ export function CallRecordingAnalyzer({ contactId, contactName, onAnalyzed }: Ca
   };
 
   return (
-    <div className="rounded-xl border border-slate-700/60 bg-slate-800/30 p-3 mb-3 space-y-3">
+    <div className="mb-3 space-y-3 rounded-xl border border-slate-700/60 bg-slate-800/30 p-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-          <Sparkles className="size-3.5 text-primary" />
+        <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-slate-400 uppercase">
+          <Sparkles className="text-primary size-3.5" />
           Analyze a call
         </p>
-        <div className="flex rounded-md border border-slate-700 overflow-hidden">
+        <div className="flex overflow-hidden rounded-md border border-slate-700">
           {(['recording', 'transcript'] as const).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`px-2 py-1 text-xs capitalize cursor-pointer ${
-                mode === m ? 'bg-primary/20 text-primary' : 'bg-slate-800 text-slate-400 hover:text-white'
+              className={`cursor-pointer px-2 py-1 text-xs capitalize ${
+                mode === m
+                  ? 'bg-primary/20 text-primary'
+                  : 'bg-slate-800 text-slate-400 hover:text-white'
               }`}
             >
               {m}
@@ -124,10 +131,10 @@ export function CallRecordingAnalyzer({ contactId, contactName, onAnalyzed }: Ca
               }
               setFile(next);
             }}
-            className="w-full text-sm text-slate-400 file:mr-2 file:rounded-md file:border-0 file:bg-slate-700 file:px-2.5 file:py-1.5 file:text-xs file:text-white file:cursor-pointer cursor-pointer"
+            className="w-full cursor-pointer text-sm text-slate-400 file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-slate-700 file:px-2.5 file:py-1.5 file:text-xs file:text-white"
           />
           {file && (
-            <p className="text-xs text-slate-500 flex items-center gap-1">
+            <p className="flex items-center gap-1 text-xs text-slate-500">
               <FileAudio className="size-3" />
               {file.name} · {(file.size / (1024 * 1024)).toFixed(1)}MB
             </p>
@@ -138,7 +145,7 @@ export function CallRecordingAnalyzer({ contactId, contactName, onAnalyzed }: Ca
           value={transcript}
           onChange={(e) => setTranscript(e.target.value)}
           placeholder="Paste the call transcript…"
-          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[80px] text-sm resize-none"
+          className="min-h-[80px] resize-none border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500"
         />
       )}
 
@@ -146,12 +153,13 @@ export function CallRecordingAnalyzer({ contactId, contactName, onAnalyzed }: Ca
         value={context}
         onChange={(e) => setContext(e.target.value)}
         placeholder="Context (optional) — e.g. Call with lawyer Vijayasathi about the legal report"
-        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 text-sm"
+        className="border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500"
       />
 
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-slate-500">
-          Drafts a WhatsApp update for {contactName || 'this contact'} — you review before it&apos;s sent.
+          Drafts a WhatsApp update for {contactName || 'this contact'} — you
+          review before it&apos;s sent.
         </p>
         <Button
           size="sm"
@@ -159,7 +167,11 @@ export function CallRecordingAnalyzer({ contactId, contactName, onAnalyzed }: Ca
           onClick={analyze}
           className="bg-primary hover:bg-primary/90 text-primary-foreground shrink-0"
         >
-          {analyzing ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+          {analyzing ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="size-3.5" />
+          )}
           {analyzing ? 'Analyzing…' : 'Analyze'}
         </Button>
       </div>
@@ -229,29 +241,38 @@ export function CallAnalysisSection({
   const createEvents = async () => {
     setCreatingEvents(true);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/calls/${call.id}/create-events`, {
-        method: 'POST',
-      });
+      const res = await fetch(
+        `/api/contacts/${contactId}/calls/${call.id}/create-events`,
+        {
+          method: 'POST',
+        }
+      );
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Failed to create events');
       }
       const { appointments = [], todos = [], liaison } = data.data ?? {};
       const parts = [
-        appointments.length > 0 ? `${appointments.length} event${appointments.length > 1 ? 's' : ''}` : null,
-        todos.length > 0 ? `${todos.length} to-do${todos.length > 1 ? 's' : ''}` : null,
+        appointments.length > 0
+          ? `${appointments.length} event${appointments.length > 1 ? 's' : ''}`
+          : null,
+        todos.length > 0
+          ? `${todos.length} to-do${todos.length > 1 ? 's' : ''}`
+          : null,
       ].filter(Boolean);
       toast.success(
-        `${parts.join(' + ')} created${liaison ? ` · ${liaison.name} linked for reminders` : ''}`,
+        `${parts.join(' + ')} created${liaison ? ` · ${liaison.name} linked for reminders` : ''}`
       );
       if (liaison && !liaison.has_phone) {
         toast.warning(
-          `Add a phone number for ${liaison.name} under Liaisons so their reminders can be delivered.`,
+          `Add a phone number for ${liaison.name} under Liaisons so their reminders can be delivered.`
         );
       }
       onUpdated();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create events');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to create events'
+      );
     } finally {
       setCreatingEvents(false);
     }
@@ -264,11 +285,14 @@ export function CallAnalysisSection({
     }
     setSending(true);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/calls/${call.id}/send-update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: draft.trim() }),
-      });
+      const res = await fetch(
+        `/api/contacts/${contactId}/calls/${call.id}/send-update`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: draft.trim() }),
+        }
+      );
       const data = await res.json();
       if (!res.ok) {
         if (data.code === 'CUSTOMER_WINDOW_EXPIRED') {
@@ -284,7 +308,7 @@ export function CallAnalysisSection({
                 ? 'The call update template is still awaiting Meta approval, and the 24-hour window is closed — send it from your own WhatsApp below for now.'
                 : canSendExternally
                   ? 'The 24-hour window is closed and there is no approved call update template — set one up below, or send it from your own WhatsApp.'
-                  : 'The 24-hour window is closed and there is no approved call update template — set one up below.',
+                  : 'The 24-hour window is closed and there is no approved call update template — set one up below.'
           );
         }
         throw new Error(data.error || 'Failed to send update');
@@ -292,7 +316,7 @@ export function CallAnalysisSection({
       toast.success(
         data.data?.channel === 'template'
           ? `Update sent to ${contactName || 'contact'} as a template — line breaks are flattened into one paragraph.`
-          : `Update sent to ${contactName || 'contact'}`,
+          : `Update sent to ${contactName || 'contact'}`
       );
       onUpdated();
     } catch (err) {
@@ -319,7 +343,7 @@ export function CallAnalysisSection({
     window.open(
       `https://wa.me/${contactPhone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`,
       '_blank',
-      'noopener,noreferrer',
+      'noopener,noreferrer'
     );
     setHandedOff(true);
   };
@@ -339,10 +363,12 @@ export function CallAnalysisSection({
       if (!res.ok) throw new Error(data.error || 'Template submission failed');
       setTemplateStatus('PENDING');
       toast.success(
-        'Call update template submitted to Meta — once approved, these updates send whether or not the 24-hour window is open.',
+        'Call update template submitted to Meta — once approved, these updates send whether or not the 24-hour window is open.'
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Template submission failed');
+      toast.error(
+        err instanceof Error ? err.message : 'Template submission failed'
+      );
     } finally {
       setSubmittingTemplate(false);
     }
@@ -363,7 +389,9 @@ export function CallAnalysisSection({
       setHandedOff(false);
       onUpdated();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to mark as sent');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to mark as sent'
+      );
     } finally {
       setMarkingSent(false);
     }
@@ -373,18 +401,22 @@ export function CallAnalysisSection({
     <div className="mt-2 space-y-2 border-t border-slate-700/50 pt-2">
       {call.summary && (
         <div>
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-0.5 flex items-center gap-1">
-            <Sparkles className="size-3 text-primary" />
+          <p className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+            <Sparkles className="text-primary size-3" />
             AI Summary
           </p>
-          <p className="text-xs text-slate-300 whitespace-pre-wrap">{call.summary}</p>
+          <p className="text-xs whitespace-pre-wrap text-slate-300">
+            {call.summary}
+          </p>
         </div>
       )}
 
       {(call.key_points?.length ?? 0) > 0 && (
         <div>
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-0.5">Key points</p>
-          <ul className="text-xs text-slate-400 space-y-0.5">
+          <p className="mb-0.5 text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+            Key points
+          </p>
+          <ul className="space-y-0.5 text-xs text-slate-400">
             {call.key_points!.map((point, i) => (
               <li key={i} className="flex gap-1.5">
                 <span className="text-slate-600">•</span>
@@ -397,11 +429,11 @@ export function CallAnalysisSection({
 
       {(call.action_items?.length ?? 0) > 0 && (
         <div>
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-0.5 flex items-center gap-1">
+          <p className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
             <ListChecks className="size-3" />
             Action items
           </p>
-          <ul className="text-xs text-slate-400 space-y-0.5">
+          <ul className="space-y-0.5 text-xs text-slate-400">
             {call.action_items!.map((item, i) => (
               <li key={i} className="flex gap-1.5">
                 <span className="text-slate-600">•</span>
@@ -411,11 +443,14 @@ export function CallAnalysisSection({
           </ul>
           <div className="mt-1.5">
             {call.events_created_at ? (
-              <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+              <span className="flex items-center gap-1 text-[10px] text-emerald-400">
                 <CheckCheck className="size-3" />
                 Events created{' '}
                 {new Date(call.events_created_at).toLocaleDateString('en-IN', {
-                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                  day: 'numeric',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
                 })}
               </span>
             ) : (
@@ -426,7 +461,11 @@ export function CallAnalysisSection({
                 onClick={createEvents}
                 className="border-slate-700 text-slate-300 hover:text-white"
               >
-                {creatingEvents ? <Loader2 className="size-3.5 animate-spin" /> : <CalendarPlus className="size-3.5" />}
+                {creatingEvents ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <CalendarPlus className="size-3.5" />
+                )}
                 {creatingEvents ? 'Creating…' : 'Create events & reminders'}
               </Button>
             )}
@@ -439,7 +478,7 @@ export function CallAnalysisSection({
           controls
           preload="none"
           src={`/api/contacts/${contactId}/calls/${call.id}/recording`}
-          className="w-full h-8"
+          className="h-8 w-full"
         />
       )}
 
@@ -447,13 +486,17 @@ export function CallAnalysisSection({
         <div>
           <button
             onClick={() => setShowTranscript((s) => !s)}
-            className="text-xs text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+            className="flex cursor-pointer items-center gap-1 text-xs text-slate-400 hover:text-white"
           >
-            {showTranscript ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+            {showTranscript ? (
+              <ChevronUp className="size-3" />
+            ) : (
+              <ChevronDown className="size-3" />
+            )}
             {showTranscript ? 'Hide transcript' : 'Show transcript'}
           </button>
           {showTranscript && (
-            <p className="text-xs text-slate-500 whitespace-pre-wrap mt-1 max-h-48 overflow-y-auto rounded-md bg-slate-900/50 p-2">
+            <p className="mt-1 max-h-48 overflow-y-auto rounded-md bg-slate-900/50 p-2 text-xs whitespace-pre-wrap text-slate-500">
               {call.transcript}
             </p>
           )}
@@ -461,16 +504,19 @@ export function CallAnalysisSection({
       )}
 
       <div>
-        <div className="flex items-center justify-between mb-0.5">
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+        <div className="mb-0.5 flex items-center justify-between">
+          <p className="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
             Update for {contactName || 'contact'}
           </p>
           {call.update_sent_at && (
-            <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+            <span className="flex items-center gap-1 text-[10px] text-emerald-400">
               <CheckCheck className="size-3" />
               Sent{' '}
               {new Date(call.update_sent_at).toLocaleDateString('en-IN', {
-                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
               })}
             </span>
           )}
@@ -479,9 +525,9 @@ export function CallAnalysisSection({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="No update draft — edit here to compose one"
-          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[80px] text-sm resize-none"
+          className="min-h-[80px] resize-none border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500"
         />
-        <div className="flex items-center justify-end gap-2 mt-1.5 flex-wrap">
+        <div className="mt-1.5 flex flex-wrap items-center justify-end gap-2">
           {dirty && (
             <Button
               size="sm"
@@ -490,7 +536,11 @@ export function CallAnalysisSection({
               onClick={saveDraft}
               className="border-slate-700 text-slate-300 hover:text-white"
             >
-              {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+              {saving ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Save className="size-3.5" />
+              )}
               Save draft
             </Button>
           )}
@@ -513,12 +563,16 @@ export function CallAnalysisSection({
             onClick={sendUpdate}
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
-            {sending ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+            {sending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Send className="size-3.5" />
+            )}
             {call.update_sent_at ? 'Send again' : 'Send on WhatsApp'}
           </Button>
         </div>
         {templateStatus !== null && templateStatus !== 'APPROVED' && (
-          <div className="flex items-center justify-between gap-2 mt-1.5 rounded-lg border border-slate-700/60 bg-slate-800/40 px-2.5 py-1.5">
+          <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg border border-slate-700/60 bg-slate-800/40 px-2.5 py-1.5">
             <p className="text-[11px] text-slate-400">
               {templateStatus === 'PENDING'
                 ? 'Call update template is with Meta for approval — updates send through it automatically once it clears.'
@@ -530,29 +584,31 @@ export function CallAnalysisSection({
                 variant="outline"
                 disabled={submittingTemplate}
                 onClick={submitTemplate}
-                className="border-slate-700 text-slate-300 hover:text-white shrink-0"
+                className="shrink-0 border-slate-700 text-slate-300 hover:text-white"
               >
-                {submittingTemplate ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                {submittingTemplate ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : null}
                 Set up template
               </Button>
             )}
           </div>
         )}
         {handedOff && (
-          <div className="flex items-center justify-end gap-2 mt-1.5 text-[11px] text-slate-400">
+          <div className="mt-1.5 flex items-center justify-end gap-2 text-[11px] text-slate-400">
             <span>Sent it from your WhatsApp?</span>
             <button
               type="button"
               disabled={markingSent}
               onClick={markSent}
-              className="font-semibold text-primary hover:text-primary/80 cursor-pointer disabled:opacity-60"
+              className="text-primary hover:text-primary/80 cursor-pointer font-semibold disabled:opacity-60"
             >
               {markingSent ? 'Marking…' : 'Mark as sent'}
             </button>
             <button
               type="button"
               onClick={() => setHandedOff(false)}
-              className="text-slate-500 hover:text-slate-300 cursor-pointer"
+              className="cursor-pointer text-slate-500 hover:text-slate-300"
             >
               Dismiss
             </button>

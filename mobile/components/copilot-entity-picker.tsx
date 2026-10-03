@@ -57,10 +57,7 @@ export function CopilotEntityPicker({
       </Text>
       <ScrollView style={styles.results} keyboardShouldPersistTaps="handled">
         {results.isPending ? (
-          <ActivityIndicator
-            color={colors.primary}
-            style={styles.loading}
-          />
+          <ActivityIndicator color={colors.primary} style={styles.loading} />
         ) : (results.data ?? []).length === 0 ? (
           <Text style={[styles.empty, { color: colors.textFaint }]}>
             No matching records
@@ -82,10 +79,7 @@ export function CopilotEntityPicker({
                 style={styles.row}
               >
                 <View
-                  style={[
-                    styles.icon,
-                    { backgroundColor: colors.primarySoft },
-                  ]}
+                  style={[styles.icon, { backgroundColor: colors.primarySoft }]}
                 >
                   <Ionicons name={icon} size={16} color={colors.primary} />
                 </View>

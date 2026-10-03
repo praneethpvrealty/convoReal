@@ -19,14 +19,17 @@ const DEFAULT_DURATION_MS = 60 * 60 * 1000;
 
 export async function POST(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string; callId: string }> },
+  { params }: { params: Promise<{ id: string; callId: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
     const { id: contactId, callId } = await params;
 
     if (!(await hasGeminiKey())) {
-      return NextResponse.json({ error: 'AI is not configured on this server.' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'AI is not configured on this server.' },
+        { status: 500 }
+      );
     }
 
     const [{ data: call }, { data: contact }] = await Promise.all([
@@ -45,25 +48,38 @@ export async function POST(
         .maybeSingle(),
     ]);
     if (!call || !contact) {
-      return NextResponse.json({ error: 'Call log not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Call log not found' },
+        { status: 404 }
+      );
     }
     if (call.events_created_at) {
       return NextResponse.json(
-        { error: 'Events for this call were already created.', code: 'EVENTS_ALREADY_CREATED' },
-        { status: 409 },
+        {
+          error: 'Events for this call were already created.',
+          code: 'EVENTS_ALREADY_CREATED',
+        },
+        { status: 409 }
       );
     }
     const actionItems = (call.action_items ?? []) as string[];
     if (actionItems.length === 0) {
-      return NextResponse.json({ error: 'This call has no action items.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'This call has no action items.' },
+        { status: 400 }
+      );
     }
 
     const cost = AI_FEATURE_COSTS.action_item_events;
     const burn = await burnCredits(ctx.accountId, 'action_item_events', cost);
     if (!burn.success) {
       return NextResponse.json(
-        { error: 'Insufficient credits to create events.', creditsNeeded: cost, upgradeRequired: true },
-        { status: 402 },
+        {
+          error: 'Insufficient credits to create events.',
+          creditsNeeded: cost,
+          upgradeRequired: true,
+        },
+        { status: 402 }
       );
     }
 
@@ -78,21 +94,25 @@ export async function POST(
       await refundCredits(ctx.accountId, 'action_item_events', cost);
       console.error('[create-events] Gemini call failed:', apiErr);
       return NextResponse.json(
-        { error: 'Could not turn the action items into events. Please try again.' },
-        { status: 502 },
+        {
+          error:
+            'Could not turn the action items into events. Please try again.',
+        },
+        { status: 502 }
       );
     }
     if (parsed.events.length === 0) {
       await refundCredits(ctx.accountId, 'action_item_events', cost);
       return NextResponse.json(
         { error: 'No schedulable events found in the action items.' },
-        { status: 422 },
+        { status: 422 }
       );
     }
 
     // Resolve the service provider against the liaisons directory;
     // add them to it when the call named someone new.
-    let liaison: { id: string; name: string; phone: string | null } | null = null;
+    let liaison: { id: string; name: string; phone: string | null } | null =
+      null;
     let liaisonCreated = false;
     if (parsed.liaison_name) {
       const { data: liaisons } = await ctx.supabase
@@ -100,7 +120,11 @@ export async function POST(
         .select('id, name, phone')
         .eq('account_id', ctx.accountId)
         .eq('is_active', true);
-      liaison = resolveByName(parsed.liaison_name, liaisons || [], (l) => l.name || '');
+      liaison = resolveByName(
+        parsed.liaison_name,
+        liaisons || [],
+        (l) => l.name || ''
+      );
       if (!liaison) {
         const { data: createdLiaison, error: liaisonErr } = await ctx.supabase
           .from('liaisons')
@@ -109,7 +133,14 @@ export async function POST(
             user_id: ctx.userId,
             name: parsed.liaison_name,
             services: parsed.liaison_role
-              ? [{ name: parsed.liaison_role, fee: null, client_charge: null, fee_note: null }]
+              ? [
+                  {
+                    name: parsed.liaison_role,
+                    fee: null,
+                    client_charge: null,
+                    fee_note: null,
+                  },
+                ]
               : [],
             notes: 'Added from call analysis',
           })
@@ -124,7 +155,8 @@ export async function POST(
       }
     }
 
-    const appointments: { id: string; title: string; start_time: string }[] = [];
+    const appointments: { id: string; title: string; start_time: string }[] =
+      [];
     const todos: { id: string; title: string }[] = [];
     for (const event of parsed.events) {
       const startIso = istLocalToUtcIso(event.start_time);
@@ -139,7 +171,9 @@ export async function POST(
             description: event.notes,
             event_type: event.event_type,
             start_time: startIso,
-            end_time: new Date(new Date(startIso).getTime() + DEFAULT_DURATION_MS).toISOString(),
+            end_time: new Date(
+              new Date(startIso).getTime() + DEFAULT_DURATION_MS
+            ).toISOString(),
             status: 'scheduled',
             contact_id: contactId,
             contact_ids: [contactId],
@@ -186,11 +220,15 @@ export async function POST(
           appointments,
           todos,
           liaison: liaison
-            ? { ...liaison, created: liaisonCreated, has_phone: !!liaison.phone }
+            ? {
+                ...liaison,
+                created: liaisonCreated,
+                has_phone: !!liaison.phone,
+              }
             : null,
         },
       },
-      { status: 201 },
+      { status: 201 }
     );
   } catch (err) {
     return toErrorResponse(err);

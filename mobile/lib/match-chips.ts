@@ -6,12 +6,7 @@ import type { MatchDetails, MatchVerdict } from '@shared/lib/matching';
  * surfaces; only the colour vocabulary is mapped to the native theme.
  */
 export type MatchChipTone =
-  | 'type'
-  | 'location'
-  | 'positive'
-  | 'warn'
-  | 'negative'
-  | 'muted';
+  'type' | 'location' | 'positive' | 'warn' | 'negative' | 'muted';
 
 export interface MatchChip {
   label: string;

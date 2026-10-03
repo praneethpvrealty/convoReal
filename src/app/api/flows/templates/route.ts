@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
-import { toErrorResponse, getCurrentAccount } from '@/lib/auth/account'
-import { listFlowTemplates } from '@/lib/flows/templates'
+import { NextResponse } from 'next/server';
+import { toErrorResponse, getCurrentAccount } from '@/lib/auth/account';
+import { listFlowTemplates } from '@/lib/flows/templates';
 
 /**
  * GET /api/flows/templates
@@ -14,9 +14,9 @@ import { listFlowTemplates } from '@/lib/flows/templates'
  */
 export async function GET() {
   try {
-    await getCurrentAccount()
+    await getCurrentAccount();
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
   // Shallow shape so the client gallery doesn't have to know about
   // the full node tree.
@@ -27,6 +27,6 @@ export async function GET() {
     icon: t.icon,
     trigger_type: t.trigger_type,
     node_count: t.nodes.length,
-  }))
-  return NextResponse.json({ templates })
+  }));
+  return NextResponse.json({ templates });
 }

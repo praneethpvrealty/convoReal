@@ -9,7 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
@@ -30,8 +36,10 @@ export function AgencyServicesManager() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  
-  const [selectedService, setSelectedService] = useState<AgencyService | null>(null);
+
+  const [selectedService, setSelectedService] = useState<AgencyService | null>(
+    null
+  );
 
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
@@ -144,7 +152,8 @@ export function AgencyServicesManager() {
           .eq('id', selectedService.id)
           .select('id');
         if (error) throw error;
-        if (!data?.length) throw new Error('Update refused or record not found.');
+        if (!data?.length)
+          throw new Error('Update refused or record not found.');
         toast.success('Service updated');
       } else {
         // Insert
@@ -256,7 +265,9 @@ export function AgencyServicesManager() {
                   <div className="flex items-start gap-4">
                     <div className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-slate-300">
                       {service.is_active ? (
-                        <span className="text-[10px] font-mono tracking-tighter opacity-50">ICON</span>
+                        <span className="font-mono text-[10px] tracking-tighter opacity-50">
+                          ICON
+                        </span>
                       ) : (
                         <EyeOff className="size-4 opacity-50" />
                       )}
@@ -276,7 +287,7 @@ export function AgencyServicesManager() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="mr-4 text-xs font-mono text-slate-500">
+                    <div className="mr-4 font-mono text-xs text-slate-500">
                       Order: {service.sort_order}
                     </div>
                     <Button
@@ -328,7 +339,11 @@ export function AgencyServicesManager() {
                 <Input
                   placeholder="e.g. legal-consultation"
                   value={slug}
-                  onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  onChange={(e) =>
+                    setSlug(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+                    )
+                  }
                   className="border-slate-800 bg-slate-900 text-slate-200 placeholder:text-slate-500"
                 />
               </div>
@@ -363,10 +378,12 @@ export function AgencyServicesManager() {
                 </div>
               </div>
             </div>
-            
+
             <div className="space-y-4">
-              <div className="space-y-2 flex flex-col h-full">
-                <Label className="text-slate-300">Full Content (Optional)</Label>
+              <div className="flex h-full flex-col space-y-2">
+                <Label className="text-slate-300">
+                  Full Content (Optional)
+                </Label>
                 <Textarea
                   placeholder="Full page content (Markdown supported)..."
                   value={content}
@@ -384,7 +401,9 @@ export function AgencyServicesManager() {
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-slate-300">SEO Description (Optional)</Label>
+                <Label className="text-slate-300">
+                  SEO Description (Optional)
+                </Label>
                 <Textarea
                   placeholder="Meta description for search results..."
                   value={metaDescription}
@@ -394,7 +413,7 @@ export function AgencyServicesManager() {
               </div>
             </div>
 
-            <div className="col-span-1 sm:col-span-2 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/50 p-3">
+            <div className="col-span-1 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/50 p-3 sm:col-span-2">
               <div className="space-y-0.5">
                 <Label className="text-sm font-medium text-slate-200">
                   Visibility
@@ -434,10 +453,13 @@ export function AgencyServicesManager() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="max-w-sm border-slate-800 bg-slate-950 sm:rounded-xl">
           <DialogHeader>
-            <DialogTitle className="text-slate-200">Delete Service?</DialogTitle>
+            <DialogTitle className="text-slate-200">
+              Delete Service?
+            </DialogTitle>
           </DialogHeader>
           <div className="py-2 text-sm text-slate-400">
-            Are you sure you want to remove &quot;{selectedService?.title}&quot;? This cannot be undone.
+            Are you sure you want to remove &quot;{selectedService?.title}
+            &quot;? This cannot be undone.
           </div>
           <DialogFooter>
             <Button

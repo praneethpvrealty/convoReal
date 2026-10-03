@@ -84,8 +84,12 @@ describe('POST /api/deals/[id]/documents/upload-url', () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.data.storage_path).toBe('deal-documents/acc-1/deal-1/1-doc.pdf');
-    expect(body.data.upload_url).toContain('/object/upload/sign/deal-documents/');
+    expect(body.data.storage_path).toBe(
+      'deal-documents/acc-1/deal-1/1-doc.pdf'
+    );
+    expect(body.data.upload_url).toContain(
+      '/object/upload/sign/deal-documents/'
+    );
     expect(signed[0]).toMatchObject({ accountId: 'acc-1', dealId: 'deal-1' });
   });
 

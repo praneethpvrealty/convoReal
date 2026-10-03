@@ -95,7 +95,9 @@ export function buildAgentInventoryDigestParams(
 ): [name: string, listings: string, summary: string] {
   const firstName = contactName?.trim().split(/\s+/)[0] || 'there';
   const listingPhrase =
-    propertyCount === 1 ? 'your referred listing' : `your ${propertyCount} referred listings`;
+    propertyCount === 1
+      ? 'your referred listing'
+      : `your ${propertyCount} referred listings`;
   return [
     sanitizeTemplateParam(firstName),
     sanitizeTemplateParam(`${listingPhrase} (${periodLabel})`),
@@ -108,6 +110,8 @@ export function buildAgentInventoryDigestParams(
  * agent_inventory_digest carries a fourth "Next step" param, and
  * sending a template fewer params than it declares is a Meta error.
  */
-export function countTemplateBodyParams(bodyText: string | null | undefined): number {
+export function countTemplateBodyParams(
+  bodyText: string | null | undefined
+): number {
   return new Set((bodyText || '').match(/\{\{\d+\}\}/g) ?? []).size;
 }

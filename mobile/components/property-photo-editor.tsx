@@ -63,7 +63,10 @@ export function PropertyPhotoEditor({
     }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      show({ title: 'Permission needed', message: 'Allow photo access to add listing images.' });
+      show({
+        title: 'Permission needed',
+        message: 'Allow photo access to add listing images.',
+      });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -86,11 +89,13 @@ export function PropertyPhotoEditor({
         const bytes = decodeBase64(asset.base64);
         const rand = Math.random().toString(36).substring(2, 7);
         const path = `${accountId}/img-${Date.now()}-${rand}.jpg`;
-        const { error } = await supabase.storage.from(BUCKET).upload(path, bytes.buffer as ArrayBuffer, {
-          contentType: 'image/jpeg',
-          upsert: true,
-          cacheControl: '3600',
-        });
+        const { error } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, bytes.buffer as ArrayBuffer, {
+            contentType: 'image/jpeg',
+            upsert: true,
+            cacheControl: '3600',
+          });
         if (error) throw new Error(error.message);
         uploaded.push(`${BUCKET}/${path}`);
       }
@@ -100,7 +105,10 @@ export function PropertyPhotoEditor({
       }
     } catch (e) {
       haptic.warn();
-      show({ title: 'Upload failed', message: e instanceof Error ? e.message : 'Please try again.' });
+      show({
+        title: 'Upload failed',
+        message: e instanceof Error ? e.message : 'Please try again.',
+      });
     } finally {
       setBusy(false);
     }
@@ -120,13 +128,26 @@ export function PropertyPhotoEditor({
   return (
     <View style={{ gap: spacing.sm }}>
       <SectionLabel text="Photos" />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: spacing.sm }}
+      >
         {images.map((img, i) => (
           <View key={`${img}-${i}`} style={styles.thumbWrap}>
-            <Image source={{ uri: storagePublicUrl(img) }} style={styles.thumb} resizeMode="cover" />
+            <Image
+              source={{ uri: storagePublicUrl(img) }}
+              style={styles.thumb}
+              resizeMode="cover"
+            />
             {i === 0 ? (
               <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-                <Text style={[styles.badgeText, { fontFamily: f.bold, color: colors.onPrimary }]}>
+                <Text
+                  style={[
+                    styles.badgeText,
+                    { fontFamily: f.bold, color: colors.onPrimary },
+                  ]}
+                >
                   Cover
                 </Text>
               </View>
@@ -155,20 +176,35 @@ export function PropertyPhotoEditor({
           disabled={busy}
           accessibilityRole="button"
           accessibilityLabel="Add photos"
-          style={[styles.addTile, { borderColor: colors.primary, backgroundColor: colors.primarySoft }]}
+          style={[
+            styles.addTile,
+            {
+              borderColor: colors.primary,
+              backgroundColor: colors.primarySoft,
+            },
+          ]}
         >
           {busy ? (
             <ActivityIndicator color={colors.primary} />
           ) : (
             <>
               <Ionicons name="camera" size={22} color={colors.primary} />
-              <Text style={{ fontSize: 12, fontFamily: f.semibold, color: colors.primary }}>Add</Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontFamily: f.semibold,
+                  color: colors.primary,
+                }}
+              >
+                Add
+              </Text>
             </>
           )}
         </Pressable>
       </ScrollView>
       <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
-        Tap ☆ to make a photo the cover — the first photo leads the listing and shares.
+        Tap ☆ to make a photo the cover — the first photo leads the listing and
+        shares.
       </Text>
       <AppDialog {...dialogProps} />
     </View>
@@ -176,7 +212,12 @@ export function PropertyPhotoEditor({
 }
 
 const styles = StyleSheet.create({
-  thumbWrap: { width: 96, height: 96, borderRadius: radius.md, overflow: 'hidden' },
+  thumbWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
   thumb: { width: 96, height: 96 },
   badge: {
     position: 'absolute',

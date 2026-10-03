@@ -154,7 +154,7 @@ module.exports = {
     schema: [],
     messages: {
       missingSelect:
-        "Chain .select() onto this .{{method}}() and check the returned rows. Without it an RLS refusal comes back as zero rows and no error, so a refused write reads as a successful one.",
+        'Chain .select() onto this .{{method}}() and check the returned rows. Without it an RLS refusal comes back as zero rows and no error, so a refused write reads as a successful one.',
     },
   },
   create(context) {

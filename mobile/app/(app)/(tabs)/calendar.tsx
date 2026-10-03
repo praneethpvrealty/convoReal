@@ -318,7 +318,9 @@ export default function CalendarScreen() {
   const [archiving, setArchiving] = useState(false);
   const canEditTasks = useAuthStore((s) =>
     Boolean(
-      s.profile && s.profile.account_role !== 'viewer' && !s.profile.is_read_only
+      s.profile &&
+      s.profile.account_role !== 'viewer' &&
+      !s.profile.is_read_only
     )
   );
   const pull = usePullRefresh(() => {
@@ -798,7 +800,9 @@ export default function CalendarScreen() {
           )
         )}
 
-        <Text style={[styles.dayLabel, { color: colors.textFaint }]}>Upcoming</Text>
+        <Text style={[styles.dayLabel, { color: colors.textFaint }]}>
+          Upcoming
+        </Text>
         {upcomingAppointmentsQuery.isLoading || todosQuery.isLoading ? (
           <ConvoRealLoader
             style={{ alignSelf: 'center', paddingVertical: 20 }}
@@ -1054,7 +1058,9 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(todo.title);
-  const [editDescription, setEditDescription] = useState(todo.description ?? '');
+  const [editDescription, setEditDescription] = useState(
+    todo.description ?? ''
+  );
   const [editPriority, setEditPriority] = useState<TodoPriority>(todo.priority);
   const [editCompleted, setEditCompleted] = useState(todo.completed);
   const [editDue, setEditDue] = useState<Date | null>(
@@ -1075,7 +1081,9 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
     } catch {
       haptic.warn();
-      setError('Could not update this task. Check your connection and try again.');
+      setError(
+        'Could not update this task. Check your connection and try again.'
+      );
     } finally {
       setBusy(false);
     }
@@ -1090,7 +1098,9 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
     } catch {
       haptic.warn();
-      setError('Could not delete this task. Check your connection and try again.');
+      setError(
+        'Could not delete this task. Check your connection and try again.'
+      );
       setBusy(false);
     }
   }
@@ -1113,7 +1123,9 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
       setEditing(false);
     } catch {
       haptic.warn();
-      setError('Could not update this task. Check your connection and try again.');
+      setError(
+        'Could not update this task. Check your connection and try again.'
+      );
     } finally {
       setBusy(false);
     }
@@ -1141,275 +1153,387 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
 
   return (
     <>
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-        todo.completed && { opacity: 0.55 },
-      ]}
-    >
-      <Pressable
-        onPress={toggle}
-        disabled={busy}
-        hitSlop={8}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: todo.completed }}
-        accessibilityLabel={todo.title}
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          todo.completed && { opacity: 0.55 },
+        ]}
       >
-        {busy ? (
-          <ActivityIndicator size="small" color={colors.primary} />
-        ) : (
-          <Ionicons
-            name={todo.completed ? 'checkmark-circle' : 'ellipse-outline'}
-            size={24}
-            color={
-              todo.completed
-                ? colors.success
-                : priorityColor(todo.priority, colors)
-            }
-          />
-        )}
-      </Pressable>
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text
-          style={[
-            { fontSize: 14.5, fontFamily: f.semibold, color: colors.text },
-            todo.completed && { textDecorationLine: 'line-through' },
-          ]}
-          numberOfLines={2}
+        <Pressable
+          onPress={toggle}
+          disabled={busy}
+          hitSlop={8}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: todo.completed }}
+          accessibilityLabel={todo.title}
         >
-          {todo.title}
-        </Text>
-        {meta.length > 0 ? (
+          {busy ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons
+              name={todo.completed ? 'checkmark-circle' : 'ellipse-outline'}
+              size={24}
+              color={
+                todo.completed
+                  ? colors.success
+                  : priorityColor(todo.priority, colors)
+              }
+            />
+          )}
+        </Pressable>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text
+            style={[
+              { fontSize: 14.5, fontFamily: f.semibold, color: colors.text },
+              todo.completed && { textDecorationLine: 'line-through' },
+            ]}
+            numberOfLines={2}
+          >
+            {todo.title}
+          </Text>
+          {meta.length > 0 ? (
+            <Text
+              style={{
+                fontSize: 12,
+                color: overdue ? colors.danger : colors.textMuted,
+              }}
+              numberOfLines={1}
+            >
+              {overdue ? 'Overdue · ' : ''}
+              {meta.join(' · ')}
+            </Text>
+          ) : null}
+          {error ? (
+            <Text style={{ fontSize: 11.5, color: colors.danger }}>
+              {error}
+            </Text>
+          ) : null}
+        </View>
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            setEditing(true);
+          }}
+          disabled={busy}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${todo.title}`}
+        >
+          <Ionicons name="create-outline" size={17} color={colors.primary} />
+        </Pressable>
+        <Pressable
+          onPress={remove}
+          disabled={busy}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Delete task"
+        >
+          <Ionicons name="trash-outline" size={17} color={colors.textFaint} />
+        </Pressable>
+      </View>
+      <BottomSheet
+        visible={editing}
+        onClose={cancelEdit}
+        contentStyle={styles.sheet}
+      >
+        <ScrollView
+          style={sheetScrollArea}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ gap: spacing.md }}
+        >
           <Text
             style={{
-              fontSize: 12,
-              color: overdue ? colors.danger : colors.textMuted,
+              fontSize: 18,
+              fontFamily: f.extrabold,
+              color: colors.text,
             }}
-            numberOfLines={1}
           >
-            {overdue ? 'Overdue · ' : ''}
-            {meta.join(' · ')}
+            Edit task
           </Text>
-        ) : null}
-        {error ? (
-          <Text style={{ fontSize: 11.5, color: colors.danger }}>{error}</Text>
-        ) : null}
-      </View>
-      <Pressable
-        onPress={() => {
-          haptic.tap();
-          setEditing(true);
-        }}
-        disabled={busy}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel={`Edit ${todo.title}`}
-      >
-        <Ionicons name="create-outline" size={17} color={colors.primary} />
-      </Pressable>
-      <Pressable
-        onPress={remove}
-        disabled={busy}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel="Delete task"
-      >
-        <Ionicons name="trash-outline" size={17} color={colors.textFaint} />
-      </Pressable>
-    </View>
-    <BottomSheet
-      visible={editing}
-      onClose={cancelEdit}
-      contentStyle={styles.sheet}
-    >
-      <ScrollView
-        style={sheetScrollArea}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ gap: spacing.md }}
-      >
-        <Text style={{ fontSize: 18, fontFamily: f.extrabold, color: colors.text }}>
-          Edit task
-        </Text>
-        <TextInput
-          value={editTitle}
-          onChangeText={setEditTitle}
-          placeholder="Task title"
-          placeholderTextColor={colors.textFaint}
-          accessibilityLabel="Task title"
-          style={[
-            styles.editInput,
-            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
-          ]}
-        />
-        <TextInput
-          multiline
-          value={editDescription}
-          onChangeText={setEditDescription}
-          placeholder="Description (optional)"
-          placeholderTextColor={colors.textFaint}
-          accessibilityLabel="Task description"
-          style={[
-            styles.notesInput,
-            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
-          ]}
-        />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-          {PRIORITIES.map((priority) => (
-            <FilterChip
-              key={priority}
-              label={priority === 'low' ? 'Low' : priority === 'medium' ? 'Medium' : 'High'}
-              active={editPriority === priority}
-              onPress={() => setEditPriority(priority)}
-            />
-          ))}
-        </View>
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <FilterChip
-            label="Open"
-            active={!editCompleted}
-            onPress={() => setEditCompleted(false)}
+          <TextInput
+            value={editTitle}
+            onChangeText={setEditTitle}
+            placeholder="Task title"
+            placeholderTextColor={colors.textFaint}
+            accessibilityLabel="Task title"
+            style={[
+              styles.editInput,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                color: colors.text,
+              },
+            ]}
           />
-          <FilterChip
-            label="Completed"
-            active={editCompleted}
-            onPress={() => setEditCompleted(true)}
+          <TextInput
+            multiline
+            value={editDescription}
+            onChangeText={setEditDescription}
+            placeholder="Description (optional)"
+            placeholderTextColor={colors.textFaint}
+            accessibilityLabel="Task description"
+            style={[
+              styles.notesInput,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                color: colors.text,
+              },
+            ]}
           />
-        </View>
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <Pressable
-            onPress={() => {
-              if (!editDue) {
-                const next = new Date();
-                next.setDate(next.getDate() + 1);
-                next.setHours(9, 0, 0, 0);
-                setEditDue(next);
-              }
-              setEditPicker('date');
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Change task due date"
-            style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          <View
+            style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
           >
-            <Ionicons name="calendar-outline" size={15} color={colors.primary} />
-            <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
-              {editDue
-                ? editDue.toLocaleDateString([], { day: 'numeric', month: 'short' })
-                : 'Add due date'}
-            </Text>
-          </Pressable>
+            {PRIORITIES.map((priority) => (
+              <FilterChip
+                key={priority}
+                label={
+                  priority === 'low'
+                    ? 'Low'
+                    : priority === 'medium'
+                      ? 'Medium'
+                      : 'High'
+                }
+                active={editPriority === priority}
+                onPress={() => setEditPriority(priority)}
+              />
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <FilterChip
+              label="Open"
+              active={!editCompleted}
+              onPress={() => setEditCompleted(false)}
+            />
+            <FilterChip
+              label="Completed"
+              active={editCompleted}
+              onPress={() => setEditCompleted(true)}
+            />
+          </View>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Pressable
+              onPress={() => {
+                if (!editDue) {
+                  const next = new Date();
+                  next.setDate(next.getDate() + 1);
+                  next.setHours(9, 0, 0, 0);
+                  setEditDue(next);
+                }
+                setEditPicker('date');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Change task due date"
+              style={[
+                styles.pickerButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Ionicons
+                name="calendar-outline"
+                size={15}
+                color={colors.primary}
+              />
+              <Text
+                style={{
+                  fontSize: 13.5,
+                  fontFamily: f.semibold,
+                  color: colors.text,
+                }}
+              >
+                {editDue
+                  ? editDue.toLocaleDateString([], {
+                      day: 'numeric',
+                      month: 'short',
+                    })
+                  : 'Add due date'}
+              </Text>
+            </Pressable>
+            {editDue ? (
+              <Pressable
+                onPress={() => setEditPicker('time')}
+                accessibilityRole="button"
+                accessibilityLabel="Change task due time"
+                style={[
+                  styles.pickerButton,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="time-outline"
+                  size={15}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{
+                    fontSize: 13.5,
+                    fontFamily: f.semibold,
+                    color: colors.text,
+                  }}
+                >
+                  {editDue.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {editPicker && editDue ? (
+            <InlineDateTimePicker
+              value={editDue}
+              mode={editPicker}
+              onChange={setEditDue}
+              onClose={() => setEditPicker(null)}
+            />
+          ) : null}
           {editDue ? (
             <Pressable
-              onPress={() => setEditPicker('time')}
+              onPress={() => {
+                setEditDue(null);
+                setEditPicker(null);
+              }}
               accessibilityRole="button"
-              accessibilityLabel="Change task due time"
-              style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              accessibilityLabel="Clear task due date"
             >
-              <Ionicons name="time-outline" size={15} color={colors.primary} />
-              <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
-                {editDue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: f.semibold,
+                  color: colors.danger,
+                }}
+              >
+                Clear due date
               </Text>
             </Pressable>
           ) : null}
-        </View>
-        {editPicker && editDue ? (
-          <InlineDateTimePicker
-            value={editDue}
-            mode={editPicker}
-            onChange={setEditDue}
-            onClose={() => setEditPicker(null)}
-          />
-        ) : null}
-        {editDue ? (
-          <Pressable
-            onPress={() => {
-              setEditDue(null);
-              setEditPicker(null);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Clear task due date"
-          >
-            <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.danger }}>
-              Clear due date
-            </Text>
-          </Pressable>
-        ) : null}
-        {todo.contact ? (
-          <Link href={`/(app)/contact/${todo.contact.id}`} asChild>
-            <Pressable onPress={cancelEdit} accessibilityRole="link" accessibilityLabel="Open contact">
-              <DetailRow
-                icon="person-outline"
-                text={todo.contact.name || todo.contact.phone || 'Linked contact'}
-                accent
-              />
-            </Pressable>
-          </Link>
-        ) : null}
-        {!todo.completed && todo.contact ? (
-          <Pressable
-            onPress={async () => {
-              haptic.tap();
-              const draft = buildTodoParticipantCheckIn({
-                title: editTitle.trim() || todo.title,
-                description: editDescription.trim() || null,
-                contactName: todo.contact?.name,
-                propertyTitle: todo.property?.title,
-              });
-              await openContactChat(todo.contact!, { draftText: draft.message });
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={`Check with ${todo.contact?.name?.split(' ')[0] || 'contact'}`}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
-          >
-            <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
-            <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
-              Check with {todo.contact?.name?.trim().split(/\s+/)[0] || 'contact'}
-            </Text>
-          </Pressable>
-        ) : null}
-        {todo.property ? (
-          <Link href={`/(app)/property/${todo.property.id}`} asChild>
-            <Pressable onPress={cancelEdit} accessibilityRole="link" accessibilityLabel="Open property">
-              <DetailRow icon="home-outline" text={todo.property.title} accent />
-            </Pressable>
-          </Link>
-        ) : null}
-        {todo.deal_id ? (
-          <Link href={dealDateHref(todo.deal_id)} asChild>
+          {todo.contact ? (
+            <Link href={`/(app)/contact/${todo.contact.id}`} asChild>
+              <Pressable
+                onPress={cancelEdit}
+                accessibilityRole="link"
+                accessibilityLabel="Open contact"
+              >
+                <DetailRow
+                  icon="person-outline"
+                  text={
+                    todo.contact.name || todo.contact.phone || 'Linked contact'
+                  }
+                  accent
+                />
+              </Pressable>
+            </Link>
+          ) : null}
+          {!todo.completed && todo.contact ? (
             <Pressable
-              onPress={cancelEdit}
-              accessibilityRole="link"
-              accessibilityLabel="Open the deal this task belongs to"
-              style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+              onPress={async () => {
+                haptic.tap();
+                const draft = buildTodoParticipantCheckIn({
+                  title: editTitle.trim() || todo.title,
+                  description: editDescription.trim() || null,
+                  contactName: todo.contact?.name,
+                  propertyTitle: todo.property?.title,
+                });
+                await openContactChat(todo.contact!, {
+                  draftText: draft.message,
+                });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Check with ${todo.contact?.name?.split(' ')[0] || 'contact'}`}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.md,
+              }}
             >
-              <Ionicons name="briefcase-outline" size={16} color={colors.primary} />
-              <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
-                Open deal
+              <Ionicons
+                name="chatbubble-outline"
+                size={16}
+                color={colors.primary}
+              />
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontFamily: f.semibold,
+                  color: colors.primary,
+                }}
+              >
+                Check with{' '}
+                {todo.contact?.name?.trim().split(/\s+/)[0] || 'contact'}
               </Text>
             </Pressable>
-          </Link>
-        ) : null}
-        {error ? (
-          <Text style={{ fontSize: 12.5, color: colors.danger }}>{error}</Text>
-        ) : null}
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <SheetButton
-            label="Save changes"
-            color={colors.primary}
-            textColor={colors.onPrimary}
-            disabled={busy || !editTitle.trim()}
-            busy={busy}
-            onPress={saveEdit}
-          />
-          <SheetButton
-            label="Cancel"
-            color={colors.surface}
-            textColor={colors.textMuted}
-            onPress={cancelEdit}
-          />
-        </View>
-      </ScrollView>
-    </BottomSheet>
+          ) : null}
+          {todo.property ? (
+            <Link href={`/(app)/property/${todo.property.id}`} asChild>
+              <Pressable
+                onPress={cancelEdit}
+                accessibilityRole="link"
+                accessibilityLabel="Open property"
+              >
+                <DetailRow
+                  icon="home-outline"
+                  text={todo.property.title}
+                  accent
+                />
+              </Pressable>
+            </Link>
+          ) : null}
+          {todo.deal_id ? (
+            <Link href={dealDateHref(todo.deal_id)} asChild>
+              <Pressable
+                onPress={cancelEdit}
+                accessibilityRole="link"
+                accessibilityLabel="Open the deal this task belongs to"
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.md,
+                }}
+              >
+                <Ionicons
+                  name="briefcase-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontFamily: f.semibold,
+                    color: colors.primary,
+                  }}
+                >
+                  Open deal
+                </Text>
+              </Pressable>
+            </Link>
+          ) : null}
+          {error ? (
+            <Text style={{ fontSize: 12.5, color: colors.danger }}>
+              {error}
+            </Text>
+          ) : null}
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <SheetButton
+              label="Save changes"
+              color={colors.primary}
+              textColor={colors.onPrimary}
+              disabled={busy || !editTitle.trim()}
+              busy={busy}
+              onPress={saveEdit}
+            />
+            <SheetButton
+              label="Cancel"
+              color={colors.surface}
+              textColor={colors.textMuted}
+              onPress={cancelEdit}
+            />
+          </View>
+        </ScrollView>
+      </BottomSheet>
     </>
   );
 }
@@ -1465,7 +1589,8 @@ function AppointmentCard({
           style={{ fontSize: 12.5, color: colors.textMuted }}
           numberOfLines={1}
         >
-          {showDate ? `${date} · ` : ''}{time} · {meta.label}
+          {showDate ? `${date} · ` : ''}
+          {time} · {meta.label}
           {appointment.location ? ` · ${appointment.location}` : ''}
         </Text>
         {appointment.contact ? (
@@ -1534,7 +1659,9 @@ function DealDateCard({
       queryClient.invalidateQueries({ queryKey: ['deal-dates'] });
     } catch {
       haptic.warn();
-      setError('Could not update this milestone. Check your connection and try again.');
+      setError(
+        'Could not update this milestone. Check your connection and try again.'
+      );
     } finally {
       setBusy(false);
     }
@@ -1563,26 +1690,49 @@ function DealDateCard({
         <Pressable
           accessibilityRole="link"
           accessibilityLabel={`${DEAL_DATE_KIND_LABELS[dealDate.kind]}: ${dealDate.title}, ${dealDate.subject}, ${deadlineLabel(dealDate.daysLeft)}`}
-          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+          style={{
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.md,
+          }}
         >
-          <View style={[styles.typeBadge, { backgroundColor: colors.warningSoft }]}>
-            <Ionicons name="briefcase-outline" size={17} color={colors.warning} />
+          <View
+            style={[styles.typeBadge, { backgroundColor: colors.warningSoft }]}
+          >
+            <Ionicons
+              name="briefcase-outline"
+              size={17}
+              color={colors.warning}
+            />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+            <Text
+              style={[styles.cardTitle, { color: colors.text }]}
+              numberOfLines={1}
+            >
               {dealDate.title}
             </Text>
-            <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
+            <Text
+              style={{ fontSize: 12.5, color: colors.textMuted }}
+              numberOfLines={1}
+            >
               {showDate ? `${date} · ` : ''}
               {DEAL_DATE_KIND_LABELS[dealDate.kind]} · {dealDate.subject}
             </Text>
             <Text
-              style={{ fontSize: 12.5, color: urgencyColor, fontFamily: f.semibold }}
+              style={{
+                fontSize: 12.5,
+                color: urgencyColor,
+                fontFamily: f.semibold,
+              }}
             >
               {deadlineLabel(dealDate.daysLeft)}
             </Text>
             {error ? (
-              <Text style={{ fontSize: 11.5, color: colors.danger }}>{error}</Text>
+              <Text style={{ fontSize: 11.5, color: colors.danger }}>
+                {error}
+              </Text>
             ) : null}
           </View>
         </Pressable>
@@ -1597,7 +1747,11 @@ function DealDateCard({
             accessibilityRole="button"
             accessibilityLabel={`Done: ${dealDate.title}`}
           >
-            <Ionicons name="checkmark-circle-outline" size={24} color={colors.success} />
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={24}
+              color={colors.success}
+            />
           </Pressable>
         )
       ) : (
@@ -1651,7 +1805,9 @@ function AppointmentDetail({
   const [editStart, setEditStart] = useState(
     () => new Date(appointment?.start_time ?? Date.now())
   );
-  const [detailsPicker, setDetailsPicker] = useState<'date' | 'time' | null>(null);
+  const [detailsPicker, setDetailsPicker] = useState<'date' | 'time' | null>(
+    null
+  );
   const [editContactIds, setEditContactIds] = useState<string[]>(() =>
     appointment?.contact_ids?.length
       ? appointment.contact_ids
@@ -1706,7 +1862,9 @@ function AppointmentDetail({
   const start = new Date(appointment.start_time);
   const effectiveStart = newStart ?? start;
   const participantContacts = editContactIds
-    .map((id) => selectedContactsQuery.data?.find((contact) => contact.id === id))
+    .map((id) =>
+      selectedContactsQuery.data?.find((contact) => contact.id === id)
+    )
     .filter((contact): contact is Contact => !!contact);
   if (participantContacts.length === 0 && appointment.contact) {
     participantContacts.push(appointment.contact);
@@ -1730,7 +1888,11 @@ function AppointmentDetail({
         : oldStart + 60 * 60 * 1000;
       const duration = Math.max(oldEnd - oldStart, 15 * 60 * 1000);
       const result = await apiFetch<{
-        notifications: { sent: number; failed: number; recipients: number } | null;
+        notifications: {
+          sent: number;
+          failed: number;
+          recipients: number;
+        } | null;
       }>(`/api/appointments/${appointment.id}`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -1760,7 +1922,9 @@ function AppointmentDetail({
       onClose();
     } catch (err) {
       haptic.warn();
-      setError(err instanceof ApiError ? err.message : 'Could not update this event.');
+      setError(
+        err instanceof ApiError ? err.message : 'Could not update this event.'
+      );
     } finally {
       setBusy(false);
     }
@@ -1941,10 +2105,20 @@ function AppointmentDetail({
               accessibilityLabel="Event title"
               style={[
                 styles.editInput,
-                { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
               ]}
             />
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: spacing.sm,
+              }}
+            >
               {(Object.keys(TYPE_META) as AppointmentType[]).map((type) => (
                 <FilterChip
                   key={type}
@@ -1956,25 +2130,63 @@ function AppointmentDetail({
             </View>
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               <Pressable
-                style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[
+                  styles.pickerButton,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
                 onPress={() => setDetailsPicker('date')}
                 accessibilityRole="button"
                 accessibilityLabel="Change event date"
               >
-                <Ionicons name="calendar-outline" size={15} color={colors.primary} />
-                <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
-                  {editStart.toLocaleDateString([], { day: 'numeric', month: 'short' })}
+                <Ionicons
+                  name="calendar-outline"
+                  size={15}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{
+                    fontSize: 13.5,
+                    fontFamily: f.semibold,
+                    color: colors.text,
+                  }}
+                >
+                  {editStart.toLocaleDateString([], {
+                    day: 'numeric',
+                    month: 'short',
+                  })}
                 </Text>
               </Pressable>
               <Pressable
-                style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[
+                  styles.pickerButton,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
                 onPress={() => setDetailsPicker('time')}
                 accessibilityRole="button"
                 accessibilityLabel="Change event time"
               >
-                <Ionicons name="time-outline" size={15} color={colors.primary} />
-                <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
-                  {editStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                <Ionicons
+                  name="time-outline"
+                  size={15}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{
+                    fontSize: 13.5,
+                    fontFamily: f.semibold,
+                    color: colors.text,
+                  }}
+                >
+                  {editStart.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </Text>
               </Pressable>
             </View>
@@ -1994,7 +2206,11 @@ function AppointmentDetail({
               accessibilityLabel="Event location"
               style={[
                 styles.editInput,
-                { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
               ]}
             />
             <TextInput
@@ -2006,28 +2222,59 @@ function AppointmentDetail({
               accessibilityLabel="Event description"
               style={[
                 styles.notesInput,
-                { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
               ]}
             />
-            <Text style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.textMuted }}>
+            <Text
+              style={{
+                fontSize: 11.5,
+                fontFamily: f.bold,
+                color: colors.textMuted,
+              }}
+            >
               PARTICIPANTS
             </Text>
             {(selectedContactsQuery.data ?? []).map((contact) => (
               <View
                 key={contact.id}
-                style={[styles.participantRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[
+                  styles.participantRow,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
               >
-                <Ionicons name="person-outline" size={16} color={colors.primary} />
-                <Text style={{ flex: 1, fontSize: 14, color: colors.text }} numberOfLines={1}>
+                <Ionicons
+                  name="person-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{ flex: 1, fontSize: 14, color: colors.text }}
+                  numberOfLines={1}
+                >
                   {contact.name || contact.phone}
                 </Text>
                 <Pressable
-                  onPress={() => setEditContactIds((ids) => ids.filter((id) => id !== contact.id))}
+                  onPress={() =>
+                    setEditContactIds((ids) =>
+                      ids.filter((id) => id !== contact.id)
+                    )
+                  }
                   hitSlop={8}
                   accessibilityRole="button"
                   accessibilityLabel={`Remove ${contact.name || contact.phone}`}
                 >
-                  <Ionicons name="close-circle" size={18} color={colors.textFaint} />
+                  <Ionicons
+                    name="close-circle"
+                    size={18}
+                    color={colors.textFaint}
+                  />
                 </Pressable>
               </View>
             ))}
@@ -2039,7 +2286,11 @@ function AppointmentDetail({
               accessibilityLabel="Search participants"
               style={[
                 styles.editInput,
-                { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
               ]}
             />
             {(contactOptionsQuery.data ?? [])
@@ -2051,16 +2302,35 @@ function AppointmentDetail({
                     setEditContactIds((ids) => [...ids, contact.id]);
                     setContactSearch('');
                   }}
-                  style={[styles.participantRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  style={[
+                    styles.participantRow,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                    },
+                  ]}
                 >
-                  <Ionicons name="person-add-outline" size={16} color={colors.primary} />
-                  <Text style={{ flex: 1, fontSize: 14, color: colors.text }} numberOfLines={1}>
+                  <Ionicons
+                    name="person-add-outline"
+                    size={16}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={{ flex: 1, fontSize: 14, color: colors.text }}
+                    numberOfLines={1}
+                  >
                     {contact.name || contact.phone}
                   </Text>
                 </Pressable>
               ))}
             {editContactIds.length > 0 ? (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: spacing.sm,
+                }}
+              >
                 <FilterChip
                   label="Inform new participants"
                   active={notificationScope === 'new'}
@@ -2103,10 +2373,20 @@ function AppointmentDetail({
             }}
             accessibilityRole="button"
             accessibilityLabel="Edit this event"
-            style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.md,
+            }}
           >
             <Ionicons name="create-outline" size={16} color={colors.primary} />
-            <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
+            <Text
+              style={{
+                fontSize: 14,
+                fontFamily: f.semibold,
+                color: colors.primary,
+              }}
+            >
               Edit event and participants
             </Text>
           </Pressable>
@@ -2122,129 +2402,134 @@ function AppointmentDetail({
               event, minutes / outcome after it. Editable here because
               the post-event ones exist to be filled in once the event
               is done, which is when this sheet is open. */}
-        {!editingDetails && (editingNotes ? (
-          <View style={{ gap: spacing.md }}>
-            {eventTypeFields(appointment.event_type).map((field) => (
-              <View key={field.key} style={{ gap: 6 }}>
-                <Text
-                  style={{
-                    fontSize: 11.5,
-                    fontFamily: f.bold,
-                    color: colors.textMuted,
-                  }}
-                >
-                  {field.label.toUpperCase()}
+        {!editingDetails &&
+          (editingNotes ? (
+            <View style={{ gap: spacing.md }}>
+              {eventTypeFields(appointment.event_type).map((field) => (
+                <View key={field.key} style={{ gap: 6 }}>
                   <Text
                     style={{
-                      fontFamily: fonts.regular,
-                      color: colors.textFaint,
+                      fontSize: 11.5,
+                      fontFamily: f.bold,
+                      color: colors.textMuted,
                     }}
                   >
-                    {field.phase === 'pre'
-                      ? '  — sent in the pre-event reminder'
-                      : '  — fill in after the event'}
+                    {field.label.toUpperCase()}
+                    <Text
+                      style={{
+                        fontFamily: fonts.regular,
+                        color: colors.textFaint,
+                      }}
+                    >
+                      {field.phase === 'pre'
+                        ? '  — sent in the pre-event reminder'
+                        : '  — fill in after the event'}
+                    </Text>
                   </Text>
-                </Text>
-                <TextInput
-                  multiline
-                  value={notes[field.key]}
-                  onChangeText={(next) =>
-                    setNotes((prev) => ({ ...prev, [field.key]: next }))
-                  }
-                  placeholder={field.placeholder}
-                  placeholderTextColor={colors.textFaint}
-                  accessibilityLabel={field.label}
-                  style={[
-                    styles.notesInput,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
+                  <TextInput
+                    multiline
+                    value={notes[field.key]}
+                    onChangeText={(next) =>
+                      setNotes((prev) => ({ ...prev, [field.key]: next }))
+                    }
+                    placeholder={field.placeholder}
+                    placeholderTextColor={colors.textFaint}
+                    accessibilityLabel={field.label}
+                    style={[
+                      styles.notesInput,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
+                  />
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <SheetButton
+                  label="Save notes"
+                  color={colors.primary}
+                  textColor={colors.onPrimary}
+                  disabled={busy}
+                  busy={busy}
+                  onPress={saveNotes}
+                />
+                <SheetButton
+                  label="Cancel"
+                  color={colors.surface}
+                  textColor={colors.textMuted}
+                  onPress={() => {
+                    setNotes({
+                      agenda: appointment.agenda ?? '',
+                      minutes: appointment.minutes ?? '',
+                      outcome: appointment.outcome ?? '',
+                    });
+                    setEditingNotes(false);
+                  }}
                 />
               </View>
-            ))}
-            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-              <SheetButton
-                label="Save notes"
-                color={colors.primary}
-                textColor={colors.onPrimary}
-                disabled={busy}
-                busy={busy}
-                onPress={saveNotes}
-              />
-              <SheetButton
-                label="Cancel"
-                color={colors.surface}
-                textColor={colors.textMuted}
-                onPress={() => {
-                  setNotes({
-                    agenda: appointment.agenda ?? '',
-                    minutes: appointment.minutes ?? '',
-                    outcome: appointment.outcome ?? '',
-                  });
-                  setEditingNotes(false);
-                }}
-              />
             </View>
-          </View>
-        ) : (
-          <>
-            {eventTypeFields(appointment.event_type)
-              .filter(
-                (field) => (appointment[field.key] ?? '').trim().length > 0
-              )
-              .map((field) => (
-                <DetailRow
-                  key={field.key}
-                  icon={
-                    field.phase === 'pre' ? 'list-outline' : 'create-outline'
-                  }
-                  text={`${field.label}: ${appointment[field.key]}`}
-                />
-              ))}
-            <Pressable
-              onPress={() => {
-                haptic.tap();
-                setEditingNotes(true);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Add or edit notes for this event"
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: spacing.md,
-              }}
-            >
-              <Ionicons
-                name="create-outline"
-                size={16}
-                color={colors.primary}
-              />
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontFamily: f.semibold,
-                  color: colors.primary,
-                }}
-              >
-                {eventTypeFields(appointment.event_type).some(
+          ) : (
+            <>
+              {eventTypeFields(appointment.event_type)
+                .filter(
                   (field) => (appointment[field.key] ?? '').trim().length > 0
                 )
-                  ? 'Edit notes'
-                  : postFieldLabel(appointment.event_type)}
-              </Text>
-            </Pressable>
-          </>
-        ))}
+                .map((field) => (
+                  <DetailRow
+                    key={field.key}
+                    icon={
+                      field.phase === 'pre' ? 'list-outline' : 'create-outline'
+                    }
+                    text={`${field.label}: ${appointment[field.key]}`}
+                  />
+                ))}
+              <Pressable
+                onPress={() => {
+                  haptic.tap();
+                  setEditingNotes(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Add or edit notes for this event"
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.md,
+                }}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={16}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontFamily: f.semibold,
+                    color: colors.primary,
+                  }}
+                >
+                  {eventTypeFields(appointment.event_type).some(
+                    (field) => (appointment[field.key] ?? '').trim().length > 0
+                  )
+                    ? 'Edit notes'
+                    : postFieldLabel(appointment.event_type)}
+                </Text>
+              </Pressable>
+            </>
+          ))}
         {!editingDetails
           ? participantContacts.map((contact, index) => (
-              <Link key={contact.id} href={`/(app)/contact/${contact.id}`} asChild>
+              <Link
+                key={contact.id}
+                href={`/(app)/contact/${contact.id}`}
+                asChild
+              >
                 <Pressable onPress={onClose}>
                   <DetailRow
-                    icon={index === 0 ? "people-outline" : "person-outline"}
-                    text={`${index === 0 ? "Reminder audience: " : ""}${contact.name || contact.phone || ''}`}
+                    icon={index === 0 ? 'people-outline' : 'person-outline'}
+                    text={`${index === 0 ? 'Reminder audience: ' : ''}${contact.name || contact.phone || ''}`}
                     accent
                   />
                 </Pressable>

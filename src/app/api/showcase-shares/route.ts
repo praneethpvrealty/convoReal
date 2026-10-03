@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 
 // POST /api/showcase-shares
 // Mints a share-instance token for the generic showcase link. The
@@ -13,7 +17,10 @@ export async function POST() {
   try {
     const ctx = await requireRole('agent');
 
-    const limit = await checkRateLimit(`showcase-shares:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const limit = await checkRateLimit(
+      `showcase-shares:${ctx.userId}`,
+      RATE_LIMITS.adminAction
+    );
     if (!limit.success) return rateLimitResponse(limit);
 
     const { data, error } = await ctx.supabase

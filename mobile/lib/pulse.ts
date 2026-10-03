@@ -50,7 +50,9 @@ export async function fetchPulseStats(accountId: string): Promise<PulseStats> {
   );
 }
 
-async function fetchPulseStatsUnbounded(accountId: string): Promise<PulseStats> {
+async function fetchPulseStatsUnbounded(
+  accountId: string
+): Promise<PulseStats> {
   const { data, error } = await supabase
     .rpc('pulse_stats', { p_account_id: accountId })
     .maybeSingle();
@@ -84,14 +86,16 @@ async function fetchPulseTopPropertiesUnbounded(
     p_limit: 5,
   });
   if (error) throw error;
-  return ((data ?? []) as {
-    property_id: string;
-    title: string;
-    property_code: string | null;
-    price: number | null;
-    views_count: number;
-    unique_views_count: number;
-  }[]).map((r) => ({
+  return (
+    (data ?? []) as {
+      property_id: string;
+      title: string;
+      property_code: string | null;
+      price: number | null;
+      views_count: number;
+      unique_views_count: number;
+    }[]
+  ).map((r) => ({
     propertyId: r.property_id,
     title: r.title,
     propertyCode: r.property_code,
@@ -129,7 +133,10 @@ async function fetchPulseFeedUnbounded(
     .limit(PULSE_FEED_PAGE_SIZE);
   if (error) throw error;
 
-  type Row = Omit<PulseEvent, 'contact' | 'via_contact' | 'property' | 'share'> & {
+  type Row = Omit<
+    PulseEvent,
+    'contact' | 'via_contact' | 'property' | 'share'
+  > & {
     contact: PulseEvent['contact'] | PulseEvent['contact'][] | null;
     via_contact: PulseEvent['via_contact'] | PulseEvent['via_contact'][] | null;
     property: PulseEvent['property'] | PulseEvent['property'][] | null;
@@ -164,14 +171,16 @@ async function fetchPropertyViewersUnbounded(
     p_property_id: propertyId,
   });
   if (error) throw error;
-  return ((data ?? []) as {
-    contact_id: string;
-    name: string | null;
-    phone: string | null;
-    views_count: number;
-    sessions_count: number;
-    last_at: string;
-  }[]).map((r) => ({
+  return (
+    (data ?? []) as {
+      contact_id: string;
+      name: string | null;
+      phone: string | null;
+      views_count: number;
+      sessions_count: number;
+      last_at: string;
+    }[]
+  ).map((r) => ({
     contactId: r.contact_id,
     name: r.name,
     phone: r.phone,

@@ -24,13 +24,16 @@
 // sweep failure must never break a cron tick or a deal-mode toggle.
 // ============================================================
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Contact, MatchEventTarget, Property } from "@/types";
-import { getMatchingContacts, type MatchDetails } from "@/lib/matching";
-import { attachInquiredListingTypes } from "@/lib/contacts/inquired-intent";
-import { CLOSED_LISTING_STATUS_FILTER } from "@/lib/inventory/listing-status";
-import { buildMaskedPropertySnapshot, type MaskedPropertySnapshot } from "./masking";
-import { sendDenNotification } from "./notify";
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Contact, MatchEventTarget, Property } from '@/types';
+import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
+import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
+import { CLOSED_LISTING_STATUS_FILTER } from '@/lib/inventory/listing-status';
+import {
+  buildMaskedPropertySnapshot,
+  type MaskedPropertySnapshot,
+} from './masking';
+import { sendDenNotification } from './notify';
 import { contactHandle } from '@/lib/contacts/reachability';
 
 const MIN_SCORE = 60;
@@ -44,18 +47,18 @@ const DEDUPE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 /** Meta rate-limit safety cap on aggressive pings per sweep run. */
 const MAX_NOTIFICATIONS_PER_RUN = 100;
 
-export const DEN_MATCH_ALERT_TEMPLATE_NAME = "den_match_alert";
+export const DEN_MATCH_ALERT_TEMPLATE_NAME = 'den_match_alert';
 
 function chipsFromDetails(d: MatchDetails): string[] {
   const chips: string[] = [];
-  if (d.type === "match") chips.push("Type match");
-  else if (d.type === "partial") chips.push("Category match");
-  if (d.location === "match") chips.push("In area");
-  else if (d.location === "partial") chips.push("Same city");
-  if (d.budget === "match") chips.push("Budget fit");
-  else if (d.budget === "partial") chips.push("Budget near");
-  if (d.bhk === "match") chips.push("BHK fit");
-  if (d.roi === "match") chips.push("Yield ✓");
+  if (d.type === 'match') chips.push('Type match');
+  else if (d.type === 'partial') chips.push('Category match');
+  if (d.location === 'match') chips.push('In area');
+  else if (d.location === 'partial') chips.push('Same city');
+  if (d.budget === 'match') chips.push('Budget fit');
+  else if (d.budget === 'partial') chips.push('Budget near');
+  if (d.bhk === 'match') chips.push('BHK fit');
+  if (d.roi === 'match') chips.push('Yield ✓');
   return chips;
 }
 
@@ -68,21 +71,26 @@ export interface SweepSummary {
 
 export async function runDealModeSweep(
   db: SupabaseClient,
-  opts: { propertyId?: string } = {},
+  opts: { propertyId?: string } = {}
 ): Promise<SweepSummary> {
-  const summary: SweepSummary = { poolSize: 0, eventsCreated: 0, eventsRefreshed: 0, notified: 0 };
+  const summary: SweepSummary = {
+    poolSize: 0,
+    eventsCreated: 0,
+    eventsRefreshed: 0,
+    notified: 0,
+  };
 
   let poolQuery = db
-    .from("properties")
-    .select("*")
-    .neq("deal_mode", "off")
-    .eq("is_published", true)
-    .not("status", "in", CLOSED_LISTING_STATUS_FILTER)
+    .from('properties')
+    .select('*')
+    .neq('deal_mode', 'off')
+    .eq('is_published', true)
+    .not('status', 'in', CLOSED_LISTING_STATUS_FILTER)
     .limit(MAX_POOL);
-  if (opts.propertyId) poolQuery = poolQuery.eq("id", opts.propertyId);
+  if (opts.propertyId) poolQuery = poolQuery.eq('id', opts.propertyId);
   const { data: pool, error: poolErr } = await poolQuery;
   if (poolErr) {
-    console.error("[deal-mode-sweep] pool query failed:", poolErr.message);
+    console.error('[deal-mode-sweep] pool query failed:', poolErr.message);
     return summary;
   }
   if (!pool || pool.length === 0) return summary;
@@ -91,19 +99,24 @@ export async function runDealModeSweep(
   // All active buyer/agent contacts platform-wide, grouped by tenant.
   // Service-role read — every downstream write re-scopes by account.
   const { data: contacts, error: contactsErr } = await db
-    .from("contacts")
-    .select("*")
-    .eq("status", "active")
-    .in("classification", ["Buyer", "Agent"])
+    .from('contacts')
+    .select('*')
+    .eq('status', 'active')
+    .in('classification', ['Buyer', 'Agent'])
     .limit(MAX_CONTACTS);
   if (contactsErr) {
-    console.error("[deal-mode-sweep] contacts query failed:", contactsErr.message);
+    console.error(
+      '[deal-mode-sweep] contacts query failed:',
+      contactsErr.message
+    );
     return summary;
   }
   // account_id is a real column on contacts but not part of the TS
   // Contact interface (staff code is always already account-scoped).
   const contactsByAccount = new Map<string, Contact[]>();
-  for (const contact of (contacts || []) as Array<Contact & { account_id: string }>) {
+  for (const contact of (contacts || []) as Array<
+    Contact & { account_id: string }
+  >) {
     const list = contactsByAccount.get(contact.account_id) || [];
     list.push(contact);
     contactsByAccount.set(contact.account_id, list);
@@ -136,7 +149,7 @@ export async function runDealModeSweep(
           .filter((r) => r.score >= MIN_SCORE)
           .slice(0, MAX_TARGETS);
       } catch (err) {
-        console.error("[deal-mode-sweep] matching failed:", err);
+        console.error('[deal-mode-sweep] matching failed:', err);
         continue;
       }
       if (results.length === 0) continue;
@@ -149,15 +162,31 @@ export async function runDealModeSweep(
         chips: chipsFromDetails(r.details),
       }));
 
-      const outcome = await upsertDealModeEvent(db, buyerAccountId, property.id, targets, snapshot);
-      if (outcome === "created") summary.eventsCreated++;
-      else if (outcome === "refreshed") summary.eventsRefreshed++;
+      const outcome = await upsertDealModeEvent(
+        db,
+        buyerAccountId,
+        property.id,
+        targets,
+        snapshot
+      );
+      if (outcome === 'created') summary.eventsCreated++;
+      else if (outcome === 'refreshed') summary.eventsRefreshed++;
 
       // Aggressive + brand-new event → ping the matched buyers now.
-      if (outcome === "created" && property.deal_mode === "aggressive" && notifyBudget > 0) {
+      if (
+        outcome === 'created' &&
+        property.deal_mode === 'aggressive' &&
+        notifyBudget > 0
+      ) {
         for (const result of results) {
           if (notifyBudget <= 0) break;
-          const sent = await notifyBuyer(db, buyerAccountId, result.contact, result.score, snapshot);
+          const sent = await notifyBuyer(
+            db,
+            buyerAccountId,
+            result.contact,
+            result.score,
+            snapshot
+          );
           if (sent) {
             summary.notified++;
             notifyBudget--;
@@ -170,58 +199,67 @@ export async function runDealModeSweep(
   return summary;
 }
 
-type UpsertOutcome = "created" | "refreshed" | "skipped";
+type UpsertOutcome = 'created' | 'refreshed' | 'skipped';
 
 async function upsertDealModeEvent(
   db: SupabaseClient,
   accountId: string,
   propertyId: string,
   targets: MatchEventTarget[],
-  snapshot: MaskedPropertySnapshot,
+  snapshot: MaskedPropertySnapshot
 ): Promise<UpsertOutcome> {
   const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
   const { data: existing } = await db
-    .from("match_events")
-    .select("id, status")
-    .eq("account_id", accountId)
-    .eq("property_id", propertyId)
-    .eq("source", "deal_mode")
-    .gte("created_at", since)
-    .order("created_at", { ascending: false })
+    .from('match_events')
+    .select('id, status')
+    .eq('account_id', accountId)
+    .eq('property_id', propertyId)
+    .eq('source', 'deal_mode')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
     .limit(1);
   const dup = existing?.[0];
 
-  if (dup && dup.status === "new") {
+  if (dup && dup.status === 'new') {
     await db
-      .from("match_events")
-      .update({ matches: targets, subject_snapshot: snapshot, updated_at: new Date().toISOString() })
-      .eq("id", dup.id);
-    return "refreshed";
+      .from('match_events')
+      .update({
+        matches: targets,
+        subject_snapshot: snapshot,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', dup.id);
+    return 'refreshed';
   }
-  if (dup) return "skipped"; // sent/dismissed inside the window — stay quiet
+  if (dup) return 'skipped'; // sent/dismissed inside the window — stay quiet
 
-  const { error } = await db.from("match_events").insert({
+  const { error } = await db.from('match_events').insert({
     account_id: accountId,
-    kind: "new_property",
-    source: "deal_mode",
+    kind: 'new_property',
+    source: 'deal_mode',
     property_id: propertyId,
     matches: targets,
     subject_snapshot: snapshot,
-    status: "new",
+    status: 'new',
   });
   if (error) {
-    console.error("[deal-mode-sweep] event insert failed:", error.message);
-    return "skipped";
+    console.error('[deal-mode-sweep] event insert failed:', error.message);
+    return 'skipped';
   }
-  return "created";
+  return 'created';
 }
 
-function buildAlertText(score: number, snapshot: MaskedPropertySnapshot): string {
-  const what = snapshot.bedrooms ? `${snapshot.bedrooms} BHK ${snapshot.type}` : snapshot.type;
-  const where = snapshot.locality || snapshot.city || "your preferred area";
+function buildAlertText(
+  score: number,
+  snapshot: MaskedPropertySnapshot
+): string {
+  const what = snapshot.bedrooms
+    ? `${snapshot.bedrooms} BHK ${snapshot.type}`
+    : snapshot.type;
+  const where = snapshot.locality || snapshot.city || 'your preferred area';
   const band = snapshot.rent_band
     ? `${snapshot.rent_band} per month`
-    : snapshot.price_band || "price on request";
+    : snapshot.price_band || 'price on request';
   return (
     `🏠 *Direct owner property alert!*\n\n` +
     `A ${what} in ${where} (${band}) matching *${score}%* of your requirement just became available — directly from the owner, no middlemen.\n\n` +
@@ -234,19 +272,21 @@ async function notifyBuyer(
   accountId: string,
   contact: Contact,
   score: number,
-  snapshot: MaskedPropertySnapshot,
+  snapshot: MaskedPropertySnapshot
 ): Promise<boolean> {
   if (!contact.phone) return false;
-  const what = snapshot.bedrooms ? `${snapshot.bedrooms} BHK ${snapshot.type}` : snapshot.type;
+  const what = snapshot.bedrooms
+    ? `${snapshot.bedrooms} BHK ${snapshot.type}`
+    : snapshot.type;
   return sendDenNotification(db, {
     accountId,
     contactId: contact.id,
     text: buildAlertText(score, snapshot),
     templateName: DEN_MATCH_ALERT_TEMPLATE_NAME,
     templateParams: [
-      contact.name?.trim().split(/\s+/)[0] || "there",
+      contact.name?.trim().split(/\s+/)[0] || 'there',
       what,
-      snapshot.locality || snapshot.city || "your preferred area",
+      snapshot.locality || snapshot.city || 'your preferred area',
       `${score}%`,
     ],
   });

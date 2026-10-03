@@ -1,7 +1,7 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { startOfLocalDay } from '@/lib/dashboard/date-utils'
-import { loadPastEnquiryContacts } from '@/lib/journey/past-enquiry'
-import type { Contact, Conversation } from '@/types'
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { startOfLocalDay } from '@/lib/dashboard/date-utils';
+import { loadPastEnquiryContacts } from '@/lib/journey/past-enquiry';
+import type { Contact, Conversation } from '@/types';
 
 // ------------------------------------------------------------
 // "Today" command-center loaders. Same pattern as
@@ -12,37 +12,37 @@ import type { Contact, Conversation } from '@/types'
 // outgrows this we'd move the message walk into a SQL RPC.
 // ------------------------------------------------------------
 
-type DB = SupabaseClient
+type DB = SupabaseClient;
 
-const HOUR_MS = 3_600_000
-const DAY_MS = 24 * HOUR_MS
+const HOUR_MS = 3_600_000;
+const DAY_MS = 24 * HOUR_MS;
 
 /** End of the local calendar day (23:59:59.999), mirroring
  *  startOfLocalDay from the dashboard date utils. */
 export function endOfLocalDay(d: Date = new Date()): Date {
-  const out = startOfLocalDay(d)
-  out.setDate(out.getDate() + 1)
-  out.setMilliseconds(-1)
-  return out
+  const out = startOfLocalDay(d);
+  out.setDate(out.getDate() + 1);
+  out.setMilliseconds(-1);
+  return out;
 }
 
 /** PostgREST can surface an embedded 1:1 relation as either an object
  *  or a single-element array depending on inferred cardinality —
  *  normalise to the object form (same trick as dashboard/queries.ts). */
 function one<T>(v: T | T[] | null | undefined): T | null {
-  if (v === null || v === undefined) return null
-  return Array.isArray(v) ? (v[0] ?? null) : v
+  if (v === null || v === undefined) return null;
+  return Array.isArray(v) ? (v[0] ?? null) : v;
 }
 
 // --- 1. Expiring WhatsApp sessions (+ awaiting-reply tail) -------------
 
 export interface ExpiringSessionItem {
-  conversation: Conversation
-  contact: Contact | null
+  conversation: Conversation;
+  contact: Contact | null;
   /** Timestamp of the last inbound customer message (ISO). */
-  lastCustomerAt: string
+  lastCustomerAt: string;
   /** When WhatsApp's 24-hour customer-service window closes (ISO). */
-  expiresAt: string
+  expiresAt: string;
 }
 
 /**
@@ -52,85 +52,90 @@ export interface ExpiringSessionItem {
  * expiring within 6h = "windows closing", older than 2h since the
  * customer wrote = "awaiting your reply", fresher than 2h = neither.
  */
-export async function loadExpiringSessions(db: DB): Promise<ExpiringSessionItem[]> {
-  const windowStart = new Date(Date.now() - DAY_MS).toISOString()
+export async function loadExpiringSessions(
+  db: DB
+): Promise<ExpiringSessionItem[]> {
+  const windowStart = new Date(Date.now() - DAY_MS).toISOString();
   const { data, error } = await db
     .from('messages')
     .select('conversation_id, sender_type, created_at')
     .gte('created_at', windowStart)
     .order('conversation_id', { ascending: true })
-    .order('created_at', { ascending: true })
-  if (error) throw error
+    .order('created_at', { ascending: true });
+  if (error) throw error;
 
   const rows = (data ?? []) as {
-    conversation_id: string
-    sender_type: string
-    created_at: string
-  }[]
+    conversation_id: string;
+    sender_type: string;
+    created_at: string;
+  }[];
 
   // Walk per conversation (rows are grouped by conversation_id and
   // time-ordered within each group): remember the LAST customer
   // message and whether anything outbound landed after it.
-  const unreplied = new Map<string, string>() // conversation_id -> lastCustomerAt
-  let curConv = ''
-  let lastCustomerAt: string | null = null
-  let replied = false
+  const unreplied = new Map<string, string>(); // conversation_id -> lastCustomerAt
+  let curConv = '';
+  let lastCustomerAt: string | null = null;
+  let replied = false;
   const flush = () => {
-    if (curConv && lastCustomerAt && !replied) unreplied.set(curConv, lastCustomerAt)
-  }
+    if (curConv && lastCustomerAt && !replied)
+      unreplied.set(curConv, lastCustomerAt);
+  };
   for (const row of rows) {
     if (row.conversation_id !== curConv) {
-      flush()
-      curConv = row.conversation_id
-      lastCustomerAt = null
-      replied = false
+      flush();
+      curConv = row.conversation_id;
+      lastCustomerAt = null;
+      replied = false;
     }
     if (row.sender_type === 'customer') {
-      lastCustomerAt = row.created_at
-      replied = false
+      lastCustomerAt = row.created_at;
+      replied = false;
     } else if (lastCustomerAt) {
-      replied = true // agent + bot both close the "needs reply" state
+      replied = true; // agent + bot both close the "needs reply" state
     }
   }
-  flush()
+  flush();
 
-  if (unreplied.size === 0) return []
+  if (unreplied.size === 0) return [];
 
   const { data: convData, error: convError } = await db
     .from('conversations')
     .select('*, contact:contacts(*)')
-    .in('id', Array.from(unreplied.keys()))
-  if (convError) throw convError
+    .in('id', Array.from(unreplied.keys()));
+  if (convError) throw convError;
 
   type ConvRow = Omit<Conversation, 'contact'> & {
-    contact: Contact | Contact[] | null
-  }
+    contact: Contact | Contact[] | null;
+  };
 
-  const items: ExpiringSessionItem[] = []
+  const items: ExpiringSessionItem[] = [];
   for (const row of (convData ?? []) as unknown as ConvRow[]) {
-    if (row.is_archived || row.status === 'closed') continue
-    const customerAt = unreplied.get(row.id)
-    if (!customerAt) continue
-    const { contact: rawContact, ...conv } = row
-    const contact = one(rawContact)
+    if (row.is_archived || row.status === 'closed') continue;
+    const customerAt = unreplied.get(row.id);
+    if (!customerAt) continue;
+    const { contact: rawContact, ...conv } = row;
+    const contact = one(rawContact);
     items.push({
       conversation: { ...conv, contact: contact ?? undefined } as Conversation,
       contact,
       lastCustomerAt: customerAt,
-      expiresAt: new Date(new Date(customerAt).getTime() + DAY_MS).toISOString(),
-    })
+      expiresAt: new Date(
+        new Date(customerAt).getTime() + DAY_MS
+      ).toISOString(),
+    });
   }
 
-  return items.sort((a, b) => a.expiresAt.localeCompare(b.expiresAt))
+  return items.sort((a, b) => a.expiresAt.localeCompare(b.expiresAt));
 }
 
 // --- 2. Hot leads going quiet ------------------------------------------
 
 export interface QuietHotLead {
-  contact: Contact
+  contact: Contact;
   /** Whole days since last_contacted_at (or created_at when never
    *  contacted). */
-  daysSilent: number
+  daysSilent: number;
 }
 
 /**
@@ -151,47 +156,47 @@ export async function loadHotGoingQuiet(db: DB): Promise<QuietHotLead[]> {
     .select('*')
     .eq('is_merged', false)
     .in('status', ['active', 'pending_review'])
-    .eq('lead_temp', 'HOT')
-  if (error) throw error
+    .eq('lead_temp', 'HOT');
+  if (error) throw error;
 
-  const pastEnquiry = await loadPastEnquiryContacts(db)
+  const pastEnquiry = await loadPastEnquiryContacts(db);
 
-  const cutoff = Date.now() - 48 * HOUR_MS
-  const leads: QuietHotLead[] = []
+  const cutoff = Date.now() - 48 * HOUR_MS;
+  const leads: QuietHotLead[] = [];
   for (const contact of (data ?? []) as Contact[]) {
-    if (pastEnquiry.has(contact.id)) continue
+    if (pastEnquiry.has(contact.id)) continue;
     const lastTouch = contact.last_contacted_at
       ? new Date(contact.last_contacted_at).getTime()
-      : null
-    if (lastTouch !== null && lastTouch > cutoff) continue
-    const silentSince = lastTouch ?? new Date(contact.created_at).getTime()
+      : null;
+    if (lastTouch !== null && lastTouch > cutoff) continue;
+    const silentSince = lastTouch ?? new Date(contact.created_at).getTime();
     leads.push({
       contact,
       daysSilent: Math.max(0, Math.floor((Date.now() - silentSince) / DAY_MS)),
-    })
+    });
   }
 
-  return leads.sort((a, b) => b.daysSilent - a.daysSilent).slice(0, 20)
+  return leads.sort((a, b) => b.daysSilent - a.daysSilent).slice(0, 20);
 }
 
 // --- 3. Range insights: the daily numbers ------------------------------
 
 export interface RangeInsights {
   /** Conversations opened in the range — new WhatsApp inquiries. */
-  newInquiries: number
+  newInquiries: number;
   /** Contacts created in the range. */
-  newContacts: number
+  newContacts: number;
   /** Inbound customer messages in the range. */
-  messagesReceived: number
+  messagesReceived: number;
   /** Outbound messages in the range (agent + bot). */
-  messagesSent: number
+  messagesSent: number;
   /** Conversations with ≥1 customer message in the range. */
-  inboundConversations: number
+  inboundConversations: number;
   /** Of those, how many got an outbound reply after the customer's
    *  first message of the range. */
-  respondedConversations: number
+  respondedConversations: number;
   /** Showcase link opens (Pulse `open` events) in the range. */
-  showcaseOpens: number
+  showcaseOpens: number;
 }
 
 /**
@@ -203,10 +208,10 @@ export interface RangeInsights {
 export async function loadRangeInsights(
   db: DB,
   start: Date,
-  end: Date,
+  end: Date
 ): Promise<RangeInsights> {
-  const startIso = start.toISOString()
-  const endIso = end.toISOString()
+  const startIso = start.toISOString();
+  const endIso = end.toISOString();
 
   const [convRes, contactRes, msgRes, showcaseRes] = await Promise.all([
     db
@@ -232,31 +237,31 @@ export async function loadRangeInsights(
       .eq('event_type', 'open')
       .gte('created_at', startIso)
       .lte('created_at', endIso),
-  ])
-  if (convRes.error) throw convRes.error
-  if (contactRes.error) throw contactRes.error
-  if (msgRes.error) throw msgRes.error
-  if (showcaseRes.error) throw showcaseRes.error
+  ]);
+  if (convRes.error) throw convRes.error;
+  if (contactRes.error) throw contactRes.error;
+  if (msgRes.error) throw msgRes.error;
+  if (showcaseRes.error) throw showcaseRes.error;
 
   const rows = (msgRes.data ?? []) as {
-    conversation_id: string
-    sender_type: string
-  }[]
+    conversation_id: string;
+    sender_type: string;
+  }[];
 
-  let messagesReceived = 0
-  let messagesSent = 0
+  let messagesReceived = 0;
+  let messagesSent = 0;
   // Walk per conversation (rows grouped by conversation_id, time-ordered
   // within each group): a conversation counts as "responded" when any
   // outbound message follows its first inbound message of the range.
-  const inbound = new Set<string>()
-  const responded = new Set<string>()
+  const inbound = new Set<string>();
+  const responded = new Set<string>();
   for (const row of rows) {
     if (row.sender_type === 'customer') {
-      messagesReceived++
-      inbound.add(row.conversation_id)
+      messagesReceived++;
+      inbound.add(row.conversation_id);
     } else {
-      messagesSent++
-      if (inbound.has(row.conversation_id)) responded.add(row.conversation_id)
+      messagesSent++;
+      if (inbound.has(row.conversation_id)) responded.add(row.conversation_id);
     }
   }
 
@@ -268,48 +273,48 @@ export async function loadRangeInsights(
     inboundConversations: inbound.size,
     respondedConversations: responded.size,
     showcaseOpens: showcaseRes.count ?? 0,
-  }
+  };
 }
 
 // --- 4. Today's agenda: appointments + open todos ----------------------
 
 export interface AgendaContactRef {
-  id: string
-  name: string | null
-  phone: string
+  id: string;
+  name: string | null;
+  phone: string;
 }
 
 export interface AgendaPropertyRef {
-  id: string
-  title: string
-  location?: string | null
+  id: string;
+  title: string;
+  location?: string | null;
 }
 
 export interface AgendaAppointment {
-  id: string
-  title: string
-  description: string | null
-  start_time: string
-  end_time: string
-  location: string | null
-  status: string
-  contact: AgendaContactRef | null
-  property: AgendaPropertyRef | null
+  id: string;
+  title: string;
+  description: string | null;
+  start_time: string;
+  end_time: string;
+  location: string | null;
+  status: string;
+  contact: AgendaContactRef | null;
+  property: AgendaPropertyRef | null;
 }
 
 export interface AgendaTodo {
-  id: string
-  title: string
-  due_date: string
-  completed: boolean
-  priority: string | null
-  contact: AgendaContactRef | null
-  property: AgendaPropertyRef | null
+  id: string;
+  title: string;
+  due_date: string;
+  completed: boolean;
+  priority: string | null;
+  contact: AgendaContactRef | null;
+  property: AgendaPropertyRef | null;
 }
 
 export interface TodaysAgenda {
-  appointments: AgendaAppointment[]
-  todos: AgendaTodo[]
+  appointments: AgendaAppointment[];
+  todos: AgendaTodo[];
 }
 
 /**
@@ -318,36 +323,40 @@ export interface TodaysAgenda {
  * (overdue items surface here too rather than silently ageing out).
  */
 export async function loadTodaysAgenda(db: DB): Promise<TodaysAgenda> {
-  const dayStart = startOfLocalDay().toISOString()
-  const dayEnd = endOfLocalDay().toISOString()
+  const dayStart = startOfLocalDay().toISOString();
+  const dayEnd = endOfLocalDay().toISOString();
 
   const [apptRes, todoRes] = await Promise.all([
     db
       .from('appointments')
-      .select('*, contact:contacts(id, name, phone), property:properties(id, title, location)')
+      .select(
+        '*, contact:contacts(id, name, phone), property:properties(id, title, location)'
+      )
       .eq('status', 'scheduled')
       .gte('start_time', dayStart)
       .lte('start_time', dayEnd)
       .order('start_time', { ascending: true }),
     db
       .from('todos')
-      .select('*, contact:contacts(id, name, phone), property:properties(id, title)')
+      .select(
+        '*, contact:contacts(id, name, phone), property:properties(id, title)'
+      )
       .eq('completed', false)
       .not('due_date', 'is', null)
       .lte('due_date', dayEnd) // includes overdue from previous days
       .order('due_date', { ascending: true }),
-  ])
-  if (apptRes.error) throw apptRes.error
-  if (todoRes.error) throw todoRes.error
+  ]);
+  if (apptRes.error) throw apptRes.error;
+  if (todoRes.error) throw todoRes.error;
 
   type ApptRow = Omit<AgendaAppointment, 'contact' | 'property'> & {
-    contact: AgendaContactRef | AgendaContactRef[] | null
-    property: AgendaPropertyRef | AgendaPropertyRef[] | null
-  }
+    contact: AgendaContactRef | AgendaContactRef[] | null;
+    property: AgendaPropertyRef | AgendaPropertyRef[] | null;
+  };
   type TodoRow = Omit<AgendaTodo, 'contact' | 'property'> & {
-    contact: AgendaContactRef | AgendaContactRef[] | null
-    property: AgendaPropertyRef | AgendaPropertyRef[] | null
-  }
+    contact: AgendaContactRef | AgendaContactRef[] | null;
+    property: AgendaPropertyRef | AgendaPropertyRef[] | null;
+  };
 
   const appointments: AgendaAppointment[] = (
     (apptRes.data ?? []) as unknown as ApptRow[]
@@ -355,15 +364,15 @@ export async function loadTodaysAgenda(db: DB): Promise<TodaysAgenda> {
     ...row,
     contact: one(row.contact),
     property: one(row.property),
-  }))
+  }));
 
-  const todos: AgendaTodo[] = ((todoRes.data ?? []) as unknown as TodoRow[]).map(
-    (row) => ({
-      ...row,
-      contact: one(row.contact),
-      property: one(row.property),
-    }),
-  )
+  const todos: AgendaTodo[] = (
+    (todoRes.data ?? []) as unknown as TodoRow[]
+  ).map((row) => ({
+    ...row,
+    contact: one(row.contact),
+    property: one(row.property),
+  }));
 
-  return { appointments, todos }
+  return { appointments, todos };
 }

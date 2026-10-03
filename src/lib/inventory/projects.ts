@@ -46,7 +46,7 @@ const EMPTY_STATS: Omit<ProjectUnitStats, 'project_id'> = {
 export async function availableProjectSlug(
   db: SupabaseClient,
   accountId: string,
-  name: string,
+  name: string
 ): Promise<string> {
   const base = slugifyProject(name) || 'project';
   const { data } = await db
@@ -72,7 +72,7 @@ export async function availableProjectSlug(
  */
 export async function listProjects(
   db: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<ProjectWithStats[]> {
   const [{ data: rows, error }, { data: statRows }] = await Promise.all([
     db
@@ -88,7 +88,7 @@ export async function listProjects(
   }
 
   const byId = new Map<string, ProjectUnitStats>(
-    ((statRows ?? []) as ProjectUnitStats[]).map((s) => [s.project_id, s]),
+    ((statRows ?? []) as ProjectUnitStats[]).map((s) => [s.project_id, s])
   );
 
   return ((rows ?? []) as Project[]).map((p) => ({
@@ -101,7 +101,7 @@ export async function listProjects(
 export async function projectBySlug(
   db: SupabaseClient,
   accountId: string,
-  slug: string,
+  slug: string
 ): Promise<Project | null> {
   const { data, error } = await db
     .from('projects')
@@ -125,7 +125,7 @@ export async function projectBySlug(
 export async function projectUnits(
   db: SupabaseClient,
   accountId: string,
-  projectId: string,
+  projectId: string
 ): Promise<Property[]> {
   const { data, error } = await db
     .from('properties')
@@ -157,7 +157,7 @@ export async function setUnitsProject(
   db: SupabaseClient,
   accountId: string,
   propertyIds: string[],
-  projectId: string | null,
+  projectId: string | null
 ): Promise<number> {
   if (propertyIds.length === 0) return 0;
   const { data, error } = await db
@@ -193,7 +193,7 @@ export async function setUnitsProject(
 export async function matchProjectByName(
   db: SupabaseClient,
   accountId: string,
-  projectName: string | null | undefined,
+  projectName: string | null | undefined
 ): Promise<string | null> {
   const slug = slugifyProject(projectName ?? '');
   if (!slug) return null;

@@ -24,8 +24,17 @@ try {
   await page.getByRole('button', { name: 'Run simulation' }).click();
   await page.getByText(/Palm Grove.*no longer available/s).waitFor();
   const followUpBody = await page.locator('body').innerText();
-  check('the requirement is retained for follow-up', /no longer available/i.test(followUpBody) && /(Reply STOP ALERTS|pause these|closest to what you['’]re looking for|one new listing matches|see them all and shortlist what you like)/i.test(followUpBody),
-    followUpBody.split('\n').find((line) => line.trim().length > 0)?.trim() || 'no visible body text');
+  check(
+    'the requirement is retained for follow-up',
+    /no longer available/i.test(followUpBody) &&
+      /(Reply STOP ALERTS|pause these|closest to what you['’]re looking for|one new listing matches|see them all and shortlist what you like)/i.test(
+        followUpBody
+      ),
+    followUpBody
+      .split('\n')
+      .find((line) => line.trim().length > 0)
+      ?.trim() || 'no visible body text'
+  );
 
   console.log('contact follow-up UI regressions passed');
 } finally {

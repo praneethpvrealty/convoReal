@@ -8,19 +8,19 @@ name: tab-cycle
     times: 2
     commands:
       - tapOn:
-          id: "tab-contacts"
+          id: 'tab-contacts'
       - assertVisible:
-          id: "contacts-search"
+          id: 'contacts-search'
       - tapOn:
-          id: "tab-properties"
+          id: 'tab-properties'
       - assertVisible:
-          id: "properties-search"
+          id: 'properties-search'
       - tapOn:
-          id: "tab-calendar"
+          id: 'tab-calendar'
       - assertVisible:
-          id: "calendar-screen"
+          id: 'calendar-screen'
       - tapOn:
-          id: "tab-inbox"
+          id: 'tab-inbox'
       - assertVisible:
-          id: "inbox-search"
+          id: 'inbox-search'
 - takeScreenshot: .maestro/shots/15-tab-cycle

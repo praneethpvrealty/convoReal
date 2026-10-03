@@ -13,10 +13,10 @@
  * it is the only thing that would have failed at review time.
  */
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 
 function sourceFiles(dir: string, found: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -41,43 +41,43 @@ function conversationInserts(source: string): string[] {
 
   for (const match of source.matchAll(table)) {
     const after = source.slice(match.index ?? 0, (match.index ?? 0) + 600);
-    const insertAt = after.indexOf(".insert(");
+    const insertAt = after.indexOf('.insert(');
     if (insertAt === -1) continue;
     // An `.insert(` far past the table reference belongs to a different
     // statement; a real one follows within a few lines.
-    if (after.slice(0, insertAt).split("\n").length > 4) continue;
+    if (after.slice(0, insertAt).split('\n').length > 4) continue;
     blocks.push(after.slice(insertAt, insertAt + 400));
   }
   return blocks;
 }
 
-describe("conversations.user_id", () => {
-  const files = sourceFiles("src");
+describe('conversations.user_id', () => {
+  const files = sourceFiles('src');
 
-  it("is supplied by every conversation insert in the codebase", () => {
+  it('is supplied by every conversation insert in the codebase', () => {
     const offenders: string[] = [];
 
     for (const file of files) {
-      const source = readFileSync(file, "utf8");
-      if (!source.includes("conversations")) continue;
+      const source = readFileSync(file, 'utf8');
+      if (!source.includes('conversations')) continue;
       for (const block of conversationInserts(source)) {
-        if (!block.includes("user_id")) {
-          offenders.push(file.replace(`${process.cwd()}/`, ""));
+        if (!block.includes('user_id')) {
+          offenders.push(file.replace(`${process.cwd()}/`, ''));
         }
       }
     }
 
     expect(
       offenders,
-      `conversations.user_id is NOT NULL — these inserts would fail at runtime:\n${offenders.join("\n")}`,
+      `conversations.user_id is NOT NULL — these inserts would fail at runtime:\n${offenders.join('\n')}`
     ).toEqual([]);
   });
 
-  it("actually finds the inserts it is checking", () => {
+  it('actually finds the inserts it is checking', () => {
     // A matcher that silently matches nothing would pass the test above
     // forever. Pin that it sees the real ones.
     const found = files
-      .map((f) => readFileSync(f, "utf8"))
+      .map((f) => readFileSync(f, 'utf8'))
       .flatMap((s) => conversationInserts(s));
 
     expect(found.length).toBeGreaterThanOrEqual(5);

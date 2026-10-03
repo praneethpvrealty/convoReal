@@ -42,11 +42,17 @@ export async function POST(
     }
     const { link, stakeholder } = resolved;
     if (!link.otp_required) {
-      return NextResponse.json({ error: 'This link needs no code' }, { status: 409 });
+      return NextResponse.json(
+        { error: 'This link needs no code' },
+        { status: 409 }
+      );
     }
     if (!stakeholder.email) {
       return NextResponse.json(
-        { error: 'No verified channel for this link. Ask the agent to add your email.' },
+        {
+          error:
+            'No verified channel for this link. Ask the agent to add your email.',
+        },
         { status: 409 }
       );
     }
@@ -58,7 +64,10 @@ export async function POST(
       expires_at: new Date(Date.now() + OTP_TTL_MS).toISOString(),
     });
     if (error) {
-      return NextResponse.json({ error: 'Could not start verification' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Could not start verification' },
+        { status: 500 }
+      );
     }
 
     const sent = await sendTransactionalEmail({
@@ -78,6 +87,9 @@ export async function POST(
     return NextResponse.json({ data: { sent: true, channel: 'email' } });
   } catch (err) {
     console.error('[deal-share] otp send failed:', err);
-    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong' },
+      { status: 500 }
+    );
   }
 }

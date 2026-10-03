@@ -102,11 +102,7 @@ export function AdditionalRequirementSheet({
   }
 
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={closeSheet}
-      title="Add a brief"
-    >
+    <BottomSheet visible={visible} onClose={closeSheet} title="Add a brief">
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.lg }}>
         <Text style={{ color: colors.textMuted, fontSize: 14, lineHeight: 20 }}>
           Paste what {name} sent on your personal WhatsApp. It is saved as a

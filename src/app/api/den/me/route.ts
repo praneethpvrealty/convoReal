@@ -1,9 +1,9 @@
 // GET /api/den/me — the Den user's identity + linked agencies.
 
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
-import { withDenAuth, resolveOwnerPropertyIds, denAdmin } from "@/lib/den/auth";
-import { denSellerPages } from "@/lib/den/seller-pages";
+import { withDenAuth, resolveOwnerPropertyIds, denAdmin } from '@/lib/den/auth';
+import { denSellerPages } from '@/lib/den/seller-pages';
 
 export const GET = withDenAuth(async (ctx) => {
   const [propertyIds, sellerPages] = await Promise.all([

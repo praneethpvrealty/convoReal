@@ -34,8 +34,15 @@
 // all.
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
-import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
-import { templateBody, templateButtonLabel } from '@/lib/whatsapp/template-copy';
+import {
+  DEFAULT_LANGUAGE,
+  metaLanguageCode,
+  type LanguageCode,
+} from '@/lib/languages';
+import {
+  templateBody,
+  templateButtonLabel,
+} from '@/lib/whatsapp/template-copy';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import type { Property } from '@/types';
@@ -59,9 +66,7 @@ import {
 export const ENQUIRY_NOTICE_TEMPLATE_NAME = 'listing_status_notice';
 
 /** Earlier names, newest first. Approved and still sending. */
-export const LEGACY_ENQUIRY_NOTICE_TEMPLATE_NAMES = [
-  'property_enquiry_notice',
-];
+export const LEGACY_ENQUIRY_NOTICE_TEMPLATE_NAMES = ['property_enquiry_notice'];
 
 export const ENQUIRY_NOTICE_TEMPLATE_NAMES = [
   ENQUIRY_NOTICE_TEMPLATE_NAME,
@@ -76,7 +81,7 @@ export function enquiryNoticeParamCount(templateName: string): 2 | 3 {
 }
 
 export function pickEnquiryNoticeTemplate<T extends ApprovedTemplateCandidate>(
-  rows: T[],
+  rows: T[]
 ): T | null {
   return pickApprovedTemplate(rows, ENQUIRY_NOTICE_TEMPLATE_NAMES);
 }
@@ -88,7 +93,7 @@ export const ENQUIRY_NOTICE_UPDATE_BUTTON = 'Update my preferences';
 export const ENQUIRY_NOTICE_CLOSE_BUTTON = 'Close my enquiry';
 
 export function buildEnquiryNoticeTemplatePayload(
-  language: LanguageCode = DEFAULT_LANGUAGE,
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): TemplatePayload {
   return {
     name: ENQUIRY_NOTICE_TEMPLATE_NAME,
@@ -96,8 +101,14 @@ export function buildEnquiryNoticeTemplatePayload(
     language: metaLanguageCode(language),
     body_text: templateBody('enquiry_notice', language),
     buttons: [
-      { type: 'QUICK_REPLY', text: templateButtonLabel('update_preferences', language) },
-      { type: 'QUICK_REPLY', text: templateButtonLabel('close_enquiry', language) },
+      {
+        type: 'QUICK_REPLY',
+        text: templateButtonLabel('update_preferences', language),
+      },
+      {
+        type: 'QUICK_REPLY',
+        text: templateButtonLabel('close_enquiry', language),
+      },
     ],
     sample_values: {
       body: [

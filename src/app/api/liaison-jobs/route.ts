@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 
 function sanitizeAmount(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
@@ -15,26 +19,40 @@ export async function POST(request: Request) {
 
     const limit = await checkRateLimit(
       `agent:createLiaisonJob:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = await request.json().catch(() => null);
     if (!body) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
     }
 
     const {
-      liaison_id, service_name, contact_id, property_id,
-      client_charge, liaison_fee, notes,
+      liaison_id,
+      service_name,
+      contact_id,
+      property_id,
+      client_charge,
+      liaison_fee,
+      notes,
     } = body;
 
     // Validation
     if (typeof liaison_id !== 'string' || liaison_id.length === 0) {
-      return NextResponse.json({ error: "'liaison_id' is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "'liaison_id' is required" },
+        { status: 400 }
+      );
     }
     if (typeof service_name !== 'string' || service_name.trim().length === 0) {
-      return NextResponse.json({ error: "'service_name' is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "'service_name' is required" },
+        { status: 400 }
+      );
     }
 
     // The FK alone wouldn't stop a job pointing at another tenant's
@@ -70,7 +88,7 @@ export async function POST(request: Request) {
       console.error('[POST /api/liaison-jobs] Insert error:', insertErr);
       return NextResponse.json(
         { error: insertErr?.message ?? 'Failed to create job' },
-        { status: 500 },
+        { status: 500 }
       );
     }
 

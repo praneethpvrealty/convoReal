@@ -50,26 +50,31 @@ describe('parseFlyerOptions', () => {
 
   it('rejects invalid bodies and malformed ai images', () => {
     expect(parseFlyerOptions(null)).toEqual({ error: 'Invalid request body' });
-    expect(parseFlyerOptions('nope')).toEqual({ error: 'Invalid request body' });
+    expect(parseFlyerOptions('nope')).toEqual({
+      error: 'Invalid request body',
+    });
     expect(
       parseFlyerOptions({ ai_image: 'https://evil.example/ssrf.png' })
     ).toHaveProperty('error');
     expect(
       parseFlyerOptions({ ai_image: 'data:text/html;base64,PGI+aGk8L2I+' })
     ).toHaveProperty('error');
-    expect(
-      parseFlyerOptions({ image_source: 'ai' })
-    ).toEqual({ error: "'ai_image' is required when image_source is 'ai'" });
+    expect(parseFlyerOptions({ image_source: 'ai' })).toEqual({
+      error: "'ai_image' is required when image_source is 'ai'",
+    });
   });
 
   it('accepts a same-project storage public URL as ai_image', () => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://proj.supabase.co');
-    const url = 'https://proj.supabase.co/storage/v1/object/public/property-images/acc/flyer-bg-1.jpg';
+    const url =
+      'https://proj.supabase.co/storage/v1/object/public/property-images/acc/flyer-bg-1.jpg';
     const parsed = parseFlyerOptions({ image_source: 'ai', ai_image: url });
     if ('error' in parsed) throw new Error(parsed.error);
     expect(parsed.options.aiImage).toBe(url);
     expect(
-      parseFlyerOptions({ ai_image: 'https://other.supabase.co/storage/v1/object/public/x.jpg' })
+      parseFlyerOptions({
+        ai_image: 'https://other.supabase.co/storage/v1/object/public/x.jpg',
+      })
     ).toHaveProperty('error');
   });
 

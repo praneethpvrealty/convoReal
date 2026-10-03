@@ -11,11 +11,10 @@ separate repo.
 Status re-audited against the codebase on 2 September 2026.
 
 - ✅ **WhatsApp OTP sign-in** (primary) — `signInWithOtp({ phone,
-  shouldCreateUser: false })` delivered over WhatsApp by the existing
+shouldCreateUser: false })` delivered over WhatsApp by the existing
   Send-SMS hook, with a 6-digit code UI and resend timer; email/password
   as fallback. Mobile-first: the web has no OTP login.
-- ✅ **Native phone-verification gate** (`phone_confirmed_at`, migration
-  137) — full in-app OTP flow (`updateUser` → `verifyOtp('phone_change')`),
+- ✅ **Native phone-verification gate** (`phone_confirmed_at`, migration 137) — full in-app OTP flow (`updateUser` → `verifyOtp('phone_change')`),
   mirroring the web's `WhatsappPhoneVerify` semantics.
 - ✅ Session in secure storage (AES key in Keychain/Keystore, ciphertext in
   AsyncStorage — `lib/secure-store.ts`).

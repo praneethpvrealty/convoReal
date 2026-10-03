@@ -56,11 +56,18 @@ export async function login(page) {
   await page.waitForSelector('input[type="password"]', { timeout: 30000 });
   await page.waitForTimeout(1500);
   await page.getByLabel(/email/i).first().fill(process.env.E2E_EMAIL);
-  await page.locator('input[type="password"]').first().fill(process.env.E2E_PASSWORD);
+  await page
+    .locator('input[type="password"]')
+    .first()
+    .fill(process.env.E2E_PASSWORD);
   await page.locator('button[type="submit"]').first().click();
-  await page.waitForFunction(() => !location.pathname.includes('/login'), null, {
-    timeout: 60000,
-  });
+  await page.waitForFunction(
+    () => !location.pathname.includes('/login'),
+    null,
+    {
+      timeout: 60000,
+    }
+  );
   await page.waitForSelector('nav a, aside a', { timeout: 60000 });
   return page.url();
 }
@@ -75,6 +82,9 @@ export async function openSettings(page, tab) {
 
 export async function openTemplates(page) {
   await openSettings(page, 'WhatsApp');
-  await page.getByRole('button', { name: /Templates/i }).first().click();
+  await page
+    .getByRole('button', { name: /Templates/i })
+    .first()
+    .click();
   await page.waitForTimeout(3500);
 }

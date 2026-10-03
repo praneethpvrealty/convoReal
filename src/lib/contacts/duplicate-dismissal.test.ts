@@ -43,7 +43,7 @@ describe('isGroupDismissed', () => {
 
   it('hides the larger group only once every pairing is ruled out', () => {
     expect(
-      isGroupDismissed(['a', 'b', 'c'], dismissed('a:b', 'a:c', 'b:c')),
+      isGroupDismissed(['a', 'b', 'c'], dismissed('a:b', 'a:c', 'b:c'))
     ).toBe(true);
   });
 

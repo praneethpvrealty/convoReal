@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -8,59 +8,54 @@ import {
   useSensors,
   closestCenter,
   type DragEndEvent,
-} from "@dnd-kit/core";
+} from '@dnd-kit/core';
 import {
   SortableContext,
   useSortable,
   arrayMove,
   verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { createClient } from "@/lib/supabase/client";
-import type { Pipeline, PipelineStage } from "@/types";
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { createClient } from '@/lib/supabase/client';
+import type { Pipeline, PipelineStage } from '@/types';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Trash2,
-  Plus,
-  GripVertical,
-  AlertTriangle,
-} from "lucide-react";
-import { toast } from "sonner";
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Trash2, Plus, GripVertical, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import {
   STAGE_TYPES,
   STAGE_TYPE_LABELS,
   inferStageType,
   stageTypeOf,
   type StageType,
-} from "@/lib/pipelines/stage-semantics";
+} from '@/lib/pipelines/stage-semantics';
 
 const STAGE_COLORS = [
-  "#3b82f6",
-  "#6366f1",
-  "#8b5cf6",
-  "#ec4899",
-  "#f43f5e",
-  "#f97316",
-  "#eab308",
-  "#22c55e",
-  "#14b8a6",
-  "#06b6d4",
+  '#3b82f6',
+  '#6366f1',
+  '#8b5cf6',
+  '#ec4899',
+  '#f43f5e',
+  '#f97316',
+  '#eab308',
+  '#22c55e',
+  '#14b8a6',
+  '#06b6d4',
 ];
 
 interface PipelineSettingsProps {
@@ -86,7 +81,7 @@ export function PipelineSettings({
 
   const [name, setName] = useState(pipeline.name);
   const [localStages, setLocalStages] = useState<PipelineStage[]>(stages);
-  const [newStageName, setNewStageName] = useState("");
+  const [newStageName, setNewStageName] = useState('');
   const [newStageColor, setNewStageColor] = useState(STAGE_COLORS[0]);
   const [newStageType, setNewStageType] = useState<StageType | null>(null);
   const [saving, setSaving] = useState(false);
@@ -105,7 +100,7 @@ export function PipelineSettings({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
   function handleReorder(event: DragEndEvent) {
@@ -134,17 +129,17 @@ export function PipelineSettings({
 
     const [renameRes, stagesRes] = await Promise.all([
       supabase
-        .from("pipelines")
+        .from('pipelines')
         .update({ name: name.trim() })
-        .eq("id", pipeline.id)
-        .select("id"),
-      supabase.from("pipeline_stages").upsert(stageRows, { onConflict: "id" }),
+        .eq('id', pipeline.id)
+        .select('id'),
+      supabase.from('pipeline_stages').upsert(stageRows, { onConflict: 'id' }),
     ]);
 
     setSaving(false);
 
     if (renameRes.error || stagesRes.error || !renameRes.data?.length) {
-      toast.error("Failed to save pipeline");
+      toast.error('Failed to save pipeline');
       return;
     }
     const retyped = localStages.filter((local) => {
@@ -153,16 +148,16 @@ export function PipelineSettings({
     });
     const resyncs = await Promise.all(
       retyped.map((stage) =>
-        supabase.rpc("resync_pipeline_stage_deals", { p_stage_id: stage.id }),
-      ),
+        supabase.rpc('resync_pipeline_stage_deals', { p_stage_id: stage.id })
+      )
     );
     if (resyncs.some((r) => r.error)) {
       toast.error(
-        "Stages saved, but deals on a retyped stage could not be updated",
+        'Stages saved, but deals on a retyped stage could not be updated'
       );
     }
     if (pipeline.account_id) {
-      await supabase.rpc("sync_journey_stages_from_pipeline", {
+      await supabase.rpc('sync_journey_stages_from_pipeline', {
         p_account_id: pipeline.account_id,
         p_pipeline_id: null,
       });
@@ -171,14 +166,14 @@ export function PipelineSettings({
     onOpenChange(false);
     onPipelinesChanged();
     onStagesChanged();
-    toast.success("Pipeline saved");
+    toast.success('Pipeline saved');
   }
 
   async function handleAddStage() {
     const trimmed = newStageName.trim();
     if (!trimmed) return;
     const { data, error } = await supabase
-      .from("pipeline_stages")
+      .from('pipeline_stages')
       .insert({
         pipeline_id: pipeline.id,
         name: trimmed,
@@ -189,50 +184,52 @@ export function PipelineSettings({
       .select()
       .single();
     if (error || !data) {
-      toast.error("Failed to add stage");
+      toast.error('Failed to add stage');
       return;
     }
     setLocalStages([...localStages, data as PipelineStage]);
-    setNewStageName("");
+    setNewStageName('');
     setNewStageType(null);
-    setNewStageColor(STAGE_COLORS[(localStages.length + 1) % STAGE_COLORS.length]);
+    setNewStageColor(
+      STAGE_COLORS[(localStages.length + 1) % STAGE_COLORS.length]
+    );
   }
 
   async function handleRemoveStage(stageId: string) {
     // Refuse to delete if deals still reference the stage (FK would fail).
     const { count } = await supabase
-      .from("deals")
-      .select("id", { count: "exact", head: true })
-      .eq("stage_id", stageId);
+      .from('deals')
+      .select('id', { count: 'exact', head: true })
+      .eq('stage_id', stageId);
     if (count && count > 0) {
-      toast.error("Move or delete deals in this stage first");
+      toast.error('Move or delete deals in this stage first');
       return;
     }
     // The journey mirrors this stage; items sitting on the mirror would
     // be left off the rail. The database refuses the delete as well.
     const { data: mirrored } = await supabase
-      .from("journey_stages")
-      .select("id")
-      .eq("pipeline_stage_id", stageId)
+      .from('journey_stages')
+      .select('id')
+      .eq('pipeline_stage_id', stageId)
       .maybeSingle();
     if (mirrored?.id) {
       const { count: journeyCount } = await supabase
-        .from("journey_items")
-        .select("id", { count: "exact", head: true })
+        .from('journey_items')
+        .select('id', { count: 'exact', head: true })
         .or(`stage_id.eq.${mirrored.id},planned_stage_id.eq.${mirrored.id}`);
       if (journeyCount && journeyCount > 0) {
-        toast.error("Move journey items out of this stage first");
+        toast.error('Move journey items out of this stage first');
         return;
       }
     }
     const { data: deleted, error } = await supabase
-      .from("pipeline_stages")
+      .from('pipeline_stages')
       .delete()
-      .eq("id", stageId)
-      .select("id");
+      .eq('id', stageId)
+      .select('id');
     if (error || !deleted?.length) {
       toast.error(
-        error?.code === "23001" ? error.message : "Failed to delete stage",
+        error?.code === '23001' ? error.message : 'Failed to delete stage'
       );
       return;
     }
@@ -243,25 +240,25 @@ export function PipelineSettings({
     setDeleting(true);
     // ON DELETE CASCADE handles deals + stages.
     const { data: deleted, error } = await supabase
-      .from("pipelines")
+      .from('pipelines')
       .delete()
-      .eq("id", pipeline.id)
-      .select("id");
+      .eq('id', pipeline.id)
+      .select('id');
     setDeleting(false);
     if (error || !deleted?.length) {
       toast.error(
-        error?.code === "23001" ? error.message : "Failed to delete pipeline",
+        error?.code === '23001' ? error.message : 'Failed to delete pipeline'
       );
       return;
     }
     onOpenChange(false);
     onPipelinesChanged();
-    toast.success("Pipeline deleted");
+    toast.success('Pipeline deleted');
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[85vh] overflow-y-auto border-slate-700 bg-slate-900 sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white">Manage Pipeline</DialogTitle>
         </DialogHeader>
@@ -293,7 +290,7 @@ export function PipelineSettings({
                 disabled={deleting}
                 className="bg-red-600 text-white hover:bg-red-700"
               >
-                {deleting ? "Deleting..." : "Delete Pipeline"}
+                {deleting ? 'Deleting...' : 'Delete Pipeline'}
               </Button>
             </div>
           </div>
@@ -362,7 +359,7 @@ export function PipelineSettings({
                       style={{
                         backgroundColor: color,
                         borderColor:
-                          newStageColor === color ? "white" : "transparent",
+                          newStageColor === color ? 'white' : 'transparent',
                       }}
                       aria-label={`Pick color ${color}`}
                     />
@@ -375,7 +372,7 @@ export function PipelineSettings({
                     placeholder="New stage name"
                     className="border-slate-700 bg-slate-800 text-sm text-white"
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") handleAddStage();
+                      if (e.key === 'Enter') handleAddStage();
                     }}
                   />
                   <StageTypeSelect
@@ -425,7 +422,7 @@ export function PipelineSettings({
                 disabled={saving || !name.trim()}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                {saving ? "Saving..." : "Save Changes"}
+                {saving ? 'Saving...' : 'Save Changes'}
               </Button>
             </DialogFooter>
           </>
@@ -450,8 +447,14 @@ function SortableStageRow({
   onRemove: () => void;
   colors: string[];
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: stage.id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: stage.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -474,7 +477,11 @@ function SortableStageRow({
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <ColorSwatch value={stage.color} onChange={onColorChange} colors={colors} />
+      <ColorSwatch
+        value={stage.color}
+        onChange={onColorChange}
+        colors={colors}
+      />
       <Input
         value={stage.name}
         onChange={(e) => onNameChange(e.target.value)}
@@ -550,7 +557,7 @@ function ColorSwatch({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-6 z-20 flex flex-wrap gap-1 rounded-lg border border-slate-700 bg-slate-900 p-2 shadow-lg w-36">
+          <div className="absolute top-6 left-0 z-20 flex w-36 flex-wrap gap-1 rounded-lg border border-slate-700 bg-slate-900 p-2 shadow-lg">
             {colors.map((c) => (
               <button
                 key={c}
@@ -562,7 +569,7 @@ function ColorSwatch({
                 className="h-5 w-5 rounded-full border-2 transition-transform hover:scale-110"
                 style={{
                   backgroundColor: c,
-                  borderColor: c === value ? "white" : "transparent",
+                  borderColor: c === value ? 'white' : 'transparent',
                 }}
               />
             ))}

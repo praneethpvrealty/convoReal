@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 
 // POST /api/liaison-workflows/[id]/share — send the process explanation
@@ -9,7 +13,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 // (subject to Meta's 24h free-form window on the receiving side).
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -21,17 +25,26 @@ export async function POST(
 
     const body = await request.json().catch(() => null);
     if (!body) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
     }
 
     const { contact_id, message } = body;
 
     // Validation
     if (typeof contact_id !== 'string' || contact_id.length === 0) {
-      return NextResponse.json({ error: "'contact_id' is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "'contact_id' is required" },
+        { status: 400 }
+      );
     }
     if (typeof message !== 'string' || message.trim().length === 0) {
-      return NextResponse.json({ error: "'message' is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "'message' is required" },
+        { status: 400 }
+      );
     }
 
     // Resolve both ends through the RLS-scoped client — the workflow to
@@ -42,7 +55,10 @@ export async function POST(
       .eq('id', workflowId)
       .maybeSingle();
     if (!workflow) {
-      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Workflow not found' },
+        { status: 404 }
+      );
     }
 
     const { data: contact } = await ctx.supabase
@@ -68,7 +84,7 @@ export async function POST(
     if (!result.success) {
       return NextResponse.json(
         { error: result.error || 'Failed to send on WhatsApp' },
-        { status: 500 },
+        { status: 500 }
       );
     }
 

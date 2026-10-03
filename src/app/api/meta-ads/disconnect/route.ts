@@ -27,7 +27,10 @@ export async function POST() {
       } catch (err) {
         // Best-effort — an already-expired/revoked token, or a
         // transient Meta error, must not block local disconnect.
-        console.error('[POST /api/meta-ads/disconnect] Meta revoke failed (non-fatal):', err);
+        console.error(
+          '[POST /api/meta-ads/disconnect] Meta revoke failed (non-fatal):',
+          err
+        );
       }
     }
 

@@ -45,7 +45,9 @@ export function SubscriptionCard() {
           </View>
         ) : null}
         {attention ? (
-          <View style={[styles.pill, { backgroundColor: 'rgba(239,68,68,0.92)' }]}>
+          <View
+            style={[styles.pill, { backgroundColor: 'rgba(239,68,68,0.92)' }]}
+          >
             <Text style={styles.pillText}>Action needed</Text>
           </View>
         ) : null}
@@ -97,10 +99,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  eyebrow: { fontSize: 11, fontFamily: fonts.bold, color: 'rgba(255,255,255,0.75)', letterSpacing: 1 },
-  plan: { fontSize: 24, fontFamily: fonts.extrabold, color: '#fff', letterSpacing: -0.4 },
-  tagline: { fontSize: 13.5, fontFamily: fonts.semibold, color: 'rgba(255,255,255,0.92)', marginTop: 2 },
-  perks: { fontSize: 12, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.78)' },
+  eyebrow: {
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    color: 'rgba(255,255,255,0.75)',
+    letterSpacing: 1,
+  },
+  plan: {
+    fontSize: 24,
+    fontFamily: fonts.extrabold,
+    color: '#fff',
+    letterSpacing: -0.4,
+  },
+  tagline: {
+    fontSize: 13.5,
+    fontFamily: fonts.semibold,
+    color: 'rgba(255,255,255,0.92)',
+    marginTop: 2,
+  },
+  perks: {
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: 'rgba(255,255,255,0.78)',
+  },
   pill: {
     backgroundColor: 'rgba(255,255,255,0.22)',
     borderRadius: radius.full,

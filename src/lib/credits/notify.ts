@@ -19,7 +19,9 @@ interface ManagerProfile {
   full_name: string | null;
 }
 
-async function getOrgManagerProfile(accountId: string): Promise<ManagerProfile | null> {
+async function getOrgManagerProfile(
+  accountId: string
+): Promise<ManagerProfile | null> {
   const supabase = supabaseAdmin();
   const { data, error } = await supabase
     .from('profiles')
@@ -32,7 +34,11 @@ async function getOrgManagerProfile(accountId: string): Promise<ManagerProfile |
   return data as ManagerProfile;
 }
 
-async function notifyManager(accountId: string, text: string, label: string): Promise<void> {
+async function notifyManager(
+  accountId: string,
+  text: string,
+  label: string
+): Promise<void> {
   try {
     const manager = await getOrgManagerProfile(accountId);
     if (!manager?.phone) return;
@@ -47,17 +53,22 @@ async function notifyManager(accountId: string, text: string, label: string): Pr
     });
 
     if (!result.success) {
-      console.warn(`[credits/notify] ${label} notification failed (non-fatal): ${result.error}`);
+      console.warn(
+        `[credits/notify] ${label} notification failed (non-fatal): ${result.error}`
+      );
     }
   } catch (err) {
-    console.error(`[credits/notify] ${label} notification exception (non-fatal):`, err);
+    console.error(
+      `[credits/notify] ${label} notification exception (non-fatal):`,
+      err
+    );
   }
 }
 
 export async function notifyManagerLowBalance(
   accountId: string,
   balance: number,
-  threshold: 'low' | 'critical' | 'zero',
+  threshold: 'low' | 'critical' | 'zero'
 ): Promise<void> {
   const copy: Record<typeof threshold, string> = {
     low: `⚠️ Your ConvoReal credit balance is running low: ${balance.toLocaleString()} cr left. Top up or upgrade your plan to keep AI features running smoothly.`,
@@ -70,31 +81,34 @@ export async function notifyManagerLowBalance(
 export async function notifyManagerCreditsAdded(
   accountId: string,
   credits: number,
-  packageName: string,
+  packageName: string
 ): Promise<void> {
   await notifyManager(
     accountId,
     `✅ ${credits.toLocaleString()} credits added to your wallet (${packageName}). Ready to use right away.`,
-    'credits-added',
+    'credits-added'
   );
 }
 
 export async function notifyManagerReferralConverted(
   accountId: string,
   refereeName: string,
-  creditsEarned: number,
+  creditsEarned: number
 ): Promise<void> {
   await notifyManager(
     accountId,
     `🎉 Your referral ${refereeName} just upgraded to a paid plan — you earned ${creditsEarned.toLocaleString()} credits!`,
-    'referral-converted',
+    'referral-converted'
   );
 }
 
-export async function notifyReferrerPendingVoided(accountId: string, reason: string): Promise<void> {
+export async function notifyReferrerPendingVoided(
+  accountId: string,
+  reason: string
+): Promise<void> {
   await notifyManager(
     accountId,
     `A pending referral reward in your ConvoReal account didn't qualify and has been removed (${reason}). Contact support if you think this is a mistake.`,
-    'referral-voided',
+    'referral-voided'
   );
 }

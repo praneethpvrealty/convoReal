@@ -1,11 +1,18 @@
 import { ExtensionStorage } from '@bacons/apple-targets';
 import { Platform } from 'react-native';
-import { getWidgetInfo, requestWidgetUpdate } from 'react-native-android-widget';
+import {
+  getWidgetInfo,
+  requestWidgetUpdate,
+} from 'react-native-android-widget';
 
 import { renderOsWidget } from '@/components/os-widget';
 import { bubbleTime } from '@/lib/format';
 import { OS_WIDGET_NAMES, WIDGET_IDS, type WidgetId } from '@/lib/home-widgets';
-import { fetchWidgetSummary, hasSession, type WidgetSummary } from '@/lib/widget-summaries';
+import {
+  fetchWidgetSummary,
+  hasSession,
+  type WidgetSummary,
+} from '@/lib/widget-summaries';
 
 /** Shared App Group defaults the WidgetKit extension reads — both
  *  constants must match targets/widgets/index.swift. */
@@ -24,7 +31,12 @@ export async function updateOsWidget(id: WidgetId): Promise<void> {
   await requestWidgetUpdate({
     widgetName: OS_WIDGET_NAMES[id],
     renderWidget: (info) =>
-      renderOsWidget(id, summary, bubbleTime(new Date().toISOString()), info.height),
+      renderOsWidget(
+        id,
+        summary,
+        bubbleTime(new Date().toISOString()),
+        info.height
+      ),
   });
 }
 
@@ -44,7 +56,10 @@ async function updateIosWidgets(): Promise<void> {
   const storage = new ExtensionStorage(IOS_APP_GROUP);
   storage.set(
     IOS_STORE_KEY,
-    JSON.stringify({ updatedAt: bubbleTime(new Date().toISOString()), summaries })
+    JSON.stringify({
+      updatedAt: bubbleTime(new Date().toISOString()),
+      summaries,
+    })
   );
   ExtensionStorage.reloadWidget();
 }

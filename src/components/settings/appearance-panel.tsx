@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { Check } from "lucide-react";
+import { Check } from 'lucide-react';
 
-import { useTheme } from "@/hooks/use-theme";
-import { useLocale } from "@/hooks/use-locale";
-import { THEMES, type ThemeId } from "@/lib/themes";
+import { useTheme } from '@/hooks/use-theme';
+import { useLocale } from '@/hooks/use-locale';
+import { THEMES, type ThemeId } from '@/lib/themes';
 import {
   LANGUAGE_CODES,
   MAX_UI_LANGUAGES,
   SUPPORTED_LANGUAGES,
   languageDisplay,
   type LanguageCode,
-} from "@/lib/languages";
-import { cn } from "@/lib/utils";
+} from '@/lib/languages';
+import { cn } from '@/lib/utils';
 
 /**
  * Appearance panel — color-theme picker.
@@ -68,10 +68,10 @@ function LanguageSection() {
     <section className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-white">
-          {t("appearance.language")}
+          {t('appearance.language')}
         </h2>
         <p className="mt-1 text-sm text-slate-400">
-          {t("appearance.languageHelp")}
+          {t('appearance.languageHelp')}
         </p>
       </div>
 
@@ -86,10 +86,10 @@ function LanguageSection() {
               onClick={() => toggle(code)}
               aria-pressed={chosen}
               className={cn(
-                "flex items-center justify-between gap-2 rounded-xl border px-4 py-3 text-left transition-all cursor-pointer",
+                'flex cursor-pointer items-center justify-between gap-2 rounded-xl border px-4 py-3 text-left transition-all',
                 chosen
-                  ? "border-primary/60 bg-primary/10"
-                  : "border-slate-800 bg-slate-900/40 hover:border-slate-700",
+                  ? 'border-primary/60 bg-primary/10'
+                  : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
               )}
             >
               <span className="min-w-0 truncate text-sm font-medium text-white">
@@ -98,11 +98,11 @@ function LanguageSection() {
               {chosen && (
                 <span className="flex shrink-0 items-center gap-1.5">
                   {active && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-primary">
-                      {t("appearance.languageActive")}
+                    <span className="text-primary text-[10px] font-semibold tracking-wide uppercase">
+                      {t('appearance.languageActive')}
                     </span>
                   )}
-                  <Check className="size-4 text-primary" />
+                  <Check className="text-primary size-4" />
                 </span>
               )}
             </button>
@@ -113,7 +113,7 @@ function LanguageSection() {
       {languages.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-400">
-            {t("appearance.languageShowNow")}
+            {t('appearance.languageShowNow')}
           </span>
           {languages.map((code) => (
             <button
@@ -121,10 +121,10 @@ function LanguageSection() {
               type="button"
               onClick={() => setLanguage(code)}
               className={cn(
-                "rounded-lg border px-3 py-1 text-xs font-semibold transition-colors cursor-pointer",
+                'cursor-pointer rounded-lg border px-3 py-1 text-xs font-semibold transition-colors',
                 code === language
-                  ? "border-primary/60 bg-primary/15 text-primary"
-                  : "border-slate-800 bg-slate-900/40 text-slate-300 hover:border-slate-700",
+                  ? 'border-primary/60 bg-primary/15 text-primary'
+                  : 'border-slate-800 bg-slate-900/40 text-slate-300 hover:border-slate-700'
               )}
             >
               {SUPPORTED_LANGUAGES[code].native}
@@ -134,7 +134,7 @@ function LanguageSection() {
       )}
 
       <p className="text-xs text-slate-500">
-        {t("appearance.languageCap")} {t("appearance.languageIncomplete")}
+        {t('appearance.languageCap')} {t('appearance.languageIncomplete')}
       </p>
     </section>
   );
@@ -152,9 +152,9 @@ function ThemeSection({
       <div>
         <h2 className="text-lg font-semibold text-white">Color theme</h2>
         <p className="mt-1 text-sm text-slate-400">
-          Pick the accent color used across the app. All themes stay
-          dark — only the primary color (buttons, active nav, badges)
-          changes. Saved to this device.
+          Pick the accent color used across the app. All themes stay dark — only
+          the primary color (buttons, active nav, badges) changes. Saved to this
+          device.
         </p>
       </div>
 
@@ -197,10 +197,10 @@ function ThemeCard({
       aria-pressed={isActive}
       aria-label={`Use ${name} theme`}
       className={cn(
-        "flex flex-col gap-3 rounded-lg border bg-card p-4 text-left transition-colors",
+        'bg-card flex flex-col gap-3 rounded-lg border p-4 text-left transition-colors',
         isActive
-          ? "border-primary/60 ring-2 ring-primary/40"
-          : "border-slate-800 hover:border-slate-700 hover:bg-slate-800/40",
+          ? 'border-primary/60 ring-primary/40 ring-2'
+          : 'border-slate-800 hover:border-slate-700 hover:bg-slate-800/40'
       )}
     >
       <div className="flex items-center justify-between">
@@ -209,11 +209,11 @@ function ThemeCard({
           className="h-8 w-8 shrink-0 rounded-full"
           style={{
             background: swatch,
-            boxShadow: "inset 0 0 0 1px oklch(1 0 0 / 0.15)",
+            boxShadow: 'inset 0 0 0 1px oklch(1 0 0 / 0.15)',
           }}
         />
         {isActive && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
+          <span className="bg-primary/15 text-primary inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium">
             <Check className="h-3 w-3" />
             Active
           </span>
@@ -225,10 +225,7 @@ function ThemeCard({
           {tagline}
         </div>
       </div>
-      <div
-        className="mt-1 flex h-2 overflow-hidden rounded-full"
-        aria-hidden
-      >
+      <div className="mt-1 flex h-2 overflow-hidden rounded-full" aria-hidden>
         <span className="flex-1" style={{ background: swatch }} />
         <span className="w-3 bg-slate-700" />
         <span className="w-3 bg-slate-800" />

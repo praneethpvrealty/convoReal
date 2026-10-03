@@ -14,8 +14,17 @@ import {
 } from 'react-native';
 
 import { AppDialog, type DialogAction } from '@/components/app-dialog';
-import { BottomSheet, sheetScrollArea, useSheetFrame } from '@/components/sheet';
-import { FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
+import {
+  BottomSheet,
+  sheetScrollArea,
+  useSheetFrame,
+} from '@/components/sheet';
+import {
+  FilterChip,
+  PrimaryButton,
+  SectionLabel,
+  TextField,
+} from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { useAuthStore } from '@/lib/auth-store';
@@ -47,7 +56,8 @@ async function uploadAiBackground(dataUrl: string): Promise<string> {
   const accountId = useAuthStore.getState().profile?.account_id;
   if (!accountId) throw new ApiError(401, 'Not signed in');
   const [head, b64] = dataUrl.split(',');
-  if (!head?.startsWith('data:') || !b64) throw new Error('Unexpected AI image format');
+  if (!head?.startsWith('data:') || !b64)
+    throw new Error('Unexpected AI image format');
   const contentType = head.slice(5).split(';')[0] || 'image/jpeg';
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
@@ -58,7 +68,8 @@ async function uploadAiBackground(dataUrl: string): Promise<string> {
     .from('property-images')
     .upload(path, bytes.buffer as ArrayBuffer, { contentType, upsert: true });
   if (error) throw new Error(error.message);
-  return supabase.storage.from('property-images').getPublicUrl(path).data.publicUrl;
+  return supabase.storage.from('property-images').getPublicUrl(path).data
+    .publicUrl;
 }
 
 /**
@@ -99,7 +110,11 @@ export function FlyerSheet({
   const [rendering, setRendering] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [dialog, setDialog] = useState<{ title: string; message?: string; actions: DialogAction[] } | null>(null);
+  const [dialog, setDialog] = useState<{
+    title: string;
+    message?: string;
+    actions: DialogAction[];
+  } | null>(null);
 
   // Prefill on open, same defaults as the web dialog.
   const openedForRef = useRef<string | null>(null);
@@ -118,7 +133,9 @@ export function FlyerSheet({
     setPreviewUri(null);
     setPreviewError(null);
     setBrandName(brandDefault);
-    setBrandContact(session?.user.phone ? `+${session.user.phone.replace(/^\+/, '')}` : '');
+    setBrandContact(
+      session?.user.phone ? `+${session.user.phone.replace(/^\+/, '')}` : ''
+    );
   }, [visible, property, hasOriginal, session, brandDefault]);
 
   // Config can land after the very first open (cold cache) — adopt the
@@ -151,10 +168,13 @@ export function FlyerSheet({
     if (!visible) return;
     const req = ++reqRef.current;
     setRendering(true);
-    apiFetch<{ data: { image: string } }>(`/api/properties/${property.id}/flyer`, {
-      method: 'POST',
-      body: optionsKey,
-    })
+    apiFetch<{ data: { image: string } }>(
+      `/api/properties/${property.id}/flyer`,
+      {
+        method: 'POST',
+        body: optionsKey,
+      }
+    )
       .then((res) => {
         if (reqRef.current !== req) return;
         setPreviewUri(res.data.image);
@@ -162,7 +182,9 @@ export function FlyerSheet({
       })
       .catch((e) => {
         if (reqRef.current !== req) return;
-        setPreviewError(friendlyError(e instanceof ApiError ? e.message : 'Preview failed.'));
+        setPreviewError(
+          friendlyError(e instanceof ApiError ? e.message : 'Preview failed.')
+        );
       })
       .finally(() => {
         if (reqRef.current === req) setRendering(false);
@@ -192,7 +214,11 @@ export function FlyerSheet({
           title: 'Not enough credits',
           message: e.message,
           actions: [
-            { label: 'Cancel', variant: 'muted', onPress: () => setDialog(null) },
+            {
+              label: 'Cancel',
+              variant: 'muted',
+              onPress: () => setDialog(null),
+            },
             {
               label: 'View credits',
               variant: 'primary',
@@ -207,8 +233,12 @@ export function FlyerSheet({
       } else {
         setDialog({
           title: 'Could not generate image',
-          message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
-          actions: [{ label: 'OK', variant: 'primary', onPress: () => setDialog(null) }],
+          message: friendlyError(
+            e instanceof ApiError ? e.message : 'Try again.'
+          ),
+          actions: [
+            { label: 'OK', variant: 'primary', onPress: () => setDialog(null) },
+          ],
         });
       }
     } finally {
@@ -246,8 +276,12 @@ export function FlyerSheet({
       haptic.warn();
       setDialog({
         title: 'Could not save flyer',
-        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
-        actions: [{ label: 'OK', variant: 'primary', onPress: () => setDialog(null) }],
+        message: friendlyError(
+          e instanceof ApiError ? e.message : 'Try again.'
+        ),
+        actions: [
+          { label: 'OK', variant: 'primary', onPress: () => setDialog(null) },
+        ],
       });
     } finally {
       setSaving(false);
@@ -276,21 +310,37 @@ export function FlyerSheet({
         <PreviewFrame
           style={[
             styles.preview,
-            { backgroundColor: colors.surfaceSunken, borderColor: colors.glassBorder },
+            {
+              backgroundColor: colors.surfaceSunken,
+              borderColor: colors.glassBorder,
+            },
           ]}
         >
           {previewUri ? (
-            <Image source={{ uri: storagePublicUrl(previewUri) }} style={styles.previewImage} resizeMode="cover" />
+            <Image
+              source={{ uri: storagePublicUrl(previewUri) }}
+              style={styles.previewImage}
+              resizeMode="cover"
+            />
           ) : (
             <View style={styles.previewEmpty}>
-              <Ionicons name="image-outline" size={36} color={colors.textFaint} />
+              <Ionicons
+                name="image-outline"
+                size={36}
+                color={colors.textFaint}
+              />
             </View>
           )}
           {rendering || generating ? (
             <View style={styles.previewOverlay}>
               <ActivityIndicator color="#fff" />
               {generating ? (
-                <Text style={[styles.previewOverlayText, { fontFamily: f.semibold }]}>
+                <Text
+                  style={[
+                    styles.previewOverlayText,
+                    { fontFamily: f.semibold },
+                  ]}
+                >
                   Generating AI image…
                 </Text>
               ) : null}
@@ -298,13 +348,21 @@ export function FlyerSheet({
           ) : null}
         </PreviewFrame>
         {previewError ? (
-          <Text style={{ fontSize: 12.5, color: colors.danger, textAlign: 'center' }}>
+          <Text
+            style={{
+              fontSize: 12.5,
+              color: colors.danger,
+              textAlign: 'center',
+            }}
+          >
             {previewError}
           </Text>
         ) : null}
 
         <SectionLabel text="Background" />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+        <View
+          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+        >
           {hasOriginal ? (
             <FilterChip
               label="Original photo"
@@ -313,7 +371,11 @@ export function FlyerSheet({
             />
           ) : null}
           <FilterChip
-            label={aiImageUrl ? '✨ AI image' : `✨ Generate with AI (${aiCredits} cr)`}
+            label={
+              aiImageUrl
+                ? '✨ AI image'
+                : `✨ Generate with AI (${aiCredits} cr)`
+            }
             active={useAi}
             onPress={() => {
               if (aiImageUrl) setImageSource('ai');
@@ -342,7 +404,13 @@ export function FlyerSheet({
               ]}
             >
               <Ionicons name="refresh" size={15} color={colors.primary} />
-              <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.primary }}>
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: f.semibold,
+                  color: colors.primary,
+                }}
+              >
                 {aiImageUrl ? 'Regenerate' : 'Generate'} ({aiCredits} credits)
               </Text>
             </Pressable>
@@ -350,7 +418,9 @@ export function FlyerSheet({
         ) : null}
 
         <SectionLabel text="Template" />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+        <View
+          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+        >
           {TEMPLATES.map((t) => (
             <FilterChip
               key={t.value}
@@ -362,7 +432,9 @@ export function FlyerSheet({
         </View>
 
         <SectionLabel text="Show on flyer" />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+        <View
+          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+        >
           {toggles.map((t) => (
             <FilterChip
               key={t.label}
@@ -395,10 +467,15 @@ export function FlyerSheet({
             </View>
           </View>
         ) : null}
-
       </ScrollView>
 
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
+      <View
+        style={{
+          paddingHorizontal: spacing.lg,
+          paddingTop: spacing.sm,
+          gap: spacing.sm,
+        }}
+      >
         <PrimaryButton
           label="Save to property photos"
           icon="save-outline"
@@ -406,8 +483,15 @@ export function FlyerSheet({
           disabled={rendering || generating}
           onPress={saveToProperty}
         />
-        <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}>
-          Saving adds the flyer as the first photo, so it leads showcase pages and shares.
+        <Text
+          style={{
+            fontSize: 11.5,
+            color: colors.textFaint,
+            textAlign: 'center',
+          }}
+        >
+          Saving adds the flyer as the first photo, so it leads showcase pages
+          and shares.
         </Text>
       </View>
       <AppDialog

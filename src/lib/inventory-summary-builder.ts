@@ -10,10 +10,7 @@ import { formatShareAmount } from '@/lib/share-message-builder';
 import { rankInventoryProperties } from '@/lib/inventory/top-properties';
 
 export type SummaryCategory =
-  | 'Residential'
-  | 'Commercial'
-  | 'Agricultural'
-  | 'Other';
+  'Residential' | 'Commercial' | 'Agricultural' | 'Other';
 
 const CATEGORY_ORDER: SummaryCategory[] = [
   'Residential',

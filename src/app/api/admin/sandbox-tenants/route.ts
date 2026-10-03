@@ -1,10 +1,9 @@
-import { NextResponse } from 'next/server'
-import { toErrorResponse } from '@/lib/auth/account'
-import { requirePlatformAdmin } from '@/lib/auth/platform-admin'
-import { encrypt } from '@/lib/whatsapp/encryption'
-import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api'
-import { supabaseAdmin } from '@/lib/supabase/admin'
-
+import { NextResponse } from 'next/server';
+import { toErrorResponse } from '@/lib/auth/account';
+import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
+import { encrypt } from '@/lib/whatsapp/encryption';
+import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
  * GET /api/admin/sandbox-tenants
@@ -14,58 +13,71 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
  */
 export async function GET(request: Request) {
   try {
-    await requirePlatformAdmin()
+    await requirePlatformAdmin();
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
   try {
-    const url = new URL(request.url)
-    const includeExpired = url.searchParams.get('include_expired') === 'true'
+    const url = new URL(request.url);
+    const includeExpired = url.searchParams.get('include_expired') === 'true';
 
     let query = supabaseAdmin()
       .from('whatsapp_config')
       .select('*')
-      .eq('integration_type', 'sandbox')
+      .eq('integration_type', 'sandbox');
 
     if (!includeExpired) {
-      query = query.or(`trial_ends_at.gt.${new Date().toISOString()},trial_ends_at.is.null`)
+      query = query.or(
+        `trial_ends_at.gt.${new Date().toISOString()},trial_ends_at.is.null`
+      );
     }
 
-    const { data: configs, error } = await query
+    const { data: configs, error } = await query;
 
     if (error) {
-      console.error('Error fetching sandbox tenants:', error)
-      return NextResponse.json({ error: 'Failed to fetch tenants' }, { status: 500 })
+      console.error('Error fetching sandbox tenants:', error);
+      return NextResponse.json(
+        { error: 'Failed to fetch tenants' },
+        { status: 500 }
+      );
     }
 
     // Fetch owner profiles separately — no FK between whatsapp_config and profiles,
     // so we match on user_id (whatsapp_config.user_id → profiles.user_id).
-    const userIds = (configs || []).map((cfg: Record<string, unknown>) => cfg.user_id as string).filter(Boolean)
-    const { data: profiles } = userIds.length > 0
-      ? await supabaseAdmin().from('profiles').select('user_id, full_name, email').in('user_id', userIds)
-      : { data: [] }
+    const userIds = (configs || [])
+      .map((cfg: Record<string, unknown>) => cfg.user_id as string)
+      .filter(Boolean);
+    const { data: profiles } =
+      userIds.length > 0
+        ? await supabaseAdmin()
+            .from('profiles')
+            .select('user_id, full_name, email')
+            .in('user_id', userIds)
+        : { data: [] };
 
     // Enrich with conversation counts
     const enriched = await Promise.all(
       (configs || []).map(async (cfg: Record<string, unknown>) => {
-        const accountId = cfg.account_id as string
-        const userId = cfg.user_id as string
-        const owner = profiles?.find((p: Record<string, unknown>) => p.user_id === userId)
+        const accountId = cfg.account_id as string;
+        const userId = cfg.user_id as string;
+        const owner = profiles?.find(
+          (p: Record<string, unknown>) => p.user_id === userId
+        );
 
         const { count: convCount } = await supabaseAdmin()
           .from('conversations')
           .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId)
+          .eq('account_id', accountId);
 
         const { count: msgCount } = await supabaseAdmin()
           .from('messages')
           .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId)
+          .eq('account_id', accountId);
 
         const { count: contactCount } = await supabaseAdmin()
           .from('contacts')
           .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId)
+          .eq('account_id', accountId);
 
         return {
           ...cfg,
@@ -75,14 +87,17 @@ export async function GET(request: Request) {
             messages: msgCount || 0,
             contacts: contactCount || 0,
           },
-        } as Record<string, unknown>
+        } as Record<string, unknown>;
       })
-    )
+    );
 
-    return NextResponse.json({ tenants: enriched })
+    return NextResponse.json({ tenants: enriched });
   } catch (error) {
-    console.error('Error in GET sandbox-tenants:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error in GET sandbox-tenants:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
@@ -95,29 +110,32 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    await requirePlatformAdmin()
+    await requirePlatformAdmin();
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
   try {
-    const body = await request.json()
+    const body = await request.json();
     const {
       tenant_account_ids,
       phone_number_id,
       waba_id,
       access_token,
       verify_token,
-    } = body
+    } = body;
 
     if (!Array.isArray(tenant_account_ids) || tenant_account_ids.length === 0) {
-      return NextResponse.json({ error: 'tenant_account_ids array required' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'tenant_account_ids array required' },
+        { status: 400 }
+      );
     }
 
     if (!phone_number_id?.trim() || !access_token?.trim()) {
       return NextResponse.json(
         { error: 'phone_number_id and access_token required for migration' },
         { status: 400 }
-      )
+      );
     }
 
     // Verify credentials with Meta once
@@ -125,42 +143,51 @@ export async function POST(request: Request) {
       await verifyPhoneNumber({
         phoneNumberId: phone_number_id.trim(),
         accessToken: access_token.trim(),
-      })
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Meta API verification failed'
-      return NextResponse.json({ error: `Invalid credentials: ${message}` }, { status: 400 })
+      const message =
+        err instanceof Error ? err.message : 'Meta API verification failed';
+      return NextResponse.json(
+        { error: `Invalid credentials: ${message}` },
+        { status: 400 }
+      );
     }
 
-    const encryptedToken = encrypt(access_token.trim())
-    const encryptedVerify = verify_token?.trim() ? encrypt(verify_token.trim()) : null
+    const encryptedToken = encrypt(access_token.trim());
+    const encryptedVerify = verify_token?.trim()
+      ? encrypt(verify_token.trim())
+      : null;
 
     const results = {
       processed: 0,
       succeeded: 0,
       failed: 0,
       errors: [] as string[],
-    }
+    };
 
     for (const accountId of tenant_account_ids) {
-      results.processed++
+      results.processed++;
 
       try {
         const { data: existing } = await supabaseAdmin()
           .from('whatsapp_config')
           .select('id, integration_type')
           .eq('account_id', accountId)
-          .maybeSingle()
+          .maybeSingle();
 
         if (!existing) {
-          results.failed++
-          results.errors.push(`Account ${accountId}: no config found`)
-          continue
+          results.failed++;
+          results.errors.push(`Account ${accountId}: no config found`);
+          continue;
         }
 
-        if ((existing as unknown as Record<string, unknown>).integration_type !== 'sandbox') {
-          results.failed++
-          results.errors.push(`Account ${accountId}: not in sandbox mode`)
-          continue
+        if (
+          (existing as unknown as Record<string, unknown>).integration_type !==
+          'sandbox'
+        ) {
+          results.failed++;
+          results.errors.push(`Account ${accountId}: not in sandbox mode`);
+          continue;
         }
 
         const updatePayload = {
@@ -172,31 +199,44 @@ export async function POST(request: Request) {
           status: 'connected',
           connected_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        }
+        };
 
-        const { error: updateError } = await (supabaseAdmin()
-          .from('whatsapp_config') as unknown as { update: (data: unknown) => { eq: (col: string, val: string) => Promise<{ error: Error | null }> } })
+        const { error: updateError } = await (
+          supabaseAdmin().from('whatsapp_config') as unknown as {
+            update: (data: unknown) => {
+              eq: (
+                col: string,
+                val: string
+              ) => Promise<{ error: Error | null }>;
+            };
+          }
+        )
           .update(updatePayload)
-          .eq('account_id', accountId)
+          .eq('account_id', accountId);
 
         if (updateError) {
-          results.failed++
-          results.errors.push(`Account ${accountId}: ${updateError.message}`)
+          results.failed++;
+          results.errors.push(`Account ${accountId}: ${updateError.message}`);
         } else {
-          results.succeeded++
+          results.succeeded++;
         }
       } catch (err) {
-        results.failed++
-        results.errors.push(`Account ${accountId}: ${err instanceof Error ? err.message : String(err)}`)
+        results.failed++;
+        results.errors.push(
+          `Account ${accountId}: ${err instanceof Error ? err.message : String(err)}`
+        );
       }
     }
 
     return NextResponse.json({
       success: results.succeeded > 0,
       ...results,
-    })
+    });
   } catch (error) {
-    console.error('Error in POST sandbox-tenants migrate:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error in POST sandbox-tenants migrate:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

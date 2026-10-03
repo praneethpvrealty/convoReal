@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
-import { requireRole, toErrorResponse } from '@/lib/auth/account'
-import { loadFocusSnapshot } from '@/lib/focus/queries'
+import { NextResponse } from 'next/server';
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { loadFocusSnapshot } from '@/lib/focus/queries';
 
 // GET /api/focus
 // The consultant's landing view: today's tasks and visits, the three
@@ -9,10 +9,10 @@ import { loadFocusSnapshot } from '@/lib/focus/queries'
 // this route, so the ranking cannot drift between them.
 export async function GET() {
   try {
-    const ctx = await requireRole('viewer')
-    const data = await loadFocusSnapshot(ctx.supabase, ctx.accountId)
-    return NextResponse.json({ data })
+    const ctx = await requireRole('viewer');
+    const data = await loadFocusSnapshot(ctx.supabase, ctx.accountId);
+    return NextResponse.json({ data });
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
 }

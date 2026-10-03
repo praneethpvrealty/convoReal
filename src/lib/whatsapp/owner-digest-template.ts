@@ -50,10 +50,10 @@ export function buildOwnerDigestTemplatePayload(): TemplatePayload {
 // Quick replies land back in the webhook as button text and move
 // contacts.owner_digest_consent to granted/declined.
 
-export const OWNER_DIGEST_CONSENT_TEMPLATE_NAME = 'owner_digest_consent'
+export const OWNER_DIGEST_CONSENT_TEMPLATE_NAME = 'owner_digest_consent';
 
-export const CONSENT_YES_TEXT = 'Yes, send me updates'
-export const CONSENT_NO_TEXT = 'No, thanks'
+export const CONSENT_YES_TEXT = 'Yes, send me updates';
+export const CONSENT_NO_TEXT = 'No, thanks';
 
 export function buildOwnerDigestConsentTemplatePayload(): TemplatePayload {
   return {
@@ -74,7 +74,7 @@ export function buildOwnerDigestConsentTemplatePayload(): TemplatePayload {
     sample_values: {
       body: ['Gopi', 'your listing'],
     },
-  }
+  };
 }
 
 /**
@@ -83,11 +83,13 @@ export function buildOwnerDigestConsentTemplatePayload(): TemplatePayload {
  * Naming the property answers that before the owner has to ask.
  */
 export function buildListingsPhrase(propertyTitles: string[]): string {
-  const titles = propertyTitles.map((t) => t?.trim()).filter(Boolean)
-  if (titles.length === 1) return `your listing "${titles[0]}"`
-  if (titles.length === 2) return `your listings "${titles[0]}" and "${titles[1]}"`
-  if (titles.length > 2) return `your ${titles.length} listings ("${titles[0]}" and more)`
-  return 'your listing'
+  const titles = propertyTitles.map((t) => t?.trim()).filter(Boolean);
+  if (titles.length === 1) return `your listing "${titles[0]}"`;
+  if (titles.length === 2)
+    return `your listings "${titles[0]}" and "${titles[1]}"`;
+  if (titles.length > 2)
+    return `your ${titles.length} listings ("${titles[0]}" and more)`;
+  return 'your listing';
 }
 
 /** Body params {{1}}..{{2}}: first name, listings phrase. */
@@ -95,11 +97,11 @@ export function buildOwnerDigestConsentParams(
   contactName: string | null | undefined,
   propertyTitles: string[]
 ): [name: string, listings: string] {
-  const firstName = contactName?.trim().split(/\s+/)[0] || 'there'
+  const firstName = contactName?.trim().split(/\s+/)[0] || 'there';
   return [
     sanitizeTemplateParam(firstName),
     sanitizeTemplateParam(buildListingsPhrase(propertyTitles)),
-  ]
+  ];
 }
 
 /**
@@ -116,7 +118,9 @@ export function buildOwnerDigestParams(
   const firstName = contactName?.trim().split(/\s+/)[0] || 'there';
   return [
     sanitizeTemplateParam(firstName),
-    sanitizeTemplateParam(`${buildListingsPhrase(propertyTitles)} (${periodLabel})`),
+    sanitizeTemplateParam(
+      `${buildListingsPhrase(propertyTitles)} (${periodLabel})`
+    ),
     sanitizeTemplateParam(summaryLine || 'New listing activity'),
   ];
 }

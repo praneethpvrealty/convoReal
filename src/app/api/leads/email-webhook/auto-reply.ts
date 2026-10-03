@@ -19,7 +19,11 @@ export interface SendAutoReplyResult {
 }
 
 // Helper to dynamically build body params matching the placeholders in body_text
-export function buildBodyParams(bodyText: string | null | undefined, leadName: string, leadSource: string): string[] {
+export function buildBodyParams(
+  bodyText: string | null | undefined,
+  leadName: string,
+  leadSource: string
+): string[] {
   if (!bodyText) return [];
   const matches = bodyText.match(/\{\{\d+\}\}/g) || [];
   const uniqueVars = new Set(matches);
@@ -66,7 +70,9 @@ export async function sendAutoReply({
   // When forceSend is true (email-webhook lead collection), we always attempt
   // to deliver a message regardless of the auto_reply_enabled setting.
   if (!forceSend && !syncConfig?.auto_reply_enabled) {
-    console.log(`${logPrefix} Skipped: auto_reply not enabled and forceSend=false`);
+    console.log(
+      `${logPrefix} Skipped: auto_reply not enabled and forceSend=false`
+    );
     return { success: false, error: 'auto_reply not enabled' };
   }
 
@@ -78,11 +84,18 @@ export async function sendAutoReply({
     .maybeSingle();
 
   if (!waConfig) {
-    console.warn(`${logPrefix} FAILED: no connected WhatsApp config for account ${accountId}`);
-    return { success: false, error: 'No connected WhatsApp config for this account' };
+    console.warn(
+      `${logPrefix} FAILED: no connected WhatsApp config for account ${accountId}`
+    );
+    return {
+      success: false,
+      error: 'No connected WhatsApp config for this account',
+    };
   }
 
-  console.log(`${logPrefix} WhatsApp config loaded. phone_number_id=${waConfig.phone_number_id}`);
+  console.log(
+    `${logPrefix} WhatsApp config loaded. phone_number_id=${waConfig.phone_number_id}`
+  );
 
   try {
     let replyText = '';
@@ -113,22 +126,30 @@ export async function sendAutoReply({
       const language = await accountDefaultLanguage(supabase, accountId);
       template = pickTemplateForLanguage(
         (variants ?? []) as MessageTemplate[],
-        language,
+        language
       );
       if (template && isLanguageFallback(template, language)) {
         warnLanguageFallback('lead-auto-reply', accountId, language, template);
       }
       if (template) {
-        console.log(`${logPrefix} Primary template resolved: ${template.name} (lang: ${template.language || 'en_US'})`);
+        console.log(
+          `${logPrefix} Primary template resolved: ${template.name} (lang: ${template.language || 'en_US'})`
+        );
       } else {
-        console.log(`${logPrefix} Primary template "${syncConfig.auto_reply_template_name}" not found or not APPROVED`);
+        console.log(
+          `${logPrefix} Primary template "${syncConfig.auto_reply_template_name}" not found or not APPROVED`
+        );
       }
     } else {
       console.log(`${logPrefix} No primary template configured in syncConfig`);
     }
 
     if (template) {
-      const bodyParams = buildBodyParams(template.body_text, leadName, leadSource);
+      const bodyParams = buildBodyParams(
+        template.body_text,
+        leadName,
+        leadSource
+      );
 
       const buttonParams: Record<number, string> = {};
       if (template.buttons && Array.isArray(template.buttons)) {
@@ -149,8 +170,8 @@ export async function sendAutoReply({
           template: template || undefined,
           messageParams: {
             body: bodyParams,
-            ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {})
-          }
+            ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {}),
+          },
         });
 
         messageId = sendRes.messageId;
@@ -159,12 +180,21 @@ export async function sendAutoReply({
           .replace(/\{\{1\}\}/g, greetingName(leadName))
           .replace(/\{\{2\}\}/g, leadSource || 'portal');
 
-        console.log(`${logPrefix} Primary template SENT: ${template.name}, Meta messageId=${messageId}`);
+        console.log(
+          `${logPrefix} Primary template SENT: ${template.name}, Meta messageId=${messageId}`
+        );
       } catch (tplErr) {
         const errMsg = (tplErr as Error).message || '';
-        console.error(`${logPrefix} Primary template ${template.name} FAILED: ${errMsg}`);
-        if (errMsg.includes('132001') || errMsg.toLowerCase().includes('does not exist')) {
-          console.warn(`${logPrefix} Marking template ${template.name} as INACTIVE in DB`);
+        console.error(
+          `${logPrefix} Primary template ${template.name} FAILED: ${errMsg}`
+        );
+        if (
+          errMsg.includes('132001') ||
+          errMsg.toLowerCase().includes('does not exist')
+        ) {
+          console.warn(
+            `${logPrefix} Marking template ${template.name} as INACTIVE in DB`
+          );
           await supabase
             .from('message_templates')
             // Bookkeeping after Meta said the template is gone; the send
@@ -173,7 +203,10 @@ export async function sendAutoReply({
             .update({ status: 'INACTIVE' })
             .eq('id', template.id);
         } else {
-          return { success: false, error: `Primary template failed: ${errMsg}` };
+          return {
+            success: false,
+            error: `Primary template failed: ${errMsg}`,
+          };
         }
       }
     }
@@ -194,13 +227,19 @@ export async function sendAutoReply({
 
         if (lastCustomerMsg) {
           const lastMsgTime = new Date(lastCustomerMsg.created_at).getTime();
-          isWithin24Hours = (Date.now() - lastMsgTime) < 24 * 60 * 60 * 1000;
-          console.log(`${logPrefix} Last customer msg: ${lastCustomerMsg.created_at}, within24h=${isWithin24Hours}`);
+          isWithin24Hours = Date.now() - lastMsgTime < 24 * 60 * 60 * 1000;
+          console.log(
+            `${logPrefix} Last customer msg: ${lastCustomerMsg.created_at}, within24h=${isWithin24Hours}`
+          );
         } else {
-          console.log(`${logPrefix} No prior customer messages in conversation`);
+          console.log(
+            `${logPrefix} No prior customer messages in conversation`
+          );
         }
       } else {
-        console.log(`${logPrefix} No conversationId provided — cannot check 24h window`);
+        console.log(
+          `${logPrefix} No conversationId provided — cannot check 24h window`
+        );
       }
 
       // Within 24h window: send free-form text if available
@@ -209,7 +248,9 @@ export async function sendAutoReply({
           .replace(/{name}/g, greetingName(leadName))
           .replace(/{source}/g, leadSource || 'portal');
 
-        console.log(`${logPrefix} Sending free-form text (within 24h window): "${replyText.slice(0, 60)}..."`);
+        console.log(
+          `${logPrefix} Sending free-form text (within 24h window): "${replyText.slice(0, 60)}..."`
+        );
         const sendRes = await sendTextMessage({
           phoneNumberId: waConfig.phone_number_id,
           accessToken: decrypt(waConfig.access_token),
@@ -217,11 +258,15 @@ export async function sendAutoReply({
           text: replyText,
         });
         messageId = sendRes.messageId;
-        console.log(`${logPrefix} Free-form text SENT, Meta messageId=${messageId}`);
+        console.log(
+          `${logPrefix} Free-form text SENT, Meta messageId=${messageId}`
+        );
       } else {
         // Outside 24h window (or no free-form text configured) — MUST use a template.
         // Try ALL approved templates (no category restriction) so we maximise chances.
-        console.log(`${logPrefix} Outside 24h window. Querying ALL approved templates for account ${accountId}...`);
+        console.log(
+          `${logPrefix} Outside 24h window. Querying ALL approved templates for account ${accountId}...`
+        );
         const { data: fallbackTemplates, error: tplErr } = await supabase
           .from('message_templates')
           .select('*')
@@ -231,28 +276,47 @@ export async function sendAutoReply({
 
         if (tplErr) {
           console.error(`${logPrefix} DB error querying templates:`, tplErr);
-          return { success: false, error: `Template DB query failed: ${tplErr.message}` };
+          return {
+            success: false,
+            error: `Template DB query failed: ${tplErr.message}`,
+          };
         }
 
-        console.log(`${logPrefix} Found ${fallbackTemplates?.length || 0} approved template(s)`);
+        console.log(
+          `${logPrefix} Found ${fallbackTemplates?.length || 0} approved template(s)`
+        );
 
         let sent = false;
         for (const fallbackTemplate of fallbackTemplates || []) {
           if (sent) break;
 
-          const dbLang = (fallbackTemplate as MessageTemplate).language || 'en_US';
-          const tryLanguages = [dbLang, ...['en_US', 'en', 'en_GB'].filter(l => l !== dbLang)];
+          const dbLang =
+            (fallbackTemplate as MessageTemplate).language || 'en_US';
+          const tryLanguages = [
+            dbLang,
+            ...['en_US', 'en', 'en_GB'].filter((l) => l !== dbLang),
+          ];
 
           for (const lang of tryLanguages) {
             try {
-              console.log(`${logPrefix} Trying fallback template: ${fallbackTemplate.name} (lang: ${lang})`);
+              console.log(
+                `${logPrefix} Trying fallback template: ${fallbackTemplate.name} (lang: ${lang})`
+              );
 
               const tpl = fallbackTemplate as MessageTemplate;
-              const bodyParams = buildBodyParams(tpl.body_text, leadName, leadSource);
+              const bodyParams = buildBodyParams(
+                tpl.body_text,
+                leadName,
+                leadSource
+              );
               const buttonParams: Record<number, string> = {};
               if (tpl.buttons && Array.isArray(tpl.buttons)) {
                 tpl.buttons.forEach((btn, idx: number) => {
-                  if (btn.type === 'URL' && btn.url && btn.url.includes('{{1}}')) {
+                  if (
+                    btn.type === 'URL' &&
+                    btn.url &&
+                    btn.url.includes('{{1}}')
+                  ) {
                     buttonParams[idx] = `?ref=${accountId}`;
                   }
                 });
@@ -267,8 +331,10 @@ export async function sendAutoReply({
                 template: tpl,
                 messageParams: {
                   body: bodyParams,
-                  ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {})
-                }
+                  ...(Object.keys(buttonParams).length > 0
+                    ? { buttonParams }
+                    : {}),
+                },
               });
 
               messageId = sendRes.messageId;
@@ -277,14 +343,23 @@ export async function sendAutoReply({
                 .replace(/\{\{1\}\}/g, greetingName(leadName))
                 .replace(/\{\{2\}\}/g, leadSource || 'portal');
               sent = true;
-              console.log(`${logPrefix} Fallback template SENT: ${tpl.name} (lang: ${lang}), Meta messageId=${messageId}`);
+              console.log(
+                `${logPrefix} Fallback template SENT: ${tpl.name} (lang: ${lang}), Meta messageId=${messageId}`
+              );
               break;
             } catch (langErr) {
               const errMsg = (langErr as Error).message || '';
-              console.warn(`${logPrefix} Template ${fallbackTemplate.name} failed with lang ${lang}: ${errMsg}`);
+              console.warn(
+                `${logPrefix} Template ${fallbackTemplate.name} failed with lang ${lang}: ${errMsg}`
+              );
 
-              if (errMsg.includes('132001') || errMsg.toLowerCase().includes('does not exist')) {
-                console.warn(`${logPrefix} Marking template ${fallbackTemplate.name} as INACTIVE`);
+              if (
+                errMsg.includes('132001') ||
+                errMsg.toLowerCase().includes('does not exist')
+              ) {
+                console.warn(
+                  `${logPrefix} Marking template ${fallbackTemplate.name} as INACTIVE`
+                );
                 await supabase
                   .from('message_templates')
                   // Same bookkeeping as the primary-template path above.
@@ -308,7 +383,9 @@ export async function sendAutoReply({
 
     // ── Persist sent message to DB ──
     if (conversationId && replyText && messageId) {
-      console.log(`${logPrefix} Persisting message to DB. conversationId=${conversationId}, type=${usedTemplateName ? 'template' : 'text'}`);
+      console.log(
+        `${logPrefix} Persisting message to DB. conversationId=${conversationId}, type=${usedTemplateName ? 'template' : 'text'}`
+      );
       const sentAt = new Date().toISOString();
       await supabase.from('messages').insert({
         conversation_id: conversationId,
@@ -343,7 +420,9 @@ export async function sendAutoReply({
       }
       console.log(`${logPrefix} Message persisted successfully`);
     } else {
-      console.warn(`${logPrefix} Cannot persist: missing conversationId=${conversationId}, replyText=${!!replyText}, messageId=${!!messageId}`);
+      console.warn(
+        `${logPrefix} Cannot persist: missing conversationId=${conversationId}, replyText=${!!replyText}, messageId=${!!messageId}`
+      );
     }
 
     return { success: true, messageId, usedTemplateName, replyText };

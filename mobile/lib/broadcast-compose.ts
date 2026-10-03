@@ -44,7 +44,9 @@ export function templateVariableKeys(bodyText?: string | null): string[] {
  * visible in the preview, whereas an unset one silently sends the raw
  * "{{1}}" to every recipient.
  */
-export function defaultVariableMappings(keys: string[]): Record<string, VariableMapping> {
+export function defaultVariableMappings(
+  keys: string[]
+): Record<string, VariableMapping> {
   const mappings: Record<string, VariableMapping> = {};
   for (const key of keys) {
     mappings[key] = { type: 'field', value: 'name' };
@@ -60,13 +62,14 @@ export function defaultVariableMappings(keys: string[]): Record<string, Variable
 export function previewBody(
   bodyText: string,
   variables: Record<string, VariableMapping>,
-  sample: Record<string, string | null | undefined>,
+  sample: Record<string, string | null | undefined>
 ): string {
   return bodyText.replace(/\{\{(\d+)\}\}/g, (match, key: string) => {
     const mapping = variables[key];
     if (!mapping) return match;
     if (mapping.type === 'static') return mapping.value.trim() || match;
-    if (mapping.type === 'field') return (sample[mapping.value] || '').trim() || match;
+    if (mapping.type === 'field')
+      return (sample[mapping.value] || '').trim() || match;
     return match;
   });
 }
@@ -74,7 +77,7 @@ export function previewBody(
 /** True when every placeholder resolves to something non-empty. */
 export function mappingsComplete(
   keys: string[],
-  variables: Record<string, VariableMapping>,
+  variables: Record<string, VariableMapping>
 ): boolean {
   return keys.every((key) => {
     const mapping = variables[key];
@@ -87,7 +90,7 @@ export function mappingsComplete(
 export function buildAudience(
   type: 'all' | 'tags',
   tagIds: string[],
-  excludeTagIds: string[],
+  excludeTagIds: string[]
 ): AudienceConfig {
   const audience: AudienceConfig = { type };
   if (type === 'tags') audience.tagIds = tagIds;

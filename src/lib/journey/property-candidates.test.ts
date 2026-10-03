@@ -62,18 +62,21 @@ describe('rankJourneyPropertyCandidates', () => {
     const fillerTitles = [
       {
         id: 'p-1154',
-        title: '3 BHK Independent Building Floor House for Sale in Emerald Enclave, Mysuru',
+        title:
+          '3 BHK Independent Building Floor House for Sale in Emerald Enclave, Mysuru',
         property_code: 'PROP-1154',
         location: 'the Emerald Enclave',
       },
       {
         id: 'p-1108',
-        title: 'Residential House in Koramangala 7th phase, opposite to the park is for sale.',
+        title:
+          'Residential House in Koramangala 7th phase, opposite to the park is for sale.',
         property_code: 'PROP-1108',
       },
       {
         id: 'p-1878',
-        title: '300 Acres Residential Land with the plan approval on Harohalli to Bidadi Road',
+        title:
+          '300 Acres Residential Land with the plan approval on Harohalli to Bidadi Road',
         property_code: 'PROP-1878',
       },
     ];

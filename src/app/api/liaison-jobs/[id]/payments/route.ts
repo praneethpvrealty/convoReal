@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 
 // POST /api/liaison-jobs/[id]/payments — record cash movement on a job.
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -13,13 +17,16 @@ export async function POST(
 
     const limit = await checkRateLimit(
       `agent:createLiaisonPayment:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = await request.json().catch(() => null);
     if (!body) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
     }
 
     const { direction, amount, paid_on, note } = body;
@@ -28,13 +35,13 @@ export async function POST(
     if (direction !== 'in' && direction !== 'out') {
       return NextResponse.json(
         { error: "'direction' must be 'in' or 'out'" },
-        { status: 400 },
+        { status: 400 }
       );
     }
     if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json(
         { error: "'amount' must be a positive number" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -69,10 +76,13 @@ export async function POST(
       .single();
 
     if (insertErr || !created) {
-      console.error('[POST /api/liaison-jobs/[id]/payments] Insert error:', insertErr);
+      console.error(
+        '[POST /api/liaison-jobs/[id]/payments] Insert error:',
+        insertErr
+      );
       return NextResponse.json(
         { error: insertErr?.message ?? 'Failed to record payment' },
-        { status: 500 },
+        { status: 500 }
       );
     }
 

@@ -19,32 +19,34 @@
 import {
   PROPERTY_INTEREST_FLOW_IDS,
   PROPERTY_INTEREST_SHORT_TITLES,
-} from '@/lib/property-interests'
+} from '@/lib/property-interests';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import type { Contact } from '@/types';
 
-export const PREFERENCE_FLOW_KEY = 'preference_intake'
-export const PREFERENCE_FLOW_NAME = 'Buyer Preference Intake'
-export const PREFERENCE_SCREEN_ID = 'PREFERENCES'
-export const SAVE_PREFERENCES_ACTION = 'save_preferences'
+export const PREFERENCE_FLOW_KEY = 'preference_intake';
+export const PREFERENCE_FLOW_NAME = 'Buyer Preference Intake';
+export const PREFERENCE_SCREEN_ID = 'PREFERENCES';
+export const SAVE_PREFERENCES_ACTION = 'save_preferences';
 /** interactiveReplyId that triggers sending this flow from a button. */
-export const PREFERENCE_FLOW_BUTTON_ID = 'update_preferences'
+export const PREFERENCE_FLOW_BUTTON_ID = 'update_preferences';
 
 /** Flow JSON schema version uploaded to Meta. */
-export const PREFERENCE_FLOW_JSON_VERSION = '7.2'
+export const PREFERENCE_FLOW_JSON_VERSION = '7.2';
 /** Data channel version for endpoint-backed flows. */
-export const PREFERENCE_FLOW_DATA_API_VERSION = '3.0'
+export const PREFERENCE_FLOW_DATA_API_VERSION = '3.0';
 
 /**
  * The shared interest vocabulary, rendered for Meta: the `id` is what
  * gets stored in contacts.property_interests, titles are shortened to
  * stay within Meta's 30-char CheckboxGroup item limit.
  */
-export const PROPERTY_INTEREST_FLOW_OPTIONS: Array<{ id: string; title: string }> =
-  PROPERTY_INTEREST_FLOW_IDS.map((id) => ({
-    id,
-    title: PROPERTY_INTEREST_SHORT_TITLES[id] ?? id,
-  }))
+export const PROPERTY_INTEREST_FLOW_OPTIONS: Array<{
+  id: string;
+  title: string;
+}> = PROPERTY_INTEREST_FLOW_IDS.map((id) => ({
+  id,
+  title: PROPERTY_INTEREST_SHORT_TITLES[id] ?? id,
+}));
 
 // ── Flow JSON ─────────────────────────────────────────────────────
 
@@ -197,28 +199,28 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
         },
       },
     ],
-  }
+  };
 }
 
 // ── Prefill (INIT) ────────────────────────────────────────────────
 
 /** The subset of a contacts row this flow reads and writes. */
 export interface ContactPreferenceSource {
-  min_budget?: number | null
-  max_budget?: number | null
-  pref_budget_min?: number | string | null
-  pref_budget_max?: number | string | null
-  pref_areas?: string[] | null
-  pref_property_types?: string[] | null
-  pref_property_categories?: string[] | null
-  areas_of_interest?: string[] | null
-  property_interests?: string[] | null
-  min_roi?: number | null
-  requires_tenanted?: boolean | null
-  pref_requires_tenanted?: boolean | null
-  requirements?: string | null
-  no_budget?: boolean | null
-  requirement_profiles?: Contact['requirement_profiles']
+  min_budget?: number | null;
+  max_budget?: number | null;
+  pref_budget_min?: number | string | null;
+  pref_budget_max?: number | string | null;
+  pref_areas?: string[] | null;
+  pref_property_types?: string[] | null;
+  pref_property_categories?: string[] | null;
+  areas_of_interest?: string[] | null;
+  property_interests?: string[] | null;
+  min_roi?: number | null;
+  requires_tenanted?: boolean | null;
+  pref_requires_tenanted?: boolean | null;
+  requirements?: string | null;
+  no_budget?: boolean | null;
+  requirement_profiles?: Contact['requirement_profiles'];
 }
 
 /**
@@ -228,15 +230,15 @@ export interface ContactPreferenceSource {
 export function buildPreferencePrefillData(
   contact: ContactPreferenceSource
 ): Record<string, unknown> {
-  const source = resolveRequirementSource(contact as Contact)
-  const knownIds = new Set(PROPERTY_INTEREST_FLOW_OPTIONS.map((o) => o.id))
+  const source = resolveRequirementSource(contact as Contact);
+  const knownIds = new Set(PROPERTY_INTEREST_FLOW_OPTIONS.map((o) => o.id));
   const selectedPropertyTypes = Array.from(
     new Set([
       ...(source.property_interests || []),
       ...(source.pref_property_types || []),
       ...(source.pref_property_categories || []),
     ])
-  ).filter((p) => knownIds.has(p))
+  ).filter((p) => knownIds.has(p));
 
   return {
     // 0 means "not set yet" — the screen's data schema declares these
@@ -246,14 +248,15 @@ export function buildPreferencePrefillData(
     min_budget:
       source.pref_budget_min != null
         ? Number(source.pref_budget_min)
-        : source.min_budget ?? 0,
+        : (source.min_budget ?? 0),
     max_budget:
       source.pref_budget_max != null
         ? Number(source.pref_budget_max)
-        : source.max_budget ?? 0,
-    areas: [...(source.areas_of_interest || []), ...(source.pref_areas || [])].join(
-      ', '
-    ),
+        : (source.max_budget ?? 0),
+    areas: [
+      ...(source.areas_of_interest || []),
+      ...(source.pref_areas || []),
+    ].join(', '),
     min_roi: source.min_roi ?? 0,
     occupancy:
       (source.requires_tenanted ?? source.pref_requires_tenanted ?? false)
@@ -265,18 +268,18 @@ export function buildPreferencePrefillData(
     ],
     selected_property_types: selectedPropertyTypes,
     property_type_options: PROPERTY_INTEREST_FLOW_OPTIONS,
-  }
+  };
 }
 
 // ── Response parsing (data_exchange / nfm_reply) ──────────────────
 
 export interface PreferenceFormValues {
-  min_budget?: string
-  max_budget?: string
-  areas?: string
-  property_types?: string[]
-  min_roi?: string
-  occupancy?: string
+  min_budget?: string;
+  max_budget?: string;
+  areas?: string;
+  property_types?: string[];
+  min_roi?: string;
+  occupancy?: string;
 }
 
 /**
@@ -287,45 +290,49 @@ export interface PreferenceFormValues {
 export function parsePreferenceFormValues(
   raw: Record<string, unknown> | null | undefined
 ): PreferenceFormValues {
-  const values: PreferenceFormValues = {}
-  if (!raw || typeof raw !== 'object') return values
+  const values: PreferenceFormValues = {};
+  if (!raw || typeof raw !== 'object') return values;
 
   const readString = (key: keyof PreferenceFormValues) => {
-    const v = raw[key]
-    if (typeof v === 'string') values[key] = v as never
-  }
-  readString('min_budget')
-  readString('max_budget')
-  readString('areas')
-  readString('min_roi')
-  readString('occupancy')
+    const v = raw[key];
+    if (typeof v === 'string') values[key] = v as never;
+  };
+  readString('min_budget');
+  readString('max_budget');
+  readString('areas');
+  readString('min_roi');
+  readString('occupancy');
 
-  const types = raw.property_types
+  const types = raw.property_types;
   if (Array.isArray(types)) {
-    values.property_types = types.filter((t): t is string => typeof t === 'string')
+    values.property_types = types.filter(
+      (t): t is string => typeof t === 'string'
+    );
   }
-  return values
+  return values;
 }
 
 export interface ContactPreferenceUpdate {
-  min_budget?: number | null
-  max_budget?: number | null
-  areas_of_interest?: string[]
-  property_interests?: string[]
-  min_roi?: number | null
-  requires_tenanted?: boolean
-  requirement_active?: boolean
+  min_budget?: number | null;
+  max_budget?: number | null;
+  areas_of_interest?: string[];
+  property_interests?: string[];
+  min_roi?: number | null;
+  requires_tenanted?: boolean;
+  requirement_active?: boolean;
 }
 
 /** Parse a numeric form value; strips commas/currency noise. Returns
  *  null for an intentionally cleared field, undefined for unparseable. */
-function parseNumericField(value: string | undefined): number | null | undefined {
-  if (value === undefined) return undefined
-  const cleaned = value.replace(/[,\s₹%]/g, '')
-  if (cleaned === '') return null
-  const num = Number(cleaned)
-  if (!Number.isFinite(num) || num < 0) return undefined
-  return num
+function parseNumericField(
+  value: string | undefined
+): number | null | undefined {
+  if (value === undefined) return undefined;
+  const cleaned = value.replace(/[,\s₹%]/g, '');
+  if (cleaned === '') return null;
+  const num = Number(cleaned);
+  if (!Number.isFinite(num) || num < 0) return undefined;
+  return num;
 }
 
 /**
@@ -337,40 +344,40 @@ export function preferenceFormToContactUpdate(
   values: PreferenceFormValues,
   existingInterests: string[] = []
 ): ContactPreferenceUpdate {
-  const update: ContactPreferenceUpdate = {}
+  const update: ContactPreferenceUpdate = {};
 
   // A confirmed form submission makes this a live requirement again.
   // Opening or sending the form alone never changes the contact record.
-  if (Object.keys(values).length > 0) update.requirement_active = true
+  if (Object.keys(values).length > 0) update.requirement_active = true;
 
-  const minBudget = parseNumericField(values.min_budget)
-  if (minBudget !== undefined) update.min_budget = minBudget
-  const maxBudget = parseNumericField(values.max_budget)
-  if (maxBudget !== undefined) update.max_budget = maxBudget
-  const minRoi = parseNumericField(values.min_roi)
-  if (minRoi !== undefined) update.min_roi = minRoi
-  if (values.occupancy === 'tenanted') update.requires_tenanted = true
-  if (values.occupancy === 'any') update.requires_tenanted = false
+  const minBudget = parseNumericField(values.min_budget);
+  if (minBudget !== undefined) update.min_budget = minBudget;
+  const maxBudget = parseNumericField(values.max_budget);
+  if (maxBudget !== undefined) update.max_budget = maxBudget;
+  const minRoi = parseNumericField(values.min_roi);
+  if (minRoi !== undefined) update.min_roi = minRoi;
+  if (values.occupancy === 'tenanted') update.requires_tenanted = true;
+  if (values.occupancy === 'any') update.requires_tenanted = false;
 
   if (values.areas !== undefined) {
     update.areas_of_interest = values.areas
       .split(',')
       .map((a) => a.trim())
-      .filter((a) => a.length > 0)
+      .filter((a) => a.length > 0);
   }
 
   if (values.property_types !== undefined) {
-    const knownIds = new Set(PROPERTY_INTEREST_FLOW_OPTIONS.map((o) => o.id))
+    const knownIds = new Set(PROPERTY_INTEREST_FLOW_OPTIONS.map((o) => o.id));
     // The Flow can only render its own vocabulary, so an unchecked box
     // means "not offered", not "no longer wanted". Interests recorded
     // in-app outside that vocabulary are carried through untouched.
     update.property_interests = [
       ...values.property_types.filter((t) => knownIds.has(t)),
       ...existingInterests.filter((t) => !knownIds.has(t)),
-    ]
+    ];
   }
 
-  return update
+  return update;
 }
 
 // ── Chat helpers ──────────────────────────────────────────────────
@@ -380,45 +387,50 @@ const formatInr = (n: number) =>
     ? `₹${(n / 10_000_000).toFixed(2).replace(/\.?0+$/, '')} Cr`
     : n >= 100_000
       ? `₹${(n / 100_000).toFixed(2).replace(/\.?0+$/, '')} Lakh`
-      : `₹${n.toLocaleString('en-IN')}`
+      : `₹${n.toLocaleString('en-IN')}`;
 
 function compactList(values: string[]): string {
-  const shown = values.slice(0, 3)
-  const remaining = values.length - shown.length
+  const shown = values.slice(0, 3);
+  const remaining = values.length - shown.length;
   return remaining > 0
     ? `${shown.join(', ')} and ${remaining} more ${remaining === 1 ? 'area' : 'areas'}`
-    : shown.join(', ')
+    : shown.join(', ');
 }
 
 /** Human-readable confirmation sent back in the chat after saving. */
-export function summarizePreferenceUpdate(update: ContactPreferenceUpdate): string {
-  const lines: string[] = []
+export function summarizePreferenceUpdate(
+  update: ContactPreferenceUpdate
+): string {
+  const lines: string[] = [];
   if (update.min_budget !== undefined || update.max_budget !== undefined) {
-    const min = update.min_budget != null ? formatInr(update.min_budget) : null
-    const max = update.max_budget != null ? formatInr(update.max_budget) : null
-    if (min && max) lines.push(`${min}–${max} budget`)
-    else if (min) lines.push(`budget from ${min}`)
-    else if (max) lines.push(`budget up to ${max}`)
+    const min = update.min_budget != null ? formatInr(update.min_budget) : null;
+    const max = update.max_budget != null ? formatInr(update.max_budget) : null;
+    if (min && max) lines.push(`${min}–${max} budget`);
+    else if (min) lines.push(`budget from ${min}`);
+    else if (max) lines.push(`budget up to ${max}`);
   }
   if (update.areas_of_interest !== undefined) {
     if (update.areas_of_interest.length > 0) {
-      lines.push(compactList(update.areas_of_interest))
+      lines.push(compactList(update.areas_of_interest));
     }
   }
-  if (update.property_interests !== undefined && update.property_interests.length > 0) {
-    lines.push(update.property_interests.join(' / '))
+  if (
+    update.property_interests !== undefined &&
+    update.property_interests.length > 0
+  ) {
+    lines.push(update.property_interests.join(' / '));
   }
   if (update.min_roi != null) {
-    lines.push(`minimum ${update.min_roi}% ROI`)
+    lines.push(`minimum ${update.min_roi}% ROI`);
   }
   if (update.requires_tenanted) {
-    lines.push('already rented / pre-leased only')
+    lines.push('already rented / pre-leased only');
   }
 
   if (lines.length === 0) {
-    return "Got it — I've saved your updated property search and will use it for future matches."
+    return "Got it — I've saved your updated property search and will use it for future matches.";
   }
-  return `Got it — I've updated your search: ${lines.join('; ')}. I'll use these details for future matches.`
+  return `Got it — I've updated your search: ${lines.join('; ')}. I'll use these details for future matches.`;
 }
 
 /**
@@ -426,11 +438,13 @@ export function summarizePreferenceUpdate(update: ContactPreferenceUpdate): stri
  * Deliberately narrow — generic "update" phrasing is owned by the
  * property/contact update_sessions feature in webhook-handler.
  */
-export function isPreferenceFlowRequestText(text: string | null | undefined): boolean {
-  if (!text) return false
-  const cleaned = text.trim().toLowerCase()
-  if (cleaned.length > 80) return false
+export function isPreferenceFlowRequestText(
+  text: string | null | undefined
+): boolean {
+  if (!text) return false;
+  const cleaned = text.trim().toLowerCase();
+  if (cleaned.length > 80) return false;
   return /\b(update|change|edit|set|modify)\b.{0,24}\bpreferences?\b|\bmy preferences?\b|\bpreference form\b/.test(
     cleaned
-  )
+  );
 }

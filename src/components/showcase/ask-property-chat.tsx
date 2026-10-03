@@ -35,7 +35,11 @@ interface AskResponse {
   error?: string;
 }
 
-const SUGGESTIONS = ['Is the price negotiable?', "What's nearby?", 'What amenities does it have?'];
+const SUGGESTIONS = [
+  'Is the price negotiable?',
+  "What's nearby?",
+  'What amenities does it have?',
+];
 
 export function AskPropertyChat({
   accountId,
@@ -55,12 +59,17 @@ export function AskPropertyChat({
   const sessionKey = useMemo(getShowcaseSessionKey, []);
   const threadRef = useRef<HTMLDivElement>(null);
 
-  const asked = new Set(messages.filter((m) => m.role === 'user').map((m) => m.text));
+  const asked = new Set(
+    messages.filter((m) => m.role === 'user').map((m) => m.text)
+  );
   const suggestions = SUGGESTIONS.filter((s) => !asked.has(s));
 
   const scrollToEnd = () => {
     requestAnimationFrame(() => {
-      threadRef.current?.scrollTo?.({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
+      threadRef.current?.scrollTo?.({
+        top: threadRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
     });
   };
 
@@ -93,7 +102,10 @@ export function AskPropertyChat({
       });
 
       if (res.status === 429) {
-        pushBot("You're asking quite fast! Give it a moment, then try again — or reach the agent on WhatsApp.", true);
+        pushBot(
+          "You're asking quite fast! Give it a moment, then try again — or reach the agent on WhatsApp.",
+          true
+        );
         return;
       }
 
@@ -105,14 +117,26 @@ export function AskPropertyChat({
       } else if (data.needs_phone) {
         setPendingQuestion(q);
         setNeedsPhone(true);
-        pushBot(data.message || 'Share your number and the agent’s assistant will answer this.');
+        pushBot(
+          data.message ||
+            'Share your number and the agent’s assistant will answer this.'
+        );
       } else if (data.escalate_whatsapp) {
-        pushBot(data.message || "I'll connect you with the agent for this one.", true);
+        pushBot(
+          data.message || "I'll connect you with the agent for this one.",
+          true
+        );
       } else {
-        pushBot('Sorry, I couldn’t get that answer. The agent can help on WhatsApp.', true);
+        pushBot(
+          'Sorry, I couldn’t get that answer. The agent can help on WhatsApp.',
+          true
+        );
       }
     } catch {
-      pushBot('Something went wrong. Please try WhatsApp to reach the agent.', true);
+      pushBot(
+        'Something went wrong. Please try WhatsApp to reach the agent.',
+        true
+      );
     } finally {
       setLoading(false);
     }
@@ -126,31 +150,43 @@ export function AskPropertyChat({
   }
 
   return (
-    <div className="rounded-xl border border-slate-850 bg-slate-950/60 p-3">
-      <div className="flex items-center gap-1.5 mb-2">
-        <Sparkles className="size-4 text-primary" />
-        <h4 className="text-xs font-bold text-white uppercase tracking-wider">Ask about this property</h4>
+    <div className="border-slate-850 rounded-xl border bg-slate-950/60 p-3">
+      <div className="mb-2 flex items-center gap-1.5">
+        <Sparkles className="text-primary size-4" />
+        <h4 className="text-xs font-bold tracking-wider text-white uppercase">
+          Ask about this property
+        </h4>
       </div>
 
       {messages.length > 0 && (
-        <div ref={threadRef} className="max-h-56 overflow-y-auto space-y-2 mb-2 pr-1">
+        <div
+          ref={threadRef}
+          className="mb-2 max-h-56 space-y-2 overflow-y-auto pr-1"
+        >
           {messages.map((msg, i) => (
-            <div key={i} className={msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+            <div
+              key={i}
+              className={
+                msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'
+              }
+            >
               <div
                 className={
                   msg.role === 'user'
-                    ? 'max-w-[85%] rounded-lg rounded-br-sm bg-primary/90 text-primary-foreground text-xs px-3 py-2'
-                    : 'max-w-[85%] rounded-lg rounded-bl-sm bg-slate-900 text-slate-100 text-xs px-3 py-2'
+                    ? 'bg-primary/90 text-primary-foreground max-w-[85%] rounded-lg rounded-br-sm px-3 py-2 text-xs'
+                    : 'max-w-[85%] rounded-lg rounded-bl-sm bg-slate-900 px-3 py-2 text-xs text-slate-100'
                 }
               >
-                <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                <p className="leading-relaxed whitespace-pre-wrap">
+                  {msg.text}
+                </p>
                 {msg.whatsapp && whatsappLink && (
                   <a
                     href={whatsappLink}
                     onClick={onWhatsAppClick}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-2 inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-md transition-colors"
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-emerald-500"
                   >
                     <MessageCircle className="size-3.5 fill-white text-emerald-600" />
                     Chat on WhatsApp
@@ -161,7 +197,7 @@ export function AskPropertyChat({
           ))}
           {loading && (
             <div className="flex justify-start">
-              <div className="rounded-lg bg-slate-900 text-slate-400 text-xs px-3 py-2 flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs text-slate-400">
                 <Loader2 className="size-3.5 animate-spin" /> Thinking…
               </div>
             </div>
@@ -170,14 +206,14 @@ export function AskPropertyChat({
       )}
 
       {suggestions.length > 0 && !needsPhone && (
-        <div className="flex flex-wrap gap-1.5 mb-2">
+        <div className="mb-2 flex flex-wrap gap-1.5">
           {suggestions.map((s) => (
             <button
               key={s}
               type="button"
               disabled={loading}
               onClick={() => ask(s)}
-              className="text-[11px] text-slate-300 border border-slate-800 hover:border-primary hover:text-white rounded-full px-2.5 py-1 transition-colors disabled:opacity-50"
+              className="hover:border-primary rounded-full border border-slate-800 px-2.5 py-1 text-[11px] text-slate-300 transition-colors hover:text-white disabled:opacity-50"
             >
               {s}
             </button>
@@ -194,9 +230,13 @@ export function AskPropertyChat({
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="Your mobile number"
-            className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-600 focus:border-primary text-xs"
+            className="border-slate-850 focus:border-primary bg-slate-950 text-xs text-white placeholder:text-slate-600"
           />
-          <Button type="submit" disabled={loading} className="bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-bold px-3">
+          <Button
+            type="submit"
+            disabled={loading}
+            className="bg-primary hover:bg-primary-hover text-primary-foreground px-3 text-xs font-bold"
+          >
             Get answer
           </Button>
         </form>
@@ -212,7 +252,7 @@ export function AskPropertyChat({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={`Ask anything about ${propertyTitle.slice(0, 24)}…`}
-            className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-600 focus:border-primary text-xs"
+            className="border-slate-850 focus:border-primary bg-slate-950 text-xs text-white placeholder:text-slate-600"
           />
           <Button
             type="submit"

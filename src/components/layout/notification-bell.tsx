@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { Bell } from "lucide-react";
-import { formatDistanceToNowStrict } from "date-fns";
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Bell } from 'lucide-react';
+import { formatDistanceToNowStrict } from 'date-fns';
 
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from '@/components/ui/popover';
 
 interface NotificationRow {
   id: string;
@@ -41,9 +41,14 @@ export function NotificationBell() {
 
     async function load() {
       try {
-        const res = await fetch("/api/notifications?limit=30", { cache: "no-store" });
+        const res = await fetch('/api/notifications?limit=30', {
+          cache: 'no-store',
+        });
         if (cancelled || !res.ok) return;
-        const json = (await res.json()) as { data: NotificationRow[]; unreadCount: number };
+        const json = (await res.json()) as {
+          data: NotificationRow[];
+          unreadCount: number;
+        };
         if (cancelled) return;
         setItems(json.data || []);
         setUnread(json.unreadCount || 0);
@@ -55,18 +60,18 @@ export function NotificationBell() {
     load();
 
     function resync() {
-      if (document.visibilityState === "visible") load();
+      if (document.visibilityState === 'visible') load();
     }
-    document.addEventListener("visibilitychange", resync);
+    document.addEventListener('visibilitychange', resync);
 
     const channel = supabase
-      .channel("notifications-realtime")
+      .channel('notifications-realtime')
       .on(
-        "postgres_changes",
+        'postgres_changes',
         {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
@@ -79,7 +84,7 @@ export function NotificationBell() {
 
     return () => {
       cancelled = true;
-      document.removeEventListener("visibilitychange", resync);
+      document.removeEventListener('visibilitychange', resync);
       supabase.removeChannel(channel);
     };
   }, [user?.id]);
@@ -87,11 +92,15 @@ export function NotificationBell() {
   const markAllRead = useCallback(async () => {
     if (unread === 0) return;
     setUnread(0);
-    setItems((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: new Date().toISOString() })));
+    setItems((prev) =>
+      prev.map((n) =>
+        n.read_at ? n : { ...n, read_at: new Date().toISOString() }
+      )
+    );
     try {
-      await fetch("/api/notifications/read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      await fetch('/api/notifications/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
     } catch {
@@ -107,7 +116,7 @@ export function NotificationBell() {
     [markAllRead]
   );
 
-  const badge = unread > 9 ? "9+" : String(unread);
+  const badge = unread > 9 ? '9+' : String(unread);
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -117,23 +126,19 @@ export function NotificationBell() {
       >
         <Bell className="size-4" />
         {unread > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground">
+          <span className="bg-primary text-primary-foreground absolute -top-0.5 -right-0.5 flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-4 font-semibold">
             {badge}
           </span>
         )}
       </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        sideOffset={8}
-        className="w-80 gap-0 p-0"
-      >
-        <div className="flex items-center justify-between border-b border-foreground/10 px-3 py-2">
+      <PopoverContent align="end" sideOffset={8} className="w-80 gap-0 p-0">
+        <div className="border-foreground/10 flex items-center justify-between border-b px-3 py-2">
           <span className="text-sm font-medium">Notifications</span>
           {items.length > 0 && (
             <button
               type="button"
               onClick={markAllRead}
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground text-xs"
             >
               Mark all read
             </button>
@@ -142,30 +147,32 @@ export function NotificationBell() {
 
         <div className="max-h-96 overflow-y-auto">
           {items.length === 0 ? (
-            <p className="px-3 py-8 text-center text-sm text-muted-foreground">
+            <p className="text-muted-foreground px-3 py-8 text-center text-sm">
               You&apos;re all caught up.
             </p>
           ) : (
             items.map((n) => {
               const body = (
                 <div
-                  className={`flex flex-col gap-0.5 px-3 py-2.5 transition-colors hover:bg-foreground/5 ${
-                    n.read_at ? "opacity-70" : ""
+                  className={`hover:bg-foreground/5 flex flex-col gap-0.5 px-3 py-2.5 transition-colors ${
+                    n.read_at ? 'opacity-70' : ''
                   }`}
                 >
                   <div className="flex items-start gap-2">
                     {!n.read_at && (
-                      <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
+                      <span className="bg-primary mt-1.5 size-2 shrink-0 rounded-full" />
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{n.title}</p>
                       {n.body && (
-                        <p className="whitespace-pre-line text-xs text-muted-foreground line-clamp-3">
+                        <p className="text-muted-foreground line-clamp-3 text-xs whitespace-pre-line">
                           {n.body}
                         </p>
                       )}
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {formatDistanceToNowStrict(new Date(n.created_at), { addSuffix: true })}
+                      <p className="text-muted-foreground mt-0.5 text-[11px]">
+                        {formatDistanceToNowStrict(new Date(n.created_at), {
+                          addSuffix: true,
+                        })}
                       </p>
                     </div>
                   </div>
@@ -177,12 +184,15 @@ export function NotificationBell() {
                   href={n.link}
                   prefetch={false}
                   onClick={() => setOpen(false)}
-                  className="block border-b border-foreground/5 last:border-b-0"
+                  className="border-foreground/5 block border-b last:border-b-0"
                 >
                   {body}
                 </Link>
               ) : (
-                <div key={n.id} className="border-b border-foreground/5 last:border-b-0">
+                <div
+                  key={n.id}
+                  className="border-foreground/5 border-b last:border-b-0"
+                >
                   {body}
                 </div>
               );

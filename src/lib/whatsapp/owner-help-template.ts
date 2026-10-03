@@ -38,7 +38,10 @@ const HELP_COMMANDS = new Set([
 ]);
 
 export function isOwnerHelpCommand(text: string | null | undefined): boolean {
-  const t = (text ?? '').trim().toLowerCase().replace(/[!.?]+$/, '');
+  const t = (text ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[!.?]+$/, '');
   return HELP_COMMANDS.has(t);
 }
 

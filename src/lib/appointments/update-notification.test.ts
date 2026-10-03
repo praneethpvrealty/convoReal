@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest';
 import {
   appointmentUpdateMessage,
   notificationRecipientIds,
-} from './update-notification'
+} from './update-notification';
 
 describe('appointment update notifications', () => {
   it('targets only newly added participants when requested', () => {
@@ -11,9 +11,9 @@ describe('appointment update notifications', () => {
         previousIds: ['a', 'b'],
         currentIds: ['b', 'c', 'c'],
         scope: 'new',
-      }),
-    ).toEqual(['c'])
-  })
+      })
+    ).toEqual(['c']);
+  });
 
   it('targets every current participant without duplicates', () => {
     expect(
@@ -21,9 +21,9 @@ describe('appointment update notifications', () => {
         previousIds: ['a'],
         currentIds: ['a', 'b', 'a'],
         scope: 'all',
-      }),
-    ).toEqual(['a', 'b'])
-  })
+      })
+    ).toEqual(['a', 'b']);
+  });
 
   it('explains a new participant addition with the current event details', () => {
     const message = appointmentUpdateMessage({
@@ -37,10 +37,10 @@ describe('appointment update notifications', () => {
         start_time: '2026-08-26T05:20:00.000Z',
         location: 'JP Nagar',
       },
-    })
+    });
 
-    expect(message).toContain('You have been added to an event')
-    expect(message).toContain('Event: Property visit')
-    expect(message).toContain('Location: JP Nagar')
-  })
-})
+    expect(message).toContain('You have been added to an event');
+    expect(message).toContain('Event: Property visit');
+    expect(message).toContain('Location: JP Nagar');
+  });
+});

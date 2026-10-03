@@ -61,7 +61,7 @@ interface StatusPayload {
 }
 
 function participantId(
-  entry: { wa_id?: string; user_id?: string; input?: string } | undefined,
+  entry: { wa_id?: string; user_id?: string; input?: string } | undefined
 ): string | null {
   return entry?.wa_id || entry?.user_id || entry?.input || null;
 }
@@ -112,7 +112,9 @@ async function handleLifecycle(accountId: string, payload: LifecyclePayload) {
       ...(payload.invite_link ? { invite_link: payload.invite_link } : {}),
       status: failed ? 'failed' : 'active',
       error_message: failed
-        ? (payload.errors?.[0]?.message ?? payload.errors?.[0]?.title ?? 'Group creation failed')
+        ? (payload.errors?.[0]?.message ??
+          payload.errors?.[0]?.title ??
+          'Group creation failed')
         : null,
     })
     .eq('id', group.id);
@@ -143,7 +145,7 @@ async function handleLifecycle(accountId: string, payload: LifecyclePayload) {
  */
 async function handleParticipants(
   accountId: string,
-  payload: ParticipantsPayload,
+  payload: ParticipantsPayload
 ) {
   if (!payload.group_id) return;
   const db = supabaseAdmin();
@@ -182,7 +184,7 @@ async function handleParticipants(
         // A rejoin clears the earlier departure.
         left_at: null,
       },
-      { onConflict: 'group_id,wa_id' },
+      { onConflict: 'group_id,wa_id' }
     );
   }
 
@@ -251,9 +253,10 @@ async function handleStatus(accountId: string, payload: StatusPayload) {
 export async function processGroupWebhook(
   accountId: string,
   field: string,
-  value: unknown,
+  value: unknown
 ): Promise<void> {
-  if (!isGroupWebhookField(field) || !value || typeof value !== 'object') return;
+  if (!isGroupWebhookField(field) || !value || typeof value !== 'object')
+    return;
 
   try {
     switch (field) {

@@ -28,7 +28,9 @@ function sharesDb(propertyId: string | null): SupabaseClient {
                           return {
                             maybeSingle: () =>
                               Promise.resolve({
-                                data: propertyId ? { property_id: propertyId } : null,
+                                data: propertyId
+                                  ? { property_id: propertyId }
+                                  : null,
                                 error: null,
                               }),
                           };
@@ -53,7 +55,8 @@ function propertiesDb(rows: unknown[]): SupabaseClient {
         return {
           select: () => ({
             eq: () => ({
-              maybeSingle: () => Promise.resolve({ data: { subdomain: null }, error: null }),
+              maybeSingle: () =>
+                Promise.resolve({ data: { subdomain: null }, error: null }),
             }),
           }),
         };
@@ -77,20 +80,30 @@ function propertiesDb(rows: unknown[]): SupabaseClient {
 
 describe('parseTemplateQuickReply', () => {
   it('recognises each template button', () => {
-    expect(parseTemplateQuickReply(SEND_MORE_DETAILS_BUTTON)).toBe('property_details');
-    expect(parseTemplateQuickReply(INVENTORY_FULL_LIST_BUTTON)).toBe('inventory_full_list');
-    expect(parseTemplateQuickReply(INVENTORY_SITE_VISIT_BUTTON)).toBe('site_visit');
+    expect(parseTemplateQuickReply(SEND_MORE_DETAILS_BUTTON)).toBe(
+      'property_details'
+    );
+    expect(parseTemplateQuickReply(INVENTORY_FULL_LIST_BUTTON)).toBe(
+      'inventory_full_list'
+    );
+    expect(parseTemplateQuickReply(INVENTORY_SITE_VISIT_BUTTON)).toBe(
+      'site_visit'
+    );
   });
 
   it('matches a typed reply the same as a tap', () => {
-    expect(parseTemplateQuickReply('  send more details  ')).toBe('property_details');
+    expect(parseTemplateQuickReply('  send more details  ')).toBe(
+      'property_details'
+    );
   });
 
   it('ignores ordinary messages and long text', () => {
     expect(parseTemplateQuickReply('Hi, is this still available?')).toBeNull();
     expect(parseTemplateQuickReply(null)).toBeNull();
     expect(
-      parseTemplateQuickReply(`${SEND_MORE_DETAILS_BUTTON} about the plot in Hoodi please`),
+      parseTemplateQuickReply(
+        `${SEND_MORE_DETAILS_BUTTON} about the plot in Hoodi please`
+      )
     ).toBeNull();
   });
 
@@ -99,7 +112,8 @@ describe('parseTemplateQuickReply', () => {
     // dead end again — exactly the bug this module was added to fix.
     const texts = [
       ...(buildPropertyAlertTemplatePayload('https://x.com').buttons ?? []),
-      ...(buildPropertyEnquiryPhotosTemplatePayload('https://x.com').buttons ?? []),
+      ...(buildPropertyEnquiryPhotosTemplatePayload('https://x.com').buttons ??
+        []),
       ...(buildInventoryUpdateTemplatePayload('https://x.com').buttons ?? []),
     ]
       .filter((b) => b.type === 'QUICK_REPLY')
@@ -112,11 +126,15 @@ describe('parseTemplateQuickReply', () => {
 
 describe('lastSharedPropertyId', () => {
   it('returns the newest share for this contact', async () => {
-    expect(await lastSharedPropertyId(sharesDb('prop-1'), 'acct', 'contact')).toBe('prop-1');
+    expect(
+      await lastSharedPropertyId(sharesDb('prop-1'), 'acct', 'contact')
+    ).toBe('prop-1');
   });
 
   it('returns null when the contact has no recorded share', async () => {
-    expect(await lastSharedPropertyId(sharesDb(null), 'acct', 'contact')).toBeNull();
+    expect(
+      await lastSharedPropertyId(sharesDb(null), 'acct', 'contact')
+    ).toBeNull();
   });
 });
 
@@ -136,7 +154,7 @@ describe('buildFullListMessage', () => {
           location: 'Hoodi',
         },
       ]),
-      'acct',
+      'acct'
     );
     expect(msg).toContain('Plot in Hoodi');
   });

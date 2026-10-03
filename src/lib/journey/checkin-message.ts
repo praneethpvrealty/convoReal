@@ -19,7 +19,7 @@ export interface CheckInMessageInput {
   propertyUrl?: string | null;
 }
 
-const clean = (value?: string | null) => value?.trim() || "";
+const clean = (value?: string | null) => value?.trim() || '';
 
 export function buildCheckInMessage({
   contactName,
@@ -28,8 +28,8 @@ export function buildCheckInMessage({
   stageName,
   propertyUrl,
 }: CheckInMessageInput): string {
-  const name = clean(contactName).split(/\s+/)[0] ?? "";
-  const greeting = name ? `Hi ${name},` : "Hi,";
+  const name = clean(contactName).split(/\s+/)[0] ?? '';
+  const greeting = name ? `Hi ${name},` : 'Hi,';
 
   const title = clean(propertyTitle);
   const code = clean(propertyCode);
@@ -37,12 +37,10 @@ export function buildCheckInMessage({
     ? code
       ? `${title} (${code})`
       : title
-    : code || "the property we discussed";
+    : code || 'the property we discussed';
 
   const stage = clean(stageName);
-  const context = stage
-    ? ` We had it at ${stage}.`
-    : "";
+  const context = stage ? ` We had it at ${stage}.` : '';
 
   const question =
     `${greeting} just checking in on ${subject}.${context}` +

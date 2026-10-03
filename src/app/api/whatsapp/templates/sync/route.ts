@@ -1,20 +1,20 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server';
 import {
   requireOrgRole,
   toErrorResponse,
   type AccountContext,
-} from '@/lib/auth/account'
-import { decrypt } from '@/lib/whatsapp/encryption'
+} from '@/lib/auth/account';
+import { decrypt } from '@/lib/whatsapp/encryption';
 import {
   clearedTemplateComplaints,
   normalizeCategory,
   normalizeStatus,
-} from '@/lib/whatsapp/template-status-normalize'
+} from '@/lib/whatsapp/template-status-normalize';
 import {
   metaTemplateContent,
   normalizeQualityScore,
   type MetaTemplate,
-} from '@/lib/whatsapp/meta-template-row'
+} from '@/lib/whatsapp/meta-template-row';
 
 /**
  * Sync message templates from Meta → local message_templates table.
@@ -29,28 +29,28 @@ import {
  * they remain visible so the user can notice drift and clean up.
  */
 
-const META_API_VERSION = 'v21.0'
-const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`
+const META_API_VERSION = 'v21.0';
+const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 
 export async function POST() {
   // Sync writes/overwrites local template rows, so it carries the
   // same org_manager gate as the other template write routes (see
   // migration 146). Resolved outside the main try so a 401/403
   // doesn't collapse into the generic 500.
-  let ctx: AccountContext
+  let ctx: AccountContext;
   try {
-    ctx = await requireOrgRole('org_manager')
+    ctx = await requireOrgRole('org_manager');
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
-  const { supabase, userId, accountId } = ctx
+  const { supabase, userId, accountId } = ctx;
 
   try {
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
       .select('*')
       .eq('account_id', accountId)
-      .single()
+      .single();
 
     if (configError || !config) {
       return NextResponse.json(
@@ -58,8 +58,8 @@ export async function POST() {
           error:
             'WhatsApp not configured. Connect your WhatsApp Business account in Settings first.',
         },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
     if (!config.waba_id) {
@@ -68,42 +68,41 @@ export async function POST() {
           error:
             'WABA (WhatsApp Business Account) ID missing. Re-connect your account in Settings.',
         },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
-    const accessToken = decrypt(config.access_token)
+    const accessToken = decrypt(config.access_token);
 
-    const metaTemplates: MetaTemplate[] = []
-    let nextUrl:
-      | string
-      | null = `${META_API_BASE}/${config.waba_id}/message_templates?limit=100&fields=id,name,language,status,category,components,quality_score,rejected_reason`
-    const PAGE_CAP = 20
-    let pageCount = 0
+    const metaTemplates: MetaTemplate[] = [];
+    let nextUrl: string | null =
+      `${META_API_BASE}/${config.waba_id}/message_templates?limit=100&fields=id,name,language,status,category,components,quality_score,rejected_reason`;
+    const PAGE_CAP = 20;
+    let pageCount = 0;
 
     while (nextUrl && pageCount < PAGE_CAP) {
-      pageCount++
+      pageCount++;
       const metaRes: Response = await fetch(nextUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
-      })
+      });
 
       if (!metaRes.ok) {
-        let metaErr = `Meta API error: ${metaRes.status}`
+        let metaErr = `Meta API error: ${metaRes.status}`;
         try {
-          const body = await metaRes.json()
-          if (body?.error?.message) metaErr = body.error.message
+          const body = await metaRes.json();
+          if (body?.error?.message) metaErr = body.error.message;
         } catch {
           // response wasn't JSON — keep the fallback
         }
-        return NextResponse.json({ error: metaErr }, { status: 502 })
+        return NextResponse.json({ error: metaErr }, { status: 502 });
       }
 
       const metaBody: {
-        data?: MetaTemplate[]
-        paging?: { next?: string }
-      } = await metaRes.json()
-      if (metaBody.data) metaTemplates.push(...metaBody.data)
-      nextUrl = metaBody.paging?.next ?? null
+        data?: MetaTemplate[];
+        paging?: { next?: string };
+      } = await metaRes.json();
+      if (metaBody.data) metaTemplates.push(...metaBody.data);
+      nextUrl = metaBody.paging?.next ?? null;
     }
 
     // ── Deduplicate existing rows ──────────────────────────────────────────
@@ -128,12 +127,14 @@ export async function POST() {
         for (const [, rows] of byName) {
           if (rows.length > 1) {
             // Keep the first (oldest), delete the rest
-            idsToDelete.push(...rows.slice(1).map(r => r.id));
+            idsToDelete.push(...rows.slice(1).map((r) => r.id));
           }
         }
 
         if (idsToDelete.length > 0) {
-          console.log(`[template-sync] Cleaning up ${idsToDelete.length} duplicate template rows`);
+          console.log(
+            `[template-sync] Cleaning up ${idsToDelete.length} duplicate template rows`
+          );
           // Best-effort duplicate cleanup, already declared non-fatal by
           // the catch below: a row that does not go is left for the next
           // sync rather than failing this one.
@@ -145,12 +146,15 @@ export async function POST() {
         }
       }
     } catch (cleanupErr) {
-      console.warn('[template-sync] Duplicate cleanup failed (non-fatal):', cleanupErr);
+      console.warn(
+        '[template-sync] Duplicate cleanup failed (non-fatal):',
+        cleanupErr
+      );
     }
 
-    let inserted = 0
-    let updated = 0
-    const errors: { name: string; language: string; message: string }[] = []
+    let inserted = 0;
+    let updated = 0;
+    const errors: { name: string; language: string; message: string }[] = [];
 
     for (const t of metaTemplates) {
       const row = {
@@ -168,10 +172,10 @@ export async function POST() {
         quality_score: normalizeQualityScore(t.quality_score),
         ...clearedTemplateComplaints(
           normalizeStatus(t.status),
-          t.rejected_reason,
+          t.rejected_reason
         ),
         updated_at: new Date().toISOString(),
-      }
+      };
 
       const { data: existing, error: lookupErr } = await supabase
         .from('message_templates')
@@ -180,7 +184,7 @@ export async function POST() {
         .eq('name', t.name)
         .eq('language', t.language)
         .limit(1)
-        .maybeSingle()
+        .maybeSingle();
 
       if (lookupErr) {
         errors.push({
@@ -200,7 +204,7 @@ export async function POST() {
           .eq('name', t.name)
           .limit(1)
           .maybeSingle();
-        
+
         if (anyExisting?.id) {
           // Found a row with same name but different language — update it
           const { data: updLangRows, error: updLangErr } = await supabase
@@ -210,7 +214,10 @@ export async function POST() {
             .select('id');
           // Only count a row the write actually touched, or the summary
           // reports templates it never synced.
-          if (!updLangErr && updLangRows?.length) { updated++; continue; }
+          if (!updLangErr && updLangRows?.length) {
+            updated++;
+            continue;
+          }
         }
       }
 
@@ -219,36 +226,36 @@ export async function POST() {
           .from('message_templates')
           .update(row)
           .eq('id', existing.id)
-          .select('id')
+          .select('id');
         if (!updErr && !updRows?.length) {
           errors.push({
             name: t.name,
             language: t.language,
             message: 'Local row could not be updated.',
-          })
-          continue
+          });
+          continue;
         }
         if (updErr) {
           errors.push({
             name: t.name,
             language: t.language,
             message: updErr.message,
-          })
+          });
         } else {
-          updated++
+          updated++;
         }
       } else {
         const { error: insErr } = await supabase
           .from('message_templates')
-          .insert(row)
+          .insert(row);
         if (insErr) {
           errors.push({
             name: t.name,
             language: t.language,
             message: insErr.message,
-          })
+          });
         } else {
-          inserted++
+          inserted++;
         }
       }
     }
@@ -260,15 +267,15 @@ export async function POST() {
       updated,
       errors,
       truncated: pageCount >= PAGE_CAP && nextUrl !== null,
-    })
+    });
   } catch (error) {
-    console.error('Error syncing WhatsApp templates:', error)
+    console.error('Error syncing WhatsApp templates:', error);
     return NextResponse.json(
       {
         error:
           error instanceof Error ? error.message : 'Failed to sync templates',
       },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 }

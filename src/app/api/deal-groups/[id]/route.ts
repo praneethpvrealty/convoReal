@@ -40,7 +40,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
     }
 
     type MemberRow = Record<string, unknown> & {
-      milestones?: Pick<DealMilestone, 'status' | 'position' | 'title' | 'target_date'>[] | null;
+      milestones?:
+        | Pick<DealMilestone, 'status' | 'position' | 'title' | 'target_date'>[]
+        | null;
     };
     const members = ((deals ?? []) as unknown as MemberRow[]).map((deal) => {
       const { milestones, ...rest } = deal;
@@ -54,7 +56,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
       { total: 0, done: 0 }
     );
 
-    return NextResponse.json({ data: { ...group, deals: members, progress: combined } });
+    return NextResponse.json({
+      data: { ...group, deals: members, progress: combined },
+    });
   } catch (err) {
     return toErrorResponse(err);
   }

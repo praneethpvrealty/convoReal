@@ -32,9 +32,14 @@ export interface BoundingBox {
  * Bounding box that fully contains the radius circle — used as a cheap
  * SQL prefilter before exact haversine distances are computed in JS.
  */
-export function boundingBox(lat: number, lng: number, radiusKm: number): BoundingBox {
+export function boundingBox(
+  lat: number,
+  lng: number,
+  radiusKm: number
+): BoundingBox {
   const latDelta = radiusKm / 111.32; // km per degree of latitude
-  const lngDelta = radiusKm / (111.32 * Math.max(0.01, Math.cos((lat * Math.PI) / 180)));
+  const lngDelta =
+    radiusKm / (111.32 * Math.max(0.01, Math.cos((lat * Math.PI) / 180)));
   return {
     minLat: lat - latDelta,
     maxLat: lat + latDelta,

@@ -121,7 +121,11 @@ export default function AgentsScreen() {
             },
           ]}
         >
-          <Ionicons name="swap-horizontal-outline" size={18} color={colors.primary} />
+          <Ionicons
+            name="swap-horizontal-outline"
+            size={18}
+            color={colors.primary}
+          />
           <Text style={{ color: colors.primary, fontFamily: fonts.bold }}>
             Shared requirements
           </Text>

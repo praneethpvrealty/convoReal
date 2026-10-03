@@ -1,6 +1,14 @@
-import { FlexWidget, TextWidget, type WidgetRepresentation } from 'react-native-android-widget';
+import {
+  FlexWidget,
+  TextWidget,
+  type WidgetRepresentation,
+} from 'react-native-android-widget';
 
-import { WIDGET_DEEP_LINKS, WIDGET_DEFS, type WidgetId } from '@/lib/home-widgets';
+import {
+  WIDGET_DEEP_LINKS,
+  WIDGET_DEFS,
+  type WidgetId,
+} from '@/lib/home-widgets';
 import { brand } from '@/lib/theme';
 import type { WidgetSummary, WidgetSummaryLine } from '@/lib/widget-summaries';
 
@@ -47,7 +55,13 @@ export function visibleLineCount(heightDp: number | undefined): number {
   return Math.max(0, Math.min(4, Math.floor((heightDp - 114) / 22)));
 }
 
-function OsWidgetLine({ line, palette }: { line: WidgetSummaryLine; palette: OsWidgetPalette }) {
+function OsWidgetLine({
+  line,
+  palette,
+}: {
+  line: WidgetSummaryLine;
+  palette: OsWidgetPalette;
+}) {
   return (
     <FlexWidget
       style={{
@@ -71,7 +85,10 @@ function OsWidgetLine({ line, palette }: { line: WidgetSummaryLine; palette: OsW
           style={{ fontSize: 12, color: palette.muted }}
         />
       </FlexWidget>
-      <TextWidget text={line.time} style={{ fontSize: 10, color: palette.muted }} />
+      <TextWidget
+        text={line.time}
+        style={{ fontSize: 10, color: palette.muted }}
+      />
     </FlexWidget>
   );
 }
@@ -117,9 +134,17 @@ export function OsWidgetView({
       >
         <TextWidget
           text={def.label.toUpperCase()}
-          style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.1, color: palette.accent }}
+          style={{
+            fontSize: 11,
+            fontWeight: '700',
+            letterSpacing: 0.1,
+            color: palette.accent,
+          }}
         />
-        <TextWidget text="ConvoReal" style={{ fontSize: 10, color: palette.muted }} />
+        <TextWidget
+          text="ConvoReal"
+          style={{ fontSize: 10, color: palette.muted }}
+        />
       </FlexWidget>
       <FlexWidget style={{ width: 'match_parent', flexDirection: 'column' }}>
         <TextWidget
@@ -138,11 +163,18 @@ export function OsWidgetView({
       {lines.length > 0 ? (
         <FlexWidget style={{ width: 'match_parent', flexDirection: 'column' }}>
           {lines.map((line, index) => (
-            <OsWidgetLine key={`${line.title}-${index}`} line={line} palette={palette} />
+            <OsWidgetLine
+              key={`${line.title}-${index}`}
+              line={line}
+              palette={palette}
+            />
           ))}
         </FlexWidget>
       ) : null}
-      <TextWidget text={`Updated ${updatedAt}`} style={{ fontSize: 10, color: palette.muted }} />
+      <TextWidget
+        text={`Updated ${updatedAt}`}
+        style={{ fontSize: 10, color: palette.muted }}
+      />
     </FlexWidget>
   );
 }
@@ -156,10 +188,22 @@ export function renderOsWidget(
 ): WidgetRepresentation {
   return {
     light: (
-      <OsWidgetView id={id} summary={summary} updatedAt={updatedAt} palette={LIGHT} height={height} />
+      <OsWidgetView
+        id={id}
+        summary={summary}
+        updatedAt={updatedAt}
+        palette={LIGHT}
+        height={height}
+      />
     ),
     dark: (
-      <OsWidgetView id={id} summary={summary} updatedAt={updatedAt} palette={DARK} height={height} />
+      <OsWidgetView
+        id={id}
+        summary={summary}
+        updatedAt={updatedAt}
+        palette={DARK}
+        height={height}
+      />
     ),
   };
 }

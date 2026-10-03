@@ -42,20 +42,26 @@ function makeDb() {
           action = 'delete';
           return builder;
         },
-        then: (resolve: (value: unknown) => void, reject?: (value: unknown) => void) => {
+        then: (
+          resolve: (value: unknown) => void,
+          reject?: (value: unknown) => void
+        ) => {
           if (action === 'select') {
-            return Promise.resolve(pop(queues.contactsSelect)).then(resolve, reject);
+            return Promise.resolve(pop(queues.contactsSelect)).then(
+              resolve,
+              reject
+            );
           }
           if (action === 'delete') {
             deleteCalls.push({ table, eq: { ...eqFilters } });
             return Promise.resolve(pop(queues.duplicateDismissalsDelete)).then(
               resolve,
-              reject,
+              reject
             );
           }
           return Promise.resolve(pop(queues.duplicateDismissalsUpsert)).then(
             resolve,
-            reject,
+            reject
           );
         },
       } as const;
@@ -72,12 +78,18 @@ vi.mock('@/lib/auth/account', () => ({
     userId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
   }),
   toErrorResponse: (err: unknown) =>
-    Response.json({ error: err instanceof Error ? err.message : 'Internal server error' }, { status: 500 }),
+    Response.json(
+      { error: err instanceof Error ? err.message : 'Internal server error' },
+      { status: 500 }
+    ),
 }));
 
 import { DELETE, POST } from './route';
 
-function request(body: { contactIds: unknown[] }, method: 'POST' | 'DELETE' = 'POST') {
+function request(
+  body: { contactIds: unknown[] },
+  method: 'POST' | 'DELETE' = 'POST'
+) {
   return new Request('http://localhost/api/contacts/duplicates/dismiss', {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -102,9 +114,7 @@ describe('POST /api/contacts/duplicates/dismiss', () => {
         data: [{ id: UUID_A }, { id: UUID_B }],
       },
     ];
-    const res = await POST(
-      request({ contactIds: [UUID_B, UUID_A] }) as never
-    );
+    const res = await POST(request({ contactIds: [UUID_B, UUID_A] }) as never);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       data: { dismissed: 1 },
@@ -132,9 +142,7 @@ describe('POST /api/contacts/duplicates/dismiss', () => {
 
   it('returns 404 when any contact is outside the caller account', async () => {
     queues.contactsSelect = [{ data: [{ id: UUID_A }] }];
-    const res = await POST(
-      request({ contactIds: [UUID_A, UUID_B] }) as never
-    );
+    const res = await POST(request({ contactIds: [UUID_A, UUID_B] }) as never);
     expect(res.status).toBe(404);
     expect((await res.json()).error).toBe('Contact not found');
   });
@@ -142,12 +150,10 @@ describe('POST /api/contacts/duplicates/dismiss', () => {
 
 describe('DELETE /api/contacts/duplicates/dismiss', () => {
   it('removes one dismissal row per pair', async () => {
-    queues.contactsSelect = [
-      { data: [{ id: UUID_A }, { id: UUID_B }] },
-    ];
+    queues.contactsSelect = [{ data: [{ id: UUID_A }, { id: UUID_B }] }];
     queues.duplicateDismissalsDelete = [{ error: null }];
     const res = await DELETE(
-      request({ contactIds: [UUID_B, UUID_A], }, 'DELETE') as never
+      request({ contactIds: [UUID_B, UUID_A] }, 'DELETE') as never
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ data: { restored: true } });

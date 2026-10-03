@@ -42,13 +42,17 @@ function parseSharedData(title: string, text: string, url: string) {
   } else {
     // 2. Plain text parsing (e.g. "John Doe +91 98765 43210")
     // Match email
-    const emailMatch = fullPayload.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    const emailMatch = fullPayload.match(
+      /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
+    );
     if (emailMatch) {
       email = emailMatch[0];
     }
 
     // Match phone (e.g. looks like a phone number)
-    const phoneMatch = fullPayload.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4,6}/);
+    const phoneMatch = fullPayload.match(
+      /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4,6}/
+    );
     if (phoneMatch) {
       phone = phoneMatch[0];
     }
@@ -61,7 +65,10 @@ function parseSharedData(title: string, text: string, url: string) {
       .trim();
 
     // Take the first line or first few words as name
-    const lines = cleanText.split('\n').map(l => l.trim()).filter(Boolean);
+    const lines = cleanText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
     if (lines.length > 0) {
       name = lines[0];
     } else {
@@ -117,8 +124,12 @@ function ImportSharedContactContent() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-400">
-        <ContactCardLoader size={104} label="Processing shared contact data" className="mb-3" />
+      <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
+        <ContactCardLoader
+          size={104}
+          label="Processing shared contact data"
+          className="mb-3"
+        />
         <ConvoRealLoader size={20} className="mb-2" />
         <p className="text-sm">Processing shared contact data...</p>
       </div>
@@ -127,15 +138,18 @@ function ImportSharedContactContent() {
 
   if (!contactData) {
     return (
-      <div className="max-w-md mx-auto my-12 bg-slate-900 border border-slate-800 rounded-xl p-6 text-center space-y-4">
-        <AlertCircle className="size-12 text-amber-500 mx-auto" />
-        <h2 className="text-lg font-semibold text-white">No Shared Data Found</h2>
-        <p className="text-slate-400 text-sm">
-          This URL receives contact shares from your Android device. Launch it via your phonebook share menu or go to the Contacts tab instead.
+      <div className="mx-auto my-12 max-w-md space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-6 text-center">
+        <AlertCircle className="mx-auto size-12 text-amber-500" />
+        <h2 className="text-lg font-semibold text-white">
+          No Shared Data Found
+        </h2>
+        <p className="text-sm text-slate-400">
+          This URL receives contact shares from your Android device. Launch it
+          via your phonebook share menu or go to the Contacts tab instead.
         </p>
         <button
           onClick={() => router.push('/contacts')}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
         >
           Go to Contacts
         </button>
@@ -144,12 +158,16 @@ function ImportSharedContactContent() {
   }
 
   return (
-    <div className="max-w-md mx-auto my-12 bg-slate-900 border border-slate-800 rounded-xl p-6 text-center space-y-6">
-      <Smartphone className="size-16 text-primary mx-auto animate-pulse" />
+    <div className="mx-auto my-12 max-w-md space-y-6 rounded-xl border border-slate-800 bg-slate-900 p-6 text-center">
+      <Smartphone className="text-primary mx-auto size-16 animate-pulse" />
       <div>
         <h2 className="text-lg font-semibold text-white">Contact Received!</h2>
-        <p className="text-slate-400 text-sm mt-1">
-          Review and complete the details for <strong className="text-white">{contactData.name || contactData.phone}</strong> below.
+        <p className="mt-1 text-sm text-slate-400">
+          Review and complete the details for{' '}
+          <strong className="text-white">
+            {contactData.name || contactData.phone}
+          </strong>{' '}
+          below.
         </p>
       </div>
       <ContactForm
@@ -171,8 +189,12 @@ export default function ImportSharedContactPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-400">
-          <ContactCardLoader size={104} label="Loading import page" className="mb-3" />
+        <div className="flex min-h-[50vh] flex-col items-center justify-center text-slate-400">
+          <ContactCardLoader
+            size={104}
+            label="Loading import page"
+            className="mb-3"
+          />
           <ConvoRealLoader size={20} className="mb-2" />
           <p className="text-sm">Loading import page...</p>
         </div>

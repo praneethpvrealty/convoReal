@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
-import { requireRole, toErrorResponse } from "@/lib/auth/account";
-import { BRANDING } from "@/config/branding";
-import { AI_FEATURE_COSTS } from "@/lib/credits/types";
+import { NextResponse } from 'next/server';
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { BRANDING } from '@/config/branding';
+import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 
 // GET /api/config
 // Deployment-level client configuration for surfaces that can't read
@@ -9,7 +9,7 @@ import { AI_FEATURE_COSTS } from "@/lib/credits/types";
 // credit costs. Auth-gated like every other non-public route.
 export async function GET() {
   try {
-    await requireRole("viewer");
+    await requireRole('viewer');
 
     return NextResponse.json({
       data: {

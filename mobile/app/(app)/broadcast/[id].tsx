@@ -1,13 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import {
-  FlatList,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
 import { Avatar, FilterChip } from '@/components/ui';
@@ -15,9 +9,20 @@ import { supabase } from '@/lib/supabase';
 import { spacing, useTheme, type ThemeColors } from '@/lib/theme';
 import type { Broadcast, BroadcastRecipient } from '@/lib/types';
 
-const STATUS_FILTERS = ['All', 'Read', 'Delivered', 'Sent', 'Replied', 'Failed', 'Pending'] as const;
+const STATUS_FILTERS = [
+  'All',
+  'Read',
+  'Delivered',
+  'Sent',
+  'Replied',
+  'Failed',
+  'Pending',
+] as const;
 
-function recipientColor(status: BroadcastRecipient['status'], colors: ThemeColors): string {
+function recipientColor(
+  status: BroadcastRecipient['status'],
+  colors: ThemeColors
+): string {
   switch (status) {
     case 'read':
     case 'replied':
@@ -87,7 +92,12 @@ export default function BroadcastDetailScreen() {
           contentContainerStyle={styles.filters}
         >
           {STATUS_FILTERS.map((f) => (
-            <FilterChip key={f} label={f} active={filter === f} onPress={() => setFilter(f)} />
+            <FilterChip
+              key={f}
+              label={f}
+              active={filter === f}
+              onPress={() => setFilter(f)}
+            />
           ))}
         </ScrollView>
       </View>
@@ -100,21 +110,37 @@ export default function BroadcastDetailScreen() {
           data={filtered}
           keyExtractor={(r) => r.id}
           ListEmptyComponent={
-            <Text style={{ textAlign: 'center', marginTop: 40, color: colors.textMuted }}>
+            <Text
+              style={{
+                textAlign: 'center',
+                marginTop: 40,
+                color: colors.textMuted,
+              }}
+            >
               No recipients with this status.
             </Text>
           }
           renderItem={({ item }) => {
-            const name = item.contact?.name || item.contact?.phone || 'Removed contact';
+            const name =
+              item.contact?.name || item.contact?.phone || 'Removed contact';
             return (
               <View style={[styles.row, { borderBottomColor: colors.border }]}>
                 <Avatar name={name} size={38} />
                 <View style={{ flex: 1, gap: 1 }}>
-                  <Text style={{ fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}>
+                  <Text
+                    style={{
+                      fontSize: 14.5,
+                      fontFamily: f.semibold,
+                      color: colors.text,
+                    }}
+                  >
                     {name}
                   </Text>
                   {item.error_message ? (
-                    <Text style={{ fontSize: 12, color: colors.danger }} numberOfLines={1}>
+                    <Text
+                      style={{ fontSize: 12, color: colors.danger }}
+                      numberOfLines={1}
+                    >
                       {item.error_message}
                     </Text>
                   ) : null}
@@ -140,7 +166,11 @@ export default function BroadcastDetailScreen() {
 
 const styles = StyleSheet.create({
   filtersRow: { height: 52, justifyContent: 'center' },
-  filters: { gap: spacing.sm, paddingHorizontal: spacing.lg, alignItems: 'center' },
+  filters: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

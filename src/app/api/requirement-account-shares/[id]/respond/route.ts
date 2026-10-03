@@ -31,12 +31,7 @@ export async function POST(
       : [];
     const note = typeof body?.note === 'string' ? body.note : null;
     return NextResponse.json({
-      data: await respondToRequirementAccountShare(
-        ctx,
-        id,
-        propertyIds,
-        note
-      ),
+      data: await respondToRequirementAccountShare(ctx, id, propertyIds, note),
     });
   } catch (error) {
     return toErrorResponse(error);

@@ -22,12 +22,25 @@ export function NotificationBell() {
         unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'
       }
       hitSlop={6}
-      style={[styles.bell, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+      style={[
+        styles.bell,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+      ]}
     >
       <Ionicons name="notifications-outline" size={19} color={colors.text} />
       {unread > 0 ? (
-        <View style={[styles.badge, { backgroundColor: colors.danger, borderColor: colors.background }]}>
-          <Text style={[styles.badgeText, { fontFamily: f.bold, color: colors.onDanger }]}>
+        <View
+          style={[
+            styles.badge,
+            { backgroundColor: colors.danger, borderColor: colors.background },
+          ]}
+        >
+          <Text
+            style={[
+              styles.badgeText,
+              { fontFamily: f.bold, color: colors.onDanger },
+            ]}
+          >
             {unread > 99 ? '99+' : unread}
           </Text>
         </View>

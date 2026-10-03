@@ -37,13 +37,19 @@ describe('tap labels never enter the interpretive corridor', () => {
     ],
     [
       'quote-correction',
-      'cleanedText && !isInteractiveTap\n    ? await resolveBotTarget',
+      'cleanedText && !isInteractiveTap\n      ? await resolveBotTarget',
     ],
-    ['event outcome', '!isInteractiveTap && parseEventOutcome(cleanedText)'],
-    ['message replay', '!editTarget && !isInteractiveTap && !propSession'],
+    [
+      'event outcome',
+      '!isInteractiveTap &&\n    parseEventOutcome(cleanedText)',
+    ],
+    [
+      'message replay',
+      '!editTarget &&\n    !isInteractiveTap &&\n    !propSession &&',
+    ],
     [
       'scheduling intercept',
-      '!isInteractiveTap && ((!propSession && !contactSession) || isDictatedTaskList',
+      '!isInteractiveTap &&\n    ((!propSession && !contactSession) ||\n      isDictatedTaskList',
     ],
   ])('%s is gated', (_name, marker) => {
     expect(source).toContain(marker);

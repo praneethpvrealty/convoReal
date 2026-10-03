@@ -15,59 +15,66 @@
 // reviewed, and only then does the submit route let it through.
 // ============================================================
 
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server';
 
 import {
   requireOrgRole,
   toErrorResponse,
   type AccountContext,
-} from '@/lib/auth/account'
+} from '@/lib/auth/account';
 import {
   validateTemplatePayload,
   type TemplatePayload,
-} from '@/lib/whatsapp/template-validators'
-import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons'
-import { stampFor } from '@/lib/whatsapp/copy-revision-stamp'
-import { withMetaHeldCategory } from '@/lib/whatsapp/template-category-lock'
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+} from '@/lib/whatsapp/template-validators';
+import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons';
+import { stampFor } from '@/lib/whatsapp/copy-revision-stamp';
+import { withMetaHeldCategory } from '@/lib/whatsapp/template-category-lock';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
   // Same authority as submitting: templates are account-wide and go
   // out under the one WhatsApp number. Resolved outside the main try
   // so a 401/403 does not collapse into a generic 500.
-  let ctx: AccountContext
+  let ctx: AccountContext;
   try {
-    ctx = await requireOrgRole('org_manager')
+    ctx = await requireOrgRole('org_manager');
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
-  const { supabase, userId, accountId } = ctx
+  const { supabase, userId, accountId } = ctx;
 
   try {
     const limit = await checkRateLimit(
       `admin:templateDraft:${userId}`,
-      RATE_LIMITS.adminAction,
-    )
-    if (!limit.success) return rateLimitResponse(limit)
+      RATE_LIMITS.adminAction
+    );
+    if (!limit.success) return rateLimitResponse(limit);
 
-    let payload: TemplatePayload
+    let payload: TemplatePayload;
     try {
-      payload = (await request.json()) as TemplatePayload
+      payload = (await request.json()) as TemplatePayload;
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Invalid JSON body.' },
+        { status: 400 }
+      );
     }
 
     // Same showcase-button rewrite the submit route applies, so the
     // draft the reviewer reads is byte-for-byte what would be sent.
-    payload = await withAccountShowcaseButtons(supabase, accountId, payload)
+    payload = await withAccountShowcaseButtons(supabase, accountId, payload);
 
     try {
-      validateTemplatePayload(payload)
+      validateTemplatePayload(payload);
     } catch (e) {
       return NextResponse.json(
         { error: e instanceof Error ? e.message : 'Validation failed.' },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
     // Never clobber a row that already exists for this (name,
@@ -80,7 +87,7 @@ export async function POST(request: Request) {
       .eq('account_id', accountId)
       .eq('name', payload.name)
       .eq('language', payload.language)
-      .maybeSingle()
+      .maybeSingle();
 
     if (existing) {
       return NextResponse.json(
@@ -89,8 +96,8 @@ export async function POST(request: Request) {
           code: 'ALREADY_EXISTS',
           id: existing.id,
         },
-        { status: 409 },
-      )
+        { status: 409 }
+      );
     }
 
     // A draft wears the category it will be submitted under. Meta
@@ -99,21 +106,24 @@ export async function POST(request: Request) {
     // that category rather than the builder's request — the submit
     // route would send it that way regardless, and the badge the
     // reviewer reads should not promise Utility on a Marketing name.
-    const requestedCategory = payload.category
+    const requestedCategory = payload.category;
     const { data: siblings, error: siblingsError } = await supabase
       .from('message_templates')
       .select('category, meta_template_id, status')
       .eq('account_id', accountId)
       .eq('name', payload.name)
-      .not('meta_template_id', 'is', null)
+      .not('meta_template_id', 'is', null);
     if (siblingsError) {
-      console.error('[templates/draft] category lookup error:', siblingsError)
+      console.error('[templates/draft] category lookup error:', siblingsError);
       return NextResponse.json(
-        { error: 'Could not confirm the category Meta holds for this template. Try again.' },
-        { status: 500 },
-      )
+        {
+          error:
+            'Could not confirm the category Meta holds for this template. Try again.',
+        },
+        { status: 500 }
+      );
     }
-    payload = withMetaHeldCategory(payload, siblings ?? []).payload
+    payload = withMetaHeldCategory(payload, siblings ?? []).payload;
 
     const { data, error } = await supabase
       .from('message_templates')
@@ -141,14 +151,17 @@ export async function POST(request: Request) {
         copy_revision: stampFor(payload.name, payload.language, payload, null),
       })
       .select('id')
-      .single()
+      .single();
 
     if (error || !data) {
-      console.error('[POST /api/whatsapp/templates/draft] insert error:', error)
+      console.error(
+        '[POST /api/whatsapp/templates/draft] insert error:',
+        error
+      );
       return NextResponse.json(
         { error: error?.message ?? 'Failed to create draft' },
-        { status: 500 },
-      )
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(
@@ -163,9 +176,9 @@ export async function POST(request: Request) {
             }
           : {}),
       },
-      { status: 201 },
-    )
+      { status: 201 }
+    );
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
 }

@@ -40,8 +40,7 @@ export function sanitizeSentryEvent(event: ErrorEvent): ErrorEvent {
     if (breadcrumb.message)
       breadcrumb.message = redactSensitiveText(breadcrumb.message);
     breadcrumb.data = sanitizeValue(breadcrumb.data) as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
   });
   event.contexts = sanitizeValue(event.contexts) as ErrorEvent['contexts'];
   event.extra = sanitizeValue(event.extra) as ErrorEvent['extra'];

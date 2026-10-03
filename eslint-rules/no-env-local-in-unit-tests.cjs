@@ -43,7 +43,8 @@ module.exports = {
     const report = (node) => context.report({ node, messageId: 'envLocal' });
     return {
       Literal(node) {
-        if (typeof node.value === 'string' && ENV_LOCAL.test(node.value)) report(node);
+        if (typeof node.value === 'string' && ENV_LOCAL.test(node.value))
+          report(node);
       },
       TemplateElement(node) {
         const raw = node.value && node.value.cooked;

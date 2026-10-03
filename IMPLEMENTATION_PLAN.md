@@ -6,9 +6,10 @@ This document outlines the detailed design and implementation steps for introduc
 
 ## 1. Goal Description
 
-Many real estate buyers (especially institutional and commercial investors) prioritize rental yield (ROI %) over specific locations. 
+Many real estate buyers (especially institutional and commercial investors) prioritize rental yield (ROI %) over specific locations.
 
 We will upgrade the matching engine and contact fields to:
+
 1. **Store Expected ROI**: Add a `min_roi` field to the contacts table to save a buyer's minimum expected yield (e.g. 4.5% ROI).
 2. **Upgrade UI Forms**: Expose a "Expected Min ROI (%)" input field in contact forms and preference view sheets.
 3. **Notes and Requirements Ingestion**: Pull contact notes (`contact_notes`) and requirements text fields to extract matching cues.
@@ -24,13 +25,14 @@ We need to add a new `min_roi` numeric field to the `contacts` table.
 
 ```sql
 -- Migration 048: Add Expected Min ROI to Contacts Table
-ALTER TABLE contacts 
+ALTER TABLE contacts
   ADD COLUMN IF NOT EXISTS min_roi NUMERIC CHECK (min_roi >= 0);
 
 COMMENT ON COLUMN contacts.min_roi IS 'Minimum expected rental yield ROI (%) for buyer profiles.';
 ```
 
 ### [MODIFY] Combined Script: [RUN_IN_SUPABASE_SQL_EDITOR.sql](./supabase/RUN_IN_SUPABASE_SQL_EDITOR.sql)
+
 Append this migration statement to the end of the master script.
 
 ---
@@ -40,6 +42,7 @@ Append this migration statement to the end of the master script.
 Update the shared type definitions.
 
 ### [MODIFY] [src/types/index.ts](./src/types/index.ts)
+
 ```typescript
 export interface Contact {
   id: string;
@@ -75,11 +78,13 @@ export interface Contact {
 ## 4. UI Component Updates
 
 ### [MODIFY] [contact-form.tsx](./src/components/contacts/contact-form.tsx)
+
 - Define state `const [minRoi, setMinRoi] = useState('');` and set it on load inside `useEffect`.
 - Add an Expected Min ROI (%) number input field inside the Real Estate Preferences group.
 - Save `min_roi: minRoi ? Number(minRoi) : null` in the `handleSubmit` payload.
 
 ### [MODIFY] [contact-detail-view.tsx](./src/components/contacts/contact-detail-view.tsx)
+
 - Define state `const [editMinRoi, setEditMinRoi] = useState('');` and set it on load.
 - Render the Expected Min ROI (%) control inside the Preferences tab, below the budget limits inputs.
 - Save `min_roi: editMinRoi ? Number(editMinRoi) : null` in the `savePreferences` update call.
@@ -91,6 +96,7 @@ export interface Contact {
 To read contact notes in the matching engine, we need to select `contact_notes` when querying contacts:
 
 ### [MODIFY] [property-form.tsx](./src/components/inventory/property-form.tsx)
+
 - Modify the `fetchContacts` select query to fetch linked notes:
   ```typescript
   .from('contacts')
@@ -98,6 +104,7 @@ To read contact notes in the matching engine, we need to select `contact_notes` 
   ```
 
 ### [MODIFY] [property-share-dialog.tsx](./src/components/inventory/property-share-dialog.tsx)
+
 - Modify the `fetchContacts` query similarly:
   ```typescript
   .from('contacts')
@@ -111,8 +118,11 @@ To read contact notes in the matching engine, we need to select `contact_notes` 
 ### [MODIFY] [matching.ts](./src/lib/matching.ts)
 
 1. **Text Aggregation**: Combine the contact's requirements text and notes text:
+
    ```typescript
-   const notesText = (contact.contact_notes || []).map((n) => n.note_text).join(' ');
+   const notesText = (contact.contact_notes || [])
+     .map((n) => n.note_text)
+     .join(' ');
    const requirementsText = contact.requirements || '';
    const combinedText = (requirementsText + ' ' + notesText).toLowerCase();
    ```
@@ -143,7 +153,9 @@ To read contact notes in the matching engine, we need to select `contact_notes` 
 ## 7. Verification Plan
 
 ### Automated Tests
+
 Create a comprehensive test suite in [matching.test.ts](./src/lib/matching.test.ts):
+
 - Verify properties match only if their ROI meets the contact's `min_roi` constraint.
 - Verify yield-focused investors match properties in different areas if they have no location preference.
 - Verify contacts requesting "luxury apartments" or "commercial buildings" in notes/requirements match corresponding properties.

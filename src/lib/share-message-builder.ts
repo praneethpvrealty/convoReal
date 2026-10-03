@@ -39,8 +39,21 @@ export interface ShareMessageInput {
 }
 
 const GREETING_HONORIFICS = new Set([
-  'mr', 'mrs', 'ms', 'miss', 'mstr', 'master', 'dr', 'prof', 'shri', 'sri',
-  'smt', 'kum', 'sir', 'madam', 'mx',
+  'mr',
+  'mrs',
+  'ms',
+  'miss',
+  'mstr',
+  'master',
+  'dr',
+  'prof',
+  'shri',
+  'sri',
+  'smt',
+  'kum',
+  'sir',
+  'madam',
+  'mx',
 ]);
 
 /**
@@ -52,7 +65,10 @@ const GREETING_HONORIFICS = new Set([
 export function greetingName(name?: string | null): string | null {
   const tokens = (name || '').trim().split(/\s+/).filter(Boolean);
   let i = 0;
-  while (i < tokens.length && GREETING_HONORIFICS.has(tokens[i].replace(/\./g, '').toLowerCase())) {
+  while (
+    i < tokens.length &&
+    GREETING_HONORIFICS.has(tokens[i].replace(/\./g, '').toLowerCase())
+  ) {
     i++;
   }
   const rest = tokens.slice(i);
@@ -60,19 +76,35 @@ export function greetingName(name?: string | null): string | null {
   return tokens.length > 0 ? tokens.join(' ') : null;
 }
 
-export function formatShareAmount(amount: number | null | undefined, currency: string = 'INR'): string {
+export function formatShareAmount(
+  amount: number | null | undefined,
+  currency: string = 'INR'
+): string {
   const n = Number(amount);
   if (!n || isNaN(n) || n <= 0) return '';
   if (currency === 'INR') {
-    if (n >= 10000000) return `₹${(n / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-    if (n >= 100000) return `₹${(n / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+    if (n >= 10000000)
+      return `₹${(n / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+    if (n >= 100000)
+      return `₹${(n / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(n);
   }
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(n);
 }
 
 function priceLine(property: Property, currency: string): string {
-  if (property.listing_type === 'Rent' || property.listing_type === 'Built to Suit') {
+  if (
+    property.listing_type === 'Rent' ||
+    property.listing_type === 'Built to Suit'
+  ) {
     const rent = formatShareAmount(property.rent_per_month, currency);
     if (!rent) return 'Price on request';
     const maint = formatShareAmount(property.maintenance, currency);
@@ -96,10 +128,16 @@ function locationLine(property: Property): string {
 }
 
 function areaParts(property: Property): string[] {
-  const isLand = (property.type || '').includes('Land') || (property.type || '').includes('Plot');
-  const land = property.land_area ? `${property.land_area} ${property.land_area_unit || 'sqft'}` : '';
+  const isLand =
+    (property.type || '').includes('Land') ||
+    (property.type || '').includes('Plot');
+  const land = property.land_area
+    ? `${property.land_area} ${property.land_area_unit || 'sqft'}`
+    : '';
   if (isLand) return land ? [land] : [];
-  const built = property.area_sqft ? `${property.area_sqft} ${property.area_unit || 'sqft'}` : '';
+  const built = property.area_sqft
+    ? `${property.area_sqft} ${property.area_unit || 'sqft'}`
+    : '';
   if (!land) return built ? [built] : [];
   return built ? [`${built} built-up`, `${land} land`] : [`${land} land`];
 }
@@ -156,7 +194,7 @@ function outro(input: ShareMessageInput): string {
 function completeBody(
   property: Property,
   currency: string,
-  opts: { withMap?: boolean } = {},
+  opts: { withMap?: boolean } = {}
 ): string {
   const { withMap = true } = opts;
   const lines: string[] = [];
@@ -172,18 +210,29 @@ function completeBody(
     property.bedrooms ? `${property.bedrooms} BHK` : '',
     property.bathrooms ? `${property.bathrooms} Bath` : '',
     ...areaParts(property),
-    property.super_built_area ? `${property.super_built_area} super built-up` : '',
+    property.super_built_area
+      ? `${property.super_built_area} super built-up`
+      : '',
     property.dimensions || '',
     property.facing_direction ? `${property.facing_direction} facing` : '',
-    property.road_width ? `${property.road_width} ${property.road_width_unit || 'ft'} road` : '',
+    property.road_width
+      ? `${property.road_width} ${property.road_width_unit || 'ft'} road`
+      : '',
   ].filter(Boolean);
   if (property.type || physical.length > 0) {
-    lines.push(`📐 ${[property.type, ...physical].filter(Boolean).join(' · ')}`);
+    lines.push(
+      `📐 ${[property.type, ...physical].filter(Boolean).join(' · ')}`
+    );
   }
 
-  if (property.listing_type === 'Rent' || property.listing_type === 'Built to Suit') {
+  if (
+    property.listing_type === 'Rent' ||
+    property.listing_type === 'Built to Suit'
+  ) {
     const terms = [
-      property.advance ? `Advance ${formatShareAmount(property.advance, currency)}` : '',
+      property.advance
+        ? `Advance ${formatShareAmount(property.advance, currency)}`
+        : '',
       property.gst ? 'GST applicable' : '',
     ].filter(Boolean);
     if (terms.length > 0) lines.push(`📋 ${terms.join(' · ')}`);
@@ -192,11 +241,15 @@ function completeBody(
   const features = (property.features || []).filter(Boolean).slice(0, 6);
   if (features.length > 0) lines.push(`✨ ${features.join(' | ')}`);
 
-  const highlights = (property.nearby_highlights || []).filter(Boolean).slice(0, 5);
+  const highlights = (property.nearby_highlights || [])
+    .filter(Boolean)
+    .slice(0, 5);
   if (highlights.length > 0) lines.push(`🚩 Nearby: ${highlights.join(' | ')}`);
 
   if (property.rental_income) {
-    lines.push(`📈 Rental income: ${formatShareAmount(property.rental_income, currency)}/mo${property.roi ? ` (~${property.roi}% ROI)` : ''}`);
+    lines.push(
+      `📈 Rental income: ${formatShareAmount(property.rental_income, currency)}/mo${property.roi ? ` (~${property.roi}% ROI)` : ''}`
+    );
   }
 
   if (withMap && property.google_map_link && !isLocationGuarded(property)) {
@@ -308,12 +361,14 @@ export function buildPropertyShareMessage(input: ShareMessageInput): string {
 export function showcaseOriginForHost(
   host: string,
   protocol: string,
-  subdomain?: string | null,
+  subdomain?: string | null
 ): string {
   if (!subdomain) return `${protocol}//${host}`;
   const parts = host.split('.');
   const base =
-    parts.length <= 2 || host.includes('localhost') || /^\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(host)
+    parts.length <= 2 ||
+    host.includes('localhost') ||
+    /^\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(host)
       ? host
       : parts.slice(1).join('.');
   return `${protocol}//${subdomain}.${base}`;
@@ -331,10 +386,12 @@ export function showcaseOriginForHost(
 export function showcaseBaseUrl(
   siteUrl: string,
   subdomain: string | null,
-  accountId: string | null,
+  accountId: string | null
 ): string {
   const site = new URL(siteUrl);
-  const url = new URL(showcaseOriginForHost(site.host, site.protocol, subdomain));
+  const url = new URL(
+    showcaseOriginForHost(site.host, site.protocol, subdomain)
+  );
   if (!subdomain && accountId) url.searchParams.set('ref', accountId);
   return url.toString();
 }
@@ -349,7 +406,7 @@ export type ShowcaseLinkProperty = Pick<Property, 'id'> & {
  *  query params (`?ref=` when there's no subdomain). */
 export function propertyShowcaseUrl(
   baseUrl: string,
-  property: ShowcaseLinkProperty,
+  property: ShowcaseLinkProperty
 ): string {
   const id = property.property_code || property.id;
   const sep = baseUrl.includes('?') ? '&' : '?';
@@ -466,7 +523,11 @@ export interface ShareTargetLinks {
   sms: string;
 }
 
-export function buildShareTargets(message: string, url: string, title: string): ShareTargetLinks {
+export function buildShareTargets(
+  message: string,
+  url: string,
+  title: string
+): ShareTargetLinks {
   const text = encodeURIComponent(message);
   return {
     whatsapp: `https://wa.me/?text=${text}`,

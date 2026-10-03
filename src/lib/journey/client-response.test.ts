@@ -460,7 +460,11 @@ describe('confirming the property before side effects', () => {
     const three = [
       ...candidates,
       {
-        property: { id: 'p3', title: 'Third listing', property_code: 'PROP-103' },
+        property: {
+          id: 'p3',
+          title: 'Third listing',
+          property_code: 'PROP-103',
+        },
         score: 60,
         reason: 'title third',
       },
@@ -500,14 +504,16 @@ describe('resolving the property a forwarded reply is about', () => {
     },
     {
       id: 'p-1108',
-      title: 'Residential House in Koramangala 7th phase, opposite to the park is for sale.',
+      title:
+        'Residential House in Koramangala 7th phase, opposite to the park is for sale.',
       property_code: 'PROP-1108',
       owner_contact_id: 'c-other',
       sublocality: 'Koramangala',
     },
     {
       id: 'p-1878',
-      title: '300 Acres Residential Land with the plan approval on Harohalli to Bidadi Road',
+      title:
+        '300 Acres Residential Land with the plan approval on Harohalli to Bidadi Road',
       property_code: 'PROP-1878',
       owner_contact_id: null,
     },
@@ -534,7 +540,9 @@ describe('resolving the property a forwarded reply is about', () => {
             Promise.resolve({
               data: rows
                 .filter((row) =>
-                  filters.every(([col, val]) => col === 'account_id' || row[col] === val)
+                  filters.every(
+                    ([col, val]) => col === 'account_id' || row[col] === val
+                  )
                 )
                 .slice(0, cap),
               error: null,
@@ -551,10 +559,15 @@ describe('resolving the property a forwarded reply is about', () => {
   } as Parameters<typeof resolveClientProperty>[2];
 
   it('[JRN-016] picks the one property the contact owns when the message names no other', async () => {
-    const result = await resolveClientProperty(fakeDb(inventory) as never, 'acc', parsed, {
-      id: 'c-yogi',
-      name: 'Yogendranath',
-    });
+    const result = await resolveClientProperty(
+      fakeDb(inventory) as never,
+      'acc',
+      parsed,
+      {
+        id: 'c-yogi',
+        name: 'Yogendranath',
+      }
+    );
     expect(result.property?.id).toBe('p-1403');
     expect(result.candidates).toEqual([]);
   });
@@ -563,11 +576,16 @@ describe('resolving the property a forwarded reply is about', () => {
     const result = await resolveClientProperty(
       fakeDb(inventory) as never,
       'acc',
-      { response_summary: 'Yogendranath asked about the Koramangala house too' } as typeof parsed,
+      {
+        response_summary: 'Yogendranath asked about the Koramangala house too',
+      } as typeof parsed,
       { id: 'c-yogi', name: 'Yogendranath' }
     );
     expect(result.property).toBeNull();
-    expect(result.candidates.map((c) => c.property.id)).toEqual(['p-1403', 'p-1108']);
+    expect(result.candidates.map((c) => c.property.id)).toEqual([
+      'p-1403',
+      'p-1108',
+    ]);
     expect(result.candidates[0].reason).toBe('owned by Yogendranath');
   });
 
@@ -581,20 +599,29 @@ describe('resolving the property a forwarded reply is about', () => {
         owner_contact_id: null,
       })),
     ];
-    const result = await resolveClientProperty(fakeDb(large) as never, 'acc', parsed, {
-      id: 'c-yogi',
-      name: 'Yogendranath',
-    });
+    const result = await resolveClientProperty(
+      fakeDb(large) as never,
+      'acc',
+      parsed,
+      {
+        id: 'c-yogi',
+        name: 'Yogendranath',
+      }
+    );
     expect(result.property).toBeNull();
     expect(result.candidates.map((c) => c.property.id)).toEqual(['p-1403']);
   });
 
   it('[JRN-016] offers nothing for a contact who owns nothing and a message that names nothing', async () => {
-    const result = await resolveClientProperty(fakeDb(inventory) as never, 'acc', parsed, {
-      id: 'c-nobody',
-      name: 'Ravi',
-    });
+    const result = await resolveClientProperty(
+      fakeDb(inventory) as never,
+      'acc',
+      parsed,
+      {
+        id: 'c-nobody',
+        name: 'Ravi',
+      }
+    );
     expect(result).toEqual({ property: null, candidates: [] });
   });
 });
-

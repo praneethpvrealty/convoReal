@@ -77,7 +77,9 @@ export function planLedgerActions(
 // sync disabled) — mark delivered so the entry stops resurfacing.
 // A 401 cannot occur here: re-ingestion passes the engine's own env
 // token, which is exactly why this path heals token-mismatch outages.
-export function reingestOutcome(status: number): 'healed' | 'rejected' | 'retry' {
+export function reingestOutcome(
+  status: number
+): 'healed' | 'rejected' | 'retry' {
   if (status >= 200 && status < 300) return 'healed';
   if (status === 429 || status >= 500) return 'retry';
   return 'rejected';
@@ -104,7 +106,8 @@ async function knownIdsFor(ids: string[]): Promise<Set<string>> {
       .from('email_sync_logs')
       .select('ledger_id')
       .in('ledger_id', ids.slice(i, i + CHUNK));
-    if (error) throw new Error(`email_sync_logs lookup failed: ${error.message}`);
+    if (error)
+      throw new Error(`email_sync_logs lookup failed: ${error.message}`);
     for (const row of data ?? []) {
       if (row.ledger_id) known.add(row.ledger_id);
     }
@@ -112,7 +115,9 @@ async function knownIdsFor(ids: string[]): Promise<Set<string>> {
   return known;
 }
 
-async function notifyOwnersOfHealing(healedByAccount: Map<string, number>): Promise<void> {
+async function notifyOwnersOfHealing(
+  healedByAccount: Map<string, number>
+): Promise<void> {
   const admin = supabaseAdmin();
   for (const [accountId, count] of healedByAccount) {
     try {
@@ -136,10 +141,15 @@ async function notifyOwnersOfHealing(healedByAccount: Map<string, number>): Prom
           `real-time path is failing — check the Cloudflare worker's ENGINE_BASE_URL variable.`,
       });
       if (!result.success) {
-        console.warn(`[lead-reconcile] owner WhatsApp failed (non-fatal): ${result.error}`);
+        console.warn(
+          `[lead-reconcile] owner WhatsApp failed (non-fatal): ${result.error}`
+        );
       }
     } catch (err) {
-      console.error('[lead-reconcile] owner notification exception (non-fatal):', err);
+      console.error(
+        '[lead-reconcile] owner notification exception (non-fatal):',
+        err
+      );
     }
   }
 }
@@ -183,10 +193,13 @@ export async function reconcileLeadLedger(): Promise<ReconcileResult> {
   result.deferred = plan.deferred.length;
 
   const markDelivered = async (id: string) => {
-    const res = await fetch(`${workerUrl}/ledger/${encodeURIComponent(id)}/delivered`, {
-      method: 'POST',
-      headers: auth,
-    });
+    const res = await fetch(
+      `${workerUrl}/ledger/${encodeURIComponent(id)}/delivered`,
+      {
+        method: 'POST',
+        headers: auth,
+      }
+    );
     if (!res.ok) throw new Error(`mark-delivered ${id} returned ${res.status}`);
     result.markedDelivered++;
   };
@@ -201,15 +214,20 @@ export async function reconcileLeadLedger(): Promise<ReconcileResult> {
 
   // The webhook handler is invoked in-process — a broken public URL is
   // exactly the failure being healed, so no self-fetch.
-  const { POST: ingestLead } = await import('@/app/api/leads/email-webhook/route');
+  const { POST: ingestLead } =
+    await import('@/app/api/leads/email-webhook/route');
   const healedByAccount = new Map<string, number>();
 
   for (const entry of plan.reingest) {
     try {
-      const rawRes = await fetch(`${workerUrl}/ledger/${encodeURIComponent(entry.id)}`, {
-        headers: auth,
-      });
-      if (!rawRes.ok) throw new Error(`raw fetch ${entry.id} returned ${rawRes.status}`);
+      const rawRes = await fetch(
+        `${workerUrl}/ledger/${encodeURIComponent(entry.id)}`,
+        {
+          headers: auth,
+        }
+      );
+      if (!rawRes.ok)
+        throw new Error(`raw fetch ${entry.id} returned ${rawRes.status}`);
       const raw = await rawRes.text();
 
       const url = new URL('https://engine.internal/api/leads/email-webhook');
@@ -236,7 +254,10 @@ export async function reconcileLeadLedger(): Promise<ReconcileResult> {
       }
       if (outcome === 'healed') {
         result.healed++;
-        healedByAccount.set(entry.accountId, (healedByAccount.get(entry.accountId) ?? 0) + 1);
+        healedByAccount.set(
+          entry.accountId,
+          (healedByAccount.get(entry.accountId) ?? 0) + 1
+        );
       } else {
         result.rejected++;
       }

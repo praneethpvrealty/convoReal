@@ -51,7 +51,10 @@ import { useAuth } from '@/hooks/use-auth';
 import type { OrgRole } from '@/lib/auth/roles';
 import type { AccountMember, Team } from '@/types';
 
-const ROLE_CHIP: Record<OrgRole, { icon: typeof Crown; label: string; className: string }> = {
+const ROLE_CHIP: Record<
+  OrgRole,
+  { icon: typeof Crown; label: string; className: string }
+> = {
   org_manager: {
     icon: Crown,
     label: 'Manager',
@@ -143,7 +146,9 @@ export function TeamsTab() {
     if (!deletingTeam) return;
     setPending(deletingTeam.id);
     try {
-      const res = await fetch(`/api/account/teams/${deletingTeam.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/account/teams/${deletingTeam.id}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
         toast.error(payload.error || 'Failed to delete team');
@@ -182,7 +187,10 @@ export function TeamsTab() {
     }
   }
 
-  async function handleSetMemberTeam(member: AccountMember, teamId: string | null) {
+  async function handleSetMemberTeam(
+    member: AccountMember,
+    teamId: string | null
+  ) {
     setPending(`team-${member.user_id}`);
     try {
       const res = await fetch(`/api/account/members/${member.user_id}/team`, {
@@ -204,21 +212,27 @@ export function TeamsTab() {
     }
   }
 
-  async function handlePromote(member: AccountMember, nextRole: 'org_leader' | 'org_agent') {
+  async function handlePromote(
+    member: AccountMember,
+    nextRole: 'org_leader' | 'org_agent'
+  ) {
     setPending(`role-${member.user_id}`);
     try {
-      const res = await fetch(`/api/account/members/${member.user_id}/org-role`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: nextRole }),
-      });
+      const res = await fetch(
+        `/api/account/members/${member.user_id}/org-role`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: nextRole }),
+        }
+      );
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
         toast.error(payload.error || 'Failed to change role');
         return;
       }
       toast.success(
-        `${member.full_name || 'Member'} is now ${nextRole === 'org_leader' ? 'a Leader' : 'an Agent'}`,
+        `${member.full_name || 'Member'} is now ${nextRole === 'org_leader' ? 'a Leader' : 'an Agent'}`
       );
       await loadEverything();
     } catch (err) {
@@ -232,27 +246,29 @@ export function TeamsTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-primary" />
+        <Loader2 className="text-primary size-6 animate-spin" />
       </div>
     );
   }
 
   const unassigned = members.filter(
-    (m) => m.org_role && m.org_role !== 'org_manager' && !m.team_id,
+    (m) => m.org_role && m.org_role !== 'org_manager' && !m.team_id
   );
   // Leaders/Agents eligible to be dropped into a team via the picker —
   // anyone who isn't already Manager (Managers see everything account-
   // wide and never need a team).
-  const assignableMembers = members.filter((m) => m.org_role && m.org_role !== 'org_manager');
+  const assignableMembers = members.filter(
+    (m) => m.org_role && m.org_role !== 'org_manager'
+  );
 
   return (
-    <div className="space-y-6 mt-4">
+    <div className="mt-4 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-white">Teams</h2>
           <p className="text-sm text-slate-400">
-            Group agents under a Leader. Leaders only see their own team&apos;s conversations
-            and contacts — Managers see everything.
+            Group agents under a Leader. Leaders only see their own team&apos;s
+            conversations and contacts — Managers see everything.
           </p>
         </div>
         {canManageTeams && (
@@ -267,7 +283,7 @@ export function TeamsTab() {
       </div>
 
       {teams.length === 0 ? (
-        <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+        <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
           <CardContent className="flex flex-col items-center justify-center py-8 text-center">
             <Users className="size-6 text-slate-600" />
             <p className="mt-2 text-sm text-slate-400">No teams yet.</p>
@@ -283,16 +299,23 @@ export function TeamsTab() {
           {teams.map((team) => {
             const teamMembers = members.filter((m) => m.team_id === team.id);
             const leader = members.find((m) => m.user_id === team.leader_id);
-            const canEditThisTeam = isOrgManager || (isOrgLeader && team.leader_id === user?.id);
+            const canEditThisTeam =
+              isOrgManager || (isOrgLeader && team.leader_id === user?.id);
 
             return (
-              <Card key={team.id} className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
-                <CardContent className="p-4 space-y-3">
+              <Card
+                key={team.id}
+                className="border-slate-700 bg-slate-900 ring-0 ring-transparent"
+              >
+                <CardContent className="space-y-3 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-white">{team.name}</h3>
+                      <h3 className="text-sm font-semibold text-white">
+                        {team.name}
+                      </h3>
                       <p className="text-xs text-slate-500">
-                        Leader: {leader?.full_name || 'Unassigned'} · {teamMembers.length} member
+                        Leader: {leader?.full_name || 'Unassigned'} ·{' '}
+                        {teamMembers.length} member
                         {teamMembers.length === 1 ? '' : 's'}
                       </p>
                     </div>
@@ -310,13 +333,17 @@ export function TeamsTab() {
 
                   {isOrgManager && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500 shrink-0">Set leader:</span>
+                      <span className="shrink-0 text-xs text-slate-500">
+                        Set leader:
+                      </span>
                       <Select
                         value={team.leader_id ?? '__none__'}
-                        onValueChange={(v) => handleSetLeader(team, v === '__none__' ? null : v)}
+                        onValueChange={(v) =>
+                          handleSetLeader(team, v === '__none__' ? null : v)
+                        }
                       >
                         <SelectTrigger
-                          className="w-48 bg-slate-800 border-slate-700 text-slate-200"
+                          className="w-48 border-slate-700 bg-slate-800 text-slate-200"
                           disabled={pending === `leader-${team.id}`}
                         >
                           <SelectValue />
@@ -337,31 +364,37 @@ export function TeamsTab() {
 
                   <ul className="divide-y divide-slate-800 rounded-lg border border-slate-800">
                     {teamMembers.length === 0 ? (
-                      <li className="px-3 py-2 text-xs text-slate-500">No members yet.</li>
+                      <li className="px-3 py-2 text-xs text-slate-500">
+                        No members yet.
+                      </li>
                     ) : (
                       teamMembers.map((m) => {
-                        const roleMeta = m.org_role ? ROLE_CHIP[m.org_role] : ROLE_CHIP.org_agent;
+                        const roleMeta = m.org_role
+                          ? ROLE_CHIP[m.org_role]
+                          : ROLE_CHIP.org_agent;
                         const RoleIcon = roleMeta.icon;
                         return (
                           <li
                             key={m.user_id}
                             className="flex items-center justify-between gap-2 px-3 py-2"
                           >
-                            <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex min-w-0 items-center gap-2">
                               <Avatar className="size-6 shrink-0">
-                                <AvatarFallback className="bg-primary/10 text-[10px] font-medium text-primary">
+                                <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-medium">
                                   {(m.full_name || 'U').charAt(0).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
-                              <span className="truncate text-sm text-white">{m.full_name}</span>
+                              <span className="truncate text-sm text-white">
+                                {m.full_name}
+                              </span>
                               <span
-                                className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${roleMeta.className}`}
+                                className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${roleMeta.className}`}
                               >
                                 <RoleIcon className="size-3" />
                                 {roleMeta.label}
                               </span>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex shrink-0 items-center gap-1.5">
                               {isOrgManager && m.org_role === 'org_agent' && (
                                 <Button
                                   variant="outline"
@@ -404,20 +437,28 @@ export function TeamsTab() {
 
                   {canEditThisTeam && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500 shrink-0">Add member:</span>
+                      <span className="shrink-0 text-xs text-slate-500">
+                        Add member:
+                      </span>
                       <Select
                         value=""
                         onValueChange={(v) => {
-                          const m = assignableMembers.find((x) => x.user_id === v);
+                          const m = assignableMembers.find(
+                            (x) => x.user_id === v
+                          );
                           if (m) handleSetMemberTeam(m, team.id);
                         }}
                       >
-                        <SelectTrigger className="w-48 bg-slate-800 border-slate-700 text-slate-200">
+                        <SelectTrigger className="w-48 border-slate-700 bg-slate-800 text-slate-200">
                           <SelectValue placeholder="Choose a member..." />
                         </SelectTrigger>
                         <SelectContent>
                           {assignableMembers
-                            .filter((m) => m.team_id !== team.id && (isOrgManager || m.org_role === 'org_agent'))
+                            .filter(
+                              (m) =>
+                                m.team_id !== team.id &&
+                                (isOrgManager || m.org_role === 'org_agent')
+                            )
                             .map((m) => (
                               <SelectItem key={m.user_id} value={m.user_id}>
                                 {m.full_name}
@@ -436,24 +477,31 @@ export function TeamsTab() {
 
       {unassigned.length > 0 && (
         <div>
-          <h3 className="mb-2 text-sm font-semibold text-white">Unassigned members</h3>
-          <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+          <h3 className="mb-2 text-sm font-semibold text-white">
+            Unassigned members
+          </h3>
+          <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
             <CardContent className="p-0">
               <ul className="divide-y divide-slate-800">
                 {unassigned.map((m) => (
-                  <li key={m.user_id} className="flex items-center justify-between gap-2 px-4 py-2.5">
+                  <li
+                    key={m.user_id}
+                    className="flex items-center justify-between gap-2 px-4 py-2.5"
+                  >
                     <span className="text-sm text-white">{m.full_name}</span>
                     {teams.length > 0 && (isOrgManager || isOrgLeader) && (
                       <Select
                         value=""
                         onValueChange={(v) => handleSetMemberTeam(m, v)}
                       >
-                        <SelectTrigger className="w-44 bg-slate-800 border-slate-700 text-slate-200 h-8">
+                        <SelectTrigger className="h-8 w-44 border-slate-700 bg-slate-800 text-slate-200">
                           <SelectValue placeholder="Assign to team..." />
                         </SelectTrigger>
                         <SelectContent>
                           {teams
-                            .filter((t) => isOrgManager || t.leader_id === user?.id)
+                            .filter(
+                              (t) => isOrgManager || t.leader_id === user?.id
+                            )
                             .map((t) => (
                               <SelectItem key={t.id} value={t.id}>
                                 {t.name}
@@ -471,20 +519,21 @@ export function TeamsTab() {
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-sm">
+        <DialogContent className="border-slate-700 bg-slate-900 sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-white">New team</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Give it a name — you can assign a leader and members after creating it.
+              Give it a name — you can assign a leader and members after
+              creating it.
             </DialogDescription>
           </DialogHeader>
           <Input
             value={newTeamName}
             onChange={(e) => setNewTeamName(e.target.value)}
             placeholder="e.g. North Bangalore Team"
-            className="bg-slate-800 border-slate-700 text-white"
+            className="border-slate-700 bg-slate-800 text-white"
           />
-          <DialogFooter className="bg-slate-900 border-slate-700">
+          <DialogFooter className="border-slate-700 bg-slate-900">
             <Button
               variant="outline"
               onClick={() => setCreateOpen(false)}
@@ -497,23 +546,35 @@ export function TeamsTab() {
               disabled={!newTeamName.trim() || pending === 'create-team'}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
-              {pending === 'create-team' ? <Loader2 className="size-4 animate-spin" /> : 'Create team'}
+              {pending === 'create-team' ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                'Create team'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deletingTeam !== null} onOpenChange={(open) => { if (!open) setDeletingTeam(null); }}>
-        <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-sm">
+      <Dialog
+        open={deletingTeam !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingTeam(null);
+        }}
+      >
+        <DialogContent className="border-slate-700 bg-slate-900 sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-white">Delete team</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Delete <span className="font-medium text-slate-300">{deletingTeam?.name}</span>?
-              Its members become unassigned; their conversations and contacts stay exactly
-              as-is, just no longer scoped to this team.
+              Delete{' '}
+              <span className="font-medium text-slate-300">
+                {deletingTeam?.name}
+              </span>
+              ? Its members become unassigned; their conversations and contacts
+              stay exactly as-is, just no longer scoped to this team.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="bg-slate-900 border-slate-700">
+          <DialogFooter className="border-slate-700 bg-slate-900">
             <Button
               variant="outline"
               onClick={() => setDeletingTeam(null)}
@@ -524,9 +585,13 @@ export function TeamsTab() {
             <Button
               onClick={handleDeleteTeam}
               disabled={pending === deletingTeam?.id}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-red-600 text-white hover:bg-red-700"
             >
-              {pending === deletingTeam?.id ? <Loader2 className="size-4 animate-spin" /> : 'Delete team'}
+              {pending === deletingTeam?.id ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                'Delete team'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

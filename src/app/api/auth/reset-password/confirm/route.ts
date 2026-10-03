@@ -6,10 +6,7 @@ import crypto from 'crypto';
  * Verifies the HMAC-signed reset token.
  * Returns the userId if valid, or null if invalid/expired.
  */
-function verifyResetToken(
-  token: string,
-  secret: string
-): string | null {
+function verifyResetToken(token: string, secret: string): string | null {
   try {
     const decoded = Buffer.from(token, 'base64url').toString('utf-8');
     const parts = decoded.split('.');
@@ -76,7 +73,10 @@ export async function POST(request: Request) {
 
     if (!userId) {
       return NextResponse.json(
-        { error: 'This password reset link is invalid or has expired. Please request a new one.' },
+        {
+          error:
+            'This password reset link is invalid or has expired. Please request a new one.',
+        },
         { status: 400 }
       );
     }

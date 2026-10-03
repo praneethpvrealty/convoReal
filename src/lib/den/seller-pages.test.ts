@@ -9,9 +9,8 @@ vi.mock('@/lib/showcase/account-showcase-url', () => ({
       : 'https://www.convoreal.com',
 }));
 
-const { denSellerPages, sellerPageForwardMessage } = await import(
-  './seller-pages'
-);
+const { denSellerPages, sellerPageForwardMessage } =
+  await import('./seller-pages');
 
 type LinkRow = {
   den_user_id: string;

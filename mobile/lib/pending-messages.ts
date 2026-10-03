@@ -19,7 +19,10 @@ import type { Message } from '@/lib/types';
 /** Types whose identity is the file, not the words around it. */
 const MEDIA_TYPES = new Set(['image', 'document', 'audio', 'video']);
 
-export function restoreFailedDraft(currentDraft: string, submittedDraft: string): string {
+export function restoreFailedDraft(
+  currentDraft: string,
+  submittedDraft: string
+): string {
   return currentDraft.trim() ? currentDraft : submittedDraft;
 }
 
@@ -50,7 +53,10 @@ export function outgoingSignature(
  * Only outgoing messages can retire a pending bubble: a customer who
  * happens to echo our exact wording back is not our send landing.
  */
-export function settlePending(pending: Message[], messages: Message[]): Message[] {
+export function settlePending(
+  pending: Message[],
+  messages: Message[]
+): Message[] {
   if (pending.length === 0) return pending;
   const landed = new Set(
     messages.filter((m) => m.sender_type !== 'customer').map(outgoingSignature)

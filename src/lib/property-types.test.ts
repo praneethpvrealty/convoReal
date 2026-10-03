@@ -6,19 +6,33 @@ describe('normalizePropertyType', () => {
     // The PROP-1093 case: a mixed-use development mentioning offices,
     // hotel and hypermarket must NOT collapse into offices/apartments.
     expect(
-      normalizePropertyType('Mixed-Use Commercial Development with Hypermarket, Hotel, Offices, Gym & Penthouse'),
+      normalizePropertyType(
+        'Mixed-Use Commercial Development with Hypermarket, Hotel, Offices, Gym & Penthouse'
+      )
     ).toBe('Commercial Building');
-    expect(normalizePropertyType('Commercial Building')).toBe('Commercial Building');
-    expect(normalizePropertyType('commercial complex')).toBe('Commercial Building');
-    expect(normalizePropertyType('Hotel building for sale')).toBe('Commercial Building');
+    expect(normalizePropertyType('Commercial Building')).toBe(
+      'Commercial Building'
+    );
+    expect(normalizePropertyType('commercial complex')).toBe(
+      'Commercial Building'
+    );
+    expect(normalizePropertyType('Hotel building for sale')).toBe(
+      'Commercial Building'
+    );
   });
 
   it('still maps plain commercial subtypes to their own values', () => {
-    expect(normalizePropertyType('office space')).toBe('Commercial Office Space');
+    expect(normalizePropertyType('office space')).toBe(
+      'Commercial Office Space'
+    );
     expect(normalizePropertyType('showroom')).toBe('Commercial Showroom');
     expect(normalizePropertyType('commercial land')).toBe('Commercial Land');
-    expect(normalizePropertyType('prime corner commercial plot')).toBe('Commercial Plot');
-    expect(normalizePropertyType('commercial site for sale')).toBe('Commercial Plot');
+    expect(normalizePropertyType('prime corner commercial plot')).toBe(
+      'Commercial Plot'
+    );
+    expect(normalizePropertyType('commercial site for sale')).toBe(
+      'Commercial Plot'
+    );
     expect(normalizePropertyType('flat')).toBe('Flat/ Apartment');
   });
 

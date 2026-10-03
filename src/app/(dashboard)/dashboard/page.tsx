@@ -1,29 +1,29 @@
-"use client"
+'use client';
 
-import { useSearchParams, useRouter } from "next/navigation";
-import { pushUrl } from "@/lib/navigation";
-import { useEffect, useMemo } from "react";
-import { useAuth } from "@/hooks/use-auth";
-import DashboardContent from "./dashboard-content";
-import FocusContent from "./focus-content";
-import TodayPage from "../today/today-content";
-import MatchRadarPage from "../radar/radar-content";
-import PulsePage from "../pulse/pulse-content";
-import GapsContent from "../gaps/gaps-content";
-import ReengagementContent from "../reengagement/reengagement-content";
-import TeamAnalyticsContent from "./team-analytics-content";
-import MarketContent from "./market-content";
-import { FavoriteButton } from "@/components/layout/favorite-button";
+import { useSearchParams, useRouter } from 'next/navigation';
+import { pushUrl } from '@/lib/navigation';
+import { useEffect, useMemo } from 'react';
+import { useAuth } from '@/hooks/use-auth';
+import DashboardContent from './dashboard-content';
+import FocusContent from './focus-content';
+import TodayPage from '../today/today-content';
+import MatchRadarPage from '../radar/radar-content';
+import PulsePage from '../pulse/pulse-content';
+import GapsContent from '../gaps/gaps-content';
+import ReengagementContent from '../reengagement/reengagement-content';
+import TeamAnalyticsContent from './team-analytics-content';
+import MarketContent from './market-content';
+import { FavoriteButton } from '@/components/layout/favorite-button';
 
 type TabId =
-  | "focus"
-  | "overview"
-  | "radar"
-  | "pulse"
-  | "gaps"
-  | "reengagement"
-  | "market"
-  | "team";
+  | 'focus'
+  | 'overview'
+  | 'radar'
+  | 'pulse'
+  | 'gaps'
+  | 'reengagement'
+  | 'market'
+  | 'team';
 
 // Focus leads and is where an unqualified /dashboard lands: it answers
 // "what do I do next?", which is the question an agent opens the app
@@ -31,16 +31,16 @@ type TabId =
 // looking for. Focus replaced the Today tab and absorbed its agenda;
 // Today's remaining signals render underneath it.
 const BASE_TABS: { id: TabId; label: string }[] = [
-  { id: "focus", label: "Focus" },
-  { id: "overview", label: "Overview" },
-  { id: "radar", label: "Match Radar" },
-  { id: "pulse", label: "Pulse" },
-  { id: "gaps", label: "Gaps" },
-  { id: "reengagement", label: "Re-engagement" },
-  { id: "market", label: "Market" },
+  { id: 'focus', label: 'Focus' },
+  { id: 'overview', label: 'Overview' },
+  { id: 'radar', label: 'Match Radar' },
+  { id: 'pulse', label: 'Pulse' },
+  { id: 'gaps', label: 'Gaps' },
+  { id: 'reengagement', label: 'Re-engagement' },
+  { id: 'market', label: 'Market' },
 ];
 
-const DEFAULT_TAB: TabId = "focus";
+const DEFAULT_TAB: TabId = 'focus';
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
@@ -56,40 +56,60 @@ export default function DashboardPage() {
   const tabs = useMemo(
     () =>
       isOrgManager || isOrgLeader
-        ? [...BASE_TABS, { id: "team" as TabId, label: "Team" }]
+        ? [...BASE_TABS, { id: 'team' as TabId, label: 'Team' }]
         : BASE_TABS,
-    [isOrgManager, isOrgLeader],
+    [isOrgManager, isOrgLeader]
   );
 
   const activeTab = useMemo(() => {
-    const tab = searchParams.get("tab") as TabId;
+    const tab = searchParams.get('tab') as TabId;
     return tabs.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
   }, [searchParams, tabs]);
 
   const tabMeta = useMemo(() => {
     switch (activeTab) {
-      case "focus":
-        return { label: "Focus", href: "/dashboard?tab=focus", icon: "Sun" };
-      case "overview":
-        return { label: "Dashboard", href: "/dashboard?tab=overview", icon: "LayoutDashboard" };
-      case "radar":
-        return { label: "Match Radar", href: "/dashboard?tab=radar", icon: "Radar" };
-      case "pulse":
-        return { label: "Pulse", href: "/dashboard?tab=pulse", icon: "Activity" };
-      case "gaps":
-        return { label: "Gaps", href: "/dashboard?tab=gaps", icon: "AlertTriangle" };
-      case "reengagement":
+      case 'focus':
+        return { label: 'Focus', href: '/dashboard?tab=focus', icon: 'Sun' };
+      case 'overview':
         return {
-          label: "Re-engagement",
-          href: "/dashboard?tab=reengagement",
-          icon: "Megaphone",
+          label: 'Dashboard',
+          href: '/dashboard?tab=overview',
+          icon: 'LayoutDashboard',
         };
-      case "market":
-        return { label: "Market", href: "/dashboard?tab=market", icon: "MapPin" };
-      case "team":
-        return { label: "Team", href: "/dashboard?tab=team", icon: "Users" };
+      case 'radar':
+        return {
+          label: 'Match Radar',
+          href: '/dashboard?tab=radar',
+          icon: 'Radar',
+        };
+      case 'pulse':
+        return {
+          label: 'Pulse',
+          href: '/dashboard?tab=pulse',
+          icon: 'Activity',
+        };
+      case 'gaps':
+        return {
+          label: 'Gaps',
+          href: '/dashboard?tab=gaps',
+          icon: 'AlertTriangle',
+        };
+      case 'reengagement':
+        return {
+          label: 'Re-engagement',
+          href: '/dashboard?tab=reengagement',
+          icon: 'Megaphone',
+        };
+      case 'market':
+        return {
+          label: 'Market',
+          href: '/dashboard?tab=market',
+          icon: 'MapPin',
+        };
+      case 'team':
+        return { label: 'Team', href: '/dashboard?tab=team', icon: 'Users' };
       default:
-        return { label: "Focus", href: "/dashboard", icon: "Sun" };
+        return { label: 'Focus', href: '/dashboard', icon: 'Sun' };
     }
   }, [activeTab]);
 
@@ -98,31 +118,36 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6 relative overflow-hidden">
+    <div className="relative space-y-6 overflow-hidden">
       {/* Header */}
       <div className="relative z-10 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+          <h1 className="bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent text-white">
             Dashboard
           </h1>
-          <p className="mt-1.5 text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
-            Access your daily actions, metrics feed, match notifications, and visitors activity.
+          <p className="mt-1.5 text-xs leading-relaxed font-medium text-slate-400 sm:text-sm">
+            Access your daily actions, metrics feed, match notifications, and
+            visitors activity.
           </p>
         </div>
-        <FavoriteButton label={tabMeta.label} href={tabMeta.href} icon={tabMeta.icon} />
+        <FavoriteButton
+          label={tabMeta.label}
+          href={tabMeta.href}
+          icon={tabMeta.icon}
+        />
       </div>
 
       {/* Sleek Tab Bar */}
-      <div className="flex border-b border-slate-800/80 gap-2 relative z-10">
+      <div className="relative z-10 flex gap-2 border-b border-slate-800/80">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => handleTabChange(tab.id)}
             data-tour={`dashboard-tab-${tab.id}`}
-            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+            className={`cursor-pointer border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
               activeTab === tab.id
-                ? "border-primary text-white bg-primary/5"
-                : "border-transparent text-slate-400 hover:text-white"
+                ? 'border-primary bg-primary/5 text-white'
+                : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
             {tab.label}
@@ -132,7 +157,7 @@ export default function DashboardPage() {
 
       {/* Render Active View */}
       <div className="relative z-10">
-        {activeTab === "focus" && (
+        {activeTab === 'focus' && (
           <div className="space-y-6">
             <FocusContent />
             {/* Reply windows, cooling leads and the activity numbers —
@@ -140,13 +165,13 @@ export default function DashboardPage() {
             <TodayPage embedded />
           </div>
         )}
-        {activeTab === "overview" && <DashboardContent />}
-        {activeTab === "radar" && <MatchRadarPage />}
-        {activeTab === "pulse" && <PulsePage />}
-        {activeTab === "gaps" && <GapsContent />}
-        {activeTab === "reengagement" && <ReengagementContent />}
-        {activeTab === "market" && <MarketContent />}
-        {activeTab === "team" && <TeamAnalyticsContent />}
+        {activeTab === 'overview' && <DashboardContent />}
+        {activeTab === 'radar' && <MatchRadarPage />}
+        {activeTab === 'pulse' && <PulsePage />}
+        {activeTab === 'gaps' && <GapsContent />}
+        {activeTab === 'reengagement' && <ReengagementContent />}
+        {activeTab === 'market' && <MarketContent />}
+        {activeTab === 'team' && <TeamAnalyticsContent />}
       </div>
     </div>
   );

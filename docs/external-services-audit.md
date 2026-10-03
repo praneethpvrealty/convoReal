@@ -8,20 +8,20 @@ An inventory of every third-party service ConvoReal depends on, what tier each o
 
 ## 1. Live account state
 
-| | Finding |
-| :--- | :--- |
-| **Vercel** | Team `praneeth-kumar-sajepa-s-projects`, project `convoreal`, Node 24.x. Domains: `convoreal.com`, `www.convoreal.com`, `app.convoreal.com`. **Pro (paid).** |
+|              | Finding                                                                                                                                                                                                              |
+| :----------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Vercel**   | Team `praneeth-kumar-sajepa-s-projects`, project `convoreal`, Node 24.x. Domains: `convoreal.com`, `www.convoreal.com`, `app.convoreal.com`. **Pro (paid).**                                                         |
 | **Supabase** | Org `praneethpvrealty's Org` — **plan: `free`**. Active project `convoReal`, `ap-south-1` (Mumbai), Postgres 17.6, healthy. Two older projects (`sb1-rbimfinl` us-east-1, `wa based crm` ap-southeast-2) are paused. |
 
 How the Vercel tier was determined: all 13 crons in `vercel.json` fired at their configured frequency in a 24-hour window (`broadcast-sweep` 289 invocations, `appointments/cron` 96, `location-request-timeouts` 96). Hobby caps at 2 cron jobs run once per day, so this is only reachable on Pro.
 
 ### Supabase consumption at the time of audit
 
-| Meter | Used | Free-plan limit | Headroom |
-| :--- | :--- | :--- | :--- |
-| Database size | 36 MB | 500 MB | 7% |
-| File storage | ~251 MB | 1 GB | 25% |
-| Auth users | 10 | 50,000 MAU | — |
+| Meter         | Used    | Free-plan limit | Headroom |
+| :------------ | :------ | :-------------- | :------- |
+| Database size | 36 MB   | 500 MB          | 7%       |
+| File storage  | ~251 MB | 1 GB            | 25%      |
+| Auth users    | 10      | 50,000 MAU      | —        |
 
 Storage breakdown: `property-images` 572 files / 183 MB, `property-videos` 48 MB, `property-documents` 18 MB, `property-images-private` 618 kB, `avatars` 1.65 MB. `chat-media`, `flow-media` and `call-recordings` are empty.
 
@@ -35,49 +35,49 @@ Derived per-account averages used for the projections in §5: **~25 MB storage**
 
 ### 2.1 Infrastructure
 
-| Service | Used for | Tier | Limits that bind |
-| :--- | :--- | :--- | :--- |
-| **Vercel** | Next.js hosting, 13 cron jobs, `@vercel/analytics` | **Paid — Pro, $20/developer/mo** | 1 TB fast data transfer, 10M edge requests included; $20/mo credit then on-demand. Function timeout 300s default (800s max). **Cron function timeout is 60s on Pro** — `broadcast-sweep` and the digest crons must finish inside it. |
-| **Supabase** | Postgres, Auth, Storage (8 buckets), Realtime | **Free — should be Pro ($25/mo)** | 500 MB DB, 1 GB storage, 5 GB egress, **no backups**, 1-day log retention, 2 active projects, pauses after 7 days idle. Pro: 8 GB DB, 100 GB storage, 250 GB egress, 7-day PITR. |
-| **Upstash Redis** | `whatsapp-webhooks` queue + DLQ (`REDIS_URL`) | Free tier per `docs/production-deployment.md` | 256 MB, **500K commands/month**, then $0.20/100K. |
-| **Railway** | `go-ingress` container + `queue-worker` daemon | Hobby $5/mo per deployment docs | Hobby includes $5 usage; the Free plan's $1/mo credit will not keep two always-on containers running. Two 512 MB containers run ~$10–15/mo all-in. |
-| **Cloudflare** | DNS, WAF, Email Routing on `leads.convoreal.com`, Worker `convoreal-leads-webhook-forwarder`, Workers KV `LEADS_LEDGER` | **Free** (explicit in `docs/CLOUDFLARE_EMAIL_SETUP.md`) | Workers: 100k req/day, 10ms CPU/req. KV: 100k reads, 1k writes/day. Email Routing unmetered. |
+| Service           | Used for                                                                                                                | Tier                                                    | Limits that bind                                                                                                                                                                                                                     |
+| :---------------- | :---------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Vercel**        | Next.js hosting, 13 cron jobs, `@vercel/analytics`                                                                      | **Paid — Pro, $20/developer/mo**                        | 1 TB fast data transfer, 10M edge requests included; $20/mo credit then on-demand. Function timeout 300s default (800s max). **Cron function timeout is 60s on Pro** — `broadcast-sweep` and the digest crons must finish inside it. |
+| **Supabase**      | Postgres, Auth, Storage (8 buckets), Realtime                                                                           | **Free — should be Pro ($25/mo)**                       | 500 MB DB, 1 GB storage, 5 GB egress, **no backups**, 1-day log retention, 2 active projects, pauses after 7 days idle. Pro: 8 GB DB, 100 GB storage, 250 GB egress, 7-day PITR.                                                     |
+| **Upstash Redis** | `whatsapp-webhooks` queue + DLQ (`REDIS_URL`)                                                                           | Free tier per `docs/production-deployment.md`           | 256 MB, **500K commands/month**, then $0.20/100K.                                                                                                                                                                                    |
+| **Railway**       | `go-ingress` container + `queue-worker` daemon                                                                          | Hobby $5/mo per deployment docs                         | Hobby includes $5 usage; the Free plan's $1/mo credit will not keep two always-on containers running. Two 512 MB containers run ~$10–15/mo all-in.                                                                                   |
+| **Cloudflare**    | DNS, WAF, Email Routing on `leads.convoreal.com`, Worker `convoreal-leads-webhook-forwarder`, Workers KV `LEADS_LEDGER` | **Free** (explicit in `docs/CLOUDFLARE_EMAIL_SETUP.md`) | Workers: 100k req/day, 10ms CPU/req. KV: 100k reads, 1k writes/day. Email Routing unmetered.                                                                                                                                         |
 
 ### 2.2 Meta / WhatsApp
 
-| Service | Used for | Tier | Limits |
-| :--- | :--- | :--- | :--- |
-| **WhatsApp Cloud API** (Graph v21.0) | All messaging, templates, media, flows | **Usage-billed, no subscription** | India: marketing **₹1.09/msg**, utility & authentication **₹0.145/msg**, service (in-window) currently free. See §6 for the pricing changes landing in 2026. |
-| **Meta Ads API** | Campaign integration | Free API, gated by `META_ADS_ENABLED` | Ad spend is separate. Currently off. |
+| Service                              | Used for                               | Tier                                  | Limits                                                                                                                                                       |
+| :----------------------------------- | :------------------------------------- | :------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **WhatsApp Cloud API** (Graph v21.0) | All messaging, templates, media, flows | **Usage-billed, no subscription**     | India: marketing **₹1.09/msg**, utility & authentication **₹0.145/msg**, service (in-window) currently free. See §6 for the pricing changes landing in 2026. |
+| **Meta Ads API**                     | Campaign integration                   | Free API, gated by `META_ADS_ENABLED` | Ad spend is separate. Currently off.                                                                                                                         |
 
 ### 2.3 AI & media — all usage-billed, no subscriptions
 
-| Service | Used for | Tier | Limits |
-| :--- | :--- | :--- | :--- |
-| **Google Gemini** | Copilot, chatbot engine, intake parsing, listing derivations, `gemini-embedding-001`. Chains in `src/lib/ai/gemini.ts`: standard `gemini-3.8-flash` → `gemini-3.6-flash` → `gemini-3.5-flash`, self-healing via the daily `gemini-model-lifecycle` cron; lite `gemini-3.1-flash-lite` → `gemini-3.5-flash-lite` → the standard chain | Free unless billing is attached | Free tier limits are per model. Paid: 3.8/3.6 Flash $0.75/M input, $3.75/M output until 31 Dec 2026, then $1.50/$7.50; 3.5 Flash $1.50/$9.00. |
-| **Google Maps / Places** | Locality lookup, inventory map | Pay-as-you-go | The universal $200 credit was retired in March 2025. Now **10,000 free calls per SKU per month, non-pooling**. Place Details $5/1,000 on Essentials thereafter. Geocoding, reverse geocoding and showcase area lookups sit behind `maps_lookup_cache` (`src/lib/maps/lookup-cache.ts`, 30-day hits, 7-day misses); a property Google cannot place is retried by the radius-search self-heal at most once every 30 days (`properties.geocode_attempted_at`). Autocomplete sessions are not cached: a session that ends without a Place Details pick is billed per request, so skipping the pick would cost more, not less. |
-| **Google OAuth + YouTube Data API** | Listing video upload | Free API | **10,000 quota units/day; one upload costs ~1,600 units → ~6 uploads/day per project.** Hard ceiling. |
-| **Stability AI** | AI photo enhancement (`sd3` / `ultra`) | Prepaid credits | ~$0.04/image SD3, ~$0.08 Ultra. No free tier. |
-| **Hugging Face** | Image-gen fallback via router → `fal-ai/FLUX.1-dev` | PAYG via HF Inference Providers | Free credits are minimal; routed provider cost passes through. |
-| **Sarvam AI** | TTS narration for generated listing videos | Usage-billed | Per-character billing. |
+| Service                             | Used for                                                                                                                                                                                                                                                                                                                             | Tier                            | Limits                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| :---------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Google Gemini**                   | Copilot, chatbot engine, intake parsing, listing derivations, `gemini-embedding-001`. Chains in `src/lib/ai/gemini.ts`: standard `gemini-3.8-flash` → `gemini-3.6-flash` → `gemini-3.5-flash`, self-healing via the daily `gemini-model-lifecycle` cron; lite `gemini-3.1-flash-lite` → `gemini-3.5-flash-lite` → the standard chain | Free unless billing is attached | Free tier limits are per model. Paid: 3.8/3.6 Flash $0.75/M input, $3.75/M output until 31 Dec 2026, then $1.50/$7.50; 3.5 Flash $1.50/$9.00.                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Google Maps / Places**            | Locality lookup, inventory map                                                                                                                                                                                                                                                                                                       | Pay-as-you-go                   | The universal $200 credit was retired in March 2025. Now **10,000 free calls per SKU per month, non-pooling**. Place Details $5/1,000 on Essentials thereafter. Geocoding, reverse geocoding and showcase area lookups sit behind `maps_lookup_cache` (`src/lib/maps/lookup-cache.ts`, 30-day hits, 7-day misses); a property Google cannot place is retried by the radius-search self-heal at most once every 30 days (`properties.geocode_attempted_at`). Autocomplete sessions are not cached: a session that ends without a Place Details pick is billed per request, so skipping the pick would cost more, not less. |
+| **Google OAuth + YouTube Data API** | Listing video upload                                                                                                                                                                                                                                                                                                                 | Free API                        | **10,000 quota units/day; one upload costs ~1,600 units → ~6 uploads/day per project.** Hard ceiling.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Stability AI**                    | AI photo enhancement (`sd3` / `ultra`)                                                                                                                                                                                                                                                                                               | Prepaid credits                 | ~$0.04/image SD3, ~$0.08 Ultra. No free tier.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Hugging Face**                    | Image-gen fallback via router → `fal-ai/FLUX.1-dev`                                                                                                                                                                                                                                                                                  | PAYG via HF Inference Providers | Free credits are minimal; routed provider cost passes through.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Sarvam AI**                       | TTS narration for generated listing videos                                                                                                                                                                                                                                                                                           | Usage-billed                    | Per-character billing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 ### 2.4 Payments, email, comms
 
-| Service | Used for | Tier | Notes |
-| :--- | :--- | :--- | :--- |
-| **Razorpay** | Marketplace + subscription checkout (India) | No subscription | ~2% + GST per domestic transaction. |
-| **Stripe** | Credit top-ups | No subscription | ~2.9% + 30¢ (international rate). |
-| **Resend** | Transactional email — support tickets, password resets, sandbox cron, billing extension notices, image-cleanup notices. Not auth OTP (that is WhatsApp — see §3) | **Free** | 3,000 emails/mo, **hard cap 100/day**, one domain. Pro is $20/mo for 50,000. Volume is admin/ops only, so this tier has long headroom. Repricing risk and exit cost in §7. |
-| **IMAP lead sync** | `IMAP_HOST` / `IMAP_USER` / `IMAP_PASSWORD` | **Not wired.** `/api/leads/sync-emails` returns "IMAP sync is currently unconfigured"; no IMAP library in `package.json`. Superseded by the Cloudflare email worker. | — |
+| Service            | Used for                                                                                                                                                         | Tier                                                                                                                                                                 | Notes                                                                                                                                                                      |
+| :----------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Razorpay**       | Marketplace + subscription checkout (India)                                                                                                                      | No subscription                                                                                                                                                      | ~2% + GST per domestic transaction.                                                                                                                                        |
+| **Stripe**         | Credit top-ups                                                                                                                                                   | No subscription                                                                                                                                                      | ~2.9% + 30¢ (international rate).                                                                                                                                          |
+| **Resend**         | Transactional email — support tickets, password resets, sandbox cron, billing extension notices, image-cleanup notices. Not auth OTP (that is WhatsApp — see §3) | **Free**                                                                                                                                                             | 3,000 emails/mo, **hard cap 100/day**, one domain. Pro is $20/mo for 50,000. Volume is admin/ops only, so this tier has long headroom. Repricing risk and exit cost in §7. |
+| **IMAP lead sync** | `IMAP_HOST` / `IMAP_USER` / `IMAP_PASSWORD`                                                                                                                      | **Not wired.** `/api/leads/sync-emails` returns "IMAP sync is currently unconfigured"; no IMAP library in `package.json`. Superseded by the Cloudflare email worker. | —                                                                                                                                                                          |
 
 ### 2.5 Dev, CI, mobile
 
-| Service | Used for | Tier | Limits |
-| :--- | :--- | :--- | :--- |
-| **GitHub** | Repo + Actions (`ci.yml`, `opencode.yml`) | Free public / 2,000 min/mo private | `main` protection ruleset requires the `CI` gate job. |
-| **OpenCode** (`anomalyco/opencode/github@latest`) | `/oc` PR-comment agent, `OPENCODE_API_KEY`, model `opencode/deepseek-v4-flash-free` | Free model selected | Third-party Action with repo read access — review if not deliberately adopted. |
-| **Expo / EAS** | Mobile builds, updates, submit. Owner `praneethpvrealtys-team`, project `35ac40bb-d476-4b1f-ae5f-139b38e409dd` | **Free tier** | Cost model in §2.6. |
-| **Apple Developer / Google Play** | `com.convoreal.app` distribution | $99/yr + $25 one-time | Required to publish. Store review takes weeks. |
+| Service                                           | Used for                                                                                                       | Tier                               | Limits                                                                         |
+| :------------------------------------------------ | :------------------------------------------------------------------------------------------------------------- | :--------------------------------- | :----------------------------------------------------------------------------- |
+| **GitHub**                                        | Repo + Actions (`ci.yml`, `opencode.yml`)                                                                      | Free public / 2,000 min/mo private | `main` protection ruleset requires the `CI` gate job.                          |
+| **OpenCode** (`anomalyco/opencode/github@latest`) | `/oc` PR-comment agent, `OPENCODE_API_KEY`, model `opencode/deepseek-v4-flash-free`                            | Free model selected                | Third-party Action with repo read access — review if not deliberately adopted. |
+| **Expo / EAS**                                    | Mobile builds, updates, submit. Owner `praneethpvrealtys-team`, project `35ac40bb-d476-4b1f-ae5f-139b38e409dd` | **Free tier**                      | Cost model in §2.6.                                                            |
+| **Apple Developer / Google Play**                 | `com.convoreal.app` distribution                                                                               | $99/yr + $25 one-time              | Required to publish. Store review takes weeks.                                 |
 
 ### 2.6 Mobile release costs — EAS, Apple, Google
 
@@ -85,12 +85,12 @@ EAS is billed on two independent meters, **builds** and **updates**, and `mobile
 
 #### Plan ladder
 
-| Plan | Price | Build credits | Update MAU | Concurrency |
-| :--- | :--- | :--- | :--- | :--- |
-| **Free** *(current)* | $0 | 15 Android + 15 iOS builds/mo | 1,000 | none — builds queue at low priority |
-| **Starter** | $19/mo + usage | $45/mo | 3,000 | none included |
-| **Production** | $199/mo + usage | $225/mo | 50,000 | 2 included |
-| Enterprise | quoted | — | — | — |
+| Plan                 | Price           | Build credits                 | Update MAU | Concurrency                         |
+| :------------------- | :-------------- | :---------------------------- | :--------- | :---------------------------------- |
+| **Free** _(current)_ | $0              | 15 Android + 15 iOS builds/mo | 1,000      | none — builds queue at low priority |
+| **Starter**          | $19/mo + usage  | $45/mo                        | 3,000      | none included                       |
+| **Production**       | $199/mo + usage | $225/mo                       | 50,000     | 2 included                          |
+| Enterprise           | quoted          | —                             | —          | —                                   |
 
 Additional build concurrency is a **$50/concurrency/month** add-on on any paid plan, up to 5. Build credits reset monthly and **do not roll over**.
 
@@ -98,7 +98,7 @@ Additional build concurrency is a **$50/concurrency/month** add-on on any paid p
 
 Once the free builds or a plan's credits are spent, builds bill per build at roughly **$1–4** depending on platform and worker size — around $1 for a medium Android worker and $2–4 for iOS. Larger workers (8 vCPU / 32 GB Android, 10 performance cores / 40 GiB iOS) cost more and build faster.
 
-> **These figures are not confirmed against the authoritative schedule.** Expo publishes the per-build price table only on `expo.dev/pricing`, and both `expo.dev` and `docs.expo.dev` are blocked by this environment's egress policy (403 on the proxy CONNECT tunnel), so it could not be read. The numbers above come from the worked examples in Expo's own documentation source, [`docs/pages/billing/usage-based-pricing.mdx`](https://github.com/expo/expo/blob/main/docs/pages/billing/usage-based-pricing.mdx), which presents them as illustrative calculations rather than a price table and defers to the pricing page for the real schedule. Treat the *shape* as reliable and the exact dollar amounts as indicative. **Check `expo.dev/pricing` before letting these drive the Starter-versus-Production decision.** The plan ladder above, by contrast, is corroborated across independent sources.
+> **These figures are not confirmed against the authoritative schedule.** Expo publishes the per-build price table only on `expo.dev/pricing`, and both `expo.dev` and `docs.expo.dev` are blocked by this environment's egress policy (403 on the proxy CONNECT tunnel), so it could not be read. The numbers above come from the worked examples in Expo's own documentation source, [`docs/pages/billing/usage-based-pricing.mdx`](https://github.com/expo/expo/blob/main/docs/pages/billing/usage-based-pricing.mdx), which presents them as illustrative calculations rather than a price table and defers to the pricing page for the real schedule. Treat the _shape_ as reliable and the exact dollar amounts as indicative. **Check `expo.dev/pricing` before letting these drive the Starter-versus-Production decision.** The plan ladder above, by contrast, is corroborated across independent sources.
 
 Practical shape of this: at ~$2/build, the Starter plan's $45 credit is around 20–25 builds. The free tier's 15+15 is generous for pre-release work but the real constraint there is **queue priority, not the count** — free builds wait behind paid ones, which stops mattering the moment a release is time-boxed.
 
@@ -137,7 +137,7 @@ Two consequences worth tracking:
 - **WhatsApp is on the authentication critical path.** If `whatsapp_config` breaks for the account issuing OTPs, users cannot log in. This is a higher-severity single point of failure than anything in the cost tables below.
 - **Every OTP is a billable authentication-category message** at India's ₹0.145 rate. This scales with login frequency, not account count — roughly ₹580/mo at 200 accounts averaging 20 logins each.
 
-**Conditional caveat:** if email confirmation is ever switched on, or magic-link email login is added, custom SMTP must be configured *first* (*Authentication → Emails → SMTP Settings*, pointed at the existing Resend account) — otherwise the default provider's 2/hour, team-addresses-only limits do become a hard blocker. It is not a blocker today.
+**Conditional caveat:** if email confirmation is ever switched on, or magic-link email login is added, custom SMTP must be configured _first_ (_Authentication → Emails → SMTP Settings_, pointed at the existing Resend account) — otherwise the default provider's 2/hour, team-addresses-only limits do become a hard blocker. It is not a blocker today.
 
 ---
 
@@ -145,15 +145,15 @@ Two consequences worth tracking:
 
 This table is the infrastructure gate for the invite-only beta; [`docs/invite-only-beta-plan.md`](./invite-only-beta-plan.md) §7 restates it as a launch-day checklist with the beta-specific consequence of each item.
 
-| Action | Cost | Rationale |
-| :--- | :--- | :--- |
-| Supabase Free → **Pro** | **$25/mo** | Backups + 7-day PITR, and removes the 500 MB / 1 GB / 5 GB ceilings and the idle-pause risk. Required the moment a paying customer's data lands. |
-| Confirm the OTP-sending WhatsApp number is healthy and monitored | $0 | §3. WhatsApp is the login path; if it breaks, nobody can sign in. |
-| Attach billing to the Gemini API key | ~$5/mo actual | 500 req/day free cap. Digest crons batch AI calls and fail **silently** when throttled. |
-| Verify Railway is on Hobby, not Free | ~$10–15/mo | The Free plan's $1/mo credit cannot keep `go-ingress` and `queue-worker` running 24/7. |
-| Upstash: enable pay-as-you-go, stay on the free tier | $0 until 500K commands | Prevents a hard stop at the free ceiling; $0.20/100K after. No fixed plan needed. |
-| Sentry Developer (or equivalent) | $0 | There is currently no error monitoring at all. |
-| Apple Developer + Google Play, if mobile ships | $99/yr + $25 once | Enrolment plus first review takes weeks — start before the build pipeline is ready (§2.6). |
+| Action                                                           | Cost                   | Rationale                                                                                                                                        |
+| :--------------------------------------------------------------- | :--------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supabase Free → **Pro**                                          | **$25/mo**             | Backups + 7-day PITR, and removes the 500 MB / 1 GB / 5 GB ceilings and the idle-pause risk. Required the moment a paying customer's data lands. |
+| Confirm the OTP-sending WhatsApp number is healthy and monitored | $0                     | §3. WhatsApp is the login path; if it breaks, nobody can sign in.                                                                                |
+| Attach billing to the Gemini API key                             | ~$5/mo actual          | 500 req/day free cap. Digest crons batch AI calls and fail **silently** when throttled.                                                          |
+| Verify Railway is on Hobby, not Free                             | ~$10–15/mo             | The Free plan's $1/mo credit cannot keep `go-ingress` and `queue-worker` running 24/7.                                                           |
+| Upstash: enable pay-as-you-go, stay on the free tier             | $0 until 500K commands | Prevents a hard stop at the free ceiling; $0.20/100K after. No fixed plan needed.                                                                |
+| Sentry Developer (or equivalent)                                 | $0                     | There is currently no error monitoring at all.                                                                                                   |
+| Apple Developer + Google Play, if mobile ships                   | $99/yr + $25 once      | Enrolment plus first review takes weeks — start before the build pipeline is ready (§2.6).                                                       |
 
 **Launch-month run rate: ~$68/mo (≈ ₹6,000)**, inclusive of the existing Vercel Pro $20.
 
@@ -165,17 +165,17 @@ Against ConvoReal's own pricing in `src/lib/billing/plan-config.ts` — Solo Pro
 
 Thresholds projected from the §1 per-account averages.
 
-| Watch | Threshold | Action | Cost |
-| :--- | :--- | :--- | :--- |
-| **Supabase egress** | >200 GB/mo — roughly **~200 active accounts**, assuming ~500 showcase visits per account at ~2.5 MB of images per visit | **This is the first real ceiling.** Move `property-images` behind a CDN or Cloudflare R2 (zero egress fees) | R2 ~$0.015/GB stored, $0 egress |
-| **Upstash commands** | >500K/mo — roughly **~50 accounts** at ~1,000 WhatsApp messages each | Nothing; PAYG absorbs it | ~$2–20/mo |
-| **Supabase DB size** | >6 GB of 8 — **~2,000+ accounts** | Compute add-on / larger disk | +$10–60/mo |
-| **Supabase storage** | >80 GB of 100 — **~3,500 accounts** | Same R2 move as egress | — |
-| **Resend** | >60 emails/day or >2,500/mo | Pro | $20/mo |
-| **Vercel** | Transfer >800 GB or edge requests >8M | Nothing — Pro's $20 credit absorbs overage first | usage-based |
-| **Railway** | Worker CPU sustained >70%, or queue depth growing | Add worker replicas | ~$5/replica |
-| **Expo EAS builds** | >15 builds/month per platform, or release timing blocked by free-tier queue priority | Starter ($19/mo, $45 credits). **Do not move to Production ($199/mo)** until past ~40k MAU — see §2.6 | $19/mo + ~$1–4/build |
-| **Expo EAS updates** | Update MAU >1,000 | Same Starter upgrade (3,000 MAU). This meter is separate from builds and has no self-hosted escape | included in Starter |
+| Watch                | Threshold                                                                                                               | Action                                                                                                      | Cost                            |
+| :------------------- | :---------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------- | :------------------------------ |
+| **Supabase egress**  | >200 GB/mo — roughly **~200 active accounts**, assuming ~500 showcase visits per account at ~2.5 MB of images per visit | **This is the first real ceiling.** Move `property-images` behind a CDN or Cloudflare R2 (zero egress fees) | R2 ~$0.015/GB stored, $0 egress |
+| **Upstash commands** | >500K/mo — roughly **~50 accounts** at ~1,000 WhatsApp messages each                                                    | Nothing; PAYG absorbs it                                                                                    | ~$2–20/mo                       |
+| **Supabase DB size** | >6 GB of 8 — **~2,000+ accounts**                                                                                       | Compute add-on / larger disk                                                                                | +$10–60/mo                      |
+| **Supabase storage** | >80 GB of 100 — **~3,500 accounts**                                                                                     | Same R2 move as egress                                                                                      | —                               |
+| **Resend**           | >60 emails/day or >2,500/mo                                                                                             | Pro                                                                                                         | $20/mo                          |
+| **Vercel**           | Transfer >800 GB or edge requests >8M                                                                                   | Nothing — Pro's $20 credit absorbs overage first                                                            | usage-based                     |
+| **Railway**          | Worker CPU sustained >70%, or queue depth growing                                                                       | Add worker replicas                                                                                         | ~$5/replica                     |
+| **Expo EAS builds**  | >15 builds/month per platform, or release timing blocked by free-tier queue priority                                    | Starter ($19/mo, $45 credits). **Do not move to Production ($199/mo)** until past ~40k MAU — see §2.6       | $19/mo + ~$1–4/build            |
+| **Expo EAS updates** | Update MAU >1,000                                                                                                       | Same Starter upgrade (3,000 MAU). This meter is separate from builds and has no self-hosted escape          | included in Starter             |
 
 The shape of that table matters more than any single row: **Supabase Pro carries the product to roughly 200 accounts before anything else needs money, and the meter that breaks first is image egress from the public showcase** — not database size, not compute. The CDN/R2 migration is the one architectural change worth planning ahead for. Everything in `docs/scaling-costs.md` beyond Tier 1 should stay unbought until its trigger actually moves.
 
@@ -212,11 +212,11 @@ The one thing that would widen the blast radius: wiring Supabase Auth SMTP to Re
 
 Replacement candidates, for an India-based entity billing in INR:
 
-| Option | Cost | Trade-off |
-| :--- | :--- | :--- |
-| **Amazon SES** (Mumbai `ap-south-1`) | ~$0.10 per 1,000 | Cheapest at any volume, same region as Supabase. Requires a production-access request to exit sandbox mode; heavier setup. |
-| **Zoho ZeptoMail** | ~$2.50 per 10,000 | India-based, INR billing, transactional-only. Simplest migration. |
-| **Brevo** | 300/day free (~9,000/mo) | A more generous free tier than Resend's, if the goal is to stay at zero cost. |
+| Option                               | Cost                     | Trade-off                                                                                                                  |
+| :----------------------------------- | :----------------------- | :------------------------------------------------------------------------------------------------------------------------- |
+| **Amazon SES** (Mumbai `ap-south-1`) | ~$0.10 per 1,000         | Cheapest at any volume, same region as Supabase. Requires a production-access request to exit sandbox mode; heavier setup. |
+| **Zoho ZeptoMail**                   | ~$2.50 per 10,000        | India-based, INR billing, transactional-only. Simplest migration.                                                          |
+| **Brevo**                            | 300/day free (~9,000/mo) | A more generous free tier than Resend's, if the goal is to stay at zero cost.                                              |
 
 At current volume — admin and ops mail only, with auth OTP on WhatsApp (§3) — SES would cost well under $1/month.
 

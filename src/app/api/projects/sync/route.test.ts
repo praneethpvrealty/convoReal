@@ -9,7 +9,8 @@ const { requireRole, generateJson, supabaseAdmin, insert } = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth/account', () => ({
   requireRole,
-  toErrorResponse: () => Response.json({ error: 'Unauthorized' }, { status: 401 }),
+  toErrorResponse: () =>
+    Response.json({ error: 'Unauthorized' }, { status: 401 }),
 }));
 vi.mock('@/lib/ai/gemini', () => ({ generateJson }));
 vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin }));
@@ -39,7 +40,7 @@ describe('POST /api/projects/sync', () => {
           sublocality: 'Bidadi',
           rera_registration_number: 'PRM/KA/RERA/1251/310/PR/260616/123456',
         },
-      ]),
+      ])
     );
 
     const res = await POST();
@@ -48,16 +49,24 @@ describe('POST /api/projects/sync', () => {
     expect(generateJson).toHaveBeenCalledWith(
       expect.any(String),
       expect.any(String),
-      expect.objectContaining({ feature: 'project_sync' }),
+      expect.objectContaining({ feature: 'project_sync' })
     );
     const rows = insert.mock.calls.flatMap((call) => call[0]);
     expect(rows.length).toBeGreaterThan(1);
     expect(JSON.stringify(rows)).not.toContain('PRM/KA/RERA');
-    expect(rows.find((r: { name: string }) => r.name === 'Swiss Town')).toBeUndefined();
-    expect(rows.find((r: { name: string }) => r.name === 'Outskirts Greens')).toMatchObject({
+    expect(
+      rows.find((r: { name: string }) => r.name === 'Swiss Town')
+    ).toBeUndefined();
+    expect(
+      rows.find((r: { name: string }) => r.name === 'Outskirts Greens')
+    ).toMatchObject({
       source: 'ai',
       rera_registration_number: null,
     });
-    expect(rows.every((r: { source: string }) => r.source === 'curated' || r.source === 'ai')).toBe(true);
+    expect(
+      rows.every(
+        (r: { source: string }) => r.source === 'curated' || r.source === 'ai'
+      )
+    ).toBe(true);
   });
 });

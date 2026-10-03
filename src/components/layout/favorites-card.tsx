@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useTransition } from "react";
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useState, useEffect, useTransition } from 'react';
+import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   ChevronLeft,
   ChevronRight,
@@ -24,9 +24,9 @@ import {
   Settings,
   Landmark,
   Briefcase,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { readFavorites, type FavoriteItem } from "@/lib/favorites-storage";
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { readFavorites, type FavoriteItem } from '@/lib/favorites-storage';
 
 const ICON_MAP: Record<string, typeof LayoutDashboard> = {
   LayoutDashboard,
@@ -56,7 +56,8 @@ export function FavoritesCard() {
   const [, startTransition] = useTransition();
 
   // Re-build current full URL (with tab search params) to highlight the active favorite
-  const currentFullPath = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+  const currentFullPath =
+    pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '');
 
   const loadFavorites = () => {
     setFavorites(readFavorites());
@@ -71,9 +72,9 @@ export function FavoritesCard() {
       loadFavorites();
     };
 
-    window.addEventListener("favorites-changed", handleUpdate);
+    window.addEventListener('favorites-changed', handleUpdate);
     return () => {
-      window.removeEventListener("favorites-changed", handleUpdate);
+      window.removeEventListener('favorites-changed', handleUpdate);
     };
   }, []);
 
@@ -120,16 +121,16 @@ export function FavoritesCard() {
   const visibleItems = favorites.slice(startIndex, startIndex + 2);
 
   return (
-    <div className="mx-3 my-2 rounded-xl border border-slate-900/60 bg-slate-950/20 p-3 backdrop-blur-md relative overflow-hidden">
+    <div className="relative mx-3 my-2 overflow-hidden rounded-xl border border-slate-900/60 bg-slate-950/20 p-3 backdrop-blur-md">
       {/* Glow highlight inside card */}
-      <div className="absolute -top-10 -right-10 w-24 h-24 bg-amber-500/5 rounded-full blur-xl pointer-events-none" />
+      <div className="pointer-events-none absolute -top-10 -right-10 h-24 w-24 rounded-full bg-amber-500/5 blur-xl" />
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs font-bold text-white">
           <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.4)]" />
           <span>Favourites</span>
-          <span className="text-[10px] text-slate-500 font-semibold px-1.5 py-0.5 rounded-full bg-slate-900/55 border border-slate-800/40">
+          <span className="rounded-full border border-slate-800/40 bg-slate-900/55 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
             {favorites.length}
           </span>
         </div>
@@ -141,7 +142,7 @@ export function FavoritesCard() {
               onClick={handlePrev}
               disabled={startIndex === 0}
               className={cn(
-                "h-5 w-5 flex items-center justify-center rounded bg-slate-900/40 border border-slate-800/45 cursor-pointer text-slate-400 hover:text-white transition-all disabled:opacity-30 disabled:pointer-events-none"
+                'flex h-5 w-5 cursor-pointer items-center justify-center rounded border border-slate-800/45 bg-slate-900/40 text-slate-400 transition-all hover:text-white disabled:pointer-events-none disabled:opacity-30'
               )}
             >
               <ChevronLeft className="h-3 w-3" />
@@ -150,7 +151,7 @@ export function FavoritesCard() {
               onClick={handleNext}
               disabled={startIndex + 2 >= favorites.length}
               className={cn(
-                "h-5 w-5 flex items-center justify-center rounded bg-slate-900/40 border border-slate-800/45 cursor-pointer text-slate-400 hover:text-white transition-all disabled:opacity-30 disabled:pointer-events-none"
+                'flex h-5 w-5 cursor-pointer items-center justify-center rounded border border-slate-800/45 bg-slate-900/40 text-slate-400 transition-all hover:text-white disabled:pointer-events-none disabled:opacity-30'
               )}
             >
               <ChevronRight className="h-3 w-3" />
@@ -163,26 +164,29 @@ export function FavoritesCard() {
       <div className="mt-2.5 flex flex-col gap-2">
         {visibleItems.map((item) => {
           const IconComponent = ICON_MAP[item.icon] || LayoutDashboard;
-          const isActive = currentFullPath === item.href || pathname === item.href;
+          const isActive =
+            currentFullPath === item.href || pathname === item.href;
 
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "group flex items-center gap-2.5 rounded-lg p-2 text-xs border transition-all duration-200",
+                'group flex items-center gap-2.5 rounded-lg border p-2 text-xs transition-all duration-200',
                 isActive
-                  ? "bg-primary/10 border-primary/40 text-primary font-bold shadow-[inset_0_1px_12px_rgba(var(--primary-rgb),0.08)]"
-                  : "bg-slate-900/40 hover:bg-slate-800/40 border-slate-900 hover:border-slate-800 text-slate-400 hover:text-slate-200"
+                  ? 'bg-primary/10 border-primary/40 text-primary font-bold shadow-[inset_0_1px_12px_rgba(var(--primary-rgb),0.08)]'
+                  : 'border-slate-900 bg-slate-900/40 text-slate-400 hover:border-slate-800 hover:bg-slate-800/40 hover:text-slate-200'
               )}
             >
               <IconComponent
                 className={cn(
-                  "h-3.5 w-3.5 transition-all group-hover:scale-115",
-                  isActive ? "text-primary" : "text-slate-400 group-hover:text-slate-200"
+                  'h-3.5 w-3.5 transition-all group-hover:scale-115',
+                  isActive
+                    ? 'text-primary'
+                    : 'text-slate-400 group-hover:text-slate-200'
                 )}
               />
-              <span className="truncate flex-1">{item.label}</span>
+              <span className="flex-1 truncate">{item.label}</span>
             </Link>
           );
         })}

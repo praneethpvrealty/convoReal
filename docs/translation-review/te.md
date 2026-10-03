@@ -5,7 +5,7 @@ These are every word ConvoReal sends to a client in Telugu. They were drafted by
 ## What to look for
 
 1. **Does it read naturally**, or like translated English?
-2. **Keep it flat and factual.** These are deliberately dry — labelled fields, no emoji, no "don't miss out". That dryness is what lets WhatsApp classify them as *Utility* messages, which reach people who have hit their marketing limit. Adding warmth or urgency can get the message re-classified, and that cannot be undone. Please do not make it more persuasive.
+2. **Keep it flat and factual.** These are deliberately dry — labelled fields, no emoji, no "don't miss out". That dryness is what lets WhatsApp classify them as _Utility_ messages, which reach people who have hit their marketing limit. Adding warmth or urgency can get the message re-classified, and that cannot be undone. Please do not make it more persuasive.
 3. **Leave every `{{1}}`, `{{2}}` … exactly as they are.** They are filled in with real names and prices when the message is sent. You may move one within the sentence, but do not delete one, add one, or let two sit next to each other with only a comma between.
 4. **Buttons must stay under 25 characters** — WhatsApp refuses longer ones.
 
@@ -17,31 +17,31 @@ Write your correction in the last column / block. Leave it blank if the current 
 
 The tappable options underneath a message.
 
-| # | English | తెలుగు (current) | Length | Your correction |
-|---|---------|---------------------|--------|-----------------|
-| 1 | Send more details | మరిన్ని వివరాలు | 15/25 | |
-| 2 | Send full list | పూర్తి జాబితా | 13/25 | |
-| 3 | Book a site visit | సైట్ విజిట్ బుక్ | 16/25 | |
-| 4 | Update my preferences | ప్రాధాన్యత మార్చు | 17/25 | |
-| 5 | Close my enquiry | విచారణ మూసివేయి | 15/25 | |
-| 6 | Still considering it | ఇంకా పరిశీలిస్తున్నా | 20/25 | |
-| 7 | Today itself | ఈరోజే | 5/25 | |
-| 8 | In 2 days | 2 రోజుల్లో | 10/25 | |
-| 9 | Yes, send them | అవును, పంపండి | 13/25 | |
-| 10 | Paperwork on track | పత్రాల పని సవ్యంగా ఉంది | 23/25 | |
-| 11 | Something is pending | ఏదో పెండింగ్‌లో ఉంది | 20/25 | |
-| 12 | Approve request | అభ్యర్థన ఆమోదించండి | 19/25 | |
-| 13 | Decline request | అభ్యర్థన తిరస్కరించు | 20/25 | |
-| 14 | Approve access | యాక్సెస్ ఆమోదించండి | 19/25 | |
-| 15 | It's perfect | ఇది ఖచ్చితమైనది | 15/25 | |
-| 16 | Not interested | ఆసక్తి లేదు | 11/25 | |
-| 17 | Reject access | యాక్సెస్ తిరస్కరించు | 20/25 | |
-| 18 | Can't say yet | ఇప్పుడే చెప్పలేను | 17/25 | |
-| 19 | View full details | పూర్తి వివరాలు చూడు | 19/25 | |
-| 20 | View location | స్థానం చూడండి | 13/25 | |
-| 21 | Browse showcase | కేటలాగ్ చూడండి | 14/25 | |
-| 22 | Sign in to Portfolio | Portfolio సైన్ ఇన్ | 18/25 | |
-| 23 | Noted, thanks | సరే, ధన్యవాదాలు | 15/25 | |
+| #   | English               | తెలుగు (current)        | Length | Your correction |
+| --- | --------------------- | ----------------------- | ------ | --------------- |
+| 1   | Send more details     | మరిన్ని వివరాలు         | 15/25  |                 |
+| 2   | Send full list        | పూర్తి జాబితా           | 13/25  |                 |
+| 3   | Book a site visit     | సైట్ విజిట్ బుక్        | 16/25  |                 |
+| 4   | Update my preferences | ప్రాధాన్యత మార్చు       | 17/25  |                 |
+| 5   | Close my enquiry      | విచారణ మూసివేయి         | 15/25  |                 |
+| 6   | Still considering it  | ఇంకా పరిశీలిస్తున్నా    | 20/25  |                 |
+| 7   | Today itself          | ఈరోజే                   | 5/25   |                 |
+| 8   | In 2 days             | 2 రోజుల్లో              | 10/25  |                 |
+| 9   | Yes, send them        | అవును, పంపండి           | 13/25  |                 |
+| 10  | Paperwork on track    | పత్రాల పని సవ్యంగా ఉంది | 23/25  |                 |
+| 11  | Something is pending  | ఏదో పెండింగ్‌లో ఉంది    | 20/25  |                 |
+| 12  | Approve request       | అభ్యర్థన ఆమోదించండి     | 19/25  |                 |
+| 13  | Decline request       | అభ్యర్థన తిరస్కరించు    | 20/25  |                 |
+| 14  | Approve access        | యాక్సెస్ ఆమోదించండి     | 19/25  |                 |
+| 15  | It's perfect          | ఇది ఖచ్చితమైనది         | 15/25  |                 |
+| 16  | Not interested        | ఆసక్తి లేదు             | 11/25  |                 |
+| 17  | Reject access         | యాక్సెస్ తిరస్కరించు    | 20/25  |                 |
+| 18  | Can't say yet         | ఇప్పుడే చెప్పలేను       | 17/25  |                 |
+| 19  | View full details     | పూర్తి వివరాలు చూడు     | 19/25  |                 |
+| 20  | View location         | స్థానం చూడండి           | 13/25  |                 |
+| 21  | Browse showcase       | కేటలాగ్ చూడండి          | 14/25  |                 |
+| 22  | Sign in to Portfolio  | Portfolio సైన్ ఇన్      | 18/25  |                 |
+| 23  | Noted, thanks         | సరే, ధన్యవాదాలు         | 15/25  |                 |
 
 ---
 
@@ -49,7 +49,7 @@ The tappable options underneath a message.
 
 ### 1. Number change notice — the brokerage now messages from a different WhatsApp number
 
-*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name · `{{3}}` = previous WhatsApp number
+_Placeholders:_ `{{1}}` = contact first name · `{{2}}` = brokerage name · `{{3}}` = previous WhatsApp number
 
 **English**
 
@@ -67,7 +67,7 @@ The tappable options underneath a message.
 >
 > మీ విచారణలపై అప్‌డేట్‌లు పొందుతూ ఉండటానికి దయచేసి ఈ నంబర్‌ను సేవ్ చేయండి. నిర్ధారించడానికి ఇక్కడ ప్రత్యుత్తరం ఇవ్వండి.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -75,7 +75,7 @@ The tappable options underneath a message.
 
 ### 2. Property share feedback — follow up to see if a shared property matched
 
-*Placeholders:* `{{1}}` = buyer first name
+_Placeholders:_ `{{1}}` = buyer first name
 
 **English**
 
@@ -89,7 +89,7 @@ The tappable options underneath a message.
 >
 > ఇది మీ అవసరాలకు సరిపోతుందా?
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -97,7 +97,7 @@ The tappable options underneath a message.
 
 ### 3. Portfolio access — a buyer or owner is sent their Portfolio sign-in link
 
-*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name
+_Placeholders:_ `{{1}}` = contact first name · `{{2}}` = brokerage name
 
 **English**
 
@@ -115,7 +115,7 @@ The tappable options underneath a message.
 >
 > సైన్ ఇన్ చేయడానికి కింది బటన్ నొక్కి, ఈ నంబర్‌కు పంపిన వన్-టైమ్ కోడ్ నమోదు చేయండి.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -123,7 +123,7 @@ The tappable options underneath a message.
 
 ### 4. Requirement review — verify the property search recorded for an enquiry
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name
+_Placeholders:_ `{{1}}` = buyer first name · `{{2}}` = brokerage name
 
 **English**
 
@@ -137,7 +137,7 @@ The tappable options underneath a message.
 >
 > దయచేసి ఆస్తి రకాలు, ఇష్టమైన ప్రాంతాలు మరియు బడ్జెట్‌ను పరిశీలించి అవసరమైతే సరిచేయండి. మీరు సమర్పించే వివరాలతో మీ విచారణ రికార్డు నవీకరించబడుతుంది.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -145,7 +145,7 @@ The tappable options underneath a message.
 
 ### 5. Property details — sent when a buyer asks about a listing
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality
+_Placeholders:_ `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality
 
 **English**
 
@@ -167,7 +167,7 @@ The tappable options underneath a message.
 >
 > ఈ విచారణ గురించి మరింత సమాచారం కావాలంటే ఈ సందేశానికి బదులివ్వండి.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -175,7 +175,7 @@ The tappable options underneath a message.
 
 ### 6. Property photos — the same, led by a photo
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality · `{{6}}` = Google Maps link
+_Placeholders:_ `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = price / size · `{{5}}` = locality · `{{6}}` = Google Maps link
 
 **English**
 
@@ -199,7 +199,7 @@ The tappable options underneath a message.
 >
 > ఈ విచారణ గురించి మరింత సమాచారం కావాలంటే ఈ సందేశానికి బదులివ్వండి.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -207,11 +207,11 @@ The tappable options underneath a message.
 
 ### 7. Location reveal — approved request for an exact address
 
-*Placeholders:* `{{1}}` = requester first name · `{{2}}` = listing title
+_Placeholders:_ `{{1}}` = requester first name · `{{2}}` = listing title
 
 **English**
 
-> 📍 *Location Request Approved*
+> 📍 _Location Request Approved_
 >
 > Hi {{1}}, your request for the exact location of {{2}} has been approved by the listing team.
 >
@@ -222,7 +222,7 @@ The tappable options underneath a message.
 
 **తెలుగు — current**
 
-> 📍 *స్థాన అభ్యర్థన ఆమోదించబడింది*
+> 📍 _స్థాన అభ్యర్థన ఆమోదించబడింది_
 >
 > నమస్కారం {{1}}, మీరు ఖచ్చితమైన స్థానం అడిగిన ఆస్తి — {{2}} — లిస్టింగ్ బృందం ఆమోదించింది.
 >
@@ -231,7 +231,7 @@ The tappable options underneath a message.
 >
 > చిరునామా, మ్యాప్ మరియు అన్ని ఫోటోలు చూడటానికి కింది బటన్ నొక్కండి. ఈ లింక్ 48 గంటలు చెల్లుబాటు అవుతుంది.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -239,11 +239,11 @@ The tappable options underneath a message.
 
 ### 8. Listing access approved — approved request to view the full listing
 
-*Placeholders:* `{{1}}` = requester first name · `{{2}}` = listing title · `{{3}}` = listing specs
+_Placeholders:_ `{{1}}` = requester first name · `{{2}}` = listing title · `{{3}}` = listing specs
 
 **English**
 
-> 🔓 *Listing Access Approved*
+> 🔓 _Listing Access Approved_
 >
 > Hi {{1}}, your request to view the full listing of {{2}} has been approved by the listing team.
 >
@@ -253,7 +253,7 @@ The tappable options underneath a message.
 
 **తెలుగు — current**
 
-> 🔓 *లిస్టింగ్ యాక్సెస్ ఆమోదించబడింది*
+> 🔓 _లిస్టింగ్ యాక్సెస్ ఆమోదించబడింది_
 >
 > నమస్కారం {{1}}, మీరు పూర్తి లిస్టింగ్ చూడాలని అడిగిన ఆస్తి — {{2}} — లిస్టింగ్ బృందం ఆమోదించింది.
 >
@@ -261,7 +261,7 @@ The tappable options underneath a message.
 >
 > అన్ని ఫోటోలు, చిరునామా మరియు మ్యాప్‌తో లిస్టింగ్ తెరవడానికి కింది బటన్ నొక్కండి. ఈ లింక్ 7 రోజులు చెల్లుబాటు అవుతుంది. దయచేసి లింక్ లేదా ఫోటోలను ఫార్వర్డ్ చేయవద్దు.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -269,7 +269,7 @@ The tappable options underneath a message.
 
 ### 9. Location consent request — a co-broker decides whether a protected request can advance
 
-*Placeholders:* `{{1}}` = co-broker first name · `{{2}}` = listing title · `{{3}}` = masked requester identity
+_Placeholders:_ `{{1}}` = co-broker first name · `{{2}}` = listing title · `{{3}}` = masked requester identity
 
 **English**
 
@@ -291,7 +291,7 @@ The tappable options underneath a message.
 >
 > వారి గుర్తింపు లిస్టింగ్ వైపు కనిపించదు. తదుపరి సమ్మతి దశకు పంపేందుకు ఆమోదించండి లేదా మూసేందుకు తిరస్కరించండి.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -299,7 +299,7 @@ The tappable options underneath a message.
 
 ### 10. Location owner decision — the listing side approves or rejects protected access
 
-*Placeholders:* `{{1}}` = request type · `{{2}}` = listing title and code · `{{3}}` = requester identity or masked identity · `{{4}}` = access being requested
+_Placeholders:_ `{{1}}` = request type · `{{2}}` = listing title and code · `{{3}}` = requester identity or masked identity · `{{4}}` = access being requested
 
 **English**
 
@@ -321,7 +321,7 @@ The tappable options underneath a message.
 >
 > ఈ అభ్యర్థికి {{4}} ఇవ్వడానికి ఆమోదించండి లేదా అభ్యర్థనను మూసేందుకు తిరస్కరించండి. డ్యాష్‌బోర్డ్‌లో కూడా నిర్ణయించవచ్చు.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -329,11 +329,11 @@ The tappable options underneath a message.
 
 ### 11. Inventory update — a refreshed catalogue snapshot
 
-*Placeholders:* `{{1}}` = contact first name · `{{2}}` = residential summary · `{{3}}` = commercial summary · `{{4}}` = farm & land summary
+_Placeholders:_ `{{1}}` = contact first name · `{{2}}` = residential summary · `{{3}}` = commercial summary · `{{4}}` = farm & land summary
 
 **English**
 
-> 🏠 *Selected Property Options*
+> 🏠 _Selected Property Options_
 >
 > Hi {{1}}! I've selected these properties based on what you're looking for:
 >
@@ -341,11 +341,11 @@ The tappable options underneath a message.
 >
 > Reply to this message for photos, exact locations, or to book a site visit — I answer personally on this number.
 
-*Footer:* Reply STOP to unsubscribe
+_Footer:_ Reply STOP to unsubscribe
 
 **తెలుగు — current**
 
-> 🏠 *ఎంచుకున్న ఆస్తి ఎంపికలు*
+> 🏠 _ఎంచుకున్న ఆస్తి ఎంపికలు_
 >
 > నమస్కారం {{1}}! మీ అవసరానికి అనుగుణంగా ఈ ఆస్తులను ఎంచుకున్నాను:
 >
@@ -353,9 +353,9 @@ The tappable options underneath a message.
 >
 > ఫోటోలు, ఖచ్చితమైన స్థానం లేదా సైట్ విజిట్ కోసం ఈ సందేశానికి బదులివ్వండి — ఇదే నంబర్‌లో నేనే స్వయంగా బదులిస్తాను.
 
-*Footer:* ఆపడానికి STOP పంపండి
+_Footer:_ ఆపడానికి STOP పంపండి
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -363,7 +363,7 @@ The tappable options underneath a message.
 
 ### 12. Enquiry status — the listing they asked about is gone
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name
 
 **English**
 
@@ -381,7 +381,7 @@ The tappable options underneath a message.
 >
 > విచారణ కొనసాగించడానికి కింద మీ అవసరాన్ని నవీకరించండి లేదా ఇప్పుడు ఏమి కావాలో బదులివ్వండి. ముగించడానికి "విచారణ మూసివేయి" ఎంచుకోండి, తర్వాత ఎటువంటి అప్‌డేట్ రాదు.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -389,7 +389,7 @@ The tappable options underneath a message.
 
 ### 13. Enquiry notice — the same, naming the listing
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
 **English**
 
@@ -411,7 +411,7 @@ The tappable options underneath a message.
 >
 > విచారణ కొనసాగించడానికి కింద మీ అవసరాన్ని నవీకరించండి లేదా ఇప్పుడు ఏమి కావాలో బదులివ్వండి. ముగించడానికి "విచారణ మూసివేయి" ఎంచుకోండి, తర్వాత ఎటువంటి అప్‌డేట్ రాదు.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -419,7 +419,7 @@ The tappable options underneath a message.
 
 ### 14. Listing availability — the listing is not available right now; we will update you if it frees up
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = listing status, e.g. Under contract
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = listing status, e.g. Under contract
 
 **English**
 
@@ -443,7 +443,7 @@ The tappable options underneath a message.
 >
 > విచారణ కొనసాగించడానికి కింద మీ అవసరాన్ని నవీకరించండి లేదా మీ అవసరాలు మరియు బడ్జెట్‌ను బదులివ్వండి. ముగించడానికి "విచారణ మూసివేయి" ఎంచుకోండి, తర్వాత ఎటువంటి అప్‌డేట్ రాదు.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -451,7 +451,7 @@ The tappable options underneath a message.
 
 ### 15. Enquiry check-in — is this still under consideration?
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
 **English**
 
@@ -473,7 +473,7 @@ The tappable options underneath a message.
 >
 > ఇది ఇంకా పరిశీలనలో ఉంటే బదులిచ్చి నిర్ధారించండి. విచారణ ముగించడానికి "విచారణ మూసివేయి" ఎంచుకోండి, తర్వాత ఎటువంటి అప్‌డేట్ రాదు.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -481,7 +481,7 @@ The tappable options underneath a message.
 
 ### 16. Enquiry timeline — when should we check back with you?
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title
 
 **English**
 
@@ -503,7 +503,7 @@ The tappable options underneath a message.
 >
 > మేము ఎప్పుడు మళ్లీ సంప్రదించాలో ఎంచుకోండి, మీకు అవసరమైన సమయానికి ముందే సంప్రదించకుండా.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -511,7 +511,7 @@ The tappable options underneath a message.
 
 ### 17. Enquiry follow-up reminder — confirm or move the scheduled follow-up date
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = scheduled follow-up date
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = listing title · `{{4}}` = scheduled follow-up date
 
 **English**
 
@@ -531,7 +531,7 @@ The tappable options underneath a message.
 >
 > ఈ తేదీని నిర్ధారించడానికి లేదా మార్చడానికి కింది బటన్ నొక్కండి. "ఇప్పుడే చెప్పలేను" ఎంచుకుంటే షెడ్యూల్ తీసివేయబడుతుంది, విచారణ తెరిచే ఉంటుంది.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -539,7 +539,7 @@ The tappable options underneath a message.
 
 ### 18. Purchase progress — where does the paperwork stand on a deal already at legal?
 
-*Placeholders:* `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = property being bought · `{{4}}` = stage the purchase is recorded at
+_Placeholders:_ `{{1}}` = buyer first name · `{{2}}` = brokerage name · `{{3}}` = property being bought · `{{4}}` = stage the purchase is recorded at
 
 **English**
 
@@ -559,7 +559,7 @@ The tappable options underneath a message.
 >
 > మా రికార్డుల్లో ఈ దశ ఇంకా తెరిచి ఉన్నట్లు నమోదైంది. పత్రాల పని ఏ దశలో ఉందో, లేదా మా వైపు నుంచి ఏమి పెండింగ్‌లో ఉందో తెలియజేయడానికి ఇక్కడ బదులివ్వండి.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -567,7 +567,7 @@ The tappable options underneath a message.
 
 ### 19. Audio announcement — a voice-note update, delivered as a playable video
 
-*Placeholders:* `{{1}}` = contact first name · `{{2}}` = brokerage name
+_Placeholders:_ `{{1}}` = contact first name · `{{2}}` = brokerage name
 
 **English**
 
@@ -581,7 +581,7 @@ The tappable options underneath a message.
 >
 > మరింత తెలుసుకోవడానికి ఇక్కడ రిప్లై చేయండి, లేదా ఈ అప్‌డేట్లను ఆపడానికి STOP అని రిప్లై చేయండి.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 
@@ -589,7 +589,7 @@ The tappable options underneath a message.
 
 ### 20. Post-call options — after a qualification call, offer the matching listings
 
-*Placeholders:* `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = stated requirement (budget / areas)
+_Placeholders:_ `{{1}}` = lead first name · `{{2}}` = brokerage name · `{{3}}` = stated requirement (budget / areas)
 
 **English**
 
@@ -607,7 +607,7 @@ The tappable options underneath a message.
 >
 > ఈ అవసరానికి సరిపోయే ప్రస్తుత ఆస్తులను పొందడానికి "అవును, పంపండి" ఎంచుకోండి. లేకపోతే ఈ కాల్ గురించి మరో సందేశం పంపబడదు.
 
-**Your correction** *(leave blank if the above is fine)*
+**Your correction** _(leave blank if the above is fine)_
 
 >
 

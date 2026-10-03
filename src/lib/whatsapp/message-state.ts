@@ -33,7 +33,7 @@ export function canPinMore(pinnedCount: number): boolean {
 
 /** The messages a thread should render: hidden ones drop out entirely. */
 export function visibleMessages<T extends { deleted_at?: string | null }>(
-  messages: T[],
+  messages: T[]
 ): T[] {
   return messages.filter((m) => !m.deleted_at);
 }

@@ -21,19 +21,30 @@ describe('textContainsProject', () => {
   });
 
   it('matches a builder shorthand against the registered name', () => {
-    expect(textContainsProject('Puravankara Westend', 'Purva Westend')).toBe(true);
+    expect(textContainsProject('Puravankara Westend', 'Purva Westend')).toBe(
+      true
+    );
   });
 
   it('matches in the other direction too', () => {
-    expect(textContainsProject('Purva Westend Phase 2', 'Puravankara Westend')).toBe(true);
+    expect(
+      textContainsProject('Purva Westend Phase 2', 'Puravankara Westend')
+    ).toBe(true);
   });
 
   it('matches across an aspirated spelling difference', () => {
-    expect(textContainsProject('Shobha Dream Acres', 'Sobha Dream Acres')).toBe(true);
+    expect(textContainsProject('Shobha Dream Acres', 'Sobha Dream Acres')).toBe(
+      true
+    );
   });
 
   it('matches a project named inside a listing title', () => {
-    expect(textContainsProject('2 BHK in Puravankara Westend, Kudlu', 'Purva Westend')).toBe(true);
+    expect(
+      textContainsProject(
+        '2 BHK in Puravankara Westend, Kudlu',
+        'Purva Westend'
+      )
+    ).toBe(true);
   });
 
   it('does not match a different project by the same builder', () => {
@@ -41,7 +52,9 @@ describe('textContainsProject', () => {
   });
 
   it('does not match a different builder', () => {
-    expect(textContainsProject('Prestige Westend', 'Purva Westend')).toBe(false);
+    expect(textContainsProject('Prestige Westend', 'Purva Westend')).toBe(
+      false
+    );
   });
 
   it('does not match on a short shared opening', () => {

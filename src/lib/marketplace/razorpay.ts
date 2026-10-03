@@ -7,9 +7,12 @@
  * and activates the provisioned flow.
  */
 
-const RAZORPAY_API = "https://api.razorpay.com/v1";
+const RAZORPAY_API = 'https://api.razorpay.com/v1';
 
-export function getRazorpayCredentials(): { keyId: string; keySecret: string } | null {
+export function getRazorpayCredentials(): {
+  keyId: string;
+  keySecret: string;
+} | null {
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
   if (!keyId || !keySecret) return null;
@@ -32,18 +35,22 @@ export interface RazorpayOrderResult {
 }
 
 export async function createRazorpayOrder(
-  input: RazorpayOrderInput,
+  input: RazorpayOrderInput
 ): Promise<RazorpayOrderResult> {
   const creds = getRazorpayCredentials();
   if (!creds) {
-    throw new Error("Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.");
+    throw new Error(
+      'Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.'
+    );
   }
 
-  const auth = Buffer.from(`${creds.keyId}:${creds.keySecret}`).toString("base64");
+  const auth = Buffer.from(`${creds.keyId}:${creds.keySecret}`).toString(
+    'base64'
+  );
   const res = await fetch(`${RAZORPAY_API}/orders`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       Authorization: `Basic ${auth}`,
     },
     body: JSON.stringify({
@@ -55,8 +62,11 @@ export async function createRazorpayOrder(
   });
 
   if (!res.ok) {
-    const errBody = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    console.error("[marketplace/razorpay] order creation failed:", errBody);
+    const errBody = (await res.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+    console.error('[marketplace/razorpay] order creation failed:', errBody);
     throw new Error(`Razorpay order failed: ${JSON.stringify(errBody)}`);
   }
 

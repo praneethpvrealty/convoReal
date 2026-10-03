@@ -56,10 +56,15 @@ export function HomeWidgets() {
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Customize widgets"
-          style={({ pressed }) => [styles.customize, { opacity: pressed ? 0.6 : 1 }]}
+          style={({ pressed }) => [
+            styles.customize,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
         >
           <Ionicons name="options-outline" size={15} color={colors.primary} />
-          <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.primary }}>
+          <Text
+            style={{ fontSize: 13, fontFamily: f.bold, color: colors.primary }}
+          >
             Customize
           </Text>
         </Pressable>
@@ -70,12 +75,22 @@ export function HomeWidgets() {
           onPress={() => setCustomizing(true)}
           accessibilityRole="button"
           accessibilityLabel="Add widgets"
-          style={[styles.emptyCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+          style={[
+            styles.emptyCard,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
         >
           <Ionicons name="grid-outline" size={20} color={colors.textFaint} />
-          <Text style={{ fontSize: 13, lineHeight: 18, color: colors.textMuted, textAlign: 'center' }}>
-            No widgets yet. Add Inbox, Calendar or any screen you use most for a live summary
-            right here.
+          <Text
+            style={{
+              fontSize: 13,
+              lineHeight: 18,
+              color: colors.textMuted,
+              textAlign: 'center',
+            }}
+          >
+            No widgets yet. Add Inbox, Calendar or any screen you use most for a
+            live summary right here.
           </Text>
         </Pressable>
       ) : (
@@ -86,7 +101,10 @@ export function HomeWidgets() {
         </View>
       )}
 
-      <CustomizeSheet visible={customizing} onClose={() => setCustomizing(false)} />
+      <CustomizeSheet
+        visible={customizing}
+        onClose={() => setCustomizing(false)}
+      />
     </View>
   );
 }
@@ -124,7 +142,12 @@ function WidgetShell({
     >
       <View style={styles.cardHead}>
         <Ionicons name={WIDGET_ICONS[id]} size={17} color={colors.primary} />
-        <Text style={[styles.cardLabel, { color: colors.textMuted, fontFamily: f.bold }]}>
+        <Text
+          style={[
+            styles.cardLabel,
+            { color: colors.textMuted, fontFamily: f.bold },
+          ]}
+        >
           {def.label}
         </Text>
         <Ionicons name="chevron-forward" size={14} color={colors.textFaint} />
@@ -142,7 +165,13 @@ function WidgetShell({
   );
 }
 
-function CustomizeSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function CustomizeSheet({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
   const { colors, fonts: f } = useTheme();
   const ids = useHomeWidgets((s) => s.ids);
   const add = useHomeWidgets((s) => s.add);
@@ -152,23 +181,46 @@ function CustomizeSheet({ visible, onClose }: { visible: boolean; onClose: () =>
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Customize widgets">
-      <ScrollView style={sheetScrollArea} contentContainerStyle={styles.sheetBody}>
+      <ScrollView
+        style={sheetScrollArea}
+        contentContainerStyle={styles.sheetBody}
+      >
         <Text style={{ fontSize: 13, lineHeight: 18, color: colors.textMuted }}>
-          Pick the screens you want a live summary of on your Overview. Reorder with the
-          arrows — the top widget shows first.
+          Pick the screens you want a live summary of on your Overview. Reorder
+          with the arrows — the top widget shows first.
         </Text>
 
         {ids.length > 0 ? (
           <>
             <SectionLabel text="On your overview" />
-            <View style={[styles.sheetCard, { backgroundColor: colors.surfaceSunken }]}>
+            <View
+              style={[
+                styles.sheetCard,
+                { backgroundColor: colors.surfaceSunken },
+              ]}
+            >
               {ids.map((id, index) => (
                 <View
                   key={id}
-                  style={[styles.sheetRow, index > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth }]}
+                  style={[
+                    styles.sheetRow,
+                    index > 0 && {
+                      borderTopColor: colors.border,
+                      borderTopWidth: StyleSheet.hairlineWidth,
+                    },
+                  ]}
                 >
-                  <Ionicons name={WIDGET_ICONS[id]} size={19} color={colors.primary} />
-                  <Text style={[styles.sheetLabel, { color: colors.text, fontFamily: f.bold }]}>
+                  <Ionicons
+                    name={WIDGET_ICONS[id]}
+                    size={19}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.sheetLabel,
+                      { color: colors.text, fontFamily: f.bold },
+                    ]}
+                  >
                     {WIDGET_DEFS[id].label}
                   </Text>
                   <RowButton
@@ -198,15 +250,35 @@ function CustomizeSheet({ visible, onClose }: { visible: boolean; onClose: () =>
         {available.length > 0 ? (
           <>
             <SectionLabel text="Available widgets" />
-            <View style={[styles.sheetCard, { backgroundColor: colors.surfaceSunken }]}>
+            <View
+              style={[
+                styles.sheetCard,
+                { backgroundColor: colors.surfaceSunken },
+              ]}
+            >
               {available.map((id, index) => (
                 <View
                   key={id}
-                  style={[styles.sheetRow, index > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth }]}
+                  style={[
+                    styles.sheetRow,
+                    index > 0 && {
+                      borderTopColor: colors.border,
+                      borderTopWidth: StyleSheet.hairlineWidth,
+                    },
+                  ]}
                 >
-                  <Ionicons name={WIDGET_ICONS[id]} size={19} color={colors.textMuted} />
+                  <Ionicons
+                    name={WIDGET_ICONS[id]}
+                    size={19}
+                    color={colors.textMuted}
+                  />
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={[styles.sheetLabel, { color: colors.text, fontFamily: f.bold }]}>
+                    <Text
+                      style={[
+                        styles.sheetLabel,
+                        { color: colors.text, fontFamily: f.bold },
+                      ]}
+                    >
                       {WIDGET_DEFS[id].label}
                     </Text>
                     <Text style={{ fontSize: 12, color: colors.textMuted }}>
@@ -254,7 +326,10 @@ function RowButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: Boolean(disabled) }}
-      style={({ pressed }) => [styles.rowButton, { opacity: disabled ? 0.25 : pressed ? 0.5 : 1 }]}
+      style={({ pressed }) => [
+        styles.rowButton,
+        { opacity: disabled ? 0.25 : pressed ? 0.5 : 1 },
+      ]}
     >
       <Ionicons name={icon} size={21} color={tint ?? colors.textMuted} />
     </Pressable>
@@ -285,7 +360,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  sheetBody: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.md },
+  sheetBody: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.md,
+  },
   sheetCard: { borderRadius: radius.lg, overflow: 'hidden' },
   sheetRow: {
     flexDirection: 'row',
@@ -295,5 +374,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   sheetLabel: { flex: 1, fontSize: 15, fontFamily: fonts.bold },
-  rowButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
+  rowButton: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

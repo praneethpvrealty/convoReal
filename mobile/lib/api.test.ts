@@ -14,7 +14,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('./supabase', () => ({
   supabase: {
     auth: {
-      getSession: async () => ({ data: { session: { access_token: 'token-1' } } }),
+      getSession: async () => ({
+        data: { session: { access_token: 'token-1' } },
+      }),
       refreshSession: async () => ({ data: { session: null } }),
     },
   },
@@ -75,9 +77,10 @@ describe('apiFetch timeouts', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { apiFetch, isTimeout } = await freshClient();
 
-    const pending = apiFetch('/api/contacts', { method: 'POST', body: '{}' }).catch(
-      (err) => err
-    );
+    const pending = apiFetch('/api/contacts', {
+      method: 'POST',
+      body: '{}',
+    }).catch((err) => err);
     await vi.advanceTimersByTimeAsync(20_001);
     const err = await pending;
 
@@ -126,7 +129,11 @@ describe('apiFetch redirect handling', () => {
     // real origin. Re-sending the body would create the record twice if
     // the redirected hop already reached the server.
     const fetchMock = vi.fn(async () =>
-      response({ url: 'https://www.api.test/api/contacts', status: 201, body: { id: 'c1' } })
+      response({
+        url: 'https://www.api.test/api/contacts',
+        status: 201,
+        body: { id: 'c1' },
+      })
     );
     vi.stubGlobal('fetch', fetchMock);
     const { apiFetch } = await freshClient();
@@ -150,7 +157,7 @@ describe('apiFetch redirect handling', () => {
   });
 });
 
-  describe('journey event logging', () => {
+describe('journey event logging', () => {
   it('logs a personal WhatsApp journey event', async () => {
     const fetchMock = vi.fn(async () =>
       response({ body: { ok: true, duplicate: false, eventId: 'je-1' } })
@@ -165,7 +172,8 @@ describe('apiFetch redirect handling', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const firstCall = (fetchMock.mock.calls[0] ?? null) as unknown as [string, RequestInit] | undefined;
+    const firstCall = (fetchMock.mock.calls[0] ?? null) as unknown as
+      [string, RequestInit] | undefined;
     const init = (firstCall?.[1] ?? ({} as RequestInit)) as RequestInit;
     expect(init.body).toBe(
       JSON.stringify({

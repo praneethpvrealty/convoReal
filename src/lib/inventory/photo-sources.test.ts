@@ -83,9 +83,9 @@ describe('emptyPhotoLabel', () => {
   });
 
   it('uses the singular for one', () => {
-    expect(
-      emptyPhotoLabel({ id: 'p1', private_images_count: 1 })
-    ).toBe('1 photo · confidential');
+    expect(emptyPhotoLabel({ id: 'p1', private_images_count: 1 })).toBe(
+      '1 photo · confidential'
+    );
   });
 
   it('keeps the plain wording when the listing genuinely has none', () => {

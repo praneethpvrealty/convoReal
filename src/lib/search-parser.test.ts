@@ -128,8 +128,12 @@ describe('parsePropertyQuery', () => {
   });
 
   it('distinguishes a commercial plot from raw commercial land', () => {
-    expect(parsePropertyQuery('commercial plot in Banashankari').types).toContain('Commercial Plot');
-    expect(parsePropertyQuery('commercial land in Devanahalli').types).toContain('Commercial Land');
+    expect(
+      parsePropertyQuery('commercial plot in Banashankari').types
+    ).toContain('Commercial Plot');
+    expect(
+      parsePropertyQuery('commercial land in Devanahalli').types
+    ).toContain('Commercial Land');
   });
 
   it('should detect direct/owner listing source', () => {

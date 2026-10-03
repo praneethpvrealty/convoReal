@@ -353,14 +353,9 @@ function TourSpotlight({
       {/* Four scrim rectangles around the hole — touches inside the
           hole fall through to the real element. */}
       <Pressable
-        style={[styles.scrim, { top: 0, left: 0, right: 0, height: hole.y, backgroundColor: scrim }]}
-        onPress={onSkip}
-        accessibilityLabel="End tour"
-      />
-      <Pressable
         style={[
           styles.scrim,
-          { top: hole.y + hole.height, left: 0, right: 0, bottom: 0, backgroundColor: scrim },
+          { top: 0, left: 0, right: 0, height: hole.y, backgroundColor: scrim },
         ]}
         onPress={onSkip}
         accessibilityLabel="End tour"
@@ -368,7 +363,27 @@ function TourSpotlight({
       <Pressable
         style={[
           styles.scrim,
-          { top: hole.y, left: 0, width: hole.x, height: hole.height, backgroundColor: scrim },
+          {
+            top: hole.y + hole.height,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: scrim,
+          },
+        ]}
+        onPress={onSkip}
+        accessibilityLabel="End tour"
+      />
+      <Pressable
+        style={[
+          styles.scrim,
+          {
+            top: hole.y,
+            left: 0,
+            width: hole.x,
+            height: hole.height,
+            backgroundColor: scrim,
+          },
         ]}
         onPress={onSkip}
         accessibilityLabel="End tour"
@@ -419,11 +434,21 @@ function TourSpotlight({
         accessibilityViewIsModal
       >
         <View style={styles.cardHead}>
-          <Text style={[styles.cardTitle, { fontFamily: f.bold, color: colors.text }]}>
+          <Text
+            style={[
+              styles.cardTitle,
+              { fontFamily: f.bold, color: colors.text },
+            ]}
+          >
             {title}
           </Text>
           {stepCount > 1 ? (
-            <Text style={[styles.stepCount, { fontFamily: f.semibold, color: colors.textFaint }]}>
+            <Text
+              style={[
+                styles.stepCount,
+                { fontFamily: f.semibold, color: colors.textFaint },
+              ]}
+            >
               {stepNumber}/{stepCount}
             </Text>
           ) : null}
@@ -440,7 +465,12 @@ function TourSpotlight({
             accessibilityRole="button"
             accessibilityLabel="Skip tour"
           >
-            <Text style={[styles.skip, { fontFamily: f.semibold, color: colors.textFaint }]}>
+            <Text
+              style={[
+                styles.skip,
+                { fontFamily: f.semibold, color: colors.textFaint },
+              ]}
+            >
               {t('tour.skip')}
             </Text>
           </Pressable>
@@ -450,12 +480,22 @@ function TourSpotlight({
               accessibilityRole="button"
               style={[styles.nextBtn, { backgroundColor: colors.primary }]}
             >
-              <Text style={[styles.nextLabel, { fontFamily: f.bold, color: colors.onPrimary }]}>
+              <Text
+                style={[
+                  styles.nextLabel,
+                  { fontFamily: f.bold, color: colors.onPrimary },
+                ]}
+              >
                 {isLast ? t('tour.done') : t('tour.next')}
               </Text>
             </Pressable>
           ) : (
-            <Text style={[styles.skip, { fontFamily: f.semibold, color: colors.textMuted }]}>
+            <Text
+              style={[
+                styles.skip,
+                { fontFamily: f.semibold, color: colors.textMuted },
+              ]}
+            >
               {t('tour.tapHighlight')}
             </Text>
           )}

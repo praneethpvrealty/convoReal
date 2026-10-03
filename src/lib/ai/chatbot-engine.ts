@@ -1,10 +1,13 @@
-import { phonesMatch, normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import {
+  phonesMatch,
+  normalizePhoneWithCountryCode,
+} from '@/lib/whatsapp/phone-utils';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import { BRANDING } from '@/config/branding';
 import type { Contact } from '@/types';
-import { 
-  parseListingFromImageOrText, 
-  updateListingDraft, 
+import {
+  parseListingFromImageOrText,
+  updateListingDraft,
   type ParsedPropertyDraft,
   classifyImageOrText,
   looksLikeBuyerRequirement,
@@ -14,7 +17,7 @@ import {
   updateContactDraft,
   transcribeVoiceNote,
   type ParsedContactDraftsContainer,
-  normalizeClassification
+  normalizeClassification,
 } from '@/lib/ai/gemini';
 import {
   processClientReplyScreenshot,
@@ -40,7 +43,11 @@ import {
   takePendingClientReply,
 } from '@/lib/journey/pending-client-reply';
 import { applyListingDerivations } from '@/lib/ai/listing-derivations';
-import { uploadPropertyImage, uploadPropertyVideo, DocumentTooLargeError } from '@/lib/storage/upload';
+import {
+  uploadPropertyImage,
+  uploadPropertyVideo,
+  DocumentTooLargeError,
+} from '@/lib/storage/upload';
 import { queueYouTubeUploadIfConnected } from '@/lib/youtube/upload';
 import { sanitizeFloorTenancies } from '@/lib/inventory/floor-tenancies';
 import {
@@ -48,17 +55,28 @@ import {
   downloadMedia,
   getMediaUrl,
   sendInteractiveButtons,
-  sendReactionMessage
+  sendReactionMessage,
 } from '@/lib/whatsapp/meta-api';
 import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
-import { uploadBrochureImages, storeBrochureDocument } from '@/lib/pdf/brochure-images';
+import {
+  uploadBrochureImages,
+  storeBrochureDocument,
+} from '@/lib/pdf/brochure-images';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
-import { pinBrochurePlans, sanitizeFloorPlans, plansWithImages } from '@/lib/inventory/floor-plans';
+import {
+  pinBrochurePlans,
+  sanitizeFloorPlans,
+  plansWithImages,
+} from '@/lib/inventory/floor-plans';
 import { checkAccountPropertyLimit } from '@/lib/billing/gates';
 import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
-import { tryHandleOwnerScheduling, applySchedulingEdit, isDictatedTaskList } from '@/lib/calendar/whatsapp-scheduler';
+import {
+  tryHandleOwnerScheduling,
+  applySchedulingEdit,
+  isDictatedTaskList,
+} from '@/lib/calendar/whatsapp-scheduler';
 import {
   enrichmentFor,
   matchContactByExactName,
@@ -79,7 +97,13 @@ import {
   openEventLabel,
   type OpenEventSubject,
 } from '@/lib/calendar/open-event-subject';
-import { recordBotTarget, resolveBotTarget, latestBotTarget, latestBotTargetForPrompt, clearBotTarget } from '@/lib/whatsapp/bot-message-target';
+import {
+  recordBotTarget,
+  resolveBotTarget,
+  latestBotTarget,
+  latestBotTargetForPrompt,
+  clearBotTarget,
+} from '@/lib/whatsapp/bot-message-target';
 import { resolveReplayTarget, replayText } from '@/lib/whatsapp/message-replay';
 import {
   applyRecordUpdate,
@@ -88,7 +112,10 @@ import {
 } from '@/lib/ai/record-edit';
 import { matchProjectByName } from '@/lib/inventory/projects';
 import { extractEKhata } from '@/lib/inventory/e-khata';
-import { applyEKhataToDraft, khataYearBuiltFor } from '@/lib/inventory/e-khata-draft';
+import {
+  applyEKhataToDraft,
+  khataYearBuiltFor,
+} from '@/lib/inventory/e-khata-draft';
 import {
   isReadableEKhata,
   khataColumns,
@@ -132,7 +159,10 @@ import { recordRequirementResponse } from '@/lib/requirements/respond';
 const lowBalanceNotifiedAt = new Map<string, number>();
 const LOW_BALANCE_NOTIFY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
-function notifyBalanceThreshold(accountId: string, result: { deficit: number; balanceAfter: number }): void {
+function notifyBalanceThreshold(
+  accountId: string,
+  result: { deficit: number; balanceAfter: number }
+): void {
   const threshold: 'zero' | 'critical' | 'low' | null =
     result.deficit > 0 || result.balanceAfter <= 0
       ? 'zero'
@@ -157,15 +187,28 @@ function notifyBalanceThreshold(accountId: string, result: { deficit: number; ba
  * inbound messages come from prospects, so a credit shortfall must
  * not silently kill lead automation; a deficit is only logged.
  */
-async function softBurn(accountId: string, feature: AiFeatureKey): Promise<void> {
+async function softBurn(
+  accountId: string,
+  feature: AiFeatureKey
+): Promise<void> {
   try {
-    const result = await burnCredits(accountId, feature, AI_FEATURE_COSTS[feature], { hardBlock: false });
+    const result = await burnCredits(
+      accountId,
+      feature,
+      AI_FEATURE_COSTS[feature],
+      { hardBlock: false }
+    );
     if (result.deficit > 0) {
-      console.warn(`[chatbot-engine] credit deficit for account ${accountId}: ${result.deficit} short on '${feature}'`);
+      console.warn(
+        `[chatbot-engine] credit deficit for account ${accountId}: ${result.deficit} short on '${feature}'`
+      );
     }
     notifyBalanceThreshold(accountId, result);
   } catch (err) {
-    console.error(`[chatbot-engine] softBurn failed (non-fatal) for '${feature}':`, err);
+    console.error(
+      `[chatbot-engine] softBurn failed (non-fatal) for '${feature}':`,
+      err
+    );
   }
 }
 
@@ -176,16 +219,29 @@ async function softBurn(accountId: string, feature: AiFeatureKey): Promise<void>
  * must be skipped (nothing was deducted). Billing-infra errors fail
  * open — the bot must not go down because billing did.
  */
-async function gatedBurn(accountId: string, feature: AiFeatureKey): Promise<boolean> {
+async function gatedBurn(
+  accountId: string,
+  feature: AiFeatureKey
+): Promise<boolean> {
   try {
-    const result = await burnCredits(accountId, feature, AI_FEATURE_COSTS[feature], { hardBlock: true });
+    const result = await burnCredits(
+      accountId,
+      feature,
+      AI_FEATURE_COSTS[feature],
+      { hardBlock: true }
+    );
     notifyBalanceThreshold(accountId, result);
     if (!result.success) {
-      console.warn(`[chatbot-engine] blocked '${feature}' for account ${accountId}: ${result.deficit} credits short`);
+      console.warn(
+        `[chatbot-engine] blocked '${feature}' for account ${accountId}: ${result.deficit} credits short`
+      );
     }
     return result.success;
   } catch (err) {
-    console.error(`[chatbot-engine] gatedBurn failed (fail-open) for '${feature}':`, err);
+    console.error(
+      `[chatbot-engine] gatedBurn failed (fail-open) for '${feature}':`,
+      err
+    );
     return true;
   }
 }
@@ -207,9 +263,14 @@ async function readForwardedEKhata(
   } catch (err) {
     console.warn('[chatbot-engine] e-Khata read failed:', err);
   }
-  await refundCredits(accountId, 'listing_parse', AI_FEATURE_COSTS.listing_parse, {
-    description: 'e-Khata read failed',
-  }).catch(() => undefined);
+  await refundCredits(
+    accountId,
+    'listing_parse',
+    AI_FEATURE_COSTS.listing_parse,
+    {
+      description: 'e-Khata read failed',
+    }
+  ).catch(() => undefined);
   return null;
 }
 
@@ -222,7 +283,12 @@ async function sendCreditsLockedReply(
   toPhone: string,
   conversationId: string
 ): Promise<true> {
-  const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: toPhone, text: CREDITS_LOCKED_REPLY });
+  const sendRes = await sendTextMessage({
+    phoneNumberId,
+    accessToken,
+    to: toPhone,
+    text: CREDITS_LOCKED_REPLY,
+  });
   await saveBotMessage(conversationId, CREDITS_LOCKED_REPLY, sendRes.messageId);
   return true;
 }
@@ -250,10 +316,10 @@ export async function checkIsAccountOwner(
 
     const ownerProfile = ownerProfiles[0];
     if (ownerProfile.phone && phonesMatch(ownerProfile.phone, senderPhone)) {
-      return { 
-        isOwner: true, 
-        accountId: ownerProfile.account_id, 
-        userId: ownerProfile.user_id 
+      return {
+        isOwner: true,
+        accountId: ownerProfile.account_id,
+        userId: ownerProfile.user_id,
       };
     }
   } catch (err) {
@@ -281,7 +347,7 @@ export async function saveBotMessage(
         content_text: replyText,
         message_id: metaMessageId || `bot-${Date.now()}`,
         status: 'sent',
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       });
 
     if (msgErr) {
@@ -295,12 +361,15 @@ export async function saveBotMessage(
         last_message_text: replyText,
         last_message_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        awaiting_reply: false
+        awaiting_reply: false,
       })
       .eq('id', conversationId);
 
     if (convErr) {
-      console.error('[chatbot-engine] Error updating conversation status:', convErr);
+      console.error(
+        '[chatbot-engine] Error updating conversation status:',
+        convErr
+      );
     }
   } catch (err) {
     console.error('[chatbot-engine] Exception in saveBotMessage:', err);
@@ -338,23 +407,27 @@ async function sendPropertyDraftPreview(
   missingFields: string[],
   conversationId: string
 ): Promise<void> {
-  const reply = formatDraftPreviewMessage(header, draft, nextStatus, missingFields);
-  
-  const buttons = nextStatus === 'awaiting_confirmation'
-    ? [
-        { id: 'confirm_property', title: 'Confirm' },
-        { id: 'cancel_property', title: 'Cancel' }
-      ]
-    : [
-        { id: 'cancel_property', title: 'Cancel' }
-      ];
+  const reply = formatDraftPreviewMessage(
+    header,
+    draft,
+    nextStatus,
+    missingFields
+  );
+
+  const buttons =
+    nextStatus === 'awaiting_confirmation'
+      ? [
+          { id: 'confirm_property', title: 'Confirm' },
+          { id: 'cancel_property', title: 'Cancel' },
+        ]
+      : [{ id: 'cancel_property', title: 'Cancel' }];
 
   const sendRes = await sendInteractiveButtons({
     phoneNumberId,
     accessToken,
     to,
     bodyText: reply,
-    buttons
+    buttons,
   });
 
   await saveBotMessage(conversationId, reply, sendRes.messageId);
@@ -385,9 +458,18 @@ async function reactToInboundMessage(
 ): Promise<void> {
   if (!targetMessageId) return;
   try {
-    await sendReactionMessage({ phoneNumberId, accessToken, to, targetMessageId, emoji });
+    await sendReactionMessage({
+      phoneNumberId,
+      accessToken,
+      to,
+      targetMessageId,
+      emoji,
+    });
   } catch (err) {
-    console.warn('[chatbot-engine] media ack reaction failed (non-fatal):', err);
+    console.warn(
+      '[chatbot-engine] media ack reaction failed (non-fatal):',
+      err
+    );
   }
 }
 
@@ -401,7 +483,10 @@ async function touchDraftSession(sessionId: string): Promise<void> {
       .update({ updated_at: new Date().toISOString() })
       .eq('id', sessionId);
   } catch (err) {
-    console.warn('[chatbot-engine] draft arrival touch failed (non-fatal):', err);
+    console.warn(
+      '[chatbot-engine] draft arrival touch failed (non-fatal):',
+      err
+    );
   }
 }
 
@@ -439,7 +524,9 @@ async function sendPropertyDraftPreviewDebounced(
 ): Promise<void> {
   try {
     // Wait for concurrent uploads/messages to settle
-    await new Promise((resolve) => setTimeout(resolve, DRAFT_PREVIEW_DEBOUNCE_MS));
+    await new Promise((resolve) =>
+      setTimeout(resolve, DRAFT_PREVIEW_DEBOUNCE_MS)
+    );
 
     // Query database to see if a newer update was made
     const { data: currentSession } = await supabaseAdmin()
@@ -450,20 +537,24 @@ async function sendPropertyDraftPreviewDebounced(
 
     // If session was deleted (confirmed/cancelled) or has a newer timestamp, exit silently
     if (!currentSession) return;
-    
+
     const dbTime = new Date(currentSession.updated_at).getTime();
     const ourTime = new Date(updatedAtString).getTime();
 
     // Allow a tiny tolerance (e.g. 50ms) for clock drift, but generally dbTime > ourTime means newer update exists
     if (dbTime > ourTime + 50) {
-      console.log(`[chatbot-engine] Newer update detected (DB: ${currentSession.updated_at}, Ours: ${updatedAtString}). Skipping preview in this thread.`);
+      console.log(
+        `[chatbot-engine] Newer update detected (DB: ${currentSession.updated_at}, Ours: ${updatedAtString}). Skipping preview in this thread.`
+      );
       return;
     }
 
     // We are the latest thread! Send the preview with the latest data from the DB
     const latestDraft = currentSession.draft_data as ParsedPropertyDraft;
     const validation = validateDraft(latestDraft);
-    const nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
+    const nextStatus = validation.isValid
+      ? 'awaiting_confirmation'
+      : 'collecting';
     const missingFields = validation.missingFields;
 
     // Customize header counts — this thread may be summarizing several
@@ -475,19 +566,31 @@ async function sendPropertyDraftPreviewDebounced(
     const note = noteAt === -1 ? '' : header.slice(noteAt);
     const base = noteAt === -1 ? header : header.slice(0, noteAt);
     let finalHeader = header;
-    if (base.includes('Photo added successfully') || base.includes('Photos added successfully')) {
-      finalHeader = `📸 *Photos added successfully!* Total photos attached: *${latestDraft.images.length}*.` + note;
-    } else if (base.includes('Document added successfully') || base.includes('Documents added successfully')) {
+    if (
+      base.includes('Photo added successfully') ||
+      base.includes('Photos added successfully')
+    ) {
+      finalHeader =
+        `📸 *Photos added successfully!* Total photos attached: *${latestDraft.images.length}*.` +
+        note;
+    } else if (
+      base.includes('Document added successfully') ||
+      base.includes('Documents added successfully')
+    ) {
       // A brochure usually arrives carrying pictures too. Saying so is
       // what tells the sender the PDF was read, not merely filed.
       const plans = plansWithImages(latestDraft.floor_plans).length;
       const extras = [
-        latestDraft.images.length ? `*${latestDraft.images.length}* photo(s)` : '',
+        latestDraft.images.length
+          ? `*${latestDraft.images.length}* photo(s)`
+          : '',
         plans ? `*${plans}* floor plan(s)` : '',
       ].filter(Boolean);
       finalHeader =
         `📄 *Documents added successfully!* Total documents attached: *${(latestDraft.documents || []).length}*.` +
-        (extras.length ? `\nRead from the brochure: ${extras.join(' and ')}.` : '') +
+        (extras.length
+          ? `\nRead from the brochure: ${extras.join(' and ')}.`
+          : '') +
         note;
     }
 
@@ -502,7 +605,10 @@ async function sendPropertyDraftPreviewDebounced(
       conversationId
     );
   } catch (err) {
-    console.error('[chatbot-engine] Error in sendPropertyDraftPreviewDebounced:', err);
+    console.error(
+      '[chatbot-engine] Error in sendPropertyDraftPreviewDebounced:',
+      err
+    );
   }
 }
 
@@ -533,7 +639,9 @@ async function computeContactDuplicateWarnings(
             .from('contacts')
             .select('id, name')
             .eq('account_id', accountId)
-            .or(`phone.eq."${String(draft.phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${cleanPhone}`)
+            .or(
+              `phone.eq."${String(draft.phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${cleanPhone}`
+            )
             .maybeSingle();
 
           if (byPhone) {
@@ -570,7 +678,10 @@ async function computeContactDuplicateWarnings(
             : `\n⚠️ *A different contact named "${draft.name}" already exists* on another number. Confirming creates a second one — cancel and edit the name if they are the same person.`;
         }
       } catch (err) {
-        console.error('[chatbot-engine] Error checking duplicate contacts:', err);
+        console.error(
+          '[chatbot-engine] Error checking duplicate contacts:',
+          err
+        );
       }
       return null;
     })
@@ -584,8 +695,17 @@ async function formatContactDraftsContainerPreview(
   missingFields: string[],
   accountId: string
 ): Promise<string> {
-  const duplicateWarnings = await computeContactDuplicateWarnings(container, accountId);
-  return formatContactDraftsPreview(header, container, nextStatus, missingFields, duplicateWarnings);
+  const duplicateWarnings = await computeContactDuplicateWarnings(
+    container,
+    accountId
+  );
+  return formatContactDraftsPreview(
+    header,
+    container,
+    nextStatus,
+    missingFields,
+    duplicateWarnings
+  );
 }
 
 /**
@@ -618,7 +738,8 @@ async function resolveExactContactLinks(
   accountId: string
 ): Promise<ParsedContactDraftsContainer> {
   const drafts = container.contacts || [];
-  if (!drafts.some((contact) => !(contact.phone || '').trim())) return container;
+  if (!drafts.some((contact) => !(contact.phone || '').trim()))
+    return container;
   try {
     const { data } = await supabaseAdmin()
       .from('contacts')
@@ -650,9 +771,14 @@ async function sendContactDraftPreview(
   conversationId: string,
   accountId: string
 ): Promise<void> {
-  const resolvedContainer = await resolveExactContactLinks(container, accountId);
+  const resolvedContainer = await resolveExactContactLinks(
+    container,
+    accountId
+  );
   const resolvedValidation = validateContactDraftsContainer(resolvedContainer);
-  const resolvedStatus = resolvedValidation.isValid ? 'awaiting_confirmation' : nextStatus;
+  const resolvedStatus = resolvedValidation.isValid
+    ? 'awaiting_confirmation'
+    : nextStatus;
   let reply = await formatContactDraftsContainerPreview(
     header,
     resolvedContainer,
@@ -661,14 +787,13 @@ async function sendContactDraftPreview(
     accountId
   );
 
-  const buttons = resolvedStatus === 'awaiting_confirmation'
-    ? [
-        { id: 'confirm_contact', title: 'Confirm' },
-        { id: 'cancel_contact', title: 'Cancel' }
-      ]
-    : [
-        { id: 'cancel_contact', title: 'Cancel' }
-      ];
+  const buttons =
+    resolvedStatus === 'awaiting_confirmation'
+      ? [
+          { id: 'confirm_contact', title: 'Confirm' },
+          { id: 'cancel_contact', title: 'Cancel' },
+        ]
+      : [{ id: 'cancel_contact', title: 'Cancel' }];
 
   // A forwarded chat header gives a name and no number, and phone is
   // required to confirm — so a chat about someone already in the book
@@ -692,7 +817,7 @@ async function sendContactDraftPreview(
     accessToken,
     to,
     bodyText: reply,
-    buttons: buttons.slice(0, 3)
+    buttons: buttons.slice(0, 3),
   });
 
   await saveBotMessage(conversationId, reply, sendRes.messageId);
@@ -734,17 +859,24 @@ export async function processOwnerChatbotMessage(
     .eq('contact_id', contactRecord.id)
     .maybeSingle();
 
-  const { data: contactSessionData, error: contactSessionErr } = await supabaseAdmin()
-    .from('contact_draft_sessions')
-    .select('*')
-    .eq('contact_id', contactRecord.id)
-    .maybeSingle();
+  const { data: contactSessionData, error: contactSessionErr } =
+    await supabaseAdmin()
+      .from('contact_draft_sessions')
+      .select('*')
+      .eq('contact_id', contactRecord.id)
+      .maybeSingle();
 
   if (propSessionErr) {
-    console.error('[chatbot-engine] Error fetching property draft session:', propSessionErr);
+    console.error(
+      '[chatbot-engine] Error fetching property draft session:',
+      propSessionErr
+    );
   }
   if (contactSessionErr) {
-    console.error('[chatbot-engine] Error fetching contact draft session:', contactSessionErr);
+    console.error(
+      '[chatbot-engine] Error fetching contact draft session:',
+      contactSessionErr
+    );
   }
 
   let propSession = propSessionData;
@@ -764,12 +896,23 @@ export async function processOwnerChatbotMessage(
   let spokenText = '';
   if (isAudioMsg) {
     if (!(await gatedBurn(accountId, 'voice_transcribe'))) {
-      return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      return await sendCreditsLockedReply(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        conversation.id
+      );
     }
     try {
-      const { url, mimeType } = await getMediaUrl({ mediaId: message.audio!.id, accessToken });
+      const { url, mimeType } = await getMediaUrl({
+        mediaId: message.audio!.id,
+        accessToken,
+      });
       const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
-      spokenText = await transcribeVoiceNote(buffer, mimeType || message.audio!.mime_type || 'audio/ogg');
+      spokenText = await transcribeVoiceNote(
+        buffer,
+        mimeType || message.audio!.mime_type || 'audio/ogg'
+      );
     } catch (err) {
       console.error('[chatbot-engine] voice note transcription failed:', err);
     }
@@ -777,7 +920,12 @@ export async function processOwnerChatbotMessage(
     if (!spokenText) {
       const reply =
         "🎙 *I couldn't make out that voice note.* Try again somewhere quieter, or type it out — I can take a listing, a contact, or something to schedule either way.";
-      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      const sendRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: reply,
+      });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
       return true;
     }
@@ -804,12 +952,35 @@ export async function processOwnerChatbotMessage(
   // a text message that is NOT a property initiator (e.g. location map link or quick correction),
   // we check if another customer message arrived in the same conversation within the last 15s.
   // If so, we poll and wait up to 8 seconds for the concurrent initiator thread to parse and insert the session.
-  const isInitiator = !isMediaMsg && (
-    cleanedText.length > 15 && 
-    ["bhk", "sqft", "flat", "plot", "villa", "sale", "rent", "layout", "crore", "lakh", "price", "location", "acres", "commercial", "industrial", "built", "structure", "facing"].some(kw => lowerText.includes(kw))
-  );
+  const isInitiator =
+    !isMediaMsg &&
+    cleanedText.length > 15 &&
+    [
+      'bhk',
+      'sqft',
+      'flat',
+      'plot',
+      'villa',
+      'sale',
+      'rent',
+      'layout',
+      'crore',
+      'lakh',
+      'price',
+      'location',
+      'acres',
+      'commercial',
+      'industrial',
+      'built',
+      'structure',
+      'facing',
+    ].some((kw) => lowerText.includes(kw));
 
-  const shouldPoll = !propSession && !contactSession && (isMediaMsg || !isInitiator) && (isMediaMsg || cleanedText);
+  const shouldPoll =
+    !propSession &&
+    !contactSession &&
+    (isMediaMsg || !isInitiator) &&
+    (isMediaMsg || cleanedText);
 
   if (shouldPoll) {
     try {
@@ -823,18 +994,20 @@ export async function processOwnerChatbotMessage(
         .order('created_at', { ascending: false });
 
       if (recentMsgs && recentMsgs.length > 1) {
-        console.log(`[chatbot-engine] Concurrent messages detected (${recentMsgs.length}). Polling for session creation...`);
+        console.log(
+          `[chatbot-engine] Concurrent messages detected (${recentMsgs.length}). Polling for session creation...`
+        );
         let pollCount = 0;
         const maxPolls = 16; // 16 * 500ms = 8 seconds
         while (pollCount < maxPolls && !propSession && !contactSession) {
           await new Promise((resolve) => setTimeout(resolve, 500));
-          
+
           const { data: latestProp } = await supabaseAdmin()
             .from('property_draft_sessions')
             .select('*')
             .eq('contact_id', contactRecord.id)
             .maybeSingle();
-            
+
           const { data: latestContact } = await supabaseAdmin()
             .from('contact_draft_sessions')
             .select('*')
@@ -843,17 +1016,24 @@ export async function processOwnerChatbotMessage(
 
           if (latestProp) {
             propSession = latestProp;
-            console.log(`[chatbot-engine] Concurrently created property session resolved after ${pollCount * 500}ms`);
+            console.log(
+              `[chatbot-engine] Concurrently created property session resolved after ${pollCount * 500}ms`
+            );
           }
           if (latestContact) {
             contactSession = latestContact;
-            console.log(`[chatbot-engine] Concurrently created contact session resolved after ${pollCount * 500}ms`);
+            console.log(
+              `[chatbot-engine] Concurrently created contact session resolved after ${pollCount * 500}ms`
+            );
           }
           pollCount++;
         }
       }
     } catch (err) {
-      console.error('[chatbot-engine] Error in concurrency session lookup:', err);
+      console.error(
+        '[chatbot-engine] Error in concurrency session lookup:',
+        err
+      );
     }
   }
 
@@ -863,8 +1043,13 @@ export async function processOwnerChatbotMessage(
   if (propSession) {
     const updatedAt = new Date(propSession.updated_at).getTime();
     if (now - updatedAt > DRAFT_SESSION_TIMEOUT_MS) {
-      console.log(`[chatbot-engine] Expiring inactive property draft session ${propSession.id}`);
-      await supabaseAdmin().from('property_draft_sessions').delete().eq('id', propSession.id);
+      console.log(
+        `[chatbot-engine] Expiring inactive property draft session ${propSession.id}`
+      );
+      await supabaseAdmin()
+        .from('property_draft_sessions')
+        .delete()
+        .eq('id', propSession.id);
       propSession = null;
     }
   }
@@ -872,8 +1057,13 @@ export async function processOwnerChatbotMessage(
   if (contactSession) {
     const updatedAt = new Date(contactSession.updated_at).getTime();
     if (now - updatedAt > DRAFT_SESSION_TIMEOUT_MS) {
-      console.log(`[chatbot-engine] Expiring inactive contact draft session ${contactSession.id}`);
-      await supabaseAdmin().from('contact_draft_sessions').delete().eq('id', contactSession.id);
+      console.log(
+        `[chatbot-engine] Expiring inactive contact draft session ${contactSession.id}`
+      );
+      await supabaseAdmin()
+        .from('contact_draft_sessions')
+        .delete()
+        .eq('id', contactSession.id);
       contactSession = null;
     }
   }
@@ -884,8 +1074,12 @@ export async function processOwnerChatbotMessage(
   let inboundMediaBuffer: Buffer | undefined;
   let inboundMediaMime: string | undefined;
   let inboundMediaFetched = false;
-  async function loadInboundMedia(): Promise<{ buffer?: Buffer; mimeType?: string }> {
-    if (inboundMediaFetched) return { buffer: inboundMediaBuffer, mimeType: inboundMediaMime };
+  async function loadInboundMedia(): Promise<{
+    buffer?: Buffer;
+    mimeType?: string;
+  }> {
+    if (inboundMediaFetched)
+      return { buffer: inboundMediaBuffer, mimeType: inboundMediaMime };
     inboundMediaFetched = true;
     if (isImageMsg || isDocMsg || isVideoMsg) {
       const mediaId = isImageMsg
@@ -908,16 +1102,36 @@ export async function processOwnerChatbotMessage(
   // a draft to open.
   async function runClientReplyCapture(): Promise<boolean> {
     if (!(await gatedBurn(accountId, 'contact_parse'))) {
-      return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      return await sendCreditsLockedReply(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        conversation.id
+      );
     }
     const analyzingMsg = "⏳ _Reading the client's reply... Please wait._";
-    const analyzingSendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: analyzingMsg });
-    await saveBotMessage(conversation.id, analyzingMsg, analyzingSendRes.messageId);
+    const analyzingSendRes = await sendTextMessage({
+      phoneNumberId,
+      accessToken,
+      to: contactRecord.phone,
+      text: analyzingMsg,
+    });
+    await saveBotMessage(
+      conversation.id,
+      analyzingMsg,
+      analyzingSendRes.messageId
+    );
 
     let outcome: ClientReplyOutcome;
     try {
-      const media = isImageMsg ? await loadInboundMedia() : { buffer: undefined, mimeType: undefined };
-      const parsed = await parseClientReplyFromImageOrText(cleanedText || undefined, media.buffer, media.mimeType);
+      const media = isImageMsg
+        ? await loadInboundMedia()
+        : { buffer: undefined, mimeType: undefined };
+      const parsed = await parseClientReplyFromImageOrText(
+        cleanedText || undefined,
+        media.buffer,
+        media.mimeType
+      );
       outcome = await processClientReplyScreenshot({
         db: supabaseAdmin(),
         accountId,
@@ -940,7 +1154,9 @@ export async function processOwnerChatbotMessage(
       }
     } catch (err) {
       console.error('[chatbot-engine] client reply capture failed:', err);
-      outcome = { text: "⚠️ I couldn't read that conversation. Try a clearer screenshot, or type the client's update (e.g. \"Surya will speak to the chairman on PROP-1138\")." };
+      outcome = {
+        text: '⚠️ I couldn\'t read that conversation. Try a clearer screenshot, or type the client\'s update (e.g. "Surya will speak to the chairman on PROP-1138").',
+      };
     }
     // The three reminder buttons ride on the confirmation itself, so the
     // agent can set a follow-up in the same tap-free turn.
@@ -952,7 +1168,12 @@ export async function processOwnerChatbotMessage(
           bodyText: outcome.text,
           buttons: outcome.buttons,
         })
-      : await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: outcome.text });
+      : await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: outcome.text,
+        });
     await saveBotMessage(conversation.id, outcome.text, sendRes.messageId);
     // The response is logged but its listing is still unknown. Register
     // the question against the message that asks it, so the code the
@@ -980,7 +1201,8 @@ export async function processOwnerChatbotMessage(
   // blocks further down, which this does not touch.
   const isInteractiveTap = message.type === 'interactive';
   const buttonId = isInteractiveTap
-    ? message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id
+    ? (message.interactive?.button_reply?.id ??
+      message.interactive?.list_reply?.id)
     : null;
 
   // 1.675. The tap that names the client a parked forward is about.
@@ -1000,7 +1222,8 @@ export async function processOwnerChatbotMessage(
     let text: string;
     let outcome: ClientReplyOutcome | null = null;
     if (!parkedReply) {
-      text = "⌛ That conversation has aged out — forward it again and I'll read it against that contact.";
+      text =
+        "⌛ That conversation has aged out — forward it again and I'll read it against that contact.";
     } else {
       outcome = await completeClientReplyForContactId({
         db: supabaseAdmin(),
@@ -1031,7 +1254,12 @@ export async function processOwnerChatbotMessage(
           bodyText: text,
           buttons: outcome.buttons,
         })
-      : await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text });
+      : await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text,
+        });
     await saveBotMessage(conversation.id, text, sendRes.messageId);
     if (outcome?.pendingPropertyContactId) {
       await recordBotTarget({
@@ -1111,7 +1339,11 @@ export async function processOwnerChatbotMessage(
       db: supabaseAdmin(),
       accountId,
       ownerUserId: userId,
-      contact: { id: contactRecord.id, name: contactRecord.name, phone: contactRecord.phone },
+      contact: {
+        id: contactRecord.id,
+        name: contactRecord.name,
+        phone: contactRecord.phone,
+      },
       conversationId: conversation.id,
       replyId: buttonId,
     });
@@ -1185,7 +1417,12 @@ export async function processOwnerChatbotMessage(
               bodyText: text,
               buttons: outcome.buttons,
             })
-          : await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text });
+          : await sendTextMessage({
+              phoneNumberId,
+              accessToken,
+              to: contactRecord.phone,
+              text,
+            });
         await saveBotMessage(conversation.id, text, sendRes.messageId);
         if (outcome?.pendingPropertyContactId) {
           await recordBotTarget({
@@ -1261,7 +1498,12 @@ export async function processOwnerChatbotMessage(
               bodyText: text,
               buttons: outcome.buttons,
             })
-          : await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text });
+          : await sendTextMessage({
+              phoneNumberId,
+              accessToken,
+              to: contactRecord.phone,
+              text,
+            });
         await saveBotMessage(conversation.id, text, sendRes.messageId);
         return true;
       }
@@ -1274,9 +1516,10 @@ export async function processOwnerChatbotMessage(
   // is gone or no longer editable falls through to the create paths, so
   // the correction still lands — the reply just says "added" not
   // "updated".
-  let editTarget = cleanedText && !isInteractiveTap
-    ? await resolveBotTarget({ accountId, contextId: message.context?.id })
-    : null;
+  let editTarget =
+    cleanedText && !isInteractiveTap
+      ? await resolveBotTarget({ accountId, contextId: message.context?.id })
+      : null;
 
   // 1.64. The answer to "how did it go?".
   //
@@ -1293,7 +1536,12 @@ export async function processOwnerChatbotMessage(
   // anything is looked up. Anything vaguer falls through to the paths
   // below untouched.
   let outcomeSubject: OpenEventSubject | null = null;
-  if (!editTarget && cleanedText && !isInteractiveTap && parseEventOutcome(cleanedText)) {
+  if (
+    !editTarget &&
+    cleanedText &&
+    !isInteractiveTap &&
+    parseEventOutcome(cleanedText)
+  ) {
     editTarget = await latestBotTarget({
       accountId,
       conversationId: conversation.id,
@@ -1308,7 +1556,10 @@ export async function processOwnerChatbotMessage(
       // not a guess. Several is — closing the wrong meeting is worse
       // than asking, so 'many' falls through to the reply below.
       if (outcomeSubject.kind === 'one') {
-        editTarget = { entityType: 'appointment', entityId: outcomeSubject.event.id };
+        editTarget = {
+          entityType: 'appointment',
+          entityId: outcomeSubject.event.id,
+        };
       }
     }
   }
@@ -1323,16 +1574,27 @@ export async function processOwnerChatbotMessage(
       '',
       '_Reply to the reminder for that one, or name it._',
     ].join('\n');
-    const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+    const sendRes = await sendTextMessage({
+      phoneNumberId,
+      accessToken,
+      to: contactRecord.phone,
+      text: reply,
+    });
     await saveBotMessage(conversation.id, reply, sendRes.messageId);
     return true;
   }
 
   if (editTarget) {
     try {
-      if (editTarget.entityType === 'appointment' || editTarget.entityType === 'todo') {
+      if (
+        editTarget.entityType === 'appointment' ||
+        editTarget.entityType === 'todo'
+      ) {
         const outcome = await applySchedulingEdit({
-          target: { entityType: editTarget.entityType, entityId: editTarget.entityId },
+          target: {
+            entityType: editTarget.entityType,
+            entityId: editTarget.entityId,
+          },
           instruction: cleanedText,
           contactRecord,
           conversation,
@@ -1344,7 +1606,12 @@ export async function processOwnerChatbotMessage(
         if (outcome === 'edited') return true;
       } else {
         if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
-          return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+          return await sendCreditsLockedReply(
+            phoneNumberId,
+            accessToken,
+            contactRecord.phone,
+            conversation.id
+          );
         }
         const result = await applyRecordUpdate({
           entityType: editTarget.entityType,
@@ -1353,10 +1620,25 @@ export async function processOwnerChatbotMessage(
           instruction: cleanedText,
         });
         if (result && result !== 'stale' && result !== 'unchanged') {
-          const label = editTarget.entityType === 'contact' ? 'Contact updated' : 'Listing updated';
-          const lines = Object.entries(result).map(([k, v]) => `• ${k.replace(/_/g, ' ')}: ${v}`);
-          const reply = [`✏️ *${label}*`, ...lines, '', '_Reply to this message again to make another change._'].join('\n');
-          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          const label =
+            editTarget.entityType === 'contact'
+              ? 'Contact updated'
+              : 'Listing updated';
+          const lines = Object.entries(result).map(
+            ([k, v]) => `• ${k.replace(/_/g, ' ')}: ${v}`
+          );
+          const reply = [
+            `✏️ *${label}*`,
+            ...lines,
+            '',
+            '_Reply to this message again to make another change._',
+          ].join('\n');
+          const sendRes = await sendTextMessage({
+            phoneNumberId,
+            accessToken,
+            to: contactRecord.phone,
+            text: reply,
+          });
           await saveBotMessage(conversation.id, reply, sendRes.messageId);
           await recordBotTarget({
             accountId,
@@ -1368,13 +1650,23 @@ export async function processOwnerChatbotMessage(
         }
         if (result === 'unchanged') {
           const reply = formatRecordUnchangedReply(editTarget.entityType);
-          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          const sendRes = await sendTextMessage({
+            phoneNumberId,
+            accessToken,
+            to: contactRecord.phone,
+            text: reply,
+          });
           await saveBotMessage(conversation.id, reply, sendRes.messageId);
           return true;
         }
         if (result === null) {
           const reply = formatRecordUpdateFailureReply(editTarget.entityType);
-          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          const sendRes = await sendTextMessage({
+            phoneNumberId,
+            accessToken,
+            to: contactRecord.phone,
+            text: reply,
+          });
           await saveBotMessage(conversation.id, reply, sendRes.messageId);
           return true;
         }
@@ -1395,7 +1687,13 @@ export async function processOwnerChatbotMessage(
   // wins) and only with no draft open, so a correction mid-intake is
   // never mistaken for a replay. The synthetic message carries no
   // `context`, which is what stops this re-entering itself.
-  if (!editTarget && !isInteractiveTap && !propSession && !contactSession && message.context?.id) {
+  if (
+    !editTarget &&
+    !isInteractiveTap &&
+    !propSession &&
+    !contactSession &&
+    message.context?.id
+  ) {
     const replaySource = await resolveReplayTarget(
       supabaseAdmin(),
       conversation.id,
@@ -1412,13 +1710,20 @@ export async function processOwnerChatbotMessage(
         } catch {
           const reply =
             "⌛ *That file has expired on WhatsApp* — Meta only keeps it for about 30 days. Please forward the photo or PDF again and I'll pick it up.";
-          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          const sendRes = await sendTextMessage({
+            phoneNumberId,
+            accessToken,
+            to: contactRecord.phone,
+            text: reply,
+          });
           await saveBotMessage(conversation.id, reply, sendRes.messageId);
           return true;
         }
       }
 
-      console.log(`[chatbot-engine] replaying message ${replaySource.id} from quote-reply`);
+      console.log(
+        `[chatbot-engine] replaying message ${replaySource.id} from quote-reply`
+      );
       return await processOwnerChatbotMessage(
         {
           ...message,
@@ -1470,7 +1775,12 @@ export async function processOwnerChatbotMessage(
   // left open from an hour ago used to swallow the whole recording
   // without a word back. The parser returns 'none' for a spoken
   // correction, which falls through to the draft below untouched.
-  if (!isInteractiveTap && ((!propSession && !contactSession) || isDictatedTaskList(cleanedText) || isAudioMsg)) {
+  if (
+    !isInteractiveTap &&
+    ((!propSession && !contactSession) ||
+      isDictatedTaskList(cleanedText) ||
+      isAudioMsg)
+  ) {
     try {
       const scheduled = await tryHandleOwnerScheduling({
         message,
@@ -1484,33 +1794,58 @@ export async function processOwnerChatbotMessage(
       });
       if (scheduled) return true;
     } catch (err) {
-      console.error('[chatbot-engine] scheduling intercept failed, falling through to intake:', err);
+      console.error(
+        '[chatbot-engine] scheduling intercept failed, falling through to intake:',
+        err
+      );
     }
   }
 
   // 1.8. Quick Task Switch / Fresh Ingestion Intercept
-  const hasContactKeywords = cleanedText && (
-    /is interested in|referred by|magicbricks|99acres|housing\.com/i.test(cleanedText) ||
-    (cleanedText.split('\n').length >= 2 && /\b\d{10,15}\b/.test(cleanedText))
-  );
+  const hasContactKeywords =
+    cleanedText &&
+    (/is interested in|referred by|magicbricks|99acres|housing\.com/i.test(
+      cleanedText
+    ) ||
+      (cleanedText.split('\n').length >= 2 &&
+        /\b\d{10,15}\b/.test(cleanedText)));
 
   // A card arriving mid-listing is a person to file, never a correction
   // to the draft — and the draft would otherwise swallow it, because
   // the keyword test below never matches a card's rendered text.
   if (propSession && isContactCardMsg) {
-    console.log(`[chatbot-engine] Discarding active property session ${propSession.id} for a shared contact card`);
-    await supabaseAdmin().from('property_draft_sessions').delete().eq('id', propSession.id);
+    console.log(
+      `[chatbot-engine] Discarding active property session ${propSession.id} for a shared contact card`
+    );
+    await supabaseAdmin()
+      .from('property_draft_sessions')
+      .delete()
+      .eq('id', propSession.id);
     propSession = null;
   }
 
   if (propSession && hasContactKeywords) {
     if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
-      return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      return await sendCreditsLockedReply(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        conversation.id
+      );
     }
-    const classification = await classifyImageOrText(cleanedText, undefined, undefined);
+    const classification = await classifyImageOrText(
+      cleanedText,
+      undefined,
+      undefined
+    );
     if (classification === 'contact') {
-      console.log(`[chatbot-engine] Discarding active property session ${propSession.id} to start contact flow`);
-      await supabaseAdmin().from('property_draft_sessions').delete().eq('id', propSession.id);
+      console.log(
+        `[chatbot-engine] Discarding active property session ${propSession.id} to start contact flow`
+      );
+      await supabaseAdmin()
+        .from('property_draft_sessions')
+        .delete()
+        .eq('id', propSession.id);
       propSession = null;
     }
   }
@@ -1522,14 +1857,24 @@ export async function processOwnerChatbotMessage(
     // draft — only a genuine property discards the contact session; a
     // contact screenshot is left for the merge branch below to enrich.
     if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
-      return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      return await sendCreditsLockedReply(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        conversation.id
+      );
     }
     try {
       const { buffer, mimeType } = await loadInboundMedia();
       const imgClass = await classifyImageOrText(cleanedText, buffer, mimeType);
       if (imgClass === 'property') {
-        console.log(`[chatbot-engine] Discarding active contact session ${contactSession.id} to start property flow`);
-        await supabaseAdmin().from('contact_draft_sessions').delete().eq('id', contactSession.id);
+        console.log(
+          `[chatbot-engine] Discarding active contact session ${contactSession.id} to start property flow`
+        );
+        await supabaseAdmin()
+          .from('contact_draft_sessions')
+          .delete()
+          .eq('id', contactSession.id);
         contactSession = null;
       } else if (imgClass === 'client_reply') {
         // A client's status reply is context to log, not contact
@@ -1539,10 +1884,16 @@ export async function processOwnerChatbotMessage(
     } catch (err) {
       // On a classify/download failure, keep the contact session so the
       // image is treated as enrichment rather than silently lost.
-      console.error('[chatbot-engine] Error classifying image during active contact session:', err);
+      console.error(
+        '[chatbot-engine] Error classifying image during active contact session:',
+        err
+      );
     }
   } else if (contactSession && cleanedText) {
-    const isNewContactForward = /is interested in|referred by|magicbricks|99acres|housing\.com/i.test(cleanedText);
+    const isNewContactForward =
+      /is interested in|referred by|magicbricks|99acres|housing\.com/i.test(
+        cleanedText
+      );
     // A buyer requirement for the contact being drafted ("Requirements - ...",
     // "looking for a 2BHK plot in HSR") states what they WANT and must merge
     // into their requirements — never spin up a property listing, even though
@@ -1555,16 +1906,35 @@ export async function processOwnerChatbotMessage(
 
     if (isNewContactForward || isPropertyListing) {
       if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
-        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+        return await sendCreditsLockedReply(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          conversation.id
+        );
       }
-      const classification = await classifyImageOrText(cleanedText, undefined, undefined);
+      const classification = await classifyImageOrText(
+        cleanedText,
+        undefined,
+        undefined
+      );
       if (classification === 'property' && !isBuyerRequirement) {
-        console.log(`[chatbot-engine] Discarding active contact session ${contactSession.id} to start property flow`);
-        await supabaseAdmin().from('contact_draft_sessions').delete().eq('id', contactSession.id);
+        console.log(
+          `[chatbot-engine] Discarding active contact session ${contactSession.id} to start property flow`
+        );
+        await supabaseAdmin()
+          .from('contact_draft_sessions')
+          .delete()
+          .eq('id', contactSession.id);
         contactSession = null;
       } else if (classification === 'contact' && isNewContactForward) {
-        console.log(`[chatbot-engine] Discarding old contact session ${contactSession.id} to start fresh contact flow`);
-        await supabaseAdmin().from('contact_draft_sessions').delete().eq('id', contactSession.id);
+        console.log(
+          `[chatbot-engine] Discarding old contact session ${contactSession.id} to start fresh contact flow`
+        );
+        await supabaseAdmin()
+          .from('contact_draft_sessions')
+          .delete()
+          .eq('id', contactSession.id);
         contactSession = null;
       }
     }
@@ -1581,8 +1951,14 @@ export async function processOwnerChatbotMessage(
         .delete()
         .eq('id', propSession.id);
 
-      const reply = "❌ *Property draft discarded.* Send another property details text or listing screenshot to start a new draft.";
-      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      const reply =
+        '❌ *Property draft discarded.* Send another property details text or listing screenshot to start a new draft.';
+      const sendRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: reply,
+      });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
       return true;
     }
@@ -1591,10 +1967,16 @@ export async function processOwnerChatbotMessage(
     if (buttonId === 'confirm_property' || lowerText === 'confirm') {
       const { isValid, missingFields } = validateDraft(draft);
       if (!isValid) {
-        const reply = `⚠️ *Cannot confirm yet.* The following mandatory fields are missing:\n\n` +
-          missingFields.map(f => `• *${f}*`).join('\n') +
+        const reply =
+          `⚠️ *Cannot confirm yet.* The following mandatory fields are missing:\n\n` +
+          missingFields.map((f) => `• *${f}*`).join('\n') +
           `\n\nPlease provide them first (e.g. 'price is 1.5 Cr', 'title is HSR 3BHK Apartment').`;
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
       }
@@ -1606,7 +1988,9 @@ export async function processOwnerChatbotMessage(
       if (draft.owner_contact_name) {
         const ownerName = draft.owner_contact_name.trim();
         const ownerPhone = draft.owner_contact_phone;
-        const normalizedPhone = ownerPhone ? (normalizePhoneWithCountryCode(ownerPhone) || null) : null;
+        const normalizedPhone = ownerPhone
+          ? normalizePhoneWithCountryCode(ownerPhone) || null
+          : null;
 
         if (normalizedPhone) {
           const cleanPhone = normalizedPhone.replace(/\D/g, '');
@@ -1614,7 +1998,9 @@ export async function processOwnerChatbotMessage(
             .from('contacts')
             .select('id, name, classification')
             .eq('account_id', accountId)
-            .or(`phone.eq."${String(ownerPhone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalizedPhone},phone.eq.${cleanPhone}`);
+            .or(
+              `phone.eq."${String(ownerPhone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalizedPhone},phone.eq.${cleanPhone}`
+            );
 
           if (existingContacts && existingContacts.length > 0) {
             const contact = existingContacts[0];
@@ -1626,7 +2012,8 @@ export async function processOwnerChatbotMessage(
             }
           } else {
             // Contact not found -> Create a new contact with phone number
-            const newClassification = draft.owner_contact_role === 'Agent' ? 'Agent' : 'Owner';
+            const newClassification =
+              draft.owner_contact_role === 'Agent' ? 'Agent' : 'Owner';
             const { data: newContact, error: createErr } = await supabaseAdmin()
               .from('contacts')
               .insert({
@@ -1637,7 +2024,7 @@ export async function processOwnerChatbotMessage(
                 phone: normalizedPhone,
                 classification: newClassification,
                 status: 'pending_review',
-                source: 'WhatsApp'
+                source: 'WhatsApp',
               })
               .select()
               .single();
@@ -1646,12 +2033,16 @@ export async function processOwnerChatbotMessage(
               ownerContactId = newContact.id;
               listingSource = newClassification === 'Agent' ? 'agent' : 'owner';
             } else {
-              console.error('[chatbot-engine] Error creating new contact for listing owner:', createErr);
+              console.error(
+                '[chatbot-engine] Error creating new contact for listing owner:',
+                createErr
+              );
             }
           }
         } else {
           // No phone number provided -> Save owner details to internal notes field of the property
-          const roleLabel = draft.owner_contact_role === 'Agent' ? 'Agent' : 'Owner';
+          const roleLabel =
+            draft.owner_contact_role === 'Agent' ? 'Agent' : 'Owner';
           extraNotesFromOwner = `Owner Details: ${ownerName} (${roleLabel}, No contact number provided)`;
         }
       }
@@ -1668,7 +2059,7 @@ export async function processOwnerChatbotMessage(
       const intakeProjectId = await matchProjectByName(
         supabaseAdmin(),
         accountId,
-        draft.project,
+        draft.project
       );
 
       // Create new property in inventory
@@ -1716,13 +2107,19 @@ export async function processOwnerChatbotMessage(
           land_zone: (() => {
             if (!draft.type) return null;
             const typeLower = draft.type.toLowerCase();
-            if (typeLower.includes('industrial') || typeLower.includes('shed')) {
+            if (
+              typeLower.includes('industrial') ||
+              typeLower.includes('shed')
+            ) {
               return 'Industrial';
             }
             if (typeLower.includes('sez')) {
               return 'SEZ';
             }
-            if (typeLower.includes('agricultural') || typeLower.includes('farm')) {
+            if (
+              typeLower.includes('agricultural') ||
+              typeLower.includes('farm')
+            ) {
               return 'Agricultural';
             }
             if (
@@ -1761,16 +2158,24 @@ export async function processOwnerChatbotMessage(
           goodwill_amount: parseNumeric(draft.goodwill_amount),
           notes: [
             `Ingested automatically via WhatsApp chatbot.`,
-            extraNotesFromOwner
-          ].filter(Boolean).join('\n')
+            extraNotesFromOwner,
+          ]
+            .filter(Boolean)
+            .join('\n'),
         })
         .select()
         .single();
 
       if (propErr) {
         console.error('[chatbot-engine] Failed to save property:', propErr);
-        const reply = "❌ *Error saving property to database.* Please try again later.";
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        const reply =
+          '❌ *Error saving property to database.* Please try again later.';
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
       }
@@ -1782,7 +2187,11 @@ export async function processOwnerChatbotMessage(
         .eq('id', propSession.id);
 
       if (prop && prop.id) {
-        autoSyncPropertyCatalogIfNeeded(supabaseAdmin(), prop.id, accountId).catch((err) => {
+        autoSyncPropertyCatalogIfNeeded(
+          supabaseAdmin(),
+          prop.id,
+          accountId
+        ).catch((err) => {
           console.error('[chatbot-engine] Auto-sync background error:', err);
         });
         // Forwarded walkthrough video → unlisted YouTube copy, when a
@@ -1804,14 +2213,19 @@ export async function processOwnerChatbotMessage(
           });
       }
 
-      let reply = `✅ *Property listing created successfully!*\n\n` +
+      let reply =
+        `✅ *Property listing created successfully!*\n\n` +
         `*Code:* ${prop.property_code}\n` +
         `*Title:* ${prop.title}\n` +
         dealHeadline(prop) +
         `*Location:* ${prop.location}\n` +
         `*Type:* ${prop.type}\n` +
-        (prop.land_area ? `*Land Area:* ${prop.land_area} ${prop.land_area_unit || 'Sq.Ft.'}\n` : '') +
-        (prop.video_url || prop.youtube_video_id ? `*Video:* Attached 🎬\n` : '');
+        (prop.land_area
+          ? `*Land Area:* ${prop.land_area} ${prop.land_area_unit || 'Sq.Ft.'}\n`
+          : '') +
+        (prop.video_url || prop.youtube_video_id
+          ? `*Video:* Attached 🎬\n`
+          : '');
 
       if (prop.rental_income) {
         reply += `*Rent:* ₹${prop.rental_income.toLocaleString('en-IN')}/month\n`;
@@ -1830,8 +2244,13 @@ export async function processOwnerChatbotMessage(
       }
 
       reply += `\nView it in your dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/inventory?propertyId=${prop.id}`;
-        
-      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+
+      const sendRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: reply,
+      });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
       // Lets a quote-reply on this card edit the listing (migration 185).
       await recordBotTarget({
@@ -1848,16 +2267,29 @@ export async function processOwnerChatbotMessage(
       // Ack with a ⏳ reaction on the photo itself (no chat bubble per
       // photo) and touch the session so pending preview threads yield —
       // an album ends as ONE confirmation card, not one per photo.
-      await reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '⏳');
+      await reactToInboundMessage(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        message.id,
+        '⏳'
+      );
       await touchDraftSession(propSession.id);
 
       try {
         const mediaId = message.image.id;
         const { url, mimeType } = await getMediaUrl({ mediaId, accessToken });
-        const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
-        
-        const publicUrl = await uploadPropertyImage(accountId, buffer, mimeType);
-        
+        const { buffer } = await downloadMedia({
+          downloadUrl: url,
+          accessToken,
+        });
+
+        const publicUrl = await uploadPropertyImage(
+          accountId,
+          buffer,
+          mimeType
+        );
+
         let updatedDraft = draft;
         let nextStatus = propSession.status;
         let success = false;
@@ -1874,10 +2306,15 @@ export async function processOwnerChatbotMessage(
 
           if (fetchErr || !latestSession) {
             if (fetchErr?.code === 'PGRST116') {
-              console.log('[chatbot-engine] Active session was deleted concurrently. Exiting photo upload flow.');
+              console.log(
+                '[chatbot-engine] Active session was deleted concurrently. Exiting photo upload flow.'
+              );
               return true;
             }
-            throw fetchErr || new Error('Session not found during image append retry');
+            throw (
+              fetchErr ||
+              new Error('Session not found during image append retry')
+            );
           }
 
           const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
@@ -1885,18 +2322,20 @@ export async function processOwnerChatbotMessage(
           const updatedImages = currentImages.includes(publicUrl)
             ? currentImages
             : [...currentImages, publicUrl];
-          
+
           updatedDraft = { ...currentDraft, images: updatedImages };
-          
+
           const validation = validateDraft(updatedDraft);
-          nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
+          nextStatus = validation.isValid
+            ? 'awaiting_confirmation'
+            : 'collecting';
 
           const { data: updateData, error: updateErr } = await supabaseAdmin()
             .from('property_draft_sessions')
             .update({
               draft_data: updatedDraft,
               status: nextStatus,
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
             })
             .eq('id', propSession.id)
             .eq('updated_at', latestSession.updated_at)
@@ -1907,18 +2346,28 @@ export async function processOwnerChatbotMessage(
             finalUpdateData = updateData;
           } else {
             retryCount++;
-            await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 50));
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.random() * 200 + 50)
+            );
           }
         }
 
         if (!success || !finalUpdateData || finalUpdateData.length === 0) {
-          throw new Error('Failed to update draft session due to concurrent modifications');
+          throw new Error(
+            'Failed to update draft session due to concurrent modifications'
+          );
         }
 
         const savedTime = finalUpdateData[0].updated_at;
 
         // Flip the ⏳ to ✅ on the user's photo — the only per-photo ack.
-        void reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '✅');
+        void reactToInboundMessage(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          message.id,
+          '✅'
+        );
 
         sendPropertyDraftPreviewDebounced(
           propSession.id,
@@ -1932,8 +2381,14 @@ export async function processOwnerChatbotMessage(
         return true;
       } catch (err) {
         console.error('[chatbot-engine] Error processing photo upload:', err);
-        const reply = "❌ *Failed to upload image.* Please verify the photo format and try again.";
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        const reply =
+          '❌ *Failed to upload image.* Please verify the photo format and try again.';
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         // Our arrival touch may have silenced an earlier thread's card —
         // fire a recovery preview so the album still ends with one card.
@@ -1956,18 +2411,34 @@ export async function processOwnerChatbotMessage(
     // draft stamps it onto the property and (when a YouTube channel is
     // connected) queues the unlisted YouTube upload.
     if (isVideoMsg) {
-      await reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '⏳');
+      await reactToInboundMessage(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        message.id,
+        '⏳'
+      );
       await touchDraftSession(propSession.id);
 
       try {
         const { buffer, mimeType } = await loadInboundMedia();
         if (!mimeType?.includes('mp4')) {
-          const reply = "⚠️ *Video format not supported.* Please send the walkthrough as an MP4 video.";
-          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          const reply =
+            '⚠️ *Video format not supported.* Please send the walkthrough as an MP4 video.';
+          const sendRes = await sendTextMessage({
+            phoneNumberId,
+            accessToken,
+            to: contactRecord.phone,
+            text: reply,
+          });
           await saveBotMessage(conversation.id, reply, sendRes.messageId);
           return true;
         }
-        const publicUrl = await uploadPropertyVideo(accountId, buffer!, mimeType);
+        const publicUrl = await uploadPropertyVideo(
+          accountId,
+          buffer!,
+          mimeType
+        );
 
         let updatedDraft = draft;
         let success = false;
@@ -1984,24 +2455,31 @@ export async function processOwnerChatbotMessage(
 
           if (fetchErr || !latestSession) {
             if (fetchErr?.code === 'PGRST116') {
-              console.log('[chatbot-engine] Active session was deleted concurrently. Exiting video upload flow.');
+              console.log(
+                '[chatbot-engine] Active session was deleted concurrently. Exiting video upload flow.'
+              );
               return true;
             }
-            throw fetchErr || new Error('Session not found during video append retry');
+            throw (
+              fetchErr ||
+              new Error('Session not found during video append retry')
+            );
           }
 
           const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
           updatedDraft = { ...currentDraft, video_url: publicUrl };
 
           const validation = validateDraft(updatedDraft);
-          const nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
+          const nextStatus = validation.isValid
+            ? 'awaiting_confirmation'
+            : 'collecting';
 
           const { data: updateData, error: updateErr } = await supabaseAdmin()
             .from('property_draft_sessions')
             .update({
               draft_data: updatedDraft,
               status: nextStatus,
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
             })
             .eq('id', propSession.id)
             .eq('updated_at', latestSession.updated_at)
@@ -2012,17 +2490,27 @@ export async function processOwnerChatbotMessage(
             finalUpdateData = updateData;
           } else {
             retryCount++;
-            await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 50));
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.random() * 200 + 50)
+            );
           }
         }
 
         if (!success || !finalUpdateData || finalUpdateData.length === 0) {
-          throw new Error('Failed to update draft session due to concurrent modifications');
+          throw new Error(
+            'Failed to update draft session due to concurrent modifications'
+          );
         }
 
         const savedTime = finalUpdateData[0].updated_at;
 
-        void reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '✅');
+        void reactToInboundMessage(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          message.id,
+          '✅'
+        );
 
         sendPropertyDraftPreviewDebounced(
           propSession.id,
@@ -2036,8 +2524,14 @@ export async function processOwnerChatbotMessage(
         return true;
       } catch (err) {
         console.error('[chatbot-engine] Error processing video upload:', err);
-        const reply = "❌ *Failed to upload video.* Please make sure it's an MP4 under 16MB and try again.";
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        const reply =
+          "❌ *Failed to upload video.* Please make sure it's an MP4 under 16MB and try again.";
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         sendPropertyDraftPreviewDebounced(
           propSession.id,
@@ -2056,7 +2550,13 @@ export async function processOwnerChatbotMessage(
     if (message.type === 'document' && message.document?.id) {
       // Same lightweight ack pattern as photos: react + touch, no
       // per-document chat bubble.
-      await reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '⏳');
+      await reactToInboundMessage(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        message.id,
+        '⏳'
+      );
       await touchDraftSession(propSession.id);
 
       try {
@@ -2064,7 +2564,12 @@ export async function processOwnerChatbotMessage(
         const filename = message.document.filename || `doc-${Date.now()}`;
         // Too large to keep is not too large to read: the contents are
         // extracted below either way, and the reply says which half landed.
-        const stored = await storeBrochureDocument(accountId, buffer!, mimeType!, filename);
+        const stored = await storeBrochureDocument(
+          accountId,
+          buffer!,
+          mimeType!,
+          filename
+        );
         const publicUrl = stored.url;
 
         // A brochure sent into an open draft used to be filed and
@@ -2076,7 +2581,9 @@ export async function processOwnerChatbotMessage(
           mimeType === 'application/pdf' && !isKhata
             ? await uploadBrochureImages(accountId, buffer!)
             : { photos: [], planCandidates: [] };
-        const khata = isKhata ? await readForwardedEKhata(accountId, buffer!, mimeType!) : null;
+        const khata = isKhata
+          ? await readForwardedEKhata(accountId, buffer!, mimeType!)
+          : null;
 
         let updatedDraft = draft;
         let nextStatus = propSession.status;
@@ -2094,10 +2601,15 @@ export async function processOwnerChatbotMessage(
 
           if (fetchErr || !latestSession) {
             if (fetchErr?.code === 'PGRST116') {
-              console.log('[chatbot-engine] Active session was deleted concurrently. Exiting document upload flow.');
+              console.log(
+                '[chatbot-engine] Active session was deleted concurrently. Exiting document upload flow.'
+              );
               return true;
             }
-            throw fetchErr || new Error('Session not found during document append retry');
+            throw (
+              fetchErr ||
+              new Error('Session not found during document append retry')
+            );
           }
 
           const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
@@ -2112,26 +2624,34 @@ export async function processOwnerChatbotMessage(
             brochure.planCandidates
           );
           const mergedImages = Array.from(
-            new Set([...(currentDraft.images || []), ...brochure.photos, ...unused])
+            new Set([
+              ...(currentDraft.images || []),
+              ...brochure.photos,
+              ...unused,
+            ])
           );
 
           updatedDraft = {
             ...currentDraft,
             documents: updatedDocs,
             images: mergedImages,
-            floor_plans: plans.length > 0 ? plans : currentDraft.floor_plans ?? null,
+            floor_plans:
+              plans.length > 0 ? plans : (currentDraft.floor_plans ?? null),
           };
-          if (khata) updatedDraft = applyEKhataToDraft(updatedDraft, khata, 'fill_gaps');
+          if (khata)
+            updatedDraft = applyEKhataToDraft(updatedDraft, khata, 'fill_gaps');
 
           const validation = validateDraft(updatedDraft);
-          nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
+          nextStatus = validation.isValid
+            ? 'awaiting_confirmation'
+            : 'collecting';
 
           const { data: updateData, error: updateErr } = await supabaseAdmin()
             .from('property_draft_sessions')
             .update({
               draft_data: updatedDraft,
               status: nextStatus,
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
             })
             .eq('id', propSession.id)
             .eq('updated_at', latestSession.updated_at)
@@ -2142,17 +2662,27 @@ export async function processOwnerChatbotMessage(
             finalUpdateData = updateData;
           } else {
             retryCount++;
-            await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 50));
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.random() * 200 + 50)
+            );
           }
         }
 
         if (!success || !finalUpdateData || finalUpdateData.length === 0) {
-          throw new Error('Failed to update draft session due to concurrent modifications');
+          throw new Error(
+            'Failed to update draft session due to concurrent modifications'
+          );
         }
 
         const savedTime = finalUpdateData[0].updated_at;
 
-        void reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '✅');
+        void reactToInboundMessage(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          message.id,
+          '✅'
+        );
 
         sendPropertyDraftPreviewDebounced(
           propSession.id,
@@ -2168,14 +2698,22 @@ export async function processOwnerChatbotMessage(
         );
         return true;
       } catch (err) {
-        console.error('[chatbot-engine] Error processing document upload:', err);
+        console.error(
+          '[chatbot-engine] Error processing document upload:',
+          err
+        );
         // An oversize file says so, with its size: "try again" is advice
         // that cannot work, and the sender has no way to guess the cap.
         const reply =
           err instanceof DocumentTooLargeError
             ? `❌ *That document is too large.* ${err.message} Send a compressed copy, or split it.`
-            : "❌ *Failed to upload document.* Please try again.";
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+            : '❌ *Failed to upload document.* Please try again.';
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         sendPropertyDraftPreviewDebounced(
           propSession.id,
@@ -2210,7 +2748,12 @@ export async function processOwnerChatbotMessage(
       // Burn once, before the optimistic-lock retry loop — retries
       // re-run the AI merge but must not re-charge the account.
       if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
-        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+        return await sendCreditsLockedReply(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          conversation.id
+        );
       }
 
       while (retryCount < maxRetries && !success) {
@@ -2222,10 +2765,14 @@ export async function processOwnerChatbotMessage(
 
         if (fetchErr || !latestSession) {
           if (fetchErr?.code === 'PGRST116') {
-            console.log('[chatbot-engine] Active session was deleted concurrently. Exiting text update flow.');
+            console.log(
+              '[chatbot-engine] Active session was deleted concurrently. Exiting text update flow.'
+            );
             return true;
           }
-          throw fetchErr || new Error('Session not found during text update retry');
+          throw (
+            fetchErr || new Error('Session not found during text update retry')
+          );
         }
 
         const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
@@ -2237,14 +2784,16 @@ export async function processOwnerChatbotMessage(
         updatedDraft = await backfillLocationFromMapLink(updatedDraft);
 
         const validation = validateDraft(updatedDraft);
-        nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
+        nextStatus = validation.isValid
+          ? 'awaiting_confirmation'
+          : 'collecting';
 
         const { data: updateData, error: updateErr } = await supabaseAdmin()
           .from('property_draft_sessions')
           .update({
             draft_data: updatedDraft,
             status: nextStatus,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('id', propSession.id)
           .eq('updated_at', latestSession.updated_at)
@@ -2255,13 +2804,21 @@ export async function processOwnerChatbotMessage(
           finalUpdateData = updateData;
         } else {
           retryCount++;
-          await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 50));
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.random() * 200 + 50)
+          );
         }
       }
 
       if (!success || !finalUpdateData || finalUpdateData.length === 0) {
-        const reply = "⚠️ *Couldn't save your update due to a conflicting change.* Please resend it.";
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        const reply =
+          "⚠️ *Couldn't save your update due to a conflicting change.* Please resend it.";
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
       }
@@ -2272,7 +2829,8 @@ export async function processOwnerChatbotMessage(
       // them here too, or an agent who forwards the card a second time
       // loses them the moment they tap Cancel.
       const cardFiled =
-        parseSharedContactCards(cleanedText).length > 0 && updatedDraft.owner_contact_name
+        parseSharedContactCards(cleanedText).length > 0 &&
+        updatedDraft.owner_contact_name
           ? await fileSharedCardContact({
               accountId,
               userId,
@@ -2313,8 +2871,14 @@ export async function processOwnerChatbotMessage(
         .delete()
         .eq('id', contactSession.id);
 
-      const reply = "❌ *Contact drafts discarded.* Send another contact text details or screenshot to start a new contact draft.";
-      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      const reply =
+        '❌ *Contact drafts discarded.* Send another contact text details or screenshot to start a new contact draft.';
+      const sendRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: reply,
+      });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
       return true;
     }
@@ -2335,19 +2899,28 @@ export async function processOwnerChatbotMessage(
         .maybeSingle();
 
       if (!linked?.phone) {
-        const reply = "⚠️ *That contact is no longer available.* Reply with the phone number instead.";
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        const reply =
+          '⚠️ *That contact is no longer available.* Reply with the phone number instead.';
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
       }
 
-      const target = (container.contacts || []).findIndex((c) => !(c.phone || '').trim());
+      const target = (container.contacts || []).findIndex(
+        (c) => !(c.phone || '').trim()
+      );
       const linkedContainer: ParsedContactDraftsContainer = {
         contacts: (container.contacts || []).map((c, i) =>
           i === target ? { ...c, phone: linked.phone as string } : c
         ),
       };
-      const { isValid, missingFields } = validateContactDraftsContainer(linkedContainer);
+      const { isValid, missingFields } =
+        validateContactDraftsContainer(linkedContainer);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
       await supabaseAdmin()
@@ -2375,13 +2948,23 @@ export async function processOwnerChatbotMessage(
 
     // Handle CONFIRM instruction
     if (buttonId === 'confirm_contact' || lowerText === 'confirm') {
-      const confirmedContainer = await resolveExactContactLinks(container, accountId);
-      const { isValid, missingFields } = validateContactDraftsContainer(confirmedContainer);
+      const confirmedContainer = await resolveExactContactLinks(
+        container,
+        accountId
+      );
+      const { isValid, missingFields } =
+        validateContactDraftsContainer(confirmedContainer);
       if (!isValid) {
-        const reply = `⚠️ *Cannot confirm yet.* The following fields are missing:\n\n` +
-          missingFields.map(f => `• *${f}*`).join('\n') +
+        const reply =
+          `⚠️ *Cannot confirm yet.* The following fields are missing:\n\n` +
+          missingFields.map((f) => `• *${f}*`).join('\n') +
           `\n\nPlease provide them first.`;
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
       }
@@ -2393,7 +2976,15 @@ export async function processOwnerChatbotMessage(
         .eq('account_id', accountId)
         .eq('is_published', true);
 
-      const matchedPropertyMap = new Map<string, { id: string; title: string; property_code?: string | null; project?: string | null }>();
+      const matchedPropertyMap = new Map<
+        string,
+        {
+          id: string;
+          title: string;
+          property_code?: string | null;
+          project?: string | null;
+        }
+      >();
 
       // Check duplicates and save new contacts in bulk
       const toInsert = [];
@@ -2407,7 +2998,9 @@ export async function processOwnerChatbotMessage(
           .from('contacts')
           .select('id, name')
           .eq('account_id', accountId)
-          .or(`phone.eq."${String(draft.phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${cleanPhone}`)
+          .or(
+            `phone.eq."${String(draft.phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${cleanPhone}`
+          )
           .maybeSingle();
 
         if (existingContact) {
@@ -2423,22 +3016,34 @@ export async function processOwnerChatbotMessage(
             .maybeSingle();
           const enrichment = enrichmentFor(draft, held || {});
           if (enrichment.changed.length === 0) {
-            duplicates.push(`${existingContact.name} (${normalized || draft.phone})`);
+            duplicates.push(
+              `${existingContact.name} (${normalized || draft.phone})`
+            );
           } else {
             const patch: Record<string, string> = { ...enrichment.updates };
-            if (enrichment.requirements) patch.requirements = enrichment.requirements;
+            if (enrichment.requirements)
+              patch.requirements = enrichment.requirements;
             const { error: enrichErr } = await supabaseAdmin()
               .from('contacts')
               .update(patch)
               .eq('id', existingContact.id)
               .eq('account_id', accountId);
             if (enrichErr) {
-              console.error('[chatbot-engine] contact enrichment failed:', enrichErr);
-              duplicates.push(`${existingContact.name} (${normalized || draft.phone})`);
+              console.error(
+                '[chatbot-engine] contact enrichment failed:',
+                enrichErr
+              );
+              duplicates.push(
+                `${existingContact.name} (${normalized || draft.phone})`
+              );
             } else {
               // Budget, areas and BHK live in pref_*, which the matcher
               // reads; the requirements free text is invisible to it.
-              await syncContactPreferences(supabaseAdmin(), accountId, existingContact.id);
+              await syncContactPreferences(
+                supabaseAdmin(),
+                accountId,
+                existingContact.id
+              );
               enriched.push({
                 id: existingContact.id,
                 name: String(existingContact.name),
@@ -2454,13 +3059,18 @@ export async function processOwnerChatbotMessage(
           if (draft.referrer_name) {
             const refName = draft.referrer_name.trim();
             const refPhone = draft.referrer_phone;
-            let refQuery = supabaseAdmin().from('contacts').select('id, name').eq('account_id', accountId);
-            
+            let refQuery = supabaseAdmin()
+              .from('contacts')
+              .select('id, name')
+              .eq('account_id', accountId);
+
             if (refPhone) {
               const refNormalized = normalizePhoneWithCountryCode(refPhone);
               const refCleanPhone = refNormalized.replace(/\D/g, '');
               const escapedRefName = refName.replace(/[\\"]/g, '\\$&');
-              refQuery = refQuery.or(`phone.eq."${String(refPhone).replace(/[\\"]/g, '\\$&')}",phone.eq.${refNormalized},phone.eq.${refCleanPhone},name.ilike."${escapedRefName}"`);
+              refQuery = refQuery.or(
+                `phone.eq."${String(refPhone).replace(/[\\"]/g, '\\$&')}",phone.eq.${refNormalized},phone.eq.${refCleanPhone},name.ilike."${escapedRefName}"`
+              );
             } else {
               refQuery = refQuery.ilike('name', refName);
             }
@@ -2475,67 +3085,118 @@ export async function processOwnerChatbotMessage(
           let lastInquiredPropertyId = null;
           if (properties && draft.notes) {
             const notesLower = draft.notes.toLowerCase();
-            const matchedProp = properties.find((p: { id: string; title: string; property_code?: string | null; project?: string | null }) => {
-              // 1. Code match (e.g. PROP-1002)
-              if (p.property_code && notesLower.includes(p.property_code.toLowerCase())) {
-                return true;
-              }
-
-              // 2. Title match
-              if (notesLower.includes(p.title.toLowerCase())) {
-                return true;
-              }
-
-              // 3. Full project match (minimum 3 characters)
-              if (p.project && p.project.trim().length >= 3) {
-                const proj = p.project.trim().toLowerCase();
-                if (notesLower.includes(proj)) return true;
-              }
-
-              // 4. First 2 words of project match (e.g. "SJR Blue" for "SJR Blue Waters")
-              if (p.project) {
-                const projectWords = p.project.trim().toLowerCase().split(/\s+/);
-                if (projectWords.length >= 2) {
-                  const firstTwoWords = projectWords.slice(0, 2).join(' ');
-                  if (firstTwoWords.length >= 5 && notesLower.includes(firstTwoWords)) {
-                    return true;
-                  }
-                }
-              }
-
-              // 5. Cleaned title keywords match (ignores prepositions and common specifiers)
-              const stopWords = new Set(['in', 'at', 'to', 'on', 'of', 'a', 'an', 'the', 'with', 'by', 'for', 'and', 'or', 'is', 'are', 'am', 'was', 'were']);
-              const cleanTitle = p.title
-                .toLowerCase()
-                .replace(/(?:\d+\s*(?:bhk|bedroom|bath|bathroom)|apartment|villa|plot|house|for\s+sale|for\s+rent|luxurious|luxury|beautiful|spacious|rent|sale)/gi, ' ')
-                .replace(/[^\w\s]/g, ' ')
-                .trim();
-              
-              const cleanWords = cleanTitle.split(/\s+/).filter((w: string) => w.length > 1 && !stopWords.has(w));
-              if (cleanWords.length >= 2) {
-                const phrase2 = cleanWords.slice(0, 2).join(' ');
-                if (phrase2.length >= 6 && notesLower.includes(phrase2)) {
+            const matchedProp = properties.find(
+              (p: {
+                id: string;
+                title: string;
+                property_code?: string | null;
+                project?: string | null;
+              }) => {
+                // 1. Code match (e.g. PROP-1002)
+                if (
+                  p.property_code &&
+                  notesLower.includes(p.property_code.toLowerCase())
+                ) {
                   return true;
                 }
-                if (cleanWords.length >= 3) {
-                  const phrase3 = cleanWords.slice(0, 3).join(' ');
-                  if (phrase3.length >= 8 && notesLower.includes(phrase3)) {
-                    return true;
+
+                // 2. Title match
+                if (notesLower.includes(p.title.toLowerCase())) {
+                  return true;
+                }
+
+                // 3. Full project match (minimum 3 characters)
+                if (p.project && p.project.trim().length >= 3) {
+                  const proj = p.project.trim().toLowerCase();
+                  if (notesLower.includes(proj)) return true;
+                }
+
+                // 4. First 2 words of project match (e.g. "SJR Blue" for "SJR Blue Waters")
+                if (p.project) {
+                  const projectWords = p.project
+                    .trim()
+                    .toLowerCase()
+                    .split(/\s+/);
+                  if (projectWords.length >= 2) {
+                    const firstTwoWords = projectWords.slice(0, 2).join(' ');
+                    if (
+                      firstTwoWords.length >= 5 &&
+                      notesLower.includes(firstTwoWords)
+                    ) {
+                      return true;
+                    }
                   }
                 }
-              }
 
-              // 6. Fallback project keywords from title
-              const projectKeywords = p.title.replace(/(?:\d+\s*(?:BHK|bhk)|apartment|villa|plot|house|for\s+sale|for\s+rent)/gi, '').trim();
-              if (projectKeywords.length > 5 && notesLower.includes(projectKeywords.toLowerCase())) {
-                return true;
-              }
+                // 5. Cleaned title keywords match (ignores prepositions and common specifiers)
+                const stopWords = new Set([
+                  'in',
+                  'at',
+                  'to',
+                  'on',
+                  'of',
+                  'a',
+                  'an',
+                  'the',
+                  'with',
+                  'by',
+                  'for',
+                  'and',
+                  'or',
+                  'is',
+                  'are',
+                  'am',
+                  'was',
+                  'were',
+                ]);
+                const cleanTitle = p.title
+                  .toLowerCase()
+                  .replace(
+                    /(?:\d+\s*(?:bhk|bedroom|bath|bathroom)|apartment|villa|plot|house|for\s+sale|for\s+rent|luxurious|luxury|beautiful|spacious|rent|sale)/gi,
+                    ' '
+                  )
+                  .replace(/[^\w\s]/g, ' ')
+                  .trim();
 
-              return false;
-            });
+                const cleanWords = cleanTitle
+                  .split(/\s+/)
+                  .filter((w: string) => w.length > 1 && !stopWords.has(w));
+                if (cleanWords.length >= 2) {
+                  const phrase2 = cleanWords.slice(0, 2).join(' ');
+                  if (phrase2.length >= 6 && notesLower.includes(phrase2)) {
+                    return true;
+                  }
+                  if (cleanWords.length >= 3) {
+                    const phrase3 = cleanWords.slice(0, 3).join(' ');
+                    if (phrase3.length >= 8 && notesLower.includes(phrase3)) {
+                      return true;
+                    }
+                  }
+                }
+
+                // 6. Fallback project keywords from title
+                const projectKeywords = p.title
+                  .replace(
+                    /(?:\d+\s*(?:BHK|bhk)|apartment|villa|plot|house|for\s+sale|for\s+rent)/gi,
+                    ''
+                  )
+                  .trim();
+                if (
+                  projectKeywords.length > 5 &&
+                  notesLower.includes(projectKeywords.toLowerCase())
+                ) {
+                  return true;
+                }
+
+                return false;
+              }
+            );
             if (matchedProp) {
               lastInquiredPropertyId = matchedProp.id;
-              matchedPropertyMap.set(normalized || draft.phone!.trim(), matchedProp);
+              matchedPropertyMap.set(
+                normalized || draft.phone!.trim(),
+                matchedProp
+              );
             }
           }
 
@@ -2557,7 +3218,7 @@ export async function processOwnerChatbotMessage(
             _notes: draft.notes || null, // temporary field, stripped before DB insert
             referrer: referrerNameText,
             referrer_contact_id: referrerContactId,
-            last_inquired_property_id: lastInquiredPropertyId
+            last_inquired_property_id: lastInquiredPropertyId,
           });
         }
       }
@@ -2566,23 +3227,32 @@ export async function processOwnerChatbotMessage(
         // An enriched contact is the SUCCESS case of a forwarded chat
         // about someone we already know, so it must not be reported
         // under a warning about duplicates.
-        const reply = enriched.length > 0
-          ? `✅ *Updated ${enriched.length} existing contact(s) in ${BRANDING.name}!*\n\n` +
-            enriched.map(e => `• *${e.name}* — ${e.changed.join(', ')} updated`).join('\n') +
-            (duplicates.length > 0
-              ? `\n\n⚠️ *Nothing new for:* \n` + duplicates.map(d => `• ${d}`).join('\n')
-              : '') +
-            (enriched.length === 1
-              ? `\n\nView in dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/contacts?contactId=${enriched[0].id}`
-              : '')
-          : `⚠️ *All contacts already exist in ${BRANDING.name}:* \n` +
-            duplicates.map(d => `• ${d}`).join('\n') +
-            `\n\nContact draft session discarded.`;
+        const reply =
+          enriched.length > 0
+            ? `✅ *Updated ${enriched.length} existing contact(s) in ${BRANDING.name}!*\n\n` +
+              enriched
+                .map((e) => `• *${e.name}* — ${e.changed.join(', ')} updated`)
+                .join('\n') +
+              (duplicates.length > 0
+                ? `\n\n⚠️ *Nothing new for:* \n` +
+                  duplicates.map((d) => `• ${d}`).join('\n')
+                : '') +
+              (enriched.length === 1
+                ? `\n\nView in dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/contacts?contactId=${enriched[0].id}`
+                : '')
+            : `⚠️ *All contacts already exist in ${BRANDING.name}:* \n` +
+              duplicates.map((d) => `• ${d}`).join('\n') +
+              `\n\nContact draft session discarded.`;
         await supabaseAdmin()
           .from('contact_draft_sessions')
           .delete()
           .eq('id', contactSession.id);
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
       }
@@ -2603,8 +3273,14 @@ export async function processOwnerChatbotMessage(
 
       if (contactErr) {
         console.error('[chatbot-engine] Failed to save contacts:', contactErr);
-        const reply = "❌ *Error saving contacts to database.* Please try again later.";
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        const reply =
+          '❌ *Error saving contacts to database.* Please try again later.';
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
       }
@@ -2619,10 +3295,21 @@ export async function processOwnerChatbotMessage(
 
           const tagsCache = new Map<string, string>();
           if (existingTags) {
-            existingTags.forEach((t: { id: string; name: string }) => tagsCache.set(t.name.toLowerCase(), t.id));
+            existingTags.forEach((t: { id: string; name: string }) =>
+              tagsCache.set(t.name.toLowerCase(), t.id)
+            );
           }
 
-          const tagColors = ['#0EA5E9', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#6366F1', '#EF4444', '#14B8A6'];
+          const tagColors = [
+            '#0EA5E9',
+            '#10B981',
+            '#8B5CF6',
+            '#F59E0B',
+            '#EC4899',
+            '#6366F1',
+            '#EF4444',
+            '#14B8A6',
+          ];
           const tagLinksToInsert = [];
 
           for (const contact of inserted) {
@@ -2642,30 +3329,35 @@ export async function processOwnerChatbotMessage(
                 let tagId = tagsCache.get(lowerName);
 
                 if (!tagId) {
-                  const randomColor = tagColors[Math.floor(Math.random() * tagColors.length)];
-                  const { data: newTag, error: createTagErr } = await supabaseAdmin()
-                    .from('tags')
-                    .insert({
-                      account_id: accountId,
-                      user_id: userId,
-                      name: tagName,
-                      color: randomColor
-                    })
-                    .select()
-                    .single();
+                  const randomColor =
+                    tagColors[Math.floor(Math.random() * tagColors.length)];
+                  const { data: newTag, error: createTagErr } =
+                    await supabaseAdmin()
+                      .from('tags')
+                      .insert({
+                        account_id: accountId,
+                        user_id: userId,
+                        name: tagName,
+                        color: randomColor,
+                      })
+                      .select()
+                      .single();
 
                   if (!createTagErr && newTag) {
                     tagId = newTag.id;
                     tagsCache.set(lowerName, newTag.id);
                   } else {
-                    console.error('[chatbot-engine] Failed to create tag for property:', createTagErr);
+                    console.error(
+                      '[chatbot-engine] Failed to create tag for property:',
+                      createTagErr
+                    );
                   }
                 }
 
                 if (tagId) {
                   tagLinksToInsert.push({
                     contact_id: contact.id,
-                    tag_id: tagId
+                    tag_id: tagId,
                   });
                 }
               }
@@ -2678,11 +3370,17 @@ export async function processOwnerChatbotMessage(
               .insert(tagLinksToInsert);
 
             if (linkTagErr) {
-              console.error('[chatbot-engine] Failed to link tags to contacts:', linkTagErr);
+              console.error(
+                '[chatbot-engine] Failed to link tags to contacts:',
+                linkTagErr
+              );
             }
           }
         } catch (tagErr) {
-          console.error('[chatbot-engine] Exception in auto-tagging contacts:', tagErr);
+          console.error(
+            '[chatbot-engine] Exception in auto-tagging contacts:',
+            tagErr
+          );
         }
       }
 
@@ -2701,7 +3399,10 @@ export async function processOwnerChatbotMessage(
           .from('contact_notes')
           .insert(noteRows);
         if (noteErr) {
-          console.error('[chatbot-engine] Failed to save contact notes:', noteErr);
+          console.error(
+            '[chatbot-engine] Failed to save contact notes:',
+            noteErr
+          );
         }
       }
 
@@ -2717,19 +3418,31 @@ export async function processOwnerChatbotMessage(
         reply += `• *Name:* ${c.name}${tagNote} (${c.phone}) [${c.classification}]\n`;
       });
       if (enriched.length > 0) {
-        reply += `\n♻️ *Updated existing:* \n` +
-          enriched.map(e => `• ${e.name} — ${e.changed.join(', ')}`).join('\n') + `\n`;
+        reply +=
+          `\n♻️ *Updated existing:* \n` +
+          enriched
+            .map((e) => `• ${e.name} — ${e.changed.join(', ')}`)
+            .join('\n') +
+          `\n`;
       }
       if (duplicates.length > 0) {
-        reply += `\n⚠️ *Nothing new for:* \n` + duplicates.map(d => `• ${d}`).join('\n') + `\n`;
+        reply +=
+          `\n⚠️ *Nothing new for:* \n` +
+          duplicates.map((d) => `• ${d}`).join('\n') +
+          `\n`;
       }
       if (inserted.length === 1) {
         reply += `\nView in dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/contacts?contactId=${inserted[0].id}`;
       } else {
         reply += `\nView in dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/contacts`;
       }
-        
-      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+
+      const sendRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: reply,
+      });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
       // Only a single-contact card names one unambiguous row, so only
       // that one is quote-editable (migration 185).
@@ -2743,7 +3456,6 @@ export async function processOwnerChatbotMessage(
       }
       return true;
     }
-
 
     // A new screenshot/card during an active contact draft either
     // enriches it or replaces it, and the card itself decides which.
@@ -2760,20 +3472,39 @@ export async function processOwnerChatbotMessage(
     // the card is new business, so the old draft goes.
     if (isMediaMsg) {
       if (!(await gatedBurn(accountId, 'contact_parse'))) {
-        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+        return await sendCreditsLockedReply(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          conversation.id
+        );
       }
-      const analyzingMsg = "⏳ _Analyzing the card... Please wait._";
-      const analyzingRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: analyzingMsg });
-      await saveBotMessage(conversation.id, analyzingMsg, analyzingRes.messageId);
+      const analyzingMsg = '⏳ _Analyzing the card... Please wait._';
+      const analyzingRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: analyzingMsg,
+      });
+      await saveBotMessage(
+        conversation.id,
+        analyzingMsg,
+        analyzingRes.messageId
+      );
 
       try {
         const { buffer, mimeType } = await loadInboundMedia();
-        const parsedIncoming = await parseContactFromImageOrText(contentText || '', buffer, mimeType);
+        const parsedIncoming = await parseContactFromImageOrText(
+          contentText || '',
+          buffer,
+          mimeType
+        );
         const { container: mergedContainer, replaced } = reconcileContactDrafts(
           container,
           parsedIncoming
         );
-        const { isValid, missingFields } = validateContactDraftsContainer(mergedContainer);
+        const { isValid, missingFields } =
+          validateContactDraftsContainer(mergedContainer);
         const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
         await supabaseAdmin()
@@ -2781,7 +3512,7 @@ export async function processOwnerChatbotMessage(
           .update({
             draft_data: mergedContainer,
             status: nextStatus,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('id', contactSession.id);
 
@@ -2800,9 +3531,18 @@ export async function processOwnerChatbotMessage(
         );
         return true;
       } catch (err) {
-        console.error('[chatbot-engine] Error merging additional contact media into draft:', err);
-        const reply = "❌ *Couldn't read that screenshot.* Your current draft is unchanged — reply with details as text, or use Confirm/Cancel.";
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        console.error(
+          '[chatbot-engine] Error merging additional contact media into draft:',
+          err
+        );
+        const reply =
+          "❌ *Couldn't read that screenshot.* Your current draft is unchanged — reply with details as text, or use Confirm/Cancel.";
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
       }
@@ -2811,10 +3551,16 @@ export async function processOwnerChatbotMessage(
     // A second card is another person, or the same one again — never a
     // correction to type over the draft. Reconciled the way a second
     // screenshot is, and free, because the card needs no reading.
-    const incomingCards = isContactCardMsg ? contactDraftsFromCards(cleanedText) : null;
+    const incomingCards = isContactCardMsg
+      ? contactDraftsFromCards(cleanedText)
+      : null;
     if (incomingCards) {
-      const { container: mergedContainer, replaced } = reconcileContactDrafts(container, incomingCards);
-      const { isValid, missingFields } = validateContactDraftsContainer(mergedContainer);
+      const { container: mergedContainer, replaced } = reconcileContactDrafts(
+        container,
+        incomingCards
+      );
+      const { isValid, missingFields } =
+        validateContactDraftsContainer(mergedContainer);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
       await supabaseAdmin()
@@ -2822,7 +3568,7 @@ export async function processOwnerChatbotMessage(
         .update({
           draft_data: mergedContainer,
           status: nextStatus,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', contactSession.id);
 
@@ -2850,11 +3596,17 @@ export async function processOwnerChatbotMessage(
       );
       if (!updatedContainer) {
         if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
-          return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+          return await sendCreditsLockedReply(
+            phoneNumberId,
+            accessToken,
+            contactRecord.phone,
+            conversation.id
+          );
         }
         updatedContainer = await updateContactDraft(container, cleanedText);
       }
-      const { isValid, missingFields } = validateContactDraftsContainer(updatedContainer);
+      const { isValid, missingFields } =
+        validateContactDraftsContainer(updatedContainer);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
       await supabaseAdmin()
@@ -2862,7 +3614,7 @@ export async function processOwnerChatbotMessage(
         .update({
           draft_data: updatedContainer,
           status: nextStatus,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', contactSession.id);
 
@@ -2892,24 +3644,36 @@ export async function processOwnerChatbotMessage(
       return false;
     }
 
-    const { buffer: mediaBuffer, mimeType: mediaMimeType } = await loadInboundMedia();
+    const { buffer: mediaBuffer, mimeType: mediaMimeType } =
+      await loadInboundMedia();
 
     // A card and a document each decide themselves what they are, so
     // neither reaches the model — and neither is charged for a
     // classification that never ran.
-    let classification: 'property' | 'contact' | 'schedule' | 'client_reply' | 'requirement' | 'none';
+    let classification:
+      | 'property'
+      | 'contact'
+      | 'schedule'
+      | 'client_reply'
+      | 'requirement'
+      | 'none';
     if (isContactCardMsg) {
       classification = 'contact';
     } else if (isDocMsg) {
       classification = 'property';
     } else {
       if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
-        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+        return await sendCreditsLockedReply(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          conversation.id
+        );
       }
       classification = isVideoMsg
-        // The classifier takes images/text, not video bytes — classify
-        // from the caption alone.
-        ? await classifyImageOrText(cleanedText, undefined, undefined)
+        ? // The classifier takes images/text, not video bytes — classify
+          // from the caption alone.
+          await classifyImageOrText(cleanedText, undefined, undefined)
         : await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
     }
 
@@ -2953,16 +3717,25 @@ export async function processOwnerChatbotMessage(
       // Gate the parse burn before announcing "Analyzing…" so a
       // drained balance produces the lock reply, not a dead promise.
       if (!(await gatedBurn(accountId, 'listing_parse'))) {
-        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+        return await sendCreditsLockedReply(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          conversation.id
+        );
       }
-      const analyzingMsg = "⏳ _Analyzing listing details... Please wait._";
+      const analyzingMsg = '⏳ _Analyzing listing details... Please wait._';
       const analyzingSendRes = await sendTextMessage({
         phoneNumberId,
         accessToken,
         to: contactRecord.phone,
-        text: analyzingMsg
+        text: analyzingMsg,
       });
-      await saveBotMessage(conversation.id, analyzingMsg, analyzingSendRes.messageId);
+      await saveBotMessage(
+        conversation.id,
+        analyzingMsg,
+        analyzingSendRes.messageId
+      );
 
       try {
         let parsedDraft: ParsedPropertyDraft;
@@ -2976,8 +3749,12 @@ export async function processOwnerChatbotMessage(
           if (isImageMsg) {
             // Parallel parse and upload to save latency
             const [parsed, publicUrl] = await Promise.all([
-              parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
-              uploadPropertyImage(accountId, mediaBuffer, mediaMimeType)
+              parseListingFromImageOrText(
+                contentText || '',
+                mediaBuffer,
+                mediaMimeType
+              ),
+              uploadPropertyImage(accountId, mediaBuffer, mediaMimeType),
             ]);
 
             parsedDraft = parsed;
@@ -2998,16 +3775,33 @@ export async function processOwnerChatbotMessage(
             if (videoUrl) parsedDraft.video_url = videoUrl;
           } else if (
             mediaMimeType === 'application/pdf' &&
-            (looksLikeEKhata(message.document?.filename) || looksLikeEKhata(contentText))
+            (looksLikeEKhata(message.document?.filename) ||
+              looksLikeEKhata(contentText))
           ) {
-            const filename = message.document?.filename || `e-khata-${Date.now()}.pdf`;
+            const filename =
+              message.document?.filename || `e-khata-${Date.now()}.pdf`;
             const [parsed, khata, stored] = await Promise.all([
-              parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
-              extractEKhata({ buffer: mediaBuffer, mimeType: mediaMimeType }).catch((err) => {
-                console.warn('[chatbot-engine] e-Khata read failed; using the listing read:', err);
+              parseListingFromImageOrText(
+                contentText || '',
+                mediaBuffer,
+                mediaMimeType
+              ),
+              extractEKhata({
+                buffer: mediaBuffer,
+                mimeType: mediaMimeType,
+              }).catch((err) => {
+                console.warn(
+                  '[chatbot-engine] e-Khata read failed; using the listing read:',
+                  err
+                );
                 return null;
               }),
-              storeBrochureDocument(accountId, mediaBuffer, mediaMimeType, filename),
+              storeBrochureDocument(
+                accountId,
+                mediaBuffer,
+                mediaMimeType,
+                filename
+              ),
             ]);
             parsedDraft = applyEKhataToDraft(
               parsed,
@@ -3018,12 +3812,22 @@ export async function processOwnerChatbotMessage(
             parsedDraft.documents = stored.url ? [stored.url] : [];
             droppedBrochureBytes = stored.droppedBytes;
           } else if (mediaMimeType === 'application/pdf') {
-            const filename = message.document?.filename || `doc-${Date.now()}.pdf`;
+            const filename =
+              message.document?.filename || `doc-${Date.now()}.pdf`;
             // Parallel parse text details, extract images, and upload the PDF document itself
             const [parsed, brochure, stored] = await Promise.all([
-              parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
+              parseListingFromImageOrText(
+                contentText || '',
+                mediaBuffer,
+                mediaMimeType
+              ),
               uploadBrochureImages(accountId, mediaBuffer),
-              storeBrochureDocument(accountId, mediaBuffer, mediaMimeType, filename)
+              storeBrochureDocument(
+                accountId,
+                mediaBuffer,
+                mediaMimeType,
+                filename
+              ),
             ]);
 
             parsedDraft = parsed;
@@ -3039,7 +3843,10 @@ export async function processOwnerChatbotMessage(
             // The parser names the floors; the extractor supplies the
             // drawings. Any drawing left over after every named floor
             // has one joins the gallery rather than being discarded.
-            const { plans, unused } = pinBrochurePlans(parsedDraft.floor_plans, brochure.planCandidates);
+            const { plans, unused } = pinBrochurePlans(
+              parsedDraft.floor_plans,
+              brochure.planCandidates
+            );
             parsedDraft.floor_plans = plans;
             if (unused.length > 0) {
               uploadedImages.push(...unused);
@@ -3052,8 +3859,17 @@ export async function processOwnerChatbotMessage(
             // Other document types fallback
             const filename = message.document?.filename || `doc-${Date.now()}`;
             const [parsed, stored] = await Promise.all([
-              parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
-              storeBrochureDocument(accountId, mediaBuffer, mediaMimeType, filename)
+              parseListingFromImageOrText(
+                contentText || '',
+                mediaBuffer,
+                mediaMimeType
+              ),
+              storeBrochureDocument(
+                accountId,
+                mediaBuffer,
+                mediaMimeType,
+                filename
+              ),
             ]);
             parsedDraft = parsed;
             parsedDraft.images = [];
@@ -3086,7 +3902,9 @@ export async function processOwnerChatbotMessage(
         // and filing it as inventory puts demand in the supply book.
         // The parse is already paid for, so this costs nothing.
         if (draftReadsAsRequirement(parsedDraft, cleanedText)) {
-          console.log('[chatbot-engine] Listing draft reads as a buyer requirement; capturing it against the client instead.');
+          console.log(
+            '[chatbot-engine] Listing draft reads as a buyer requirement; capturing it against the client instead.'
+          );
           return await runClientReplyCapture();
         }
 
@@ -3100,14 +3918,16 @@ export async function processOwnerChatbotMessage(
             account_id: accountId,
             contact_id: contactRecord.id,
             draft_data: parsedDraft,
-            status: initialStatus
+            status: initialStatus,
           })
           .select();
 
         if (insertErr) {
           // If a concurrent thread created the session first, fall back to merging or appending
           if (insertErr.code === '23505') {
-            console.log('[chatbot-engine] Session already initialized by concurrent request. Falling back to merge/append flow.');
+            console.log(
+              '[chatbot-engine] Session already initialized by concurrent request. Falling back to merge/append flow.'
+            );
             const { data: existingSession } = await supabaseAdmin()
               .from('property_draft_sessions')
               .select('*')
@@ -3115,16 +3935,26 @@ export async function processOwnerChatbotMessage(
               .maybeSingle();
 
             if (existingSession) {
-              const currentDraft = existingSession.draft_data as ParsedPropertyDraft;
+              const currentDraft =
+                existingSession.draft_data as ParsedPropertyDraft;
 
               // 1. Check if it is a duplicate of the same ingestion (e.g. duplicate webhook retry)
-              const isDuplicate = 
-                (parsedDraft.title && currentDraft.title === parsedDraft.title) ||
-                (parsedDraft.location && currentDraft.location === parsedDraft.location) ||
-                (parsedDraft.images && parsedDraft.images.length > 0 && currentDraft.images && currentDraft.images.some((img: string) => parsedDraft.images.includes(img)));
+              const isDuplicate =
+                (parsedDraft.title &&
+                  currentDraft.title === parsedDraft.title) ||
+                (parsedDraft.location &&
+                  currentDraft.location === parsedDraft.location) ||
+                (parsedDraft.images &&
+                  parsedDraft.images.length > 0 &&
+                  currentDraft.images &&
+                  currentDraft.images.some((img: string) =>
+                    parsedDraft.images.includes(img)
+                  ));
 
               if (isDuplicate) {
-                console.log('[chatbot-engine] Duplicate ingestion detected concurrently. Exiting duplicate thread silently.');
+                console.log(
+                  '[chatbot-engine] Duplicate ingestion detected concurrently. Exiting duplicate thread silently.'
+                );
                 return true;
               }
 
@@ -3144,81 +3974,141 @@ export async function processOwnerChatbotMessage(
                   .single();
 
                 if (latestSession) {
-                  const latestDraft = latestSession.draft_data as ParsedPropertyDraft;
-                  
+                  const latestDraft =
+                    latestSession.draft_data as ParsedPropertyDraft;
+
                   mergedDraft = applyListingDerivations({
                     title: latestDraft.title || parsedDraft.title,
-                    description: latestDraft.description || parsedDraft.description,
+                    description:
+                      latestDraft.description || parsedDraft.description,
                     price: latestDraft.price || parsedDraft.price,
-                    price_per_sqft: latestDraft.price_per_sqft || parsedDraft.price_per_sqft,
-                    price_from_rate: latestDraft.price_from_rate || parsedDraft.price_from_rate,
+                    price_per_sqft:
+                      latestDraft.price_per_sqft || parsedDraft.price_per_sqft,
+                    price_from_rate:
+                      latestDraft.price_from_rate ||
+                      parsedDraft.price_from_rate,
                     location: latestDraft.location || parsedDraft.location,
                     type: latestDraft.type || parsedDraft.type,
                     bedrooms: latestDraft.bedrooms || parsedDraft.bedrooms,
                     bathrooms: latestDraft.bathrooms || parsedDraft.bathrooms,
                     area_sqft: latestDraft.area_sqft || parsedDraft.area_sqft,
-                    sublocality: latestDraft.sublocality || parsedDraft.sublocality,
+                    sublocality:
+                      latestDraft.sublocality || parsedDraft.sublocality,
                     city: latestDraft.city || parsedDraft.city,
                     state: latestDraft.state || parsedDraft.state,
-                    dimensions: latestDraft.dimensions || parsedDraft.dimensions,
-                    facing_direction: latestDraft.facing_direction || parsedDraft.facing_direction,
-                    google_map_link: latestDraft.google_map_link || parsedDraft.google_map_link,
+                    dimensions:
+                      latestDraft.dimensions || parsedDraft.dimensions,
+                    facing_direction:
+                      latestDraft.facing_direction ||
+                      parsedDraft.facing_direction,
+                    google_map_link:
+                      latestDraft.google_map_link ||
+                      parsedDraft.google_map_link,
                     latitude: latestDraft.latitude ?? parsedDraft.latitude,
                     longitude: latestDraft.longitude ?? parsedDraft.longitude,
-                    geo_resolved_from: latestDraft.geo_resolved_from || parsedDraft.geo_resolved_from,
+                    geo_resolved_from:
+                      latestDraft.geo_resolved_from ||
+                      parsedDraft.geo_resolved_from,
                     land_area: latestDraft.land_area || parsedDraft.land_area,
-                    land_area_unit: latestDraft.land_area_unit || parsedDraft.land_area_unit,
-                    rental_income: latestDraft.rental_income || parsedDraft.rental_income,
+                    land_area_unit:
+                      latestDraft.land_area_unit || parsedDraft.land_area_unit,
+                    rental_income:
+                      latestDraft.rental_income || parsedDraft.rental_income,
                     roi: latestDraft.roi || parsedDraft.roi,
                     floor_tenancies: latestDraft.floor_tenancies?.length
                       ? latestDraft.floor_tenancies
                       : parsedDraft.floor_tenancies || [],
-                    owner_contact_name: latestDraft.owner_contact_name || parsedDraft.owner_contact_name,
-                    owner_contact_phone: latestDraft.owner_contact_phone || parsedDraft.owner_contact_phone,
-                    owner_contact_role: latestDraft.owner_contact_role || parsedDraft.owner_contact_role,
-                    listing_type: latestDraft.listing_type || parsedDraft.listing_type,
-                    rent_per_month: latestDraft.rent_per_month || parsedDraft.rent_per_month,
-                    maintenance: latestDraft.maintenance || parsedDraft.maintenance,
+                    owner_contact_name:
+                      latestDraft.owner_contact_name ||
+                      parsedDraft.owner_contact_name,
+                    owner_contact_phone:
+                      latestDraft.owner_contact_phone ||
+                      parsedDraft.owner_contact_phone,
+                    owner_contact_role:
+                      latestDraft.owner_contact_role ||
+                      parsedDraft.owner_contact_role,
+                    listing_type:
+                      latestDraft.listing_type || parsedDraft.listing_type,
+                    rent_per_month:
+                      latestDraft.rent_per_month || parsedDraft.rent_per_month,
+                    maintenance:
+                      latestDraft.maintenance || parsedDraft.maintenance,
                     advance: latestDraft.advance || parsedDraft.advance,
                     gst: latestDraft.gst || parsedDraft.gst,
-                    jv_structure: latestDraft.jv_structure || parsedDraft.jv_structure,
-                    owner_share_percent: latestDraft.owner_share_percent || parsedDraft.owner_share_percent,
-                    builder_share_percent: latestDraft.builder_share_percent || parsedDraft.builder_share_percent,
-                    goodwill_amount: latestDraft.goodwill_amount || parsedDraft.goodwill_amount,
-                    khata_epid: latestDraft.khata_epid || parsedDraft.khata_epid,
-                    khata_form: latestDraft.khata_form || parsedDraft.khata_form,
+                    jv_structure:
+                      latestDraft.jv_structure || parsedDraft.jv_structure,
+                    owner_share_percent:
+                      latestDraft.owner_share_percent ||
+                      parsedDraft.owner_share_percent,
+                    builder_share_percent:
+                      latestDraft.builder_share_percent ||
+                      parsedDraft.builder_share_percent,
+                    goodwill_amount:
+                      latestDraft.goodwill_amount ||
+                      parsedDraft.goodwill_amount,
+                    khata_epid:
+                      latestDraft.khata_epid || parsedDraft.khata_epid,
+                    khata_form:
+                      latestDraft.khata_form || parsedDraft.khata_form,
                     year_built: khataYearBuiltFor(
                       latestDraft.type || parsedDraft.type,
                       latestDraft.year_built || parsedDraft.year_built
                     ),
                     video_url: latestDraft.video_url || parsedDraft.video_url,
-                    youtube_video_id: latestDraft.youtube_video_id || parsedDraft.youtube_video_id,
-                    features: Array.from(new Set([...(latestDraft.features || []), ...(parsedDraft.features || [])])),
-                    nearby_highlights: Array.from(new Set([...(latestDraft.nearby_highlights || []), ...(parsedDraft.nearby_highlights || [])])),
-                    images: Array.from(new Set([...(latestDraft.images || []), ...(parsedDraft.images || [])])),
-                    documents: Array.from(new Set([...(latestDraft.documents || []), ...(parsedDraft.documents || [])]))
+                    youtube_video_id:
+                      latestDraft.youtube_video_id ||
+                      parsedDraft.youtube_video_id,
+                    features: Array.from(
+                      new Set([
+                        ...(latestDraft.features || []),
+                        ...(parsedDraft.features || []),
+                      ])
+                    ),
+                    nearby_highlights: Array.from(
+                      new Set([
+                        ...(latestDraft.nearby_highlights || []),
+                        ...(parsedDraft.nearby_highlights || []),
+                      ])
+                    ),
+                    images: Array.from(
+                      new Set([
+                        ...(latestDraft.images || []),
+                        ...(parsedDraft.images || []),
+                      ])
+                    ),
+                    documents: Array.from(
+                      new Set([
+                        ...(latestDraft.documents || []),
+                        ...(parsedDraft.documents || []),
+                      ])
+                    ),
                   });
 
                   const validation = validateDraft(mergedDraft);
-                  nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
+                  nextStatus = validation.isValid
+                    ? 'awaiting_confirmation'
+                    : 'collecting';
 
-                  const { data: updateData, error: updateErr } = await supabaseAdmin()
-                    .from('property_draft_sessions')
-                    .update({
-                      draft_data: mergedDraft,
-                      status: nextStatus,
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('id', existingSession.id)
-                    .eq('updated_at', latestSession.updated_at)
-                    .select();
+                  const { data: updateData, error: updateErr } =
+                    await supabaseAdmin()
+                      .from('property_draft_sessions')
+                      .update({
+                        draft_data: mergedDraft,
+                        status: nextStatus,
+                        updated_at: new Date().toISOString(),
+                      })
+                      .eq('id', existingSession.id)
+                      .eq('updated_at', latestSession.updated_at)
+                      .select();
 
                   if (!updateErr && updateData && updateData.length > 0) {
                     success = true;
                     finalUpdateData = updateData;
                   } else {
                     retryCount++;
-                    await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 50));
+                    await new Promise((resolve) =>
+                      setTimeout(resolve, Math.random() * 200 + 50)
+                    );
                   }
                 } else {
                   retryCount++;
@@ -3233,7 +4123,8 @@ export async function processOwnerChatbotMessage(
                   phoneNumberId,
                   accessToken,
                   contactRecord.phone,
-                  `📝 *Listing details and photos merged into draft!*` + brochureDroppedNote(droppedBrochureBytes),
+                  `📝 *Listing details and photos merged into draft!*` +
+                    brochureDroppedNote(droppedBrochureBytes),
                   conversation.id
                 );
                 return true;
@@ -3247,18 +4138,19 @@ export async function processOwnerChatbotMessage(
           // Someone who shares a contact card has shared a person, and
           // the listing draft they also described may never be
           // confirmed. File them now rather than losing them with it.
-          const filedContact = fromSharedCard && parsedDraft.owner_contact_name
-            ? await fileSharedCardContact({
-                accountId,
-                userId,
-                owner: {
-                  name: parsedDraft.owner_contact_name,
-                  nameTag: parsedDraft.owner_contact_name_tag ?? null,
-                  phone: parsedDraft.owner_contact_phone,
-                },
-                role: parsedDraft.owner_contact_role,
-              })
-            : null;
+          const filedContact =
+            fromSharedCard && parsedDraft.owner_contact_name
+              ? await fileSharedCardContact({
+                  accountId,
+                  userId,
+                  owner: {
+                    name: parsedDraft.owner_contact_name,
+                    nameTag: parsedDraft.owner_contact_name_tag ?? null,
+                    phone: parsedDraft.owner_contact_phone,
+                  },
+                  role: parsedDraft.owner_contact_role,
+                })
+              : null;
 
           const savedTime = insertedData[0].updated_at;
           sendPropertyDraftPreviewDebounced(
@@ -3269,15 +4161,25 @@ export async function processOwnerChatbotMessage(
             contactRecord.phone,
             (filedContact?.created
               ? `📝 *Draft Property Listing Created!*\n👤 _Saved ${filedContact.name} to Contacts._`
-              : `📝 *Draft Property Listing Created!*`) + brochureDroppedNote(droppedBrochureBytes),
+              : `📝 *Draft Property Listing Created!*`) +
+              brochureDroppedNote(droppedBrochureBytes),
             conversation.id
           );
         }
         return true;
       } catch (err) {
-        console.error('[chatbot-engine] Error initializing property draft session:', err);
-        const reply = "❌ *Failed to parse listing.* Please copy paste details as text or send a clean property advertisement image.";
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        console.error(
+          '[chatbot-engine] Error initializing property draft session:',
+          err
+        );
+        const reply =
+          '❌ *Failed to parse listing.* Please copy paste details as text or send a clean property advertisement image.';
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
       }
@@ -3287,22 +4189,34 @@ export async function processOwnerChatbotMessage(
     if (classification === 'contact') {
       // A card needs no reading: the name and the number are stated on
       // it. Skip the parse, its charge, and the "Analyzing…" wait.
-      const cardContainer = isContactCardMsg ? contactDraftsFromCards(cleanedText) : null;
+      const cardContainer = isContactCardMsg
+        ? contactDraftsFromCards(cleanedText)
+        : null;
 
       if (!cardContainer) {
         // Gate the parse burn before announcing "Analyzing…" so a
         // drained balance produces the lock reply, not a dead promise.
         if (!(await gatedBurn(accountId, 'contact_parse'))) {
-          return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+          return await sendCreditsLockedReply(
+            phoneNumberId,
+            accessToken,
+            contactRecord.phone,
+            conversation.id
+          );
         }
-        const analyzingContactMsg = "⏳ _Analyzing contact details... Please wait._";
+        const analyzingContactMsg =
+          '⏳ _Analyzing contact details... Please wait._';
         const analyzingContactSendRes = await sendTextMessage({
           phoneNumberId,
           accessToken,
           to: contactRecord.phone,
-          text: analyzingContactMsg
+          text: analyzingContactMsg,
         });
-        await saveBotMessage(conversation.id, analyzingContactMsg, analyzingContactSendRes.messageId);
+        await saveBotMessage(
+          conversation.id,
+          analyzingContactMsg,
+          analyzingContactSendRes.messageId
+        );
       }
 
       try {
@@ -3311,23 +4225,26 @@ export async function processOwnerChatbotMessage(
         if (cardContainer) {
           parsedContainer = cardContainer;
         } else if (isMediaMsg && mediaBuffer && mediaMimeType) {
-          parsedContainer = await parseContactFromImageOrText(contentText || '', mediaBuffer, mediaMimeType);
+          parsedContainer = await parseContactFromImageOrText(
+            contentText || '',
+            mediaBuffer,
+            mediaMimeType
+          );
         } else {
           parsedContainer = await parseContactFromImageOrText(cleanedText);
         }
 
-        const { isValid, missingFields } = validateContactDraftsContainer(parsedContainer);
+        const { isValid, missingFields } =
+          validateContactDraftsContainer(parsedContainer);
         const initialStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
         // Insert new active session
-        await supabaseAdmin()
-          .from('contact_draft_sessions')
-          .insert({
-            account_id: accountId,
-            contact_id: contactRecord.id,
-            draft_data: parsedContainer,
-            status: initialStatus
-          });
+        await supabaseAdmin().from('contact_draft_sessions').insert({
+          account_id: accountId,
+          contact_id: contactRecord.id,
+          draft_data: parsedContainer,
+          status: initialStatus,
+        });
 
         await sendContactDraftPreview(
           phoneNumberId,
@@ -3342,9 +4259,18 @@ export async function processOwnerChatbotMessage(
         );
         return true;
       } catch (err) {
-        console.error('[chatbot-engine] Error initializing contact draft session:', err);
-        const reply = "❌ *Failed to parse contact details.* Please copy paste details as text or send a clean contact screenshot.";
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        console.error(
+          '[chatbot-engine] Error initializing contact draft session:',
+          err
+        );
+        const reply =
+          '❌ *Failed to parse contact details.* Please copy paste details as text or send a clean contact screenshot.';
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
       }
@@ -3365,7 +4291,12 @@ export async function processOwnerChatbotMessage(
           mapLink,
         });
         const reply = buildPinParkedMessage(pin);
-        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
       }
@@ -3377,7 +4308,11 @@ export async function processOwnerChatbotMessage(
   // engine — or a template quick-reply tap (message.type 'button',
   // e.g. a reminder's "Fine"): answering a button tap with the
   // welcome text reads as a non-sequitur.
-  if (!buttonId && message.type !== 'button' && (isOwnerHelpCommand(lowerText) || cleanedText)) {
+  if (
+    !buttonId &&
+    message.type !== 'button' &&
+    (isOwnerHelpCommand(lowerText) || cleanedText)
+  ) {
     // An explicit "help"/greeting wants the whole capability guide;
     // anything else got here because it classified as neither a listing
     // nor a contact, and is better served by a short nudge.
@@ -3385,7 +4320,12 @@ export async function processOwnerChatbotMessage(
       ? buildOwnerHelpMessage()
       : buildOwnerFallbackMessage(spokenText || null);
 
-    const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+    const sendRes = await sendTextMessage({
+      phoneNumberId,
+      accessToken,
+      to: contactRecord.phone,
+      text: reply,
+    });
     await saveBotMessage(conversation.id, reply, sendRes.messageId);
     return true;
   }
@@ -3398,7 +4338,9 @@ export async function processOwnerChatbotMessage(
  *  `executeStartPropertyIntake` (flows/engine.ts) at entry time. */
 const TALK_TO_AGENT_LIMIT_REPLY_ID = 'talk_to_agent_limit';
 
-async function loadAccountContactInfo(accountId: string): Promise<{ phone: string; businessName: string }> {
+async function loadAccountContactInfo(
+  accountId: string
+): Promise<{ phone: string; businessName: string }> {
   const admin = supabaseAdmin();
   const [settings, account] = await Promise.all([
     admin
@@ -3486,7 +4428,10 @@ export async function processExternalListingMessage(
     .maybeSingle();
 
   if (propSessionErr) {
-    console.error('[chatbot-engine] Error fetching external listing draft session:', propSessionErr);
+    console.error(
+      '[chatbot-engine] Error fetching external listing draft session:',
+      propSessionErr
+    );
   }
 
   const propSession = propSessionData;
@@ -3495,9 +4440,14 @@ export async function processExternalListingMessage(
   // Session Expiry Timeout (an hour of inactivity) — mirrors the owner flow.
   const updatedAt = new Date(propSession.updated_at).getTime();
   if (Date.now() - updatedAt > DRAFT_SESSION_TIMEOUT_MS) {
-    console.log(`[chatbot-engine] Expiring inactive external listing session ${propSession.id}`);
-    await supabaseAdmin().from('property_draft_sessions').delete().eq('id', propSession.id);
-    
+    console.log(
+      `[chatbot-engine] Expiring inactive external listing session ${propSession.id}`
+    );
+    await supabaseAdmin()
+      .from('property_draft_sessions')
+      .delete()
+      .eq('id', propSession.id);
+
     // If this is a template button tap (e.g. "Tell me more" on a digest),
     // silently expire the session and fall through. Sending an expiration
     // warning while ignoring their tap is confusing, and they didn't
@@ -3506,8 +4456,14 @@ export async function processExternalListingMessage(
       return false;
     }
 
-    const reply = "⌛ *Your listing draft expired due to inactivity.* Please tap \"List My Property\" again to start a new one.";
-    const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+    const reply =
+      '⌛ *Your listing draft expired due to inactivity.* Please tap "List My Property" again to start a new one.';
+    const sendRes = await sendTextMessage({
+      phoneNumberId,
+      accessToken,
+      to: contactRecord.phone,
+      text: reply,
+    });
     await saveBotMessage(conversation.id, reply, sendRes.messageId);
     return true;
   }
@@ -3516,16 +4472,24 @@ export async function processExternalListingMessage(
   const lowerText = cleanedText.toLowerCase();
   const draft = propSession.draft_data as ParsedPropertyDraft;
 
-  const buttonId = message.type === 'interactive'
-    ? message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id
-    : null;
+  const buttonId =
+    message.type === 'interactive'
+      ? (message.interactive?.button_reply?.id ??
+        message.interactive?.list_reply?.id)
+      : null;
 
   // The account hit its property limit earlier in this session (see the
   // Confirm branch below) and we left the draft session alive so they
   // could retry. Re-share the same contact info rather than re-parsing
   // this tap as a draft correction.
   if (buttonId === TALK_TO_AGENT_LIMIT_REPLY_ID) {
-    await sendPropertyLimitReachedReply(accountId, contactRecord, conversation, accessToken, phoneNumberId);
+    await sendPropertyLimitReachedReply(
+      accountId,
+      contactRecord,
+      conversation,
+      accessToken,
+      phoneNumberId
+    );
     return true;
   }
 
@@ -3536,8 +4500,14 @@ export async function processExternalListingMessage(
       .delete()
       .eq('id', propSession.id);
 
-    const reply = "❌ *Listing draft discarded.* Send another property details text or photo to start again, or tap \"List My Property\" from the menu.";
-    const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+    const reply =
+      '❌ *Listing draft discarded.* Send another property details text or photo to start again, or tap "List My Property" from the menu.';
+    const sendRes = await sendTextMessage({
+      phoneNumberId,
+      accessToken,
+      to: contactRecord.phone,
+      text: reply,
+    });
     await saveBotMessage(conversation.id, reply, sendRes.messageId);
     return true;
   }
@@ -3546,10 +4516,16 @@ export async function processExternalListingMessage(
   if (buttonId === 'confirm_property' || lowerText === 'confirm') {
     const { isValid, missingFields } = validateDraft(draft);
     if (!isValid) {
-      const reply = `⚠️ *Cannot confirm yet.* The following mandatory fields are missing:\n\n` +
-        missingFields.map(f => `• *${f}*`).join('\n') +
+      const reply =
+        `⚠️ *Cannot confirm yet.* The following mandatory fields are missing:\n\n` +
+        missingFields.map((f) => `• *${f}*`).join('\n') +
         `\n\nPlease provide them first (e.g. 'price is 1.5 Cr', 'title is HSR 3BHK Apartment').`;
-      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      const sendRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: reply,
+      });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
       return true;
     }
@@ -3558,9 +4534,18 @@ export async function processExternalListingMessage(
     // this at entry, but the account's count can move while this lister
     // was mid-draft (other submissions approved, etc). Leave the draft
     // session alive so they can retry without re-typing everything.
-    const { limitReached } = await checkAccountPropertyLimit(supabaseAdmin(), accountId);
+    const { limitReached } = await checkAccountPropertyLimit(
+      supabaseAdmin(),
+      accountId
+    );
     if (limitReached) {
-      await sendPropertyLimitReachedReply(accountId, contactRecord, conversation, accessToken, phoneNumberId);
+      await sendPropertyLimitReachedReply(
+        accountId,
+        contactRecord,
+        conversation,
+        accessToken,
+        phoneNumberId
+      );
       return true;
     }
 
@@ -3571,7 +4556,7 @@ export async function processExternalListingMessage(
     const listerProjectId = await matchProjectByName(
       supabaseAdmin(),
       accountId,
-      draft.project,
+      draft.project
     );
 
     // Self-listing: the WhatsApp sender IS the owner/agent of this
@@ -3585,8 +4570,13 @@ export async function processExternalListingMessage(
         project: draft.project?.trim() || null,
         project_id: listerProjectId,
         title: draft.title!.trim(),
-        description: draft.description || `Submitted via WhatsApp by an external lister, pending review.`,
-        price: draft.listing_type === 'Rent' ? (draft.rent_per_month || 0) : (draft.price || 0),
+        description:
+          draft.description ||
+          `Submitted via WhatsApp by an external lister, pending review.`,
+        price:
+          draft.listing_type === 'Rent'
+            ? draft.rent_per_month || 0
+            : draft.price || 0,
         price_per_sqft: draft.price_per_sqft ?? null,
         location: draft.location!.trim(),
         type: draft.type || 'Others',
@@ -3631,9 +4621,17 @@ export async function processExternalListingMessage(
       .single();
 
     if (propErr) {
-      console.error('[chatbot-engine] Failed to save external listing:', propErr);
-      const reply = "❌ *Error saving your listing.* Please try again later.";
-      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      console.error(
+        '[chatbot-engine] Failed to save external listing:',
+        propErr
+      );
+      const reply = '❌ *Error saving your listing.* Please try again later.';
+      const sendRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: reply,
+      });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
       return true;
     }
@@ -3649,13 +4647,18 @@ export async function processExternalListingMessage(
 
     let requirementRef: string | null = null;
     if (propSession.requirement_link_id) {
-      requirementRef = await recordRequirementResponse(supabaseAdmin(), propSession.requirement_link_id, {
-        propertyCode: prop.property_code,
-        title: prop.title,
-      });
+      requirementRef = await recordRequirementResponse(
+        supabaseAdmin(),
+        propSession.requirement_link_id,
+        {
+          propertyCode: prop.property_code,
+          title: prop.title,
+        }
+      );
     }
 
-    let reply = `✅ *Thanks! Your property listing has been submitted.*\n\n` +
+    let reply =
+      `✅ *Thanks! Your property listing has been submitted.*\n\n` +
       `*Code:* ${prop.property_code}\n` +
       `*Title:* ${prop.title}\n` +
       dealHeadline(prop) +
@@ -3674,7 +4677,12 @@ export async function processExternalListingMessage(
 
     reply += `\n🕐 *Pending review* — our team will verify the details and publish it shortly.`;
 
-    const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+    const sendRes = await sendTextMessage({
+      phoneNumberId,
+      accessToken,
+      to: contactRecord.phone,
+      text: reply,
+    });
     await saveBotMessage(conversation.id, reply, sendRes.messageId);
     return true;
   }
@@ -3683,7 +4691,13 @@ export async function processExternalListingMessage(
   if (message.type === 'image' && message.image?.id) {
     // React + touch instead of a per-photo chat bubble — see the owner
     // intake image branch for the full rationale.
-    await reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '⏳');
+    await reactToInboundMessage(
+      phoneNumberId,
+      accessToken,
+      contactRecord.phone,
+      message.id,
+      '⏳'
+    );
     await touchDraftSession(propSession.id);
 
     try {
@@ -3708,10 +4722,14 @@ export async function processExternalListingMessage(
 
         if (fetchErr || !latestSession) {
           if (fetchErr?.code === 'PGRST116') {
-            console.log('[chatbot-engine] Active external session was deleted concurrently. Exiting photo upload flow.');
+            console.log(
+              '[chatbot-engine] Active external session was deleted concurrently. Exiting photo upload flow.'
+            );
             return true;
           }
-          throw fetchErr || new Error('Session not found during image append retry');
+          throw (
+            fetchErr || new Error('Session not found during image append retry')
+          );
         }
 
         const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
@@ -3723,14 +4741,16 @@ export async function processExternalListingMessage(
         updatedDraft = { ...currentDraft, images: updatedImages };
 
         const validation = validateDraft(updatedDraft);
-        const nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
+        const nextStatus = validation.isValid
+          ? 'awaiting_confirmation'
+          : 'collecting';
 
         const { data: updateData, error: updateErr } = await supabaseAdmin()
           .from('property_draft_sessions')
           .update({
             draft_data: updatedDraft,
             status: nextStatus,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('id', propSession.id)
           .eq('updated_at', latestSession.updated_at)
@@ -3741,17 +4761,27 @@ export async function processExternalListingMessage(
           finalUpdateData = updateData;
         } else {
           retryCount++;
-          await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 50));
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.random() * 200 + 50)
+          );
         }
       }
 
       if (!success || !finalUpdateData || finalUpdateData.length === 0) {
-        throw new Error('Failed to update external draft session due to concurrent modifications');
+        throw new Error(
+          'Failed to update external draft session due to concurrent modifications'
+        );
       }
 
       const savedTime = finalUpdateData[0].updated_at;
 
-      void reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '✅');
+      void reactToInboundMessage(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        message.id,
+        '✅'
+      );
 
       sendPropertyDraftPreviewDebounced(
         propSession.id,
@@ -3764,9 +4794,18 @@ export async function processExternalListingMessage(
       );
       return true;
     } catch (err) {
-      console.error('[chatbot-engine] Error processing external listing photo upload:', err);
-      const reply = "❌ *Failed to upload image.* Please verify the photo format and try again.";
-      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      console.error(
+        '[chatbot-engine] Error processing external listing photo upload:',
+        err
+      );
+      const reply =
+        '❌ *Failed to upload image.* Please verify the photo format and try again.';
+      const sendRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: reply,
+      });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
       sendPropertyDraftPreviewDebounced(
         propSession.id,
@@ -3806,10 +4845,14 @@ export async function processExternalListingMessage(
 
       if (fetchErr || !latestSession) {
         if (fetchErr?.code === 'PGRST116') {
-          console.log('[chatbot-engine] Active external session was deleted concurrently. Exiting text update flow.');
+          console.log(
+            '[chatbot-engine] Active external session was deleted concurrently. Exiting text update flow.'
+          );
           return true;
         }
-        throw fetchErr || new Error('Session not found during text update retry');
+        throw (
+          fetchErr || new Error('Session not found during text update retry')
+        );
       }
 
       const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
@@ -3825,7 +4868,7 @@ export async function processExternalListingMessage(
         .update({
           draft_data: updatedDraft,
           status: nextStatus,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', propSession.id)
         .eq('updated_at', latestSession.updated_at)
@@ -3836,13 +4879,21 @@ export async function processExternalListingMessage(
         finalUpdateData = updateData;
       } else {
         retryCount++;
-        await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 50));
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.random() * 200 + 50)
+        );
       }
     }
 
     if (!success || !finalUpdateData || finalUpdateData.length === 0) {
-      const reply = "⚠️ *Couldn't save your update due to a conflicting change.* Please resend it.";
-      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      const reply =
+        "⚠️ *Couldn't save your update due to a conflicting change.* Please resend it.";
+      const sendRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: reply,
+      });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
       return true;
     }

@@ -4,8 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { processShareFeedbackFollowups } from '@/lib/whatsapp/share-feedback';
 
 /**
- * Property share feedback followups — asks buyers if the property shared 
- * 30 minutes ago matched their requirements. 
+ * Property share feedback followups — asks buyers if the property shared
+ * 30 minutes ago matched their requirements.
  *
  * Auth: same constant-time shared-secret check as the other crons.
  */

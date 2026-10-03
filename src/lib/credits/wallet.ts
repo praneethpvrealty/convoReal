@@ -27,7 +27,7 @@ export async function getOrCreateWallet(
   // bootstrap must run as service-role to bypass RLS on credit_wallets.
   // Callers therefore must only pass a server-trusted accountId, never
   // user-supplied input, since RLS no longer scopes this to one account.
-  client?: SupabaseClient,
+  client?: SupabaseClient
 ): Promise<CreditWallet> {
   const supabase = supabaseAdmin();
   if (client) {
@@ -54,11 +54,13 @@ export async function getOrCreateWallet(
       .from('credit_wallets')
       .upsert(
         { account_id: accountId, referral_code: referralCode },
-        { onConflict: 'account_id', ignoreDuplicates: true },
+        { onConflict: 'account_id', ignoreDuplicates: true }
       );
 
     if (insertErr) {
-      throw new Error(`[getOrCreateWallet] insert failed: ${insertErr.message}`);
+      throw new Error(
+        `[getOrCreateWallet] insert failed: ${insertErr.message}`
+      );
     }
 
     const { data: created, error: reselectErr } = await supabase
@@ -68,7 +70,9 @@ export async function getOrCreateWallet(
       .single();
 
     if (reselectErr || !created) {
-      throw new Error(`[getOrCreateWallet] reselect failed: ${reselectErr?.message ?? 'no row'}`);
+      throw new Error(
+        `[getOrCreateWallet] reselect failed: ${reselectErr?.message ?? 'no row'}`
+      );
     }
 
     wallet = created as CreditWallet;
@@ -90,12 +94,15 @@ export async function getOrCreateWallet(
       const nextReset = new Date();
       nextReset.setMonth(nextReset.getMonth() + 1);
 
-      const { error: rpcErr } = await supabase.rpc('grant_subscription_credits_tx', {
-        p_account_id: accountId,
-        p_monthly_amount: 100,
-        p_bonus_delta: 0,
-        p_reset_at: nextReset.toISOString(),
-      });
+      const { error: rpcErr } = await supabase.rpc(
+        'grant_subscription_credits_tx',
+        {
+          p_account_id: accountId,
+          p_monthly_amount: 100,
+          p_bonus_delta: 0,
+          p_reset_at: nextReset.toISOString(),
+        }
+      );
 
       if (!rpcErr) {
         // Re-fetch the updated wallet

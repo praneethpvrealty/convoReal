@@ -1,21 +1,21 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { formatDistanceToNowStrict } from "date-fns";
-import { Eye, Loader2, MessageCircle, UserCheck } from "lucide-react";
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { formatDistanceToNowStrict } from 'date-fns';
+import { Eye, Loader2, MessageCircle, UserCheck } from 'lucide-react';
 
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { Button } from "@/components/ui/button";
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 
 interface Viewer {
   contactId: string;
@@ -59,7 +59,7 @@ export function PropertyViewersDialog({
         const db = createClient();
         // Rolled up in Postgres (migration 172) — the per-contact tally
         // used to mean pulling every identified event for the listing.
-        const { data, error } = await db.rpc("pulse_property_viewers", {
+        const { data, error } = await db.rpc('pulse_property_viewers', {
           p_account_id: accId,
           p_property_id: pid,
         });
@@ -85,8 +85,8 @@ export function PropertyViewersDialog({
           }))
         );
       } catch (err) {
-        console.error("[viewers] load failed:", err);
-        toast.error("Failed to load viewers");
+        console.error('[viewers] load failed:', err);
+        toast.error('Failed to load viewers');
         if (!cancelled) setViewers([]);
       } finally {
         if (!cancelled) setLoading(false);
@@ -104,16 +104,20 @@ export function PropertyViewersDialog({
       try {
         const db = createClient();
         const { data } = await db
-          .from("conversations")
-          .select("id")
-          .eq("contact_id", contactId)
-          .order("updated_at", { ascending: false })
+          .from('conversations')
+          .select('id')
+          .eq('contact_id', contactId)
+          .order('updated_at', { ascending: false })
           .limit(1);
         const conversationId = (data as { id: string }[] | null)?.[0]?.id;
-        router.push(conversationId ? `/inbox?c=${conversationId}` : `/contacts?contactId=${contactId}`);
+        router.push(
+          conversationId
+            ? `/inbox?c=${conversationId}`
+            : `/contacts?contactId=${contactId}`
+        );
       } catch (err) {
-        console.error("[viewers] chat lookup failed:", err);
-        toast.error("Failed to open conversation");
+        console.error('[viewers] chat lookup failed:', err);
+        toast.error('Failed to open conversation');
       }
     },
     [router]
@@ -124,24 +128,29 @@ export function PropertyViewersDialog({
       <DialogContent className="bg-slate-900 ring-slate-700 sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-white">
-            <UserCheck className="size-4 text-primary" />
+            <UserCheck className="text-primary size-4" />
             Identified viewers
           </DialogTitle>
-          <DialogDescription className="truncate text-slate-400">{propertyTitle}</DialogDescription>
+          <DialogDescription className="truncate text-slate-400">
+            {propertyTitle}
+          </DialogDescription>
         </DialogHeader>
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="size-6 animate-spin text-primary" />
+            <Loader2 className="text-primary size-6 animate-spin" />
           </div>
         ) : !viewers || viewers.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-800 px-4 py-10 text-center">
             <UserCheck className="mx-auto mb-2 size-7 text-slate-600" />
-            <p className="text-sm font-semibold text-slate-300">No identified viewers yet</p>
+            <p className="text-sm font-semibold text-slate-300">
+              No identified viewers yet
+            </p>
             <p className="mt-1 text-xs text-slate-500">
-              Views tie to a contact only when you share a personalized tracked link (Send personally)
-              or the visitor submits an inquiry. A forwarded link shows in the activity feed as a
-              guest via the sender&apos;s link until that visitor identifies themselves.
+              Views tie to a contact only when you share a personalized tracked
+              link (Send personally) or the visitor submits an inquiry. A
+              forwarded link shows in the activity feed as a guest via the
+              sender&apos;s link until that visitor identifies themselves.
             </p>
           </div>
         ) : (
@@ -154,18 +163,26 @@ export function PropertyViewersDialog({
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-white">
-                      {v.name || v.phone || "Unknown"}
+                      {v.name || v.phone || 'Unknown'}
                     </p>
                     {v.name && v.phone && (
-                      <p className="truncate text-[11px] text-slate-500">{v.phone}</p>
+                      <p className="truncate text-[11px] text-slate-500">
+                        {v.phone}
+                      </p>
                     )}
                     <p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-500">
                       <Eye className="size-3 text-emerald-400" />
-                      {v.views} view{v.views === 1 ? "" : "s"} ·{" "}
-                      {formatDistanceToNowStrict(new Date(v.lastAt), { addSuffix: true })}
+                      {v.views} view{v.views === 1 ? '' : 's'} ·{' '}
+                      {formatDistanceToNowStrict(new Date(v.lastAt), {
+                        addSuffix: true,
+                      })}
                     </p>
                   </div>
-                  <Button size="sm" onClick={() => openChat(v.contactId)} className="shrink-0 gap-1.5">
+                  <Button
+                    size="sm"
+                    onClick={() => openChat(v.contactId)}
+                    className="shrink-0 gap-1.5"
+                  >
                     <MessageCircle className="size-3.5" />
                     Message
                   </Button>
@@ -173,8 +190,9 @@ export function PropertyViewersDialog({
               ))}
             </div>
             <p className="text-[11px] text-slate-500">
-              Only viewers who opened their own tracked link or identified themselves appear here.
-              Anonymous views and views on a forwarded link are not attributed.
+              Only viewers who opened their own tracked link or identified
+              themselves appear here. Anonymous views and views on a forwarded
+              link are not attributed.
             </p>
           </>
         )}

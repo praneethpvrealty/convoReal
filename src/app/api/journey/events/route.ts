@@ -28,7 +28,8 @@ export async function POST(request: Request) {
   try {
     const raw = (await request.json().catch(() => null)) as RequestBody | null;
     const itemId = typeof raw?.item_id === 'string' ? raw.item_id.trim() : '';
-    const source = raw?.source === 'web' || raw?.source === 'mobile' ? raw.source : null;
+    const source =
+      raw?.source === 'web' || raw?.source === 'mobile' ? raw.source : null;
     const normalizedMessage =
       typeof raw?.message === 'string' ? cleanJourneyMessage(raw.message) : '';
 
@@ -53,7 +54,10 @@ export async function POST(request: Request) {
       );
     }
     if (!item) {
-      return NextResponse.json({ error: 'Journey item not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Journey item not found' },
+        { status: 404 }
+      );
     }
 
     const key = personalJourneyDedupeKey({
@@ -70,7 +74,7 @@ export async function POST(request: Request) {
       eventType: 'outbound_whatsapp',
       createdBy: userId,
       dedupeKey: key,
-        metadata: buildPersonalWhatsAppJourneyMetadata({
+      metadata: buildPersonalWhatsAppJourneyMetadata({
         source,
         senderType: 'agent',
         senderId: userId,
@@ -89,9 +93,16 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true, duplicate: outcome.duplicate, eventId: outcome.eventId });
+    return NextResponse.json({
+      ok: true,
+      duplicate: outcome.duplicate,
+      eventId: outcome.eventId,
+    });
   } catch (error) {
     console.error('[journey/events] failed', error);
-    return NextResponse.json({ error: 'Failed to log journey event' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to log journey event' },
+      { status: 500 }
+    );
   }
 }

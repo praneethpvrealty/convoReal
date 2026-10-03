@@ -8,27 +8,32 @@
 // and crediting them to that agent as an owner would be wrong.
 // ============================================================
 
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
-import { withApiKeyAuth } from "@/lib/auth/api-keys";
-import { page, parsePageParams } from "@/lib/v1/pagination";
-import { asRows } from "@/lib/v1/projections";
-import { toOwnerRow, totalFromRows } from "@/lib/v1/portfolio";
+import { withApiKeyAuth } from '@/lib/auth/api-keys';
+import { page, parsePageParams } from '@/lib/v1/pagination';
+import { asRows } from '@/lib/v1/projections';
+import { toOwnerRow, totalFromRows } from '@/lib/v1/portfolio';
 
-export const GET = withApiKeyAuth("read", async (ctx, req) => {
+export const GET = withApiKeyAuth('read', async (ctx, req) => {
   const params = parsePageParams(new URL(req.url));
 
-  const { data, error } = await ctx.db.rpc("portfolio_owner_rows", {
+  const { data, error } = await ctx.db.rpc('portfolio_owner_rows', {
     p_account_id: ctx.accountId,
     p_limit: params.limit,
     p_offset: params.offset,
   });
 
   if (error) {
-    console.error("[GET /api/v1/portfolio/owners] rpc error:", error);
-    return NextResponse.json({ error: "Failed to load Portfolio owners" }, { status: 500 });
+    console.error('[GET /api/v1/portfolio/owners] rpc error:', error);
+    return NextResponse.json(
+      { error: 'Failed to load Portfolio owners' },
+      { status: 500 }
+    );
   }
 
   const rows = asRows(data);
-  return NextResponse.json(page(rows.map(toOwnerRow), params, totalFromRows(rows)));
+  return NextResponse.json(
+    page(rows.map(toOwnerRow), params, totalFromRows(rows))
+  );
 });

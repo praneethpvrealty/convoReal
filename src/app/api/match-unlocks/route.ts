@@ -14,13 +14,17 @@
 // error and never pays.
 // ============================================================
 
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from 'next/server';
 
-import { requireRole, toErrorResponse, UserFacingError } from "@/lib/auth/account";
-import { denAdmin } from "@/lib/den/auth";
-import { matchUnlockCost } from "@/lib/den/costs";
-import { UNLOCKED_PROPERTY_SELECT } from "@/lib/den/masking";
-import { burnCredits, refundCredits } from "@/lib/credits/burn";
+import {
+  requireRole,
+  toErrorResponse,
+  UserFacingError,
+} from '@/lib/auth/account';
+import { denAdmin } from '@/lib/den/auth';
+import { matchUnlockCost } from '@/lib/den/costs';
+import { UNLOCKED_PROPERTY_SELECT } from '@/lib/den/masking';
+import { burnCredits, refundCredits } from '@/lib/credits/burn';
 
 interface UnlockRow {
   id: string;
@@ -34,9 +38,9 @@ interface UnlockRow {
 async function buildUnlockedPayload(propertyId: string) {
   const db = denAdmin();
   const { data: property } = await db
-    .from("properties")
+    .from('properties')
     .select(UNLOCKED_PROPERTY_SELECT)
-    .eq("id", propertyId)
+    .eq('id', propertyId)
     .maybeSingle();
   if (!property) return null;
 
@@ -44,17 +48,18 @@ async function buildUnlockedPayload(propertyId: string) {
   let owner: { name: string | null; phone: string | null } | null = null;
   if (propertyRow.owner_contact_id) {
     const { data: contact } = await db
-      .from("contacts")
-      .select("name, phone")
-      .eq("id", propertyRow.owner_contact_id as string)
+      .from('contacts')
+      .select('name, phone')
+      .eq('id', propertyRow.owner_contact_id as string)
       .maybeSingle();
-    if (contact) owner = { name: contact.name ?? null, phone: contact.phone ?? null };
+    if (contact)
+      owner = { name: contact.name ?? null, phone: contact.phone ?? null };
   }
 
   const { data: account } = await db
-    .from("accounts")
-    .select("name")
-    .eq("id", propertyRow.account_id as string)
+    .from('accounts')
+    .select('name')
+    .eq('id', propertyRow.account_id as string)
     .maybeSingle();
 
   return {
@@ -66,15 +71,15 @@ async function buildUnlockedPayload(propertyId: string) {
 
 export async function GET(req: NextRequest) {
   try {
-    const ctx = await requireRole("agent");
-    const propertyId = req.nextUrl.searchParams.get("property_id");
-    if (!propertyId) throw new UserFacingError("property_id is required");
+    const ctx = await requireRole('agent');
+    const propertyId = req.nextUrl.searchParams.get('property_id');
+    if (!propertyId) throw new UserFacingError('property_id is required');
 
     // RLS-scoped read — only this account's unlocks are visible.
     const { data: unlock } = await ctx.supabase
-      .from("den_match_unlocks")
-      .select("*")
-      .eq("property_id", propertyId)
+      .from('den_match_unlocks')
+      .select('*')
+      .eq('property_id', propertyId)
       .maybeSingle();
 
     if (!unlock) return NextResponse.json({ unlocked: false });
@@ -88,42 +93,49 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const ctx = await requireRole("agent");
+    const ctx = await requireRole('agent');
     const body = (await req.json().catch(() => null)) as {
       property_id?: string;
       match_event_id?: string;
     } | null;
     const propertyId = body?.property_id;
-    if (!propertyId) throw new UserFacingError("property_id is required");
+    if (!propertyId) throw new UserFacingError('property_id is required');
 
     const db = denAdmin();
     const { data: property } = await db
-      .from("properties")
-      .select("id, account_id, deal_mode, is_published")
-      .eq("id", propertyId)
+      .from('properties')
+      .select('id, account_id, deal_mode, is_published')
+      .eq('id', propertyId)
       .maybeSingle();
-    if (!property) throw new UserFacingError("Property not found", 404);
+    if (!property) throw new UserFacingError('Property not found', 404);
     if (property.account_id === ctx.accountId) {
-      throw new UserFacingError("This property already belongs to your account — nothing to unlock.");
+      throw new UserFacingError(
+        'This property already belongs to your account — nothing to unlock.'
+      );
     }
     // Checked BEFORE burning: if the owner backed out, nobody pays.
-    if (property.deal_mode === "off" || !property.is_published) {
+    if (property.deal_mode === 'off' || !property.is_published) {
       throw new UserFacingError(
-        "The owner is no longer accepting interest on this property.",
-        409,
+        'The owner is no longer accepting interest on this property.',
+        409
       );
     }
 
     // Already unlocked → return it, no charge.
     const { data: existing } = await db
-      .from("den_match_unlocks")
-      .select("*")
-      .eq("account_id", ctx.accountId)
-      .eq("property_id", propertyId)
+      .from('den_match_unlocks')
+      .select('*')
+      .eq('account_id', ctx.accountId)
+      .eq('property_id', propertyId)
       .maybeSingle();
     if (existing) {
       const payload = await buildUnlockedPayload(propertyId);
-      return NextResponse.json({ unlocked: true, unlock: existing, already: true, ...payload });
+      return NextResponse.json({
+        unlocked: true,
+        unlock: existing,
+        already: true,
+        ...payload,
+      });
     }
 
     // Best score from the radar event (prices the unlock tier).
@@ -131,21 +143,24 @@ export async function POST(req: NextRequest) {
     let matchEventId: string | null = null;
     if (body?.match_event_id) {
       const { data: event } = await db
-        .from("match_events")
-        .select("id, account_id, matches")
-        .eq("id", body.match_event_id)
-        .eq("account_id", ctx.accountId)
-        .eq("property_id", propertyId)
+        .from('match_events')
+        .select('id, account_id, matches')
+        .eq('id', body.match_event_id)
+        .eq('account_id', ctx.accountId)
+        .eq('property_id', propertyId)
         .maybeSingle();
       if (event) {
         matchEventId = event.id as string;
-        const scores = (event.matches as Array<{ score?: number }> | null)?.map((m) => m.score ?? 0) ?? [];
+        const scores =
+          (event.matches as Array<{ score?: number }> | null)?.map(
+            (m) => m.score ?? 0
+          ) ?? [];
         score = scores.length ? Math.max(...scores) : null;
       }
     }
 
     const cost = matchUnlockCost(score);
-    const burn = await burnCredits(ctx.accountId, "match_unlock", cost, {
+    const burn = await burnCredits(ctx.accountId, 'match_unlock', cost, {
       retryKey: `unlock:${ctx.accountId}:${propertyId}`,
       hardBlock: true,
     });
@@ -153,16 +168,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: `Not enough credits — you need ${burn.deficit} more. Top up to unlock this owner.`,
-          code: "insufficient_credits",
+          code: 'insufficient_credits',
           deficit: burn.deficit,
           cost,
         },
-        { status: 402 },
+        { status: 402 }
       );
     }
 
     const { data: unlock, error: insertErr } = await db
-      .from("den_match_unlocks")
+      .from('den_match_unlocks')
       .insert({
         account_id: ctx.accountId,
         property_id: propertyId,
@@ -172,31 +187,43 @@ export async function POST(req: NextRequest) {
         credits_burned: cost,
         retry_key: `unlock:${ctx.accountId}:${propertyId}`,
       })
-      .select("*")
+      .select('*')
       .single();
 
     if (insertErr || !unlock) {
-      if (insertErr?.code === "23505") {
+      if (insertErr?.code === '23505') {
         // A concurrent request won the unique index — refund this burn
         // and hand back the winner's row.
-        await refundCredits(ctx.accountId, "match_unlock", cost, {
-          description: "match_unlock duplicate refund",
-        }).catch((err) => console.error("[match-unlocks] duplicate refund failed:", err));
+        await refundCredits(ctx.accountId, 'match_unlock', cost, {
+          description: 'match_unlock duplicate refund',
+        }).catch((err) =>
+          console.error('[match-unlocks] duplicate refund failed:', err)
+        );
         const { data: winner } = await db
-          .from("den_match_unlocks")
-          .select("*")
-          .eq("account_id", ctx.accountId)
-          .eq("property_id", propertyId)
+          .from('den_match_unlocks')
+          .select('*')
+          .eq('account_id', ctx.accountId)
+          .eq('property_id', propertyId)
           .maybeSingle();
         const payload = await buildUnlockedPayload(propertyId);
-        return NextResponse.json({ unlocked: true, unlock: winner as UnlockRow, already: true, ...payload });
+        return NextResponse.json({
+          unlocked: true,
+          unlock: winner as UnlockRow,
+          already: true,
+          ...payload,
+        });
       }
-      console.error("[match-unlocks] insert failed:", insertErr);
+      console.error('[match-unlocks] insert failed:', insertErr);
       // Credits were burned but the unlock wasn't recorded — refund.
-      await refundCredits(ctx.accountId, "match_unlock", cost, {
-        description: "match_unlock failed-insert refund",
-      }).catch((err) => console.error("[match-unlocks] failure refund failed:", err));
-      return NextResponse.json({ error: "Could not complete the unlock" }, { status: 500 });
+      await refundCredits(ctx.accountId, 'match_unlock', cost, {
+        description: 'match_unlock failed-insert refund',
+      }).catch((err) =>
+        console.error('[match-unlocks] failure refund failed:', err)
+      );
+      return NextResponse.json(
+        { error: 'Could not complete the unlock' },
+        { status: 500 }
+      );
     }
 
     const payload = await buildUnlockedPayload(propertyId);

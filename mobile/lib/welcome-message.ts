@@ -48,7 +48,10 @@ export function buildWelcomeLink({
   const finalShowcaseUrl = showcaseUrlObj.toString();
 
   const source = resolveRequirementSource(contact);
-  const areaHints = [...(source.areas_of_interest || []), ...(source.pref_areas || [])];
+  const areaHints = [
+    ...(source.areas_of_interest || []),
+    ...(source.pref_areas || []),
+  ];
   const preferenceHint =
     source.property_interests?.length ||
     (source.pref_property_types?.length || 0) > 0 ||
@@ -56,10 +59,10 @@ export function buildWelcomeLink({
       ? [
           ...(source.property_interests || []),
           ...(source.pref_property_types || []),
-          ...((source.pref_property_categories || []).map(
+          ...(source.pref_property_categories || []).map(
             (category) =>
               category.charAt(0).toUpperCase() + category.slice(1).toLowerCase()
-          )),
+          ),
         ].find((entry) => Boolean(entry))
       : '';
 
@@ -89,8 +92,7 @@ ${singlePropUrl.toString()}
 Or browse other matching verified properties here:
 ${matchingUrl.toString()}`;
   } else {
-    const hasInterestFilters =
-      areaHints.length > 0 || Boolean(preferenceHint);
+    const hasInterestFilters = areaHints.length > 0 || Boolean(preferenceHint);
 
     if (hasInterestFilters) {
       const matchingUrl = new URL(showcaseUrlObj.toString());

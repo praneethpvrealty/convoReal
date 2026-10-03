@@ -4,7 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -48,7 +54,8 @@ const TEMPLATE_SLOTS: TemplateSlot[] = [
   {
     name: OWNER_DIGEST_CONSENT_TEMPLATE_NAME,
     label: 'Consent request',
-    description: 'Asks each owner once whether they want updates (Yes/No buttons).',
+    description:
+      'Asks each owner once whether they want updates (Yes/No buttons).',
     buildPayload: buildOwnerDigestConsentTemplatePayload,
   },
   {
@@ -66,7 +73,9 @@ export function OwnerDigestCard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [frequency, setFrequency] = useState<Frequency>('off');
-  const [templateStatus, setTemplateStatus] = useState<Record<string, string | null>>({});
+  const [templateStatus, setTemplateStatus] = useState<
+    Record<string, string | null>
+  >({});
   const [submitting, setSubmitting] = useState<string | null>(null);
 
   const loadState = useCallback(async () => {
@@ -111,15 +120,19 @@ export function OwnerDigestCard() {
     setFrequency(value);
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('owner_digest_settings')
-        .upsert(
-          { account_id: accountId, frequency: value, updated_at: new Date().toISOString() },
-          { onConflict: 'account_id' }
-        );
+      const { error } = await supabase.from('owner_digest_settings').upsert(
+        {
+          account_id: accountId,
+          frequency: value,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'account_id' }
+      );
       if (error) throw error;
       toast.success(
-        value === 'off' ? 'Owner digests turned off' : `Owner digests set to ${value}`
+        value === 'off'
+          ? 'Owner digests turned off'
+          : `Owner digests set to ${value}`
       );
     } catch (err) {
       setFrequency(previous);
@@ -150,7 +163,9 @@ export function OwnerDigestCard() {
       toast.success(`${slot.label} template submitted to Meta for approval.`);
     } catch (err) {
       console.error('[owner-digest] template submit failed:', err);
-      toast.error(err instanceof Error ? err.message : 'Template submission failed');
+      toast.error(
+        err instanceof Error ? err.message : 'Template submission failed'
+      );
     } finally {
       setSubmitting(null);
     }
@@ -158,15 +173,15 @@ export function OwnerDigestCard() {
 
   const statusBadge = (status: string | null | undefined) =>
     status === 'APPROVED' ? (
-      <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+      <Badge className="border border-emerald-500/30 bg-emerald-500/15 text-emerald-400">
         Approved
       </Badge>
     ) : status === 'PENDING' ? (
-      <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/30">
+      <Badge className="border border-amber-500/30 bg-amber-500/15 text-amber-400">
         Pending approval
       </Badge>
     ) : status ? (
-      <Badge className="bg-red-500/15 text-red-400 border border-red-500/30">
+      <Badge className="border border-red-500/30 bg-red-500/15 text-red-400">
         {status.toLowerCase()}
       </Badge>
     ) : (
@@ -176,51 +191,56 @@ export function OwnerDigestCard() {
     );
 
   return (
-    <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+    <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
       <CardHeader>
         <div className="flex items-center gap-2">
-          <BellRing className="size-4 text-primary" />
+          <BellRing className="text-primary size-4" />
           <CardTitle className="text-white">Owner Property Digest</CardTitle>
         </div>
         <CardDescription className="text-slate-400">
-          Automatic WhatsApp status updates to property owners/sellers: new enquiries,
-          shortlisted buyers, scheduled site visits and showcase views on their listings.
-          Consent-first — each owner is asked once before anything is sent, digests go out
-          only when there&apos;s new activity, and the owner&apos;s reply
-          (&quot;STOP UPDATES&quot; / &quot;START UPDATES&quot;) always overrides this setting.
+          Automatic WhatsApp status updates to property owners/sellers: new
+          enquiries, shortlisted buyers, scheduled site visits and showcase
+          views on their listings. Consent-first — each owner is asked once
+          before anything is sent, digests go out only when there&apos;s new
+          activity, and the owner&apos;s reply (&quot;STOP UPDATES&quot; /
+          &quot;START UPDATES&quot;) always overrides this setting.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {loading ? (
-          <div className="flex items-center gap-2 text-slate-400 text-sm">
-            <Loader2 className="size-4 animate-spin" /> Loading digest settings...
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <Loader2 className="size-4 animate-spin" /> Loading digest
+            settings...
           </div>
         ) : (
           <>
-            <div className="space-y-2 max-w-xs">
+            <div className="max-w-xs space-y-2">
               <Label className="text-slate-300">Frequency</Label>
               <Select
                 value={frequency}
                 onValueChange={(v) => handleFrequencyChange(v as Frequency)}
                 disabled={saving}
               >
-                <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-200">
+                <SelectTrigger className="border-slate-700 bg-slate-800 text-slate-200">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="off">Off</SelectItem>
                   <SelectItem value="daily">Daily (mornings, IST)</SelectItem>
-                  <SelectItem value="weekly">Weekly (Monday mornings, IST)</SelectItem>
+                  <SelectItem value="weekly">
+                    Weekly (Monday mornings, IST)
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {frequency !== 'off' && (
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
+              <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
                 <p className="text-sm text-slate-300">
-                  Owners usually haven&apos;t messaged you in the last 24 hours, so both
-                  messages below need pre-approved Utility templates. Submit each once —
-                  Meta approval typically takes minutes to a few hours.
+                  Owners usually haven&apos;t messaged you in the last 24 hours,
+                  so both messages below need pre-approved Utility templates.
+                  Submit each once — Meta approval typically takes minutes to a
+                  few hours.
                 </p>
                 {TEMPLATE_SLOTS.map((slot) => {
                   const status = templateStatus[slot.name] ?? null;
@@ -231,17 +251,21 @@ export function OwnerDigestCard() {
                     >
                       <div className="min-w-0">
                         <p className="text-sm text-white">{slot.label}</p>
-                        <p className="text-xs text-slate-400">{slot.description}</p>
+                        <p className="text-xs text-slate-400">
+                          {slot.description}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex shrink-0 items-center gap-2">
                         {statusBadge(status)}
                         {status !== 'APPROVED' && (
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleSubmitTemplate(slot)}
-                            disabled={submitting !== null || status === 'PENDING'}
-                            className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+                            disabled={
+                              submitting !== null || status === 'PENDING'
+                            }
+                            className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
                           >
                             {submitting === slot.name ? (
                               <>

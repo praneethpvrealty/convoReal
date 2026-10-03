@@ -23,15 +23,16 @@ export interface PageParams {
  * parameter is never the interesting part of a request.
  */
 export function parsePageParams(url: URL): PageParams {
-  const rawLimit = Number(url.searchParams.get("limit"));
-  const rawOffset = Number(url.searchParams.get("offset"));
+  const rawLimit = Number(url.searchParams.get('limit'));
+  const rawOffset = Number(url.searchParams.get('offset'));
 
   const limit =
     Number.isFinite(rawLimit) && rawLimit > 0
       ? Math.min(Math.floor(rawLimit), V1_MAX_LIMIT)
       : V1_DEFAULT_LIMIT;
 
-  const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
+  const offset =
+    Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
 
   return { limit, offset };
 }
@@ -51,8 +52,13 @@ export interface Page<T> {
  * exact count cheaply; `has_more` is still accurate in that case
  * because it falls back to "we filled the page".
  */
-export function page<T>(items: T[], { limit, offset }: PageParams, total: number | null): Page<T> {
-  const hasMore = total === null ? items.length === limit : offset + items.length < total;
+export function page<T>(
+  items: T[],
+  { limit, offset }: PageParams,
+  total: number | null
+): Page<T> {
+  const hasMore =
+    total === null ? items.length === limit : offset + items.length < total;
 
   return {
     items,

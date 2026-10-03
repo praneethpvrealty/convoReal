@@ -74,7 +74,7 @@ function makeDb() {
       },
       then: (...args: unknown[]) =>
         Promise.resolve({ data: null, error: null }).then(
-          args[0] as (v: unknown) => unknown,
+          args[0] as (v: unknown) => unknown
         ),
     };
     return chain;
@@ -91,7 +91,7 @@ vi.mock('@/lib/auth/account', () => ({
   toErrorResponse: (err: unknown) =>
     Response.json(
       { error: err instanceof Error ? err.message : String(err) },
-      { status: 403 },
+      { status: 403 }
     ),
 }));
 
@@ -121,7 +121,7 @@ function send(body: Record<string, unknown>) {
         message_type: 'media',
         ...body,
       }),
-    }),
+    })
   );
 }
 

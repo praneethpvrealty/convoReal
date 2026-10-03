@@ -11,9 +11,9 @@ export interface PlanConfig {
   id: Plan;
   name: string;
   tagline: string;
-  monthlyPrice: number;   // INR, monthly billing
-  quarterlyPrice: number;  // INR, quarterly billing (total for 3 months)
-  annualPrice: number;    // INR, annual billing (total for 12 months)
+  monthlyPrice: number; // INR, monthly billing
+  quarterlyPrice: number; // INR, quarterly billing (total for 3 months)
+  annualPrice: number; // INR, annual billing (total for 12 months)
   annualMonthlyEquiv: number; // annual / 12 for display
   quarterlyMonthlyEquiv: number; // quarterly / 3 for display
   maxUsers: number;
@@ -22,7 +22,7 @@ export interface PlanConfig {
   maxBroadcastsPerMonth: number;
   features: string[];
   notIncluded: string[];
-  highlighted: boolean;   // show as "most popular"
+  highlighted: boolean; // show as "most popular"
   /** Shown under the feature list for plans with a capped ceiling —
    *  points larger teams to a human sales conversation instead of a
    *  self-serve tier. Only set on the top plan (agency). */
@@ -181,7 +181,10 @@ export function getPlanPrice(plan: Plan, cycle: BillingCycle): number {
 }
 
 /** Upgrade required to unlock a feature, starting from current plan */
-export function upgradeRequiredFor(feature: string, currentPlan: Plan): Plan | null {
+export function upgradeRequiredFor(
+  feature: string,
+  currentPlan: Plan
+): Plan | null {
   switch (feature) {
     case 'ai':
     case 'broadcasts':

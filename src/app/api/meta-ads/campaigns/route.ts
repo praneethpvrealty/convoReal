@@ -33,7 +33,8 @@ import {
 // and nothing is left running or half-recorded — a partial failure can
 // never leave an ad silently spending the agent's money.
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface Body {
   property_id?: string;
@@ -64,7 +65,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid property.' }, { status: 400 });
     }
     if (!headline || !primaryText) {
-      return NextResponse.json({ error: 'Ad headline and text are required.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Ad headline and text are required.' },
+        { status: 400 }
+      );
     }
     const budget = validateDailyBudgetInr(body?.daily_budget_inr);
     if (!budget.ok) {
@@ -79,25 +83,47 @@ export async function POST(request: NextRequest) {
       .select('access_token, status, ad_account_id, page_id, ig_account_id')
       .eq('account_id', ctx.accountId)
       .maybeSingle();
-    if (!config || config.status !== 'connected' || !config.ad_account_id || !config.page_id) {
-      return NextResponse.json({ error: 'Connect your Meta account and select an ad account first.' }, { status: 409 });
+    if (
+      !config ||
+      config.status !== 'connected' ||
+      !config.ad_account_id ||
+      !config.page_id
+    ) {
+      return NextResponse.json(
+        { error: 'Connect your Meta account and select an ad account first.' },
+        { status: 409 }
+      );
     }
 
     // Property must belong to the account and have at least one image.
     const { data: property } = await db
       .from('properties')
-      .select('id, title, property_code, images, latitude, longitude, city, location')
+      .select(
+        'id, title, property_code, images, latitude, longitude, city, location'
+      )
       .eq('id', propertyId)
       .eq('account_id', ctx.accountId)
       .maybeSingle();
     if (!property) {
-      return NextResponse.json({ error: 'Property not found.' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Property not found.' },
+        { status: 404 }
+      );
     }
-    const images: string[] = Array.isArray(property.images) ? property.images : [];
+    const images: string[] = Array.isArray(property.images)
+      ? property.images
+      : [];
     // The chosen image must be one of the property's own photos.
-    const selectedImage = imageUrl && images.includes(imageUrl) ? imageUrl : images[0];
+    const selectedImage =
+      imageUrl && images.includes(imageUrl) ? imageUrl : images[0];
     if (!selectedImage) {
-      return NextResponse.json({ error: 'Add at least one photo to this property before advertising it.' }, { status: 400 });
+      return NextResponse.json(
+        {
+          error:
+            'Add at least one photo to this property before advertising it.',
+        },
+        { status: 400 }
+      );
     }
     const chosenImage = storagePublicUrl(selectedImage);
 
@@ -110,7 +136,13 @@ export async function POST(request: NextRequest) {
       .in('status', ['ACTIVE', 'PAUSED'])
       .maybeSingle();
     if (existing) {
-      return NextResponse.json({ error: 'This property already has a running ad. Stop it before creating a new one.' }, { status: 409 });
+      return NextResponse.json(
+        {
+          error:
+            'This property already has a running ad. Stop it before creating a new one.',
+        },
+        { status: 409 }
+      );
     }
 
     // Business WhatsApp number the ad opens a chat with.
@@ -121,10 +153,15 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     const cleanPhone = (settings?.contact_phone || '').replace(/\D/g, '');
     if (!cleanPhone) {
-      return NextResponse.json({ error: 'Set your WhatsApp contact number in Showcase settings first.' }, { status: 409 });
+      return NextResponse.json(
+        {
+          error: 'Set your WhatsApp contact number in Showcase settings first.',
+        },
+        { status: 409 }
+      );
     }
     const waLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
-      `Hi! I'm interested in ${property.title}${property.property_code ? ` (${property.property_code})` : ''}`,
+      `Hi! I'm interested in ${property.title}${property.property_code ? ` (${property.property_code})` : ''}`
     )}`;
 
     const accessToken = decrypt(config.access_token as string);
@@ -146,8 +183,11 @@ export async function POST(request: NextRequest) {
       const cityToResolve = targetCity || built.cityFallback;
       if (!cityToResolve) {
         return NextResponse.json(
-          { error: 'This property has no location set. Add a city or map location, or enter a target city, to advertise it.' },
-          { status: 400 },
+          {
+            error:
+              'This property has no location set. Add a city or map location, or enter a target city, to advertise it.',
+          },
+          { status: 400 }
         );
       }
       let cityKey: string | null;
@@ -155,33 +195,58 @@ export async function POST(request: NextRequest) {
         cityKey = await resolveCityGeoKey(accessToken, cityToResolve);
       } catch (err) {
         if (isTokenError(err)) {
-          await db.from('meta_ads_config').update({ status: 'token_expired' }).eq('account_id', ctx.accountId);
-          return NextResponse.json({ error: 'Your Meta connection expired. Please reconnect.' }, { status: 409 });
+          await db
+            .from('meta_ads_config')
+            .update({ status: 'token_expired' })
+            .eq('account_id', ctx.accountId);
+          return NextResponse.json(
+            { error: 'Your Meta connection expired. Please reconnect.' },
+            { status: 409 }
+          );
         }
         throw err;
       }
       if (!cityKey) {
         return NextResponse.json(
-          { error: `Couldn't match "${cityToResolve}" to a city. Try a nearby major city name.` },
-          { status: 400 },
+          {
+            error: `Couldn't match "${cityToResolve}" to a city. Try a nearby major city name.`,
+          },
+          { status: 400 }
         );
       }
-      targeting = { geo_locations: { cities: [{ key: cityKey }] }, age_min: 22 };
+      targeting = {
+        geo_locations: { cities: [{ key: cityKey }] },
+        age_min: 22,
+      };
     }
 
     const endTime =
       body?.duration_days && body.duration_days > 0
-        ? new Date(Date.now() + body.duration_days * 24 * 60 * 60 * 1000).toISOString()
+        ? new Date(
+            Date.now() + body.duration_days * 24 * 60 * 60 * 1000
+          ).toISOString()
         : null;
 
     // ── The create sequence (PAUSED-first, activate-last) ────────────
-    const created: { creativeId?: string; adId?: string; adsetId?: string; campaignId?: string } = {};
+    const created: {
+      creativeId?: string;
+      adId?: string;
+      adsetId?: string;
+      campaignId?: string;
+    } = {};
     const scoped = { accessToken, adAccountId };
-    const namePrefix = `ConvoReal – ${property.property_code || property.title}`.slice(0, 60);
+    const namePrefix =
+      `ConvoReal – ${property.property_code || property.title}`.slice(0, 60);
 
     try {
       const imgRes = await fetch(chosenImage);
-      if (!imgRes.ok) throw new MetaAdsApiError('Could not read the property image', 0, undefined, 'Image unavailable');
+      if (!imgRes.ok)
+        throw new MetaAdsApiError(
+          'Could not read the property image',
+          0,
+          undefined,
+          'Image unavailable'
+        );
       const bytes = Buffer.from(await imgRes.arrayBuffer());
       const imageHash = await uploadAdImage({ ...scoped, bytes });
 
@@ -244,43 +309,86 @@ export async function POST(request: NextRequest) {
         })
         .select('id')
         .single();
-      if (insErr || !row) throw insErr || new Error('Failed to record campaign');
+      if (insErr || !row)
+        throw insErr || new Error('Failed to record campaign');
 
       // Final step: go live. Meta only delivers when campaign AND ad set
       // AND ad are all ACTIVE — every level was created PAUSED, so all
       // three must be explicitly flipped here (activating the campaign
       // alone does NOT resume children that started paused).
       try {
-        await setObjectStatus({ accessToken, objectId: created.campaignId, status: 'ACTIVE' });
-        await setObjectStatus({ accessToken, objectId: created.adsetId, status: 'ACTIVE' });
-        await setObjectStatus({ accessToken, objectId: created.adId, status: 'ACTIVE' });
-        await db.from('ad_campaigns').update({ status: 'ACTIVE', updated_at: new Date().toISOString() }).eq('id', row.id);
+        await setObjectStatus({
+          accessToken,
+          objectId: created.campaignId,
+          status: 'ACTIVE',
+        });
+        await setObjectStatus({
+          accessToken,
+          objectId: created.adsetId,
+          status: 'ACTIVE',
+        });
+        await setObjectStatus({
+          accessToken,
+          objectId: created.adId,
+          status: 'ACTIVE',
+        });
+        await db
+          .from('ad_campaigns')
+          .update({ status: 'ACTIVE', updated_at: new Date().toISOString() })
+          .eq('id', row.id);
       } catch (activateErr) {
         // Objects exist and are recorded but couldn't go live — mark
         // ERROR (keeps the row out of the one-active-per-property index)
         // so the dashboard can surface a retry rather than orphaning it.
-        await db.from('ad_campaigns').update({ status: 'ERROR', updated_at: new Date().toISOString() }).eq('id', row.id);
-        console.error('[POST /api/meta-ads/campaigns] activation failed:', activateErr);
+        await db
+          .from('ad_campaigns')
+          .update({ status: 'ERROR', updated_at: new Date().toISOString() })
+          .eq('id', row.id);
+        console.error(
+          '[POST /api/meta-ads/campaigns] activation failed:',
+          activateErr
+        );
         return NextResponse.json(
-          { error: 'Your ad was created but could not be activated. Please try again from the Ads dashboard.' },
-          { status: 502 },
+          {
+            error:
+              'Your ad was created but could not be activated. Please try again from the Ads dashboard.',
+          },
+          { status: 502 }
         );
       }
 
-      return NextResponse.json({ success: true, campaignId: created.campaignId, precise });
+      return NextResponse.json({
+        success: true,
+        campaignId: created.campaignId,
+        precise,
+      });
     } catch (seqErr) {
       // Roll back every Meta object created so far, newest first.
       if (created.adId) await deleteObject(accessToken, created.adId);
-      if (created.creativeId) await deleteObject(accessToken, created.creativeId);
+      if (created.creativeId)
+        await deleteObject(accessToken, created.creativeId);
       if (created.adsetId) await deleteObject(accessToken, created.adsetId);
-      if (created.campaignId) await deleteObject(accessToken, created.campaignId);
+      if (created.campaignId)
+        await deleteObject(accessToken, created.campaignId);
 
       if (isTokenError(seqErr)) {
-        await db.from('meta_ads_config').update({ status: 'token_expired' }).eq('account_id', ctx.accountId);
-        return NextResponse.json({ error: 'Your Meta connection expired. Please reconnect.' }, { status: 409 });
+        await db
+          .from('meta_ads_config')
+          .update({ status: 'token_expired' })
+          .eq('account_id', ctx.accountId);
+        return NextResponse.json(
+          { error: 'Your Meta connection expired. Please reconnect.' },
+          { status: 409 }
+        );
       }
-      const msg = seqErr instanceof MetaAdsApiError ? seqErr.userMessage : 'Could not create the ad. Please try again.';
-      console.error('[POST /api/meta-ads/campaigns] create sequence failed:', seqErr);
+      const msg =
+        seqErr instanceof MetaAdsApiError
+          ? seqErr.userMessage
+          : 'Could not create the ad. Please try again.';
+      console.error(
+        '[POST /api/meta-ads/campaigns] create sequence failed:',
+        seqErr
+      );
       return NextResponse.json({ error: msg }, { status: 502 });
     }
   } catch (err) {
@@ -312,7 +420,10 @@ export async function GET() {
 
     if (error) {
       console.error('[GET /api/meta-ads/campaigns] fetch error:', error);
-      return NextResponse.json({ error: 'Failed to load campaigns' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to load campaigns' },
+        { status: 500 }
+      );
     }
     if (!campaigns || campaigns.length === 0) {
       return NextResponse.json({ campaigns: [], connectionStatus: null });
@@ -328,7 +439,9 @@ export async function GET() {
 
     // Leads in Engine per ad_id — count of distinct contacts whose first
     // touch was this ad, from our own attribution table.
-    const adIds = campaigns.map((c) => c.ad_id).filter((id): id is string => !!id);
+    const adIds = campaigns
+      .map((c) => c.ad_id)
+      .filter((id): id is string => !!id);
     const leadCountByAdId = new Map<string, number>();
     if (adIds.length > 0) {
       const { data: referrals } = await db
@@ -338,7 +451,10 @@ export async function GET() {
         .in('source_id', adIds);
       for (const r of referrals ?? []) {
         if (!r.source_id) continue;
-        leadCountByAdId.set(r.source_id, (leadCountByAdId.get(r.source_id) ?? 0) + 1);
+        leadCountByAdId.set(
+          r.source_id,
+          (leadCountByAdId.get(r.source_id) ?? 0) + 1
+        );
       }
     }
 
@@ -349,11 +465,15 @@ export async function GET() {
       (c) =>
         ['ACTIVE', 'PAUSED'].includes(c.status) &&
         c.campaign_id &&
-        (!c.last_insights_at || now - new Date(c.last_insights_at).getTime() > INSIGHTS_STALE_MS),
+        (!c.last_insights_at ||
+          now - new Date(c.last_insights_at).getTime() > INSIGHTS_STALE_MS)
     );
 
     let connectionStatus: string | null = null;
-    const refreshedById = new Map<string, { insights: Record<string, unknown>; fetchedAt: string }>();
+    const refreshedById = new Map<
+      string,
+      { insights: Record<string, unknown>; fetchedAt: string }
+    >();
 
     if (needsRefresh.length > 0) {
       const { data: config } = await db
@@ -369,7 +489,10 @@ export async function GET() {
         for (const c of needsRefresh) {
           if (tokenExpired) break;
           try {
-            const insights = await getCampaignInsights(accessToken, c.campaign_id as string);
+            const insights = await getCampaignInsights(
+              accessToken,
+              c.campaign_id as string
+            );
             const fetchedAt = new Date().toISOString();
             const payload = {
               spend: insights?.spendInr ?? 0,
@@ -386,7 +509,10 @@ export async function GET() {
           } catch (err) {
             if (isTokenError(err)) {
               tokenExpired = true;
-              await db.from('meta_ads_config').update({ status: 'token_expired' }).eq('account_id', ctx.accountId);
+              await db
+                .from('meta_ads_config')
+                .update({ status: 'token_expired' })
+                .eq('account_id', ctx.accountId);
             }
             // Non-token errors: leave this campaign's cached insights as-is
             // (served below with stale: true); keep refreshing the rest.
@@ -402,14 +528,15 @@ export async function GET() {
       const property = propertyById.get(c.property_id);
       const fresh = refreshedById.get(c.id);
       const insights = fresh?.insights ?? c.last_insights ?? null;
-      const leads = c.ad_id ? leadCountByAdId.get(c.ad_id) ?? 0 : 0;
+      const leads = c.ad_id ? (leadCountByAdId.get(c.ad_id) ?? 0) : 0;
       const spend = (insights?.spend as number | undefined) ?? 0;
       // Staleness reflects actual data AGE (fetched_at vs. now), not
       // whether THIS request happened to be the one that fetched it —
       // a campaign refreshed 2 minutes ago via an earlier request is
       // fresh even though `fresh` (this request's refresh map) is unset.
       const fetchedAt = insights?.fetched_at as string | undefined;
-      const isStale = !fetchedAt || now - new Date(fetchedAt).getTime() > INSIGHTS_STALE_MS;
+      const isStale =
+        !fetchedAt || now - new Date(fetchedAt).getTime() > INSIGHTS_STALE_MS;
 
       return {
         id: c.id,
@@ -433,7 +560,8 @@ export async function GET() {
             }
           : null,
         leadsInEngine: leads,
-        costPerLeadInr: leads > 0 ? Math.round((spend / leads) * 100) / 100 : null,
+        costPerLeadInr:
+          leads > 0 ? Math.round((spend / leads) * 100) / 100 : null,
       };
     });
 

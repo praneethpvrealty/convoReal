@@ -69,11 +69,17 @@ export function PropertyPickerSheet({
     queryFn: getShowcaseUrl,
   });
 
-  const emailName = (session?.user.email?.split('@')[0] ?? '').split(/[._-]/)[0];
+  const emailName = (session?.user.email?.split('@')[0] ?? '').split(
+    /[._-]/
+  )[0];
   const agentName =
     fullName?.trim() ||
-    (emailName ? emailName.charAt(0).toUpperCase() + emailName.slice(1) : undefined);
-  const agentPhone = session?.user.phone ? `+${session.user.phone.replace(/^\+/, '')}` : undefined;
+    (emailName
+      ? emailName.charAt(0).toUpperCase() + emailName.slice(1)
+      : undefined);
+  const agentPhone = session?.user.phone
+    ? `+${session.user.phone.replace(/^\+/, '')}`
+    : undefined;
 
   const generated = useMemo(() => {
     if (selected.length === 0 || !baseUrl) return '';
@@ -120,8 +126,18 @@ export function PropertyPickerSheet({
   }
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Share properties to chat">
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md, flexShrink: 1 }}>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title="Share properties to chat"
+    >
+      <View
+        style={{
+          paddingHorizontal: spacing.lg,
+          gap: spacing.md,
+          flexShrink: 1,
+        }}
+      >
         <SearchBar
           value={search}
           onChangeText={setSearch}
@@ -134,7 +150,13 @@ export function PropertyPickerSheet({
               <ActivityIndicator color={colors.primary} />
             </View>
           ) : error ? (
-            <Text style={{ fontSize: 12.5, color: colors.danger, paddingVertical: spacing.md }}>
+            <Text
+              style={{
+                fontSize: 12.5,
+                color: colors.danger,
+                paddingVertical: spacing.md,
+              }}
+            >
               Could not load properties — try again.
             </Text>
           ) : results.length === 0 ? (
@@ -144,8 +166,11 @@ export function PropertyPickerSheet({
               subtitle="No listings match this search."
             />
           ) : (
-            <ScrollView keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+            >
               <View style={{ gap: spacing.sm }}>
                 {results.map((property) => (
                   <PickerRow
@@ -162,7 +187,9 @@ export function PropertyPickerSheet({
 
         {selected.length > 0 ? (
           <>
-            <SectionLabel text={`Message — ${selected.length} selected · tap to edit`} />
+            <SectionLabel
+              text={`Message — ${selected.length} selected · tap to edit`}
+            />
             <TextInput
               multiline
               scrollEnabled={false}
@@ -174,13 +201,24 @@ export function PropertyPickerSheet({
               accessibilityLabel="Shortlist message"
               style={[
                 styles.draft,
-                { backgroundColor: colors.surfaceRaised, borderColor: colors.border, color: colors.text },
+                {
+                  backgroundColor: colors.surfaceRaised,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
               ]}
             />
           </>
         ) : (
-          <Text style={{ fontSize: 12.5, color: colors.textMuted, textAlign: 'center' }}>
-            Select the listings you want to send — they'll be drafted into one message.
+          <Text
+            style={{
+              fontSize: 12.5,
+              color: colors.textMuted,
+              textAlign: 'center',
+            }}
+          >
+            Select the listings you want to send — they'll be drafted into one
+            message.
           </Text>
         )}
 
@@ -203,8 +241,16 @@ export function PropertyPickerSheet({
           ) : (
             <Ionicons name="send" size={16} color={colors.onPrimary} />
           )}
-          <Text style={{ fontSize: 15, fontFamily: f.bold, color: colors.onPrimary }}>
-            {selected.length > 0 ? `Send ${selected.length} to chat` : 'Send to chat'}
+          <Text
+            style={{
+              fontSize: 15,
+              fontFamily: f.bold,
+              color: colors.onPrimary,
+            }}
+          >
+            {selected.length > 0
+              ? `Send ${selected.length} to chat`
+              : 'Send to chat'}
           </Text>
         </Pressable>
       </View>
@@ -231,7 +277,9 @@ function PickerRow({
       : property.price
         ? formatInr(property.price)
         : null;
-  const place = [property.sublocality, property.city].filter(Boolean).join(', ');
+  const place = [property.sublocality, property.city]
+    .filter(Boolean)
+    .join(', ');
 
   return (
     <Pressable
@@ -248,23 +296,43 @@ function PickerRow({
       ]}
     >
       {cover ? (
-        <Image source={{ uri: cover }} style={styles.thumb} resizeMode="cover" />
+        <Image
+          source={{ uri: cover }}
+          style={styles.thumb}
+          resizeMode="cover"
+        />
       ) : (
-        <View style={[styles.thumb, styles.thumbEmpty, { backgroundColor: colors.surfaceSunken }]}>
+        <View
+          style={[
+            styles.thumb,
+            styles.thumbEmpty,
+            { backgroundColor: colors.surfaceSunken },
+          ]}
+        >
           <Ionicons name="home-outline" size={18} color={colors.textFaint} />
         </View>
       )}
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+        <Text
+          style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }}
+          numberOfLines={1}
+        >
           {property.title}
         </Text>
         {place ? (
-          <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+          <Text
+            style={{ fontSize: 12, color: colors.textMuted }}
+            numberOfLines={1}
+          >
             {place}
           </Text>
         ) : null}
         {price ? (
-          <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.primary }}>{price}</Text>
+          <Text
+            style={{ fontSize: 13, fontFamily: f.bold, color: colors.primary }}
+          >
+            {price}
+          </Text>
         ) : null}
       </View>
       <Ionicons

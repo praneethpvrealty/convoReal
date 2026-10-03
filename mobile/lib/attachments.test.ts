@@ -17,13 +17,15 @@ describe('attachmentMimeType', () => {
   });
 
   it('strips codec parameters', () => {
-    expect(attachmentMimeType('audio/ogg; codecs=opus', null)).toBe('audio/ogg');
+    expect(attachmentMimeType('audio/ogg; codecs=opus', null)).toBe(
+      'audio/ogg'
+    );
   });
 
   it('falls back to the extension when Android reports a byte stream', () => {
-    expect(attachmentMimeType('application/octet-stream', 'floorplan.pdf')).toBe(
-      'application/pdf'
-    );
+    expect(
+      attachmentMimeType('application/octet-stream', 'floorplan.pdf')
+    ).toBe('application/pdf');
   });
 
   it('falls back to the extension when nothing is reported', () => {
@@ -33,7 +35,9 @@ describe('attachmentMimeType', () => {
 
   it('is null when neither source identifies the file', () => {
     expect(attachmentMimeType(null, 'mystery')).toBeNull();
-    expect(attachmentMimeType('application/octet-stream', 'file.xyz')).toBeNull();
+    expect(
+      attachmentMimeType('application/octet-stream', 'file.xyz')
+    ).toBeNull();
   });
 
   it('is case-insensitive about extensions', () => {
@@ -43,19 +47,21 @@ describe('attachmentMimeType', () => {
 
 describe('attachmentFilename', () => {
   it('prefers the name the picker gave', () => {
-    expect(attachmentFilename('deed.pdf', 'file:///tmp/x', 'application/pdf')).toBe(
-      'deed.pdf'
-    );
+    expect(
+      attachmentFilename('deed.pdf', 'file:///tmp/x', 'application/pdf')
+    ).toBe('deed.pdf');
   });
 
   it('derives one from the URI when the camera roll gives none', () => {
-    expect(attachmentFilename(null, 'file:///tmp/IMG_0042.jpg', 'image/jpeg')).toBe(
-      'IMG_0042.jpg'
-    );
+    expect(
+      attachmentFilename(null, 'file:///tmp/IMG_0042.jpg', 'image/jpeg')
+    ).toBe('IMG_0042.jpg');
   });
 
   it('drops a query string from the derived name', () => {
-    expect(attachmentFilename(null, 'file:///tmp/a.jpg?x=1', 'image/jpeg')).toBe('a.jpg');
+    expect(
+      attachmentFilename(null, 'file:///tmp/a.jpg?x=1', 'image/jpeg')
+    ).toBe('a.jpg');
   });
 
   it('falls back to the mime type when the URI has no filename', () => {

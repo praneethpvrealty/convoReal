@@ -11,8 +11,7 @@ const AUDIO_MIME_TYPES = new Set([
 ]);
 
 export type CopilotVoiceRequest =
-  | { audio: Buffer; mimeType: string }
-  | { error: string; status: number };
+  { audio: Buffer; mimeType: string } | { error: string; status: number };
 
 export function readCopilotVoiceRequest(raw: unknown): CopilotVoiceRequest {
   const body = (raw ?? {}) as {

@@ -174,7 +174,10 @@ export async function POST(request: NextRequest) {
         CatalogListing & { location_privacy?: string | null }
       >
     ).map((l) =>
-      isLocationGuarded({ type: l.type || '', location_privacy: l.location_privacy })
+      isLocationGuarded({
+        type: l.type || '',
+        location_privacy: l.location_privacy,
+      })
         ? { ...l, location: localityLabel(l) }
         : l
     );

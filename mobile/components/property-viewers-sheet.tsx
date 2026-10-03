@@ -1,6 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
@@ -45,9 +52,22 @@ export function PropertyViewersSheet({
   });
 
   return (
-    <BottomSheet visible={Boolean(propertyId)} onClose={onClose} title="Identified viewers">
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md, flexShrink: 1 }}>
-        <Text style={{ fontSize: 13, color: colors.textMuted }} numberOfLines={2}>
+    <BottomSheet
+      visible={Boolean(propertyId)}
+      onClose={onClose}
+      title="Identified viewers"
+    >
+      <View
+        style={{
+          paddingHorizontal: spacing.lg,
+          gap: spacing.md,
+          flexShrink: 1,
+        }}
+      >
+        <Text
+          style={{ fontSize: 13, color: colors.textMuted }}
+          numberOfLines={2}
+        >
           {propertyTitle}
         </Text>
 
@@ -111,18 +131,34 @@ export function PropertyViewersSheet({
           </View>
         ) : !viewers || viewers.length === 0 ? (
           <View style={[styles.empty, { borderColor: colors.border }]}>
-            <Ionicons name="person-circle-outline" size={30} color={colors.textFaint} />
-            <Text style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text }}>
+            <Ionicons
+              name="person-circle-outline"
+              size={30}
+              color={colors.textFaint}
+            />
+            <Text
+              style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text }}
+            >
               No identified viewers yet
             </Text>
-            <Text style={{ fontSize: 12.5, lineHeight: 18, color: colors.textMuted, textAlign: 'center' }}>
-              Views tie to a contact only when you share a personalized tracked link (Send
-              personally) or the visitor submits an inquiry.
+            <Text
+              style={{
+                fontSize: 12.5,
+                lineHeight: 18,
+                color: colors.textMuted,
+                textAlign: 'center',
+              }}
+            >
+              Views tie to a contact only when you share a personalized tracked
+              link (Send personally) or the visitor submits an inquiry.
             </Text>
           </View>
         ) : (
           <>
-            <ScrollView style={[sheetScrollArea, { maxHeight: 380 }]} contentContainerStyle={{ gap: spacing.sm }}>
+            <ScrollView
+              style={[sheetScrollArea, { maxHeight: 380 }]}
+              contentContainerStyle={{ gap: spacing.sm }}
+            >
               {viewers.map((v) => {
                 const label = v.name || v.phone || 'Unknown';
                 return (
@@ -130,36 +166,65 @@ export function PropertyViewersSheet({
                     key={v.contactId}
                     style={[
                       styles.row,
-                      { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+                      {
+                        backgroundColor: colors.glass,
+                        borderColor: colors.glassBorder,
+                      },
                     ]}
                   >
                     <Avatar name={label} size={40} />
                     <View style={{ flex: 1, gap: 2 }}>
                       <Text
-                        style={{ fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}
+                        style={{
+                          fontSize: 14.5,
+                          fontFamily: f.semibold,
+                          color: colors.text,
+                        }}
                         numberOfLines={1}
                       >
                         {label}
                       </Text>
-                      <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
-                        {v.views} view{v.views === 1 ? '' : 's'} · {formatTimeAgo(v.lastAt)}
+                      <Text
+                        style={{ fontSize: 12, color: colors.textMuted }}
+                        numberOfLines={1}
+                      >
+                        {v.views} view{v.views === 1 ? '' : 's'} ·{' '}
+                        {formatTimeAgo(v.lastAt)}
                       </Text>
                     </View>
                     <Pressable
                       onPress={async () => {
-                        const outcome = await openContactChat({ id: v.contactId });
+                        const outcome = await openContactChat({
+                          id: v.contactId,
+                        });
                         if (!outcome.ok && outcome.error) {
-                          show({ title: 'Could not open thread', message: outcome.error });
+                          show({
+                            title: 'Could not open thread',
+                            message: outcome.error,
+                          });
                         } else if (outcome.ok) {
                           onClose();
                         }
                       }}
                       accessibilityRole="button"
                       accessibilityLabel={`Message ${label}`}
-                      style={[styles.message, { backgroundColor: colors.primarySoft }]}
+                      style={[
+                        styles.message,
+                        { backgroundColor: colors.primarySoft },
+                      ]}
                     >
-                      <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.primary} />
-                      <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
+                      <Ionicons
+                        name="chatbubble-ellipses-outline"
+                        size={16}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 12.5,
+                          fontFamily: f.bold,
+                          color: colors.primary,
+                        }}
+                      >
                         Message
                       </Text>
                     </Pressable>
@@ -167,8 +232,15 @@ export function PropertyViewersSheet({
                 );
               })}
             </ScrollView>
-            <Text style={{ fontSize: 11.5, lineHeight: 16, color: colors.textFaint }}>
-              Only viewers who opened a tracked link or identified themselves appear here.
+            <Text
+              style={{
+                fontSize: 11.5,
+                lineHeight: 16,
+                color: colors.textFaint,
+              }}
+            >
+              Only viewers who opened a tracked link or identified themselves
+              appear here.
             </Text>
           </>
         )}

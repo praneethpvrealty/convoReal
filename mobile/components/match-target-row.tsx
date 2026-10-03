@@ -190,7 +190,11 @@ export function MatchTargetRow({
           ]}
         >
           <Text
-            style={{ fontSize: 11.5, fontFamily: f.extrabold, color: toneColor }}
+            style={{
+              fontSize: 11.5,
+              fontFamily: f.extrabold,
+              color: toneColor,
+            }}
           >
             {scoreLabel}
           </Text>

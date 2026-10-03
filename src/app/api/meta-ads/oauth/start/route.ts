@@ -8,11 +8,18 @@ const NONCE_COOKIE = 'meta_ads_oauth_nonce';
 
 // Scopes needed to list ad accounts/Pages, read insights, and create
 // CTWA campaigns on the agent's behalf (Phase C).
-const SCOPES = ['ads_management', 'ads_read', 'business_management', 'pages_show_list'].join(',');
+const SCOPES = [
+  'ads_management',
+  'ads_read',
+  'business_management',
+  'pages_show_list',
+].join(',');
 
 function oauthRedirectUri(): string {
   const base =
-    process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    'http://localhost:3000';
   return `${base.replace(/\/$/, '')}/api/meta-ads/oauth/callback`;
 }
 
@@ -23,7 +30,10 @@ function oauthRedirectUri(): string {
 export async function GET() {
   try {
     if (process.env.META_ADS_ENABLED !== 'true') {
-      return NextResponse.json({ error: 'Meta Ads is not enabled yet.' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Meta Ads is not enabled yet.' },
+        { status: 404 }
+      );
     }
 
     const ctx = await requireRole('owner');
@@ -31,12 +41,20 @@ export async function GET() {
     const appId = process.env.META_ADS_APP_ID;
     const appSecret = process.env.META_ADS_APP_SECRET;
     if (!appId || !appSecret) {
-      console.error('[GET /api/meta-ads/oauth/start] META_ADS_APP_ID/META_ADS_APP_SECRET not configured');
-      return NextResponse.json({ error: 'Meta Ads is not configured on this server.' }, { status: 500 });
+      console.error(
+        '[GET /api/meta-ads/oauth/start] META_ADS_APP_ID/META_ADS_APP_SECRET not configured'
+      );
+      return NextResponse.json(
+        { error: 'Meta Ads is not configured on this server.' },
+        { status: 500 }
+      );
     }
 
     const nonce = generateNonce();
-    const state = signOAuthState({ accountId: ctx.accountId, nonce, ts: Date.now() }, appSecret);
+    const state = signOAuthState(
+      { accountId: ctx.accountId, nonce, ts: Date.now() },
+      appSecret
+    );
 
     const cookieStore = await cookies();
     cookieStore.set(NONCE_COOKIE, nonce, {
@@ -47,7 +65,9 @@ export async function GET() {
       path: '/api/meta-ads/oauth',
     });
 
-    const dialogUrl = new URL(`https://www.facebook.com/${META_API_VERSION}/dialog/oauth`);
+    const dialogUrl = new URL(
+      `https://www.facebook.com/${META_API_VERSION}/dialog/oauth`
+    );
     dialogUrl.searchParams.set('client_id', appId);
     dialogUrl.searchParams.set('redirect_uri', oauthRedirectUri());
     dialogUrl.searchParams.set('scope', SCOPES);

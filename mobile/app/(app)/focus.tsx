@@ -235,9 +235,7 @@ export default function FocusScreen() {
                 <Row
                   key={`${journey.mode}:${journey.subjectId}`}
                   icon={
-                    journey.mode === 'buyer'
-                      ? 'person-outline'
-                      : 'home-outline'
+                    journey.mode === 'buyer' ? 'person-outline' : 'home-outline'
                   }
                   title={journey.subject.name}
                   subtitle={journey.reason}
@@ -382,7 +380,11 @@ export default function FocusScreen() {
                 value={insights.data?.messagesReceived}
                 width={statWidth}
               />
-              <StatCard label="Sent" value={insights.data?.messagesSent} width={statWidth} />
+              <StatCard
+                label="Sent"
+                value={insights.data?.messagesSent}
+                width={statWidth}
+              />
               <StatCard
                 label="Replied"
                 value={
@@ -443,7 +445,9 @@ function QueryState({
       accessibilityLiveRegion="polite"
       style={[styles.status, { borderColor: colors.border }]}
     >
-      {loading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.primary} />
+      ) : null}
       <Text style={{ flex: 1, fontSize: 12, color: colors.textMuted }}>
         {text}
       </Text>
@@ -453,7 +457,9 @@ function QueryState({
           accessibilityRole="button"
           accessibilityLabel="Retry loading this section"
         >
-          <Text style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}>
+          <Text
+            style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}
+          >
             Retry
           </Text>
         </Pressable>
