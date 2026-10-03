@@ -872,7 +872,11 @@ export default function CalendarScreen() {
               ))
             )}
             {todoGroups.done.length > 0 ? (
-              <DoneTodosGroup todos={todoGroups.done} now={today} />
+              <DoneTodosGroup
+                todos={todoGroups.done}
+                now={today}
+                canEdit={canEditTasks}
+              />
             ) : null}
           </>
         )}
@@ -1072,7 +1076,15 @@ function TodoQuickAdd() {
   );
 }
 
-function DoneTodosGroup({ todos, now }: { todos: Todo[]; now: Date }) {
+function DoneTodosGroup({
+  todos,
+  now,
+  canEdit,
+}: {
+  todos: Todo[];
+  now: Date;
+  canEdit: boolean;
+}) {
   const { colors, fonts: f } = useTheme();
   const [doneOpen, setDoneOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -1082,7 +1094,8 @@ function DoneTodosGroup({ todos, now }: { todos: Todo[]; now: Date }) {
     setClearing(true);
     setError(null);
     try {
-      await deleteCompletedTodos(completedTodoIds(todos));
+      const deleted = await deleteCompletedTodos(completedTodoIds(todos));
+      if (deleted === 0) throw new Error('Nothing was deleted');
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['todos'] });
     } catch {
@@ -1130,7 +1143,7 @@ function DoneTodosGroup({ todos, now }: { todos: Todo[]; now: Date }) {
             {`${DONE_TODOS_LABEL} (${todos.length})`}
           </Text>
         </Pressable>
-        {clearing ? (
+        {!canEdit ? null : clearing ? (
           <ActivityIndicator color={colors.primary} />
         ) : (
           <Pressable
