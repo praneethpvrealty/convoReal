@@ -146,7 +146,7 @@ _A §2.8 gap, stated rather than silent._
 
 _A §2.8 gap, stated rather than silent._
 
-- [ ] **Re-engagement tab (mobile)**: The web dashboard's Re-engagement tab (`src/app/(dashboard)/reengagement/reengagement-content.tsx`, table in `src/components/reengagement/reengagement-outcome.tsx`) has no mobile screen. Its sort helpers (`sortLeads`, `maskPhoneLastFour`, `allLeadsMatched` in `src/lib/reengagement/funnel.ts`) are pure, so a mobile screen can import them through `@shared/` once it exists.
+- [ ] **Re-engagement tab (mobile)**: The web dashboard's Re-engagement tab (`src/app/(dashboard)/reengagement/reengagement-content.tsx`, table in `src/components/reengagement/reengagement-outcome.tsx`) has no mobile screen. The lead order is chosen by the `reengagement_leads` function (`p_sort`, passed by `loadReengagementLeads` in `src/lib/reengagement/queries.ts`), so a mobile screen sorts by sending the same parameter, and its helpers (`nextLeadSort`, `leadSortDirection`, `maskPhoneLastFour`, `allLeadsMatched` in `src/lib/reengagement/funnel.ts`) are pure, so it can import them through `@shared/` once it exists.
 
 ### Deferred: account administration on mobile
 

@@ -1,4 +1,4 @@
-import { META_API_BASE } from '@/lib/whatsapp/meta-api';
+import { META_API_BASE, assertGraphId } from '@/lib/whatsapp/meta-api';
 
 export interface PhoneRegistrationState {
   status: string | null;
@@ -24,8 +24,9 @@ export async function fetchPhoneRegistrationState(args: {
   accessToken: string;
 }): Promise<PhoneRegistrationState | null> {
   try {
+    const phoneNumberId = assertGraphId(args.phoneNumberId, 'Phone Number ID');
     const res = await fetch(
-      `${META_API_BASE}/${args.phoneNumberId}?fields=status,platform_type,name_status,verified_name,is_pin_enabled`,
+      `${META_API_BASE}/${phoneNumberId}?fields=status,platform_type,name_status,verified_name,is_pin_enabled`,
       { headers: { Authorization: `Bearer ${args.accessToken}` } }
     );
     if (!res.ok) return null;

@@ -5,6 +5,8 @@ import {
   subscribeWabaToApp,
   verifyPhoneNumber,
   checkWhatsAppPermissions,
+  isGraphId,
+  isAbsentOrGraphId,
 } from '@/lib/whatsapp/meta-api';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -218,6 +220,21 @@ export async function POST(request: Request) {
         },
         { status: 400 }
       );
+    }
+
+    if (intType === 'official_api') {
+      if (!isGraphId(phone_number_id)) {
+        return NextResponse.json(
+          { error: 'Phone Number ID must contain digits only.' },
+          { status: 400 }
+        );
+      }
+      if (!isAbsentOrGraphId(waba_id)) {
+        return NextResponse.json(
+          { error: 'WhatsApp Business Account ID must contain digits only.' },
+          { status: 400 }
+        );
+      }
     }
 
     if (pin !== undefined && pin !== null && pin !== '') {

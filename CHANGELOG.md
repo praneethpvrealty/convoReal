@@ -53,6 +53,14 @@ than a written entry. Newest first.
   was dark red on near-black; it is now an amber banner with a **Reconnect
   Meta** button, and Spend, Reach, Chats started and Cost/lead are marked as
   last-sync figures so a ₹0 there is not read as current.
+- **Re-engagement sorts the whole list, not the page you are on.** The
+  Matches and Last reply headers sort every lead in the batch before the
+  list is split into pages, so "most matches first" is the best of the
+  batch rather than the best of the hundred rows already loaded. Click a
+  header for largest or newest first, again for the reverse, and a third
+  time for the standing order; leads that never replied stay at the
+  bottom either way, and changing the order returns to the first page.
+  **Migration required:** `20261003124115_reengagement_leads_sort.sql`.
 - **The dashboard no longer hides its own rows or reloads itself on
   every tab.** The AI Assistant button shrinks to an icon once you scroll
   and the Help pill is an icon, so the last rows of Re-engagement,

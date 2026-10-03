@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs';
 import {
   allLeadsMatched,
   funnelStages,
+  leadSortDirection,
   maskPhoneLastFour,
+  nextLeadSort,
   REENGAGEMENT_TEMPLATE_NAMES,
   leadStage,
   requirementSummary,
@@ -172,6 +174,33 @@ describe('REENGAGEMENT_TEMPLATE_NAMES vs is_reengagement_template()', () => {
     for (const name of inSql) {
       expect(REENGAGEMENT_TEMPLATE_NAMES, name).toContain(name);
     }
+  });
+});
+
+describe('nextLeadSort', () => {
+  it('goes descending, ascending, then back to the batch order', () => {
+    expect(nextLeadSort('batch', 'matches')).toBe('matches_desc');
+    expect(nextLeadSort('matches_desc', 'matches')).toBe('matches_asc');
+    expect(nextLeadSort('matches_asc', 'matches')).toBe('batch');
+    expect(nextLeadSort('batch', 'replied')).toBe('replied_desc');
+    expect(nextLeadSort('replied_desc', 'replied')).toBe('replied_asc');
+    expect(nextLeadSort('replied_asc', 'replied')).toBe('batch');
+  });
+
+  it('starts descending when the other column was sorted', () => {
+    expect(nextLeadSort('matches_asc', 'replied')).toBe('replied_desc');
+    expect(nextLeadSort('replied_desc', 'matches')).toBe('matches_desc');
+  });
+});
+
+describe('leadSortDirection', () => {
+  it('reports a direction only for the column being sorted', () => {
+    expect(leadSortDirection('matches_desc', 'matches')).toBe('desc');
+    expect(leadSortDirection('matches_asc', 'matches')).toBe('asc');
+    expect(leadSortDirection('matches_desc', 'replied')).toBeNull();
+    expect(leadSortDirection('replied_asc', 'replied')).toBe('asc');
+    expect(leadSortDirection('batch', 'matches')).toBeNull();
+    expect(leadSortDirection('batch', 'replied')).toBeNull();
   });
 });
 
