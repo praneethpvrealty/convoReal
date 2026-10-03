@@ -901,20 +901,13 @@ export default function InventoryPage() {
 
   const adStatusesQuery = useQuery({
     queryKey: ['inventory', 'ad-statuses', accountId, visiblePropertyIds],
-    queryFn: async () => {
-      const supabaseClient = createClient();
-      const { data } = await supabaseClient
-        .from('ad_campaigns')
-        .select('property_id, status')
-        .eq('account_id', accountId)
-        .in('status', ['ACTIVE', 'PAUSED'])
-        .in('property_id', visiblePropertyIds);
-      const map: Record<string, 'ACTIVE' | 'PAUSED'> = {};
-      for (const row of data || []) {
-        const status = row.status as 'ACTIVE' | 'PAUSED';
-        if (map[row.property_id] !== 'ACTIVE') map[row.property_id] = status;
-      }
-      return map;
+    queryFn: async (): Promise<Record<string, 'ACTIVE' | 'PAUSED'>> => {
+      const res = await fetch(
+        `/api/meta-ads/statuses?property_ids=${visiblePropertyIds.join(',')}`
+      );
+      if (!res.ok) throw new Error('Could not load ad statuses');
+      const body = await res.json();
+      return body?.data ?? {};
     },
     enabled:
       META_ADS_ENABLED && Boolean(accountId) && visiblePropertyIds.length > 0,

@@ -1620,6 +1620,10 @@
             {
               "file": "src/components/inventory/property-list.test.tsx",
               "case": "[PRP-032]"
+            },
+            {
+              "file": "src/app/api/meta-ads/statuses/route.test.ts",
+              "case": "[PRP-032]"
             }
           ],
           "guards": [
