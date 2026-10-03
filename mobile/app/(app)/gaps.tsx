@@ -14,13 +14,13 @@ import {
 import { EnterRow, PressScale } from '@/components/motion';
 import { Banner, EmptyState, FilterChip } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
+import { formatRelative } from '@/lib/format';
 import { closeGap, fetchGaps } from '@/lib/gaps';
 import {
   GAP_ICON,
   GAP_LABEL,
   countByKind,
   gapPrimaryTarget,
-  relativeDay,
   sortGaps,
   type ConversationGap,
   type GapKind,
@@ -223,7 +223,7 @@ function GapCard({
             {gap.summary}
           </Text>
           <Text style={[styles.meta, { color: colors.textFaint }]}>
-            {GAP_LABEL[gap.kind]} · {relativeDay(gap.occurred_at)}
+            {GAP_LABEL[gap.kind]} · {formatRelative(gap.occurred_at)}
             {gap.occurrence_count > 1
               ? ` · ${gap.occurrence_count} days running`
               : ''}

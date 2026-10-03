@@ -52,6 +52,7 @@ import { hasPhone } from '@/lib/contacts/reachability';
 import type { Contact } from '@/types';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from '@/lib/copilot/actions';
+import { formatDate } from '@/lib/format/date';
 import { formatInrCompact } from '@/lib/format/currency';
 
 const HOUR_MS = 3_600_000;
@@ -1005,7 +1006,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
                         {d.subject}
                       </p>
                       <p className="truncate text-xs font-medium text-slate-400">
-                        {d.titles.join(' · ')} · {d.dueDate}
+                        {d.titles.join(' · ')} · {formatDate(d.dueDate)}
                       </p>
                     </div>
                   </Link>

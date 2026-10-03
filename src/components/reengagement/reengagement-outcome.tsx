@@ -8,7 +8,6 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import {
   ArrowDown,
@@ -40,6 +39,7 @@ import {
   type LeadStage,
   type SortDirection,
 } from '@/lib/reengagement/funnel';
+import { formatRelative } from '@/lib/format/date';
 import { ShortlistDialog } from './shortlist-dialog';
 
 interface ReengagementOutcomeProps {
@@ -278,9 +278,7 @@ export function ReengagementOutcome({
                               {' · '}
                             </>
                           )}
-                        {formatDistanceToNow(new Date(lead.batchSentAt), {
-                          addSuffix: true,
-                        })}
+                        {formatRelative(lead.batchSentAt)}
                       </p>
                     </td>
                     <td className="px-3 py-2">
@@ -304,9 +302,7 @@ export function ReengagementOutcome({
                     </td>
                     <td className="px-3 py-2 text-slate-300">
                       {lead.repliedAt ? (
-                        formatDistanceToNow(new Date(lead.repliedAt), {
-                          addSuffix: true,
-                        })
+                        formatRelative(lead.repliedAt)
                       ) : (
                         <span className="text-slate-600">—</span>
                       )}

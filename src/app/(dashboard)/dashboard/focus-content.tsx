@@ -54,6 +54,7 @@ import {
   type DealDeadlineGroup,
 } from '@/lib/deals/deadlines';
 import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from '@/lib/copilot/actions';
+import { formatDate } from '@/lib/format/date';
 
 type SectionId = 'tasks' | 'deadlines' | 'journeys' | 'requests';
 
@@ -442,7 +443,7 @@ export default function FocusContent() {
                           {d.subject}
                         </p>
                         <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
-                          {d.titles.join(' · ')} · {d.dueDate}
+                          {d.titles.join(' · ')} · {formatDate(d.dueDate)}
                         </p>
                       </div>
                       <span

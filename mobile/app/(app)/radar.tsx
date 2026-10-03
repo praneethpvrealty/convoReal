@@ -656,7 +656,7 @@ function DirectOwnerCard({
       <View style={styles.cardHead}>
         <Tag label="Direct owner" color={colors.warning} />
         <Text style={{ flex: 1, fontSize: 11.5, color: colors.textFaint }}>
-          {new Date(event.created_at).toLocaleDateString()}
+          {auditDateTime(event.created_at)}
         </Text>
         {dismissing ? (
           <ActivityIndicator size="small" color={colors.textFaint} />

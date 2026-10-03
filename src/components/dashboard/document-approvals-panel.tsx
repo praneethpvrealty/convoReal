@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import { formatDateTime } from '@/lib/format/date';
 
 interface DocumentApprovalRow {
   id: string;
@@ -25,15 +26,6 @@ interface DocumentApprovalRow {
   status: string;
   share_sent_at: string | null;
   created_at: string;
-}
-
-function formatWhen(value: string): string {
-  return new Date(value).toLocaleString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 export function DocumentApprovalsPanel() {
@@ -136,7 +128,7 @@ export function DocumentApprovalsPanel() {
                   </p>
                 )}
                 <p className="text-[10px] text-slate-600">
-                  Requested {formatWhen(row.created_at)}
+                  Requested {formatDateTime(row.created_at)}
                 </p>
               </div>
               {row.status === 'pending' ? (

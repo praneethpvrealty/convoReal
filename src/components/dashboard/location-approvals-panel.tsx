@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { formatDateTime } from '@/lib/format/date';
 import { splitLocationApprovals } from '@/lib/dashboard/approval-order';
 
 interface ConsentHop {
@@ -90,15 +91,6 @@ function hopLabel(decision: string): { text: string; className: string } {
     default:
       return { text: 'timed out', className: 'text-amber-400' };
   }
-}
-
-function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 /**
@@ -204,7 +196,7 @@ export function LocationApprovalsPanel() {
       {/* Consent journey */}
       <div className="border-slate-850 space-y-1 border-t pt-2">
         <p className="text-[10px] text-slate-500">
-          Requested {formatWhen(row.created_at)}
+          Requested {formatDateTime(row.created_at)}
           {row.via_contact_name
             ? ` · via ${row.via_contact_name}'s link`
             : ' · direct'}
@@ -223,7 +215,7 @@ export function LocationApprovalsPanel() {
               <span className={`font-bold ${label.className}`}>
                 {label.text}
               </span>
-              <span className="text-slate-600">{formatWhen(hop.at)}</span>
+              <span className="text-slate-600">{formatDateTime(hop.at)}</span>
             </p>
           );
         })}
@@ -232,7 +224,7 @@ export function LocationApprovalsPanel() {
             <Clock className="size-3 shrink-0" />
             Waiting on {row.pending_consent_contact_name}
             {row.consent_requested_at
-              ? ` since ${formatWhen(row.consent_requested_at)} (2h window)`
+              ? ` since ${formatDateTime(row.consent_requested_at)} (2h window)`
               : ''}
           </p>
         )}
@@ -240,7 +232,7 @@ export function LocationApprovalsPanel() {
           <p className="flex items-center gap-1.5 text-[11px] text-emerald-400">
             <CheckCircle className="size-3 shrink-0" />
             Approved
-            {row.approved_at ? ` ${formatWhen(row.approved_at)}` : ''}
+            {row.approved_at ? ` ${formatDateTime(row.approved_at)}` : ''}
             {row.share_sent_at ? ' · link sent via WhatsApp' : ''}
             {row.view_count > 0 && (
               <span className="text-primary ml-1 flex items-center gap-1">

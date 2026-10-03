@@ -14,6 +14,7 @@ import {
 import type { ComponentType } from 'react';
 import type { ActivityItem, ActivityKind } from '@/lib/dashboard/types';
 import { cn } from '@/lib/utils';
+import { formatRelative } from '@/lib/format/date';
 import { EmptyState } from './empty-state';
 import { Skeleton } from './skeleton';
 
@@ -115,7 +116,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
                     {it.text}
                   </span>
                   <span className="flex-shrink-0 text-xs text-slate-500 tabular-nums">
-                    {relativeTime(it.at)}
+                    {formatRelative(it.at)}
                   </span>
                 </div>
               );
@@ -172,15 +173,4 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
       )}
     </section>
   );
-}
-
-function relativeTime(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '';
-  const diffSec = Math.round((Date.now() - then) / 1000);
-  if (diffSec < 60) return `${Math.max(1, diffSec)}s ago`;
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
-  if (diffSec < 2_592_000) return `${Math.floor(diffSec / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString();
 }

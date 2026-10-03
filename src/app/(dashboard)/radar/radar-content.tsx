@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { format } from 'date-fns';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -37,6 +36,7 @@ import { DirectOwnerCard } from '@/components/radar/direct-owner-card';
 import { ManualContactPicker } from '@/components/radar/manual-contact-picker';
 import { TabSkeleton } from '@/components/dashboard/skeleton';
 import { formatInrCompact } from '@/lib/format/currency';
+import { formatDateTime } from '@/lib/format/date';
 
 interface CheckedState {
   /** Event ID -> Set of target IDs. */
@@ -412,7 +412,7 @@ export default function RadarPage() {
                           : 'Buyer Preference Update'}
                       </span>
                       <span className="text-[10px] font-bold text-slate-500">
-                        {format(new Date(evt.created_at), 'd MMM, h:mm aaa')}
+                        {formatDateTime(evt.created_at)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">

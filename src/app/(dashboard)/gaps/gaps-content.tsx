@@ -21,6 +21,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Skeleton, TabSkeleton } from '@/components/dashboard/skeleton';
 import { InfoHint } from '@/components/ui/info-hint';
 import { cn } from '@/lib/utils';
+import { formatRelative } from '@/lib/format/date';
 import { gapConversationHref, gapPrimaryAction } from '@/lib/sweep/gap-actions';
 
 type GapKind =
@@ -85,16 +86,6 @@ const SEVERITY_STYLE: Record<Severity, string> = {
 };
 
 const SEVERITY_RANK: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
-
-function relativeDay(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '';
-  const hours = Math.round((Date.now() - then) / 3_600_000);
-  if (hours < 1) return 'just now';
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return days === 1 ? 'yesterday' : `${days} days ago`;
-}
 
 export async function fetchGaps(): Promise<GapRow[]> {
   const res = await fetch('/api/sweep/gaps?status=open');
@@ -283,7 +274,7 @@ function GapCard({
           </span>
           <span className="inline-flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            {relativeDay(gap.occurred_at)}
+            {formatRelative(gap.occurred_at)}
           </span>
           {gap.occurrence_count > 1 && (
             <span className="text-amber-400">

@@ -76,16 +76,6 @@ export function countByKind(
   return [...counts.entries()].map(([kind, count]) => ({ kind, count }));
 }
 
-export function relativeDay(iso: string, now = Date.now()): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '';
-  const hours = Math.round((now - then) / 3_600_000);
-  if (hours < 1) return 'just now';
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return days === 1 ? 'yesterday' : `${days} days ago`;
-}
-
 export type GapPrimaryTarget =
   | { type: 'conversation'; id: string; label: string }
   | { type: 'contact'; id: string; label: string };

@@ -48,6 +48,7 @@ import {
 import { TabSkeleton } from '@/components/dashboard/skeleton';
 import { PropertyViewersDialog } from '@/components/pulse/property-viewers-dialog';
 import { formatInrCompact } from '@/lib/format/currency';
+import { formatDate } from '@/lib/format/date';
 
 type FeedFilter = 'all' | 'property_views' | 'identified';
 
@@ -278,10 +279,7 @@ export default function PulsePage() {
     if (mins < 60) return `${mins}m ago`;
     const hrs = Math.floor(mins / 60);
     if (hrs < 24) return `${hrs}h ago`;
-    return new Date(isoString).toLocaleDateString([], {
-      month: 'short',
-      day: 'numeric',
-    });
+    return formatDate(isoString);
   };
 
   const filteredFeed = (feed ?? []).filter((evt) => {
