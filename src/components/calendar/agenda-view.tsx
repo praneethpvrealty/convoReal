@@ -138,7 +138,7 @@ export function AgendaView({
 
       {upcomingGroups.map((group) => (
         <div key={group.date.toDateString()}>
-          <h3 className="sticky top-0 z-10 mb-1.5 bg-slate-900/95 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase backdrop-blur">
+          <h3 className="sticky top-0 z-10 mb-1.5 bg-slate-900/95 py-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase backdrop-blur">
             {dayHeading(group.date)}
             <span className="ml-2 font-normal text-slate-600 normal-case">
               {group.items.length} item{group.items.length === 1 ? '' : 's'}
@@ -168,7 +168,7 @@ export function AgendaView({
             <div className="mt-3 space-y-4">
               {pastGroups.map((group) => (
                 <div key={group.date.toDateString()}>
-                  <h3 className="mb-1.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                  <h3 className="mb-1.5 text-[11px] font-bold tracking-wider text-slate-500 uppercase">
                     {dayHeading(group.date)}
                   </h3>
                   <div className="space-y-1.5">

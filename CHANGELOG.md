@@ -45,6 +45,19 @@ than a written entry. Newest first.
   three Deals views are Pipeline, Journeys and Closing records on both
   surfaces, the back link says Closing records, and a stakeholder's
   number prints one plus sign.
+- **Calendar actions undo instead of asking.** Deleting a to-do, from
+  its row or its edit dialog, no longer pops a confirm; the row goes and
+  the toast offers Undo for a few seconds, which puts it back as it was.
+  Cancelling an appointment offers the same Undo, which reopens it. Same
+  on mobile, through a bar at the foot of the Calendar tab. The to-do
+  row's edit and delete controls are now visible without hovering, chip
+  and row text is 11px and badges 10px rather than 10 and 8, and a deal
+  date chip on the month grid names the deal ("Registration · Sidharth…")
+  so two on one day can be told apart. The Calendar opens in the view you
+  last used on that browser; on a first visit a month with fewer than
+  five items opens in the Agenda, where a near-empty grid would show
+  less. Every empty day cell shows a + on hover to say it can be
+  scheduled on.
 - **The Calendar loads once and fits the screen.** Opening it showed a
   property-card skeleton, then a spinner, before the month appeared; it
   now shows one calendar-shaped skeleton and fetches appointments and

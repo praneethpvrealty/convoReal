@@ -12,6 +12,7 @@ import {
 import { deadlineLabel, type DealDeadline } from '@/lib/deals/deadlines';
 import {
   DEAL_DATE_KIND_LABELS,
+  dealDateChipLabel,
   dealDateHref,
   dealDateKey,
 } from '@/lib/calendar/deal-dates';
@@ -73,7 +74,7 @@ function CellChip({
         )}
       >
         <DEAL_DATE_META.icon className="h-2.5 w-2.5 shrink-0" />
-        <span className="flex-1 truncate">{d.title}</span>
+        <span className="flex-1 truncate">{dealDateChipLabel(d)}</span>
       </Link>
     );
   }
@@ -98,7 +99,7 @@ function CellChip({
     >
       <meta.icon className="h-2.5 w-2.5 shrink-0" />
       {showTime && (
-        <span className="shrink-0 text-[10px] opacity-80">
+        <span className="shrink-0 text-[11px] opacity-80">
           {formatTimeShort(appt.start_time)}
         </span>
       )}
@@ -117,7 +118,7 @@ function CellChip({
       )}
       {showAssignee && assignee && (
         <span
-          className="shrink-0 rounded bg-slate-900/70 px-1 text-[8px] font-bold"
+          className="shrink-0 rounded bg-slate-900/70 px-1 text-[10px] font-bold"
           title={assignee.full_name}
         >
           {memberInitials(assignee.full_name)}
@@ -231,7 +232,7 @@ export function MonthCell({
                   <span className="text-xs font-bold text-white">
                     {dayLabel}
                   </span>
-                  <span className="text-[10px] font-semibold text-slate-500">
+                  <span className="text-[11px] font-semibold text-slate-500">
                     {items.length} items
                   </span>
                 </div>

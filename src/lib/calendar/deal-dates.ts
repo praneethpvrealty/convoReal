@@ -96,6 +96,15 @@ export function dealDateKey(
   return `${d.dealId}:${d.milestoneId ?? d.kind}`;
 }
 
+/** The chip text: the milestone or "Expected close" followed by the
+ *  buyer-and-property heading, so two dates on one day read apart. */
+export function dealDateChipLabel(
+  d: Pick<DealDeadline, 'title' | 'subject'>
+): string {
+  const subject = d.subject.trim();
+  return subject ? `${d.title} · ${subject}` : d.title;
+}
+
 export function dealDateHref(dealId: string): string {
   return `/deals/${dealId}`;
 }
