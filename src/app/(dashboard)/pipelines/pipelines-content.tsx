@@ -53,6 +53,7 @@ import {
   DEAL_SAVED_QUERY_KEYS,
   type BoardScope,
 } from '@/lib/deals/board-focus';
+import { formatCurrency } from '@/lib/format/currency';
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -520,21 +521,7 @@ export default function PipelinesPage() {
     const amt =
       modalBrokerageType === 'percentage' ? (val * brokVal) / 100 : brokVal;
 
-    if (currency === 'INR') {
-      if (amt >= 10000000) {
-        const cr = amt / 10000000;
-        return `₹${cr.toFixed(2).replace(/\.00$/, '')} Crore`;
-      }
-      if (amt >= 100000) {
-        const lakhs = amt / 100000;
-        return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
-      }
-      return new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR',
-        maximumFractionDigits: 0,
-      }).format(amt);
-    }
+    if (currency === 'INR') return formatCurrency(amt);
     const symbols: Record<string, string> = {
       USD: '$',
       EUR: '€',
@@ -546,17 +533,7 @@ export default function PipelinesPage() {
   }
 
   function formatModalDealValue(val: number) {
-    if (currency === 'INR') {
-      if (val >= 10000000) {
-        const cr = val / 10000000;
-        return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-      }
-      if (val >= 100000) {
-        const lakhs = val / 100000;
-        return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
-      }
-      return `₹${val.toLocaleString('en-IN')}`;
-    }
+    if (currency === 'INR') return formatCurrency(val);
     const symbols: Record<string, string> = {
       USD: '$',
       EUR: '€',

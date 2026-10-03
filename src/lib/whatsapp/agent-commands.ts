@@ -1,3 +1,5 @@
+import { formatInrCompact } from '@/lib/format/currency';
+
 // Staff commands typed into a lead's own thread.
 //
 // The qualification listener reads the BUYER's messages, never the
@@ -99,14 +101,6 @@ export function parseAgentCommand(
   return { kind: 'budget', min: null, max: first, none: false };
 }
 
-export function formatRupees(n: number): string {
-  return n >= 10_000_000
-    ? `₹${(n / 10_000_000).toFixed(2).replace(/\.?0+$/, '')} Cr`
-    : n >= 100_000
-      ? `₹${(n / 100_000).toFixed(2).replace(/\.?0+$/, '')} L`
-      : `₹${n.toLocaleString('en-IN')}`;
-}
-
 /** The confirmation the agent sees in the thread. */
 export function buildBudgetCommandAck(
   command: BudgetCommand,
@@ -117,10 +111,10 @@ export function buildBudgetCommandAck(
   const range = command.none
     ? 'no fixed budget'
     : command.min != null && command.max != null
-      ? `${formatRupees(command.min)}–${formatRupees(command.max)}`
+      ? `${formatInrCompact(command.min)}–${formatInrCompact(command.max)}`
       : command.max != null
-        ? `up to ${formatRupees(command.max)}`
-        : `above ${formatRupees(command.min!)}`;
+        ? `up to ${formatInrCompact(command.max)}`
+        : `above ${formatInrCompact(command.min!)}`;
   const matches =
     matchCount > 0
       ? `${matchCount} live ${matchCount === 1 ? 'listing' : 'listings'} now match.`

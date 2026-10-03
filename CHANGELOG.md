@@ -43,6 +43,50 @@ than a written entry. Newest first.
   was dark red on near-black; it is now an amber banner with a **Reconnect
   Meta** button, and Spend, Reach, Chats started and Cost/lead are marked as
   last-sync figures so a ₹0 there is not read as current.
+- **The dashboard no longer hides its own rows or reloads itself on
+  every tab.** The AI Assistant button shrinks to an icon once you scroll
+  and the Help pill is an icon, so the last rows of Re-engagement,
+  approvals and Pulse are no longer covered. Switching between Focus,
+  Overview, Match Radar, Pulse, Gaps, Re-engagement, Market and Team keeps
+  the heading in place and fills the body in, instead of a full-screen
+  logo each time; Radar and Pulse remember what they loaded for a minute.
+  The title, tabs and favourite control share one row, tabs scroll on a
+  phone and answer the arrow keys, and Match Radar and Gaps show how many
+  items are waiting.
+- **Focus shows each piece of work once.** The three tiles, the filter
+  chips and the sections underneath repeated the same windows, hot leads
+  and replies; the sections now carry the counts, empty ones collapse to a
+  line and move last, and the deal deadline list is left to the Deal
+  Deadlines card. Deadlines list one row per deal with its milestones,
+  so two deals for the same buyer no longer look like duplicates.
+  "Requests to act on" headlines the ones that need an answer now and
+  shows how long an old one has waited ("81 d") instead of "Soon". Same
+  on mobile.
+- **Overview puts decisions first.** Location reveal requests waiting on
+  you come before the approved ones, which sit under "Recently approved".
+  Reject is a quiet button beside Approve & send. Metric deltas read
+  "2 fewer than yesterday", and fewer active conversations is no longer
+  painted red. A failed automation stands out in Recent Activity and
+  links to it. Partner-reach rows with nothing in them are hidden, Active
+  Users separates your team from clients, response times read in seconds,
+  minutes or hours as the numbers warrant, and the unassigned count opens
+  the inbox. Mobile mirrors the approval order and button weights.
+- **Match Radar pre-selects only strong matches.** Targets at 80% or
+  better are ticked by default, with Select all one tap away; the list
+  shows six and expands in place rather than scrolling inside the card;
+  Dismiss is an X that hides the alert; and a sale listing priced under a
+  lakh gets a note to check the listing before alerting. Same on mobile.
+- **Gaps are one tap to act on, and the conversation link works.** The
+  suggested next step is the button, the quoted message folds to two
+  lines, resolve and dismiss are labelled, and "Open the conversation"
+  now opens the thread (it used a query parameter the inbox never read).
+  Re-engagement sizes its batch picker to its label, shows the last four
+  digits of each lead's phone, sorts by matches or last reply, and hides
+  "Show matched only" when everything is matched.
+- **Dates read the same everywhere on the dashboard**: "3 Oct, 11:33 am",
+  "10 Oct", and relative times that become a real date after 30 days.
+  The credit balance says "credits", not "cr", so it no longer looks like
+  crore. A one-person Team tab invites you to add your team.
 
 #### 2 October 2026
 

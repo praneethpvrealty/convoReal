@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   countByKind,
-  relativeDay,
   sortGaps,
   type ConversationGap,
   type GapKind,
@@ -83,25 +82,5 @@ describe('countByKind', () => {
 
   it('returns nothing for an empty feed', () => {
     expect(countByKind([])).toEqual([]);
-  });
-});
-
-describe('relativeDay', () => {
-  const now = Date.parse('2026-08-20T12:00:00.000Z');
-
-  it('reads hours within the day', () => {
-    expect(relativeDay('2026-08-20T03:00:00.000Z', now)).toBe('9h ago');
-  });
-
-  it('names yesterday rather than counting hours', () => {
-    expect(relativeDay('2026-08-19T12:00:00.000Z', now)).toBe('yesterday');
-  });
-
-  it('counts days beyond that', () => {
-    expect(relativeDay('2026-08-16T12:00:00.000Z', now)).toBe('4 days ago');
-  });
-
-  it('does not throw on an unparseable stamp', () => {
-    expect(relativeDay('not-a-date', now)).toBe('');
   });
 });

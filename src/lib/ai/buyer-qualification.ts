@@ -56,6 +56,7 @@ import { localityLabelsMatch } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
 import type { Contact, Property } from '@/types';
+import { formatInrCompact } from '@/lib/format/currency';
 
 export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
 
@@ -372,16 +373,11 @@ function firstName(name?: string | null): string {
 }
 
 function formatBudget(prefs: ExtractedPreferences): string {
-  const asWords = (n: number): string =>
-    n >= 10000000
-      ? `₹${(n / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`
-      : n >= 100000
-        ? `₹${(n / 100000).toFixed(2).replace(/\.?0+$/, '')} L`
-        : `₹${n.toLocaleString('en-IN')}`;
   const { budget_min: min, budget_max: max } = prefs;
-  if (min != null && max != null) return `${asWords(min)}–${asWords(max)}`;
-  if (max != null) return `up to ${asWords(max)}`;
-  if (min != null) return `above ${asWords(min)}`;
+  if (min != null && max != null)
+    return `${formatInrCompact(min)}–${formatInrCompact(max)}`;
+  if (max != null) return `up to ${formatInrCompact(max)}`;
+  if (min != null) return `above ${formatInrCompact(min)}`;
   return '';
 }
 
@@ -422,16 +418,11 @@ export function describeBrief(prefs: ExtractedPreferences): string {
 }
 
 function formatDirectBudget(prefs: ExtractedPreferences): string {
-  const asWords = (n: number): string =>
-    n >= 10000000
-      ? `₹${(n / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`
-      : n >= 100000
-        ? `₹${(n / 100000).toFixed(2).replace(/\.?0+$/, '')} L`
-        : `₹${n.toLocaleString('en-IN')}`;
   const { budget_min: min, budget_max: max } = prefs;
-  if (min != null && max != null) return `${asWords(min)}–${asWords(max)}`;
-  if (max != null) return `${asWords(max)}`;
-  if (min != null) return `${asWords(min)}+`;
+  if (min != null && max != null)
+    return `${formatInrCompact(min)}–${formatInrCompact(max)}`;
+  if (max != null) return `${formatInrCompact(max)}`;
+  if (min != null) return `${formatInrCompact(min)}+`;
   return 'stated';
 }
 

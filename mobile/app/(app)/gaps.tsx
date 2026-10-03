@@ -19,7 +19,6 @@ import {
   GAP_ICON,
   GAP_LABEL,
   countByKind,
-  relativeDay,
   sortGaps,
   type ConversationGap,
   type GapKind,
@@ -28,6 +27,11 @@ import {
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { formatRelative } from '@shared/lib/format/date';
+import {
+  gapPrimaryTarget,
+  type GapPrimaryTarget,
+} from '@shared/lib/sweep/gap-actions';
 
 /**
  * Web parity: the Gaps tab on the dashboard.
@@ -165,6 +169,13 @@ export default function GapsScreen() {
                       router.push(`/(app)/conversation/${item.conversation_id}`)
                   : undefined
               }
+              onPrimary={(target) =>
+                router.push(
+                  target.type === 'conversation'
+                    ? `/(app)/conversation/${target.id}`
+                    : `/(app)/contact/${target.id}`
+                )
+              }
             />
           </EnterRow>
         )}
@@ -180,6 +191,7 @@ function GapCard({
   onResolve,
   onDismiss,
   onOpen,
+  onPrimary,
 }: {
   gap: ConversationGap;
   accent: string;
@@ -187,8 +199,10 @@ function GapCard({
   onResolve: () => void;
   onDismiss: () => void;
   onOpen?: () => void;
+  onPrimary: (target: GapPrimaryTarget) => void;
 }) {
   const { colors } = useTheme();
+  const primary = gapPrimaryTarget(gap);
 
   return (
     <View
@@ -211,7 +225,7 @@ function GapCard({
             {gap.summary}
           </Text>
           <Text style={[styles.meta, { color: colors.textFaint }]}>
-            {GAP_LABEL[gap.kind]} · {relativeDay(gap.occurred_at)}
+            {GAP_LABEL[gap.kind]} · {formatRelative(gap.occurred_at)}
             {gap.occurrence_count > 1
               ? ` · ${gap.occurrence_count} days running`
               : ''}
@@ -231,7 +245,18 @@ function GapCard({
         {gap.evidence}
       </Text>
 
-      {gap.suggested_action ? (
+      {primary ? (
+        <Pressable
+          onPress={() => onPrimary(primary)}
+          accessibilityRole="button"
+          accessibilityLabel={primary.label}
+          style={[styles.primary, { backgroundColor: colors.primary }]}
+        >
+          <Text style={styles.primaryText} numberOfLines={2}>
+            {primary.label}
+          </Text>
+        </Pressable>
+      ) : gap.suggested_action ? (
         <Text style={[styles.meta, { color: colors.textMuted }]}>
           Suggested: {gap.suggested_action}
         </Text>
@@ -253,17 +278,27 @@ function GapCard({
             disabled={busy}
             onPress={onDismiss}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
             style={[styles.button, { borderColor: colors.border }]}
           >
             <Ionicons name="close" size={16} color={colors.textFaint} />
+            <Text style={[styles.buttonText, { color: colors.textMuted }]}>
+              Dismiss
+            </Text>
           </Pressable>
           <Pressable
             disabled={busy}
             onPress={onResolve}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Mark resolved"
             style={[styles.button, { borderColor: colors.border }]}
           >
             <Ionicons name="checkmark" size={16} color={colors.success} />
+            <Text style={[styles.buttonText, { color: colors.textMuted }]}>
+              Resolved
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -306,11 +341,20 @@ const styles = StyleSheet.create({
   link: { fontSize: 12, fontWeight: '600' },
   buttons: { flexDirection: 'row', gap: spacing.xs },
   button: {
-    width: 32,
     height: 32,
+    paddingHorizontal: spacing.sm,
+    flexDirection: 'row',
+    gap: spacing.xs,
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  buttonText: { fontSize: 12, fontWeight: '600' },
+  primary: {
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  primaryText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 });

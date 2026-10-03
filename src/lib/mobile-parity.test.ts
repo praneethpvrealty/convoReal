@@ -148,10 +148,7 @@ import {
   bundleCandidates,
   defaultBundleName,
 } from '@/lib/deals/bundles';
-import {
-  DEAL_DEADLINE_URGENCY_LABELS,
-  deadlineLabel,
-} from '@/lib/deals/deadlines';
+import { deadlineLabel } from '@/lib/deals/deadlines';
 import {
   TRANCHE_LABEL_SUGGESTIONS,
   TRANCHE_STATUS_LABELS,
@@ -485,6 +482,31 @@ describe('contact merge remains available on both surfaces', () => {
     expect(mobileMerge).toContain("'/api/contacts/merge'");
     expect(mobileMerge).toContain('Keep this record');
     expect(webMerge).toContain("'/api/contacts/merge'");
+  });
+});
+
+describe('Overview approvals read the same on web and mobile', () => {
+  it('orders location approvals with one shared rule and tucks approved ones away', () => {
+    const webPanel = webSource(
+      'components/dashboard/location-approvals-panel.tsx'
+    );
+    const mobilePanel = mobileSource('components/location-approvals.tsx');
+    expect(webPanel).toContain('splitLocationApprovals(rows)');
+    expect(mobilePanel).toContain('splitLocationApprovals(rows)');
+    expect(mobilePanel).toContain(
+      "import { splitLocationApprovals } from '@shared/lib/dashboard/approval-order';"
+    );
+    expect(webPanel).toContain('Recently approved ({approved.length})');
+    expect(mobilePanel).toContain('Recently approved ({approved.length})');
+  });
+
+  it('labels the document approval action Approve & send on both surfaces', () => {
+    expect(
+      webSource('components/dashboard/document-approvals-panel.tsx')
+    ).toContain('Approve &amp; send');
+    expect(mobileSource('components/document-approvals.tsx')).toContain(
+      'Approve & send'
+    );
   });
 });
 
@@ -1720,37 +1742,24 @@ describe('mobile/lib/rental-yield.ts mirrors rental-yield', () => {
 describe('mobile/lib/format.ts mirrors priceInWords', () => {
   // Both platforms put this readout under every price input, so a drift
   // here shows the same amount two different ways — "₹1.2 Crore" on the
-  // web and something else in the app, for the same field.
+  // web and something else in the app, for the same field. The app
+  // re-exports the web module rather than keeping a copy.
   const source = mobileSource('lib/format.ts');
-  const block = source.slice(
-    source.indexOf('export function priceInWords'),
-    source.indexOf('/** Indian price notation')
-  );
 
-  it('exists', () => {
-    expect(block, 'priceInWords not found in mobile format.ts').toContain(
-      'priceInWords'
+  it('re-exports the web implementation instead of carrying a copy', () => {
+    expect(source).toContain(
+      "export { priceInWords } from '@shared/lib/format/currency';"
     );
-  });
-
-  it('uses the same crore and lakh thresholds and wording', () => {
-    expect(block).toContain('10000000');
-    expect(block).toContain('Crore');
-    expect(block).toContain('100000');
-    expect(block).toContain('Lakhs');
-    expect(block).toContain('en-IN');
-  });
-
-  it('trims trailing zeros the same way, so 12000000 is ₹1.2 Crore', () => {
-    expect(block).toContain(
-      `.toFixed(2)\n      .replace(/\\.00$/, '')\n      .replace(/\\.(\\d)0$/, '.$1');`
+    expect(source).toContain(
+      "import { formatInrCompact } from '@shared/lib/format/currency';"
+    );
+    expect(source).not.toContain('export function priceInWords');
+    expect(webSource('lib/currency-utils.ts')).toContain(
+      "} from '@/lib/format/currency';"
     );
   });
 
   it('agrees with the web output across the range', () => {
-    // The mobile copy is checked as text (the web tsconfig excludes
-    // mobile/), so pin the web side's answers here: these are the strings
-    // the assertions above are guarding.
     expect(priceInWords(160000000)).toBe('₹16 Crore');
     expect(priceInWords(12000000)).toBe('₹1.2 Crore');
     expect(priceInWords(8500000)).toBe('₹85 Lakhs');
@@ -1768,7 +1777,9 @@ describe('mobile/lib/requirement-digest.ts mirrors what leaves the Engine', () =
     formatRequirement: typeof formatRequirement;
     isShareable: typeof isShareable;
     requirementReference: typeof requirementReference;
-  }>('lib/requirement-digest.ts');
+  }>('lib/requirement-digest.ts', {
+    '@shared/lib/format/currency': webSource('lib/format/currency.ts'),
+  });
 
   const briefs: ShareableRequirement[] = [
     {
@@ -1843,6 +1854,7 @@ describe('mobile/lib/requirements-feed.ts mirrors the preference merge', () => {
   }>('lib/requirements-feed.ts', {
     './contact-area-options': mobileSource('lib/contact-area-options.ts'),
     './requirements-profile': mobileSource('lib/requirements-profile.ts'),
+    '@shared/lib/format/currency': webSource('lib/format/currency.ts'),
   });
 
   const contacts = [
@@ -3698,39 +3710,13 @@ describe('[TXW-020] deal deadlines reach both surfaces from the Focus snapshot',
   const focusQueries = webSource('lib/focus/queries.ts');
 
   it('labels every urgency identically and words the distance the same way', () => {
-    for (const [urgency, label] of Object.entries(
-      DEAL_DEADLINE_URGENCY_LABELS
-    )) {
-      expect(mobileFocus, `mobile is missing the "${urgency}" label`).toContain(
-        `${urgency}: '${label}'`
-      );
-    }
-    expect(mobileFocus).toContain(
-      "return `Overdue by ${n} day${n === 1 ? '' : 's'}`;"
-    );
-    expect(mobileFocus).toContain("if (daysLeft === 0) return 'Due today';");
-    expect(mobileFocus).toContain("if (daysLeft === 1) return 'Due tomorrow';");
-    expect(mobileFocus).toContain('return `Due in ${daysLeft} days`;');
+    expect(mobileFocus).toContain("} from '@shared/lib/deals/deadline-rules';");
+    expect(mobileFocus).not.toContain('export function deadlineLabel');
     expect(deadlineLabel(-1)).toBe('Overdue by 1 day');
   });
 
   it('carries the same deadline shape on the snapshot and renders it on both screens', () => {
-    for (const field of [
-      'dealId',
-      'kind',
-      'milestoneId',
-      'title',
-      'subject',
-      'dueDate',
-      'daysLeft',
-      'urgency',
-      'assignedTo',
-      'ownerUserId',
-    ]) {
-      expect(mobileFocus, `mobile FocusDeadline lacks ${field}`).toMatch(
-        new RegExp(`^  ${field}: `, 'm')
-      );
-    }
+    expect(mobileFocus).toContain('items: DealDeadline[];');
     expect(mobileFocus).toContain('deadlines: FocusDeadlines;');
     expect(focusQueries).toContain('loadDealDeadlines(');
     expect(mobileScreen).toContain('Deal deadlines');
@@ -3738,6 +3724,18 @@ describe('[TXW-020] deal deadlines reach both surfaces from the Focus snapshot',
     expect(webFocus).toContain('Deal deadlines');
     expect(webFocus).toContain('deadlineLabel(d.daysLeft)');
     expect(webToday).toContain('loadDealDeadlines(');
+  });
+
+  it('groups deadlines per deal and badges stale requests the same way on both screens', () => {
+    expect(mobileFocus).toContain("} from '@shared/lib/focus/requests';");
+    expect(webFocus).toContain(
+      "import { requestBadge, summarizeRequests } from '@/lib/focus/requests';"
+    );
+    expect(webFocus).toContain('groupDeadlinesByDeal(');
+    expect(webFocus).toContain('summarizeRequests(');
+    expect(mobileScreen).toContain('groupDeadlinesByDeal(');
+    expect(mobileScreen).toContain('requestBadge(request)');
+    expect(mobileScreen).toContain('summarizeRequests(');
   });
 
   it('reads the same SQL rule from the digest and never a hand-rolled query', () => {
@@ -4280,6 +4278,7 @@ describe('mobile/lib/guidance-value.ts mirrors the web rate line', () => {
     {
       './api':
         'export class ApiError extends Error {}\nexport async function apiFetch() {}',
+      '@shared/lib/format/currency': webSource('lib/format/currency.ts'),
     }
   );
 
@@ -4324,6 +4323,7 @@ describe('mobile/lib/guidance-value.ts mirrors the web RTC print line', () => {
     {
       './api':
         'export class ApiError extends Error {}\nexport async function apiFetch() {}',
+      '@shared/lib/format/currency': webSource('lib/format/currency.ts'),
     }
   );
 
@@ -4567,5 +4567,63 @@ describe('mobile/lib/personal-showcase.ts mirrors the showcase style resolver', 
         `swatch: { background: '${design.background}', accent: '${design.accent}' }`
       );
     }
+  });
+});
+
+describe('[CTM-013] the Contacts tab counts come from one SQL aggregate on both surfaces', () => {
+  // Six count=exact HEAD requests per web load and four per mobile load,
+  // each a real COUNT(*) over the account's contacts, with the staff
+  // exclusion and the Transacted rule written differently on each side.
+  const web = webSource('app/(dashboard)/contacts/contacts-content.tsx');
+  const mobile = mobileSource('app/(app)/(tabs)/contacts.tsx');
+  const migration = readFileSync(
+    join(
+      process.cwd(),
+      'supabase/migrations/20261003174500_contacts_tab_counts.sql'
+    ),
+    'utf8'
+  );
+
+  it('both surfaces call contacts_tab_counts and no tab counts a table itself', () => {
+    expect(web).toContain(
+      ".rpc('contacts_tab_counts', { p_account_id: accountId })"
+    );
+    expect(mobile).toContain(
+      ".rpc('contacts_tab_counts', { p_account_id: accountId })"
+    );
+    expect(
+      web.match(/\.select\('id', \{ count: 'exact', head: true \}\)/g)
+    ).toBeNull();
+    expect(
+      mobile.match(/\.select\('id', \{ count: 'exact', head: true \}\)/g)
+    ).toBeNull();
+    expect(mobile).not.toContain("supabase.from('deals').select('contact_id')");
+  });
+
+  it('the aggregate is account-scoped, member-guarded and keeps the tab rules', () => {
+    expect(migration).toContain('SECURITY DEFINER');
+    expect(migration).toContain('WHERE is_account_member(p_account_id)');
+    expect(migration).toContain('AND c.is_merged = false');
+    expect(migration).toContain('AND c.chain_only = false');
+    expect(migration).toContain(
+      "count(*) FILTER (WHERE l.status = 'active' AND NOT l.is_archived)"
+    );
+    expect(migration).toContain(
+      "count(*) FILTER (WHERE l.status = 'pending_review' AND NOT l.is_archived)"
+    );
+    expect(migration).toContain(
+      'count(*) FILTER (WHERE l.is_favorite AND NOT l.is_archived)'
+    );
+    expect(migration).toContain("AND d.status = 'won'");
+    expect(migration).toContain(
+      "AND (l.lead_temp = 'HOT' OR l.last_inquired_property_id IS NOT NULL)"
+    );
+    expect(migration).toContain('count(*) FILTER (WHERE l.is_archived)');
+    expect(migration).toContain(
+      "WHERE regexp_replace(c.phone, '\\D', '', 'g') LIKE '%' || s.suffix"
+    );
+    expect(migration).toContain(
+      'GRANT EXECUTE ON FUNCTION public.contacts_tab_counts(UUID) TO authenticated;'
+    );
   });
 });

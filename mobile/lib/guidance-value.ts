@@ -9,6 +9,7 @@ import type {
 } from '@shared/lib/guidance-value/types';
 
 import { ApiError, apiFetch } from './api';
+import { formatInrPlain } from '@shared/lib/format/currency';
 
 export type {
   AreaUnit,
@@ -81,7 +82,7 @@ export function scheduleRejection(
 }
 
 export function formatRupees(value: number): string {
-  return `₹${Math.round(value).toLocaleString('en-IN')}`;
+  return formatInrPlain(value);
 }
 
 export function rateLocation(

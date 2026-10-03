@@ -1,5 +1,6 @@
 import type { JourneyMode, JourneyPriority } from '@/components/journey/shared';
 import type { DealDeadline, DealDeadlineSummary } from '@/lib/deals/deadlines';
+import type { FocusUrgency } from './requests';
 
 /**
  * Focus — the consultant's landing view. Three questions, answered in
@@ -65,7 +66,7 @@ export interface FocusJourney {
 export type FocusRequestKind =
   'inquiry' | 'match' | 'listing_submission' | 'bid';
 
-export type FocusUrgency = 'now' | 'soon' | 'later';
+export type { FocusUrgency };
 
 export interface FocusRequest {
   /** Unique across kinds — the source row id is only unique per table. */
@@ -86,7 +87,7 @@ export interface FocusRequest {
 }
 
 /** A milestone target date or expected close date on a live deal,
- *  within DEAL_DEADLINE_HORIZON_DAYS. Mirrored in mobile/lib/focus.ts. */
+ *  within DEAL_DEADLINE_HORIZON_DAYS. */
 export type FocusDeadline = DealDeadline;
 
 export interface FocusDeadlines extends DealDeadlineSummary {

@@ -3,7 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Handshake, Lock, MessageSquare, Timer, UserCheck } from 'lucide-react';
+import {
+  Handshake,
+  Lock,
+  MessageSquare,
+  Timer,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { usePlan } from '@/hooks/usePlan';
@@ -14,6 +21,7 @@ import {
   summarizeTeamAnalytics,
   type TeamAnalyticsRow,
 } from '@/lib/team-analytics/queries';
+import { TabSkeleton } from '@/components/dashboard/skeleton';
 import { BarChart } from '@/components/tremor/bar-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
@@ -72,14 +80,6 @@ export default function TeamAnalyticsContent() {
     return (
       <p className="py-16 text-center text-sm text-slate-500">
         Team analytics is available to org managers and team leaders.
-      </p>
-    );
-  }
-
-  if (analyticsQuery.isLoading || planLoading) {
-    return (
-      <p className="py-16 text-center text-sm text-slate-500">
-        Loading team analytics...
       </p>
     );
   }
@@ -175,164 +175,196 @@ export default function TeamAnalyticsContent() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {tiles.map((tile) => (
-          <Card
-            key={tile.title}
-            className="border-slate-700 bg-slate-900 ring-0 ring-transparent"
-          >
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-400">
-                {tile.title}
-              </CardTitle>
-              <tile.icon className="text-primary h-4 w-4" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-black text-white">{tile.value}</div>
-              <p className="mt-1 text-xs text-slate-500">{tile.sub}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-          <h3 className="mb-3 text-sm font-bold text-white">
-            Messages by Member
-          </h3>
-          {messagesData.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-500">
-              No messages in this period.
-            </p>
-          ) : (
-            <BarChart
-              data={messagesData}
-              index="agent"
-              categories={['Messages']}
-              colors={['violet']}
-              valueFormatter={(value) => value.toLocaleString()}
-              showLegend={false}
-              layout="vertical"
-              yAxisWidth={110}
-              className="h-[240px]"
-            />
+      {analyticsQuery.isPending || planLoading ? (
+        <TabSkeleton label="Loading team analytics" tiles={4} cards={2} />
+      ) : (
+        <>
+          {rows.length === 1 && (
+            <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
+              <CardContent className="flex flex-wrap items-center gap-4">
+                <Users className="text-primary h-6 w-6 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-bold text-white">
+                    Only you so far
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Invite your team to see per-member messages, response times
+                    and won value here.
+                  </p>
+                </div>
+                <Link
+                  href="/agents"
+                  className={buttonVariants({ variant: 'outline' })}
+                >
+                  Invite your team
+                </Link>
+              </CardContent>
+            </Card>
           )}
-        </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-          <h3 className="mb-3 text-sm font-bold text-white">
-            Won Value by Member
-          </h3>
-          {wonData.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-500">
-              No deals won in this period.
-            </p>
-          ) : (
-            <BarChart
-              data={wonData}
-              index="agent"
-              categories={['Won value']}
-              colors={['emerald']}
-              valueFormatter={(value) => formatCurrencyShort(value)}
-              showLegend={false}
-              layout="vertical"
-              yAxisWidth={110}
-              className="h-[240px]"
-            />
-          )}
-        </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-          <h3 className="mb-3 text-sm font-bold text-white">
-            Median Response by Member
-          </h3>
-          {responseData.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-500">
-              No measured replies in this period.
-            </p>
-          ) : (
-            <BarChart
-              data={responseData}
-              index="agent"
-              categories={['Median response (min)']}
-              colors={['blue']}
-              valueFormatter={(value) => `${value.toLocaleString()}m`}
-              showLegend={false}
-              layout="vertical"
-              yAxisWidth={110}
-              className="h-[240px]"
-            />
-          )}
-        </div>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
-        <div className="border-b border-slate-800 p-4">
-          <h3 className="text-sm font-bold text-white">Member Leaderboard</h3>
-        </div>
-        {rows.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-500">
-            No team members found.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-800 text-left text-xs text-slate-500 uppercase">
-                  <th className="px-4 py-3">Member</th>
-                  <th className="px-4 py-3">Team</th>
-                  <th className="px-4 py-3 text-right">Open</th>
-                  <th className="px-4 py-3 text-right">Closed</th>
-                  <th className="px-4 py-3 text-right">Messages</th>
-                  <th className="px-4 py-3 text-right">Deals Won</th>
-                  <th className="px-4 py-3 text-right">Won Value</th>
-                  <th className="px-4 py-3 text-right">Median Response</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr
-                    key={row.user_id}
-                    className="border-b border-slate-800/60 last:border-0"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-200">
-                        {agentLabel(row)}
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {ORG_ROLE_LABELS[row.org_role ?? ''] ?? '—'}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-400">
-                      {row.team_name ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-300">
-                      {row.open_conversations.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-300">
-                      {row.conversations_closed.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-300">
-                      {row.messages_sent.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-300">
-                      {row.deals_won.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-300">
-                      {formatCurrencyShort(Number(row.deals_won_value))}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-300">
-                      {formatResponseSeconds(
-                        row.median_response_seconds == null
-                          ? null
-                          : Number(row.median_response_seconds)
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {tiles.map((tile) => (
+              <Card
+                key={tile.title}
+                className="border-slate-700 bg-slate-900 ring-0 ring-transparent"
+              >
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-semibold text-slate-400">
+                    {tile.title}
+                  </CardTitle>
+                  <tile.icon className="text-primary h-4 w-4" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-black text-white">
+                    {tile.value}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">{tile.sub}</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        )}
-      </div>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+              <h3 className="mb-3 text-sm font-bold text-white">
+                Messages by Member
+              </h3>
+              {messagesData.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-500">
+                  No messages in this period.
+                </p>
+              ) : (
+                <BarChart
+                  data={messagesData}
+                  index="agent"
+                  categories={['Messages']}
+                  colors={['violet']}
+                  valueFormatter={(value) => value.toLocaleString()}
+                  showLegend={false}
+                  layout="vertical"
+                  yAxisWidth={110}
+                  className="h-[240px]"
+                />
+              )}
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+              <h3 className="mb-3 text-sm font-bold text-white">
+                Won Value by Member
+              </h3>
+              {wonData.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-500">
+                  No deals won in this period.
+                </p>
+              ) : (
+                <BarChart
+                  data={wonData}
+                  index="agent"
+                  categories={['Won value']}
+                  colors={['emerald']}
+                  valueFormatter={(value) => formatCurrencyShort(value)}
+                  showLegend={false}
+                  layout="vertical"
+                  yAxisWidth={110}
+                  className="h-[240px]"
+                />
+              )}
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+              <h3 className="mb-3 text-sm font-bold text-white">
+                Median Response by Member
+              </h3>
+              {responseData.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-500">
+                  No measured replies in this period.
+                </p>
+              ) : (
+                <BarChart
+                  data={responseData}
+                  index="agent"
+                  categories={['Median response (min)']}
+                  colors={['blue']}
+                  valueFormatter={(value) => `${value.toLocaleString()}m`}
+                  showLegend={false}
+                  layout="vertical"
+                  yAxisWidth={110}
+                  className="h-[240px]"
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
+            <div className="border-b border-slate-800 p-4">
+              <h3 className="text-sm font-bold text-white">
+                Member Leaderboard
+              </h3>
+            </div>
+            {rows.length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-500">
+                No team members found.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-left text-xs text-slate-500 uppercase">
+                      <th className="px-4 py-3">Member</th>
+                      <th className="px-4 py-3">Team</th>
+                      <th className="px-4 py-3 text-right">Open</th>
+                      <th className="px-4 py-3 text-right">Closed</th>
+                      <th className="px-4 py-3 text-right">Messages</th>
+                      <th className="px-4 py-3 text-right">Deals Won</th>
+                      <th className="px-4 py-3 text-right">Won Value</th>
+                      <th className="px-4 py-3 text-right">Median Response</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr
+                        key={row.user_id}
+                        className="border-b border-slate-800/60 last:border-0"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-slate-200">
+                            {agentLabel(row)}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {ORG_ROLE_LABELS[row.org_role ?? ''] ?? '—'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-400">
+                          {row.team_name ?? '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-300">
+                          {row.open_conversations.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-300">
+                          {row.conversations_closed.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-300">
+                          {row.messages_sent.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-300">
+                          {row.deals_won.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-300">
+                          {formatCurrencyShort(Number(row.deals_won_value))}
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-300">
+                          {formatResponseSeconds(
+                            row.median_response_seconds == null
+                              ? null
+                              : Number(row.median_response_seconds)
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

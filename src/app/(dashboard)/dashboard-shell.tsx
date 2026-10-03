@@ -154,7 +154,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
           <Header onOpenSidebar={() => setSidebarOpen(true)} />
           {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
           <main
-            className={`flex-1 overflow-y-auto p-4 sm:p-6 ${isAccountArchived ? 'pointer-events-none opacity-40 select-none' : ''}`}
+            className={`flex-1 overflow-y-auto p-4 pb-28 sm:p-6 sm:pb-28 ${isAccountArchived ? 'pointer-events-none opacity-40 select-none' : ''}`}
           >
             {showChecklist && status && (
               <SetupChecklist

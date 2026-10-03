@@ -11,6 +11,7 @@
 
 import type { Property } from '@/types';
 import type { CuratedMatch } from './matches-ranking';
+import { formatInrCompact } from '@/lib/format/currency';
 
 /** Listings per digest. More than this reads as a catalog dump and
  *  gets ignored; fewer feels like the agency isn't working. */
@@ -21,25 +22,13 @@ export const MAX_DIGEST_MATCHES = 3;
  *  after a month it's fair to resurface as the market moves. */
 export const REPEAT_SUPPRESSION_DAYS = 30;
 
-function compactINR(value: number): string {
-  if (value >= 1_00_00_000) {
-    const cr = value / 1_00_00_000;
-    return `₹${cr % 1 === 0 ? cr.toFixed(0) : cr.toFixed(2).replace(/0$/, '')} Cr`;
-  }
-  if (value >= 1_00_000) {
-    const l = value / 1_00_000;
-    return `₹${l % 1 === 0 ? l.toFixed(0) : l.toFixed(1)} L`;
-  }
-  return `₹${Math.round(value).toLocaleString('en-IN')}`;
-}
-
 export function digestPriceLabel(property: Property): string | null {
   if (property.listing_type === 'Rent') {
     return property.rent_per_month
-      ? `${compactINR(Number(property.rent_per_month))}/month`
+      ? `${formatInrCompact(Number(property.rent_per_month))}/month`
       : null;
   }
-  return property.price ? compactINR(Number(property.price)) : null;
+  return property.price ? formatInrCompact(Number(property.price)) : null;
 }
 
 function specsLine(property: Property): string {

@@ -17,7 +17,7 @@ import {
   MapPin,
   Phone,
   Sparkles,
-  Trash2,
+  X,
   Unlock,
 } from 'lucide-react';
 
@@ -29,6 +29,7 @@ import {
   type TokenEscrow,
 } from '@/components/den/token-safe-panel';
 import type { MatchEvent } from '@/types';
+import { formatInrCompact } from '@/lib/format/currency';
 
 interface UnlockedPayload {
   property: Record<string, unknown>;
@@ -270,10 +271,7 @@ function BidderDealRoom({ bidId }: { bidId: string }) {
 function formatValue(v: unknown): string {
   const n = Number(v);
   if (!n || Number.isNaN(n)) return 'Not specified';
-  if (n >= 10000000)
-    return `₹${(n / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(2).replace(/\.00$/, '')} L`;
-  return `₹${n.toLocaleString('en-IN')}`;
+  return formatInrCompact(n);
 }
 
 export function DirectOwnerCard({
@@ -372,9 +370,10 @@ export function DirectOwnerCard({
           size="sm"
           onClick={() => onDismiss(event.id)}
           disabled={dismissing}
+          title="Hide this alert"
           className="h-7 cursor-pointer rounded-lg px-2 text-[11px] font-bold text-slate-400 hover:bg-slate-900 hover:text-rose-400"
         >
-          <Trash2 className="mr-1 size-3" />
+          <X className="mr-1 size-3" />
           Dismiss
         </Button>
       </div>

@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { Contact, ContactRequirementProfile } from '@/types';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import { formatInrCompact } from '@/lib/format/currency';
 
 interface ContactRequirementsDialogProps {
   open: boolean;
@@ -46,16 +47,6 @@ interface RequirementResult {
 
 type View = 'overview' | 'add' | 'ask';
 
-function inr(value: number): string {
-  if (value >= 10_000_000) {
-    return `₹${(value / 10_000_000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  }
-  if (value >= 100_000) {
-    return `₹${(value / 100_000).toFixed(2).replace(/\.00$/, '')} L`;
-  }
-  return `₹${value.toLocaleString('en-IN')}`;
-}
-
 function primarySummary(contact: Contact): string {
   const source = resolveRequirementSource(contact);
   const types = source.pref_property_types?.length
@@ -72,11 +63,11 @@ function primarySummary(contact: Contact): string {
   const budget = source.no_budget
     ? 'No fixed budget'
     : min && max
-      ? `${inr(min)}–${inr(max)}`
+      ? `${formatInrCompact(min)}–${formatInrCompact(max)}`
       : max
-        ? `Up to ${inr(max)}`
+        ? `Up to ${formatInrCompact(max)}`
         : min
-          ? `Above ${inr(min)}`
+          ? `Above ${formatInrCompact(min)}`
           : null;
   return [
     types.slice(0, 2).join(' / '),
@@ -99,11 +90,11 @@ function profileSummary(profile: ContactRequirementProfile): string {
         : null;
   const budget =
     profile.budget_min && profile.budget_max
-      ? `${inr(profile.budget_min)}–${inr(profile.budget_max)}`
+      ? `${formatInrCompact(profile.budget_min)}–${formatInrCompact(profile.budget_max)}`
       : profile.budget_max
-        ? `Up to ${inr(profile.budget_max)}`
+        ? `Up to ${formatInrCompact(profile.budget_max)}`
         : profile.budget_min
-          ? `Above ${inr(profile.budget_min)}`
+          ? `Above ${formatInrCompact(profile.budget_min)}`
           : null;
   return [
     profile.property_types.slice(0, 2).join(' / '),

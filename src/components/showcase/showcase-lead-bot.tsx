@@ -29,6 +29,7 @@ import {
 import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
 import { storagePublicUrl } from '@/lib/storage/url';
 import type { Property } from '@/types';
+import { formatInrCompact } from '@/lib/format/currency';
 
 interface ShowcaseLeadBotProps {
   variant: 'floating' | 'inline';
@@ -54,21 +55,13 @@ interface AskResponse {
   message?: string;
 }
 
-function inr(amount: number): string {
-  if (amount >= 10_000_000)
-    return `₹${(amount / 10_000_000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (amount >= 100_000)
-    return `₹${(amount / 100_000).toFixed(2).replace(/\.00$/, '')} L`;
-  return `₹${amount.toLocaleString('en-IN')}`;
-}
-
 function priceLabel(property: Property): string {
   if (property.listing_type === 'Rent') {
     return property.rent_per_month
-      ? `${inr(property.rent_per_month)}/month`
+      ? `${formatInrCompact(property.rent_per_month)}/month`
       : 'Rent on request';
   }
-  return property.price ? inr(property.price) : 'Price on request';
+  return property.price ? formatInrCompact(property.price) : 'Price on request';
 }
 
 export function ShowcaseLeadBot({
