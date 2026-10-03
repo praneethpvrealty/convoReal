@@ -192,7 +192,7 @@ export function DocumentApprovals() {
                           { fontFamily: f.bold, color: colors.onPrimary },
                         ]}
                       >
-                        Approve
+                        Approve & send
                       </Text>
                     </Pressable>
                     <Pressable
@@ -201,19 +201,14 @@ export function DocumentApprovals() {
                       accessibilityRole="button"
                       accessibilityLabel={`Reject document request for ${row.property_title}`}
                       style={({ pressed }) => [
-                        styles.button,
                         styles.reject,
-                        {
-                          borderColor: colors.danger,
-                          opacity: busy ? 0.5 : pressed ? 0.8 : 1,
-                        },
+                        { opacity: busy ? 0.5 : pressed ? 0.6 : 0.85 },
                       ]}
                     >
-                      <Ionicons name="close" size={15} color={colors.danger} />
                       <Text
                         style={[
                           styles.buttonText,
-                          { fontFamily: f.bold, color: colors.danger },
+                          { fontFamily: f.medium, color: colors.danger },
                         ]}
                       >
                         Reject
@@ -249,6 +244,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: 8,
   },
-  reject: { backgroundColor: 'transparent', borderWidth: 1 },
+  reject: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
   buttonText: { fontSize: 13 },
 });

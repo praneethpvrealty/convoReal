@@ -11,6 +11,7 @@ interface ActiveUser {
   name: string;
   /** Only set for client-sourced entries — team members (profiles) have no name_tag. */
   nameTag?: string | null;
+  group: 'team' | 'client';
   role: string;
   status: 'Online' | 'Away' | 'Offline';
   action: string;
@@ -21,6 +22,7 @@ const STATIC_FALLBACK_USERS: ActiveUser[] = [
   {
     id: '1',
     name: 'Mia L.',
+    group: 'team',
     role: 'Manager',
     status: 'Online',
     action: 'Closed ₹15.8L Deal',
@@ -29,6 +31,7 @@ const STATIC_FALLBACK_USERS: ActiveUser[] = [
   {
     id: '2',
     name: 'Ryan P.',
+    group: 'team',
     role: 'Agent',
     status: 'Online',
     action: 'Updated Pipeline',
@@ -37,12 +40,18 @@ const STATIC_FALLBACK_USERS: ActiveUser[] = [
   {
     id: '3',
     name: 'David K.',
+    group: 'client',
     role: 'Client',
     status: 'Online',
     action: 'Joined WhatsApp Chat',
     avatar: 'DK',
   },
 ];
+
+const USER_GROUPS = [
+  { group: 'team', label: 'Team' },
+  { group: 'client', label: 'Clients' },
+] as const;
 
 export function ActiveUsers() {
   const supabase = createClient();
@@ -126,6 +135,7 @@ export function ActiveUsers() {
             activeList.push({
               id: member.id,
               name: member.full_name || 'User',
+              group: 'team',
               role: member.account_role
                 ? member.account_role.charAt(0).toUpperCase() +
                   member.account_role.slice(1)
@@ -173,6 +183,7 @@ export function ActiveUsers() {
               id: client.id,
               name,
               nameTag: client.name_tag,
+              group: 'client',
               role: client.classification || 'Client',
               status,
               action,
@@ -231,57 +242,68 @@ export function ActiveUsers() {
       </header>
 
       <div className="max-h-[350px] flex-1 space-y-4 overflow-y-auto p-5">
-        {users.map((u) => (
-          <div
-            key={u.id}
-            className="hover:border-slate-850 flex items-center gap-3.5 rounded-xl border border-slate-900 bg-slate-950/20 p-3 transition-all duration-200 hover:bg-slate-950/40"
-          >
-            <Avatar className="size-9 shrink-0 border border-slate-800">
-              <AvatarFallback className="bg-primary/10 text-primary text-xs font-black">
-                {u.avatar}
-              </AvatarFallback>
-            </Avatar>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-xs font-black text-white">
-                    {u.name}
-                  </span>
-                  <NameTagBadge tag={u.nameTag} />
-                </span>
-                <span
-                  className={`inline-flex items-center gap-1 text-[10px] font-bold ${
-                    u.status === 'Online'
-                      ? 'text-emerald-400'
-                      : u.status === 'Away'
-                        ? 'text-amber-400'
-                        : 'text-slate-500'
-                  }`}
+        {USER_GROUPS.map(({ group, label }) => {
+          const members = users.filter((u) => u.group === group);
+          if (members.length === 0) return null;
+          return (
+            <div key={group} className="space-y-2">
+              <h3 className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                {label}
+              </h3>
+              {members.map((u) => (
+                <div
+                  key={u.id}
+                  className="hover:border-slate-850 flex items-center gap-3.5 rounded-xl border border-slate-900 bg-slate-950/20 p-3 transition-all duration-200 hover:bg-slate-950/40"
                 >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      u.status === 'Online'
-                        ? 'animate-pulse bg-emerald-500'
-                        : u.status === 'Away'
-                          ? 'bg-amber-500'
-                          : 'bg-slate-500'
-                    }`}
-                  />
-                  {u.status}
-                </span>
-              </div>
-              <p className="mt-0.5 text-[10px] font-medium text-slate-500">
-                {u.role}
-              </p>
+                  <Avatar className="size-9 shrink-0 border border-slate-800">
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-black">
+                      {u.avatar}
+                    </AvatarFallback>
+                  </Avatar>
 
-              {/* Status Badge */}
-              <div className="mt-2 inline-flex max-w-full items-center truncate rounded-lg border border-slate-900 bg-slate-950/60 px-2 py-0.5 text-[9px] font-bold text-slate-300">
-                {u.action}
-              </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-xs font-black text-white">
+                          {u.name}
+                        </span>
+                        <NameTagBadge tag={u.nameTag} />
+                      </span>
+                      <span
+                        className={`inline-flex items-center gap-1 text-[10px] font-bold ${
+                          u.status === 'Online'
+                            ? 'text-emerald-400'
+                            : u.status === 'Away'
+                              ? 'text-amber-400'
+                              : 'text-slate-500'
+                        }`}
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            u.status === 'Online'
+                              ? 'animate-pulse bg-emerald-500'
+                              : u.status === 'Away'
+                                ? 'bg-amber-500'
+                                : 'bg-slate-500'
+                          }`}
+                        />
+                        {u.status}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[10px] font-medium text-slate-500">
+                      {u.role}
+                    </p>
+
+                    {/* Status Badge */}
+                    <div className="mt-2 inline-flex max-w-full items-center truncate rounded-lg border border-slate-900 bg-slate-950/60 px-2 py-0.5 text-[9px] font-bold text-slate-300">
+                      {u.action}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

@@ -148,10 +148,7 @@ import {
   bundleCandidates,
   defaultBundleName,
 } from '@/lib/deals/bundles';
-import {
-  DEAL_DEADLINE_URGENCY_LABELS,
-  deadlineLabel,
-} from '@/lib/deals/deadlines';
+import { deadlineLabel } from '@/lib/deals/deadlines';
 import {
   TRANCHE_LABEL_SUGGESTIONS,
   TRANCHE_STATUS_LABELS,
@@ -485,6 +482,31 @@ describe('contact merge remains available on both surfaces', () => {
     expect(mobileMerge).toContain("'/api/contacts/merge'");
     expect(mobileMerge).toContain('Keep this record');
     expect(webMerge).toContain("'/api/contacts/merge'");
+  });
+});
+
+describe('Overview approvals read the same on web and mobile', () => {
+  it('orders location approvals with one shared rule and tucks approved ones away', () => {
+    const webPanel = webSource(
+      'components/dashboard/location-approvals-panel.tsx'
+    );
+    const mobilePanel = mobileSource('components/location-approvals.tsx');
+    expect(webPanel).toContain('splitLocationApprovals(rows)');
+    expect(mobilePanel).toContain('splitLocationApprovals(rows)');
+    expect(mobilePanel).toContain(
+      "import { splitLocationApprovals } from '@shared/lib/dashboard/approval-order';"
+    );
+    expect(webPanel).toContain('Recently approved ({approved.length})');
+    expect(mobilePanel).toContain('Recently approved ({approved.length})');
+  });
+
+  it('labels the document approval action Approve & send on both surfaces', () => {
+    expect(
+      webSource('components/dashboard/document-approvals-panel.tsx')
+    ).toContain('Approve &amp; send');
+    expect(mobileSource('components/document-approvals.tsx')).toContain(
+      'Approve & send'
+    );
   });
 });
 
@@ -3688,39 +3710,13 @@ describe('[TXW-020] deal deadlines reach both surfaces from the Focus snapshot',
   const focusQueries = webSource('lib/focus/queries.ts');
 
   it('labels every urgency identically and words the distance the same way', () => {
-    for (const [urgency, label] of Object.entries(
-      DEAL_DEADLINE_URGENCY_LABELS
-    )) {
-      expect(mobileFocus, `mobile is missing the "${urgency}" label`).toContain(
-        `${urgency}: '${label}'`
-      );
-    }
-    expect(mobileFocus).toContain(
-      "return `Overdue by ${n} day${n === 1 ? '' : 's'}`;"
-    );
-    expect(mobileFocus).toContain("if (daysLeft === 0) return 'Due today';");
-    expect(mobileFocus).toContain("if (daysLeft === 1) return 'Due tomorrow';");
-    expect(mobileFocus).toContain('return `Due in ${daysLeft} days`;');
+    expect(mobileFocus).toContain("} from '@shared/lib/deals/deadline-rules';");
+    expect(mobileFocus).not.toContain('export function deadlineLabel');
     expect(deadlineLabel(-1)).toBe('Overdue by 1 day');
   });
 
   it('carries the same deadline shape on the snapshot and renders it on both screens', () => {
-    for (const field of [
-      'dealId',
-      'kind',
-      'milestoneId',
-      'title',
-      'subject',
-      'dueDate',
-      'daysLeft',
-      'urgency',
-      'assignedTo',
-      'ownerUserId',
-    ]) {
-      expect(mobileFocus, `mobile FocusDeadline lacks ${field}`).toMatch(
-        new RegExp(`^  ${field}: `, 'm')
-      );
-    }
+    expect(mobileFocus).toContain('items: DealDeadline[];');
     expect(mobileFocus).toContain('deadlines: FocusDeadlines;');
     expect(focusQueries).toContain('loadDealDeadlines(');
     expect(mobileScreen).toContain('Deal deadlines');
@@ -3728,6 +3724,18 @@ describe('[TXW-020] deal deadlines reach both surfaces from the Focus snapshot',
     expect(webFocus).toContain('Deal deadlines');
     expect(webFocus).toContain('deadlineLabel(d.daysLeft)');
     expect(webToday).toContain('loadDealDeadlines(');
+  });
+
+  it('groups deadlines per deal and badges stale requests the same way on both screens', () => {
+    expect(mobileFocus).toContain("} from '@shared/lib/focus/requests';");
+    expect(webFocus).toContain(
+      "import { requestBadge, summarizeRequests } from '@/lib/focus/requests';"
+    );
+    expect(webFocus).toContain('groupDeadlinesByDeal(');
+    expect(webFocus).toContain('summarizeRequests(');
+    expect(mobileScreen).toContain('groupDeadlinesByDeal(');
+    expect(mobileScreen).toContain('requestBadge(request)');
+    expect(mobileScreen).toContain('summarizeRequests(');
   });
 
   it('reads the same SQL rule from the digest and never a hand-rolled query', () => {

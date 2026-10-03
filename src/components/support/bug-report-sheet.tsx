@@ -99,11 +99,11 @@ export function BugReportSheet() {
       <button
         type="button"
         onClick={() => setOpen(true)}
+        aria-label="Help & feedback"
         title="Help & feedback (Ctrl+Shift+B)"
-        className="fixed right-4 bottom-4 z-40 flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/90 px-3.5 py-2 text-xs font-medium text-slate-300 shadow-lg backdrop-blur transition-colors hover:border-slate-600 hover:text-white"
+        className="fixed right-4 bottom-4 z-40 flex size-10 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-300 shadow-lg backdrop-blur transition-colors hover:border-slate-600 hover:text-white"
       >
-        <LifeBuoy className="size-3.5" />
-        Help &amp; feedback
+        <LifeBuoy className="size-4" />
       </button>
     );
   }

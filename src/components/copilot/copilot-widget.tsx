@@ -39,6 +39,7 @@ import {
 /** Auto-hide the bubble after this long (counts as shown, not
  *  dismissed-forever — the 24h global cooldown still applies). */
 const NUDGE_AUTO_HIDE_MS = 20_000;
+const COLLAPSE_SCROLL_PX = 80;
 
 const placementEvent = 'copilot-launcher-placement-change';
 let memoryPlacement: string | null = null;
@@ -66,6 +67,14 @@ function subscribeViewport(listener: () => void) {
 }
 const readViewportHeight = () => window.innerHeight;
 const serverViewportHeight = () => 0;
+
+function scrollOffset(target: EventTarget | null) {
+  if (target instanceof HTMLElement && target.tagName === 'MAIN') {
+    return target.scrollTop;
+  }
+  if (target === document) return window.scrollY;
+  return null;
+}
 
 function sideStyle(
   side: LauncherPlacement['side'],
@@ -107,6 +116,16 @@ export function CopilotWidget() {
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const suppressClick = useRef(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const onScroll = (e: Event) => {
+      const offset = scrollOffset(e.target);
+      if (offset !== null) setCollapsed(offset > COLLAPSE_SCROLL_PX);
+    };
+    document.addEventListener('scroll', onScroll, true);
+    return () => document.removeEventListener('scroll', onScroll, true);
+  }, []);
 
   const onPointerDown = (e: PointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0) return;
@@ -225,10 +244,10 @@ export function CopilotWidget() {
               ? { transform: `translate(${drag.dx}px, ${drag.dy}px)` }
               : {}),
           }}
-          className={`from-primary to-indigo-650 shadow-primary/30 fixed right-4 bottom-40 z-[60] flex h-12 touch-none items-center justify-center gap-2 rounded-full bg-gradient-to-br px-4 text-sm font-bold text-white shadow-lg select-none md:bottom-16 ${drag ? 'cursor-grabbing' : 'transition-transform hover:scale-105 active:scale-95'}`}
+          className={`from-primary to-indigo-650 shadow-primary/30 fixed right-4 bottom-40 z-[60] flex h-12 touch-none items-center justify-center gap-2 rounded-full bg-gradient-to-br ${collapsed ? 'w-12' : 'px-4'} text-sm font-bold text-white shadow-lg select-none md:bottom-16 ${drag ? 'cursor-grabbing' : 'transition-transform hover:scale-105 active:scale-95'}`}
         >
           <Sparkles className="h-5 w-5" />
-          <span>{t('copilot.assistant')}</span>
+          {!collapsed && <span>{t('copilot.assistant')}</span>}
         </button>
       )}
 

@@ -828,7 +828,7 @@ html[data-mode='light'][data-theme='verdant'] {
 
 /* ============================================================
  * Page loaders — src/components/ui/{message-bubble,convoreal,
- * heartbeat,radar-sweep,contact-card,pipeline-stage,calendar,
+ * contact-card,pipeline-stage,calendar,
  * checklist,signal-wave,flow-node}-loader.tsx. Same rules as the
  * property loaders above: pure CSS/SVG, colored by --primary/--card
  * only, reduced-motion fallback at the bottom.
@@ -904,91 +904,6 @@ html[data-mode='light'][data-theme='verdant'] {
   background-clip: text;
   color: transparent;
   animation: cr-flash-sweep 1.6s linear infinite;
-}
-
-/* Pulse — heartbeat-loader.tsx */
-@keyframes ekg-sweep {
-  0% {
-    stroke-dashoffset: 1;
-    opacity: 1;
-  }
-  55% {
-    stroke-dashoffset: 0;
-    opacity: 1;
-  }
-  85% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    stroke-dashoffset: 1;
-  }
-}
-@keyframes ekg-dot-pulse {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.3);
-  }
-}
-.heartbeat-loader path {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.heartbeat-loader .ekg-track {
-  stroke: var(--primary);
-  stroke-width: 2;
-  opacity: 0.15;
-}
-.heartbeat-loader .ekg-sweep {
-  stroke: var(--primary);
-  stroke-width: 2.5;
-  stroke-dasharray: 1;
-  animation: ekg-sweep 1.8s ease-in-out infinite;
-}
-.heartbeat-loader .ekg-dot {
-  fill: var(--primary);
-  transform-origin: 156px 32px;
-  animation: ekg-dot-pulse 1.8s ease-in-out infinite;
-}
-
-/* Radar — radar-sweep-loader.tsx */
-@keyframes radar-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@keyframes radar-blip {
-  0%,
-  100% {
-    opacity: 0;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-.radar-sweep-loader .scope-ring {
-  fill: none;
-  stroke: var(--primary);
-  stroke-width: 1.5;
-  opacity: 0.2;
-}
-.radar-sweep-loader .sweep-group {
-  transform-origin: 60px 60px;
-  animation: radar-spin 3s linear infinite;
-}
-.radar-sweep-loader .sweep-line {
-  stroke: var(--primary);
-  stroke-width: 1.5;
-}
-.radar-sweep-loader .blip {
-  fill: var(--primary);
-  animation: radar-blip 3s ease-in-out infinite;
 }
 
 /* Contacts — contact-card-loader.tsx */
@@ -1218,10 +1133,6 @@ html[data-mode='light'][data-theme='verdant'] {
   .msg-loader .bubble-out,
   .msg-loader .dot,
   .cr-flash,
-  .heartbeat-loader .ekg-sweep,
-  .heartbeat-loader .ekg-dot,
-  .radar-sweep-loader .sweep-group,
-  .radar-sweep-loader .blip,
   .contact-card-loader .card-scan,
   .pipeline-stage-loader .stage-card,
   .calendar-loader .cal-today,
@@ -1237,13 +1148,6 @@ html[data-mode='light'][data-theme='verdant'] {
   .cr-flash {
     background: none;
     color: var(--primary);
-  }
-  .heartbeat-loader .ekg-sweep {
-    stroke-dashoffset: 0;
-    opacity: 0.7;
-  }
-  .radar-sweep-loader .blip {
-    opacity: 0.6;
   }
   .checklist-loader .cl-check {
     stroke-dashoffset: 0;

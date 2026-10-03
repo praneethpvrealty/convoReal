@@ -42,6 +42,7 @@ import {
 } from '@/lib/today/queries';
 import {
   deadlineLabel,
+  groupDeadlinesByDeal,
   loadDealDeadlines,
   todayDateKey,
   type DealDeadline,
@@ -51,6 +52,7 @@ import { hasPhone } from '@/lib/contacts/reachability';
 import type { Contact } from '@/types';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from '@/lib/copilot/actions';
+import { formatDate } from '@/lib/format/date';
 import { formatInrCompact } from '@/lib/format/currency';
 
 const HOUR_MS = 3_600_000;
@@ -107,10 +109,11 @@ const FILTER_CHIPS: { key: SectionFilter; label: string }[] = [
 interface TodayPageProps {
   /**
    * Rendered inside the Focus tab rather than as a page of its own.
-   * Focus supplies the heading and owns the day's agenda through its
-   * Tasks & visits card, so both are dropped here — what remains are
-   * the signals Focus has no card for: reply windows, cooling leads,
-   * and the activity numbers.
+   * Focus supplies the heading and owns the day's agenda and deal
+   * deadlines through its Tasks & visits and Deal deadlines cards, so
+   * those are dropped here, as are the stat tiles that repeat the
+   * section counts — what remains are the signals Focus has no card
+   * for: reply windows, cooling leads, and the activity numbers.
    */
   embedded?: boolean;
 }
@@ -233,7 +236,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
       .catch((err) => console.error('[today] agenda failed:', err))
       .finally(() => setAgendaLoading(false));
 
-    if (accountId) {
+    if (accountId && !embedded) {
       void loadDealDeadlines(db, accountId, todayDateKey())
         .then((rows) => setDeadlines(rows))
         .catch((err) => console.error('[today] deal deadlines failed:', err))
@@ -244,7 +247,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
 
     setRefreshedAt(Date.now());
     setNow(Date.now());
-  }, [accountId]);
+  }, [accountId, embedded]);
 
   useEffect(() => {
     // Microtask defer keeps the synchronous loading-flag setters out of
@@ -328,7 +331,11 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
 
   const agendaCount =
     (agenda?.appointments.length ?? 0) + (agenda?.todos.length ?? 0);
-  const deadlineCount = deadlines?.length ?? 0;
+  const deadlineGroups = useMemo(
+    () => groupDeadlinesByDeal(deadlines ?? []),
+    [deadlines]
+  );
+  const deadlineCount = deadlineGroups.length;
 
   // --- Row actions ------------------------------------------------------
 
@@ -492,8 +499,12 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
 
   const anyLoading =
     expiringLoading || hotLoading || agendaLoading || deadlinesLoading;
+  const embeddedHidden = (key: SectionFilter) =>
+    embedded && (key === 'agenda' || key === 'deadlines');
   const show = (key: Exclude<SectionFilter, 'all'>) =>
-    (!embedded || key !== 'agenda') && (filter === 'all' || filter === key);
+    !embeddedHidden(key) && (filter === 'all' || filter === key);
+  const collapsed = (loading: boolean, count: number) =>
+    embedded && !loading && count === 0;
 
   return (
     <div className="space-y-6">
@@ -524,35 +535,32 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
         </div>
       )}
 
-      {/* Stat cards */}
-      <div
-        className={`grid grid-cols-2 gap-4 ${embedded ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}
-      >
-        <StatCard
-          label="Windows closing"
-          value={windowsClosing.length}
-          loading={expiringLoading}
-          icon={<Timer className="size-4 text-rose-400" />}
-          valueClass="text-rose-400"
-          hint="WhatsApp reply windows expire 24h after the customer's last message. Cards here have < 6h left — reply before the window shuts."
-        />
-        <StatCard
-          label="Hot going quiet"
-          value={hotLeads?.length ?? 0}
-          loading={hotLoading}
-          icon={<Flame className="size-4 text-amber-400" />}
-          valueClass="text-amber-400"
-          hint="Leads tagged as 'Hot' who haven't been contacted in several days. Reach out before they lose interest."
-        />
-        <StatCard
-          label="Awaiting reply"
-          value={awaitingReply.length}
-          loading={expiringLoading}
-          icon={<MessagesSquare className="size-4 text-sky-400" />}
-          valueClass="text-sky-400"
-          hint="Active WhatsApp threads where the customer messaged you but you haven't responded in over 2 hours."
-        />
-        {!embedded && (
+      {!embedded && (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <StatCard
+            label="Windows closing"
+            value={windowsClosing.length}
+            loading={expiringLoading}
+            icon={<Timer className="size-4 text-rose-400" />}
+            valueClass="text-rose-400"
+            hint="WhatsApp reply windows expire 24h after the customer's last message. Cards here have < 6h left — reply before the window shuts."
+          />
+          <StatCard
+            label="Hot going quiet"
+            value={hotLeads?.length ?? 0}
+            loading={hotLoading}
+            icon={<Flame className="size-4 text-amber-400" />}
+            valueClass="text-amber-400"
+            hint="Leads tagged as 'Hot' who haven't been contacted in several days. Reach out before they lose interest."
+          />
+          <StatCard
+            label="Awaiting reply"
+            value={awaitingReply.length}
+            loading={expiringLoading}
+            icon={<MessagesSquare className="size-4 text-sky-400" />}
+            valueClass="text-sky-400"
+            hint="Active WhatsApp threads where the customer messaged you but you haven't responded in over 2 hours."
+          />
           <StatCard
             label="Today's agenda"
             value={agendaCount}
@@ -561,8 +569,8 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
             valueClass="text-emerald-400"
             hint="Your appointments and to-do items due today. Complete or reschedule them from here."
           />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Activity insights */}
       <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5">
@@ -668,7 +676,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
 
       {/* Filter chips */}
       <div className="flex flex-wrap gap-2">
-        {FILTER_CHIPS.filter((chip) => !embedded || chip.key !== 'agenda').map(
+        {FILTER_CHIPS.filter((chip) => !embeddedHidden(chip.key)).map(
           (chip) => (
             <button
               key={chip.key}
@@ -686,323 +694,328 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
         )}
       </div>
 
-      {/* a) Windows closing */}
-      {show('windows') && (
-        <Section
-          title="⏳ WhatsApp windows closing"
-          count={windowsClosing.length}
-          hint="WhatsApp only lets you reply within 24h of the customer's last message. These conversations are about to expire — reply now or lose the window."
-        >
-          {expiringLoading ? (
-            <SkeletonRows />
-          ) : windowsClosing.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="flex flex-col gap-3">
-              {windowsClosing.map((item) => (
-                <SessionCard
-                  key={item.conversation.id}
-                  item={item}
-                  now={now}
-                  mode="countdown"
-                  onHandled={handleHandled}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
-      )}
+      <div className="flex flex-col gap-6">
+        {/* a) Windows closing */}
+        {show('windows') && (
+          <Section
+            title="⏳ WhatsApp windows closing"
+            count={windowsClosing.length}
+            collapsed={collapsed(expiringLoading, windowsClosing.length)}
+            hint="WhatsApp only lets you reply within 24h of the customer's last message. These conversations are about to expire — reply now or lose the window."
+          >
+            {expiringLoading ? (
+              <SkeletonRows />
+            ) : windowsClosing.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <div className="flex flex-col gap-3">
+                {windowsClosing.map((item) => (
+                  <SessionCard
+                    key={item.conversation.id}
+                    item={item}
+                    now={now}
+                    mode="countdown"
+                    onHandled={handleHandled}
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
+        )}
 
-      {/* b) Hot leads going quiet */}
-      {show('hot') && (
-        <Section
-          title="🔥 Hot leads going quiet"
-          count={hotLeads?.length ?? 0}
-          hint="Contacts marked as 'Hot' in your pipeline who haven't heard from you recently. A quick WhatsApp or call can re-engage them."
-        >
-          {hotLoading ? (
-            <SkeletonRows />
-          ) : !hotLeads || hotLeads.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="flex flex-col gap-3">
-              {hotLeads.map(({ contact, daysSilent }) => {
-                const source = resolveRequirementSource(contact);
-                const areaHints = Array.from(
-                  new Set([
-                    ...(source.areas_of_interest ?? []),
-                    ...(source.pref_areas ?? []),
-                  ])
-                );
-                const budgetMax = source.pref_budget_max ?? source.max_budget;
-                return (
-                  <div
-                    key={contact.id}
-                    className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="flex min-w-0 items-start gap-3">
-                      <Avatar className="size-9 shrink-0 border border-slate-800">
-                        <AvatarFallback className="bg-amber-500/10 text-xs font-black text-amber-400">
-                          {(contact.name || contact.phone || '?')
-                            .charAt(0)
-                            .toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate text-sm font-black text-white">
-                            {contact.name || contact.phone}
-                          </span>
-                          <NameTagBadge tag={contact.name_tag} />
-                          <span className="inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold text-amber-400">
-                            {silentLabel(daysSilent)}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 text-xs font-medium text-slate-400">
-                          {source.no_budget
-                            ? 'Budget: no limit'
-                            : budgetMax
-                              ? `Budget: ${formatInrCompact(budgetMax)}`
-                              : 'Budget: not specified'}
-                        </p>
-                        {areaHints.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1.5">
-                            {areaHints.slice(0, 3).map((area) => (
-                              <span
-                                key={area}
-                                className="inline-flex items-center rounded-lg border border-slate-800 bg-slate-950/40 px-2 py-0.5 text-[9px] font-bold text-slate-400"
-                              >
-                                {area}
-                              </span>
-                            ))}
-                            {areaHints.length > 3 && (
-                              <span className="self-center text-[9px] font-bold text-slate-500">
-                                +{areaHints.length - 3}
-                              </span>
-                            )}
+        {/* b) Hot leads going quiet */}
+        {show('hot') && (
+          <Section
+            title="🔥 Hot leads going quiet"
+            count={hotLeads?.length ?? 0}
+            collapsed={collapsed(hotLoading, hotLeads?.length ?? 0)}
+            hint="Contacts marked as 'Hot' in your pipeline who haven't heard from you recently. A quick WhatsApp or call can re-engage them."
+          >
+            {hotLoading ? (
+              <SkeletonRows />
+            ) : !hotLeads || hotLeads.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <div className="flex flex-col gap-3">
+                {hotLeads.map(({ contact, daysSilent }) => {
+                  const source = resolveRequirementSource(contact);
+                  const areaHints = Array.from(
+                    new Set([
+                      ...(source.areas_of_interest ?? []),
+                      ...(source.pref_areas ?? []),
+                    ])
+                  );
+                  const budgetMax = source.pref_budget_max ?? source.max_budget;
+                  return (
+                    <div
+                      key={contact.id}
+                      className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="flex min-w-0 items-start gap-3">
+                        <Avatar className="size-9 shrink-0 border border-slate-800">
+                          <AvatarFallback className="bg-amber-500/10 text-xs font-black text-amber-400">
+                            {(contact.name || contact.phone || '?')
+                              .charAt(0)
+                              .toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm font-black text-white">
+                              {contact.name || contact.phone}
+                            </span>
+                            <NameTagBadge tag={contact.name_tag} />
+                            <span className="inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold text-amber-400">
+                              {silentLabel(daysSilent)}
+                            </span>
                           </div>
+                          <p className="mt-0.5 text-xs font-medium text-slate-400">
+                            {source.no_budget
+                              ? 'Budget: no limit'
+                              : budgetMax
+                                ? `Budget: ${formatInrCompact(budgetMax)}`
+                                : 'Budget: not specified'}
+                          </p>
+                          {areaHints.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {areaHints.slice(0, 3).map((area) => (
+                                <span
+                                  key={area}
+                                  className="inline-flex items-center rounded-lg border border-slate-800 bg-slate-950/40 px-2 py-0.5 text-[9px] font-bold text-slate-400"
+                                >
+                                  {area}
+                                </span>
+                              ))}
+                              {areaHints.length > 3 && (
+                                <span className="self-center text-[9px] font-bold text-slate-500">
+                                  +{areaHints.length - 3}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => void handleOpenChatForContact(contact)}
+                          className="cursor-pointer rounded-xl text-xs font-bold"
+                        >
+                          <MessageSquare className="size-3.5" />
+                          Open chat
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => void handleWhatsAppDirect(contact)}
+                          className="cursor-pointer rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
+                        >
+                          <Smartphone className="size-3.5" />
+                          WhatsApp
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void handleMarkContacted(contact)}
+                          className="cursor-pointer rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800/60 hover:text-white"
+                        >
+                          <Check className="size-3.5" />
+                          Mark contacted
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+        )}
+
+        {/* c) Awaiting your reply */}
+        {show('replies') && (
+          <Section
+            title="💬 Awaiting your reply"
+            count={awaitingReply.length}
+            collapsed={collapsed(expiringLoading, awaitingReply.length)}
+            hint="Conversations where the customer sent a message and is waiting for your response. Older unanswered threads appear first."
+          >
+            {expiringLoading ? (
+              <SkeletonRows />
+            ) : awaitingReply.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <div className="flex flex-col gap-3">
+                {awaitingReply.map((item) => (
+                  <SessionCard
+                    key={item.conversation.id}
+                    item={item}
+                    now={now}
+                    mode="ago"
+                    onHandled={handleHandled}
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
+        )}
+
+        {/* d) Today's agenda */}
+        {show('agenda') && (
+          <Section
+            title="📅 Today's agenda"
+            count={agendaCount}
+            hint="Site visits, follow-up calls, and to-do items scheduled for today. Check them off as you go."
+          >
+            {agendaLoading ? (
+              <SkeletonRows />
+            ) : agendaCount === 0 ? (
+              <EmptyState />
+            ) : (
+              <div className="flex flex-col gap-3">
+                {agenda?.appointments.map((appt) => {
+                  const striking = completing.has(`appointment-${appt.id}`);
+                  return (
+                    <div
+                      key={appt.id}
+                      className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => completeAgendaItem('appointment', appt)}
+                        disabled={striking}
+                        aria-label={`Mark appointment "${appt.title}" completed`}
+                        className={`flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors ${
+                          striking
+                            ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
+                            : 'border-slate-600 text-transparent hover:border-emerald-400 hover:text-emerald-400/60'
+                        }`}
+                      >
+                        <Check className="size-3" />
+                      </button>
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                        <Clock className="size-3" />
+                        {timeChip(appt.start_time)}
+                      </span>
+                      <div
+                        className={`min-w-0 flex-1 ${striking ? 'line-through opacity-50' : ''}`}
+                      >
+                        <p className="truncate text-sm font-bold text-white">
+                          {appt.title}
+                        </p>
+                        <p className="truncate text-xs font-medium text-slate-400">
+                          {[
+                            appt.contact?.name || appt.contact?.phone,
+                            appt.property?.title,
+                            appt.property?.location || appt.location,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ') || 'No details'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+                {agenda?.todos.map((todo) => {
+                  const striking = completing.has(`todo-${todo.id}`);
+                  const overdue = new Date(todo.due_date).getTime() < now;
+                  return (
+                    <div
+                      key={todo.id}
+                      className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => completeAgendaItem('todo', todo)}
+                        disabled={striking}
+                        aria-label={`Mark to-do "${todo.title}" completed`}
+                        className={`flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors ${
+                          striking
+                            ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
+                            : 'border-slate-600 text-transparent hover:border-emerald-400 hover:text-emerald-400/60'
+                        }`}
+                      >
+                        <Check className="size-3" />
+                      </button>
+                      <span
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                          overdue
+                            ? 'border-rose-500/25 bg-rose-500/10 text-rose-400'
+                            : 'border-slate-700 bg-slate-800/60 text-slate-300'
+                        }`}
+                      >
+                        <Clock className="size-3" />
+                        {overdue ? 'Overdue' : `Due ${timeChip(todo.due_date)}`}
+                      </span>
+                      <div
+                        className={`min-w-0 flex-1 ${striking ? 'line-through opacity-50' : ''}`}
+                      >
+                        <p className="truncate text-sm font-bold text-white">
+                          {todo.title}
+                        </p>
+                        {(todo.contact || todo.property) && (
+                          <p className="truncate text-xs font-medium text-slate-400">
+                            {[
+                              todo.contact?.name || todo.contact?.phone,
+                              todo.property?.title,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </p>
                         )}
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => void handleOpenChatForContact(contact)}
-                        className="cursor-pointer rounded-xl text-xs font-bold"
-                      >
-                        <MessageSquare className="size-3.5" />
-                        Open chat
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => void handleWhatsAppDirect(contact)}
-                        className="cursor-pointer rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
-                      >
-                        <Smartphone className="size-3.5" />
-                        WhatsApp
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void handleMarkContacted(contact)}
-                        className="cursor-pointer rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800/60 hover:text-white"
-                      >
-                        <Check className="size-3.5" />
-                        Mark contacted
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Section>
-      )}
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+        )}
 
-      {/* c) Awaiting your reply */}
-      {show('replies') && (
-        <Section
-          title="💬 Awaiting your reply"
-          count={awaitingReply.length}
-          hint="Conversations where the customer sent a message and is waiting for your response. Older unanswered threads appear first."
-        >
-          {expiringLoading ? (
-            <SkeletonRows />
-          ) : awaitingReply.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="flex flex-col gap-3">
-              {awaitingReply.map((item) => (
-                <SessionCard
-                  key={item.conversation.id}
-                  item={item}
-                  now={now}
-                  mode="ago"
-                  onHandled={handleHandled}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
-      )}
-
-      {/* d) Today's agenda */}
-      {show('agenda') && (
-        <Section
-          title="📅 Today's agenda"
-          count={agendaCount}
-          hint="Site visits, follow-up calls, and to-do items scheduled for today. Check them off as you go."
-        >
-          {agendaLoading ? (
-            <SkeletonRows />
-          ) : agendaCount === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="flex flex-col gap-3">
-              {agenda?.appointments.map((appt) => {
-                const striking = completing.has(`appointment-${appt.id}`);
-                return (
-                  <div
-                    key={appt.id}
-                    className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4"
+        {/* e) Deal deadlines */}
+        {show('deadlines') && (
+          <Section
+            title="🧾 Deal deadlines"
+            count={deadlineCount}
+            hint="Milestone target dates and expected close dates on live deals, due in the next two weeks or already past. Open the record to update the date or tick the milestone."
+          >
+            {deadlinesLoading ? (
+              <SkeletonRows />
+            ) : deadlineCount === 0 ? (
+              <EmptyState />
+            ) : (
+              <div className="flex flex-col gap-3">
+                {deadlineGroups.map((d) => (
+                  <Link
+                    key={d.dealId}
+                    href={`/deals/${d.dealId}`}
+                    className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-slate-600"
                   >
-                    <button
-                      type="button"
-                      onClick={() => completeAgendaItem('appointment', appt)}
-                      disabled={striking}
-                      aria-label={`Mark appointment "${appt.title}" completed`}
-                      className={`flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors ${
-                        striking
-                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
-                          : 'border-slate-600 text-transparent hover:border-emerald-400 hover:text-emerald-400/60'
-                      }`}
-                    >
-                      <Check className="size-3" />
-                    </button>
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-                      <Clock className="size-3" />
-                      {timeChip(appt.start_time)}
-                    </span>
-                    <div
-                      className={`min-w-0 flex-1 ${striking ? 'line-through opacity-50' : ''}`}
-                    >
-                      <p className="truncate text-sm font-bold text-white">
-                        {appt.title}
-                      </p>
-                      <p className="truncate text-xs font-medium text-slate-400">
-                        {[
-                          appt.contact?.name || appt.contact?.phone,
-                          appt.property?.title,
-                          appt.property?.location || appt.location,
-                        ]
-                          .filter(Boolean)
-                          .join(' · ') || 'No details'}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-              {agenda?.todos.map((todo) => {
-                const striking = completing.has(`todo-${todo.id}`);
-                const overdue = new Date(todo.due_date).getTime() < now;
-                return (
-                  <div
-                    key={todo.id}
-                    className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => completeAgendaItem('todo', todo)}
-                      disabled={striking}
-                      aria-label={`Mark to-do "${todo.title}" completed`}
-                      className={`flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors ${
-                        striking
-                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
-                          : 'border-slate-600 text-transparent hover:border-emerald-400 hover:text-emerald-400/60'
-                      }`}
-                    >
-                      <Check className="size-3" />
-                    </button>
                     <span
                       className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
-                        overdue
+                        d.urgency === 'overdue'
                           ? 'border-rose-500/25 bg-rose-500/10 text-rose-400'
-                          : 'border-slate-700 bg-slate-800/60 text-slate-300'
+                          : d.urgency === 'today'
+                            ? 'border-amber-500/25 bg-amber-500/10 text-amber-300'
+                            : 'border-slate-700 bg-slate-800/60 text-slate-300'
                       }`}
                     >
                       <Clock className="size-3" />
-                      {overdue ? 'Overdue' : `Due ${timeChip(todo.due_date)}`}
+                      {deadlineLabel(d.daysLeft)}
                     </span>
-                    <div
-                      className={`min-w-0 flex-1 ${striking ? 'line-through opacity-50' : ''}`}
-                    >
+                    <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-white">
-                        {todo.title}
+                        {d.subject}
                       </p>
-                      {(todo.contact || todo.property) && (
-                        <p className="truncate text-xs font-medium text-slate-400">
-                          {[
-                            todo.contact?.name || todo.contact?.phone,
-                            todo.property?.title,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </p>
-                      )}
+                      <p className="truncate text-xs font-medium text-slate-400">
+                        {d.titles.join(' · ')} · {formatDate(d.dueDate)}
+                      </p>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Section>
-      )}
-
-      {/* e) Deal deadlines */}
-      {show('deadlines') && (
-        <Section
-          title="🧾 Deal deadlines"
-          count={deadlineCount}
-          hint="Milestone target dates and expected close dates on live deals, due in the next two weeks or already past. Open the record to update the date or tick the milestone."
-        >
-          {deadlinesLoading ? (
-            <SkeletonRows />
-          ) : deadlineCount === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="flex flex-col gap-3">
-              {deadlines?.map((d) => (
-                <Link
-                  key={`${d.dealId}:${d.milestoneId ?? d.kind}`}
-                  href={`/deals/${d.dealId}`}
-                  className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-slate-600"
-                >
-                  <span
-                    className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
-                      d.urgency === 'overdue'
-                        ? 'border-rose-500/25 bg-rose-500/10 text-rose-400'
-                        : d.urgency === 'today'
-                          ? 'border-amber-500/25 bg-amber-500/10 text-amber-300'
-                          : 'border-slate-700 bg-slate-800/60 text-slate-300'
-                    }`}
-                  >
-                    <Clock className="size-3" />
-                    {deadlineLabel(d.daysLeft)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-white">
-                      {d.title}
-                    </p>
-                    <p className="truncate text-xs font-medium text-slate-400">
-                      {d.subject} · {d.dueDate}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </Section>
-      )}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Section>
+        )}
+      </div>
     </div>
   );
 }
@@ -1093,12 +1106,24 @@ function Section({
   count,
   children,
   hint,
+  collapsed = false,
 }: {
   title: string;
   count: number;
   children: React.ReactNode;
   hint?: string;
+  collapsed?: boolean;
 }) {
+  if (collapsed)
+    return (
+      <section className="order-last flex items-center gap-2 rounded-xl border border-dashed border-slate-800 px-4 py-2.5">
+        <h2 className="text-sm font-black text-slate-400">{title}</h2>
+        <span className="flex items-center gap-1 text-xs font-medium text-slate-500">
+          <Check className="size-3.5 text-emerald-400" />
+          All clear
+        </span>
+      </section>
+    );
   return (
     <section className="space-y-3">
       <h2 className="flex items-center gap-2 text-sm font-black text-white">

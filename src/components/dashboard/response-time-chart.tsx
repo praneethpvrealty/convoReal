@@ -6,6 +6,7 @@ import type { ResponseTimeSummary } from '@/lib/dashboard/types';
 import { BarChart } from '@/components/tremor/bar-chart';
 import { EmptyState } from './empty-state';
 import { Skeleton } from './skeleton';
+import { durationUnit, formatDuration } from './response-time-format';
 
 interface ResponseTimeChartProps {
   data: ResponseTimeSummary | null;
@@ -30,7 +31,14 @@ export function ResponseTimeChart({
   loading,
   thresholdMinutes = 5,
 }: ResponseTimeChartProps) {
-  const hasData = data?.buckets.some((b) => b.avgMinutes != null) ?? false;
+  const maxMinutes = Math.max(
+    0,
+    ...(data?.buckets.map((b) => b.avgMinutes ?? 0) ?? [])
+  );
+  const axisUnit = durationUnit(maxMinutes);
+  const headerUnit = durationUnit(
+    Math.max(data?.thisWeekAvg ?? 0, data?.lastWeekAvg ?? 0)
+  );
 
   // Map buckets → Tremor rows. Null `avgMinutes` (no samples)
   // collapses to 0; the chart will render an empty slot for it.
@@ -51,7 +59,7 @@ export function ResponseTimeChart({
             Average First Response Time
           </h2>
           <p className="mt-0.5 text-xs text-slate-500">
-            Minutes to reply to a customer&apos;s first unreplied message, by
+            Time to reply to a customer&apos;s first unreplied message, by
             weekday
           </p>
         </div>
@@ -66,12 +74,14 @@ export function ResponseTimeChart({
               <div className="text-slate-400">
                 This week:{' '}
                 <span className="font-medium text-white tabular-nums">
-                  {fmt(data.thisWeekAvg)}
+                  {formatDuration(data.thisWeekAvg, headerUnit)}
                 </span>
               </div>
               <div className="text-slate-500">
                 Last week:{' '}
-                <span className="tabular-nums">{fmt(data.lastWeekAvg)}</span>
+                <span className="tabular-nums">
+                  {formatDuration(data.lastWeekAvg, headerUnit)}
+                </span>
               </div>
             </div>
           )}
@@ -81,10 +91,10 @@ export function ResponseTimeChart({
       <div className="p-5">
         {loading || !data ? (
           <Skeleton className="h-[260px] w-full" />
-        ) : !hasData ? (
+        ) : maxMinutes === 0 ? (
           <EmptyState
             icon={Clock}
-            title="No replies recorded yet"
+            title="No replies measured yet"
             hint="This chart fills in as you reply to customer messages."
           />
         ) : (
@@ -95,7 +105,7 @@ export function ResponseTimeChart({
             // 'violet' maps to Tailwind's `fill-violet-500` — matches
             // the brand accent the hand-rolled bars used (#7c3aed).
             colors={['violet']}
-            valueFormatter={(value) => `${value.toFixed(1)}m`}
+            valueFormatter={(value) => formatDuration(value, axisUnit)}
             showLegend={false}
             yAxisWidth={48}
             // Compact height so the chart sits well inside the card
@@ -106,11 +116,4 @@ export function ResponseTimeChart({
       </div>
     </section>
   );
-}
-
-function fmt(mins: number | null): string {
-  if (mins == null) return '—';
-  if (mins < 1) return `${Math.max(1, Math.round(mins * 60))}s`;
-  if (mins < 60) return `${mins.toFixed(1)}m`;
-  return `${(mins / 60).toFixed(1)}h`;
 }

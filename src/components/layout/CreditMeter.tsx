@@ -31,7 +31,7 @@ function BucketRow({ label, value }: { label: string; value: number }) {
     <div className="flex items-center justify-between py-1 text-xs">
       <span className="text-slate-400">{label}</span>
       <span className="font-medium text-slate-200">
-        {value.toLocaleString()} cr
+        {value.toLocaleString()} credits
       </span>
     </div>
   );
@@ -59,7 +59,7 @@ export function CreditMeter() {
           <Coins className="size-3.5" />
           {credits.status === 'empty'
             ? 'AI Locked'
-            : `${credits.total.toLocaleString()} cr`}
+            : `${credits.total.toLocaleString()} credits`}
         </span>
         <span className="h-0.5 w-full overflow-hidden rounded-full bg-black/20">
           <span
@@ -88,7 +88,7 @@ export function CreditMeter() {
             <div className="flex items-center justify-between py-1 text-xs">
               <span className="text-slate-500">Referral (pending)</span>
               <span className="font-medium text-slate-500">
-                {credits.pendingReferral.toLocaleString()} cr
+                {credits.pendingReferral.toLocaleString()} credits
               </span>
             </div>
           )}

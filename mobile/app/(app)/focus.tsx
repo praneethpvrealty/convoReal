@@ -19,6 +19,11 @@ import { retryAnalyticsRequest } from '@/lib/analytics-request';
 import {
   deadlineLabel,
   fetchFocus,
+  groupDeadlinesByDeal,
+  isStaleRequest,
+  requestBadge,
+  summarizeDeadlines,
+  summarizeRequests,
   type FocusJourney,
   type FocusRequest,
   type FocusRequestKind,
@@ -58,12 +63,6 @@ const REQUEST_ICON: Record<
   inquiry: 'chatbubble-ellipses-outline',
   match: 'radio-outline',
 };
-
-const URGENCY_LABEL = {
-  now: 'Now',
-  soon: 'Soon',
-  later: 'When you can',
-} as const;
 
 function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString([], {
@@ -116,9 +115,13 @@ export default function FocusScreen() {
   const statWidth = width < 500 ? '47%' : '30%';
 
   const tasks = focus.data?.tasks;
-  const deadlines = focus.data?.deadlines;
+  const deadlineGroups = groupDeadlinesByDeal(
+    focus.data?.deadlines.items ?? []
+  );
+  const deadlines = summarizeDeadlines(deadlineGroups);
   const journeys = focus.data?.journeys.top ?? [];
   const requests = focus.data?.requests.top ?? [];
+  const requestSummary = summarizeRequests(focus.data?.requests.all ?? []);
 
   function openJourney(journey: FocusJourney) {
     if (journey.mode === 'buyer') {
@@ -197,21 +200,21 @@ export default function FocusScreen() {
 
             <SectionLabel
               text={
-                deadlines?.total
+                deadlines.total
                   ? `Deal deadlines · ${deadlines.total}${deadlines.overdue > 0 ? ` · ${deadlines.overdue} overdue` : ''}`
                   : 'Deal deadlines'
               }
               style={{ marginTop: spacing.sm }}
             />
-            {(deadlines?.items ?? []).length === 0 ? (
+            {deadlineGroups.length === 0 ? (
               <QuietLine text="No deal date is due in the next two weeks." />
             ) : (
-              (deadlines?.items ?? []).map((d) => (
+              deadlineGroups.map((d) => (
                 <Row
-                  key={`${d.dealId}:${d.milestoneId ?? d.kind}`}
+                  key={d.dealId}
                   icon="calendar-outline"
-                  title={d.title}
-                  subtitle={`${deadlineLabel(d.daysLeft)} · ${d.subject}`}
+                  title={d.subject}
+                  subtitle={`${d.titles.join(' · ')} · ${deadlineLabel(d.daysLeft)}`}
                   subtitleColor={
                     d.urgency === 'overdue'
                       ? colors.danger
@@ -248,28 +251,44 @@ export default function FocusScreen() {
             )}
 
             <SectionLabel
-              text="Requests to act on"
+              text={
+                requestSummary.total
+                  ? `Requests to act on · ${requestSummary.now}`
+                  : 'Requests to act on'
+              }
               style={{ marginTop: spacing.sm }}
             />
+            {requestSummary.total > 0 ? (
+              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+                {requestSummary.summary}
+              </Text>
+            ) : null}
             {requests.length === 0 ? (
               <QuietLine text="Nobody is waiting on you." />
             ) : (
-              requests.map((request) => (
-                <Row
-                  key={request.id}
-                  icon={REQUEST_ICON[request.kind]}
-                  title={request.title}
-                  subtitle={`${URGENCY_LABEL[request.urgency]} · ${waitedLabel(request.ageHours)}`}
-                  subtitleColor={
-                    request.urgency === 'now'
-                      ? colors.danger
-                      : request.urgency === 'soon'
-                        ? colors.warning
-                        : colors.textMuted
-                  }
-                  onPress={() => openRequest(request)}
-                />
-              ))
+              requests.map((request) => {
+                const badge = requestBadge(request);
+                return (
+                  <Row
+                    key={request.id}
+                    icon={REQUEST_ICON[request.kind]}
+                    title={request.title}
+                    subtitle={
+                      isStaleRequest(request)
+                        ? waitedLabel(request.ageHours)
+                        : `${badge.label} · ${waitedLabel(request.ageHours)}`
+                    }
+                    subtitleColor={
+                      badge.urgency === 'now'
+                        ? colors.danger
+                        : badge.urgency === 'soon'
+                          ? colors.warning
+                          : colors.textMuted
+                    }
+                    onPress={() => openRequest(request)}
+                  />
+                );
+              })
             )}
 
             <SectionLabel

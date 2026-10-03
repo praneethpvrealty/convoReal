@@ -6,10 +6,10 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
 import { Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { formatDate } from '@/lib/format/date';
 import { loadReengagementBatches } from '@/lib/reengagement/queries';
 import { ReengagementOutcome } from '@/components/reengagement/reengagement-outcome';
 
@@ -44,14 +44,13 @@ export default function ReengagementContent() {
             <select
               value={broadcastId ?? ''}
               onChange={(e) => setBroadcastId(e.target.value || null)}
-              className="focus:border-primary/50 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 focus:outline-none"
+              className="focus:border-primary/50 ml-auto w-auto max-w-[18rem] rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 focus:outline-none"
             >
               <option value="">All batches ({batches.length})</option>
               {batches.map((b) => (
                 <option key={b.broadcastId} value={b.broadcastId}>
-                  {b.name || 'Untitled batch'} ·{' '}
-                  {format(new Date(b.sentAt), 'd MMM')} · {b.totalRecipients}{' '}
-                  leads
+                  {b.name || 'Untitled batch'} · {formatDate(b.sentAt)} ·{' '}
+                  {b.totalRecipients} leads
                 </option>
               ))}
             </select>
