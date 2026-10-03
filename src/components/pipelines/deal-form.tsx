@@ -54,6 +54,7 @@ import {
   type LostReason,
   type LostReasonInput,
 } from '@/lib/pipelines/lost-reasons';
+import { formatCurrency } from '@/lib/format/currency';
 
 interface DealFormProps {
   open: boolean;
@@ -440,21 +441,7 @@ export function DealForm({
       value: brokerageValue,
     });
 
-    if (currency === 'INR') {
-      if (amt >= 10000000) {
-        const cr = amt / 10000000;
-        return `₹${cr.toFixed(2).replace(/\.00$/, '')} Crore`;
-      }
-      if (amt >= 100000) {
-        const lakhs = amt / 100000;
-        return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
-      }
-      return new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR',
-        maximumFractionDigits: 0,
-      }).format(amt);
-    }
+    if (currency === 'INR') return formatCurrency(amt);
     const symbols: Record<string, string> = {
       USD: '$',
       EUR: '€',

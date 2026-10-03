@@ -51,6 +51,7 @@ import { loadBatchSplit, type BatchSplit } from '@/lib/reengagement/queries';
 import { canSendToEveryLead } from '@/lib/reengagement/template-gate';
 import { useAuth } from '@/hooks/use-auth';
 import { BRANDING } from '@/config/branding';
+import { formatInrCompact } from '@/lib/format/currency';
 
 interface ReengageWizardProps {
   open: boolean;
@@ -753,7 +754,7 @@ export function ReengageWizard({
                       {preview.map((row, i) => {
                         const budgetLabel =
                           row.min_budget || row.max_budget
-                            ? `${row.min_budget ? `₹${(row.min_budget / 100000).toFixed(0)}L` : '0'} - ${row.max_budget ? `₹${(row.max_budget / 100000).toFixed(0)}L` : 'Any'}`
+                            ? `${row.min_budget ? formatInrCompact(row.min_budget) : '0'} - ${row.max_budget ? formatInrCompact(row.max_budget) : 'Any'}`
                             : '-';
                         return (
                           <tr key={i} className="border-t border-slate-700/50">

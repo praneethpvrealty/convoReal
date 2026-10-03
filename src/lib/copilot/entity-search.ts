@@ -8,6 +8,7 @@ import {
   type EntityReference,
   type EntitySuggestion,
 } from './entities';
+import { formatInrCompact } from '@/lib/format/currency';
 
 const SEARCH_CANDIDATE_LIMIT = 30;
 const RESULT_LIMIT = 8;
@@ -74,13 +75,7 @@ function joinParts(parts: Array<string | null | undefined>): string {
 function formatPrice(value: number | string | null): string | null {
   const price = typeof value === 'string' ? Number(value) : value;
   if (!price || !Number.isFinite(price)) return null;
-  if (price >= 10_000_000) return `₹${(price / 10_000_000).toFixed(2)} Cr`;
-  if (price >= 100_000) return `₹${(price / 100_000).toFixed(1)} L`;
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(price);
+  return formatInrCompact(price);
 }
 
 function formatEventTime(value: string): string {

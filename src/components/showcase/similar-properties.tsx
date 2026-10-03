@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, MapPin, Sparkles } from 'lucide-react';
 import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 import type { Property } from '@/types';
+import { formatInrCompact } from '@/lib/format/currency';
 
 interface SimilarPropertiesProps {
   accountId: string;
@@ -18,21 +19,13 @@ interface ScoredProperty extends Property {
   _match_reasons?: string[];
 }
 
-function inr(n: number): string {
-  if (n >= 10000000)
-    return `₹${(n / 10000000).toFixed(n % 10000000 === 0 ? 0 : 2)} Cr`;
-  if (n >= 100000)
-    return `₹${(n / 100000).toFixed(n % 100000 === 0 ? 0 : 2)} L`;
-  return `₹${n.toLocaleString('en-IN')}`;
-}
-
 function priceLabel(p: Property): string {
   if (p.listing_type === 'Rent') {
     return p.rent_per_month
-      ? `${inr(p.rent_per_month)}/mo`
+      ? `${formatInrCompact(p.rent_per_month)}/mo`
       : 'Price on request';
   }
-  return p.price ? inr(p.price) : 'Price on request';
+  return p.price ? formatInrCompact(p.price) : 'Price on request';
 }
 
 /** Human-readable match pill based on the scoring reasons from the API */

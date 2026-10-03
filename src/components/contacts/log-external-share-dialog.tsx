@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Share2, Smartphone, ExternalLink } from 'lucide-react';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
+import { formatCurrency, formatInrCompact } from '@/lib/format/currency';
 
 interface LogExternalShareDialogProps {
   open: boolean;
@@ -80,19 +81,7 @@ export function LogExternalShareDialog({
     const amount = Number(selectedProperty.price);
     let price = 'Price on request';
     if (!isNaN(amount) && amount > 0) {
-      if (amount >= 10000000) {
-        const cr = amount / 10000000;
-        price = `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-      } else if (amount >= 100000) {
-        const lakhs = amount / 100000;
-        price = `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
-      } else {
-        price = new Intl.NumberFormat('en-IN', {
-          style: 'currency',
-          currency: 'INR',
-          maximumFractionDigits: 0,
-        }).format(amount);
-      }
+      price = formatCurrency(amount);
     }
 
     const location =
@@ -320,7 +309,7 @@ export function LogExternalShareDialog({
                       {selectedProperty.sublocality ||
                         selectedProperty.location}
                       {selectedProperty.price
-                        ? ` · ₹${Number(selectedProperty.price) >= 10000000 ? `${(Number(selectedProperty.price) / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` : Number(selectedProperty.price) >= 100000 ? `${(Number(selectedProperty.price) / 100000).toFixed(2).replace(/\.00$/, '')} L` : Number(selectedProperty.price).toLocaleString('en-IN')}`
+                        ? ` · ${formatInrCompact(Number(selectedProperty.price))}`
                         : ''}
                     </p>
                   )}

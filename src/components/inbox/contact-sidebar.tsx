@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { contactHandle } from '@/lib/contacts/reachability';
+import { formatCurrency } from '@/lib/format/currency';
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -376,27 +377,10 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                     </p>
                     <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
                       <span>
-                        {(() => {
-                          const activeCurrency = deal.currency || currency;
-                          if (activeCurrency === 'INR') {
-                            const val = Number(deal.value || 0);
-                            if (val >= 10000000) {
-                              return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-                            } else if (val >= 100000) {
-                              return `₹${(val / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
-                            }
-                            return new Intl.NumberFormat('en-IN', {
-                              style: 'currency',
-                              currency: 'INR',
-                              maximumFractionDigits: 0,
-                            }).format(val);
-                          }
-                          return new Intl.NumberFormat('en-US', {
-                            style: 'currency',
-                            currency: activeCurrency,
-                            maximumFractionDigits: 0,
-                          }).format(Number(deal.value || 0));
-                        })()}
+                        {formatCurrency(
+                          Number(deal.value || 0),
+                          deal.currency || currency
+                        )}
                       </span>
                       {deal.stage && (
                         <span

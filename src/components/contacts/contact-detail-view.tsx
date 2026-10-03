@@ -153,6 +153,7 @@ import { PortfolioInviteDialog } from '@/components/contacts/portfolio-invite-di
 import { SellerPageDialog } from '@/components/contacts/seller-page-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
+import { formatCurrency } from '@/lib/format/currency';
 
 interface ContactDetailViewProps {
   open: boolean;
@@ -2528,11 +2529,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                 </p>
                                 <div className="mt-1.5 flex items-center gap-2 border-t border-slate-800 pt-1.5">
                                   <span className="text-primary text-xs font-bold">
-                                    {prop.price >= 10000000
-                                      ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
-                                      : prop.price >= 100000
-                                        ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
-                                        : `₹${prop.price.toLocaleString('en-IN')}`}
+                                    {formatCurrency(prop.price)}
                                   </span>
                                   <span className="rounded border border-slate-700 bg-slate-800 px-1 py-0 text-[9px] text-slate-300 uppercase">
                                     {prop.status}
@@ -3213,11 +3210,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                       </p>
                                       <div className="mt-1.5 flex items-center gap-2">
                                         <span className="text-primary text-[10px] font-bold">
-                                          {prop.price >= 10000000
-                                            ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
-                                            : prop.price >= 100000
-                                              ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
-                                              : `₹${prop.price.toLocaleString('en-IN')}`}
+                                          {formatCurrency(prop.price)}
                                         </span>
                                         <span className="py-0.2 rounded border border-slate-700 bg-slate-800 px-1.5 text-[9px] font-semibold text-slate-300 uppercase">
                                           {prop.status}
@@ -3323,11 +3316,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                         <div className="mt-1.5 flex items-center justify-between gap-2">
                                           <div className="flex items-center gap-2">
                                             <span className="text-primary text-[10px] font-bold">
-                                              {prop.price >= 10000000
-                                                ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
-                                                : prop.price >= 100000
-                                                  ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
-                                                  : `₹${prop.price.toLocaleString('en-IN')}`}
+                                              {formatCurrency(prop.price)}
                                             </span>
                                             <span className="py-0.2 text-slate-350 rounded border border-slate-700 bg-slate-800 px-1.5 text-[9px] font-semibold uppercase">
                                               {prop.status}
@@ -3437,11 +3426,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                     </p>
                                     <div className="mt-1.5 flex items-center gap-2">
                                       <span className="text-primary text-[10px] font-bold">
-                                        {prop.price >= 10000000
-                                          ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
-                                          : prop.price >= 100000
-                                            ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
-                                            : `₹${prop.price.toLocaleString('en-IN')}`}
+                                        {formatCurrency(prop.price)}
                                       </span>
                                       <span className="py-0.2 rounded border border-slate-700 bg-slate-800 px-1.5 text-[9px] font-semibold text-slate-300 uppercase">
                                         {prop.status}

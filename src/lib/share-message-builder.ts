@@ -19,6 +19,7 @@ import {
   priceBand,
   teaserTitle,
 } from '@/lib/inventory/showcase-visibility';
+import { formatCurrency } from '@/lib/format/currency';
 
 export type ShareAudience = 'client' | 'agent';
 export type ShareDetailLevel = 'quick' | 'standard' | 'complete';
@@ -82,22 +83,7 @@ export function formatShareAmount(
 ): string {
   const n = Number(amount);
   if (!n || isNaN(n) || n <= 0) return '';
-  if (currency === 'INR') {
-    if (n >= 10000000)
-      return `₹${(n / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-    if (n >= 100000)
-      return `₹${(n / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(n);
-  }
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(n);
+  return formatCurrency(n, currency);
 }
 
 function priceLine(property: Property, currency: string): string {

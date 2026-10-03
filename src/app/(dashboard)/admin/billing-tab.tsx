@@ -13,6 +13,7 @@ import type {
   RecentSubscriptionEvent,
 } from '@/lib/billing/analytics';
 import type { Plan } from '@/lib/billing/types';
+import { formatInrPlain } from '@/lib/format/currency';
 
 interface BillingAnalyticsResponse {
   summary: BillingSummary;
@@ -38,10 +39,6 @@ const EVENT_BADGE_CLASSES: Record<string, string> = {
   payment_failed: 'bg-red-500/10 text-red-400',
   trial_started: 'bg-cyan-500/10 text-cyan-400',
 };
-
-function formatINR(amount: number) {
-  return `₹${Math.round(amount).toLocaleString('en-IN')}`;
-}
 
 function monthLabel(month: string) {
   return format(new Date(`${month}-01T00:00:00`), 'MMM yy');
@@ -106,7 +103,7 @@ export default function BillingTab() {
   const tiles = [
     {
       title: 'MRR',
-      value: formatINR(summary.mrr),
+      value: formatInrPlain(summary.mrr),
       sub: 'Normalized to monthly',
       icon: TrendingUp,
     },
@@ -124,7 +121,7 @@ export default function BillingTab() {
     },
     {
       title: 'Revenue This Month',
-      value: formatINR(revenueThisMonth),
+      value: formatInrPlain(revenueThisMonth),
       sub: 'Subscriptions + credit top-ups',
       icon: Banknote,
     },
@@ -163,7 +160,7 @@ export default function BillingTab() {
             categories={['Subscriptions', 'Top-ups']}
             colors={['violet', 'cyan']}
             type="stacked"
-            valueFormatter={(value) => formatINR(value)}
+            valueFormatter={(value) => formatInrPlain(value)}
             className="h-[260px]"
           />
         </div>
@@ -216,7 +213,7 @@ export default function BillingTab() {
                     </span>
                     <span className="text-slate-400">
                       {count.toLocaleString()} accounts ·{' '}
-                      {formatINR(summary.mrrByPlan[plan])} MRR
+                      {formatInrPlain(summary.mrrByPlan[plan])} MRR
                     </span>
                   </div>
                   <div className="h-2 rounded-full bg-slate-800">

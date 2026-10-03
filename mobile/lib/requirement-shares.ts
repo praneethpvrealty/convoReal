@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api';
+import { formatInrCompact } from '@shared/lib/format/currency';
 
 export type RequirementShareBox = 'received' | 'sent';
 export type RequirementShareStatus =
@@ -85,13 +86,7 @@ export async function declineRequirementShare(id: string): Promise<void> {
 
 function money(value: number | null): string | null {
   if (!value) return null;
-  if (value >= 10_000_000) {
-    return `₹${(value / 10_000_000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  }
-  if (value >= 100_000) {
-    return `₹${(value / 100_000).toFixed(2).replace(/\.00$/, '')} L`;
-  }
-  return `₹${Math.round(value).toLocaleString('en-IN')}`;
+  return formatInrCompact(value);
 }
 
 export function requirementBudget(brief: RequirementBrief): string {
