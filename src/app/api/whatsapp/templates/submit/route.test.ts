@@ -165,6 +165,43 @@ describe('POST /api/whatsapp/templates/submit', () => {
     ).toEqual(['meta_template_id', 'is', null]);
   });
 
+  it('refuses to fetch a header sample from a private or non-https link', async () => {
+    const { uploadSampleMedia } = await import('@/lib/whatsapp/meta-api');
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    try {
+      for (const header_media_url of [
+        'http://169.254.169.254/latest/meta-data/',
+        'https://10.0.0.8/sample.png',
+        'http://cdn.example.com/sample.png',
+      ]) {
+        queues['message_templates'] = [
+          { data: [] },
+          REVIEWED,
+          { data: null },
+          { data: { id: 'row-x', category: 'Utility' } },
+        ];
+        queues['whatsapp_config'] = [CONFIG];
+        const payload = {
+          ...buildNumberChangeTemplatePayload('kn'),
+          header_type: 'image',
+          header_media_url,
+        };
+
+        const res = await POST(makeRequest(payload));
+        const body = await res.json();
+
+        expect(res.status).toBe(502);
+        expect(body.error).toMatch(/private|https/);
+      }
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(uploadSampleMedia).not.toHaveBeenCalled();
+      expect(submitMessageTemplate).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('[CLG-003] keeps the requested category when no language of the name has reached Meta', async () => {
     queues['message_templates'] = [
       { data: [] },

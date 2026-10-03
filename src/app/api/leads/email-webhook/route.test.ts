@@ -104,6 +104,10 @@ vi.mock('@/lib/supabase/admin', () => {
   };
 });
 
+vi.mock('node:dns/promises', () => ({
+  lookup: vi.fn().mockResolvedValue([{ address: '203.0.113.10', family: 4 }]),
+}));
+
 vi.mock('./auto-reply', () => ({
   sendAutoReply: vi
     .fn()
@@ -364,6 +368,31 @@ describe('Email Webhook Lead Parsing', () => {
         'https://housing.com/leads/whatsapp?lead_id=12345'
       );
       expect(res).toBe('919900112233');
+    });
+
+    it('refuses a redirect into the network instead of following it', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        status: 302,
+        headers: new Headers({
+          location: 'http://169.254.169.254/latest/meta-data/',
+        }),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      const res = await resolvePhoneNumberFromUrl(
+        'https://housing.com/leads/whatsapp?lead_id=12345'
+      );
+      expect(res).toBeNull();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('never fetches a private or local link from an email', async () => {
+      const mockFetch = vi.fn();
+      vi.stubGlobal('fetch', mockFetch);
+
+      expect(await resolvePhoneNumberFromUrl('http://localhost/rd')).toBeNull();
+      expect(await resolvePhoneNumberFromUrl('http://10.0.0.8/rd')).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 

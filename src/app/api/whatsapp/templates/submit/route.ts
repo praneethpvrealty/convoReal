@@ -6,6 +6,7 @@ import {
   type AccountContext,
 } from '@/lib/auth/account';
 import { decrypt } from '@/lib/whatsapp/encryption';
+import { fetchPublicUrl, readPublicBody } from '@/lib/http/public-url';
 import {
   findMessageTemplate,
   submitMessageTemplate,
@@ -128,6 +129,9 @@ async function upsertTemplateRow(
  * an earlier submission got through and the local row never learnt
  * of it (a retry racing the first request, or a save that failed).
  */
+const SAMPLE_MAX_BYTES = 16 * 1024 * 1024;
+const SAMPLE_FETCH_TIMEOUT_MS = 30_000;
+
 const LANGUAGE_EXISTS_RE =
   /already exists|already .*content for this template|content in this language already exists/i;
 
@@ -360,7 +364,10 @@ export async function POST(request: Request) {
           !payload.header_handle &&
           payload.header_media_url
         ) {
-          const sample = await fetch(payload.header_media_url);
+          const { response: sample } = await fetchPublicUrl(
+            payload.header_media_url,
+            { httpsOnly: true, timeoutMs: SAMPLE_FETCH_TIMEOUT_MS }
+          );
           if (!sample.ok) {
             throw new Error(
               `Could not fetch the header sample (HTTP ${sample.status}) from ${payload.header_media_url}`
@@ -368,9 +375,13 @@ export async function POST(request: Request) {
           }
           const fileType =
             sample.headers.get('content-type')?.split(';')[0] || 'image/png';
+          const data = await readPublicBody(sample, SAMPLE_MAX_BYTES);
           payload.header_handle = await uploadSampleMedia({
             accessToken,
-            data: await sample.arrayBuffer(),
+            data: data.buffer.slice(
+              data.byteOffset,
+              data.byteOffset + data.byteLength
+            ) as ArrayBuffer,
             fileType,
           });
         }

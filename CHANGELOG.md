@@ -19,6 +19,13 @@ than a written entry. Newest first.
 
 #### 3 October 2026
 
+- **Links the server fetches on your behalf are checked first.** The
+  portal lead email parser follows a lead's WhatsApp or call link to find
+  the phone number, and a template submission fetches the header sample
+  from its URL. Both now refuse private, loopback, link-local and
+  cloud-metadata addresses, re-check every redirect hop, time out, and
+  cap what they read; the sample must be an https link. Shared guard in
+  `src/lib/http/public-url.ts`.
 - **The dashboard no longer hides its own rows or reloads itself on
   every tab.** The AI Assistant button shrinks to an icon once you scroll
   and the Help pill is an icon, so the last rows of Re-engagement,

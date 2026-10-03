@@ -1,3 +1,12 @@
+import {
+  assertPublicUrl,
+  readPublicBody,
+  UnsafeUrlError,
+} from '@/lib/http/public-url';
+
+const PAGE_MAX_BYTES = 512 * 1024;
+const FETCH_TIMEOUT_MS = 15_000;
+
 // Helper to follow redirect headers (manual mode) to extract phone number
 export async function resolvePhoneNumberFromUrl(
   url: string,
@@ -20,9 +29,11 @@ export async function resolvePhoneNumberFromUrl(
       return phone;
     }
 
-    const response = await fetch(cleanUrl, {
+    const target = await assertPublicUrl(cleanUrl);
+    const response = await fetch(target.href, {
       method: 'GET',
       redirect: 'manual', // Stop redirecting automatically so we can read headers
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -47,7 +58,9 @@ export async function resolvePhoneNumberFromUrl(
     }
 
     // Fallback: search within page body if it returned 200 instead of a redirect
-    const body = await response.text();
+    const body = new TextDecoder().decode(
+      await readPublicBody(response, PAGE_MAX_BYTES)
+    );
     const bodyPhoneMatch =
       body.match(/(?:tel:|phone=|wa\.me\/|send\?phone=)(\+?\d{10,15})/i) ||
       body.match(/(?:phone|phone_number)=([+%]2?B?\d{10,15})/i);
@@ -58,6 +71,12 @@ export async function resolvePhoneNumberFromUrl(
       return phone;
     }
   } catch (err) {
+    if (err instanceof UnsafeUrlError) {
+      console.warn(
+        `[resolvePhoneNumberFromUrl] Refused URL at depth ${depth}: ${err.message}`
+      );
+      return null;
+    }
     console.error(
       `[resolvePhoneNumberFromUrl] Error at depth ${depth} for URL ${url}:`,
       err
