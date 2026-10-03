@@ -433,7 +433,9 @@ describe('property shortlist sharing remains available on both surfaces', () => 
   it('[PRP-012] previews the listing template and lets the agent lead with a saved photo on both surfaces', () => {
     const mobile = mobileSource('components/property-share-sheet.tsx');
     const mobileActions = mobileSource('lib/property-share-actions.ts');
-    const webForm = webSource('components/inventory/property-form.tsx');
+    const webMatchesTab = webSource(
+      'components/inventory/property-matches-tab.tsx'
+    );
     const shareRoute = webSource('app/api/whatsapp/share-property/route.ts');
     const previewRoute = webSource(
       'app/api/whatsapp/share-property/preview/route.ts'
@@ -443,11 +445,11 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(mobile).toContain('previewImages.includes(headerImage)');
     expect(mobileActions).toContain('/api/whatsapp/share-property/preview?');
     expect(mobileActions).toContain('header_image: headerImage');
-    expect(webForm).toContain('/api/whatsapp/share-property/preview?');
-    expect(webForm).toContain('? headerImageOptions.length > 0');
+    expect(webMatchesTab).toContain('/api/whatsapp/share-property/preview?');
+    expect(webMatchesTab).toContain('? headerImageOptions.length > 0');
     expect(mobile).toContain('const showPhotos = preview.images.length > 0;');
-    expect(webForm).toContain('header_image: selectedBroadcastImage');
-    expect(webForm).toContain(
+    expect(webMatchesTab).toContain('header_image: selectedBroadcastImage');
+    expect(webMatchesTab).toContain(
       'engineShare ? (property?.images ?? []) : images'
     );
     expect(shareRoute).toContain(
@@ -2494,32 +2496,33 @@ describe('the mobile deals screen uses the shared brokerage rule', () => {
 });
 
 describe('[PRP-007] property enquiries remain actionable on web and mobile', () => {
-  const web = readFileSync(
-    join(process.cwd(), 'src/components/inventory/property-form.tsx'),
-    'utf8'
+  const webForm = webSource('components/inventory/property-form.tsx');
+  const webEnquiriesTab = webSource(
+    'components/inventory/property-enquiries-tab.tsx'
   );
   const mobile = mobileSource('app/(app)/property/[id].tsx');
 
   it('shows explicit enquiries separately from preference matches', () => {
-    for (const source of [web, mobile]) {
+    for (const source of [webForm, mobile]) {
       expect(source).toContain('Enquired Contacts');
       expect(source).toContain('enquiredAudienceContacts');
       expect(source).toContain('Matching Contacts');
     }
+    expect(webForm).toContain('<PropertyEnquiriesTab');
   });
 
   it('keeps contact, call, message and follow-up actions on both surfaces', () => {
     for (const label of ['View contact', 'Call', 'Message', 'Follow up']) {
-      expect(web, `web lacks ${label}`).toContain(label);
+      expect(webEnquiriesTab, `web lacks ${label}`).toContain(label);
       expect(mobile, `mobile lacks ${label}`).toContain(label);
     }
     expect(mobile).toContain('eventType=follow_up');
-    expect(web).toContain('ScheduleDialog');
+    expect(webEnquiriesTab).toContain('ScheduleDialog');
     expect(mobile).toContain('dialableAudiencePhone');
-    expect(web).toContain('dialableAudiencePhone');
+    expect(webEnquiriesTab).toContain('dialableAudiencePhone');
     expect(mobile).toContain('onLongPress');
     expect(mobile).toContain('PropertyInterestFollowUpSheet');
-    expect(web).toContain('PropertyInterestFollowUpDialog');
+    expect(webEnquiriesTab).toContain('PropertyInterestFollowUpDialog');
   });
 });
 
