@@ -126,7 +126,7 @@ import { projectOptions } from '@/lib/contacts/contact-interest';
 import { useT } from '@/hooks/use-locale';
 import { localCache } from '@/lib/cache-store';
 import { formatAuditDateTime } from '@/lib/audit-timestamps';
-import { splitChips, TABLE_CHIP_CAP } from '@/lib/contacts/chip-overflow';
+import { splitChips, splitTagChips } from '@/lib/contacts/chip-overflow';
 import { formatInrCompact } from '@/lib/format/currency';
 
 const PAGE_SIZE = 25;
@@ -2699,254 +2699,254 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               </TableRow>
             </TableHeader>
             <TableBody>
-              {contacts.map((contact) => (
-                <TableRow
-                  key={contact.id}
-                  className="cursor-pointer border-slate-800 hover:bg-slate-900/50"
-                  onClick={() => openDetail(contact.id)}
-                >
-                  <TableCell className="py-3 font-medium text-white">
-                    <div className="flex flex-col gap-1">
-                      <div
-                        className="flex items-center gap-1.5 whitespace-nowrap"
-                        title={`Added ${formatAuditDateTime(contact.created_at)} · Modified ${formatAuditDateTime(contact.updated_at)}`}
-                      >
-                        <span className="hover:text-primary transition-colors">
-                          {contactFullName(contact) || (
-                            <span className="text-xs text-slate-500 italic">
-                              Unnamed
+              {contacts.map((contact) => {
+                const tagChips = splitTagChips(contact.tags ?? []);
+                return (
+                  <TableRow
+                    key={contact.id}
+                    className="cursor-pointer border-slate-800 hover:bg-slate-900/50"
+                    onClick={() => openDetail(contact.id)}
+                  >
+                    <TableCell className="py-3 font-medium text-white">
+                      <div className="flex flex-col gap-1">
+                        <div
+                          className="flex items-center gap-1.5 whitespace-nowrap"
+                          title={`Added ${formatAuditDateTime(contact.created_at)} · Modified ${formatAuditDateTime(contact.updated_at)}`}
+                        >
+                          <span className="hover:text-primary transition-colors">
+                            {contactFullName(contact) || (
+                              <span className="text-xs text-slate-500 italic">
+                                Unnamed
+                              </span>
+                            )}
+                          </span>
+                          {contact.name_tag && (
+                            <span
+                              className="inline-flex items-center rounded border border-slate-600/50 bg-slate-700/40 px-1.5 py-0.5 text-[11px] font-medium text-slate-300 select-none"
+                              title="Name Tag — internal label, not sent in messages"
+                            >
+                              {contact.name_tag}
                             </span>
                           )}
-                        </span>
-                        {contact.name_tag && (
-                          <span
-                            className="inline-flex items-center rounded border border-slate-600/50 bg-slate-700/40 px-1.5 py-0.5 text-[11px] font-medium text-slate-300 select-none"
-                            title="Name Tag — internal label, not sent in messages"
-                          >
-                            {contact.name_tag}
-                          </span>
-                        )}
-                        {contact.tags?.some(
-                          (t) => t.name.toUpperCase() === 'VIP'
-                        ) && (
-                          <span className="inline-flex items-center gap-0.5 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-bold tracking-wider text-amber-400 uppercase select-none">
-                            ⭐ VIP
-                          </span>
-                        )}
-                        {renderLeadTempBadge(contact.lead_temp)}
+                          {contact.tags?.some(
+                            (t) => t.name.toUpperCase() === 'VIP'
+                          ) && (
+                            <span className="inline-flex items-center gap-0.5 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-bold tracking-wider text-amber-400 uppercase select-none">
+                              ⭐ VIP
+                            </span>
+                          )}
+                          {renderLeadTempBadge(contact.lead_temp)}
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-3">
-                    {renderClassificationBadge(contact.classification)}
-                  </TableCell>
-                  <TableCell
-                    className="py-3 font-mono text-xs text-slate-300"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex items-center gap-2">
-                      <a
-                        href={`tel:${contact.phone}`}
-                        className="hover:text-primary hover:underline"
-                        title="Call number"
-                        onClick={() =>
-                          setPendingDial({
-                            contactId: contact.id,
-                            name: contact.name,
-                            phone: contact.phone ?? '',
-                            dialedAt: new Date().toISOString(),
-                          })
-                        }
-                      >
-                        {contact.phone}
-                      </a>
-                      <button
-                        onClick={(e) => handleWhatsAppClick(e, contact)}
-                        className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border border-emerald-500/20 text-emerald-500 transition-all hover:bg-emerald-500/10 hover:text-emerald-400"
-                        title="Chat on WhatsApp"
-                      >
-                        <MessageSquare className="size-3.5 fill-current" />
-                      </button>
-                      <button
-                        onClick={(e) =>
-                          handlePrefilledWhatsAppClick(e, contact)
-                        }
-                        className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border border-slate-700 text-slate-400 transition-all hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-400"
-                        title="Send pre-filled welcome message on WhatsApp"
-                      >
-                        <MessageSquarePlus className="size-3.5" />
-                      </button>
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex items-center gap-1 whitespace-nowrap">
-                      {contact.tags && contact.tags.length > 0 ? (
-                        contact.tags.slice(0, TABLE_CHIP_CAP).map((tag) => (
-                          <span
-                            key={tag.id}
-                            title={tag.name}
-                            className="inline-flex max-w-[120px] items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
-                            style={{
-                              backgroundColor: tag.color + '20',
-                              color: tag.color,
-                            }}
-                          >
-                            <span className="truncate">{tag.name}</span>
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-slate-600">-</span>
-                      )}
-                      {contact.tags && contact.tags.length > TABLE_CHIP_CAP && (
-                        <span
-                          className="text-[11px] text-slate-500"
-                          title={contact.tags
-                            .slice(TABLE_CHIP_CAP)
-                            .map((t) => t.name)
-                            .join(', ')}
-                        >
-                          +{contact.tags.length - TABLE_CHIP_CAP}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-3 text-xs text-slate-400">
-                    {contact.last_contacted_at ? (
-                      new Date(contact.last_contacted_at).toLocaleString(
-                        'en-US',
-                        {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true,
-                        }
-                      )
-                    ) : (
-                      <span className="text-slate-600">Never</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="py-3 text-xs text-slate-400">
-                    {renderPreferenceChips(effectiveAreas(contact))}
-                  </TableCell>
-                  <TableCell className="py-3 text-xs text-slate-400">
-                    {renderPreferenceChips(effectiveCategories(contact))}
-                  </TableCell>
-                  <TableCell className="py-3 text-xs font-medium text-slate-300">
-                    {formatBudget(contact)}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        disabled={favoritingId === contact.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleFavorite(contact);
-                        }}
-                        className={
-                          contact.is_favorite
-                            ? 'text-amber-400 hover:text-amber-300'
-                            : 'text-slate-400 hover:text-amber-400'
-                        }
-                        title={
-                          contact.is_favorite
-                            ? 'Remove from Favourites'
-                            : 'Add to Favourites'
-                        }
-                      >
-                        <Star
-                          className={`size-4 ${contact.is_favorite ? 'fill-amber-400' : ''}`}
-                        />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditForm(contact);
-                        }}
-                        className="text-slate-400 hover:text-blue-400"
-                        title="Edit Contact"
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          aria-label={`More actions for ${contactFullName(contact) || contact.phone || 'contact'}`}
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="text-slate-400 hover:text-white"
-                              onClick={(e) => e.stopPropagation()}
-                            />
+                    </TableCell>
+                    <TableCell className="py-3">
+                      {renderClassificationBadge(contact.classification)}
+                    </TableCell>
+                    <TableCell
+                      className="py-3 font-mono text-xs text-slate-300"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`tel:${contact.phone}`}
+                          className="hover:text-primary hover:underline"
+                          title="Call number"
+                          onClick={() =>
+                            setPendingDial({
+                              contactId: contact.id,
+                              name: contact.name,
+                              phone: contact.phone ?? '',
+                              dialedAt: new Date().toISOString(),
+                            })
                           }
                         >
-                          <MoreHorizontal className="size-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          className="border-slate-700 bg-slate-900"
+                          {contact.phone}
+                        </a>
+                        <button
+                          onClick={(e) => handleWhatsAppClick(e, contact)}
+                          className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border border-emerald-500/20 text-emerald-500 transition-all hover:bg-emerald-500/10 hover:text-emerald-400"
+                          title="Chat on WhatsApp"
                         >
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setScheduleContactId(contact.id);
-                              setScheduleOpen(true);
-                            }}
-                            className="text-slate-300 focus:bg-slate-800 focus:text-white"
+                          <MessageSquare className="size-3.5 fill-current" />
+                        </button>
+                        <button
+                          onClick={(e) =>
+                            handlePrefilledWhatsAppClick(e, contact)
+                          }
+                          className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border border-slate-700 text-slate-400 transition-all hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-400"
+                          title="Send pre-filled welcome message on WhatsApp"
+                        >
+                          <MessageSquarePlus className="size-3.5" />
+                        </button>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-3">
+                      <div className="flex items-center gap-1 whitespace-nowrap">
+                        {tagChips.visible.length > 0 ? (
+                          tagChips.visible.map((tag) => (
+                            <span
+                              key={tag.id}
+                              title={tag.name}
+                              className="inline-flex max-w-[120px] items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                              style={{
+                                backgroundColor: tag.color + '20',
+                                color: tag.color,
+                              }}
+                            >
+                              <span className="truncate">{tag.name}</span>
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-600">-</span>
+                        )}
+                        {tagChips.hidden.length > 0 && (
+                          <span
+                            className="text-[11px] text-slate-500"
+                            title={tagChips.hiddenTitle}
                           >
-                            <CalendarDays className="size-4" />
-                            Schedule
-                          </DropdownMenuItem>
-                          {contact.phone &&
-                            !['Buyer', 'Owner & Buyer'].includes(
+                            +{tagChips.hidden.length}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-3 text-xs text-slate-400">
+                      {contact.last_contacted_at ? (
+                        new Date(contact.last_contacted_at).toLocaleString(
+                          'en-US',
+                          {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                          }
+                        )
+                      ) : (
+                        <span className="text-slate-600">Never</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-3 text-xs text-slate-400">
+                      {renderPreferenceChips(effectiveAreas(contact))}
+                    </TableCell>
+                    <TableCell className="py-3 text-xs text-slate-400">
+                      {renderPreferenceChips(effectiveCategories(contact))}
+                    </TableCell>
+                    <TableCell className="py-3 text-xs font-medium text-slate-300">
+                      {formatBudget(contact)}
+                    </TableCell>
+                    <TableCell className="py-3">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={favoritingId === contact.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleFavorite(contact);
+                          }}
+                          className={
+                            contact.is_favorite
+                              ? 'text-amber-400 hover:text-amber-300'
+                              : 'text-slate-400 hover:text-amber-400'
+                          }
+                          title={
+                            contact.is_favorite
+                              ? 'Remove from Favourites'
+                              : 'Add to Favourites'
+                          }
+                        >
+                          <Star
+                            className={`size-4 ${contact.is_favorite ? 'fill-amber-400' : ''}`}
+                          />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditForm(contact);
+                          }}
+                          className="text-slate-400 hover:text-blue-400"
+                          title="Edit Contact"
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            aria-label={`More actions for ${contactFullName(contact) || contact.phone || 'contact'}`}
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-slate-400 hover:text-white"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            }
+                          >
+                            <MoreHorizontal className="size-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="border-slate-700 bg-slate-900"
+                          >
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setScheduleContactId(contact.id);
+                                setScheduleOpen(true);
+                              }}
+                              className="text-slate-300 focus:bg-slate-800 focus:text-white"
+                            >
+                              <CalendarDays className="size-4" />
+                              Schedule
+                            </DropdownMenuItem>
+                            {contact.phone &&
+                              !['Buyer', 'Owner & Buyer'].includes(
+                                contact.classification ?? ''
+                              ) && (
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDetailsRequestContact(contact);
+                                  }}
+                                  className="text-slate-300 focus:bg-slate-800 focus:text-white"
+                                >
+                                  <ClipboardList className="size-4" />
+                                  Ask for property details
+                                </DropdownMenuItem>
+                              )}
+                            {['Buyer', 'Owner & Buyer'].includes(
                               contact.classification ?? ''
                             ) && (
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setDetailsRequestContact(contact);
+                                  setRequirementsContact(contact);
                                 }}
                                 className="text-slate-300 focus:bg-slate-800 focus:text-white"
                               >
                                 <ClipboardList className="size-4" />
-                                Ask for property details
+                                Requirements
                               </DropdownMenuItem>
                             )}
-                          {['Buyer', 'Owner & Buyer'].includes(
-                            contact.classification ?? ''
-                          ) && (
+                            <DropdownMenuSeparator className="bg-slate-700" />
                             <DropdownMenuItem
+                              variant="destructive"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setRequirementsContact(contact);
+                                confirmDelete(contact);
                               }}
-                              className="text-slate-300 focus:bg-slate-800 focus:text-white"
                             >
-                              <ClipboardList className="size-4" />
-                              Requirements
+                              <Trash2 className="size-4" />
+                              Delete
                             </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator className="bg-slate-700" />
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              confirmDelete(contact);
-                            }}
-                          >
-                            <Trash2 className="size-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

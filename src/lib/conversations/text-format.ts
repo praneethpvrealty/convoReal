@@ -50,16 +50,6 @@ function parseLine(line: string, style: Style, out: TextSegment[]) {
   let i = 0;
   let plainStart = 0;
   while (i < line.length) {
-    if (line.startsWith(MONO, i)) {
-      const close = line.indexOf(MONO, i + MONO.length);
-      if (close > i + MONO.length) {
-        push(out, line.slice(plainStart, i), style);
-        push(out, line.slice(i + MONO.length, close), { ...style, mono: true });
-        i = close + MONO.length;
-        plainStart = i;
-        continue;
-      }
-    }
     const key = MARKERS[line[i]];
     if (
       key &&
@@ -82,13 +72,26 @@ function parseLine(line: string, style: Style, out: TextSegment[]) {
   push(out, line.slice(plainStart), style);
 }
 
-export function parseWhatsAppFormatting(text: string): TextSegment[] {
-  const out: TextSegment[] = [];
+function parseLines(text: string, out: TextSegment[]) {
   const lines = text.split('\n');
   lines.forEach((line, index) => {
     parseLine(line, {}, out);
     if (index < lines.length - 1) push(out, '\n', {});
   });
+}
+
+export function parseWhatsAppFormatting(text: string): TextSegment[] {
+  const out: TextSegment[] = [];
+  let cursor = 0;
+  while (cursor < text.length) {
+    const open = text.indexOf(MONO, cursor);
+    const close = open === -1 ? -1 : text.indexOf(MONO, open + MONO.length);
+    if (open === -1 || close <= open + MONO.length) break;
+    parseLines(text.slice(cursor, open), out);
+    push(out, text.slice(open + MONO.length, close), { mono: true });
+    cursor = close + MONO.length;
+  }
+  parseLines(text.slice(cursor), out);
   return out;
 }
 

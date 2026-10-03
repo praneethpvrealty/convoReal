@@ -38,6 +38,17 @@ describe('parseWhatsAppFormatting', () => {
     ]);
   });
 
+  it('keeps a monospace block that spans lines', () => {
+    expect(
+      parseWhatsAppFormatting('Rates:\n```Plot  ₹5 Cr\nShop  ₹2 Cr```\n_net_')
+    ).toEqual([
+      { text: 'Rates:\n' },
+      { text: 'Plot  ₹5 Cr\nShop  ₹2 Cr', mono: true },
+      { text: '\n' },
+      { text: 'net', italic: true },
+    ]);
+  });
+
   it('never spans a line break', () => {
     expect(parseWhatsAppFormatting('*open\nclose*')).toEqual([
       { text: '*open\nclose*' },
