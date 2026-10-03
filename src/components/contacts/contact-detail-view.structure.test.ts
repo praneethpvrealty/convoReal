@@ -18,7 +18,7 @@ describe('ContactDetailView reads through react-query', () => {
     expect(source).toContain("queryKey: ['contact', contactId, 'calls']");
     expect(source).toContain("queryKey: ['contact', contactId, 'properties']");
     expect(source).toContain(
-      "queryKey: ['contact', contactId, 'shared-properties']"
+      "'shared-properties',\n      allPropertiesQuery.dataUpdatedAt,"
     );
     expect(source).toContain("queryKey: ['contacts', 'all-properties']");
     expect(source).toContain("queryKey: ['contacts', 'referrer-candidates']");

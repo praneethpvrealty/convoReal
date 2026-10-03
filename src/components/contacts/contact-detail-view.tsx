@@ -449,7 +449,12 @@ export function ContactDetailView({
   const propertyMessageStatus = propertyMessageStatusQuery.data ?? NO_STATUS;
 
   const sharedPropertiesQuery = useQuery({
-    queryKey: ['contact', contactId, 'shared-properties'],
+    queryKey: [
+      'contact',
+      contactId,
+      'shared-properties',
+      allPropertiesQuery.dataUpdatedAt,
+    ],
     queryFn: () => loadSharedProperties(supabase, contactId!, allProperties),
     enabled: enabled && allProperties.length > 0,
   });
