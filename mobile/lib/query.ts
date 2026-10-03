@@ -32,4 +32,4 @@ export const asyncStoragePersister = createAsyncStoragePersister({
  * cached shape changes so restored entries from older builds are discarded
  * instead of reaching components that expect the new shape.
  */
-export const queryCacheBuster = '1';
+export const queryCacheBuster = '2';

@@ -23,6 +23,7 @@ import { describe, expect, it } from 'vitest';
 import * as ts from 'typescript';
 
 import { PLAN_CONFIG, PLAN_ORDER } from '@/lib/billing/plan-config';
+import { CONTACT_LIST_COLUMNS } from '@/lib/contacts/list-columns';
 import {
   activeEntityQuery,
   insertEntityReference,
@@ -4719,7 +4720,7 @@ describe('[CTM-013] the Contacts tab counts come from one SQL aggregate on both 
   // Six count=exact HEAD requests per web load and four per mobile load,
   // each a real COUNT(*) over the account's contacts, with the staff
   // exclusion and the Transacted rule written differently on each side.
-  const web = webSource('app/(dashboard)/contacts/contacts-content.tsx');
+  const web = webSource('lib/contacts/list-queries.ts');
   const mobile = mobileSource('app/(app)/(tabs)/contacts.tsx');
   const migration = readFileSync(
     join(
@@ -4770,5 +4771,48 @@ describe('[CTM-013] the Contacts tab counts come from one SQL aggregate on both 
     expect(migration).toContain(
       'GRANT EXECUTE ON FUNCTION public.contacts_tab_counts(UUID) TO authenticated;'
     );
+  });
+});
+
+describe('[CTM-015] both contact lists select the one shared column spec', () => {
+  // Web and mobile each carried their own select string for the contacts
+  // list, so a column added for one surface was quietly missing on the
+  // other. One dependency-free constant now feeds both reads.
+  const web = webSource('lib/contacts/list-queries.ts');
+  const screen = webSource('app/(dashboard)/contacts/contacts-content.tsx');
+  const mobile = mobileSource('app/(app)/(tabs)/contacts.tsx');
+
+  it('imports CONTACT_LIST_COLUMNS instead of carrying a select string', () => {
+    expect(web).toContain(
+      "import { CONTACT_LIST_COLUMNS } from '@/lib/contacts/list-columns';"
+    );
+    expect(web).toContain(".select(CONTACT_LIST_COLUMNS, { count: 'exact' })");
+    expect(mobile).toContain(
+      "import { CONTACT_LIST_COLUMNS } from '@shared/lib/contacts/list-columns';"
+    );
+    expect(mobile).toContain('CONTACT_LIST_COLUMNS +');
+    expect(mobile).toContain(
+      "(filters.tagId ? ', contact_tags!inner(tag_id)' : '')"
+    );
+    for (const source of [web, screen, mobile]) {
+      expect(source).not.toContain("'id, user_id, name, name_tag");
+      expect(source).not.toContain("'id, phone, name, name_tag");
+    }
+  });
+
+  it('the spec is the union of both lists, with no column twice', () => {
+    const columns = CONTACT_LIST_COLUMNS.split(',').map((c) => c.trim());
+    expect(new Set(columns).size).toBe(columns.length);
+    for (const column of [
+      'id',
+      'user_id',
+      'avatar_url',
+      'is_archived',
+      'requirement_profiles',
+      'buyer_alerts_consent',
+      'buyer_alerts_consent_requested_at',
+    ]) {
+      expect(columns).toContain(column);
+    }
   });
 });
