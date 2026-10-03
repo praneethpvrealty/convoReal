@@ -32,9 +32,6 @@ export default function ContactsPage() {
 
   return (
     <div className="relative space-y-6 overflow-hidden">
-      {/* No page heading: the top bar already says "Contacts", and no
-          page-level Favorite button either, since Contacts is a main
-          sidebar entry. The tab bar is the first row. */}
       <div
         className="relative z-10 flex gap-2 border-b border-slate-800/80"
         title="Manage buyers, assign agents, verify leads, and track stated requirements."
