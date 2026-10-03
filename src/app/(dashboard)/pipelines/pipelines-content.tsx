@@ -29,7 +29,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GitBranch, Plus, ChevronDown, Settings } from 'lucide-react';
+import {
+  GitBranch,
+  Plus,
+  ChevronDown,
+  Settings,
+  Columns3,
+  Orbit,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
@@ -53,7 +60,14 @@ import {
   DEAL_SAVED_QUERY_KEYS,
   type BoardScope,
 } from '@/lib/deals/board-focus';
-import { formatCurrency } from '@/lib/format/currency';
+import { formatDealAmount } from '@/lib/pipelines/deal-money';
+import { BOARD_LAYOUTS, type BoardLayout } from '@/lib/pipelines/board-layout';
+import { useBoardLayout } from '@/hooks/use-board-layout';
+
+const BOARD_LAYOUT_ICONS: Record<BoardLayout, typeof Columns3> = {
+  flat: Columns3,
+  wheel: Orbit,
+};
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -74,6 +88,7 @@ export default function PipelinesPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [boardScope, setBoardScope] = useState<BoardScope>('focus');
+  const [boardLayout, setBoardLayout] = useBoardLayout();
 
   const focusQuery = useQuery({
     queryKey: [BOARD_FOCUS_QUERY_KEY, accountId, selectedPipelineId],
@@ -520,28 +535,11 @@ export default function PipelinesPage() {
     const brokVal = parseFloat(modalBrokerageValue) || 0;
     const amt =
       modalBrokerageType === 'percentage' ? (val * brokVal) / 100 : brokVal;
-
-    if (currency === 'INR') return formatCurrency(amt);
-    const symbols: Record<string, string> = {
-      USD: '$',
-      EUR: '€',
-      GBP: '£',
-      AED: 'د.إ',
-    };
-    const sym = symbols[currency] || '';
-    return `${sym}${amt.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    return formatDealAmount(amt, currency);
   }
 
   function formatModalDealValue(val: number) {
-    if (currency === 'INR') return formatCurrency(val);
-    const symbols: Record<string, string> = {
-      USD: '$',
-      EUR: '€',
-      GBP: '£',
-      AED: 'د.إ',
-    };
-    const sym = symbols[currency] || '';
-    return `${sym}${val.toLocaleString()}`;
+    return formatDealAmount(val, currency);
   }
 
   const handleAddDeal = useCallback(
@@ -666,7 +664,7 @@ export default function PipelinesPage() {
           <InfoHint text="A kanban board representing your sales pipelines, showing deal cards moving through custom defined stages." />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div
             role="radiogroup"
             aria-label="Deals shown on the board"
@@ -693,6 +691,33 @@ export default function PipelinesPage() {
                 </span>
               </button>
             ))}
+          </div>
+          <div
+            role="radiogroup"
+            aria-label="Board layout"
+            className="flex rounded-lg border border-slate-700 bg-slate-900 p-0.5"
+          >
+            {BOARD_LAYOUTS.map((option) => {
+              const Icon = BOARD_LAYOUT_ICONS[option.id];
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={boardLayout === option.id}
+                  title={option.hint}
+                  onClick={() => setBoardLayout(option.id)}
+                  className={
+                    boardLayout === option.id
+                      ? 'bg-primary/15 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-white'
+                      : 'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:text-white'
+                  }
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden />
+                  <span className="sr-only sm:not-sr-only">{option.label}</span>
+                </button>
+              );
+            })}
           </div>
           <GatedButton
             variant="outline"
@@ -741,7 +766,11 @@ export default function PipelinesPage() {
         <>
           <PipelineAnalytics
             stages={stages}
-            deals={deals}
+            deals={visibleDeals}
+            scopeLabel={
+              BOARD_SCOPES.find((scope) => scope.id === boardScope)?.label ??
+              boardScope
+            }
             currency={currency}
           />
           {boardScope === 'focus' && focusQuery.isError ? (
@@ -768,6 +797,7 @@ export default function PipelinesPage() {
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}
             currency={currency}
+            layout={boardLayout}
           />
         </>
       )}

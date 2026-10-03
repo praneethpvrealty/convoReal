@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CLOSING_RECORD_LABEL,
+  CLOSING_RECORDS_LABEL,
+  DEALS_VIEWS,
   dealsHref,
+  dealsViewLabel,
   legacyJourneyHref,
   legacyPipelinesHref,
   parseDealsView,
@@ -44,5 +48,17 @@ describe('[TXW-017] one Deals surface with three views', () => {
     expect(legacyPipelinesHref(new URLSearchParams('dealId=d1'))).toBe(
       '/deals?view=board&dealId=d1'
     );
+  });
+});
+
+describe('[TXW-017] the three views and the closing record share one vocabulary', () => {
+  it('names the tabs Pipeline, Journeys and Closing records', () => {
+    expect(DEALS_VIEWS.map((v) => v.label)).toEqual([
+      'Pipeline',
+      'Journeys',
+      'Closing records',
+    ]);
+    expect(dealsViewLabel('records')).toBe(CLOSING_RECORDS_LABEL);
+    expect(CLOSING_RECORD_LABEL).toBe('Closing record');
   });
 });

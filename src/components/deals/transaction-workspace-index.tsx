@@ -17,8 +17,8 @@ import {
   transactionTitle,
   type RecordsSort,
 } from '@/lib/deals/index-row';
-import { dealsHref } from '@/lib/deals/routes';
-import { formatIndianDigits } from '@/lib/invoices/pdf-text';
+import { CLOSING_RECORDS_LABEL, dealsHref } from '@/lib/deals/routes';
+import { formatDealAmount } from '@/lib/pipelines/deal-money';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
@@ -110,7 +110,7 @@ export function TransactionWorkspaceIndex({
       {!embedded && (
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
-            Records
+            {CLOSING_RECORDS_LABEL}
           </h1>
           <p className="mt-1 text-sm text-slate-400">
             Every closing record: milestones, timeline, papers, tasks and money
@@ -174,7 +174,7 @@ export function TransactionWorkspaceIndex({
       {isLoading ? (
         <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 p-6 text-sm text-slate-400">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading transactions…
+          Loading closing records…
         </div>
       ) : visible.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/40 p-10 text-center">
@@ -253,7 +253,7 @@ export function TransactionWorkspaceIndex({
                         </span>
                       )}
                       <span className="text-sm font-semibold text-white">
-                        Rs. {formatIndianDigits(row.value ?? 0, 0)}
+                        {formatDealAmount(row.value, row.currency ?? 'INR')}
                       </span>
                     </div>
                   </div>
