@@ -135,7 +135,7 @@ Two canonical rules the subsections below do not otherwise restate:
 - `SUPABASE_SERVICE_ROLE_KEY` is server-only. Never import it into client components or browser code.
 - WhatsApp access tokens are stored AES-256-GCM encrypted in `whatsapp_config.access_token`. Decrypt at runtime with `ENCRYPTION_KEY`.
 - All WhatsApp webhook verification uses HMAC-SHA256 with `META_APP_SECRET`.
-- Auth-gated API routes must call `supabase.auth.getUser()` (via `createClient()` from `src/lib/supabase/server.ts`).
+- Auth-gated API routes resolve the caller with `getCurrentAccount()` / `requireRole()` from `src/lib/auth/account.ts` (platform-admin routes with `requirePlatformAdmin()`), never with a raw `supabase.auth.getUser()`; the `convoreal/no-raw-auth-in-routes` lint rule enforces it (§10).
 - Public routes go under `/api/public/` and use a service-role client intentionally (RLS bypassed for public access).
 - Webhook routes (`/api/whatsapp/webhook`, `/api/leads/email-webhook`, etc.) use a service-role client.
 - Rate-limit sensitive public endpoints using `src/lib/rate-limit.ts`.
@@ -572,7 +572,7 @@ Plus:
 1. User signs up/logs in via Supabase Auth (email/password or OAuth).
 2. A `profiles` row is created by a database trigger.
 3. The user creates or joins an `account` (multi-tenant).
-4. API routes call `supabase.auth.getUser()` and then enforce `account_id` scoping/role checks.
+4. API routes resolve the caller with `getCurrentAccount()` / `requireRole()` and then enforce `account_id` scoping/role checks.
 
 ### 8.2 RBAC
 
@@ -686,7 +686,7 @@ Meta Cloud API
 - Standard response shape:
   - Success: `{ data: ... }`
   - Error: `{ error: string, code?: string }`
-- Auth-gated routes must call `supabase.auth.getUser()` at the top (via `createClient()` from `src/lib/supabase/server.ts`).
+- Auth-gated routes resolve the caller at the top through the shared helpers described under *Common patterns in routes* below; a raw `supabase.auth.getUser()` in a route fails lint.
 - Public routes are under `/api/public/` (showcase catalog, inquiries, documents, requirements, likes/ratings, AI Q&A).
 - Den and buyer routes live under `/api/den/` and `/api/buyer/` and use `withDenAuth()` / `withBuyerAuth()` — see §8.3.
 - The `/api/v1/` surface is authenticated by a per-account API key, not a Supabase session. Routes wrap `withApiKeyAuth(scope, handler)` from `src/lib/auth/api-keys.ts` and query through `ctx.db`, a service-role client — so **every query must carry `.eq('account_id', ctx.accountId)` in code**. That explicit scoping is the security boundary, exactly as for Den and buyer routes (§8.3); RLS is not doing it. Shared paging, filter parsing and row projections live in `src/lib/v1/`. Never add a WhatsApp-sending, billing, credits or member-management route to this surface — `mcp/README.md` records why the boundary is drawn there.
