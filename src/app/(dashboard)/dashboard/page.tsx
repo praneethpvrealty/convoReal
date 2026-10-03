@@ -2,7 +2,7 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import { pushUrl } from '@/lib/navigation';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, type KeyboardEvent } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import DashboardContent from './dashboard-content';
 import FocusContent from './focus-content';
@@ -117,42 +117,57 @@ export default function DashboardPage() {
     pushUrl(router, `/dashboard?tab=${tab}`);
   };
 
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step =
+      event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const current = tabs.findIndex((t) => t.id === activeTab);
+    const next = (current + step + tabs.length) % tabs.length;
+    handleTabChange(tabs[next].id);
+    event.currentTarget
+      .querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      [next]?.focus();
+  };
+
   return (
     <div className="relative space-y-6 overflow-hidden">
-      {/* Header */}
-      <div className="relative z-10 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent text-white">
-            Dashboard
-          </h1>
-          <p className="mt-1.5 text-xs leading-relaxed font-medium text-slate-400 sm:text-sm">
-            Access your daily actions, metrics feed, match notifications, and
-            visitors activity.
-          </p>
+      <div className="relative z-10 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-800/80">
+        <h1 className="text-xl font-bold tracking-tight text-white">
+          Dashboard
+        </h1>
+        <div
+          role="tablist"
+          aria-label="Dashboard sections"
+          onKeyDown={handleTabKeyDown}
+          className="order-last flex w-full flex-nowrap gap-2 overflow-x-auto md:order-none md:w-auto md:min-w-0 md:flex-1"
+        >
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              onClick={() => handleTabChange(tab.id)}
+              data-tour={`dashboard-tab-${tab.id}`}
+              className={`shrink-0 cursor-pointer border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all ${
+                activeTab === tab.id
+                  ? 'border-primary bg-primary/5 text-white'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-        <FavoriteButton
-          label={tabMeta.label}
-          href={tabMeta.href}
-          icon={tabMeta.icon}
-        />
-      </div>
-
-      {/* Sleek Tab Bar */}
-      <div className="relative z-10 flex gap-2 border-b border-slate-800/80">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => handleTabChange(tab.id)}
-            data-tour={`dashboard-tab-${tab.id}`}
-            className={`cursor-pointer border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
-              activeTab === tab.id
-                ? 'border-primary bg-primary/5 text-white'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        <div className="ml-auto md:ml-0">
+          <FavoriteButton
+            label={tabMeta.label}
+            href={tabMeta.href}
+            icon={tabMeta.icon}
+          />
+        </div>
       </div>
 
       {/* Render Active View */}
