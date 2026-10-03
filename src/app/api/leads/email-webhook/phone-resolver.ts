@@ -1,3 +1,25 @@
+// The only hosts a lead email's action link is fetched from: Housing's
+// own, and the SES click-tracking host its mailer wraps every link in.
+// The link comes out of an email anyone can send, so every hop of the
+// redirect chain is held to this list.
+const RESOLVABLE_HOSTS = ['housing.com', 'awstrack.me'];
+
+function resolvableUrl(raw: string): URL | null {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:') return null;
+  const host = url.hostname.toLowerCase();
+  return RESOLVABLE_HOSTS.some(
+    (allowed) => host === allowed || host.endsWith(`.${allowed}`)
+  )
+    ? url
+    : null;
+}
+
 // Helper to follow redirect headers (manual mode) to extract phone number
 export async function resolvePhoneNumberFromUrl(
   url: string,
@@ -20,7 +42,10 @@ export async function resolvePhoneNumberFromUrl(
       return phone;
     }
 
-    const response = await fetch(cleanUrl, {
+    const target = resolvableUrl(cleanUrl);
+    if (!target) return null;
+
+    const response = await fetch(target.href, {
       method: 'GET',
       redirect: 'manual', // Stop redirecting automatically so we can read headers
       headers: {

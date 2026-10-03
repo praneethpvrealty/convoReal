@@ -365,6 +365,61 @@ describe('Email Webhook Lead Parsing', () => {
       );
       expect(res).toBe('919900112233');
     });
+
+    it('follows the SES click-tracking link Housing wraps its buttons in', async () => {
+      const tracked =
+        'https://8czw49zf.r.ap-southeast-1.awstrack.me/L0/https:%2F%2Fpahal.housing.com%2Flead%2Fcta%2Fwhatsapp/1/abc';
+      const hop = 'https://pahal.housing.com/lead/cta/whatsapp?lead_id=9';
+      const mockFetch = vi.fn().mockImplementation((url) =>
+        Promise.resolve({
+          status: 302,
+          headers: new Headers({
+            location:
+              url === tracked
+                ? hop
+                : 'https://api.whatsapp.com/send?phone=919900112233',
+          }),
+        })
+      );
+      vi.stubGlobal('fetch', mockFetch);
+
+      expect(await resolvePhoneNumberFromUrl(tracked)).toBe('919900112233');
+      expect(mockFetch.mock.calls.map(([url]) => url)).toEqual([tracked, hop]);
+    });
+
+    it.each([
+      'http://169.254.169.254/latest/meta-data/',
+      'http://localhost:3000/api/cron/owner-digest',
+      'https://evil.example/whatsapp',
+      'https://housing.com.evil.example/leads/whatsapp',
+      'https://evilhousing.com/leads/whatsapp',
+      'https://housing.com@evil.example/leads/whatsapp',
+      'http://housing.com/leads/whatsapp?lead_id=1',
+      'file:///etc/passwd',
+      'not a url',
+    ])('never requests %s', async (url) => {
+      const mockFetch = vi.fn();
+      vi.stubGlobal('fetch', mockFetch);
+
+      expect(await resolvePhoneNumberFromUrl(url)).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('does not follow a redirect that leaves the allowed hosts', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        status: 302,
+        headers: new Headers({ location: 'http://169.254.169.254/latest/' }),
+        text: async () => '',
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      expect(
+        await resolvePhoneNumberFromUrl(
+          'https://housing.com/leads/whatsapp?lead_id=12345'
+        )
+      ).toBeNull();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('resolveHousingPhone', () => {
