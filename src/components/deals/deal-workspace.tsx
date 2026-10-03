@@ -251,7 +251,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
     return (
       <div className="flex items-center gap-2 p-8 text-sm text-slate-400">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading transaction…
+        Loading closing record…
       </div>
     );
   }
@@ -260,7 +260,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
     return (
       <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-8 text-center">
         <p className="text-sm text-slate-300">
-          This transaction could not be found.
+          This closing record could not be found.
         </p>
         <Link
           href={dealsHref('records')}
@@ -368,7 +368,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
               type="button"
               onClick={() => setBundleOpen(true)}
               className="inline-flex cursor-pointer items-center gap-1 hover:text-white"
-              title="Part of a bundle of linked transactions. Open to see the others."
+              title="Part of a bundle of linked deals. Open to see the others."
             >
               <Layers className="h-3.5 w-3.5" />
               {deal.group.name}
