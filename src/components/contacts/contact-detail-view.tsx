@@ -3,6 +3,7 @@
 import {
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useMemo,
   createElement,
@@ -10,7 +11,25 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
+import {
+  loadAllProperties,
+  loadAssociatedProperties,
+  loadContactCalls,
+  loadContactDeals,
+  loadContactDetail,
+  loadContactNotes,
+  loadContactTags,
+  loadDetailShowcaseSettings,
+  loadPropertyMessageStatus,
+  loadReferrerCandidates,
+  loadSharedProperties,
+  type ContactDetailBundle,
+  type ContactTagsBundle,
+  type PropertyMessageStatus,
+  type SharedProperty,
+} from '@/lib/contacts/detail-queries';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
@@ -23,7 +42,6 @@ import type {
   CallLog,
   CallDirection,
   CallOutcome,
-  ShowcaseSettings,
   AreaOfInterestGeo,
 } from '@/types';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
@@ -131,7 +149,6 @@ import {
   CUSTOMER_WINDOW_EXPIRED_MESSAGE,
   isReengagementError,
 } from '@/lib/whatsapp/customer-window';
-import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { BRANDING } from '@/config/branding';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
@@ -155,6 +172,16 @@ import { SearchablePropertySelect } from '@/components/ui/searchable-property-se
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 import { formatCurrency } from '@/lib/format/currency';
 
+const NO_PROPERTIES: Property[] = [];
+const NO_CONTACTS: Contact[] = [];
+const NO_TAGS: Tag[] = [];
+const NO_IDS: string[] = [];
+const NO_NOTES: ContactNote[] = [];
+const NO_DEALS: Deal[] = [];
+const NO_CALLS: CallLog[] = [];
+const NO_STATUS: PropertyMessageStatus = {};
+const NO_SHARED: SharedProperty[] = [];
+
 interface ContactDetailViewProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -169,12 +196,22 @@ export function ContactDetailView({
   onUpdated,
 }: ContactDetailViewProps) {
   const supabase = createClient();
+  const queryClient = useQueryClient();
   const { user, profile, account, accountId, canViewGuardedLocations } =
     useAuth();
   const router = useRouter();
 
-  const [currency, setCurrency] = useState('INR');
-  const [contact, setContact] = useState<Contact | null>(null);
+  const enabled = open && Boolean(contactId);
+  const detailQuery = useQuery({
+    queryKey: ['contact', contactId],
+    queryFn: () => loadContactDetail(supabase, contactId!),
+    enabled,
+  });
+  const contact = detailQuery.data?.contact ?? null;
+  const inquiredProperty = detailQuery.data?.inquiredProperty ?? null;
+  const portalAdLink = detailQuery.data?.portalAdLink ?? null;
+  const inquiredProperties =
+    detailQuery.data?.inquiredProperties ?? NO_PROPERTIES;
   const autoMapAttemptedRef = useRef<Record<string, boolean>>({});
   // Which contact the edit fields were last initialized from. Refetches for
   // the same contact (after a save, approve, auto-map, ...) must NOT re-sync
@@ -186,8 +223,9 @@ export function ContactDetailView({
       autoMapAttemptedRef.current = {};
       // Closing the panel discards unsaved edits: re-sync on next open.
       initializedContactIdRef.current = null;
+      queryClient.resetQueries({ queryKey: ['contact'] });
     }
-  }, [open]);
+  }, [open, queryClient]);
 
   useEffect(() => {
     setActiveTab('details');
@@ -228,25 +266,13 @@ export function ContactDetailView({
   const [editCompany, setEditCompany] = useState('');
   const [editSource, setEditSource] = useState('');
 
-  const [showcaseSettings, setShowcaseSettings] =
-    useState<ShowcaseSettings | null>(null);
-
-  const fetchShowcaseSettings = useCallback(async () => {
-    try {
-      const { data } = await supabase
-        .from('showcase_settings')
-        .select('*')
-        .maybeSingle();
-      if (data) {
-        setShowcaseSettings(data);
-        if (data.currency) {
-          setCurrency(data.currency);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load showcase settings:', err);
-    }
-  }, [supabase]);
+  const showcaseSettingsQuery = useQuery({
+    queryKey: ['contacts', 'showcase-settings'],
+    queryFn: () => loadDetailShowcaseSettings(supabase),
+    enabled,
+  });
+  const showcaseSettings = showcaseSettingsQuery.data ?? null;
+  const currency = showcaseSettings?.currency || 'INR';
   const [editClassification, setEditClassification] = useState<
     | 'Owner'
     | 'Seller'
@@ -282,31 +308,16 @@ export function ContactDetailView({
   const [editLastInquiredPropertyId, setEditLastInquiredPropertyId] = useState<
     string | null
   >(null);
-  const [allProperties, setAllProperties] = useState<Property[]>([]);
   const [editReferrer, setEditReferrer] = useState('');
   const [editReferrerContactId, setEditReferrerContactId] = useState<
     string | null
   >(null);
   const [showReferrerSuggestions, setShowReferrerSuggestions] = useState(false);
-  const [contactsList, setContactsList] = useState<Contact[]>([]);
   const [savingDetails, setSavingDetails] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [inquiredProperty, setInquiredProperty] = useState<Property | null>(
-    null
-  );
-  const [portalAdLink, setPortalAdLink] = useState<{
-    property_id: string;
-  } | null>(null);
   const [mapAdOpen, setMapAdOpen] = useState(false);
   const [mappingAd, setMappingAd] = useState(false);
-  const [inquiredProperties, setInquiredProperties] = useState<Property[]>([]);
   const [sendDetailsOnApprove, setSendDetailsOnApprove] = useState(true);
-  const [propertyMessageStatus, setPropertyMessageStatus] = useState<
-    Record<
-      string,
-      { sent: boolean; responded: boolean; lastSentAt: string | null }
-    >
-  >({});
 
   // Requirements for Agent/Owner/Seller/etc
   const [editRequirements, setEditRequirements] = useState('');
@@ -338,10 +349,6 @@ export function ContactDetailView({
   >('not_requested');
 
   // Associated Properties for Owner/Seller/Agent
-  const [associatedProperties, setAssociatedProperties] = useState<Property[]>(
-    []
-  );
-  const [loadingProperties, setLoadingProperties] = useState(false);
   const [propertyFormOpen, setPropertyFormOpen] = useState(false);
   const [selectedPropertyForEdit, setSelectedPropertyForEdit] =
     useState<Property | null>(null);
@@ -352,34 +359,17 @@ export function ContactDetailView({
     left: number;
   } | null>(null);
 
-  // Shared properties via WhatsApp
-  const [sharedProperties, setSharedProperties] = useState<
-    Array<Property & { sharedAt: string }>
-  >([]);
-  const [loadingSharedProperties, setLoadingSharedProperties] = useState(false);
-
   // Tags tab
-  const [allTags, setAllTags] = useState<Tag[]>([]);
-  const [contactTagIds, setContactTagIds] = useState<string[]>([]);
-  const [pinnedTagIds, setPinnedTagIds] = useState<string[]>([]);
   const [savingTags, setSavingTags] = useState(false);
 
   // Notes tab
-  const [notes, setNotes] = useState<ContactNote[]>([]);
   const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
-  const [loadingNotes, setLoadingNotes] = useState(false);
 
   // Custom fields tab
 
-  // Deals tab
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [loadingDeals, setLoadingDeals] = useState(false);
-
   // Calls tab
-  const [calls, setCalls] = useState<CallLog[]>([]);
   const [pendingDial, setPendingDial] = useState<PendingDial | null>(null);
-  const [loadingCalls, setLoadingCalls] = useState(false);
   const callHistoryRef = useRef<HTMLDivElement | null>(null);
   const [callForm, setCallForm] = useState<{
     direction: CallDirection;
@@ -396,286 +386,174 @@ export function ContactDetailView({
   });
   const [savingCall, setSavingCall] = useState(false);
 
-  const fetchAllProperties = useCallback(async () => {
-    const { data } = await supabase
-      .from('properties')
-      .select('*')
-      .order('title');
-    if (data) setAllProperties(data);
-  }, [supabase]);
+  const allPropertiesQuery = useQuery({
+    queryKey: ['contacts', 'all-properties'],
+    queryFn: () => loadAllProperties(supabase),
+    enabled,
+  });
+  const allProperties = allPropertiesQuery.data ?? NO_PROPERTIES;
 
-  const fetchContact = useCallback(async () => {
-    if (!contactId) return;
-    // Show the spinner only when switching to a different contact; refetches
-    // of the current contact keep the tree mounted (and the active tab).
-    setContact((prev) => (prev && prev.id !== contactId ? null : prev));
+  const associatedPropertiesQuery = useQuery({
+    queryKey: ['contact', contactId, 'properties'],
+    queryFn: () => loadAssociatedProperties(supabase, contactId!),
+    enabled,
+  });
+  const associatedProperties = associatedPropertiesQuery.data ?? NO_PROPERTIES;
+  const loadingProperties = associatedPropertiesQuery.isPending;
 
-    const { data } = await supabase
-      .from('contacts')
-      .select('*')
-      .eq('id', contactId)
-      .single();
+  const tagsQuery = useQuery({
+    queryKey: ['contact', contactId, 'tags'],
+    queryFn: () => loadContactTags(supabase, contactId!),
+    enabled,
+  });
+  const allTags = tagsQuery.data?.allTags ?? NO_TAGS;
+  const contactTagIds = tagsQuery.data?.contactTagIds ?? NO_IDS;
+  const pinnedTagIds = tagsQuery.data?.pinnedTagIds ?? NO_IDS;
 
-    if (data) {
-      setContact(data);
+  const notesQuery = useQuery({
+    queryKey: ['contact', contactId, 'notes'],
+    queryFn: () => loadContactNotes(supabase, contactId!),
+    enabled,
+  });
+  const notes = notesQuery.data ?? NO_NOTES;
+  const loadingNotes = notesQuery.isPending;
 
-      // Initialize the edit fields only when a different contact loads.
-      // Refetches for the same contact (after saving one tab, approving,
-      // auto-mapping, ...) must not overwrite unsaved edits on other tabs.
-      if (initializedContactIdRef.current !== data.id) {
-        initializedContactIdRef.current = data.id;
-        setEditName(data.name ?? '');
-        setEditSecondName(data.second_name ?? '');
-        setEditNameTag(data.name_tag ?? '');
-        setEditPreferredLanguage(data.preferred_language ?? '');
-        setEditPhone(data.phone);
-        setEditSecondaryPhones(data.secondary_phones ?? []);
-        setEditEmail(data.email ?? '');
-        setEditCompany(data.company ?? '');
-        setEditSource(data.source ?? '');
-        setEditClassification((data as Contact).classification ?? 'Others');
-        setEditLeadTemp((data as Contact).lead_temp ?? '');
-        setEditLastInquiredPropertyId(data.last_inquired_property_id ?? null);
-        setEditReferrer(data.referrer ?? '');
-        setEditReferrerContactId(data.referrer_contact_id ?? null);
-        const sourceContact = resolveRequirementSource(data);
-        setEditRequirements(sourceContact.requirements ?? '');
-        const minBudget = rupeesToBudgetAmount(
-          sourceContact.pref_budget_min ?? sourceContact.min_budget
-        );
-        setEditMinBudget(minBudget.amount);
-        setEditMinBudgetUnit(minBudget.unit);
-        const maxBudget = rupeesToBudgetAmount(
-          sourceContact.pref_budget_max ?? sourceContact.max_budget
-        );
-        setEditMaxBudget(maxBudget.amount);
-        setEditMaxBudgetUnit(maxBudget.unit);
-        setEditNoBudget(Boolean(sourceContact.no_budget));
-        setEditStrictAreaMatch(!!data.strict_area_match);
-        const initialProjects = Array.from(
-          new Set([
-            ...(sourceContact.projects_of_interest ?? []),
-            ...(sourceContact.pref_projects ?? []),
-          ])
-        );
-        setEditProjectsOfInterest(initialProjects);
-        setEditProjectsText(
-          initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : '')
-        );
-        setEditStrictProjectMatch(!!data.strict_project_match);
-        const initialAreas = Array.from(
-          new Set([
-            ...(sourceContact.areas_of_interest ?? []),
-            ...(sourceContact.pref_areas ?? []),
-          ])
-        );
-        setEditAreasOfInterest(initialAreas);
-        setEditAreasText(
-          initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : '')
-        );
-        setEditAreasGeo((data as Contact).areas_of_interest_geo ?? []);
-        const initialPropertyInterests = Array.from(
-          new Set([
-            ...(sourceContact.property_interests ?? []),
-            ...(sourceContact.pref_property_types ?? []),
-            ...(sourceContact.pref_property_categories ?? []),
-          ])
-        );
-        setEditPropertyInterests(initialPropertyInterests);
-        setEditMinRoi(data.min_roi ? String(data.min_roi) : '');
-        setEditRequiresTenanted(
-          data.requires_tenanted ?? data.pref_requires_tenanted ?? false
-        );
-        setEditDob(data.dob ?? '');
-        setEditFeedbackStatus(
-          (data as Contact).feedback_status ?? 'not_requested'
-        );
-      }
+  const dealsQuery = useQuery({
+    queryKey: ['contact', contactId, 'deals'],
+    queryFn: () => loadContactDeals(supabase, contactId!),
+    enabled,
+  });
+  const deals = dealsQuery.data ?? NO_DEALS;
+  const loadingDeals = dealsQuery.isPending;
 
-      // Fetch last inquired property details (for backward compatibility)
-      if (data.last_inquired_property_id) {
-        const { data: propData } = await supabase
-          .from('properties')
-          .select('*')
-          .eq('id', data.last_inquired_property_id)
-          .maybeSingle();
-        setInquiredProperty(propData || null);
-      } else {
-        setInquiredProperty(null);
-      }
+  const callsQuery = useQuery({
+    queryKey: ['contact', contactId, 'calls'],
+    queryFn: () => loadContactCalls(contactId!),
+    enabled,
+  });
+  const calls = callsQuery.data ?? NO_CALLS;
+  const loadingCalls = callsQuery.isPending;
 
-      // Is the portal ad this lead quoted already mapped to a listing?
-      // A mapped ad needs no assertion — the webhook resolved this lead
-      // through it, and will resolve every later one the same way.
-      if (data.lead_portal && data.lead_portal_listing_id) {
-        const { data: primaryLink } = await supabase
-          .from('property_portal_listings')
-          .select('property_id')
-          .eq('portal', data.lead_portal)
-          .eq('portal_listing_id', data.lead_portal_listing_id)
-          .maybeSingle();
-        const { data: aliasLink } = primaryLink
-          ? { data: null }
-          : await supabase
-              .from('property_portal_listing_aliases')
-              .select('property_id')
-              .eq('portal', data.lead_portal)
-              .eq('portal_listing_id', data.lead_portal_listing_id)
-              .maybeSingle();
-        setPortalAdLink(primaryLink ?? aliasLink ?? null);
-      } else {
-        setPortalAdLink(null);
-      }
+  const inquiredPropertyIds = inquiredProperties.map((p) => p.id);
+  const propertyMessageStatusQuery = useQuery({
+    queryKey: [
+      'contact',
+      contactId,
+      'property-message-status',
+      inquiredPropertyIds,
+    ],
+    queryFn: () =>
+      loadPropertyMessageStatus(supabase, contactId!, inquiredProperties),
+    enabled: enabled && inquiredProperties.length > 0,
+  });
+  const propertyMessageStatus = propertyMessageStatusQuery.data ?? NO_STATUS;
 
-      // Fetch all inquired properties from junction table
-      const { data: inquiries } = await supabase
-        .from('contact_property_inquiries')
-        .select('property_id')
-        .eq('contact_id', contactId);
+  const sharedPropertiesQuery = useQuery({
+    queryKey: ['contact', contactId, 'shared-properties'],
+    queryFn: () => loadSharedProperties(supabase, contactId!, allProperties),
+    enabled: enabled && allProperties.length > 0,
+  });
+  const sharedProperties = sharedPropertiesQuery.data ?? NO_SHARED;
+  const loadingSharedProperties = sharedPropertiesQuery.isLoading;
 
-      if (inquiries && inquiries.length > 0) {
-        const propertyIds = inquiries.map((i) => i.property_id);
-        const { data: props } = await supabase
-          .from('properties')
-          .select('*')
-          .in('id', propertyIds);
-        setInquiredProperties(props || []);
-      } else {
-        setInquiredProperties([]);
-      }
-    }
-  }, [contactId, supabase]);
+  // Initialize the edit fields only when a different contact loads.
+  // Refetches for the same contact (after saving one tab, approving,
+  // auto-mapping, ...) must not overwrite unsaved edits on other tabs.
+  useLayoutEffect(() => {
+    if (!contact || initializedContactIdRef.current === contact.id) return;
+    initializedContactIdRef.current = contact.id;
+    setEditName(contact.name ?? '');
+    setEditSecondName(contact.second_name ?? '');
+    setEditNameTag(contact.name_tag ?? '');
+    setEditPreferredLanguage(contact.preferred_language ?? '');
+    setEditPhone(contact.phone ?? '');
+    setEditSecondaryPhones(contact.secondary_phones ?? []);
+    setEditEmail(contact.email ?? '');
+    setEditCompany(contact.company ?? '');
+    setEditSource(contact.source ?? '');
+    setEditClassification(contact.classification ?? 'Others');
+    setEditLeadTemp(contact.lead_temp ?? '');
+    setEditLastInquiredPropertyId(contact.last_inquired_property_id ?? null);
+    setEditReferrer(contact.referrer ?? '');
+    setEditReferrerContactId(contact.referrer_contact_id ?? null);
+    const sourceContact = resolveRequirementSource(contact);
+    setEditRequirements(sourceContact.requirements ?? '');
+    const minBudget = rupeesToBudgetAmount(
+      sourceContact.pref_budget_min ?? sourceContact.min_budget
+    );
+    setEditMinBudget(minBudget.amount);
+    setEditMinBudgetUnit(minBudget.unit);
+    const maxBudget = rupeesToBudgetAmount(
+      sourceContact.pref_budget_max ?? sourceContact.max_budget
+    );
+    setEditMaxBudget(maxBudget.amount);
+    setEditMaxBudgetUnit(maxBudget.unit);
+    setEditNoBudget(Boolean(sourceContact.no_budget));
+    setEditStrictAreaMatch(!!contact.strict_area_match);
+    const initialProjects = Array.from(
+      new Set([
+        ...(sourceContact.projects_of_interest ?? []),
+        ...(sourceContact.pref_projects ?? []),
+      ])
+    );
+    setEditProjectsOfInterest(initialProjects);
+    setEditProjectsText(
+      initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : '')
+    );
+    setEditStrictProjectMatch(!!contact.strict_project_match);
+    const initialAreas = Array.from(
+      new Set([
+        ...(sourceContact.areas_of_interest ?? []),
+        ...(sourceContact.pref_areas ?? []),
+      ])
+    );
+    setEditAreasOfInterest(initialAreas);
+    setEditAreasText(
+      initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : '')
+    );
+    setEditAreasGeo(contact.areas_of_interest_geo ?? []);
+    const initialPropertyInterests = Array.from(
+      new Set([
+        ...(sourceContact.property_interests ?? []),
+        ...(sourceContact.pref_property_types ?? []),
+        ...(sourceContact.pref_property_categories ?? []),
+      ])
+    );
+    setEditPropertyInterests(initialPropertyInterests);
+    setEditMinRoi(contact.min_roi ? String(contact.min_roi) : '');
+    setEditRequiresTenanted(
+      contact.requires_tenanted ?? contact.pref_requires_tenanted ?? false
+    );
+    setEditDob(contact.dob ?? '');
+    setEditFeedbackStatus(contact.feedback_status ?? 'not_requested');
+  }, [contact]);
 
-  const fetchAssociatedProperties = useCallback(async () => {
-    if (!contactId) return;
-    setLoadingProperties(true);
-    const { data, error } = await supabase
-      .from('properties')
-      .select('*')
-      .eq('owner_contact_id', contactId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching associated properties:', error);
-    } else {
-      setAssociatedProperties(data || []);
-    }
-    setLoadingProperties(false);
-  }, [contactId, supabase]);
-
-  const fetchPropertyMessageStatus = useCallback(async () => {
-    if (!contactId || inquiredProperties.length === 0) return;
-
-    // Fetch all messages in conversations with this contact
-    const { data: conversations } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('contact_id', contactId);
-
-    if (!conversations || conversations.length === 0) {
-      setPropertyMessageStatus({});
-      return;
-    }
-
-    const conversationIds = conversations.map((c) => c.id);
-    const { data: messages } = await supabase
-      .from('messages')
-      .select('content_text, sender_type, created_at')
-      .in('conversation_id', conversationIds)
-      .order('created_at', { ascending: true });
-
-    if (!messages || messages.length === 0) {
-      setPropertyMessageStatus({});
-      return;
-    }
-
-    // Build status map for each property
-    const statusMap: Record<
-      string,
-      { sent: boolean; responded: boolean; lastSentAt: string | null }
-    > = {};
-
-    inquiredProperties.forEach((prop) => {
-      const searchTerms = [
-        prop.title?.toLowerCase(),
-        prop.property_code?.toLowerCase(),
-        prop.location?.toLowerCase(),
-      ].filter(Boolean);
-
-      let lastSentAt: string | null = null;
-      let hasResponse = false;
-
-      messages.forEach((msg, idx) => {
-        const content = (msg.content_text || '').toLowerCase();
-        const isPropertyMentioned = searchTerms.some(
-          (term) => term && content.includes(term)
-        );
-
-        if (isPropertyMentioned && msg.sender_type === 'agent') {
-          lastSentAt = msg.created_at;
-          // Check if there's any inbound message after this outbound message
-          const laterMessages = messages.slice(idx + 1);
-          hasResponse = laterMessages.some((m) => m.sender_type === 'customer');
-        }
-      });
-
-      statusMap[prop.id] = {
-        sent: lastSentAt !== null,
-        responded: hasResponse,
-        lastSentAt,
-      };
-    });
-
-    setPropertyMessageStatus(statusMap);
-  }, [contactId, inquiredProperties, supabase]);
-
-  // Fetch message status when inquired properties change
-  useEffect(() => {
-    fetchPropertyMessageStatus();
-  }, [fetchPropertyMessageStatus]);
-
-  const fetchSharedProperties = useCallback(async () => {
-    if (!contactId || allProperties.length === 0) return;
-    setLoadingSharedProperties(true);
-    try {
-      const { data: conv } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('contact_id', contactId)
-        .maybeSingle();
-
-      if (!conv) {
-        setSharedProperties([]);
-        setLoadingSharedProperties(false);
-        return;
-      }
-
-      const { data: messages, error } = await supabase
-        .from('messages')
-        .select('content_text, created_at')
-        .eq('conversation_id', conv.id)
-        .eq('sender_type', 'agent')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Shared scan logic with /journey's "Import from chat"
-      // (src/lib/journey/chat-scan.ts): matches by showcase
-      // property_id link, property code, or long exact title.
-      const found = scanMessagesForProperties(messages ?? [], allProperties);
-      const sharedProps: Array<Property & { sharedAt: string }> = [];
-      found.forEach((sharedAt, propId) => {
-        const prop = allProperties.find((p) => p.id === propId);
-        if (prop) sharedProps.push({ ...prop, sharedAt });
-      });
-
-      setSharedProperties(sharedProps);
-    } catch (err) {
-      console.error('Error fetching shared properties:', err);
-    } finally {
-      setLoadingSharedProperties(false);
-    }
-  }, [contactId, allProperties, supabase]);
+  const invalidateDetail = useCallback(
+    () =>
+      queryClient.invalidateQueries({
+        queryKey: ['contact', contactId],
+        exact: true,
+      }),
+    [queryClient, contactId]
+  );
+  const invalidateContactQuery = useCallback(
+    (part: string) =>
+      queryClient.invalidateQueries({ queryKey: ['contact', contactId, part] }),
+    [queryClient, contactId]
+  );
+  const patchDetail = useCallback(
+    (update: (prev: ContactDetailBundle) => ContactDetailBundle) =>
+      queryClient.setQueryData<ContactDetailBundle>(
+        ['contact', contactId],
+        (prev) => (prev ? update(prev) : prev)
+      ),
+    [queryClient, contactId]
+  );
+  const patchTags = (update: (prev: ContactTagsBundle) => ContactTagsBundle) =>
+    queryClient.setQueryData<ContactTagsBundle>(
+      ['contact', contactId, 'tags'],
+      (prev) => (prev ? update(prev) : prev)
+    );
 
   async function handleUnlinkProperty(propertyId: string) {
     try {
@@ -688,7 +566,7 @@ export function ContactDetailView({
       if (error) throw error;
       if (!data?.length) throw new Error('That property is no longer there.');
       toast.success('Property unlinked successfully');
-      fetchAssociatedProperties();
+      invalidateContactQuery('properties');
       onUpdated();
     } catch (err) {
       console.error('Failed to unlink property:', err);
@@ -709,7 +587,7 @@ export function ContactDetailView({
       if (!data?.length) throw new Error('That property is no longer there.');
       toast.success('Property linked to contact');
       setLinkExistingOpen(false);
-      fetchAssociatedProperties();
+      invalidateContactQuery('properties');
       onUpdated();
     } catch (err) {
       console.error('Failed to link existing property:', err);
@@ -755,25 +633,27 @@ export function ContactDetailView({
             .select('*')
             .eq('id', propertyId)
             .maybeSingle();
-          setInquiredProperty(propData || null);
-
-          // Update inquired properties list
-          if (
-            propData &&
-            !inquiredProperties.find((p) => p.id === propertyId)
-          ) {
-            setInquiredProperties((prev) => [...prev, propData]);
-          }
+          patchDetail((prev) => ({
+            ...prev,
+            inquiredProperty: propData || null,
+            // Update inquired properties list
+            inquiredProperties:
+              propData &&
+              !prev.inquiredProperties.find((p) => p.id === propertyId)
+                ? [...prev.inquiredProperties, propData]
+                : prev.inquiredProperties,
+          }));
         } else {
-          setInquiredProperty(null);
+          patchDetail((prev) => ({ ...prev, inquiredProperty: null }));
         }
+        invalidateDetail();
         onUpdated();
       } catch (err) {
         console.error('Failed to update interest property:', err);
         toast.error('Failed to update interest property');
       }
     },
-    [supabase, contactId, accountId, onUpdated, inquiredProperties]
+    [supabase, contactId, accountId, onUpdated, patchDetail, invalidateDetail]
   );
 
   // Dropping the junction row and clearing the headline pointer are one
@@ -792,13 +672,17 @@ export function ContactDetailView({
         if (!res.ok)
           throw new Error(body?.error || 'Failed to remove property interest');
 
-        setInquiredProperties((prev) =>
-          prev.filter((p) => p.id !== propertyId)
-        );
+        patchDetail((prev) => ({
+          ...prev,
+          inquiredProperties: prev.inquiredProperties.filter(
+            (p) => p.id !== propertyId
+          ),
+          ...(body?.data?.pointerCleared ? { inquiredProperty: null } : {}),
+        }));
         if (body?.data?.pointerCleared) {
           setEditLastInquiredPropertyId(null);
-          setInquiredProperty(null);
         }
+        invalidateDetail();
 
         toast.success('Property removed from interests');
         onUpdated();
@@ -811,7 +695,7 @@ export function ContactDetailView({
         );
       }
     },
-    [contactId, onUpdated]
+    [contactId, onUpdated, patchDetail, invalidateDetail]
   );
 
   // The agent's one-time assertion that a portal ad IS a listing. From
@@ -837,7 +721,7 @@ export function ContactDetailView({
               : '')
         );
         setMapAdOpen(false);
-        await fetchContact();
+        await invalidateDetail();
         onUpdated();
       } catch (err) {
         console.error('Failed to map portal ad:', err);
@@ -848,7 +732,7 @@ export function ContactDetailView({
         setMappingAd(false);
       }
     },
-    [contactId, fetchContact, onUpdated]
+    [contactId, invalidateDetail, onUpdated]
   );
 
   // The correction to the above: the ad was mapped to the wrong listing.
@@ -871,7 +755,7 @@ export function ContactDetailView({
             : '')
       );
       setMapAdOpen(true);
-      await fetchContact();
+      await invalidateDetail();
       onUpdated();
     } catch (err) {
       console.error('Failed to unmap portal ad:', err);
@@ -881,20 +765,14 @@ export function ContactDetailView({
     } finally {
       setMappingAd(false);
     }
-  }, [contactId, fetchContact, onUpdated]);
+  }, [contactId, invalidateDetail, onUpdated]);
 
-  useEffect(() => {
-    async function loadContacts() {
-      const { data } = await supabase
-        .from('contacts')
-        .select('*')
-        .order('name');
-      if (data) setContactsList(data);
-    }
-    if (contactId) {
-      loadContacts();
-    }
-  }, [contactId, supabase]);
+  const referrerCandidatesQuery = useQuery({
+    queryKey: ['contacts', 'referrer-candidates'],
+    queryFn: () => loadReferrerCandidates(supabase),
+    enabled: Boolean(contactId),
+  });
+  const contactsList = referrerCandidatesQuery.data ?? NO_CONTACTS;
 
   // Linking a party writes contact data, so it takes the same agent+
   // gate the API route enforces.
@@ -922,95 +800,6 @@ export function ContactDetailView({
       (a, b) => Number(lead.has(b.id)) - Number(lead.has(a.id))
     );
   }, [allTags, pinnedTagIds]);
-
-  const fetchTags = useCallback(async () => {
-    if (!contactId) return;
-
-    const [tagsRes, contactTagsRes] = await Promise.all([
-      supabase.from('tags').select('*').order('name'),
-      supabase
-        .from('contact_tags')
-        .select('tag_id')
-        .eq('contact_id', contactId),
-    ]);
-
-    if (tagsRes.data) setAllTags(tagsRes.data);
-    if (contactTagsRes.data) {
-      const ids = contactTagsRes.data.map((ct) => ct.tag_id);
-      setContactTagIds(ids);
-      // Snapshot for ordering only. Pinned at load rather than tracking
-      // contactTagIds, so toggling a tag doesn't slide the next one out
-      // from under the cursor mid-click.
-      setPinnedTagIds(ids);
-    }
-  }, [contactId, supabase]);
-
-  const fetchNotes = useCallback(async () => {
-    if (!contactId) return;
-    setLoadingNotes(true);
-
-    const { data } = await supabase
-      .from('contact_notes')
-      .select('*')
-      .eq('contact_id', contactId)
-      .order('created_at', { ascending: false });
-
-    if (data) setNotes(data);
-    setLoadingNotes(false);
-  }, [contactId, supabase]);
-
-  const fetchDeals = useCallback(async () => {
-    if (!contactId) return;
-    setLoadingDeals(true);
-    const { data } = await supabase
-      .from('deals')
-      .select('*, stage:pipeline_stages(*)')
-      .eq('contact_id', contactId)
-      .order('created_at', { ascending: false });
-    setDeals((data ?? []) as Deal[]);
-    setLoadingDeals(false);
-  }, [contactId, supabase]);
-
-  const fetchCalls = useCallback(async () => {
-    if (!contactId) return;
-    setLoadingCalls(true);
-    const res = await fetch(`/api/contacts/${contactId}/calls`);
-    if (res.ok) {
-      const data = await res.json();
-      setCalls(data.calls ?? []);
-    }
-    setLoadingCalls(false);
-  }, [contactId]);
-
-  useEffect(() => {
-    if (open && contactId) {
-      fetchShowcaseSettings();
-      fetchContact();
-      fetchTags();
-      fetchNotes();
-      fetchDeals();
-      fetchCalls();
-      fetchAssociatedProperties();
-      fetchAllProperties();
-    }
-  }, [
-    open,
-    contactId,
-    fetchShowcaseSettings,
-    fetchContact,
-    fetchTags,
-    fetchNotes,
-    fetchDeals,
-    fetchCalls,
-    fetchAssociatedProperties,
-    fetchAllProperties,
-  ]);
-
-  useEffect(() => {
-    if (open && contactId && allProperties.length > 0) {
-      fetchSharedProperties();
-    }
-  }, [open, contactId, allProperties, fetchSharedProperties]);
 
   // Auto-map inquired property from contact notes if none is assigned
   useEffect(() => {
@@ -1167,7 +956,10 @@ export function ContactDetailView({
     if (!contact || favoriting) return;
     const next = !contact.is_favorite;
     setFavoriting(true);
-    setContact((prev) => (prev ? { ...prev, is_favorite: next } : prev));
+    patchDetail((prev) => ({
+      ...prev,
+      contact: { ...prev.contact, is_favorite: next },
+    }));
     try {
       const res = await fetch(`/api/contacts/${contact.id}/favorite`, {
         method: 'PATCH',
@@ -1179,9 +971,13 @@ export function ContactDetailView({
         throw new Error(errData.error || 'Failed to update favourite');
       }
       toast.success(next ? 'Added to Favourites' : 'Removed from Favourites');
+      invalidateDetail();
       onUpdated();
     } catch (err) {
-      setContact((prev) => (prev ? { ...prev, is_favorite: !next } : prev));
+      patchDetail((prev) => ({
+        ...prev,
+        contact: { ...prev.contact, is_favorite: !next },
+      }));
       toast.error(
         err instanceof Error ? err.message : 'Failed to update favourite'
       );
@@ -1200,7 +996,10 @@ export function ContactDetailView({
     const previous = contact.preferred_language ?? null;
     if (previous === next) return;
     setSavingLanguage(true);
-    setContact((prev) => (prev ? { ...prev, preferred_language: next } : prev));
+    patchDetail((prev) => ({
+      ...prev,
+      contact: { ...prev.contact, preferred_language: next },
+    }));
     setEditPreferredLanguage(next ?? '');
     try {
       const res = await fetch(`/api/contacts/${contact.id}/language`, {
@@ -1217,11 +1016,13 @@ export function ContactDetailView({
           ? `Messages to ${contact.name || 'this contact'} will go out in ${languageDisplay(next)}`
           : 'Language cleared — follows the account default'
       );
+      invalidateDetail();
       onUpdated();
     } catch (err) {
-      setContact((prev) =>
-        prev ? { ...prev, preferred_language: previous } : prev
-      );
+      patchDetail((prev) => ({
+        ...prev,
+        contact: { ...prev.contact, preferred_language: previous },
+      }));
       setEditPreferredLanguage(previous ?? '');
       toast.error(
         err instanceof Error ? err.message : 'Failed to update language'
@@ -1294,7 +1095,7 @@ export function ContactDetailView({
       toast.error(error?.message ?? 'Could not save the WhatsApp number');
       return;
     }
-    fetchContact();
+    invalidateDetail();
     onUpdated();
     await handleWhatsAppClick(phone);
   }
@@ -1504,7 +1305,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       // intentionally no longer overwrites edit fields.
       setEditPhone(normalizedPrimary);
       setEditSecondaryPhones(normalizedSecondary);
-      fetchContact();
+      invalidateDetail();
       onUpdated();
     }
     setSavingDetails(false);
@@ -1623,7 +1424,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         toast.success('Contact approved and added to the Engine!');
       }
 
-      fetchContact();
+      invalidateDetail();
       onUpdated();
     } catch (err) {
       console.error('Failed to approve contact:', err);
@@ -1674,7 +1475,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     } else {
       toast.success('Advanced matching options updated');
       setEditAreasGeo(prunedAreasGeo);
-      fetchContact();
+      invalidateDetail();
       onUpdated();
     }
     setSavingPreferences(false);
@@ -1694,7 +1495,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         .eq('tag_id', tagId)
         .select('tag_id');
       if (!error && data?.length) {
-        setContactTagIds((prev) => prev.filter((id) => id !== tagId));
+        patchTags((prev) => ({
+          ...prev,
+          contactTagIds: prev.contactTagIds.filter((id) => id !== tagId),
+        }));
         onUpdated();
       } else {
         toast.error('Could not remove that tag.');
@@ -1704,7 +1508,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         .from('contact_tags')
         .insert({ contact_id: contactId, tag_id: tagId });
       if (!error) {
-        setContactTagIds((prev) => [...prev, tagId]);
+        patchTags((prev) => ({
+          ...prev,
+          contactTagIds: [...prev.contactTagIds, tagId],
+        }));
         onUpdated();
       }
     }
@@ -1732,7 +1539,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       toast.error('Failed to add note');
     } else {
       setNewNote('');
-      fetchNotes();
+      invalidateContactQuery('notes');
       toast.success('Note added');
     }
     setSavingNote(false);
@@ -1748,7 +1555,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     if (error || !data?.length) {
       toast.error('Failed to delete note');
     } else {
-      setNotes((prev) => prev.filter((n) => n.id !== noteId));
+      queryClient.setQueryData<ContactNote[]>(
+        ['contact', contactId, 'notes'],
+        (prev) => prev?.filter((n) => n.id !== noteId)
+      );
+      invalidateContactQuery('notes');
       toast.success('Note deleted');
     }
   }
@@ -2869,7 +2680,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     onOpenChange={() => setActiveTab('details')}
                     contact={contact}
                     onChanged={() => {
-                      fetchContact();
+                      invalidateDetail();
                       onUpdated();
                     }}
                   />
@@ -3675,7 +3486,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       contactId={contactId}
                       contactName={contact?.name || ''}
                       onAnalyzed={() => {
-                        void fetchCalls().then(() => {
+                        void invalidateContactQuery('calls').then(() => {
                           callHistoryRef.current?.scrollIntoView({
                             behavior: 'smooth',
                             block: 'start',
@@ -3828,7 +3639,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             notes: '',
                             called_at: new Date().toISOString().slice(0, 16),
                           });
-                          fetchCalls();
+                          invalidateContactQuery('calls');
                         } catch (err) {
                           toast.error(
                             err instanceof Error
@@ -3936,7 +3747,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                     call={call}
                                     contactName={contact?.name || ''}
                                     contactPhone={contact?.phone || ''}
-                                    onUpdated={fetchCalls}
+                                    onUpdated={() =>
+                                      invalidateContactQuery('calls')
+                                    }
                                   />
                                 )}
                               </div>
@@ -3947,7 +3760,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                     `/api/contacts/${contactId}/calls/${call.id}`,
                                     { method: 'DELETE' }
                                   );
-                                  fetchCalls();
+                                  invalidateContactQuery('calls');
                                 }}
                                 className="mt-0.5 shrink-0 cursor-pointer text-slate-500 opacity-0 transition-all group-hover:opacity-100 hover:text-red-400"
                                 aria-label="Delete call log"
@@ -3971,7 +3784,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               property={selectedPropertyForEdit}
               defaultOwnerId={contactId}
               onSaved={() => {
-                fetchAssociatedProperties();
+                invalidateContactQuery('properties');
                 onUpdated();
               }}
             />
@@ -4006,8 +3819,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 contactPhone={contact.phone}
                 property={followUpProperty}
                 onSent={() => {
-                  fetchPropertyMessageStatus();
-                  fetchNotes();
+                  invalidateContactQuery('property-message-status');
+                  invalidateContactQuery('notes');
                   onUpdated();
                 }}
               />
@@ -4024,8 +3837,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 contactClassification={contact.classification}
                 properties={allProperties}
                 onSaved={() => {
-                  fetchContact();
-                  fetchNotes();
+                  invalidateDetail();
+                  invalidateContactQuery('notes');
                   onUpdated();
                 }}
               />
@@ -4037,8 +3850,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 if (!next) setPendingDial(null);
               }}
               onLogged={() => {
-                fetchCalls();
-                fetchContact();
+                invalidateContactQuery('calls');
+                invalidateDetail();
                 onUpdated();
               }}
             />
@@ -4051,7 +3864,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 contactPhone={contact.phone}
                 contactClassification={contact.classification}
                 onSent={() => {
-                  fetchNotes();
+                  invalidateContactQuery('notes');
                   onUpdated();
                 }}
               />
@@ -4064,7 +3877,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 contactName={contact.name || ''}
                 contactPhone={contact.phone}
                 onSent={() => {
-                  fetchNotes();
+                  invalidateContactQuery('notes');
                   onUpdated();
                 }}
               />
