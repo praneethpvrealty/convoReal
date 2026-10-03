@@ -4,6 +4,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme } from '@/lib/theme';
+import {
+  pushUndoEntry,
+  removeUndoEntry,
+  undoBarLabel,
+  visibleUndoEntry,
+} from '@/lib/undo-queue';
 
 type UndoFn = () => Promise<void> | void;
 
@@ -12,44 +18,67 @@ export interface UndoBarHandle {
   element: React.ReactNode;
 }
 
-/** A bottom "<message> · Undo" bar for one screen; render `element` once. */
+interface UndoEntry {
+  key: number;
+  message: string;
+  onUndo: UndoFn;
+  expiresAt: number;
+}
+
+/** A bottom "<message> · Undo" bar for one screen; render `element` once.
+ *  Each action keeps its own Undo for its full window: a newer one stacks
+ *  on top, and the earlier one shows again once the newer is gone. */
 export function useUndoBar(options?: { bottomOffset?: number }): UndoBarHandle {
   const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
-  const [entry, setEntry] = useState<{
-    key: number;
-    message: string;
-    onUndo: UndoFn;
-  } | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [entries, setEntries] = useState<UndoEntry[]>([]);
+  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const seq = useRef(0);
 
-  const clearTimer = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
+  const clearTimer = useCallback((key: number) => {
+    const timer = timers.current.get(key);
+    if (timer) clearTimeout(timer);
+    timers.current.delete(key);
   }, []);
 
-  useEffect(() => clearTimer, [clearTimer]);
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const timer of pending.values()) clearTimeout(timer);
+      pending.clear();
+    };
+  }, []);
 
   const show = useCallback(
     (message: string, onUndo: UndoFn, durationMs = 8000) => {
-      clearTimer();
       seq.current += 1;
       const key = seq.current;
-      setEntry({ key, message, onUndo });
-      timer.current = setTimeout(() => {
-        timer.current = null;
-        setEntry((current) => (current?.key === key ? null : current));
-      }, durationMs);
+      setEntries((current) =>
+        pushUndoEntry(current, {
+          key,
+          message,
+          onUndo,
+          expiresAt: Date.now() + durationMs,
+        })
+      );
+      timers.current.set(
+        key,
+        setTimeout(() => {
+          timers.current.delete(key);
+          setEntries((current) => removeUndoEntry(current, key));
+        }, durationMs)
+      );
     },
-    [clearTimer]
+    []
   );
+
+  const entry = visibleUndoEntry(entries);
 
   async function undo() {
     if (!entry) return;
-    const { onUndo } = entry;
-    clearTimer();
-    setEntry(null);
+    const { key, onUndo } = entry;
+    clearTimer(key);
+    setEntries((current) => removeUndoEntry(current, key));
     haptic.tap();
     try {
       await onUndo();
@@ -82,7 +111,7 @@ export function useUndoBar(options?: { bottomOffset?: number }): UndoBarHandle {
         numberOfLines={2}
         style={[styles.message, { color: colors.text, fontFamily: f.medium }]}
       >
-        {entry.message}
+        {undoBarLabel(entry.message, entries.length)}
       </Text>
       <Pressable
         accessibilityRole="button"
