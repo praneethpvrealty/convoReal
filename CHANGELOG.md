@@ -19,6 +19,33 @@ than a written entry. Newest first.
 
 #### 3 October 2026
 
+- **The inbox's contact panel no longer shows the last contact's deals
+  and notes under the next contact's name.** Switching conversations
+  swapped the header at once but left the previous contact's Active
+  Deals, Notes and Tags in place until the new rows arrived. Those
+  sections now show placeholders until the new contact's own rows load,
+  and a slow response for the contact you just left is dropped instead
+  of landing under the new name.
+- **Switching a Contacts quick filter no longer shows the previous
+  list's rows under the new filter's count.** Choosing Transacted, for
+  example, could show "2 contacts" above the rows of the filter you had
+  just left. The rows clear the moment you switch, and the count and
+  rows now update together.
+- **Coming back to the Inbox is instant.** The conversation list is now
+  kept in the app's query cache, so returning from another page shows
+  the last list immediately and refreshes it in the background instead
+  of loading from scratch every time.
+- **The inbox list loads behind placeholder rows instead of a logo
+  splash.** Opening the Inbox used to show a centred ConvoReal logo and
+  "Loading conversations" for the first second, then swap to the list in
+  one jump. The column now shows eight grey rows shaped like
+  conversations until the real ones arrive, so nothing moves when they
+  do.
+- **The inbox keeps its full height, and its contact panel scrolls clear
+  of the AI Assistant button.** The bottom padding that lets every other
+  page scroll past the floating buttons is cancelled on the inbox, so the
+  thread and composer are as tall as before, and the contact panel's
+  notes can be scrolled above the button.
 - **Inventory counts match the list they sit over.** The All / Direct /
   Agent referred pills showed the account's active totals on every tab, so
   Archived read "All (223)" over three cards and Review read "All (223)"

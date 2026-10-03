@@ -398,6 +398,16 @@
               "case": "[INB-022]"
             }
           ]
+        },
+        {
+          "id": "INB-023",
+          "rule": "Switching conversations in the web inbox never shows the previous contact's deals, notes or tags under the new contact's name: those sections render placeholders until the new contact's own rows arrive, and a response for the contact that was left is discarded if it lands after the switch.",
+          "tests": [
+            {
+              "file": "src/components/inbox/contact-sidebar.test.tsx",
+              "case": "[INB-023]"
+            }
+          ]
         }
       ]
     },
