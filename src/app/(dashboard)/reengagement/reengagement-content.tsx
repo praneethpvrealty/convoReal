@@ -44,7 +44,7 @@ export default function ReengagementContent() {
             <select
               value={broadcastId ?? ''}
               onChange={(e) => setBroadcastId(e.target.value || null)}
-              className="focus:border-primary/50 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 focus:outline-none"
+              className="focus:border-primary/50 ml-auto w-auto max-w-[18rem] rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 focus:outline-none"
             >
               <option value="">All batches ({batches.length})</option>
               {batches.map((b) => (

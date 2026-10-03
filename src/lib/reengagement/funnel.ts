@@ -171,3 +171,45 @@ export function readyToShortlist(
 ): ReengagementLead[] {
   return leads.filter((l) => l.matchCount > 0 && l.matchEventStatus !== 'sent');
 }
+
+export type LeadSortKey = 'matches' | 'repliedAt';
+export type SortDirection = 'asc' | 'desc';
+
+function repliedAtMs(lead: ReengagementLead): number | null {
+  if (!lead.repliedAt) return null;
+  const ms = new Date(lead.repliedAt).getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
+
+export function sortLeads(
+  leads: ReengagementLead[],
+  key: LeadSortKey,
+  direction: SortDirection
+): ReengagementLead[] {
+  const sign = direction === 'asc' ? 1 : -1;
+  return leads
+    .map((lead, index) => ({ lead, index }))
+    .sort((a, b) => {
+      if (key === 'matches') {
+        const diff = a.lead.matchCount - b.lead.matchCount;
+        return diff !== 0 ? diff * sign : a.index - b.index;
+      }
+      const left = repliedAtMs(a.lead);
+      const right = repliedAtMs(b.lead);
+      if (left === null && right === null) return a.index - b.index;
+      if (left === null) return 1;
+      if (right === null) return -1;
+      return left !== right ? (left - right) * sign : a.index - b.index;
+    })
+    .map(({ lead }) => lead);
+}
+
+export function maskPhoneLastFour(phone: string | null): string | null {
+  const digits = (phone ?? '').replace(/\D/g, '');
+  if (digits.length === 0) return null;
+  return digits.length <= 4 ? '••••' : `•••• ${digits.slice(-4)}`;
+}
+
+export function allLeadsMatched(summary: ReengagementSummary): boolean {
+  return summary.leads > 0 && summary.matched >= summary.leads;
+}

@@ -85,3 +85,28 @@ export function relativeDay(iso: string, now = Date.now()): string {
   const days = Math.round(hours / 24);
   return days === 1 ? 'yesterday' : `${days} days ago`;
 }
+
+export type GapPrimaryTarget =
+  | { type: 'conversation'; id: string; label: string }
+  | { type: 'contact'; id: string; label: string };
+
+const ACTIONABLE_KINDS: ReadonlySet<GapKind> = new Set([
+  'unanswered_question',
+  'unkept_promise',
+  'untracked_conversation',
+  'unmatched_requirement',
+]);
+
+/** Mirrored from src/lib/sweep/gap-actions.ts (gapPrimaryAction). */
+export function gapPrimaryTarget(
+  gap: ConversationGap
+): GapPrimaryTarget | null {
+  const label = gap.suggested_action?.trim();
+  if (!label || !ACTIONABLE_KINDS.has(gap.kind)) return null;
+  if (gap.conversation_id) {
+    return { type: 'conversation', id: gap.conversation_id, label };
+  }
+  const contactId = gap.contact_id ?? gap.contacts?.id ?? null;
+  if (contactId) return { type: 'contact', id: contactId, label };
+  return null;
+}

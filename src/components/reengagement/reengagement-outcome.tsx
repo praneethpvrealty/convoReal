@@ -5,12 +5,21 @@
 // across every batch on /reengagement. `broadcastId === null` means all
 // batches, which is exactly what the RPCs take.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { Button } from '@/components/ui/button';
-import { Loader2, Send, Users, Filter, MessageSquare } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Loader2,
+  Send,
+  Users,
+  Filter,
+  MessageSquare,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import {
@@ -20,11 +29,16 @@ import {
   type ReengagementLead,
 } from '@/lib/reengagement/queries';
 import {
+  allLeadsMatched,
   funnelStages,
   leadStage,
+  maskPhoneLastFour,
   requirementSummary,
+  sortLeads,
   LEAD_STAGE_LABELS,
+  type LeadSortKey,
   type LeadStage,
+  type SortDirection,
 } from '@/lib/reengagement/funnel';
 import { ShortlistDialog } from './shortlist-dialog';
 
@@ -52,6 +66,10 @@ export function ReengagementOutcome({
 
   const [onlyMatched, setOnlyMatched] = useState(false);
   const [page, setPage] = useState(0);
+  const [sort, setSort] = useState<{
+    key: LeadSortKey;
+    direction: SortDirection;
+  } | null>(null);
   const [shortlistLead, setShortlistLead] = useState<ReengagementLead | null>(
     null
   );
@@ -76,13 +94,52 @@ export function ReengagementOutcome({
     enabled,
   });
 
+  function toggleSort(key: LeadSortKey) {
+    setSort((current) =>
+      current?.key === key
+        ? { key, direction: current.direction === 'desc' ? 'asc' : 'desc' }
+        : { key, direction: 'desc' }
+    );
+  }
+
+  function sortHeader(key: LeadSortKey, label: string) {
+    const active = sort?.key === key ? sort.direction : null;
+    const Icon =
+      active === 'desc' ? ArrowDown : active === 'asc' ? ArrowUp : ArrowUpDown;
+    return (
+      <th
+        aria-sort={
+          active === 'desc'
+            ? 'descending'
+            : active === 'asc'
+              ? 'ascending'
+              : 'none'
+        }
+        className="px-3 py-2 text-left font-medium text-slate-400"
+      >
+        <button
+          type="button"
+          onClick={() => toggleSort(key)}
+          className="inline-flex cursor-pointer items-center gap-1 hover:text-slate-200"
+        >
+          {label}
+          <Icon className="size-3" />
+        </button>
+      </th>
+    );
+  }
+
   function refresh() {
     summaryQuery.refetch();
     leadsQuery.refetch();
   }
 
   const summary = summaryQuery.data;
-  const leads = leadsQuery.data?.leads ?? [];
+  const fetchedLeads = leadsQuery.data?.leads;
+  const leads = useMemo(() => {
+    const rows = fetchedLeads ?? [];
+    return sort ? sortLeads(rows, sort.key, sort.direction) : rows;
+  }, [fetchedLeads, sort]);
   const total = leadsQuery.data?.total ?? 0;
   const pageCount = Math.ceil(total / LEADS_PAGE_SIZE);
 
@@ -141,21 +198,23 @@ export function ReengagementOutcome({
             ? ` across ${summary.batches} batches`
             : ''}
         </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setOnlyMatched((v) => !v);
-            setPage(0);
-          }}
-          className={`h-8 border-slate-700 text-xs hover:bg-slate-800 ${
-            onlyMatched ? 'text-primary border-primary/40' : 'text-slate-300'
-          }`}
-        >
-          <Filter className="size-3" />
-          {onlyMatched ? 'Showing matched only' : 'Show matched only'}
-        </Button>
+        {(onlyMatched || !summary || !allLeadsMatched(summary)) && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setOnlyMatched((v) => !v);
+              setPage(0);
+            }}
+            className={`h-8 border-slate-700 text-xs hover:bg-slate-800 ${
+              onlyMatched ? 'text-primary border-primary/40' : 'text-slate-300'
+            }`}
+          >
+            <Filter className="size-3" />
+            {onlyMatched ? 'Showing matched only' : 'Show matched only'}
+          </Button>
+        )}
       </div>
 
       {/* Leads */}
@@ -173,7 +232,7 @@ export function ReengagementOutcome({
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-800">
-          <table className="w-full min-w-[720px] text-xs">
+          <table className="w-full min-w-[800px] text-xs">
             <thead>
               <tr className="bg-slate-800/60">
                 <th className="px-3 py-2 text-left font-medium text-slate-400">
@@ -185,9 +244,8 @@ export function ReengagementOutcome({
                 <th className="px-3 py-2 text-left font-medium text-slate-400">
                   Latest requirement
                 </th>
-                <th className="px-3 py-2 text-left font-medium text-slate-400">
-                  Matches
-                </th>
+                {sortHeader('matches', 'Matches')}
+                {sortHeader('repliedAt', 'Last reply')}
                 <th className="px-3 py-2 text-right font-medium text-slate-400">
                   Action
                 </th>
@@ -213,6 +271,13 @@ export function ReengagementOutcome({
                           'Unnamed lead'}
                       </Link>
                       <p className="text-[10px] text-slate-500">
+                        {lead.contactName?.trim() &&
+                          maskPhoneLastFour(lead.contactPhone) && (
+                            <>
+                              {maskPhoneLastFour(lead.contactPhone)}
+                              {' · '}
+                            </>
+                          )}
                         {formatDistanceToNow(new Date(lead.batchSentAt), {
                           addSuffix: true,
                         })}
@@ -233,6 +298,15 @@ export function ReengagementOutcome({
                         <span className="font-semibold text-white">
                           {lead.matchCount}
                         </span>
+                      ) : (
+                        <span className="text-slate-600">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-slate-300">
+                      {lead.repliedAt ? (
+                        formatDistanceToNow(new Date(lead.repliedAt), {
+                          addSuffix: true,
+                        })
                       ) : (
                         <span className="text-slate-600">—</span>
                       )}

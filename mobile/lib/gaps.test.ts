@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   countByKind,
+  gapPrimaryTarget,
   relativeDay,
   sortGaps,
   type ConversationGap,
@@ -103,5 +104,66 @@ describe('relativeDay', () => {
 
   it('does not throw on an unparseable stamp', () => {
     expect(relativeDay('not-a-date', now)).toBe('');
+  });
+});
+
+describe('gapPrimaryTarget', () => {
+  const suggestion = 'Run matching on this contact and share the shortlist.';
+
+  it('sends a nothing-sent gap to its conversation, labelled by the suggestion', () => {
+    expect(
+      gapPrimaryTarget(
+        gap({
+          id: 'g',
+          kind: 'unmatched_requirement',
+          severity: 'high',
+          suggested_action: suggestion,
+        })
+      )
+    ).toEqual({ type: 'conversation', id: 'conv1', label: suggestion });
+  });
+
+  it('falls back to the contact when there is no conversation', () => {
+    expect(
+      gapPrimaryTarget(
+        gap({
+          id: 'g',
+          kind: 'untracked_conversation',
+          severity: 'low',
+          suggested_action: suggestion,
+          conversation_id: null,
+        })
+      )
+    ).toEqual({ type: 'contact', id: 'c1', label: suggestion });
+  });
+
+  it('has no target for a bot override, a missing suggestion or no ids', () => {
+    expect(
+      gapPrimaryTarget(
+        gap({
+          id: 'g',
+          kind: 'bot_handoff',
+          severity: 'low',
+          suggested_action: suggestion,
+        })
+      )
+    ).toBeNull();
+    expect(
+      gapPrimaryTarget(
+        gap({ id: 'g', kind: 'unanswered_question', severity: 'low' })
+      )
+    ).toBeNull();
+    expect(
+      gapPrimaryTarget(
+        gap({
+          id: 'g',
+          kind: 'unanswered_question',
+          severity: 'low',
+          suggested_action: suggestion,
+          conversation_id: null,
+          contact_id: null,
+        })
+      )
+    ).toBeNull();
   });
 });
