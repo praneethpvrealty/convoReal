@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -24,7 +24,7 @@ import {
 } from '@/components/ui';
 import { MatchTargetRow } from '@/components/match-target-row';
 import { ApiError } from '@/lib/api';
-import { formatInr } from '@/lib/format';
+import { auditDateTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import {
@@ -37,6 +37,11 @@ import { scoreTone } from '@/lib/match-chips';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { resolveRequirementSource } from '@/lib/requirements-profile';
+import {
+  DEFAULT_ALERT_MIN_SCORE,
+  defaultSelectedTargetIds,
+  isImplausibleListingPrice,
+} from '@shared/lib/radar/alert-defaults';
 import type { Contact, MatchEvent } from '@shared/types';
 
 /**
@@ -49,6 +54,10 @@ import type { Contact, MatchEvent } from '@shared/types';
 type CheckedState = { [eventId: string]: Set<string> };
 type ManualContactState = { [eventId: string]: Contact[] };
 const NO_CONTACTS: Contact[] = [];
+
+function defaultSelection(evt: MatchEvent): Set<string> {
+  return new Set(defaultSelectedTargetIds(evt.matches));
+}
 
 export default function RadarScreen() {
   const { colors } = useTheme();
@@ -69,10 +78,10 @@ export default function RadarScreen() {
   });
   const pull = usePullRefresh(events.refetch);
 
-  // No entry in `checked` means "all targets selected" — the default —
-  // so fresh events need no state sync when the query refetches.
+  // No entry in `checked` means the 80%+ default selection, so fresh
+  // events need no state sync when the query refetches.
   const selectionFor = (evt: MatchEvent) =>
-    checked[evt.id] ?? new Set(evt.matches.map((m) => m.id));
+    checked[evt.id] ?? defaultSelection(evt);
 
   const targetIdsFor = (evt: MatchEvent) => [
     ...evt.matches.map((match) => match.id),
@@ -82,7 +91,7 @@ export default function RadarScreen() {
   const toggleTarget = (evt: MatchEvent, targetId: string) => {
     haptic.tap();
     setChecked((prev) => {
-      const current = new Set(prev[evt.id] ?? targetIdsFor(evt));
+      const current = new Set(prev[evt.id] ?? defaultSelection(evt));
       if (current.has(targetId)) current.delete(targetId);
       else current.add(targetId);
       return { ...prev, [evt.id]: current };
@@ -93,22 +102,25 @@ export default function RadarScreen() {
     haptic.tap();
     setChecked((prev) => {
       const allIds = targetIdsFor(evt);
-      const current = prev[evt.id] ?? new Set(allIds);
-      const allChecked = allIds.every((id) => current.has(id));
+      const current = prev[evt.id] ?? defaultSelection(evt);
+      const anyChecked = allIds.some((id) => current.has(id));
       return {
         ...prev,
-        [evt.id]: allChecked ? new Set<string>() : new Set(allIds),
+        [evt.id]: anyChecked ? new Set<string>() : new Set(allIds),
       };
     });
+  };
+
+  const selectTargets = (evt: MatchEvent, ids: string[]) => {
+    haptic.tap();
+    setChecked((prev) => ({ ...prev, [evt.id]: new Set(ids) }));
   };
 
   const saveManualContacts = (evt: MatchEvent, contacts: Contact[]) => {
     const previous = manualContacts[evt.id] ?? [];
     setManualContacts((current) => ({ ...current, [evt.id]: contacts }));
     setChecked((current) => {
-      const next = new Set(
-        current[evt.id] ?? evt.matches.map((match) => match.id)
-      );
+      const next = new Set(current[evt.id] ?? defaultSelection(evt));
       const keptIds = new Set(contacts.map((contact) => contact.id));
       for (const contact of previous) {
         if (!keptIds.has(contact.id)) next.delete(contact.id);
@@ -243,6 +255,7 @@ export default function RadarScreen() {
                 manualContacts={manualContacts[item.id] ?? NO_CONTACTS}
                 onToggleTarget={(targetId) => toggleTarget(item, targetId)}
                 onToggleAll={() => toggleAll(item)}
+                onSelectTargets={(ids) => selectTargets(item, ids)}
                 onAddContacts={() => setPickerEvent(item)}
                 onSend={() => send(item)}
                 onDismiss={() => dismiss(item.id)}
@@ -295,6 +308,7 @@ function EventCard({
   manualContacts,
   onToggleTarget,
   onToggleAll,
+  onSelectTargets,
   onAddContacts,
   onSend,
   onDismiss,
@@ -307,6 +321,7 @@ function EventCard({
   manualContacts: Contact[];
   onToggleTarget: (targetId: string) => void;
   onToggleAll: () => void;
+  onSelectTargets: (ids: string[]) => void;
   onAddContacts: () => void;
   onSend: () => void;
   onDismiss: () => void;
@@ -326,7 +341,15 @@ function EventCard({
       manuallyAdded: true as const,
     })),
   ];
-  const allChecked = displayTargets.every((target) => selected.has(target.id));
+  const allTargetIds = displayTargets.map((target) => target.id);
+  const strongTargetIds = [
+    ...defaultSelectedTargetIds(event.matches),
+    ...manualContacts.map((contact) => contact.id),
+  ];
+  const hasWeakTargets = strongTargetIds.length < allTargetIds.length;
+  const isStrongOnly =
+    selected.size === strongTargetIds.length &&
+    strongTargetIds.every((id) => selected.has(id));
 
   return (
     <View
@@ -343,7 +366,7 @@ function EventCard({
           }
         />
         <Text style={{ flex: 1, fontSize: 11.5, color: colors.textFaint }}>
-          {new Date(event.created_at).toLocaleDateString()}
+          {auditDateTime(event.created_at)}
         </Text>
         {dismissing ? (
           <ActivityIndicator size="small" color={colors.textFaint} />
@@ -352,9 +375,20 @@ function EventCard({
             onPress={onDismiss}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Dismiss event"
+            accessibilityLabel="Dismiss"
+            accessibilityHint="Hide this alert"
+            style={styles.dismiss}
           >
-            <Ionicons name="trash-outline" size={17} color={colors.textFaint} />
+            <Ionicons name="close" size={15} color={colors.textFaint} />
+            <Text
+              style={{
+                fontSize: 12,
+                fontFamily: f.bold,
+                color: colors.textFaint,
+              }}
+            >
+              Dismiss
+            </Text>
           </Pressable>
         )}
       </View>
@@ -388,6 +422,27 @@ function EventCard({
               </Text>
             </Pressable>
           ) : null}
+          {hasWeakTargets ? (
+            <Pressable
+              onPress={() =>
+                onSelectTargets(isStrongOnly ? allTargetIds : strongTargetIds)
+              }
+              hitSlop={8}
+              accessibilityRole="button"
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontFamily: f.bold,
+                  color: colors.primary,
+                }}
+              >
+                {isStrongOnly
+                  ? 'Select all'
+                  : `Select ${DEFAULT_ALERT_MIN_SCORE}%+`}
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable
             onPress={onToggleAll}
             hitSlop={8}
@@ -400,7 +455,7 @@ function EventCard({
                 color: colors.primary,
               }}
             >
-              {allChecked ? 'Deselect all' : 'Select all'}
+              {selected.size > 0 ? 'Deselect all' : 'Select all'}
             </Text>
           </Pressable>
         </View>
@@ -472,26 +527,63 @@ function Subject({ event }: { event: MatchEvent }) {
     const p = event.property;
     const location = p.sublocality || p.city || p.location;
     return (
-      <View style={[styles.subject, { borderColor: colors.border }]}>
-        <Ionicons name="business-outline" size={17} color={colors.primary} />
-        <View style={{ flex: 1, gap: 1 }}>
-          <Text
-            style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text }}
-            numberOfLines={1}
-          >
-            {p.title}
-          </Text>
-          <Text
-            style={{ fontSize: 12, color: colors.textMuted }}
-            numberOfLines={1}
-          >
-            {formatInr(Number(p.price) || null)}
-            {location ? ` · ${location}` : ''}
-            {p.bedrooms ? ` · ${p.bedrooms} BHK` : ''}
-            {p.area_sqft ? ` · ${p.area_sqft} ${p.area_unit || 'Sq.Ft.'}` : ''}
-          </Text>
+      <>
+        <View style={[styles.subject, { borderColor: colors.border }]}>
+          <Ionicons name="business-outline" size={17} color={colors.primary} />
+          <View style={{ flex: 1, gap: 1 }}>
+            <Text
+              style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text }}
+              numberOfLines={1}
+            >
+              {p.title}
+            </Text>
+            <Text
+              style={{ fontSize: 12, color: colors.textMuted }}
+              numberOfLines={1}
+            >
+              {formatInr(Number(p.price) || null)}
+              {location ? ` · ${location}` : ''}
+              {p.bedrooms ? ` · ${p.bedrooms} BHK` : ''}
+              {p.area_sqft
+                ? ` · ${p.area_sqft} ${p.area_unit || 'Sq.Ft.'}`
+                : ''}
+            </Text>
+          </View>
         </View>
-      </View>
+        {isImplausibleListingPrice(p) ? (
+          <Pressable
+            onPress={() => router.push(`/(app)/property/${p.id}`)}
+            accessibilityRole="link"
+            accessibilityHint="Opens the listing"
+            style={[
+              styles.warnBox,
+              {
+                backgroundColor: colors.warningSoft,
+                borderColor: colors.warning,
+              },
+            ]}
+          >
+            <Ionicons
+              name="alert-circle-outline"
+              size={16}
+              color={colors.warning}
+            />
+            <Text
+              style={{
+                flex: 1,
+                fontSize: 12,
+                lineHeight: 17,
+                color: colors.text,
+              }}
+            >
+              Price looks wrong, check the listing before alerting.{' '}
+              <Text style={{ fontFamily: f.bold, color: colors.warning }}>
+                Open listing
+              </Text>
+            </Text>
+          </Pressable>
+        ) : null}
+      </>
     );
   }
 
@@ -564,7 +656,7 @@ function DirectOwnerCard({
       <View style={styles.cardHead}>
         <Tag label="Direct owner" color={colors.warning} />
         <Text style={{ flex: 1, fontSize: 11.5, color: colors.textFaint }}>
-          {new Date(event.created_at).toLocaleDateString()}
+          {auditDateTime(event.created_at)}
         </Text>
         {dismissing ? (
           <ActivityIndicator size="small" color={colors.textFaint} />
@@ -655,6 +747,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  dismiss: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
   warnBox: {
     flexDirection: 'row',

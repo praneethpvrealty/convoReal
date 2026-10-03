@@ -171,3 +171,13 @@ export function readyToShortlist(
 ): ReengagementLead[] {
   return leads.filter((l) => l.matchCount > 0 && l.matchEventStatus !== 'sent');
 }
+
+export function maskPhoneLastFour(phone: string | null): string | null {
+  const digits = (phone ?? '').replace(/\D/g, '');
+  if (digits.length === 0) return null;
+  return digits.length <= 4 ? '••••' : `•••• ${digits.slice(-4)}`;
+}
+
+export function allLeadsMatched(summary: ReengagementSummary): boolean {
+  return summary.leads > 0 && summary.matched >= summary.leads;
+}

@@ -10,6 +10,7 @@ import { chatListTime } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
+import { splitLocationApprovals } from '@shared/lib/dashboard/approval-order';
 
 interface LocationApprovalRow {
   id: string;
@@ -50,6 +51,7 @@ function statusLine(row: LocationApprovalRow): {
 export function LocationApprovals() {
   const { colors, fonts: f } = useTheme();
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [showApproved, setShowApproved] = useState(false);
   const { show, dialogProps } = useAppDialog();
 
   const { data } = useQuery({
@@ -62,6 +64,7 @@ export function LocationApprovals() {
   });
   const rows = data?.data ?? [];
   if (rows.length === 0) return null;
+  const { open, approved } = splitLocationApprovals(rows);
 
   const act = async (
     row: LocationApprovalRow,
@@ -96,130 +99,142 @@ export function LocationApprovals() {
     muted: colors.textMuted,
   };
 
+  const renderRow = (row: LocationApprovalRow) => {
+    const s = statusLine(row);
+    const actionable =
+      row.status === 'pending' && !row.pending_consent_contact_name;
+    return (
+      <View
+        key={row.id}
+        style={[
+          styles.card,
+          {
+            backgroundColor: colors.glass,
+            borderColor: colors.glassBorder,
+          },
+        ]}
+      >
+        <View style={styles.head}>
+          <Ionicons name="location-outline" size={17} color={colors.primary} />
+          <Text
+            style={{
+              flex: 1,
+              fontSize: 14,
+              fontFamily: f.bold,
+              color: colors.text,
+            }}
+            numberOfLines={1}
+          >
+            {row.property_title}
+            {row.property_code ? `  ·  ${row.property_code}` : ''}
+          </Text>
+          <Text style={{ fontSize: 11, color: colors.textFaint }}>
+            {chatListTime(row.created_at)}
+          </Text>
+        </View>
+        <View style={styles.head}>
+          <Ionicons name="person-outline" size={13} color={colors.textMuted} />
+          <Text
+            style={{ flex: 1, fontSize: 12.5, color: colors.textMuted }}
+            numberOfLines={1}
+          >
+            {row.requester_name} · {row.requester_phone}
+            {row.identity_protected ? '  🔒' : ''}
+          </Text>
+        </View>
+        <Text
+          style={{
+            fontSize: 12,
+            fontFamily: f.bold,
+            color: toneColor[s.tone],
+          }}
+        >
+          {s.text}
+          {row.via_contact_name ? `  ·  via ${row.via_contact_name}` : ''}
+        </Text>
+        {actionable ? (
+          <View style={styles.actions}>
+            <Pressable
+              onPress={() => act(row, 'approve')}
+              disabled={processingId === row.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Approve location request for ${row.property_title}`}
+              style={({ pressed }) => [
+                styles.button,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: processingId === row.id ? 0.5 : pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              <Ionicons name="checkmark" size={15} color={colors.onPrimary} />
+              <Text
+                style={[
+                  styles.buttonText,
+                  { fontFamily: f.bold, color: colors.onPrimary },
+                ]}
+              >
+                Approve
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => act(row, 'reject')}
+              disabled={processingId === row.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Reject location request for ${row.property_title}`}
+              style={({ pressed }) => [
+                styles.button,
+                styles.rejectButton,
+                {
+                  borderColor: colors.danger,
+                  opacity: processingId === row.id ? 0.5 : pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              <Ionicons name="close" size={15} color={colors.danger} />
+              <Text
+                style={[
+                  styles.buttonText,
+                  { color: colors.danger, fontFamily: f.bold },
+                ]}
+              >
+                Reject
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+    );
+  };
+
   return (
     <View style={{ gap: spacing.sm }}>
       <SectionLabel text="Location approvals" />
-      {rows.map((row) => {
-        const s = statusLine(row);
-        const actionable =
-          row.status === 'pending' && !row.pending_consent_contact_name;
-        return (
-          <View
-            key={row.id}
-            style={[
-              styles.card,
-              {
-                backgroundColor: colors.glass,
-                borderColor: colors.glassBorder,
-              },
-            ]}
+      {open.map(renderRow)}
+      {approved.length > 0 ? (
+        <Pressable
+          onPress={() => setShowApproved((v) => !v)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showApproved }}
+          style={styles.disclosure}
+        >
+          <Ionicons
+            name={showApproved ? 'chevron-down' : 'chevron-forward'}
+            size={14}
+            color={colors.textMuted}
+          />
+          <Text
+            style={{
+              fontSize: 12.5,
+              fontFamily: f.bold,
+              color: colors.textMuted,
+            }}
           >
-            <View style={styles.head}>
-              <Ionicons
-                name="location-outline"
-                size={17}
-                color={colors.primary}
-              />
-              <Text
-                style={{
-                  flex: 1,
-                  fontSize: 14,
-                  fontFamily: f.bold,
-                  color: colors.text,
-                }}
-                numberOfLines={1}
-              >
-                {row.property_title}
-                {row.property_code ? `  ·  ${row.property_code}` : ''}
-              </Text>
-              <Text style={{ fontSize: 11, color: colors.textFaint }}>
-                {chatListTime(row.created_at)}
-              </Text>
-            </View>
-            <View style={styles.head}>
-              <Ionicons
-                name="person-outline"
-                size={13}
-                color={colors.textMuted}
-              />
-              <Text
-                style={{ flex: 1, fontSize: 12.5, color: colors.textMuted }}
-                numberOfLines={1}
-              >
-                {row.requester_name} · {row.requester_phone}
-                {row.identity_protected ? '  🔒' : ''}
-              </Text>
-            </View>
-            <Text
-              style={{
-                fontSize: 12,
-                fontFamily: f.bold,
-                color: toneColor[s.tone],
-              }}
-            >
-              {s.text}
-              {row.via_contact_name ? `  ·  via ${row.via_contact_name}` : ''}
-            </Text>
-            {actionable ? (
-              <View style={styles.actions}>
-                <Pressable
-                  onPress={() => act(row, 'approve')}
-                  disabled={processingId === row.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Approve location request for ${row.property_title}`}
-                  style={({ pressed }) => [
-                    styles.button,
-                    {
-                      backgroundColor: colors.primary,
-                      opacity:
-                        processingId === row.id ? 0.5 : pressed ? 0.8 : 1,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name="checkmark"
-                    size={15}
-                    color={colors.onPrimary}
-                  />
-                  <Text
-                    style={[
-                      styles.buttonText,
-                      { fontFamily: f.bold, color: colors.onPrimary },
-                    ]}
-                  >
-                    Approve
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => act(row, 'reject')}
-                  disabled={processingId === row.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Reject location request for ${row.property_title}`}
-                  style={({ pressed }) => [
-                    styles.button,
-                    styles.rejectButton,
-                    {
-                      borderColor: colors.danger,
-                      opacity:
-                        processingId === row.id ? 0.5 : pressed ? 0.8 : 1,
-                    },
-                  ]}
-                >
-                  <Ionicons name="close" size={15} color={colors.danger} />
-                  <Text
-                    style={[
-                      styles.buttonText,
-                      { color: colors.danger, fontFamily: f.bold },
-                    ]}
-                  >
-                    Reject
-                  </Text>
-                </Pressable>
-              </View>
-            ) : null}
-          </View>
-        );
-      })}
+            Recently approved ({approved.length})
+          </Text>
+        </Pressable>
+      ) : null}
+      {showApproved ? approved.map(renderRow) : null}
       <AppDialog {...dialogProps} />
     </View>
   );
@@ -244,5 +259,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   rejectButton: { backgroundColor: 'transparent', borderWidth: 1 },
+  disclosure: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+  },
   buttonText: { fontSize: 13 },
 });

@@ -27,6 +27,7 @@ import { BarChart } from '@/components/tremor/bar-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { TabSkeleton } from '@/components/dashboard/skeleton';
 
 function monthLabel(month: string) {
   return format(new Date(`${month}T00:00:00`), 'MMM yy');
@@ -97,11 +98,14 @@ export default function MarketContent() {
     }
   }
 
-  if (statsQuery.isLoading) {
+  if (statsQuery.isPending) {
     return (
-      <p className="py-16 text-center text-sm text-slate-500">
-        Loading market data...
-      </p>
+      <div className="space-y-6">
+        <p className="text-sm text-slate-400">
+          Anonymized market benchmarks from participating consultants.
+        </p>
+        <TabSkeleton label="Loading market data" tiles={4} cards={2} />
+      </div>
     );
   }
 

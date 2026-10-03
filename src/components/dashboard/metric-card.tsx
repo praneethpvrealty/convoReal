@@ -9,14 +9,14 @@ interface MetricCardProps {
   value: string;
   icon: ComponentType<{ className?: string }>;
   /**
-   * Delta-mode secondary row: arrow + delta text. Omit when the metric
-   * doesn't have a sensible comparison (e.g. total pipeline value).
+   * Delta-mode secondary row: arrow + "N more/fewer than yesterday".
+   * Omit when the metric doesn't have a sensible comparison (e.g.
+   * total pipeline value). `direction: 'neutral'` keeps both a rise
+   * and a drop slate for metrics with no clear good direction.
    */
   delta?: {
-    /** Positive / negative / zero drives arrow + color. */
-    sign: number;
-    /** Pre-formatted delta, e.g. "+3 vs yesterday". */
-    label: string;
+    value: number;
+    direction?: 'higher-is-better' | 'neutral';
   };
   /** Used instead of `delta` when the metric has a static subtitle. */
   subtitle?: string;
@@ -59,7 +59,10 @@ export function MetricCard({
       </p>
       <div className="relative z-10">
         {delta ? (
-          <DeltaRow sign={delta.sign} label={delta.label} />
+          <DeltaRow
+            value={delta.value}
+            direction={delta.direction ?? 'higher-is-better'}
+          />
         ) : subtitle ? (
           <p className="mt-2 text-xs font-medium text-slate-500">{subtitle}</p>
         ) : null}
@@ -68,14 +71,30 @@ export function MetricCard({
   );
 }
 
-function DeltaRow({ sign, label }: { sign: number; label: string }) {
+export function deltaCopy(value: number): string {
+  if (value === 0) return 'Same as yesterday';
+  const amount = Math.abs(value).toLocaleString();
+  return `${amount} ${value > 0 ? 'more' : 'fewer'} than yesterday`;
+}
+
+function DeltaRow({
+  value,
+  direction,
+}: {
+  value: number;
+  direction: 'higher-is-better' | 'neutral';
+}) {
   const tone =
-    sign > 0 ? 'text-primary' : sign < 0 ? 'text-red-400' : 'text-slate-500';
-  const Arrow = sign > 0 ? ArrowUp : sign < 0 ? ArrowDown : Minus;
+    direction === 'neutral' || value === 0
+      ? 'text-slate-400'
+      : value > 0
+        ? 'text-primary'
+        : 'text-red-400';
+  const Arrow = value > 0 ? ArrowUp : value < 0 ? ArrowDown : Minus;
   return (
     <div className={cn('mt-2 flex items-center gap-1 text-sm', tone)}>
       <Arrow className="h-4 w-4" aria-hidden />
-      <span className="tabular-nums">{label}</span>
+      <span className="tabular-nums">{deltaCopy(value)}</span>
     </div>
   );
 }

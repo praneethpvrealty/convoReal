@@ -75,13 +75,3 @@ export function countByKind(
   for (const gap of gaps) counts.set(gap.kind, (counts.get(gap.kind) ?? 0) + 1);
   return [...counts.entries()].map(([kind, count]) => ({ kind, count }));
 }
-
-export function relativeDay(iso: string, now = Date.now()): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '';
-  const hours = Math.round((now - then) / 3_600_000);
-  if (hours < 1) return 'just now';
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return days === 1 ? 'yesterday' : `${days} days ago`;
-}

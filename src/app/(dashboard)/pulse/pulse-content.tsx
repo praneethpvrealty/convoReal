@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Activity,
@@ -51,9 +51,10 @@ import {
   groupEventsByVisitor,
   type DedupedShowcaseEvent,
 } from '@/lib/pulse/dedupe-feed';
-import { HeartbeatLoader } from '@/components/ui/heartbeat-loader';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { TabSkeleton } from '@/components/dashboard/skeleton';
 import { PropertyViewersDialog } from '@/components/pulse/property-viewers-dialog';
+import { formatInrCompact } from '@/lib/format/currency';
+import { formatDate } from '@/lib/format/date';
 
 type FeedFilter = 'all' | 'property_views' | 'identified';
 
@@ -68,15 +69,37 @@ const FEED_FILTERS: Array<{ key: FeedFilter; label: string }> = [
 const ANONYMOUS_NUDGE_THRESHOLD = 0.6;
 const ANONYMOUS_NUDGE_MIN_EVENTS = 5;
 
+interface PulseSnapshot {
+  stats: PulseStats;
+  feed: HydratedShowcaseEvent[];
+}
+
+interface OlderActivity {
+  after: string;
+  events: HydratedShowcaseEvent[];
+  cursor: PulseFeedCursor | null;
+}
+
+async function fetchPulse(accountId: string): Promise<PulseSnapshot> {
+  const db = createClient();
+  const [stats, feed] = await Promise.all([
+    loadPulseStats(db, accountId),
+    loadPulseFeed(db),
+  ]);
+  return { stats, feed };
+}
+
+function cursorKey(cursor: PulseFeedCursor | null): string | null {
+  return cursor ? `${cursor.createdAt}|${cursor.id}` : null;
+}
+
 export default function PulsePage() {
   const router = useRouter();
   const { accountId } = useAuth();
-  const [stats, setStats] = useState<PulseStats | null>(null);
-  const [feed, setFeed] = useState<HydratedShowcaseEvent[] | null>(null);
-  const [feedCursor, setFeedCursor] = useState<PulseFeedCursor | null>(null);
+  const [olderActivity, setOlderActivity] = useState<OlderActivity | null>(
+    null
+  );
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('all');
   const [expandedVisitors, setExpandedVisitors] = useState<Set<string>>(
     new Set()
@@ -97,44 +120,46 @@ export default function PulsePage() {
     title: string;
   } | null>(null);
 
-  const fetchStatsAndFeed = useCallback(
-    async (accId: string, isRefresh = false) => {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
-
-      try {
-        const db = createClient();
-        const [statsData, feedData] = await Promise.all([
-          loadPulseStats(db, accId),
-          loadPulseFeed(db),
-        ]);
-        setStats(statsData);
-        setFeed(feedData);
-        setFeedCursor(nextPulseFeedCursor(feedData));
-      } catch (err: unknown) {
-        console.error('[pulse] fetch failed:', err);
-        toast.error('Failed to load Showcase Pulse analytics');
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    []
-  );
+  const pulseQuery = useQuery({
+    queryKey: ['showcase-pulse', accountId],
+    queryFn: () => fetchPulse(accountId as string),
+    enabled: Boolean(accountId),
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
-    if (accountId) {
-      fetchStatsAndFeed(accountId);
-    }
-  }, [accountId, fetchStatsAndFeed]);
+    if (!pulseQuery.isError) return;
+    console.error('[pulse] fetch failed:', pulseQuery.error);
+    toast.error('Failed to load Showcase Pulse analytics');
+  }, [pulseQuery.isError, pulseQuery.error]);
+
+  const stats = pulseQuery.data?.stats ?? null;
+  const firstPage = pulseQuery.data?.feed ?? null;
+  const firstPageKey = cursorKey(
+    firstPage ? nextPulseFeedCursor(firstPage) : null
+  );
+  const older =
+    olderActivity && olderActivity.after === firstPageKey
+      ? olderActivity
+      : null;
+  const feed = firstPage ? [...firstPage, ...(older?.events ?? [])] : null;
+  const feedCursor = older
+    ? older.cursor
+    : firstPage
+      ? nextPulseFeedCursor(firstPage)
+      : null;
+  const refreshing = pulseQuery.isFetching && !pulseQuery.isPending;
 
   const loadOlderActivity = async () => {
-    if (!feedCursor || loadingOlder) return;
+    if (!feedCursor || !firstPageKey || loadingOlder) return;
     setLoadingOlder(true);
     try {
-      const older = await loadPulseFeed(createClient(), feedCursor);
-      setFeed((current) => [...(current ?? []), ...older]);
-      setFeedCursor(nextPulseFeedCursor(older));
+      const page = await loadPulseFeed(createClient(), feedCursor);
+      setOlderActivity({
+        after: firstPageKey,
+        events: [...(older?.events ?? []), ...page],
+        cursor: nextPulseFeedCursor(page),
+      });
     } catch (err: unknown) {
       console.error('[pulse] older activity fetch failed:', err);
       toast.error('Failed to load older visitor activity');
@@ -261,11 +286,7 @@ export default function PulsePage() {
   const formatPrice = (price?: string | number) => {
     const val = Number(price);
     if (!val || isNaN(val)) return '₹0';
-    if (val >= 10000000)
-      return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-    if (val >= 100000)
-      return `₹${(val / 100000).toFixed(2).replace(/\.00$/, '')} L`;
-    return `₹${val.toLocaleString('en-IN')}`;
+    return formatInrCompact(val);
   };
 
   const formatTimeAgo = (isoString: string) => {
@@ -275,10 +296,7 @@ export default function PulsePage() {
     if (mins < 60) return `${mins}m ago`;
     const hrs = Math.floor(mins / 60);
     if (hrs < 24) return `${hrs}h ago`;
-    return new Date(isoString).toLocaleDateString([], {
-      month: 'short',
-      day: 'numeric',
-    });
+    return formatDate(isoString);
   };
 
   const filteredFeed = (feed ?? []).filter((evt) => {
@@ -314,11 +332,10 @@ export default function PulsePage() {
           variant="ghost"
           size="sm"
           onClick={() => {
-            if (!accountId) return;
-            fetchStatsAndFeed(accountId, true);
-            listingsQuery.refetch();
+            void pulseQuery.refetch();
+            void listingsQuery.refetch();
           }}
-          disabled={!accountId || loading || refreshing}
+          disabled={!accountId || pulseQuery.isFetching}
           className="shrink-0 cursor-pointer rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-900/40 hover:text-white"
         >
           <RefreshCw
@@ -328,16 +345,8 @@ export default function PulsePage() {
         </Button>
       </div>
 
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-          <HeartbeatLoader
-            size={104}
-            label="Loading pulse activity"
-            className="mb-3"
-          />
-          <ConvoRealLoader size={20} className="mb-2" />
-          <p className="text-sm">Reading the pulse...</p>
-        </div>
+      {pulseQuery.isPending ? (
+        <TabSkeleton label="Loading Showcase Pulse" tiles={3} />
       ) : (
         <>
           {/* Stats Bar */}
