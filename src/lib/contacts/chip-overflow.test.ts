@@ -1,15 +1,7 @@
-// ============================================================
-// Chip caps on the Contacts table. A row with three stacked area chips
-// was three times the height of its neighbours, which broke the scan
-// rhythm of a 700-row list. Every chip column now shows at most two
-// chips on one line and folds the rest into a "+N" whose tooltip
-// names them.
-// ============================================================
-
 import { describe, expect, it } from 'vitest';
 import { splitChips, TABLE_CHIP_CAP } from '@/lib/contacts/chip-overflow';
 
-describe('splitChips', () => {
+describe('splitChips [CTM-013]', () => {
   it('shows the first two and names the rest in the overflow title', () => {
     const split = splitChips([
       '2nd block banashankari 6th stage',
