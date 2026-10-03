@@ -7,10 +7,16 @@ import {
 } from '@/lib/pulse-feed';
 import { withAnalyticsTimeout } from '@/lib/analytics-request';
 import { supabase } from '@/lib/supabase';
+import {
+  toPulseViewedListing,
+  type PulseListingSort,
+  type PulseViewedListing,
+  type PulseViewedListingRow,
+} from '@shared/lib/pulse/viewed-listings';
 
 /**
  * Web parity: the Showcase Pulse page (src/lib/pulse/queries.ts). The
- * tiles, the top-listings ranking and the viewer roll-up come back
+ * tiles, the viewed-listings ranking and the viewer roll-up come back
  * pre-aggregated from migration 172 rather than as raw event rows — a
  * phone should not download an account's whole clickstream to count it.
  */
@@ -19,15 +25,6 @@ export interface PulseStats {
   totalViews: number;
   uniqueSessions: number;
   avgDwellTimeSec: number;
-}
-
-export interface PulseTopProperty {
-  propertyId: string;
-  title: string;
-  propertyCode: string | null;
-  price: number | null;
-  viewsCount: number;
-  uniqueViewsCount: number;
 }
 
 export interface PulseViewer {
@@ -70,40 +67,27 @@ async function fetchPulseStatsUnbounded(
   };
 }
 
-export async function fetchPulseTopProperties(
-  accountId: string
-): Promise<PulseTopProperty[]> {
+export async function fetchPulseViewedListings(
+  accountId: string,
+  sort: PulseListingSort
+): Promise<PulseViewedListing[]> {
   return withAnalyticsTimeout(
-    fetchPulseTopPropertiesUnbounded(accountId),
-    'Showcase Pulse top listings'
+    fetchPulseViewedListingsUnbounded(accountId, sort),
+    'Showcase Pulse viewed listings'
   );
 }
 
-async function fetchPulseTopPropertiesUnbounded(
-  accountId: string
-): Promise<PulseTopProperty[]> {
-  const { data, error } = await supabase.rpc('pulse_top_properties', {
+async function fetchPulseViewedListingsUnbounded(
+  accountId: string,
+  sort: PulseListingSort
+): Promise<PulseViewedListing[]> {
+  const { data, error } = await supabase.rpc('pulse_viewed_properties', {
     p_account_id: accountId,
+    p_sort: sort,
     p_limit: PULSE_VIEWED_LISTINGS_LIMIT,
   });
   if (error) throw error;
-  return (
-    (data ?? []) as {
-      property_id: string;
-      title: string;
-      property_code: string | null;
-      price: number | null;
-      views_count: number;
-      unique_views_count: number;
-    }[]
-  ).map((r) => ({
-    propertyId: r.property_id,
-    title: r.title,
-    propertyCode: r.property_code,
-    price: r.price,
-    viewsCount: r.views_count,
-    uniqueViewsCount: r.unique_views_count,
-  }));
+  return ((data ?? []) as PulseViewedListingRow[]).map(toPulseViewedListing);
 }
 
 /** Newest events first, one page at a time — the same pages the web timeline loads. */

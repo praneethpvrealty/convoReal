@@ -4413,6 +4413,20 @@ describe('[PLS-004] mobile Showcase Pulse lists every viewed listing like web', 
   });
 });
 
+describe('[PLS-005] mobile Showcase Pulse sorts viewed listings like web', () => {
+  it('uses the shared sort options and sends the chosen sort to the database', () => {
+    const fetcher = mobileSource('lib/pulse.ts');
+    expect(fetcher).toContain("from '@shared/lib/pulse/viewed-listings'");
+    expect(fetcher).toContain("rpc('pulse_viewed_properties'");
+    expect(fetcher).toContain('p_sort: sort');
+    const screen = mobileSource('app/(app)/pulse.tsx');
+    expect(screen).toContain('PULSE_LISTING_SORTS.map(');
+    expect(screen).toContain(
+      'Last viewed {formatTimeAgo(listing.lastViewedAt)}'
+    );
+  });
+});
+
 function interfaceFields(source: string, name: string): string[] {
   const match = source.match(
     new RegExp(`export interface ${name} \\{([\\s\\S]*?)\\n\\}`)

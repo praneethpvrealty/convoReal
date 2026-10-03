@@ -3276,6 +3276,14 @@
             { "file": "mobile/lib/pulse-feed.test.ts", "case": "[PLS-004]" },
             { "file": "src/lib/mobile-parity.test.ts", "case": "[PLS-004]" }
           ]
+        },
+        {
+          "id": "PLS-005",
+          "rule": "The viewed listings panel on web and mobile can be sorted by most views, fewest views, latest viewed or earliest viewed; the database applies the order before the listing bound, and every listing shows when it was last viewed.",
+          "tests": [
+            { "file": "src/lib/pulse/queries.test.ts", "case": "[PLS-005]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[PLS-005]" }
+          ]
         }
       ]
     },
