@@ -17,7 +17,7 @@ import {
 
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { Skeleton, TabSkeleton } from '@/components/dashboard/skeleton';
 import { InfoHint } from '@/components/ui/info-hint';
 
 type GapKind =
@@ -157,14 +157,6 @@ export default function GapsContent() {
     });
   }, [gaps, filter]);
 
-  if (gapsQuery.isLoading) {
-    return (
-      <div className="flex justify-center py-16">
-        <ConvoRealLoader />
-      </div>
-    );
-  }
-
   if (gapsQuery.isError) {
     return (
       <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-6 text-sm text-rose-300">
@@ -181,13 +173,19 @@ export default function GapsContent() {
             Conversation gaps
             <InfoHint text="Every morning at 6am the Engine reads back over the last day of WhatsApp — yours and your team's — files what it learned onto the records, and lists here what got dropped. Nothing on this screen has messaged anyone." />
           </h2>
-          <p className="mt-1 text-xs text-slate-400">
-            {gaps.length
-              ? `${gaps.length} open from the last sweep.`
-              : 'Nothing outstanding. Yesterday looks clean.'}
-          </p>
+          {gapsQuery.isPending ? (
+            <Skeleton className="mt-1.5 h-3 w-40" />
+          ) : (
+            <p className="mt-1 text-xs text-slate-400">
+              {gaps.length
+                ? `${gaps.length} open from the last sweep.`
+                : 'Nothing outstanding. Yesterday looks clean.'}
+            </p>
+          )}
         </div>
       </div>
+
+      {gapsQuery.isPending && <TabSkeleton label="Loading conversation gaps" />}
 
       {gaps.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -322,7 +320,7 @@ export default function GapsContent() {
         })}
       </div>
 
-      {gaps.length === 0 && (
+      {!gapsQuery.isPending && gaps.length === 0 && (
         <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-8 text-center">
           <Check className="mx-auto h-8 w-8 text-emerald-400" />
           <p className="mt-3 text-sm font-semibold text-white">
