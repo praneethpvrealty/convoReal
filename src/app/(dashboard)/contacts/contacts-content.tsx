@@ -126,6 +126,7 @@ import { projectOptions } from '@/lib/contacts/contact-interest';
 import { useT } from '@/hooks/use-locale';
 import { localCache } from '@/lib/cache-store';
 import { formatAuditDateTime } from '@/lib/audit-timestamps';
+import { splitChips, TABLE_CHIP_CAP } from '@/lib/contacts/chip-overflow';
 import { formatInrCompact } from '@/lib/format/currency';
 
 const PAGE_SIZE = 25;
@@ -239,25 +240,31 @@ export default function ContactsPage() {
   ) => {
     if (!effective) return <span className="text-xs text-slate-600">-</span>;
     const ai = effective.source === 'ai';
+    const chips = splitChips(effective.value);
     return (
-      <div className="flex max-w-[150px] flex-wrap gap-1">
-        {effective.value.slice(0, 3).map((label) => (
+      <div className="flex items-center gap-1 whitespace-nowrap">
+        {chips.visible.map((label) => (
           <span
             key={label}
-            title={ai ? 'Extracted by AI from requirements text' : undefined}
-            className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[11px] font-medium ${
+            title={
+              ai ? `${label} — extracted by AI from requirements text` : label
+            }
+            className={`inline-flex max-w-[120px] items-center gap-0.5 rounded border px-1.5 py-0.5 text-[11px] font-medium ${
               ai
                 ? 'border-primary/25 bg-primary/5 text-primary/90'
                 : 'border-slate-700 bg-slate-800 text-slate-300'
             }`}
           >
-            {ai && <Sparkles className="size-2.5" />}
-            {label}
+            {ai && <Sparkles className="size-2.5 shrink-0" />}
+            <span className="truncate">{label}</span>
           </span>
         ))}
-        {effective.value.length > 3 && (
-          <span className="text-[11px] text-slate-500">
-            +{effective.value.length - 3}
+        {chips.hidden.length > 0 && (
+          <span
+            className="text-[11px] text-slate-500"
+            title={chips.hiddenTitle}
+          >
+            +{chips.hidden.length}
           </span>
         )}
       </div>
@@ -2698,7 +2705,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   <TableCell className="py-3 font-medium text-white">
                     <div className="flex flex-col gap-1">
                       <div
-                        className="flex flex-wrap items-center gap-1.5"
+                        className="flex items-center gap-1.5 whitespace-nowrap"
                         title={`Added ${formatAuditDateTime(contact.created_at)} · Modified ${formatAuditDateTime(contact.updated_at)}`}
                       >
                         <span className="hover:text-primary transition-colors">
@@ -2723,12 +2730,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             ⭐ VIP
                           </span>
                         )}
+                        {renderLeadTempBadge(contact.lead_temp)}
                       </div>
-                      {contact.lead_temp && (
-                        <div className="mt-0.5">
-                          {renderLeadTempBadge(contact.lead_temp)}
-                        </div>
-                      )}
                     </div>
                   </TableCell>
                   <TableCell className="py-3">
@@ -2765,34 +2768,41 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         onClick={(e) =>
                           handlePrefilledWhatsAppClick(e, contact)
                         }
-                        className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border border-emerald-500/20 text-emerald-500 transition-all hover:bg-emerald-500/10 hover:text-emerald-400"
+                        className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border border-slate-700 text-slate-400 transition-all hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-400"
                         title="Send pre-filled welcome message on WhatsApp"
                       >
-                        <MessageSquarePlus className="size-3.5 fill-current stroke-slate-950" />
+                        <MessageSquarePlus className="size-3.5" />
                       </button>
                     </div>
                   </TableCell>
                   <TableCell className="py-3">
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex items-center gap-1 whitespace-nowrap">
                       {contact.tags && contact.tags.length > 0 ? (
-                        contact.tags.slice(0, 3).map((tag) => (
+                        contact.tags.slice(0, TABLE_CHIP_CAP).map((tag) => (
                           <span
                             key={tag.id}
-                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                            title={tag.name}
+                            className="inline-flex max-w-[120px] items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
                             style={{
                               backgroundColor: tag.color + '20',
                               color: tag.color,
                             }}
                           >
-                            {tag.name}
+                            <span className="truncate">{tag.name}</span>
                           </span>
                         ))
                       ) : (
                         <span className="text-xs text-slate-600">-</span>
                       )}
-                      {contact.tags && contact.tags.length > 3 && (
-                        <span className="text-[11px] text-slate-500">
-                          +{contact.tags.length - 3}
+                      {contact.tags && contact.tags.length > TABLE_CHIP_CAP && (
+                        <span
+                          className="text-[11px] text-slate-500"
+                          title={contact.tags
+                            .slice(TABLE_CHIP_CAP)
+                            .map((t) => t.name)
+                            .join(', ')}
+                        >
+                          +{contact.tags.length - TABLE_CHIP_CAP}
                         </span>
                       )}
                     </div>
