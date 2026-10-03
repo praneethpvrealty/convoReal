@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   RELEASE_WINDOW_MINUTES,
@@ -709,5 +710,27 @@ describe('run', () => {
       'frozen for release without this pull request'
     );
     expect(comment.body).not.toContain('shipped');
+  });
+});
+
+describe('the CI run the timer dispatches', () => {
+  const workflow = readFileSync('.github/workflows/ci.yml', 'utf8');
+  const gate = workflow.slice(workflow.indexOf('\n  ci:\n'));
+
+  it('reports its verdict as the CI commit status the ruleset requires', () => {
+    expect(gate).toContain('statuses: write');
+    expect(gate).toContain(
+      "if: always() && github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/release/')"
+    );
+    expect(gate).toContain('repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA');
+    expect(gate).toContain('-f context=CI');
+    expect(gate).toContain(
+      "STATE: ${{ job.status == 'success' && 'success' || 'failure' }}"
+    );
+  });
+
+  it('posts that status last, after every failing step has had its say', () => {
+    const steps = gate.split('\n      - name: ');
+    expect(steps.at(-1)).toMatch(/^Report the result as the CI commit status/);
   });
 });
