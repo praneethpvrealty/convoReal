@@ -3,7 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Handshake, Lock, MessageSquare, Timer, UserCheck } from 'lucide-react';
+import {
+  Handshake,
+  Lock,
+  MessageSquare,
+  Timer,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { usePlan } from '@/hooks/usePlan';
@@ -172,6 +179,28 @@ export default function TeamAnalyticsContent() {
         <TabSkeleton label="Loading team analytics" tiles={4} cards={2} />
       ) : (
         <>
+          {rows.length === 1 && (
+            <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
+              <CardContent className="flex flex-wrap items-center gap-4">
+                <Users className="text-primary h-6 w-6 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-bold text-white">
+                    Only you so far
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Invite your team to see per-member messages, response times
+                    and won value here.
+                  </p>
+                </div>
+                <Link
+                  href="/agents"
+                  className={buttonVariants({ variant: 'outline' })}
+                >
+                  Invite your team
+                </Link>
+              </CardContent>
+            </Card>
+          )}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
             {tiles.map((tile) => (
               <Card

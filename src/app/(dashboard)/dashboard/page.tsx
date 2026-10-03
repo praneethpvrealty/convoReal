@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { pushUrl } from '@/lib/navigation';
 import { useEffect, useMemo, type KeyboardEvent } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { useDashboardTabCounts } from '@/lib/dashboard/tab-counts';
 import DashboardContent from './dashboard-content';
 import FocusContent from './focus-content';
 import TodayPage from '../today/today-content';
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isOrgManager, isOrgLeader, canSendMessages, accountId } = useAuth();
+  const tabCounts = useDashboardTabCounts(accountId);
 
   useEffect(() => {
     if (accountId && canSendMessages) {
@@ -142,24 +144,37 @@ export default function DashboardPage() {
           onKeyDown={handleTabKeyDown}
           className="order-last flex w-full flex-nowrap gap-2 overflow-x-auto md:order-none md:w-auto md:min-w-0 md:flex-1"
         >
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              tabIndex={activeTab === tab.id ? 0 : -1}
-              onClick={() => handleTabChange(tab.id)}
-              data-tour={`dashboard-tab-${tab.id}`}
-              className={`shrink-0 cursor-pointer border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all ${
-                activeTab === tab.id
-                  ? 'border-primary bg-primary/5 text-white'
-                  : 'border-transparent text-slate-400 hover:text-white'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            const count =
+              tab.id === 'radar'
+                ? tabCounts.radar
+                : tab.id === 'gaps'
+                  ? tabCounts.gaps
+                  : 0;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                tabIndex={activeTab === tab.id ? 0 : -1}
+                onClick={() => handleTabChange(tab.id)}
+                data-tour={`dashboard-tab-${tab.id}`}
+                className={`shrink-0 cursor-pointer border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all ${
+                  activeTab === tab.id
+                    ? 'border-primary bg-primary/5 text-white'
+                    : 'border-transparent text-slate-400 hover:text-white'
+                }`}
+              >
+                {tab.label}
+                {count > 0 && (
+                  <span className="bg-primary/15 text-primary ml-2 rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums">
+                    {count > 99 ? '99+' : count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
         <div className="ml-auto md:ml-0">
           <FavoriteButton
