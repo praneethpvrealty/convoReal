@@ -24,12 +24,15 @@ import { isPreferenceFlowRequestText } from '@/lib/whatsapp/preference-flow';
 /** Verbatim from the Adi thread, double space and all. */
 const PHOTO_REQUEST = 'Sir can I get images  images';
 
-/** The handler's inline calendar-query test (webhook-handler.ts). Read
+/** The handler's inline calendar-query test (calendar-query step). Read
  *  off the source rather than retyped, so a widened regex there fails
  *  here instead of silently swallowing a photo request. */
 function calendarQueryRegex(): RegExp {
   const source = readFileSync(
-    join(process.cwd(), 'src/lib/whatsapp/webhook-handler.ts'),
+    join(
+      process.cwd(),
+      'src/lib/whatsapp/inbound/chain/steps/calendar-query.ts'
+    ),
     'utf8'
   );
   const match = source.match(/const isCalendarQuery =\s*(\/.+\/i)\.test/);

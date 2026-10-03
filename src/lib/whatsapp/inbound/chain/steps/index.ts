@@ -1,0 +1,86 @@
+import type { InboundStep } from '../context';
+import { controlReply } from './control-reply';
+import { enquiryDropoffReason } from './enquiry-dropoff-reason';
+import { enquiryReviewReply } from './enquiry-review-reply';
+import { bridgedAgentReply } from './bridged-agent-reply';
+import { autoHeat } from './auto-heat';
+import { inventorySelection } from './inventory-selection';
+import { specificPropertyInterest } from './specific-property-interest';
+import { deliberateEnquiry } from './deliberate-enquiry';
+import { leadPing } from './lead-ping';
+import { broadcastReplyFlag } from './broadcast-reply-flag';
+import { reminderButton } from './reminder-button';
+import { preferenceFormReply } from './preference-form-reply';
+import { ownerDigestCommand } from './owner-digest-command';
+import { timelineTemplateTap } from './timeline-template-tap';
+import { purchaseProgressTap } from './purchase-progress-tap';
+import { listingFeedbackTap } from './listing-feedback-tap';
+import { stillConsideringTap } from './still-considering-tap';
+import { closeEnquiryTap } from './close-enquiry-tap';
+import { buyerAlertsCommand } from './buyer-alerts-command';
+import { buyerMatchesCommand } from './buyer-matches-command';
+import { templateQuickReply } from './template-quick-reply';
+import { listingVerification } from './listing-verification';
+import { requirementReply } from './requirement-reply';
+import { ownerChatbot } from './owner-chatbot';
+import { leadConversation } from './lead-conversation';
+import { sharedContacts } from './shared-contacts';
+import { calendarQuery } from './calendar-query';
+import { updateSessionInput } from './update-session-input';
+import { listingFeedbackList } from './listing-feedback-list';
+import { requirementTweak } from './requirement-tweak';
+import { onboardingRungTap } from './onboarding-rung-tap';
+import { preferenceFlowRequest } from './preference-flow-request';
+import { updateIntent } from './update-intent';
+import { interactiveReplyDispatch } from './interactive-reply-dispatch';
+import { ownerListings } from './owner-listings';
+import { agentHandling } from './agent-handling';
+import { flowDispatch } from './flow-dispatch';
+import { agentInventoryRequest } from './agent-inventory-request';
+import { ownerInbound } from './owner-inbound';
+import { leadQuestion } from './lead-question';
+import { automations } from './automations';
+
+export const INBOUND_STEPS: InboundStep[] = [
+  { name: 'controlReply', run: controlReply },
+  { name: 'enquiryDropoffReason', run: enquiryDropoffReason },
+  { name: 'enquiryReviewReply', run: enquiryReviewReply },
+  { name: 'bridgedAgentReply', run: bridgedAgentReply },
+  { name: 'autoHeat', run: autoHeat },
+  { name: 'inventorySelection', run: inventorySelection },
+  { name: 'specificPropertyInterest', run: specificPropertyInterest },
+  { name: 'deliberateEnquiry', run: deliberateEnquiry },
+  { name: 'leadPing', run: leadPing },
+  { name: 'broadcastReplyFlag', run: broadcastReplyFlag },
+  { name: 'reminderButton', run: reminderButton },
+  { name: 'preferenceFormReply', run: preferenceFormReply },
+  { name: 'ownerDigestCommand', run: ownerDigestCommand },
+  { name: 'timelineTemplateTap', run: timelineTemplateTap },
+  { name: 'purchaseProgressTap', run: purchaseProgressTap },
+  { name: 'listingFeedbackTap', run: listingFeedbackTap },
+  { name: 'stillConsideringTap', run: stillConsideringTap },
+  { name: 'closeEnquiryTap', run: closeEnquiryTap },
+  { name: 'buyerAlertsCommand', run: buyerAlertsCommand },
+  { name: 'buyerMatchesCommand', run: buyerMatchesCommand },
+  { name: 'templateQuickReply', run: templateQuickReply },
+  { name: 'listingVerification', run: listingVerification },
+  { name: 'requirementReply', run: requirementReply },
+  { name: 'ownerChatbot', run: ownerChatbot },
+  { name: 'leadConversation', run: leadConversation },
+  { name: 'sharedContacts', run: sharedContacts },
+  { name: 'calendarQuery', run: calendarQuery },
+  { name: 'updateSessionInput', run: updateSessionInput },
+  { name: 'listingFeedbackList', run: listingFeedbackList },
+  { name: 'requirementTweak', run: requirementTweak },
+  { name: 'onboardingRungTap', run: onboardingRungTap },
+  { name: 'preferenceFlowRequest', run: preferenceFlowRequest },
+  { name: 'updateIntent', run: updateIntent },
+  { name: 'interactiveReplyDispatch', run: interactiveReplyDispatch },
+  { name: 'ownerListings', run: ownerListings },
+  { name: 'agentHandling', run: agentHandling },
+  { name: 'flowDispatch', run: flowDispatch },
+  { name: 'agentInventoryRequest', run: agentInventoryRequest },
+  { name: 'ownerInbound', run: ownerInbound },
+  { name: 'leadQuestion', run: leadQuestion },
+  { name: 'automations', run: automations },
+];

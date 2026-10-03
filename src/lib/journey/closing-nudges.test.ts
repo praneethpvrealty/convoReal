@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { inboundChainSource } from '@/lib/whatsapp/inbound/chain/test-source';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -448,7 +449,7 @@ describe('the closing card is wired up', () => {
   const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 
   it('the webhook dispatches a closing tap before the owner chatbot', () => {
-    const source = read('src/lib/whatsapp/webhook-handler.ts');
+    const source = inboundChainSource();
     const tap = source.indexOf('const closingAction = parseClosingReply(');
     const ownerChatbot = source.indexOf('processOwnerChatbotMessage(');
     expect(tap).toBeGreaterThan(-1);
@@ -460,7 +461,7 @@ describe('the closing card is wired up', () => {
   // handlers below would file that as a decision about an open
   // enquiry, so the closing handler has to see it first.
   it('the webhook reads a paperwork tap before the enquiry buttons', () => {
-    const source = read('src/lib/whatsapp/webhook-handler.ts');
+    const source = inboundChainSource();
     const paperwork = source.indexOf('handlePurchaseProgressReply({');
     const stillConsidering = source.indexOf("=== 'still_considering'");
     const closeEnquiry = source.indexOf("=== 'close_enquiry'");

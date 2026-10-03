@@ -358,7 +358,10 @@ describe('[TXW-014] delivery is decided honestly and recorded separately', () =>
       /\.order\('created_at', \{ ascending: false \}\)\s*\.limit\(1\)/
     );
     const webhook = readFileSync(
-      join(process.cwd(), 'src/lib/whatsapp/webhook-handler.ts'),
+      join(
+        process.cwd(),
+        'src/lib/whatsapp/inbound/chain/steps/purchase-progress-tap.ts'
+      ),
       'utf8'
     );
     expect(webhook).toContain('contextMessageId: message.context?.id ?? null');

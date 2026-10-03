@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { inboundChainSource } from '@/lib/whatsapp/inbound/chain/test-source';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -351,10 +352,11 @@ describe('sendPropertyEnquiryCard', () => {
 // enquiry taps only work if they are dispatched before the owner
 // chatbot claims the agent's own message.
 describe('the webhook wires the card up', () => {
-  const source = readFileSync(
-    join(process.cwd(), 'src/lib/whatsapp/webhook-handler.ts'),
-    'utf8'
-  );
+  const source =
+    readFileSync(
+      join(process.cwd(), 'src/lib/whatsapp/webhook-handler.ts'),
+      'utf8'
+    ) + inboundChainSource();
   const replyHandler = readFileSync(
     join(process.cwd(), 'src/lib/whatsapp/inbound/enquiry-card-reply.ts'),
     'utf8'
@@ -386,8 +388,9 @@ describe('the webhook wires the card up', () => {
     // claiming a buyer who had just named the exact listing — because
     // the enquiry branch was gated on the contact's first-ever message
     // and this buyer had messaged before.
-    const enquiryBranch = source.indexOf('enquiryIsDeliberate &&');
-    const ladder = source.indexOf('processBuyerQualificationMessage(');
+    const chain = inboundChainSource();
+    const enquiryBranch = chain.indexOf('enquiryIsDeliberate &&');
+    const ladder = chain.indexOf('processBuyerQualificationMessage(');
     expect(enquiryBranch).toBeGreaterThan(-1);
     expect(ladder).toBeGreaterThan(-1);
     expect(enquiryBranch).toBeLessThan(ladder);

@@ -314,6 +314,10 @@
               "case": "[INB-016]"
             },
             {
+              "file": "src/lib/whatsapp/inbound/chain/steps.test.ts",
+              "case": "[INB-016]"
+            },
+            {
               "file": "src/lib/ai/qualification-lease.test.ts",
               "case": "[INB-016]"
             },
