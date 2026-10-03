@@ -1600,6 +1600,38 @@
             }
           ],
           "guards": ["src/app/(dashboard)/inventory/inventory-content.tsx"]
+        },
+        {
+          "id": "PRP-032",
+          "rule": "Meta Ads has one home, the /ads page in the sidebar: Inventory has no Ads tab, an old /inventory?tab=ads link lands on /ads, and a listing card with an active or paused Meta campaign shows an Ad live or Ad paused badge that opens it.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/inventory/page.test.tsx",
+              "case": "[PRP-032]"
+            },
+            {
+              "file": "src/components/inventory/property-list.test.tsx",
+              "case": "[PRP-032]"
+            }
+          ],
+          "guards": [
+            "src/app/(dashboard)/ads/page.tsx",
+            "src/app/(dashboard)/inventory/page.tsx"
+          ]
+        },
+        {
+          "id": "PRP-033",
+          "rule": "The add and edit listing form shows a section index (Basics, Location, Area & specs, Photos & documents, Description, Owner & inquiries, Publish) that jumps to each section and ticks the ones filled in, keeps the Publish switch beside the save button in a footer that stays in view, and hides the Matching and Enquired Contacts tabs until the listing is saved.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/property-form-sections.test.ts",
+              "case": "[PRP-033]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/property-form-sections.ts",
+            "src/components/inventory/property-form-section-nav.tsx"
+          ]
         }
       ]
     },

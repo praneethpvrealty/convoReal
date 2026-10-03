@@ -39,6 +39,16 @@ than a written entry. Newest first.
   hunting for the property. Mobile gets the same banner with **Open
   listing**; updating the portal listing itself stays on web, where Post to
   Portals lives.
+- **Ads has one home.** Meta ad campaigns live on the Ads page in the
+  sidebar; the Ads Campaigns tab inside Inventory is gone, and old links to
+  it open Ads. A listing with a campaign shows **Ad live** or **Ad paused**
+  on its card, linking to Ads.
+- **The listing form is easier to work through.** On a wide screen the
+  add/edit form is wider and has a section index (Basics, Location, Area &
+  specs, Photos & documents, Description, Owner & inquiries, Publish) that
+  jumps to each section and ticks the ones filled in. The Publish switch now
+  sits beside Create Listing in a footer that stays in view, and the
+  Matching and Enquired Contacts tabs appear once the listing is saved.
 - **One Add Property button instead of five.** Import Owner Leads, Portal
   Sync and Import Shared now sit in the menu beside **Add Property** (Add
   manually, Import a shared link, Sync from portals, Import owner leads),

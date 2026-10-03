@@ -112,6 +112,7 @@ import {
 // Counts across ALL properties, independent of the current page/filters
 // so the summary cards always show accurate totals.
 const EMPTY_BADGES: Record<string, PortalBadge[]> = {};
+const EMPTY_AD_STATUSES: Record<string, 'ACTIVE' | 'PAUSED'> = {};
 // Stable identity: a fresh {} each render would re-run the memo chain
 // that feeds PropertyList, same reason EMPTY_BADGES exists.
 const EMPTY_GATE_STATS: GateStatsMap = {};
@@ -897,6 +898,28 @@ export default function InventoryPage() {
     enabled: Boolean(accountId) && visiblePropertyIds.length > 0,
   });
   const portalBadges = portalBadgesQuery.data ?? EMPTY_BADGES;
+
+  const adStatusesQuery = useQuery({
+    queryKey: ['inventory', 'ad-statuses', accountId, visiblePropertyIds],
+    queryFn: async () => {
+      const supabaseClient = createClient();
+      const { data } = await supabaseClient
+        .from('ad_campaigns')
+        .select('property_id, status')
+        .eq('account_id', accountId)
+        .in('status', ['ACTIVE', 'PAUSED'])
+        .in('property_id', visiblePropertyIds);
+      const map: Record<string, 'ACTIVE' | 'PAUSED'> = {};
+      for (const row of data || []) {
+        const status = row.status as 'ACTIVE' | 'PAUSED';
+        if (map[row.property_id] !== 'ACTIVE') map[row.property_id] = status;
+      }
+      return map;
+    },
+    enabled:
+      META_ADS_ENABLED && Boolean(accountId) && visiblePropertyIds.length > 0,
+  });
+  const adStatuses = adStatusesQuery.data ?? EMPTY_AD_STATUSES;
 
   // Confidential-gate rollup. One RPC for the account rather than a
   // count per card, and it returns only gated listings or ones with
@@ -1870,6 +1893,7 @@ export default function InventoryPage() {
                 setPortalOpen(true);
               }}
               portalBadges={portalBadges}
+              adStatuses={adStatuses}
               gateStats={gateStats}
               onGateRequests={setGateRequestsProperty}
               canEdit={canEdit}

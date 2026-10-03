@@ -144,6 +144,8 @@ import {
   type EKhataFields,
 } from '@/lib/inventory/e-khata-fields';
 import { EKhataReviewDialog } from '@/components/inventory/e-khata-review-dialog';
+import { PropertyFormSectionNav } from '@/components/inventory/property-form-section-nav';
+import { propertyFormSections } from '@/lib/inventory/property-form-sections';
 import {
   looksLikeDocument,
   orderForCover,
@@ -3685,9 +3687,22 @@ export function PropertyForm({
     return dataset.filter((s) => s.toLowerCase().includes(query)).slice(0, 8);
   }, [query, localitiesDb]);
 
+  const formSections = propertyFormSections({
+    title,
+    price,
+    rentPerMonth,
+    city,
+    state: stateVal,
+    images,
+    description,
+    ownerContactId,
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden border-slate-700 bg-slate-900 p-0 text-slate-200 sm:max-w-2xl">
+      <DialogContent
+        className={`flex max-h-[90vh] flex-col overflow-hidden border-slate-700 bg-slate-900 p-0 text-slate-200 sm:max-w-2xl ${viewMode ? '' : 'lg:max-w-5xl'}`}
+      >
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
@@ -3722,27 +3737,29 @@ export function PropertyForm({
               </DialogDescription>
             </DialogHeader>
 
-            <TabsList className="mb-3 w-fit max-w-full overflow-x-auto border border-slate-800 bg-slate-900">
-              <TabsTrigger
-                value="details"
-                className="data-[state=active]:text-primary px-4 py-1.5 text-xs font-semibold text-slate-400 data-[state=active]:bg-slate-800"
-              >
-                Property Details
-              </TabsTrigger>
-              <TabsTrigger
-                value="matches"
-                className="data-[state=active]:text-primary px-4 py-1.5 text-xs font-semibold text-slate-400 data-[state=active]:bg-slate-800"
-              >
-                Matching Contacts ({isEdit ? displayedMatches.length : 0})
-              </TabsTrigger>
-              <TabsTrigger
-                value="enquiries"
-                disabled={!isEdit}
-                className="data-[state=active]:text-primary px-4 py-1.5 text-xs font-semibold text-slate-400 data-[state=active]:bg-slate-800"
-              >
-                Enquired Contacts ({isEdit ? enquiredContacts.length : 0})
-              </TabsTrigger>
-            </TabsList>
+            {isEdit && (
+              <TabsList className="mb-3 w-fit max-w-full overflow-x-auto border border-slate-800 bg-slate-900">
+                <TabsTrigger
+                  value="details"
+                  className="data-[state=active]:text-primary px-4 py-1.5 text-xs font-semibold text-slate-400 data-[state=active]:bg-slate-800"
+                >
+                  Property Details
+                </TabsTrigger>
+                <TabsTrigger
+                  value="matches"
+                  className="data-[state=active]:text-primary px-4 py-1.5 text-xs font-semibold text-slate-400 data-[state=active]:bg-slate-800"
+                >
+                  Matching Contacts ({isEdit ? displayedMatches.length : 0})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="enquiries"
+                  disabled={!isEdit}
+                  className="data-[state=active]:text-primary px-4 py-1.5 text-xs font-semibold text-slate-400 data-[state=active]:bg-slate-800"
+                >
+                  Enquired Contacts ({isEdit ? enquiredContacts.length : 0})
+                </TabsTrigger>
+              </TabsList>
+            )}
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -5384,915 +5401,969 @@ export function PropertyForm({
                   </div>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  {/* Main Info */}
-                  <div className="grid grid-cols-2 gap-4">
-                    {isEdit && property?.property_code && (
-                      <div className="animate-fade-in col-span-2 space-y-1.5">
-                        <Label className="text-slate-400">
-                          Property Code (Unique ID)
+                <div className="lg:grid lg:grid-cols-[168px_minmax(0,1fr)] lg:gap-6">
+                  <PropertyFormSectionNav sections={formSections} />
+                  <form onSubmit={handleSubmit} className="space-y-5">
+                    {/* Main Info */}
+                    <div
+                      id="pf-basics"
+                      className="grid scroll-mt-2 grid-cols-2 gap-4"
+                    >
+                      {isEdit && property?.property_code && (
+                        <div className="animate-fade-in col-span-2 space-y-1.5">
+                          <Label className="text-slate-400">
+                            Property Code (Unique ID)
+                          </Label>
+                          <Input
+                            value={property.property_code}
+                            readOnly
+                            className="bg-slate-850 cursor-not-allowed border-slate-800 font-mono text-slate-400 select-all"
+                          />
+                        </div>
+                      )}
+
+                      <div className="col-span-2 space-y-1.5">
+                        <Label htmlFor="prop-title" className="text-slate-300">
+                          Property Title <span className="text-red-400">*</span>
                         </Label>
                         <Input
-                          value={property.property_code}
-                          readOnly
-                          className="bg-slate-850 cursor-not-allowed border-slate-800 font-mono text-slate-400 select-all"
-                        />
-                      </div>
-                    )}
-
-                    <div className="col-span-2 space-y-1.5">
-                      <Label htmlFor="prop-title" className="text-slate-300">
-                        Property Title <span className="text-red-400">*</span>
-                      </Label>
-                      <Input
-                        id="prop-title"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        placeholder="e.g. Luxurious 3BHK Apartment in Downtown"
-                        className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                        required
-                      />
-                    </div>
-
-                    <div className="animate-fade-in space-y-1.5">
-                      <Label
-                        htmlFor="prop-listing-type"
-                        className="text-slate-300"
-                      >
-                        Listing Type
-                      </Label>
-                      <select
-                        id="prop-listing-type"
-                        value={listingType}
-                        onChange={(e) =>
-                          setListingType(
-                            e.target.value as
-                              'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'
-                          )
-                        }
-                        className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                      >
-                        <option value="Sale">For Sale</option>
-                        <option value="Rent">For Rent</option>
-                        <option value="JV/JD">JV / Joint Development</option>
-                        <option value="Built to Suit">Built to Suit</option>
-                      </select>
-                    </div>
-
-                    {listingType === 'Sale' ? (
-                      <div className="animate-fade-in space-y-1.5">
-                        <Label htmlFor="prop-price" className="text-slate-300">
-                          Price (INR) <span className="text-red-400">*</span>
-                        </Label>
-                        <Input
-                          id="prop-price"
-                          type="number"
-                          value={price}
-                          onChange={(e) => setPrice(e.target.value)}
-                          placeholder="e.g. 12000000"
+                          id="prop-title"
+                          value={title}
+                          onChange={(e) => setTitle(e.target.value)}
+                          placeholder="e.g. Luxurious 3BHK Apartment in Downtown"
                           className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           required
                         />
-                        <PriceHint value={price} />
                       </div>
-                    ) : listingType === 'Rent' ? (
-                      <div className="animate-fade-in col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="prop-rent" className="text-slate-300">
-                            Rent per month (INR){' '}
-                            <span className="text-red-400">*</span>
-                          </Label>
-                          <Input
-                            id="prop-rent"
-                            type="number"
-                            value={rentPerMonth}
-                            onChange={(e) => setRentPerMonth(e.target.value)}
-                            placeholder="e.g. 45000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            required
-                          />
-                          <PriceHint value={rentPerMonth} />
-                        </div>
 
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-maintenance"
-                            className="text-slate-300"
-                          >
-                            Maintenance (INR)
-                          </Label>
-                          <Input
-                            id="prop-maintenance"
-                            type="number"
-                            value={maintenance}
-                            onChange={(e) => setMaintenance(e.target.value)}
-                            placeholder="e.g. 5000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={maintenance} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-advance"
-                            className="text-slate-300"
-                          >
-                            Advance (Deposit) (INR)
-                          </Label>
-                          <Input
-                            id="prop-advance"
-                            type="number"
-                            value={advance}
-                            onChange={(e) => setAdvance(e.target.value)}
-                            placeholder="e.g. 200000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={advance} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label htmlFor="prop-gst" className="text-slate-300">
-                            GST (INR)
-                          </Label>
-                          <Input
-                            id="prop-gst"
-                            type="number"
-                            value={gst}
-                            onChange={(e) => setGst(e.target.value)}
-                            placeholder="e.g. 1800"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={gst} />
-                        </div>
+                      <div className="animate-fade-in space-y-1.5">
+                        <Label
+                          htmlFor="prop-listing-type"
+                          className="text-slate-300"
+                        >
+                          Listing Type
+                        </Label>
+                        <select
+                          id="prop-listing-type"
+                          value={listingType}
+                          onChange={(e) =>
+                            setListingType(
+                              e.target.value as
+                                'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'
+                            )
+                          }
+                          className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
+                        >
+                          <option value="Sale">For Sale</option>
+                          <option value="Rent">For Rent</option>
+                          <option value="JV/JD">JV / Joint Development</option>
+                          <option value="Built to Suit">Built to Suit</option>
+                        </select>
                       </div>
-                    ) : listingType === 'Built to Suit' ? (
-                      <div className="animate-fade-in col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-rent"
-                            className="text-slate-300"
-                          >
-                            Expected Rent per month (INR){' '}
-                            <span className="text-red-400">*</span>
-                          </Label>
-                          <Input
-                            id="prop-bts-rent"
-                            type="number"
-                            value={rentPerMonth}
-                            onChange={(e) => setRentPerMonth(e.target.value)}
-                            placeholder="e.g. 250000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            required
-                          />
-                          <PriceHint value={rentPerMonth} />
-                        </div>
 
-                        <div className="space-y-1.5">
+                      {listingType === 'Sale' ? (
+                        <div className="animate-fade-in space-y-1.5">
                           <Label
-                            htmlFor="prop-bts-maintenance"
+                            htmlFor="prop-price"
                             className="text-slate-300"
                           >
-                            Maintenance / CAM (INR)
+                            Price (INR) <span className="text-red-400">*</span>
                           </Label>
                           <Input
-                            id="prop-bts-maintenance"
-                            type="number"
-                            value={maintenance}
-                            onChange={(e) => setMaintenance(e.target.value)}
-                            placeholder="e.g. 15000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={maintenance} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-advance"
-                            className="text-slate-300"
-                          >
-                            Security Deposit (INR)
-                          </Label>
-                          <Input
-                            id="prop-bts-advance"
-                            type="number"
-                            value={advance}
-                            onChange={(e) => setAdvance(e.target.value)}
-                            placeholder="e.g. 1500000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={advance} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-gst"
-                            className="text-slate-300"
-                          >
-                            GST (INR)
-                          </Label>
-                          <Input
-                            id="prop-bts-gst"
-                            type="number"
-                            value={gst}
-                            onChange={(e) => setGst(e.target.value)}
-                            placeholder="e.g. 45000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={gst} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-lease-years"
-                            className="text-slate-300"
-                          >
-                            Total Lease Term (years){' '}
-                            <span className="text-red-400">*</span>
-                          </Label>
-                          <Input
-                            id="prop-bts-lease-years"
-                            type="number"
-                            value={btsLeaseYears}
-                            onChange={(e) => setBtsLeaseYears(e.target.value)}
-                            placeholder="e.g. 9"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            required
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-lockin-years"
-                            className="text-slate-300"
-                          >
-                            Lock-in Period (years)
-                          </Label>
-                          <Input
-                            id="prop-bts-lockin-years"
-                            type="number"
-                            value={btsLockInYears}
-                            onChange={(e) => setBtsLockInYears(e.target.value)}
-                            placeholder="e.g. 3"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-escalation"
-                            className="text-slate-300"
-                          >
-                            Rent Escalation (%)
-                          </Label>
-                          <Input
-                            id="prop-bts-escalation"
-                            type="number"
-                            value={btsEscalationPercent}
-                            onChange={(e) =>
-                              setBtsEscalationPercent(e.target.value)
-                            }
-                            placeholder="e.g. 5"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="animate-fade-in col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-jv-structure"
-                            className="text-slate-300"
-                          >
-                            Deal Structure
-                          </Label>
-                          <select
-                            id="prop-jv-structure"
-                            value={jvStructure}
-                            onChange={(e) =>
-                              setJvStructure(
-                                e.target.value as
-                                  'Revenue Share' | 'Area Share' | 'Hybrid'
-                              )
-                            }
-                            className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                          >
-                            <option value="Revenue Share">Revenue Share</option>
-                            <option value="Area Share">Area Share</option>
-                            <option value="Hybrid">Hybrid</option>
-                          </select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-jv-price"
-                            className="text-slate-300"
-                          >
-                            Expected Project Value (INR)
-                          </Label>
-                          <Input
-                            id="prop-jv-price"
+                            id="prop-price"
                             type="number"
                             value={price}
                             onChange={(e) => setPrice(e.target.value)}
-                            placeholder="e.g. 50000000"
+                            placeholder="e.g. 12000000"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            required
                           />
                           <PriceHint value={price} />
                         </div>
+                      ) : listingType === 'Rent' ? (
+                        <div className="animate-fade-in col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-rent"
+                              className="text-slate-300"
+                            >
+                              Rent per month (INR){' '}
+                              <span className="text-red-400">*</span>
+                            </Label>
+                            <Input
+                              id="prop-rent"
+                              type="number"
+                              value={rentPerMonth}
+                              onChange={(e) => setRentPerMonth(e.target.value)}
+                              placeholder="e.g. 45000"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              required
+                            />
+                            <PriceHint value={rentPerMonth} />
+                          </div>
 
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-jv-owner-share"
-                            className="text-slate-300"
-                          >
-                            Owner Share (%){' '}
-                            <span className="text-red-400">*</span>
-                          </Label>
-                          <Input
-                            id="prop-jv-owner-share"
-                            type="number"
-                            value={ownerSharePercent}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setOwnerSharePercent(val);
-                              const num = Number(val);
-                              if (
-                                val.trim() !== '' &&
-                                !isNaN(num) &&
-                                num >= 0 &&
-                                num <= 100
-                              ) {
-                                setBuilderSharePercent(String(100 - num));
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-maintenance"
+                              className="text-slate-300"
+                            >
+                              Maintenance (INR)
+                            </Label>
+                            <Input
+                              id="prop-maintenance"
+                              type="number"
+                              value={maintenance}
+                              onChange={(e) => setMaintenance(e.target.value)}
+                              placeholder="e.g. 5000"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                            <PriceHint value={maintenance} />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-advance"
+                              className="text-slate-300"
+                            >
+                              Advance (Deposit) (INR)
+                            </Label>
+                            <Input
+                              id="prop-advance"
+                              type="number"
+                              value={advance}
+                              onChange={(e) => setAdvance(e.target.value)}
+                              placeholder="e.g. 200000"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                            <PriceHint value={advance} />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-gst"
+                              className="text-slate-300"
+                            >
+                              GST (INR)
+                            </Label>
+                            <Input
+                              id="prop-gst"
+                              type="number"
+                              value={gst}
+                              onChange={(e) => setGst(e.target.value)}
+                              placeholder="e.g. 1800"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                            <PriceHint value={gst} />
+                          </div>
+                        </div>
+                      ) : listingType === 'Built to Suit' ? (
+                        <div className="animate-fade-in col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-bts-rent"
+                              className="text-slate-300"
+                            >
+                              Expected Rent per month (INR){' '}
+                              <span className="text-red-400">*</span>
+                            </Label>
+                            <Input
+                              id="prop-bts-rent"
+                              type="number"
+                              value={rentPerMonth}
+                              onChange={(e) => setRentPerMonth(e.target.value)}
+                              placeholder="e.g. 250000"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              required
+                            />
+                            <PriceHint value={rentPerMonth} />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-bts-maintenance"
+                              className="text-slate-300"
+                            >
+                              Maintenance / CAM (INR)
+                            </Label>
+                            <Input
+                              id="prop-bts-maintenance"
+                              type="number"
+                              value={maintenance}
+                              onChange={(e) => setMaintenance(e.target.value)}
+                              placeholder="e.g. 15000"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                            <PriceHint value={maintenance} />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-bts-advance"
+                              className="text-slate-300"
+                            >
+                              Security Deposit (INR)
+                            </Label>
+                            <Input
+                              id="prop-bts-advance"
+                              type="number"
+                              value={advance}
+                              onChange={(e) => setAdvance(e.target.value)}
+                              placeholder="e.g. 1500000"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                            <PriceHint value={advance} />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-bts-gst"
+                              className="text-slate-300"
+                            >
+                              GST (INR)
+                            </Label>
+                            <Input
+                              id="prop-bts-gst"
+                              type="number"
+                              value={gst}
+                              onChange={(e) => setGst(e.target.value)}
+                              placeholder="e.g. 45000"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                            <PriceHint value={gst} />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-bts-lease-years"
+                              className="text-slate-300"
+                            >
+                              Total Lease Term (years){' '}
+                              <span className="text-red-400">*</span>
+                            </Label>
+                            <Input
+                              id="prop-bts-lease-years"
+                              type="number"
+                              value={btsLeaseYears}
+                              onChange={(e) => setBtsLeaseYears(e.target.value)}
+                              placeholder="e.g. 9"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              required
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-bts-lockin-years"
+                              className="text-slate-300"
+                            >
+                              Lock-in Period (years)
+                            </Label>
+                            <Input
+                              id="prop-bts-lockin-years"
+                              type="number"
+                              value={btsLockInYears}
+                              onChange={(e) =>
+                                setBtsLockInYears(e.target.value)
                               }
-                            }}
-                            placeholder="e.g. 40"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            required
-                          />
-                        </div>
+                              placeholder="e.g. 3"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                          </div>
 
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-jv-builder-share"
-                            className="text-slate-300"
-                          >
-                            Builder Share (%){' '}
-                            <span className="text-red-400">*</span>
-                          </Label>
-                          <Input
-                            id="prop-jv-builder-share"
-                            type="number"
-                            value={builderSharePercent}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setBuilderSharePercent(val);
-                              const num = Number(val);
-                              if (
-                                val.trim() !== '' &&
-                                !isNaN(num) &&
-                                num >= 0 &&
-                                num <= 100
-                              ) {
-                                setOwnerSharePercent(String(100 - num));
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-bts-escalation"
+                              className="text-slate-300"
+                            >
+                              Rent Escalation (%)
+                            </Label>
+                            <Input
+                              id="prop-bts-escalation"
+                              type="number"
+                              value={btsEscalationPercent}
+                              onChange={(e) =>
+                                setBtsEscalationPercent(e.target.value)
                               }
-                            }}
-                            placeholder="e.g. 60"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            required
-                          />
+                              placeholder="e.g. 5"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                          </div>
                         </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-jv-goodwill"
-                            className="text-slate-300"
-                          >
-                            Goodwill (INR)
-                          </Label>
-                          <Input
-                            id="prop-jv-goodwill"
-                            type="number"
-                            value={goodwillAmount}
-                            onChange={(e) => setGoodwillAmount(e.target.value)}
-                            placeholder="e.g. 2000000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={goodwillAmount} />
-                          <p className="text-[10px] text-slate-500">
-                            Non-refundable upfront payment to the landowner.
-                          </p>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-jv-advance"
-                            className="text-slate-300"
-                          >
-                            Advance (Refundable) (INR)
-                          </Label>
-                          <Input
-                            id="prop-jv-advance"
-                            type="number"
-                            value={advance}
-                            onChange={(e) => setAdvance(e.target.value)}
-                            placeholder="e.g. 1000000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={advance} />
-                          <p className="text-[10px] text-slate-500">
-                            Refundable deposit, adjusted against the
-                            owner&apos;s share at handover.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prop-type" className="text-slate-300">
-                        Property Type
-                      </Label>
-                      <select
-                        id="prop-type"
-                        value={type}
-                        onChange={(e) => setType(e.target.value)}
-                        className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                      >
-                        {propertyTypeGroups.map((g) => (
-                          <optgroup
-                            key={g.group}
-                            label={`ALL ${g.group.toUpperCase()}`}
-                          >
-                            {g.options.map((o) => (
-                              <option key={o.value} value={o.value}>
-                                {o.label ?? o.value}
+                      ) : (
+                        <div className="animate-fade-in col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-jv-structure"
+                              className="text-slate-300"
+                            >
+                              Deal Structure
+                            </Label>
+                            <select
+                              id="prop-jv-structure"
+                              value={jvStructure}
+                              onChange={(e) =>
+                                setJvStructure(
+                                  e.target.value as
+                                    'Revenue Share' | 'Area Share' | 'Hybrid'
+                                )
+                              }
+                              className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
+                            >
+                              <option value="Revenue Share">
+                                Revenue Share
                               </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                    </div>
+                              <option value="Area Share">Area Share</option>
+                              <option value="Hybrid">Hybrid</option>
+                            </select>
+                          </div>
 
-                    {isEdit && (
-                      <div className="col-span-2 space-y-1.5">
-                        <Label htmlFor="prop-status" className="text-slate-300">
-                          Status
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-jv-price"
+                              className="text-slate-300"
+                            >
+                              Expected Project Value (INR)
+                            </Label>
+                            <Input
+                              id="prop-jv-price"
+                              type="number"
+                              value={price}
+                              onChange={(e) => setPrice(e.target.value)}
+                              placeholder="e.g. 50000000"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                            <PriceHint value={price} />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-jv-owner-share"
+                              className="text-slate-300"
+                            >
+                              Owner Share (%){' '}
+                              <span className="text-red-400">*</span>
+                            </Label>
+                            <Input
+                              id="prop-jv-owner-share"
+                              type="number"
+                              value={ownerSharePercent}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setOwnerSharePercent(val);
+                                const num = Number(val);
+                                if (
+                                  val.trim() !== '' &&
+                                  !isNaN(num) &&
+                                  num >= 0 &&
+                                  num <= 100
+                                ) {
+                                  setBuilderSharePercent(String(100 - num));
+                                }
+                              }}
+                              placeholder="e.g. 40"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              required
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-jv-builder-share"
+                              className="text-slate-300"
+                            >
+                              Builder Share (%){' '}
+                              <span className="text-red-400">*</span>
+                            </Label>
+                            <Input
+                              id="prop-jv-builder-share"
+                              type="number"
+                              value={builderSharePercent}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setBuilderSharePercent(val);
+                                const num = Number(val);
+                                if (
+                                  val.trim() !== '' &&
+                                  !isNaN(num) &&
+                                  num >= 0 &&
+                                  num <= 100
+                                ) {
+                                  setOwnerSharePercent(String(100 - num));
+                                }
+                              }}
+                              placeholder="e.g. 60"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              required
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-jv-goodwill"
+                              className="text-slate-300"
+                            >
+                              Goodwill (INR)
+                            </Label>
+                            <Input
+                              id="prop-jv-goodwill"
+                              type="number"
+                              value={goodwillAmount}
+                              onChange={(e) =>
+                                setGoodwillAmount(e.target.value)
+                              }
+                              placeholder="e.g. 2000000"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                            <PriceHint value={goodwillAmount} />
+                            <p className="text-[10px] text-slate-500">
+                              Non-refundable upfront payment to the landowner.
+                            </p>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-jv-advance"
+                              className="text-slate-300"
+                            >
+                              Advance (Refundable) (INR)
+                            </Label>
+                            <Input
+                              id="prop-jv-advance"
+                              type="number"
+                              value={advance}
+                              onChange={(e) => setAdvance(e.target.value)}
+                              placeholder="e.g. 1000000"
+                              className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                            <PriceHint value={advance} />
+                            <p className="text-[10px] text-slate-500">
+                              Refundable deposit, adjusted against the
+                              owner&apos;s share at handover.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-type" className="text-slate-300">
+                          Property Type
                         </Label>
                         <select
-                          id="prop-status"
-                          value={status}
-                          onChange={(e) => setStatus(e.target.value)}
+                          id="prop-type"
+                          value={type}
+                          onChange={(e) => setType(e.target.value)}
                           className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                         >
-                          {PROPERTY_STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
+                          {propertyTypeGroups.map((g) => (
+                            <optgroup
+                              key={g.group}
+                              label={`ALL ${g.group.toUpperCase()}`}
+                            >
+                              {g.options.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                  {o.label ?? o.value}
+                                </option>
+                              ))}
+                            </optgroup>
                           ))}
                         </select>
                       </div>
-                    )}
 
-                    {isEdit && (
-                      <div className="col-span-2 space-y-1.5 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <h4 className="text-sm font-semibold text-white">
-                          Seller&apos;s final price
-                        </h4>
-                        <p className="text-[11px] text-slate-500">
-                          What the seller will actually accept, as against the
-                          quoted price above. Internal — never shown on the
-                          showcase or in a share link.
-                        </p>
-                        <div className="grid grid-cols-2 gap-3 pt-1">
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-seller-final-price"
-                              className="text-slate-300"
-                            >
-                              Total
-                            </Label>
-                            <Input
-                              id="prop-seller-final-price"
-                              type="number"
-                              min="0"
-                              value={sellerFinalPrice}
-                              onChange={(e) =>
-                                setSellerFinalPrice(e.target.value)
-                              }
-                              placeholder={
-                                price ? `e.g. ${price}` : 'e.g. 42000000'
-                              }
-                              className="border-slate-700 bg-slate-800 text-white"
-                            />
-                            <PriceHint value={sellerFinalPrice} />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-seller-final-rate"
-                              className="text-slate-300"
-                            >
-                              Per Sq.Ft.
-                            </Label>
-                            <Input
-                              id="prop-seller-final-rate"
-                              type="number"
-                              min="0"
-                              value={sellerFinalPricePerSqft}
-                              onChange={(e) =>
-                                setSellerFinalPricePerSqft(e.target.value)
-                              }
-                              placeholder="e.g. 10500"
-                              className="border-slate-700 bg-slate-800 text-white"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {isEdit && status === 'Sold' && (
-                      <div className="col-span-2 space-y-1.5">
-                        <Label
-                          htmlFor="prop-sold-price"
-                          className="text-slate-300"
-                        >
-                          Final sale price
-                        </Label>
-                        <Input
-                          id="prop-sold-price"
-                          type="number"
-                          min="0"
-                          value={soldPrice}
-                          onChange={(e) => setSoldPrice(e.target.value)}
-                          placeholder={price ? `e.g. ${price}` : 'e.g. 8500000'}
-                          className="border-slate-700 bg-slate-800 text-white"
-                        />
-                        <PriceHint value={soldPrice} />
-                        <p className="text-[11px] text-slate-500">
-                          Optional — improves your area&apos;s price accuracy.
-                          Never shown to buyers.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Autocomplete Real Location Details */}
-                  <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                    <h4 className="text-sm font-semibold text-white">
-                      Property Location
-                    </h4>
-
-                    <div className="relative space-y-1.5" ref={autocompleteRef}>
-                      <Label
-                        htmlFor="prop-search-query"
-                        className="text-slate-300"
-                      >
-                        Project Name or Area / Sublocality{' '}
-                        <span className="text-red-400">*</span>
-                      </Label>
-                      <Input
-                        id="prop-search-query"
-                        value={searchQuery}
-                        onChange={(e) => {
-                          ensureLocalitiesLoaded();
-                          handleSearchQueryChange(e.target.value);
-                        }}
-                        onFocus={() => {
-                          ensureLocalitiesLoaded();
-                          setShowSuggestions(true);
-                        }}
-                        placeholder="Search project (e.g. Prestige) or area (e.g. Indiranagar)..."
-                        className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                        required
-                      />
-
-                      {showSuggestions && (
-                        <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-slate-700 bg-slate-800 text-slate-200 shadow-xl">
-                          {searchingProjects ? (
-                            <div className="flex items-center justify-center gap-2 p-3 text-center text-xs text-slate-500">
-                              <Loader2 className="text-primary size-3 animate-spin" />
-                              <span>Searching project registry...</span>
-                            </div>
-                          ) : filteredProjects.length === 0 &&
-                            filteredSublocalities.length === 0 &&
-                            googleSuggestions.length === 0 ? (
-                            <div className="p-3 text-center text-xs text-slate-500">
-                              No matching projects or areas. Keep typing to
-                              enter a custom value.
-                            </div>
-                          ) : (
-                            <div>
-                              {filteredProjects.length > 0 && (
-                                <div className="p-1">
-                                  <div className="px-2 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                                    🏢 Projects
-                                  </div>
-                                  {filteredProjects.map((p) => (
-                                    <button
-                                      key={p.name}
-                                      type="button"
-                                      onClick={() => {
-                                        setProject(p.name);
-                                        setSublocality(p.sublocality);
-                                        setCity(p.city);
-                                        setStateVal(p.state);
-                                        setAddress(p.address);
-                                        setSearchQuery(p.name);
-                                        setGeoPick(null); // registry pick has no coords; server geocodes on save
-                                        setShowSuggestions(false);
-                                      }}
-                                      className="w-full rounded px-3 py-1.5 text-left text-xs text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
-                                    >
-                                      <span className="font-bold">
-                                        {p.name}
-                                      </span>
-                                      <span className="text-slate-400">
-                                        {' '}
-                                        - {p.sublocality}, {p.city}
-                                      </span>
-                                      {'source' in p && p.source === 'ai' && (
-                                        <span className="ml-2 rounded border border-amber-500/30 bg-amber-500/10 px-1 py-px text-[10px] text-amber-300">
-                                          AI suggestion · unverified
-                                        </span>
-                                      )}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-
-                              {filteredSublocalities.length > 0 && (
-                                <div className="border-t border-slate-700 p-1">
-                                  <div className="px-2 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                                    📍 Areas / Sublocalities
-                                  </div>
-                                  {filteredSublocalities.map((sub) => (
-                                    <button
-                                      key={sub}
-                                      type="button"
-                                      onClick={() => {
-                                        setProject('');
-                                        const parts = sub
-                                          .split(',')
-                                          .map((s) => s.trim());
-                                        if (parts.length > 1) {
-                                          setSublocality(parts[0]);
-                                          setAddress(parts[1]);
-                                        } else {
-                                          setSublocality(sub);
-                                          setAddress('');
-                                        }
-                                        setCity('Bangalore');
-                                        setStateVal('Karnataka');
-                                        setSearchQuery(sub);
-                                        setGeoPick(null); // registry pick has no coords; server geocodes on save
-                                        setShowSuggestions(false);
-                                      }}
-                                      className="w-full rounded px-3 py-1.5 text-left text-xs text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
-                                    >
-                                      <span className="font-medium text-slate-200">
-                                        {sub}
-                                      </span>
-                                      <span className="text-slate-400">
-                                        {' '}
-                                        - Bangalore, Karnataka
-                                      </span>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-
-                              {googleSuggestions.length > 0 && (
-                                <div className="border-t border-slate-700 p-1">
-                                  <div className="px-2 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                                    🌐 Google Maps
-                                  </div>
-                                  {googleSuggestions.map((s) => (
-                                    <button
-                                      key={s.place_id}
-                                      type="button"
-                                      onClick={() => handleGooglePick(s)}
-                                      className="w-full rounded px-3 py-1.5 text-left text-xs text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
-                                    >
-                                      <span className="font-medium text-slate-200">
-                                        {s.main_text}
-                                      </span>
-                                      {s.secondary_text && (
-                                        <span className="text-slate-400">
-                                          {' '}
-                                          - {s.secondary_text}
-                                        </span>
-                                      )}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
+                      {isEdit && (
+                        <div className="col-span-2 space-y-1.5">
+                          <Label
+                            htmlFor="prop-status"
+                            className="text-slate-300"
+                          >
+                            Status
+                          </Label>
+                          <select
+                            id="prop-status"
+                            value={status}
+                            onChange={(e) => setStatus(e.target.value)}
+                            className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
+                          >
+                            {PROPERTY_STATUSES.map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       )}
-                      {geoPick && (
-                        <p className="mt-0.5 text-[10px] font-medium text-sky-400">
-                          📍 Pinned to Google Maps locality &quot;
-                          {geoPick.canonical}&quot; — enables radius search.
-                        </p>
+
+                      {isEdit && (
+                        <div className="col-span-2 space-y-1.5 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                          <h4 className="text-sm font-semibold text-white">
+                            Seller&apos;s final price
+                          </h4>
+                          <p className="text-[11px] text-slate-500">
+                            What the seller will actually accept, as against the
+                            quoted price above. Internal — never shown on the
+                            showcase or in a share link.
+                          </p>
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <div className="space-y-1.5">
+                              <Label
+                                htmlFor="prop-seller-final-price"
+                                className="text-slate-300"
+                              >
+                                Total
+                              </Label>
+                              <Input
+                                id="prop-seller-final-price"
+                                type="number"
+                                min="0"
+                                value={sellerFinalPrice}
+                                onChange={(e) =>
+                                  setSellerFinalPrice(e.target.value)
+                                }
+                                placeholder={
+                                  price ? `e.g. ${price}` : 'e.g. 42000000'
+                                }
+                                className="border-slate-700 bg-slate-800 text-white"
+                              />
+                              <PriceHint value={sellerFinalPrice} />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label
+                                htmlFor="prop-seller-final-rate"
+                                className="text-slate-300"
+                              >
+                                Per Sq.Ft.
+                              </Label>
+                              <Input
+                                id="prop-seller-final-rate"
+                                type="number"
+                                min="0"
+                                value={sellerFinalPricePerSqft}
+                                onChange={(e) =>
+                                  setSellerFinalPricePerSqft(e.target.value)
+                                }
+                                placeholder="e.g. 10500"
+                                className="border-slate-700 bg-slate-800 text-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
                       )}
 
-                      {isProjectMatched && (
-                        <p className="mt-0.5 text-[10px] font-medium text-green-400">
-                          Linked to project location details (pre-filled fields
-                          locked).
-                        </p>
+                      {isEdit && status === 'Sold' && (
+                        <div className="col-span-2 space-y-1.5">
+                          <Label
+                            htmlFor="prop-sold-price"
+                            className="text-slate-300"
+                          >
+                            Final sale price
+                          </Label>
+                          <Input
+                            id="prop-sold-price"
+                            type="number"
+                            min="0"
+                            value={soldPrice}
+                            onChange={(e) => setSoldPrice(e.target.value)}
+                            placeholder={
+                              price ? `e.g. ${price}` : 'e.g. 8500000'
+                            }
+                            className="border-slate-700 bg-slate-800 text-white"
+                          />
+                          <PriceHint value={soldPrice} />
+                          <p className="text-[11px] text-slate-500">
+                            Optional — improves your area&apos;s price accuracy.
+                            Never shown to buyers.
+                          </p>
+                        </div>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="prop-city" className="text-slate-300">
-                          City <span className="text-red-400">*</span>
-                        </Label>
-                        <Input
-                          id="prop-city"
-                          value={city}
-                          onChange={(e) => setCity(e.target.value)}
-                          placeholder="e.g. Bangalore"
-                          className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
-                          required
-                          disabled={isProjectMatched}
-                        />
-                      </div>
+                    {/* Autocomplete Real Location Details */}
+                    <div
+                      id="pf-location"
+                      className="scroll-mt-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4"
+                    >
+                      <h4 className="text-sm font-semibold text-white">
+                        Property Location
+                      </h4>
 
-                      <div className="space-y-1.5">
-                        <Label htmlFor="prop-state" className="text-slate-300">
-                          State <span className="text-red-400">*</span>
-                        </Label>
-                        <Input
-                          id="prop-state"
-                          value={stateVal}
-                          onChange={(e) => setStateVal(e.target.value)}
-                          placeholder="e.g. Karnataka"
-                          className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
-                          required
-                          disabled={isProjectMatched}
-                        />
-                      </div>
-
-                      <div className="col-span-2 space-y-1.5">
+                      <div
+                        className="relative space-y-1.5"
+                        ref={autocompleteRef}
+                      >
                         <Label
-                          htmlFor="prop-address"
+                          htmlFor="prop-search-query"
                           className="text-slate-300"
                         >
-                          Landmark / Street Address
+                          Project Name or Area / Sublocality{' '}
+                          <span className="text-red-400">*</span>
                         </Label>
                         <Input
-                          id="prop-address"
-                          value={address}
-                          onChange={(e) => setAddress(e.target.value)}
-                          placeholder="e.g. Near Metro Station"
-                          className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={isProjectMatched}
+                          id="prop-search-query"
+                          value={searchQuery}
+                          onChange={(e) => {
+                            ensureLocalitiesLoaded();
+                            handleSearchQueryChange(e.target.value);
+                          }}
+                          onFocus={() => {
+                            ensureLocalitiesLoaded();
+                            setShowSuggestions(true);
+                          }}
+                          placeholder="Search project (e.g. Prestige) or area (e.g. Indiranagar)..."
+                          className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                          required
                         />
-                      </div>
 
-                      <div className="col-span-2 space-y-1.5">
-                        <Label
-                          htmlFor="prop-google-map-link"
-                          className="text-slate-300"
-                        >
-                          Google Map Link (Shared on inquiry approval only)
-                        </Label>
-                        <Input
-                          id="prop-google-map-link"
-                          value={googleMapLink}
-                          onChange={(e) => setGoogleMapLink(e.target.value)}
-                          placeholder="e.g. https://maps.google.com/?q=..."
-                        />
-                        {mapPinDrift !== null && (
-                          <p className="flex items-start gap-1.5 text-[11px] text-amber-400">
-                            <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
-                            <span>
-                              This pin sits {mapPinDrift.toFixed(1)} km from the
-                              selected locality
-                              {geoPick?.canonical
-                                ? ` (${geoPick.canonical})`
-                                : ''}
-                              . The pin wins on save — fix the link or re-pick
-                              the locality if that&apos;s the wrong one.
-                            </span>
+                        {showSuggestions && (
+                          <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-slate-700 bg-slate-800 text-slate-200 shadow-xl">
+                            {searchingProjects ? (
+                              <div className="flex items-center justify-center gap-2 p-3 text-center text-xs text-slate-500">
+                                <Loader2 className="text-primary size-3 animate-spin" />
+                                <span>Searching project registry...</span>
+                              </div>
+                            ) : filteredProjects.length === 0 &&
+                              filteredSublocalities.length === 0 &&
+                              googleSuggestions.length === 0 ? (
+                              <div className="p-3 text-center text-xs text-slate-500">
+                                No matching projects or areas. Keep typing to
+                                enter a custom value.
+                              </div>
+                            ) : (
+                              <div>
+                                {filteredProjects.length > 0 && (
+                                  <div className="p-1">
+                                    <div className="px-2 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                                      🏢 Projects
+                                    </div>
+                                    {filteredProjects.map((p) => (
+                                      <button
+                                        key={p.name}
+                                        type="button"
+                                        onClick={() => {
+                                          setProject(p.name);
+                                          setSublocality(p.sublocality);
+                                          setCity(p.city);
+                                          setStateVal(p.state);
+                                          setAddress(p.address);
+                                          setSearchQuery(p.name);
+                                          setGeoPick(null); // registry pick has no coords; server geocodes on save
+                                          setShowSuggestions(false);
+                                        }}
+                                        className="w-full rounded px-3 py-1.5 text-left text-xs text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
+                                      >
+                                        <span className="font-bold">
+                                          {p.name}
+                                        </span>
+                                        <span className="text-slate-400">
+                                          {' '}
+                                          - {p.sublocality}, {p.city}
+                                        </span>
+                                        {'source' in p && p.source === 'ai' && (
+                                          <span className="ml-2 rounded border border-amber-500/30 bg-amber-500/10 px-1 py-px text-[10px] text-amber-300">
+                                            AI suggestion · unverified
+                                          </span>
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {filteredSublocalities.length > 0 && (
+                                  <div className="border-t border-slate-700 p-1">
+                                    <div className="px-2 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                                      📍 Areas / Sublocalities
+                                    </div>
+                                    {filteredSublocalities.map((sub) => (
+                                      <button
+                                        key={sub}
+                                        type="button"
+                                        onClick={() => {
+                                          setProject('');
+                                          const parts = sub
+                                            .split(',')
+                                            .map((s) => s.trim());
+                                          if (parts.length > 1) {
+                                            setSublocality(parts[0]);
+                                            setAddress(parts[1]);
+                                          } else {
+                                            setSublocality(sub);
+                                            setAddress('');
+                                          }
+                                          setCity('Bangalore');
+                                          setStateVal('Karnataka');
+                                          setSearchQuery(sub);
+                                          setGeoPick(null); // registry pick has no coords; server geocodes on save
+                                          setShowSuggestions(false);
+                                        }}
+                                        className="w-full rounded px-3 py-1.5 text-left text-xs text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
+                                      >
+                                        <span className="font-medium text-slate-200">
+                                          {sub}
+                                        </span>
+                                        <span className="text-slate-400">
+                                          {' '}
+                                          - Bangalore, Karnataka
+                                        </span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {googleSuggestions.length > 0 && (
+                                  <div className="border-t border-slate-700 p-1">
+                                    <div className="px-2 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                                      🌐 Google Maps
+                                    </div>
+                                    {googleSuggestions.map((s) => (
+                                      <button
+                                        key={s.place_id}
+                                        type="button"
+                                        onClick={() => handleGooglePick(s)}
+                                        className="w-full rounded px-3 py-1.5 text-left text-xs text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
+                                      >
+                                        <span className="font-medium text-slate-200">
+                                          {s.main_text}
+                                        </span>
+                                        {s.secondary_text && (
+                                          <span className="text-slate-400">
+                                            {' '}
+                                            - {s.secondary_text}
+                                          </span>
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {geoPick && (
+                          <p className="mt-0.5 text-[10px] font-medium text-sky-400">
+                            📍 Pinned to Google Maps locality &quot;
+                            {geoPick.canonical}&quot; — enables radius search.
+                          </p>
+                        )}
+
+                        {isProjectMatched && (
+                          <p className="mt-0.5 text-[10px] font-medium text-green-400">
+                            Linked to project location details (pre-filled
+                            fields locked).
                           </p>
                         )}
                       </div>
 
-                      <div className="col-span-2 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
-                        <div className="space-y-0.5">
-                          <Label
-                            htmlFor="prop-location-guard"
-                            className="cursor-pointer text-sm text-slate-300"
-                          >
-                            Guard exact location
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="prop-city" className="text-slate-300">
+                            City <span className="text-red-400">*</span>
                           </Label>
-                          <p className="text-[10px] leading-normal text-slate-500">
-                            {guardedByType
-                              ? 'On by default for this property type — buyers and co-brokers see locality only until you approve a reveal.'
-                              : 'Off by default for this property type — turn on to hide the street address, map pin and coordinates until you approve a reveal.'}
-                          </p>
+                          <Input
+                            id="prop-city"
+                            value={city}
+                            onChange={(e) => setCity(e.target.value)}
+                            placeholder="e.g. Bangalore"
+                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            required
+                            disabled={isProjectMatched}
+                          />
                         </div>
-                        <Switch
-                          id="prop-location-guard"
-                          checked={locationGuarded}
-                          onCheckedChange={(checked) => {
-                            const next = checked ? 'locality' : 'exact';
-                            setLocationPrivacy(
-                              (guardedByType ? 'locality' : 'exact') === next
-                                ? ''
-                                : next
-                            );
-                          }}
-                        />
-                      </div>
 
-                      <div className="col-span-2 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
-                        <div className="space-y-0.5">
+                        <div className="space-y-1.5">
                           <Label
-                            htmlFor="prop-showcase-gate"
-                            className="cursor-pointer text-sm text-slate-300"
+                            htmlFor="prop-state"
+                            className="text-slate-300"
                           >
-                            Confidential listing
+                            State <span className="text-red-400">*</span>
                           </Label>
-                          <p className="text-[10px] leading-normal text-slate-500">
-                            Anyone opening the public link sees only the type,
-                            locality and a price band until you approve them.
-                            Link previews and search engines get nothing, and
-                            photos you release are watermarked to the viewer.
-                          </p>
+                          <Input
+                            id="prop-state"
+                            value={stateVal}
+                            onChange={(e) => setStateVal(e.target.value)}
+                            placeholder="e.g. Karnataka"
+                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            required
+                            disabled={isProjectMatched}
+                          />
                         </div>
-                        <Switch
-                          id="prop-showcase-gate"
-                          checked={showcaseVisibility === 'teaser'}
-                          onCheckedChange={(checked) =>
-                            setShowcaseVisibility(checked ? 'teaser' : '')
-                          }
-                        />
-                      </div>
 
-                      <div className="col-span-2 space-y-1.5">
-                        <Label
-                          htmlFor="prop-notes"
-                          className="flex items-center gap-1.5 text-slate-300"
-                        >
-                          Internal Notes
-                          <span className="rounded border border-amber-500/20 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-                            Engine Only — Not visible to clients
-                          </span>
-                        </Label>
-                        <Textarea
-                          id="prop-notes"
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                          placeholder="e.g. Near Garuda Mall, 3rd left from Metro Station. Owner available only on weekdays..."
-                          className="min-h-[80px] resize-y border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500"
-                          rows={3}
-                        />
-                        <p className="text-[10px] leading-normal text-slate-500">
-                          Location landmarks, access info, owner contact
-                          preferences — searchable in the Engine but private to
-                          your team.
-                        </p>
-                      </div>
+                        <div className="col-span-2 space-y-1.5">
+                          <Label
+                            htmlFor="prop-address"
+                            className="text-slate-300"
+                          >
+                            Landmark / Street Address
+                          </Label>
+                          <Input
+                            id="prop-address"
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                            placeholder="e.g. Near Metro Station"
+                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={isProjectMatched}
+                          />
+                        </div>
 
-                      <div className="col-span-2 space-y-1.5">
-                        <Label
-                          htmlFor="prop-tags"
-                          className="flex items-center gap-1.5 text-slate-300"
-                        >
-                          Tags
-                          <span className="rounded border border-amber-500/20 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-                            Engine Only — Not visible to clients
-                          </span>
-                        </Label>
-                        <div className="focus-within:ring-primary flex flex-wrap items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-slate-950">
-                          {tags.map((tag, idx) => (
-                            <span
-                              key={`${tag}-${idx}`}
-                              className="bg-primary/15 border-primary/25 text-primary inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+                        <div className="col-span-2 space-y-1.5">
+                          <Label
+                            htmlFor="prop-google-map-link"
+                            className="text-slate-300"
+                          >
+                            Google Map Link (Shared on inquiry approval only)
+                          </Label>
+                          <Input
+                            id="prop-google-map-link"
+                            value={googleMapLink}
+                            onChange={(e) => setGoogleMapLink(e.target.value)}
+                            placeholder="e.g. https://maps.google.com/?q=..."
+                          />
+                          {mapPinDrift !== null && (
+                            <p className="flex items-start gap-1.5 text-[11px] text-amber-400">
+                              <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+                              <span>
+                                This pin sits {mapPinDrift.toFixed(1)} km from
+                                the selected locality
+                                {geoPick?.canonical
+                                  ? ` (${geoPick.canonical})`
+                                  : ''}
+                                . The pin wins on save — fix the link or re-pick
+                                the locality if that&apos;s the wrong one.
+                              </span>
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="col-span-2 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+                          <div className="space-y-0.5">
+                            <Label
+                              htmlFor="prop-location-guard"
+                              className="cursor-pointer text-sm text-slate-300"
                             >
-                              <Tag className="size-2.5" />
-                              {tag}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setTags(tags.filter((_, i) => i !== idx))
-                                }
-                                className="text-primary/70 hover:text-primary"
-                              >
-                                <X className="size-3" />
-                              </button>
+                              Guard exact location
+                            </Label>
+                            <p className="text-[10px] leading-normal text-slate-500">
+                              {guardedByType
+                                ? 'On by default for this property type — buyers and co-brokers see locality only until you approve a reveal.'
+                                : 'Off by default for this property type — turn on to hide the street address, map pin and coordinates until you approve a reveal.'}
+                            </p>
+                          </div>
+                          <Switch
+                            id="prop-location-guard"
+                            checked={locationGuarded}
+                            onCheckedChange={(checked) => {
+                              const next = checked ? 'locality' : 'exact';
+                              setLocationPrivacy(
+                                (guardedByType ? 'locality' : 'exact') === next
+                                  ? ''
+                                  : next
+                              );
+                            }}
+                          />
+                        </div>
+
+                        <div className="col-span-2 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+                          <div className="space-y-0.5">
+                            <Label
+                              htmlFor="prop-showcase-gate"
+                              className="cursor-pointer text-sm text-slate-300"
+                            >
+                              Confidential listing
+                            </Label>
+                            <p className="text-[10px] leading-normal text-slate-500">
+                              Anyone opening the public link sees only the type,
+                              locality and a price band until you approve them.
+                              Link previews and search engines get nothing, and
+                              photos you release are watermarked to the viewer.
+                            </p>
+                          </div>
+                          <Switch
+                            id="prop-showcase-gate"
+                            checked={showcaseVisibility === 'teaser'}
+                            onCheckedChange={(checked) =>
+                              setShowcaseVisibility(checked ? 'teaser' : '')
+                            }
+                          />
+                        </div>
+
+                        <div className="col-span-2 space-y-1.5">
+                          <Label
+                            htmlFor="prop-notes"
+                            className="flex items-center gap-1.5 text-slate-300"
+                          >
+                            Internal Notes
+                            <span className="rounded border border-amber-500/20 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                              Engine Only — Not visible to clients
                             </span>
-                          ))}
-                          <input
-                            id="prop-tags"
-                            value={tagInput}
-                            onChange={(e) => setTagInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ',') {
-                                e.preventDefault();
+                          </Label>
+                          <Textarea
+                            id="prop-notes"
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="e.g. Near Garuda Mall, 3rd left from Metro Station. Owner available only on weekdays..."
+                            className="min-h-[80px] resize-y border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500"
+                            rows={3}
+                          />
+                          <p className="text-[10px] leading-normal text-slate-500">
+                            Location landmarks, access info, owner contact
+                            preferences — searchable in the Engine but private
+                            to your team.
+                          </p>
+                        </div>
+
+                        <div className="col-span-2 space-y-1.5">
+                          <Label
+                            htmlFor="prop-tags"
+                            className="flex items-center gap-1.5 text-slate-300"
+                          >
+                            Tags
+                            <span className="rounded border border-amber-500/20 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                              Engine Only — Not visible to clients
+                            </span>
+                          </Label>
+                          <div className="focus-within:ring-primary flex flex-wrap items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-slate-950">
+                            {tags.map((tag, idx) => (
+                              <span
+                                key={`${tag}-${idx}`}
+                                className="bg-primary/15 border-primary/25 text-primary inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+                              >
+                                <Tag className="size-2.5" />
+                                {tag}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setTags(tags.filter((_, i) => i !== idx))
+                                  }
+                                  className="text-primary/70 hover:text-primary"
+                                >
+                                  <X className="size-3" />
+                                </button>
+                              </span>
+                            ))}
+                            <input
+                              id="prop-tags"
+                              value={tagInput}
+                              onChange={(e) => setTagInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ',') {
+                                  e.preventDefault();
+                                  const next = tagInput.trim();
+                                  if (
+                                    next &&
+                                    !tags.some(
+                                      (t) =>
+                                        t.toLowerCase() === next.toLowerCase()
+                                    )
+                                  ) {
+                                    setTags([...tags, next]);
+                                  }
+                                  setTagInput('');
+                                } else if (
+                                  e.key === 'Backspace' &&
+                                  !tagInput &&
+                                  tags.length > 0
+                                ) {
+                                  setTags(tags.slice(0, -1));
+                                }
+                              }}
+                              onBlur={() => {
                                 const next = tagInput.trim();
                                 if (
                                   next &&
@@ -6304,620 +6375,586 @@ export function PropertyForm({
                                   setTags([...tags, next]);
                                 }
                                 setTagInput('');
-                              } else if (
-                                e.key === 'Backspace' &&
-                                !tagInput &&
-                                tags.length > 0
-                              ) {
-                                setTags(tags.slice(0, -1));
+                              }}
+                              placeholder={
+                                tags.length === 0
+                                  ? 'e.g. Brick and Bolt, Distress Sale — press Enter to add'
+                                  : 'Add tag...'
                               }
-                            }}
-                            onBlur={() => {
-                              const next = tagInput.trim();
-                              if (
-                                next &&
-                                !tags.some(
-                                  (t) => t.toLowerCase() === next.toLowerCase()
-                                )
-                              ) {
-                                setTags([...tags, next]);
-                              }
-                              setTagInput('');
-                            }}
-                            placeholder={
-                              tags.length === 0
-                                ? 'e.g. Brick and Bolt, Distress Sale — press Enter to add'
-                                : 'Add tag...'
-                            }
-                            className="h-6 min-w-[140px] flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
-                          />
-                        </div>
-                        {tagSuggestions.filter(
-                          (s) =>
-                            !tags.some(
-                              (t) => t.toLowerCase() === s.tag.toLowerCase()
-                            )
-                        ).length > 0 && (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {/* Already in use in this account. A tag only earns its
+                              className="h-6 min-w-[140px] flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
+                            />
+                          </div>
+                          {tagSuggestions.filter(
+                            (s) =>
+                              !tags.some(
+                                (t) => t.toLowerCase() === s.tag.toLowerCase()
+                              )
+                          ).length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {/* Already in use in this account. A tag only earns its
                               keep if every listing it should cover spells it the
                               same way — "APM" on three villas of a project and
                               "AMP" on the fourth leaves the fourth out of the
                               search the tag exists for. */}
-                            {tagSuggestions
-                              .filter(
-                                (s) =>
-                                  !tags.some(
-                                    (t) =>
-                                      t.toLowerCase() === s.tag.toLowerCase()
-                                  )
-                              )
-                              .slice(0, 10)
-                              .map((s) => (
-                                <button
-                                  key={s.tag}
-                                  type="button"
-                                  onClick={() => setTags([...tags, s.tag])}
-                                  className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400 hover:border-slate-600 hover:text-slate-200"
-                                >
-                                  <Plus className="size-2.5" />
-                                  {s.tag}
-                                  <span className="text-slate-600">
-                                    {s.uses}
-                                  </span>
-                                </button>
-                              ))}
-                          </div>
-                        )}
-                        <p className="text-[10px] leading-normal text-slate-500">
-                          Builder names, campaigns, deal nicknames — typing any
-                          part of a tag finds this property in Inventory search
-                          and property pickers.
-                        </p>
-                      </div>
-
-                      {/* Commercial Location Fields */}
-                      {hasCommercialFields && (
-                        <>
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-land-zone"
-                              className="text-slate-300"
-                            >
-                              Land Zone
-                            </Label>
-                            <select
-                              id="prop-land-zone"
-                              value={landZone}
-                              onChange={(e) => setLandZone(e.target.value)}
-                              className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                            >
-                              <option value="">Select Land Zone</option>
-                              <option value="Industrial">Industrial</option>
-                              <option value="Commercial">Commercial</option>
-                              <option value="Residential">Residential</option>
-                              <option value="Agricultural">Agricultural</option>
-                              <option value="Mixed Use">Mixed Use</option>
-                              <option value="SEZ">
-                                SEZ (Special Economic Zone)
-                              </option>
-                            </select>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-ideal-for"
-                              className="text-slate-300"
-                            >
-                              Ideal For Businesses
-                            </Label>
-                            <Input
-                              id="prop-ideal-for"
-                              value={idealFor}
-                              onChange={(e) => setIdealFor(e.target.value)}
-                              placeholder="e.g. Software, Bank, Clinic"
-                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                          </div>
-
-                          {hasCommercialBuildingFields && (
-                            <div className="space-y-1.5">
-                              <Label
-                                htmlFor="prop-rental-income"
-                                className="text-slate-300"
-                              >
-                                Monthly Rental Income (INR)
-                              </Label>
-                              <Input
-                                id="prop-rental-income"
-                                type="number"
-                                value={rentalIncome}
-                                onChange={(e) =>
-                                  setRentalIncome(e.target.value)
-                                }
-                                placeholder="e.g. 250000"
-                                className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                              />
-                              <PriceHint value={rentalIncome} />
+                              {tagSuggestions
+                                .filter(
+                                  (s) =>
+                                    !tags.some(
+                                      (t) =>
+                                        t.toLowerCase() === s.tag.toLowerCase()
+                                    )
+                                )
+                                .slice(0, 10)
+                                .map((s) => (
+                                  <button
+                                    key={s.tag}
+                                    type="button"
+                                    onClick={() => setTags([...tags, s.tag])}
+                                    className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400 hover:border-slate-600 hover:text-slate-200"
+                                  >
+                                    <Plus className="size-2.5" />
+                                    {s.tag}
+                                    <span className="text-slate-600">
+                                      {s.uses}
+                                    </span>
+                                  </button>
+                                ))}
                             </div>
                           )}
-
-                          {hasCommercialBuildingFields &&
-                            yieldApplies(listingType) && (
-                              <div className="space-y-1.5">
-                                <Label
-                                  htmlFor="prop-roi"
-                                  className="text-slate-300"
-                                >
-                                  ROI (Return on Investment)
-                                </Label>
-                                <Input
-                                  id="prop-roi"
-                                  type="text"
-                                  value={
-                                    roiValue !== null
-                                      ? `${roiValue}%`
-                                      : 'calculated automatically'
-                                  }
-                                  readOnly
-                                  className="bg-slate-850 text-primary h-9 cursor-not-allowed border-slate-800 font-medium"
-                                />
-                              </div>
-                            )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Floor-wise Tenancy (Rent Roll) — pre-leased commercial
-                    buildings under sale: tenant, rent (excl. GST), lease
-                    window, lock-in and maintenance per floor. */}
-                  {hasCommercialBuildingFields && (
-                    <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-white">
-                            Floor-wise Tenancy (Rent Roll)
-                          </h4>
-                          <p className="mt-0.5 text-[11px] text-slate-500">
-                            For pre-leased buildings — one row per lease, not
-                            per floor. A tenant taking several floors, or the
-                            whole building, is a single row: name every floor it
-                            covers in the label. Internal to your Engine; never
-                            shown on the showcase.
+                          <p className="text-[10px] leading-normal text-slate-500">
+                            Builder names, campaigns, deal nicknames — typing
+                            any part of a tag finds this property in Inventory
+                            search and property pickers.
                           </p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setFloorTenancies((prev) => [
-                              ...prev,
-                              { ...emptyFloorTenancy },
-                            ])
-                          }
-                          className="h-8 shrink-0 border-slate-700 text-slate-300 hover:bg-slate-800"
-                        >
-                          <Plus className="mr-1 size-3.5" />
-                          Add Tenancy
-                        </Button>
-                      </div>
 
-                      {floorTenancies.map((ft, idx) => (
-                        <div
-                          key={idx}
-                          className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
-                              Tenancy {idx + 1}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setFloorTenancies((prev) =>
-                                  prev.filter((_, i) => i !== idx)
-                                )
-                              }
-                              className="text-slate-500 transition-colors hover:text-rose-400"
-                              aria-label={`Remove tenancy ${idx + 1}`}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Floor(s) / Unit(s)
-                              </Label>
-                              <Input
-                                value={ft.floor}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'floor',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="e.g. G+1+2+3+4, or Entire building"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Tenant Name
-                              </Label>
-                              <Input
-                                value={ft.tenant_name}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'tenant_name',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="e.g. Ramada Hospitality"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Area (Sq.Ft.)
-                              </Label>
-                              <Input
-                                type="number"
-                                value={ft.area_sqft}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'area_sqft',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="10000"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Monthly Rent (₹, excl. GST)
-                              </Label>
-                              <Input
-                                type="number"
-                                value={ft.monthly_rent}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'monthly_rent',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="1350000"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                              <PriceHint
-                                value={ft.monthly_rent}
-                                compact
-                                className="text-[10px]"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Advance / Deposit (₹)
-                              </Label>
-                              <Input
-                                type="number"
-                                value={ft.advance}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'advance',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="e.g. 8100000"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                              <PriceHint
-                                value={ft.advance}
-                                compact
-                                className="text-[10px]"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Lease Start
-                              </Label>
-                              <Input
-                                type="date"
-                                value={ft.lease_start}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'lease_start',
-                                    e.target.value
-                                  )
-                                }
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white [color-scheme:dark]"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Lease End
-                              </Label>
-                              <Input
-                                type="date"
-                                value={ft.lease_end}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'lease_end',
-                                    e.target.value
-                                  )
-                                }
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white [color-scheme:dark]"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Lock-in (months)
-                              </Label>
-                              <Input
-                                type="number"
-                                value={ft.lock_in_months}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'lock_in_months',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="36"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Maintenance
-                              </Label>
-                              <Input
-                                value={ft.maintenance}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'maintenance',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="e.g. ₹5/sqft, by tenant"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <Label className="text-[11px] text-slate-400">
-                              Usage / Notes
-                            </Label>
-                            <Input
-                              value={ft.notes}
-                              onChange={(e) =>
-                                updateFloorTenancy(idx, 'notes', e.target.value)
-                              }
-                              placeholder="e.g. 3-Star Hotel · 27 rooms · convention centre (400 seats)"
-                              className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                            />
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Label className="shrink-0 text-[11px] text-slate-400">
-                              Floor Plan
-                            </Label>
-                            {ft.floor_plan ? (
-                              <a
-                                href={storagePublicUrl(ft.floor_plan)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary truncate text-[11px] hover:underline"
+                        {/* Commercial Location Fields */}
+                        {hasCommercialFields && (
+                          <>
+                            <div className="space-y-1.5">
+                              <Label
+                                htmlFor="prop-land-zone"
+                                className="text-slate-300"
                               >
-                                View plan
-                              </a>
-                            ) : (
-                              <span className="text-[11px] text-slate-600">
-                                None attached
-                              </span>
+                                Land Zone
+                              </Label>
+                              <select
+                                id="prop-land-zone"
+                                value={landZone}
+                                onChange={(e) => setLandZone(e.target.value)}
+                                className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
+                              >
+                                <option value="">Select Land Zone</option>
+                                <option value="Industrial">Industrial</option>
+                                <option value="Commercial">Commercial</option>
+                                <option value="Residential">Residential</option>
+                                <option value="Agricultural">
+                                  Agricultural
+                                </option>
+                                <option value="Mixed Use">Mixed Use</option>
+                                <option value="SEZ">
+                                  SEZ (Special Economic Zone)
+                                </option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label
+                                htmlFor="prop-ideal-for"
+                                className="text-slate-300"
+                              >
+                                Ideal For Businesses
+                              </Label>
+                              <Input
+                                id="prop-ideal-for"
+                                value={idealFor}
+                                onChange={(e) => setIdealFor(e.target.value)}
+                                placeholder="e.g. Software, Bank, Clinic"
+                                className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              />
+                            </div>
+
+                            {hasCommercialBuildingFields && (
+                              <div className="space-y-1.5">
+                                <Label
+                                  htmlFor="prop-rental-income"
+                                  className="text-slate-300"
+                                >
+                                  Monthly Rental Income (INR)
+                                </Label>
+                                <Input
+                                  id="prop-rental-income"
+                                  type="number"
+                                  value={rentalIncome}
+                                  onChange={(e) =>
+                                    setRentalIncome(e.target.value)
+                                  }
+                                  placeholder="e.g. 250000"
+                                  className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                                />
+                                <PriceHint value={rentalIncome} />
+                              </div>
                             )}
-                            <input
-                              ref={(el) => {
-                                tenancyPlanInputs.current[idx] = el;
-                              }}
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                e.target.value = '';
-                                if (!file) return;
-                                const path = await uploadPlanImage(file);
-                                if (path)
-                                  updateFloorTenancy(idx, 'floor_plan', path);
-                              }}
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              disabled={!canEdit}
-                              onClick={() =>
-                                tenancyPlanInputs.current[idx]?.click()
-                              }
-                              className="ml-auto h-7 px-2 text-[11px] text-slate-400 hover:text-white"
-                            >
-                              <Upload className="mr-1 size-3" />
-                              {ft.floor_plan ? 'Replace' : 'Attach'}
-                            </Button>
-                            {ft.floor_plan && (
+
+                            {hasCommercialBuildingFields &&
+                              yieldApplies(listingType) && (
+                                <div className="space-y-1.5">
+                                  <Label
+                                    htmlFor="prop-roi"
+                                    className="text-slate-300"
+                                  >
+                                    ROI (Return on Investment)
+                                  </Label>
+                                  <Input
+                                    id="prop-roi"
+                                    type="text"
+                                    value={
+                                      roiValue !== null
+                                        ? `${roiValue}%`
+                                        : 'calculated automatically'
+                                    }
+                                    readOnly
+                                    className="bg-slate-850 text-primary h-9 cursor-not-allowed border-slate-800 font-medium"
+                                  />
+                                </div>
+                              )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Floor-wise Tenancy (Rent Roll) — pre-leased commercial
+                    buildings under sale: tenant, rent (excl. GST), lease
+                    window, lock-in and maintenance per floor. */}
+                    {hasCommercialBuildingFields && (
+                      <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-semibold text-white">
+                              Floor-wise Tenancy (Rent Roll)
+                            </h4>
+                            <p className="mt-0.5 text-[11px] text-slate-500">
+                              For pre-leased buildings — one row per lease, not
+                              per floor. A tenant taking several floors, or the
+                              whole building, is a single row: name every floor
+                              it covers in the label. Internal to your Engine;
+                              never shown on the showcase.
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setFloorTenancies((prev) => [
+                                ...prev,
+                                { ...emptyFloorTenancy },
+                              ])
+                            }
+                            className="h-8 shrink-0 border-slate-700 text-slate-300 hover:bg-slate-800"
+                          >
+                            <Plus className="mr-1 size-3.5" />
+                            Add Tenancy
+                          </Button>
+                        </div>
+
+                        {floorTenancies.map((ft, idx) => (
+                          <div
+                            key={idx}
+                            className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                                Tenancy {idx + 1}
+                              </span>
                               <button
                                 type="button"
                                 onClick={() =>
-                                  updateFloorTenancy(idx, 'floor_plan', '')
+                                  setFloorTenancies((prev) =>
+                                    prev.filter((_, i) => i !== idx)
+                                  )
                                 }
                                 className="text-slate-500 transition-colors hover:text-rose-400"
-                                aria-label={`Remove floor plan for tenancy ${idx + 1}`}
+                                aria-label={`Remove tenancy ${idx + 1}`}
                               >
                                 <Trash2 className="size-3.5" />
                               </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                            </div>
 
-                      {floorTenancies.length > 0 &&
-                        (floorRentTotal > 0 || floorAdvanceTotal > 0) && (
-                          <div className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5">
-                            {floorRentTotal > 0 && (
-                              <p className="flex items-baseline justify-between gap-3 text-xs font-semibold text-slate-300">
-                                <span>
-                                  Total monthly rent{' '}
-                                  <span className="font-medium text-slate-500">
-                                    ({floorTenancies.length} tenanc
-                                    {floorTenancies.length === 1 ? 'y' : 'ies'},
-                                    excluding GST)
+                            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-slate-400">
+                                  Floor(s) / Unit(s)
+                                </Label>
+                                <Input
+                                  value={ft.floor}
+                                  onChange={(e) =>
+                                    updateFloorTenancy(
+                                      idx,
+                                      'floor',
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="e.g. G+1+2+3+4, or Entire building"
+                                  className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-slate-400">
+                                  Tenant Name
+                                </Label>
+                                <Input
+                                  value={ft.tenant_name}
+                                  onChange={(e) =>
+                                    updateFloorTenancy(
+                                      idx,
+                                      'tenant_name',
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="e.g. Ramada Hospitality"
+                                  className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-slate-400">
+                                  Area (Sq.Ft.)
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={ft.area_sqft}
+                                  onChange={(e) =>
+                                    updateFloorTenancy(
+                                      idx,
+                                      'area_sqft',
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="10000"
+                                  className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-slate-400">
+                                  Monthly Rent (₹, excl. GST)
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={ft.monthly_rent}
+                                  onChange={(e) =>
+                                    updateFloorTenancy(
+                                      idx,
+                                      'monthly_rent',
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="1350000"
+                                  className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
+                                />
+                                <PriceHint
+                                  value={ft.monthly_rent}
+                                  compact
+                                  className="text-[10px]"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-slate-400">
+                                  Advance / Deposit (₹)
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={ft.advance}
+                                  onChange={(e) =>
+                                    updateFloorTenancy(
+                                      idx,
+                                      'advance',
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="e.g. 8100000"
+                                  className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
+                                />
+                                <PriceHint
+                                  value={ft.advance}
+                                  compact
+                                  className="text-[10px]"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-slate-400">
+                                  Lease Start
+                                </Label>
+                                <Input
+                                  type="date"
+                                  value={ft.lease_start}
+                                  onChange={(e) =>
+                                    updateFloorTenancy(
+                                      idx,
+                                      'lease_start',
+                                      e.target.value
+                                    )
+                                  }
+                                  className="h-8 border-slate-700 bg-slate-800 text-xs text-white [color-scheme:dark]"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-slate-400">
+                                  Lease End
+                                </Label>
+                                <Input
+                                  type="date"
+                                  value={ft.lease_end}
+                                  onChange={(e) =>
+                                    updateFloorTenancy(
+                                      idx,
+                                      'lease_end',
+                                      e.target.value
+                                    )
+                                  }
+                                  className="h-8 border-slate-700 bg-slate-800 text-xs text-white [color-scheme:dark]"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-slate-400">
+                                  Lock-in (months)
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={ft.lock_in_months}
+                                  onChange={(e) =>
+                                    updateFloorTenancy(
+                                      idx,
+                                      'lock_in_months',
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="36"
+                                  className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-slate-400">
+                                  Maintenance
+                                </Label>
+                                <Input
+                                  value={ft.maintenance}
+                                  onChange={(e) =>
+                                    updateFloorTenancy(
+                                      idx,
+                                      'maintenance',
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="e.g. ₹5/sqft, by tenant"
+                                  className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-slate-400">
+                                Usage / Notes
+                              </Label>
+                              <Input
+                                value={ft.notes}
+                                onChange={(e) =>
+                                  updateFloorTenancy(
+                                    idx,
+                                    'notes',
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="e.g. 3-Star Hotel · 27 rooms · convention centre (400 seats)"
+                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <Label className="shrink-0 text-[11px] text-slate-400">
+                                Floor Plan
+                              </Label>
+                              {ft.floor_plan ? (
+                                <a
+                                  href={storagePublicUrl(ft.floor_plan)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary truncate text-[11px] hover:underline"
+                                >
+                                  View plan
+                                </a>
+                              ) : (
+                                <span className="text-[11px] text-slate-600">
+                                  None attached
+                                </span>
+                              )}
+                              <input
+                                ref={(el) => {
+                                  tenancyPlanInputs.current[idx] = el;
+                                }}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  e.target.value = '';
+                                  if (!file) return;
+                                  const path = await uploadPlanImage(file);
+                                  if (path)
+                                    updateFloorTenancy(idx, 'floor_plan', path);
+                                }}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={!canEdit}
+                                onClick={() =>
+                                  tenancyPlanInputs.current[idx]?.click()
+                                }
+                                className="ml-auto h-7 px-2 text-[11px] text-slate-400 hover:text-white"
+                              >
+                                <Upload className="mr-1 size-3" />
+                                {ft.floor_plan ? 'Replace' : 'Attach'}
+                              </Button>
+                              {ft.floor_plan && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateFloorTenancy(idx, 'floor_plan', '')
+                                  }
+                                  className="text-slate-500 transition-colors hover:text-rose-400"
+                                  aria-label={`Remove floor plan for tenancy ${idx + 1}`}
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+
+                        {floorTenancies.length > 0 &&
+                          (floorRentTotal > 0 || floorAdvanceTotal > 0) && (
+                            <div className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5">
+                              {floorRentTotal > 0 && (
+                                <p className="flex items-baseline justify-between gap-3 text-xs font-semibold text-slate-300">
+                                  <span>
+                                    Total monthly rent{' '}
+                                    <span className="font-medium text-slate-500">
+                                      ({floorTenancies.length} tenanc
+                                      {floorTenancies.length === 1
+                                        ? 'y'
+                                        : 'ies'}
+                                      , excluding GST)
+                                    </span>
                                   </span>
-                                </span>
-                                <span className="text-primary">
-                                  {formatCurrency(floorRentTotal, currency)}
-                                </span>
-                              </p>
-                            )}
-                            {floorAdvanceTotal > 0 && (
-                              <p className="flex items-baseline justify-between gap-3 text-xs font-semibold text-slate-300">
-                                <span>
-                                  Total advance / deposit{' '}
-                                  <span className="font-medium text-slate-500">
-                                    held across all floors
+                                  <span className="text-primary">
+                                    {formatCurrency(floorRentTotal, currency)}
                                   </span>
-                                </span>
-                                <span className="text-primary">
-                                  {formatCurrency(floorAdvanceTotal, currency)}
-                                </span>
-                              </p>
-                            )}
-                            {floorRentTotal > 0 && floorAdvanceTotal > 0 && (
-                              <p className="border-t border-slate-800/80 pt-1 text-[11px] text-slate-500">
-                                Deposit is{' '}
-                                {(floorAdvanceTotal / floorRentTotal).toFixed(
-                                  1
-                                )}
-                                × the monthly rent.
-                              </p>
-                            )}
-                          </div>
-                        )}
-                    </div>
-                  )}
+                                </p>
+                              )}
+                              {floorAdvanceTotal > 0 && (
+                                <p className="flex items-baseline justify-between gap-3 text-xs font-semibold text-slate-300">
+                                  <span>
+                                    Total advance / deposit{' '}
+                                    <span className="font-medium text-slate-500">
+                                      held across all floors
+                                    </span>
+                                  </span>
+                                  <span className="text-primary">
+                                    {formatCurrency(
+                                      floorAdvanceTotal,
+                                      currency
+                                    )}
+                                  </span>
+                                </p>
+                              )}
+                              {floorRentTotal > 0 && floorAdvanceTotal > 0 && (
+                                <p className="border-t border-slate-800/80 pt-1 text-[11px] text-slate-500">
+                                  Deposit is{' '}
+                                  {(floorAdvanceTotal / floorRentTotal).toFixed(
+                                    1
+                                  )}
+                                  × the monthly rent.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                      </div>
+                    )}
 
-                  {/* Area & Specification Fields */}
-                  <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                    <h4 className="text-sm font-semibold text-white">
-                      Area & Specs
-                    </h4>
+                    {/* Area & Specification Fields */}
+                    <div
+                      id="pf-specs"
+                      className="scroll-mt-2 space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4"
+                    >
+                      <h4 className="text-sm font-semibold text-white">
+                        Area & Specs
+                      </h4>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      {hasBedsBaths && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bedrooms"
-                            className="text-slate-300"
-                          >
-                            Beds
-                          </Label>
-                          <Input
-                            id="prop-bedrooms"
-                            type="number"
-                            value={bedrooms}
-                            onChange={(e) => setBedrooms(e.target.value)}
-                            placeholder="e.g. 3"
-                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                      )}
-
-                      {hasBedsBaths && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bathrooms"
-                            className="text-slate-300"
-                          >
-                            Baths
-                          </Label>
-                          <Input
-                            id="prop-bathrooms"
-                            type="number"
-                            value={bathrooms}
-                            onChange={(e) => setBathrooms(e.target.value)}
-                            placeholder="e.g. 2"
-                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                      )}
-
-                      {isLand ? (
-                        <div className="col-span-2 space-y-1.5">
-                          <Label
-                            htmlFor="prop-land-area"
-                            className="text-slate-300"
-                          >
-                            Land Area <span className="text-red-400">*</span>
-                          </Label>
-                          <div className="flex gap-2">
-                            <Input
-                              id="prop-land-area"
-                              type="number"
-                              value={landArea}
-                              onChange={(e) =>
-                                handleLandAreaChange(e.target.value)
-                              }
-                              placeholder="e.g. 2400"
-                              className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                              required
-                            />
-                            <select
-                              value={landAreaUnit}
-                              onChange={(e) => setLandAreaUnit(e.target.value)}
-                              className="focus:ring-primary h-9 w-28 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs font-medium text-white focus:ring-2 focus:outline-none"
-                            >
-                              {AREA_UNITS.map((unit) => (
-                                <option key={unit} value={unit}>
-                                  {unit}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="col-span-2 space-y-1.5">
+                      <div className="grid grid-cols-2 gap-4">
+                        {hasBedsBaths && (
+                          <div className="space-y-1.5">
                             <Label
-                              htmlFor="prop-area"
+                              htmlFor="prop-bedrooms"
                               className="text-slate-300"
                             >
-                              Built-up Area
+                              Beds
+                            </Label>
+                            <Input
+                              id="prop-bedrooms"
+                              type="number"
+                              value={bedrooms}
+                              onChange={(e) => setBedrooms(e.target.value)}
+                              placeholder="e.g. 3"
+                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                          </div>
+                        )}
+
+                        {hasBedsBaths && (
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-bathrooms"
+                              className="text-slate-300"
+                            >
+                              Baths
+                            </Label>
+                            <Input
+                              id="prop-bathrooms"
+                              type="number"
+                              value={bathrooms}
+                              onChange={(e) => setBathrooms(e.target.value)}
+                              placeholder="e.g. 2"
+                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                          </div>
+                        )}
+
+                        {isLand ? (
+                          <div className="col-span-2 space-y-1.5">
+                            <Label
+                              htmlFor="prop-land-area"
+                              className="text-slate-300"
+                            >
+                              Land Area <span className="text-red-400">*</span>
                             </Label>
                             <div className="flex gap-2">
                               <Input
-                                id="prop-area"
+                                id="prop-land-area"
                                 type="number"
-                                value={areaSqft}
-                                onChange={(e) => setAreaSqft(e.target.value)}
-                                placeholder="e.g. 1500"
+                                value={landArea}
+                                onChange={(e) =>
+                                  handleLandAreaChange(e.target.value)
+                                }
+                                placeholder="e.g. 2400"
                                 className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                                required
                               />
                               <select
-                                value={areaUnit}
-                                onChange={(e) => setAreaUnit(e.target.value)}
+                                value={landAreaUnit}
+                                onChange={(e) =>
+                                  setLandAreaUnit(e.target.value)
+                                }
                                 className="focus:ring-primary h-9 w-28 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs font-medium text-white focus:ring-2 focus:outline-none"
                               >
                                 {AREA_UNITS.map((unit) => (
@@ -6928,53 +6965,28 @@ export function PropertyForm({
                               </select>
                             </div>
                           </div>
-
-                          <div
-                            className={`space-y-1.5 ${isApartment ? 'col-span-2' : ''}`}
-                          >
-                            <Label
-                              htmlFor="prop-super-built"
-                              className="text-slate-300"
-                            >
-                              Super Built-up Area ({areaUnit})
-                            </Label>
-                            <Input
-                              id="prop-super-built"
-                              type="number"
-                              value={superBuiltArea}
-                              onChange={(e) =>
-                                setSuperBuiltArea(e.target.value)
-                              }
-                              placeholder="e.g. 1800"
-                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                          </div>
-
-                          {!isApartment && (
-                            <div className="space-y-1.5">
+                        ) : (
+                          <>
+                            <div className="col-span-2 space-y-1.5">
                               <Label
-                                htmlFor="prop-land-area"
+                                htmlFor="prop-area"
                                 className="text-slate-300"
                               >
-                                Land Area
+                                Built-up Area
                               </Label>
                               <div className="flex gap-2">
                                 <Input
-                                  id="prop-land-area"
+                                  id="prop-area"
                                   type="number"
-                                  value={landArea}
-                                  onChange={(e) =>
-                                    handleLandAreaChange(e.target.value)
-                                  }
-                                  placeholder="e.g. 2400"
+                                  value={areaSqft}
+                                  onChange={(e) => setAreaSqft(e.target.value)}
+                                  placeholder="e.g. 1500"
                                   className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                                 />
                                 <select
-                                  value={landAreaUnit}
-                                  onChange={(e) =>
-                                    setLandAreaUnit(e.target.value)
-                                  }
-                                  className="focus:ring-primary h-9 w-24 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs font-medium text-white focus:ring-2 focus:outline-none"
+                                  value={areaUnit}
+                                  onChange={(e) => setAreaUnit(e.target.value)}
+                                  className="focus:ring-primary h-9 w-28 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs font-medium text-white focus:ring-2 focus:outline-none"
                                 >
                                   {AREA_UNITS.map((unit) => (
                                     <option key={unit} value={unit}>
@@ -6984,860 +6996,676 @@ export function PropertyForm({
                                 </select>
                               </div>
                             </div>
-                          )}
-                        </>
-                      )}
 
-                      {isLand ? (
-                        <div className="col-span-2 grid grid-cols-2 gap-4">
+                            <div
+                              className={`space-y-1.5 ${isApartment ? 'col-span-2' : ''}`}
+                            >
+                              <Label
+                                htmlFor="prop-super-built"
+                                className="text-slate-300"
+                              >
+                                Super Built-up Area ({areaUnit})
+                              </Label>
+                              <Input
+                                id="prop-super-built"
+                                type="number"
+                                value={superBuiltArea}
+                                onChange={(e) =>
+                                  setSuperBuiltArea(e.target.value)
+                                }
+                                placeholder="e.g. 1800"
+                                className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              />
+                            </div>
+
+                            {!isApartment && (
+                              <div className="space-y-1.5">
+                                <Label
+                                  htmlFor="prop-land-area"
+                                  className="text-slate-300"
+                                >
+                                  Land Area
+                                </Label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    id="prop-land-area"
+                                    type="number"
+                                    value={landArea}
+                                    onChange={(e) =>
+                                      handleLandAreaChange(e.target.value)
+                                    }
+                                    placeholder="e.g. 2400"
+                                    className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                                  />
+                                  <select
+                                    value={landAreaUnit}
+                                    onChange={(e) =>
+                                      setLandAreaUnit(e.target.value)
+                                    }
+                                    className="focus:ring-primary h-9 w-24 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs font-medium text-white focus:ring-2 focus:outline-none"
+                                  >
+                                    {AREA_UNITS.map((unit) => (
+                                      <option key={unit} value={unit}>
+                                        {unit}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {isLand ? (
+                          <div className="col-span-2 grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <Label
+                                htmlFor="prop-frontage"
+                                className="text-slate-300"
+                              >
+                                Frontage (Ft)
+                              </Label>
+                              <Input
+                                id="prop-frontage"
+                                type="number"
+                                value={frontage}
+                                onChange={(e) =>
+                                  handleFrontageChange(e.target.value)
+                                }
+                                placeholder="e.g. 30"
+                                className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label
+                                htmlFor="prop-depth"
+                                className="text-slate-300"
+                              >
+                                Depth (Ft)
+                              </Label>
+                              <Input
+                                id="prop-depth"
+                                type="number"
+                                value={depth}
+                                onChange={(e) =>
+                                  handleDepthChange(e.target.value)
+                                }
+                                placeholder="e.g. 40"
+                                className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          !isApartment && (
+                            <div className="col-span-2 space-y-1.5">
+                              <Label
+                                htmlFor="prop-dimensions"
+                                className="text-slate-300"
+                              >
+                                Dimensions
+                              </Label>
+                              <Input
+                                id="prop-dimensions"
+                                value={dimensions}
+                                onChange={(e) => setDimensions(e.target.value)}
+                                placeholder="e.g. 30x40, 50x80 (Width x Length)"
+                                className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              />
+                            </div>
+                          )
+                        )}
+
+                        {!isApartment && (
                           <div className="space-y-1.5">
                             <Label
-                              htmlFor="prop-frontage"
+                              htmlFor="prop-road-width"
                               className="text-slate-300"
                             >
-                              Frontage (Ft)
+                              Road Width
                             </Label>
-                            <Input
-                              id="prop-frontage"
-                              type="number"
-                              value={frontage}
-                              onChange={(e) =>
-                                handleFrontageChange(e.target.value)
-                              }
-                              placeholder="e.g. 30"
-                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
+                            <div className="flex gap-2">
+                              <Input
+                                id="prop-road-width"
+                                type="number"
+                                value={roadWidth}
+                                onChange={(e) => setRoadWidth(e.target.value)}
+                                placeholder="e.g. 40"
+                                className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              />
+                              <select
+                                value={roadWidthUnit}
+                                onChange={(e) =>
+                                  setRoadWidthUnit(e.target.value)
+                                }
+                                className="focus:ring-primary h-9 w-24 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs font-medium text-white focus:ring-2 focus:outline-none"
+                              >
+                                <option value="Feet">Feet</option>
+                                <option value="Meters">Meters</option>
+                              </select>
+                            </div>
                           </div>
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-depth"
-                              className="text-slate-300"
-                            >
-                              Depth (Ft)
-                            </Label>
-                            <Input
-                              id="prop-depth"
-                              type="number"
-                              value={depth}
-                              onChange={(e) =>
-                                handleDepthChange(e.target.value)
-                              }
-                              placeholder="e.g. 40"
-                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        !isApartment && (
-                          <div className="col-span-2 space-y-1.5">
-                            <Label
-                              htmlFor="prop-dimensions"
-                              className="text-slate-300"
-                            >
-                              Dimensions
-                            </Label>
-                            <Input
-                              id="prop-dimensions"
-                              value={dimensions}
-                              onChange={(e) => setDimensions(e.target.value)}
-                              placeholder="e.g. 30x40, 50x80 (Width x Length)"
-                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                          </div>
-                        )
-                      )}
+                        )}
 
-                      {!isApartment && (
-                        <div className="space-y-1.5">
+                        <div
+                          className={`space-y-1.5 ${isApartment ? 'col-span-2' : ''}`}
+                        >
                           <Label
-                            htmlFor="prop-road-width"
+                            htmlFor="prop-facing"
                             className="text-slate-300"
                           >
-                            Road Width
-                          </Label>
-                          <div className="flex gap-2">
-                            <Input
-                              id="prop-road-width"
-                              type="number"
-                              value={roadWidth}
-                              onChange={(e) => setRoadWidth(e.target.value)}
-                              placeholder="e.g. 40"
-                              className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                            <select
-                              value={roadWidthUnit}
-                              onChange={(e) => setRoadWidthUnit(e.target.value)}
-                              className="focus:ring-primary h-9 w-24 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs font-medium text-white focus:ring-2 focus:outline-none"
-                            >
-                              <option value="Feet">Feet</option>
-                              <option value="Meters">Meters</option>
-                            </select>
-                          </div>
-                        </div>
-                      )}
-
-                      <div
-                        className={`space-y-1.5 ${isApartment ? 'col-span-2' : ''}`}
-                      >
-                        <Label htmlFor="prop-facing" className="text-slate-300">
-                          Facing Direction
-                        </Label>
-                        <select
-                          id="prop-facing"
-                          value={facingDirection}
-                          onChange={(e) => setFacingDirection(e.target.value)}
-                          className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                        >
-                          <option value="">Select Facing</option>
-                          {FACING_DIRECTIONS.map((dir) => (
-                            <option key={dir} value={dir}>
-                              {dir}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label
-                          htmlFor="prop-khata-epid"
-                          className="text-slate-300"
-                        >
-                          e-Khata ePID
-                        </Label>
-                        <Input
-                          id="prop-khata-epid"
-                          value={khataEpid}
-                          onChange={(e) => setKhataEpid(e.target.value)}
-                          placeholder="e.g. 7425317720"
-                          className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label
-                          htmlFor="prop-khata-form"
-                          className="text-slate-300"
-                        >
-                          Khata
-                        </Label>
-                        <select
-                          id="prop-khata-form"
-                          value={khataForm}
-                          onChange={(e) => setKhataForm(e.target.value)}
-                          className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                        >
-                          <option value="">Not recorded</option>
-                          <option value="A">Form-A (A-Khata)</option>
-                          <option value="B">Form-B (B-Khata)</option>
-                        </select>
-                      </div>
-
-                      {!isLand && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-year-built"
-                            className="text-slate-300"
-                          >
-                            Year Built
-                          </Label>
-                          <Input
-                            id="prop-year-built"
-                            type="number"
-                            min={1800}
-                            max={2100}
-                            value={yearBuilt}
-                            onChange={(e) => setYearBuilt(e.target.value)}
-                            placeholder="e.g. 1998"
-                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                      )}
-
-                      {!isLand && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-furnishing"
-                            className="text-slate-300"
-                          >
-                            Furnishing
+                            Facing Direction
                           </Label>
                           <select
-                            id="prop-furnishing"
-                            value={furnishing}
-                            onChange={(e) => setFurnishing(e.target.value)}
+                            id="prop-facing"
+                            value={facingDirection}
+                            onChange={(e) => setFacingDirection(e.target.value)}
                             className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                           >
-                            <option value="">Select Furnishing</option>
-                            {FURNISHING_OPTIONS.map((opt) => (
-                              <option key={opt} value={opt}>
-                                {opt}
+                            <option value="">Select Facing</option>
+                            {FACING_DIRECTIONS.map((dir) => (
+                              <option key={dir} value={dir}>
+                                {dir}
                               </option>
                             ))}
                           </select>
                         </div>
-                      )}
 
-                      <div className="space-y-1.5">
-                        <Label
-                          htmlFor="prop-possession-date"
-                          className="text-slate-300"
-                        >
-                          Possession Date
-                        </Label>
-                        <Input
-                          id="prop-possession-date"
-                          type="date"
-                          value={possessionDate}
-                          onChange={(e) => setPossessionDate(e.target.value)}
-                          className="h-9 border-slate-700 bg-slate-800 text-white [color-scheme:dark]"
-                        />
-                        <p className="text-[10px] text-slate-500">
-                          {isLand
-                            ? 'When possession transfers to the buyer. Leave empty if it is not committed yet.'
-                            : 'When the buyer gets the keys. Leave empty if it is not committed yet.'}
-                        </p>
-                      </div>
-
-                      {!isLand && (
-                        <>
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-flooring"
-                              className="text-slate-300"
-                            >
-                              Flooring
-                            </Label>
-                            <select
-                              id="prop-flooring"
-                              value={flooring}
-                              onChange={(e) => setFlooring(e.target.value)}
-                              className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                            >
-                              <option value="">Select Flooring</option>
-                              {FLOORING_OPTIONS.map((opt) => (
-                                <option key={opt} value={opt}>
-                                  {opt}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-power-backup"
-                              className="text-slate-300"
-                            >
-                              Power Backup
-                            </Label>
-                            <select
-                              id="prop-power-backup"
-                              value={powerBackup}
-                              onChange={(e) => setPowerBackup(e.target.value)}
-                              className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                            >
-                              <option value="">Select Power Backup</option>
-                              {POWER_BACKUP_OPTIONS.map((opt) => (
-                                <option key={opt} value={opt}>
-                                  {opt}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </>
-                      )}
-
-                      {hasBedsBaths && (
                         <div className="space-y-1.5">
                           <Label
-                            htmlFor="prop-balconies"
+                            htmlFor="prop-khata-epid"
                             className="text-slate-300"
                           >
-                            Balconies
+                            e-Khata ePID
                           </Label>
                           <Input
-                            id="prop-balconies"
-                            type="number"
-                            value={balconies}
-                            onChange={(e) => setBalconies(e.target.value)}
-                            placeholder="e.g. 2"
+                            id="prop-khata-epid"
+                            value={khataEpid}
+                            onChange={(e) => setKhataEpid(e.target.value)}
+                            placeholder="e.g. 7425317720"
                             className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
                         </div>
-                      )}
 
-                      {showFloorNumber && (
                         <div className="space-y-1.5">
                           <Label
-                            htmlFor="prop-floor-number"
+                            htmlFor="prop-khata-form"
                             className="text-slate-300"
                           >
-                            Floor No.
+                            Khata
                           </Label>
-                          <Input
-                            id="prop-floor-number"
-                            type="number"
-                            value={floorNumber}
-                            onChange={(e) => setFloorNumber(e.target.value)}
-                            placeholder="e.g. 4 (0 = Ground)"
-                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                      )}
-                      {showTotalFloors && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-total-floors"
-                            className="text-slate-300"
+                          <select
+                            id="prop-khata-form"
+                            value={khataForm}
+                            onChange={(e) => setKhataForm(e.target.value)}
+                            className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                           >
-                            Total Floors
-                          </Label>
-                          <Input
-                            id="prop-total-floors"
-                            type="number"
-                            value={totalFloors}
-                            onChange={(e) => setTotalFloors(e.target.value)}
-                            placeholder="e.g. 12"
-                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
+                            <option value="">Not recorded</option>
+                            <option value="A">Form-A (A-Khata)</option>
+                            <option value="B">Form-B (B-Khata)</option>
+                          </select>
                         </div>
-                      )}
 
-                      {/* Land/JV Deal Notes — prefills the "Share via Email" draft */}
-                      {(isLand || listingType === 'JV/JD') && (
-                        <div className="col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                          <div className="col-span-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
-                            Land / Deal Notes
-                          </div>
+                        {!isLand && (
                           <div className="space-y-1.5">
                             <Label
-                              htmlFor="prop-ownership-status"
+                              htmlFor="prop-year-built"
                               className="text-slate-300"
                             >
-                              Ownership
-                            </Label>
-                            <select
-                              id="prop-ownership-status"
-                              value={ownershipStatus}
-                              onChange={(e) =>
-                                setOwnershipStatus(e.target.value)
-                              }
-                              className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                            >
-                              <option value="">Select ownership</option>
-                              {LAND_OWNERSHIP_TYPES.map((o) => (
-                                <option key={o} value={o}>
-                                  {o}
-                                </option>
-                              ))}
-                              {/* Free text captured before this became a
-                                picker stays selected rather than silently
-                                resetting to blank on the next save. */}
-                              {ownershipStatus &&
-                                !LAND_OWNERSHIP_TYPES.includes(
-                                  ownershipStatus
-                                ) && (
-                                  <option value={ownershipStatus}>
-                                    {ownershipStatus}
-                                  </option>
-                                )}
-                            </select>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-land-use-zoning"
-                              className="text-slate-300"
-                            >
-                              Land Use Breakdown
+                              Year Built
                             </Label>
                             <Input
-                              id="prop-land-use-zoning"
-                              value={landUseZoning}
-                              onChange={(e) => setLandUseZoning(e.target.value)}
-                              placeholder="e.g. Residential zone 26A 13G, Red Zone 5A 29G"
+                              id="prop-year-built"
+                              type="number"
+                              min={1800}
+                              max={2100}
+                              value={yearBuilt}
+                              onChange={(e) => setYearBuilt(e.target.value)}
+                              placeholder="e.g. 1998"
                               className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                             />
                           </div>
-                          {isRawLand && (
-                            <>
-                              <div className="space-y-1.5">
-                                <Label
-                                  htmlFor="prop-legal-status"
-                                  className="text-slate-300"
-                                >
-                                  Legal Status
-                                </Label>
-                                <select
-                                  id="prop-legal-status"
-                                  value={legalStatus}
-                                  onChange={(e) =>
-                                    setLegalStatus(e.target.value)
-                                  }
-                                  className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                                >
-                                  <option value="">Select legal status</option>
-                                  {LAND_LEGAL_STATUSES.map((o) => (
-                                    <option key={o} value={o}>
-                                      {o}
+                        )}
+
+                        {!isLand && (
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-furnishing"
+                              className="text-slate-300"
+                            >
+                              Furnishing
+                            </Label>
+                            <select
+                              id="prop-furnishing"
+                              value={furnishing}
+                              onChange={(e) => setFurnishing(e.target.value)}
+                              className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
+                            >
+                              <option value="">Select Furnishing</option>
+                              {FURNISHING_OPTIONS.map((opt) => (
+                                <option key={opt} value={opt}>
+                                  {opt}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5">
+                          <Label
+                            htmlFor="prop-possession-date"
+                            className="text-slate-300"
+                          >
+                            Possession Date
+                          </Label>
+                          <Input
+                            id="prop-possession-date"
+                            type="date"
+                            value={possessionDate}
+                            onChange={(e) => setPossessionDate(e.target.value)}
+                            className="h-9 border-slate-700 bg-slate-800 text-white [color-scheme:dark]"
+                          />
+                          <p className="text-[10px] text-slate-500">
+                            {isLand
+                              ? 'When possession transfers to the buyer. Leave empty if it is not committed yet.'
+                              : 'When the buyer gets the keys. Leave empty if it is not committed yet.'}
+                          </p>
+                        </div>
+
+                        {!isLand && (
+                          <>
+                            <div className="space-y-1.5">
+                              <Label
+                                htmlFor="prop-flooring"
+                                className="text-slate-300"
+                              >
+                                Flooring
+                              </Label>
+                              <select
+                                id="prop-flooring"
+                                value={flooring}
+                                onChange={(e) => setFlooring(e.target.value)}
+                                className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
+                              >
+                                <option value="">Select Flooring</option>
+                                {FLOORING_OPTIONS.map((opt) => (
+                                  <option key={opt} value={opt}>
+                                    {opt}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label
+                                htmlFor="prop-power-backup"
+                                className="text-slate-300"
+                              >
+                                Power Backup
+                              </Label>
+                              <select
+                                id="prop-power-backup"
+                                value={powerBackup}
+                                onChange={(e) => setPowerBackup(e.target.value)}
+                                className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
+                              >
+                                <option value="">Select Power Backup</option>
+                                {POWER_BACKUP_OPTIONS.map((opt) => (
+                                  <option key={opt} value={opt}>
+                                    {opt}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </>
+                        )}
+
+                        {hasBedsBaths && (
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-balconies"
+                              className="text-slate-300"
+                            >
+                              Balconies
+                            </Label>
+                            <Input
+                              id="prop-balconies"
+                              type="number"
+                              value={balconies}
+                              onChange={(e) => setBalconies(e.target.value)}
+                              placeholder="e.g. 2"
+                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                          </div>
+                        )}
+
+                        {showFloorNumber && (
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-floor-number"
+                              className="text-slate-300"
+                            >
+                              Floor No.
+                            </Label>
+                            <Input
+                              id="prop-floor-number"
+                              type="number"
+                              value={floorNumber}
+                              onChange={(e) => setFloorNumber(e.target.value)}
+                              placeholder="e.g. 4 (0 = Ground)"
+                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                          </div>
+                        )}
+                        {showTotalFloors && (
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="prop-total-floors"
+                              className="text-slate-300"
+                            >
+                              Total Floors
+                            </Label>
+                            <Input
+                              id="prop-total-floors"
+                              type="number"
+                              value={totalFloors}
+                              onChange={(e) => setTotalFloors(e.target.value)}
+                              placeholder="e.g. 12"
+                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                            />
+                          </div>
+                        )}
+
+                        {/* Land/JV Deal Notes — prefills the "Share via Email" draft */}
+                        {(isLand || listingType === 'JV/JD') && (
+                          <div className="col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                            <div className="col-span-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
+                              Land / Deal Notes
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label
+                                htmlFor="prop-ownership-status"
+                                className="text-slate-300"
+                              >
+                                Ownership
+                              </Label>
+                              <select
+                                id="prop-ownership-status"
+                                value={ownershipStatus}
+                                onChange={(e) =>
+                                  setOwnershipStatus(e.target.value)
+                                }
+                                className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
+                              >
+                                <option value="">Select ownership</option>
+                                {LAND_OWNERSHIP_TYPES.map((o) => (
+                                  <option key={o} value={o}>
+                                    {o}
+                                  </option>
+                                ))}
+                                {/* Free text captured before this became a
+                                picker stays selected rather than silently
+                                resetting to blank on the next save. */}
+                                {ownershipStatus &&
+                                  !LAND_OWNERSHIP_TYPES.includes(
+                                    ownershipStatus
+                                  ) && (
+                                    <option value={ownershipStatus}>
+                                      {ownershipStatus}
                                     </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label
-                                  htmlFor="prop-conversion-type"
-                                  className="text-slate-300"
-                                >
-                                  Conversion
-                                </Label>
-                                <select
-                                  id="prop-conversion-type"
-                                  value={conversionType}
-                                  onChange={(e) =>
-                                    setConversionType(e.target.value)
-                                  }
-                                  className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                                >
-                                  <option value="">Select conversion</option>
-                                  {LAND_CONVERSION_TYPES.map((o) => (
-                                    <option key={o} value={o}>
-                                      {o}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              {/* Commercial/industrial land already gets this
-                                control in the commercial block above. */}
-                              {!hasCommercialFields && (
+                                  )}
+                              </select>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label
+                                htmlFor="prop-land-use-zoning"
+                                className="text-slate-300"
+                              >
+                                Land Use Breakdown
+                              </Label>
+                              <Input
+                                id="prop-land-use-zoning"
+                                value={landUseZoning}
+                                onChange={(e) =>
+                                  setLandUseZoning(e.target.value)
+                                }
+                                placeholder="e.g. Residential zone 26A 13G, Red Zone 5A 29G"
+                                className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              />
+                            </div>
+                            {isRawLand && (
+                              <>
                                 <div className="space-y-1.5">
                                   <Label
-                                    htmlFor="prop-land-zone-res"
+                                    htmlFor="prop-legal-status"
                                     className="text-slate-300"
                                   >
-                                    Land Use
+                                    Legal Status
                                   </Label>
                                   <select
-                                    id="prop-land-zone-res"
-                                    value={landZone}
+                                    id="prop-legal-status"
+                                    value={legalStatus}
                                     onChange={(e) =>
-                                      setLandZone(e.target.value)
+                                      setLegalStatus(e.target.value)
                                     }
                                     className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                                   >
-                                    <option value="">Select land use</option>
-                                    <option value="Residential">
-                                      Residential
+                                    <option value="">
+                                      Select legal status
                                     </option>
-                                    <option value="Commercial">
-                                      Commercial
-                                    </option>
-                                    <option value="Industrial">
-                                      Industrial
-                                    </option>
-                                    <option value="Agricultural">
-                                      Agricultural
-                                    </option>
-                                    <option value="Mixed Use">Mixed Use</option>
-                                    <option value="SEZ">
-                                      SEZ (Special Economic Zone)
-                                    </option>
+                                    {LAND_LEGAL_STATUSES.map((o) => (
+                                      <option key={o} value={o}>
+                                        {o}
+                                      </option>
+                                    ))}
                                   </select>
                                 </div>
-                              )}
-                            </>
-                          )}
-                          <div className="col-span-2 space-y-1.5">
-                            <Label
-                              htmlFor="prop-deal-remarks"
-                              className="text-slate-300"
-                            >
-                              Deal Remarks
-                            </Label>
-                            <Textarea
-                              id="prop-deal-remarks"
-                              value={dealRemarks}
-                              onChange={(e) => setDealRemarks(e.target.value)}
-                              placeholder="e.g. Legal/aggregation status, road access, timeline for completion..."
-                              className="min-h-16 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                          </div>
-                          <p className="col-span-2 text-[10px] text-slate-500">
-                            Internal notes — never shown on the public showcase.
-                            Used to prefill the &quot;Share via Email&quot;
-                            draft.
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Amenities Checkbox Selection */}
-                      <div className="col-span-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <Label className="text-sm font-semibold text-slate-300">
-                          Amenities
-                        </Label>
-                        <div className="mt-1 space-y-4">
-                          {Object.entries(filteredAmenities).map(
-                            ([category, items]) => (
-                              <div key={category} className="space-y-1.5">
-                                <div className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                                  {category}
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {items.map((amenity: string) => {
-                                    const isChecked =
-                                      features.includes(amenity);
-                                    return (
-                                      <label
-                                        key={amenity}
-                                        className="flex cursor-pointer items-center gap-2 text-xs text-slate-300"
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={isChecked}
-                                          onChange={() =>
-                                            handleToggleFeature(amenity)
-                                          }
-                                          className="border-slate-750 text-primary focus:ring-primary size-3.5 rounded bg-slate-800 focus:ring-offset-slate-950"
-                                        />
-                                        <span>{amenity}</span>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Collapsible Advanced section (landmarks) */}
-                      <div className="col-span-2 border-t border-slate-800 pt-4">
-                        <button
-                          type="button"
-                          onClick={() => setShowAdvanced(!showAdvanced)}
-                          className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 transition-colors hover:text-white"
-                        >
-                          {showAdvanced ? (
-                            <ChevronUp className="size-3.5" />
-                          ) : (
-                            <ChevronDown className="size-3.5" />
-                          )}
-                          <span>
-                            {showAdvanced
-                              ? 'Hide Advanced Options'
-                              : 'Show Advanced Options'}
-                          </span>
-                        </button>
-
-                        {showAdvanced && (
-                          <div className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/10 p-4">
-                            <Label className="text-xs font-semibold text-slate-300">
-                              Nearby Highlights / Landmarks
-                            </Label>
-                            <div className="mt-1 grid grid-cols-3 gap-2">
-                              {NEARBY_HIGHLIGHTS_OPTIONS.map((highlight) => {
-                                const isChecked =
-                                  nearbyHighlights.includes(highlight);
-                                return (
-                                  <label
-                                    key={highlight}
-                                    className="flex cursor-pointer items-center gap-2 text-xs text-slate-300"
+                                <div className="space-y-1.5">
+                                  <Label
+                                    htmlFor="prop-conversion-type"
+                                    className="text-slate-300"
                                   >
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={() =>
-                                        handleToggleHighlight(highlight)
+                                    Conversion
+                                  </Label>
+                                  <select
+                                    id="prop-conversion-type"
+                                    value={conversionType}
+                                    onChange={(e) =>
+                                      setConversionType(e.target.value)
+                                    }
+                                    className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
+                                  >
+                                    <option value="">Select conversion</option>
+                                    {LAND_CONVERSION_TYPES.map((o) => (
+                                      <option key={o} value={o}>
+                                        {o}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                {/* Commercial/industrial land already gets this
+                                control in the commercial block above. */}
+                                {!hasCommercialFields && (
+                                  <div className="space-y-1.5">
+                                    <Label
+                                      htmlFor="prop-land-zone-res"
+                                      className="text-slate-300"
+                                    >
+                                      Land Use
+                                    </Label>
+                                    <select
+                                      id="prop-land-zone-res"
+                                      value={landZone}
+                                      onChange={(e) =>
+                                        setLandZone(e.target.value)
                                       }
-                                      className="border-slate-750 text-primary focus:ring-primary size-3.5 rounded bg-slate-800 focus:ring-offset-slate-950"
-                                    />
-                                    <span>{highlight}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Auto-generated listing video — needs a saved
-                        property with photos, so edit mode only. */}
-                      {property?.id && (
-                        <div className="col-span-2">
-                          <ListingVideoCard
-                            key={videoRemoved ? 'video-removed' : 'video'}
-                            propertyId={property.id}
-                          />
-                        </div>
-                      )}
-
-                      {/* Images URLs Input */}
-                      <div className="col-span-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-slate-300">
-                            Property Images
-                          </Label>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={uploadingImage}
-                            className="text-primary hover:bg-primary/10 flex h-7 items-center gap-1 text-xs font-semibold"
-                          >
-                            {uploadingImage ? (
-                              <>
-                                <PropertyBlueprintLoader
-                                  size={14}
-                                  label="Uploading"
-                                />{' '}
-                                Uploading...
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="size-3" /> Upload
+                                      className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
+                                    >
+                                      <option value="">Select land use</option>
+                                      <option value="Residential">
+                                        Residential
+                                      </option>
+                                      <option value="Commercial">
+                                        Commercial
+                                      </option>
+                                      <option value="Industrial">
+                                        Industrial
+                                      </option>
+                                      <option value="Agricultural">
+                                        Agricultural
+                                      </option>
+                                      <option value="Mixed Use">
+                                        Mixed Use
+                                      </option>
+                                      <option value="SEZ">
+                                        SEZ (Special Economic Zone)
+                                      </option>
+                                    </select>
+                                  </div>
+                                )}
                               </>
                             )}
-                          </Button>
-                          <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={onUploadImages}
-                            multiple
-                            accept="image/*"
-                            className="hidden"
-                          />
-                        </div>
-
-                        <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
-                          {property?.video_url &&
-                            property.video_status === 'ready' &&
-                            !videoRemoved && (
-                              <div className="flex items-center gap-2">
-                                <video
-                                  src={storagePublicUrl(property.video_url)}
-                                  muted
-                                  playsInline
-                                  preload="metadata"
-                                  className="size-8 shrink-0 rounded border border-slate-700 object-cover"
-                                />
-                                <span className="flex-1 truncate text-xs text-slate-400">
-                                  Listing video — plays in the Showcase gallery
-                                </span>
-                                <a
-                                  href={storagePublicUrl(property.video_url)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  title="Play video"
-                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-slate-400 hover:text-white"
-                                >
-                                  <CirclePlay className="size-3.5" />
-                                </a>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={handleRemoveVideo}
-                                  disabled={removingVideo}
-                                  title="Remove video"
-                                  className="h-8 w-8 shrink-0 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                                >
-                                  {removingVideo ? (
-                                    <Loader2 className="size-3.5 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="size-3.5" />
-                                  )}
-                                </Button>
-                              </div>
-                            )}
-                          {images.map((imgUrl, idx) => (
-                            <div key={idx} className="flex items-center gap-2">
-                              {imgUrl.trim().length > 0 && (
-                                /* eslint-disable-next-line @next/next/no-img-element */
-                                <img
-                                  key={imgUrl}
-                                  src={storagePublicUrl(imgUrl)}
-                                  alt={`Property ${idx + 1}`}
-                                  className="size-8 shrink-0 rounded border border-slate-700 object-cover"
-                                  onError={(e) => {
-                                    (e.target as HTMLElement).style.display =
-                                      'none';
-                                  }}
-                                />
-                              )}
-                              <Input
-                                value={imgUrl}
-                                onChange={(e) =>
-                                  handleImageUrlChange(idx, e.target.value)
-                                }
-                                placeholder="Image URL (e.g. https://...)"
-                                className="h-8 flex-1 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                              {imgUrl.trim().length > 0 && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleSetDefaultImage(idx)}
-                                  className={`h-8 w-8 shrink-0 p-0 ${idx === defaultImageIndex ? 'text-amber-400' : 'text-slate-500 hover:text-amber-400'}`}
-                                  title={
-                                    idx === defaultImageIndex
-                                      ? 'Default Image'
-                                      : 'Set as Default'
-                                  }
-                                >
-                                  <Star
-                                    className={`size-3.5 ${idx === defaultImageIndex ? 'fill-amber-400' : ''}`}
-                                  />
-                                </Button>
-                              )}
-                              {imgUrl.trim().length > 0 && property?.id && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleToggleImageLock(imgUrl, 'lock')
-                                  }
-                                  disabled={lockingImagePath !== null}
-                                  className="h-8 w-8 shrink-0 p-0 text-slate-500 hover:text-amber-400"
-                                  title="Make private — hidden from the showcase, revealed only on approved requests (e.g. facade / street view)"
-                                >
-                                  {lockingImagePath === imgUrl ? (
-                                    <Loader2 className="size-3.5 animate-spin" />
-                                  ) : (
-                                    <Lock className="size-3.5" />
-                                  )}
-                                </Button>
-                              )}
-                              {images.length > 1 && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleRemoveImageUrl(idx)}
-                                  className="h-8 w-8 shrink-0 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                                >
-                                  <Trash2 className="size-3.5" />
-                                </Button>
-                              )}
-                            </div>
-                          ))}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleAddImageUrl}
-                            className="mt-1 flex h-7 items-center gap-1 text-xs font-semibold text-slate-400 hover:text-white"
-                          >
-                            <Plus className="size-3" /> Add Image URL
-                          </Button>
-                        </div>
-
-                        {property?.id && privateImages.length > 0 && (
-                          <div className="space-y-2 border-t border-slate-800 pt-3">
-                            <Label className="flex items-center gap-1.5 text-xs text-amber-400">
-                              <Lock className="size-3" /> Private Photos
-                              <span className="text-[10px] font-medium text-slate-500">
-                                Hidden from the showcase — sent only with
-                                approved location reveals
-                              </span>
-                            </Label>
-                            {privateImages.map((path, idx) => (
-                              <div
-                                key={path}
-                                className="flex items-center gap-2"
+                            <div className="col-span-2 space-y-1.5">
+                              <Label
+                                htmlFor="prop-deal-remarks"
+                                className="text-slate-300"
                               >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={`/api/properties/${property.id}/private-images/${idx}`}
-                                  alt={`Private ${idx + 1}`}
-                                  className="size-8 shrink-0 rounded border border-amber-900/50 object-cover"
-                                  onError={(e) => {
-                                    (e.target as HTMLElement).style.display =
-                                      'none';
-                                  }}
-                                />
-                                <span className="flex-1 truncate text-xs text-slate-500">
-                                  {path}
-                                </span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleToggleImageLock(path, 'unlock')
-                                  }
-                                  disabled={lockingImagePath !== null}
-                                  className="flex h-8 shrink-0 items-center gap-1 px-2 text-xs text-slate-400 hover:text-white"
-                                  title="Make public again"
-                                >
-                                  {lockingImagePath === path ? (
-                                    <Loader2 className="size-3.5 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <Unlock className="size-3.5" /> Unlock
-                                    </>
-                                  )}
-                                </Button>
-                              </div>
-                            ))}
+                                Deal Remarks
+                              </Label>
+                              <Textarea
+                                id="prop-deal-remarks"
+                                value={dealRemarks}
+                                onChange={(e) => setDealRemarks(e.target.value)}
+                                placeholder="e.g. Legal/aggregation status, road access, timeline for completion..."
+                                className="min-h-16 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                              />
+                            </div>
+                            <p className="col-span-2 text-[10px] text-slate-500">
+                              Internal notes — never shown on the public
+                              showcase. Used to prefill the &quot;Share via
+                              Email&quot; draft.
+                            </p>
                           </div>
                         )}
-                      </div>
 
-                      {/* Floor Plans */}
-                      <div className="col-span-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <FloorPlansEditor
-                          value={floorPlans}
-                          onChange={setFloorPlans}
-                          onUpload={uploadPlanImage}
-                          disabled={!canEdit}
-                          isLand={isLand}
-                        />
-                      </div>
-
-                      {/* Property Documents */}
-                      <div className="col-span-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-slate-300">
-                            Property Documents
+                        {/* Amenities Checkbox Selection */}
+                        <div className="col-span-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                          <Label className="text-sm font-semibold text-slate-300">
+                            Amenities
                           </Label>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => eKhataInputRef.current?.click()}
-                              disabled={readingEKhata || !canEdit}
-                              className="text-primary hover:bg-primary/10 flex h-7 items-center gap-1 text-xs font-semibold"
-                            >
-                              {readingEKhata ? (
-                                <>
-                                  <Loader2 className="size-3 animate-spin" />{' '}
-                                  Reading...
-                                </>
-                              ) : (
-                                <>
-                                  <FileText className="size-3" /> Read e-Khata ·{' '}
-                                  {AI_FEATURE_COSTS.listing_parse} cr
-                                </>
-                              )}
-                            </Button>
-                            <input
-                              type="file"
-                              ref={eKhataInputRef}
-                              onChange={onReadEKhata}
-                              accept=".pdf,.png,.jpg,.jpeg,.webp"
-                              className="hidden"
+                          <div className="mt-1 space-y-4">
+                            {Object.entries(filteredAmenities).map(
+                              ([category, items]) => (
+                                <div key={category} className="space-y-1.5">
+                                  <div className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                                    {category}
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {items.map((amenity: string) => {
+                                      const isChecked =
+                                        features.includes(amenity);
+                                      return (
+                                        <label
+                                          key={amenity}
+                                          className="flex cursor-pointer items-center gap-2 text-xs text-slate-300"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() =>
+                                              handleToggleFeature(amenity)
+                                            }
+                                            className="border-slate-750 text-primary focus:ring-primary size-3.5 rounded bg-slate-800 focus:ring-offset-slate-950"
+                                          />
+                                          <span>{amenity}</span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Collapsible Advanced section (landmarks) */}
+                        <div className="col-span-2 border-t border-slate-800 pt-4">
+                          <button
+                            type="button"
+                            onClick={() => setShowAdvanced(!showAdvanced)}
+                            className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 transition-colors hover:text-white"
+                          >
+                            {showAdvanced ? (
+                              <ChevronUp className="size-3.5" />
+                            ) : (
+                              <ChevronDown className="size-3.5" />
+                            )}
+                            <span>
+                              {showAdvanced
+                                ? 'Hide Advanced Options'
+                                : 'Show Advanced Options'}
+                            </span>
+                          </button>
+
+                          {showAdvanced && (
+                            <div className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/10 p-4">
+                              <Label className="text-xs font-semibold text-slate-300">
+                                Nearby Highlights / Landmarks
+                              </Label>
+                              <div className="mt-1 grid grid-cols-3 gap-2">
+                                {NEARBY_HIGHLIGHTS_OPTIONS.map((highlight) => {
+                                  const isChecked =
+                                    nearbyHighlights.includes(highlight);
+                                  return (
+                                    <label
+                                      key={highlight}
+                                      className="flex cursor-pointer items-center gap-2 text-xs text-slate-300"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() =>
+                                          handleToggleHighlight(highlight)
+                                        }
+                                        className="border-slate-750 text-primary focus:ring-primary size-3.5 rounded bg-slate-800 focus:ring-offset-slate-950"
+                                      />
+                                      <span>{highlight}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Auto-generated listing video — needs a saved
+                        property with photos, so edit mode only. */}
+                        {property?.id && (
+                          <div className="col-span-2">
+                            <ListingVideoCard
+                              key={videoRemoved ? 'video-removed' : 'video'}
+                              propertyId={property.id}
                             />
+                          </div>
+                        )}
+
+                        {/* Images URLs Input */}
+                        <div
+                          id="pf-media"
+                          className="col-span-2 scroll-mt-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4"
+                        >
+                          <div className="flex items-center justify-between">
+                            <Label className="text-slate-300">
+                              Property Images
+                            </Label>
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => documentInputRef.current?.click()}
-                              disabled={uploadingDocument}
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={uploadingImage}
                               className="text-primary hover:bg-primary/10 flex h-7 items-center gap-1 text-xs font-semibold"
                             >
-                              {uploadingDocument ? (
+                              {uploadingImage ? (
                                 <>
                                   <PropertyBlueprintLoader
                                     size={14}
@@ -7853,491 +7681,771 @@ export function PropertyForm({
                             </Button>
                             <input
                               type="file"
-                              ref={documentInputRef}
-                              onChange={onUploadDocuments}
+                              ref={fileInputRef}
+                              onChange={onUploadImages}
                               multiple
-                              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,text/plain"
+                              accept="image/*"
                               className="hidden"
                             />
                           </div>
-                        </div>
 
-                        <div className="max-h-60 space-y-3 overflow-y-auto pr-1">
-                          {documents.map((doc, idx) => (
-                            <div
-                              key={idx}
-                              className="border-slate-850 flex flex-col items-start gap-2 rounded-lg border bg-slate-950/30 p-2.5 sm:flex-row sm:items-center"
-                            >
-                              <div className="grid w-full flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
-                                <Input
-                                  value={doc.title}
-                                  onChange={(e) =>
-                                    handleDocumentTitleChange(
-                                      idx,
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder="Document Title (e.g. Layout Sketch)"
-                                  className="h-8 w-full border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                                />
-                                <Input
-                                  value={doc.url}
-                                  onChange={(e) =>
-                                    handleDocumentUrlChange(idx, e.target.value)
-                                  }
-                                  placeholder="Document URL (e.g. https://...)"
-                                  className="h-8 w-full border-slate-700 bg-slate-800 font-mono text-xs text-white placeholder:text-slate-500"
-                                />
-                              </div>
-                              <div className="flex shrink-0 gap-1.5 self-end sm:self-auto">
-                                {doc.url.trim().length > 0 && (
+                          <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+                            {property?.video_url &&
+                              property.video_status === 'ready' &&
+                              !videoRemoved && (
+                                <div className="flex items-center gap-2">
+                                  <video
+                                    src={storagePublicUrl(property.video_url)}
+                                    muted
+                                    playsInline
+                                    preload="metadata"
+                                    className="size-8 shrink-0 rounded border border-slate-700 object-cover"
+                                  />
+                                  <span className="flex-1 truncate text-xs text-slate-400">
+                                    Listing video — plays in the Showcase
+                                    gallery
+                                  </span>
                                   <a
-                                    href={storagePublicUrl(doc.url)}
+                                    href={storagePublicUrl(property.video_url)}
                                     target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
-                                    title="Open Document"
+                                    rel="noreferrer"
+                                    title="Play video"
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-slate-400 hover:text-white"
                                   >
-                                    <ExternalLink className="size-3.5" />
+                                    <CirclePlay className="size-3.5" />
                                   </a>
-                                )}
-                                {documents.length > 1 && (
                                   <Button
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleRemoveDocumentUrl(idx)}
+                                    onClick={handleRemoveVideo}
+                                    disabled={removingVideo}
+                                    title="Remove video"
+                                    className="h-8 w-8 shrink-0 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                                  >
+                                    {removingVideo ? (
+                                      <Loader2 className="size-3.5 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="size-3.5" />
+                                    )}
+                                  </Button>
+                                </div>
+                              )}
+                            {images.map((imgUrl, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-2"
+                              >
+                                {imgUrl.trim().length > 0 && (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img
+                                    key={imgUrl}
+                                    src={storagePublicUrl(imgUrl)}
+                                    alt={`Property ${idx + 1}`}
+                                    className="size-8 shrink-0 rounded border border-slate-700 object-cover"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display =
+                                        'none';
+                                    }}
+                                  />
+                                )}
+                                <Input
+                                  value={imgUrl}
+                                  onChange={(e) =>
+                                    handleImageUrlChange(idx, e.target.value)
+                                  }
+                                  placeholder="Image URL (e.g. https://...)"
+                                  className="h-8 flex-1 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
+                                />
+                                {imgUrl.trim().length > 0 && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleSetDefaultImage(idx)}
+                                    className={`h-8 w-8 shrink-0 p-0 ${idx === defaultImageIndex ? 'text-amber-400' : 'text-slate-500 hover:text-amber-400'}`}
+                                    title={
+                                      idx === defaultImageIndex
+                                        ? 'Default Image'
+                                        : 'Set as Default'
+                                    }
+                                  >
+                                    <Star
+                                      className={`size-3.5 ${idx === defaultImageIndex ? 'fill-amber-400' : ''}`}
+                                    />
+                                  </Button>
+                                )}
+                                {imgUrl.trim().length > 0 && property?.id && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleToggleImageLock(imgUrl, 'lock')
+                                    }
+                                    disabled={lockingImagePath !== null}
+                                    className="h-8 w-8 shrink-0 p-0 text-slate-500 hover:text-amber-400"
+                                    title="Make private — hidden from the showcase, revealed only on approved requests (e.g. facade / street view)"
+                                  >
+                                    {lockingImagePath === imgUrl ? (
+                                      <Loader2 className="size-3.5 animate-spin" />
+                                    ) : (
+                                      <Lock className="size-3.5" />
+                                    )}
+                                  </Button>
+                                )}
+                                {images.length > 1 && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveImageUrl(idx)}
                                     className="h-8 w-8 shrink-0 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
                                   >
                                     <Trash2 className="size-3.5" />
                                   </Button>
                                 )}
                               </div>
+                            ))}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleAddImageUrl}
+                              className="mt-1 flex h-7 items-center gap-1 text-xs font-semibold text-slate-400 hover:text-white"
+                            >
+                              <Plus className="size-3" /> Add Image URL
+                            </Button>
+                          </div>
+
+                          {property?.id && privateImages.length > 0 && (
+                            <div className="space-y-2 border-t border-slate-800 pt-3">
+                              <Label className="flex items-center gap-1.5 text-xs text-amber-400">
+                                <Lock className="size-3" /> Private Photos
+                                <span className="text-[10px] font-medium text-slate-500">
+                                  Hidden from the showcase — sent only with
+                                  approved location reveals
+                                </span>
+                              </Label>
+                              {privateImages.map((path, idx) => (
+                                <div
+                                  key={path}
+                                  className="flex items-center gap-2"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={`/api/properties/${property.id}/private-images/${idx}`}
+                                    alt={`Private ${idx + 1}`}
+                                    className="size-8 shrink-0 rounded border border-amber-900/50 object-cover"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display =
+                                        'none';
+                                    }}
+                                  />
+                                  <span className="flex-1 truncate text-xs text-slate-500">
+                                    {path}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleToggleImageLock(path, 'unlock')
+                                    }
+                                    disabled={lockingImagePath !== null}
+                                    className="flex h-8 shrink-0 items-center gap-1 px-2 text-xs text-slate-400 hover:text-white"
+                                    title="Make public again"
+                                  >
+                                    {lockingImagePath === path ? (
+                                      <Loader2 className="size-3.5 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Unlock className="size-3.5" /> Unlock
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleAddDocumentUrl}
-                            className="mt-1 flex h-7 items-center gap-1 text-xs font-semibold text-slate-400 hover:text-white"
-                          >
-                            <Plus className="size-3" /> Add Document URL
-                          </Button>
+                          )}
+                        </div>
+
+                        {/* Floor Plans */}
+                        <div className="col-span-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                          <FloorPlansEditor
+                            value={floorPlans}
+                            onChange={setFloorPlans}
+                            onUpload={uploadPlanImage}
+                            disabled={!canEdit}
+                            isLand={isLand}
+                          />
+                        </div>
+
+                        {/* Property Documents */}
+                        <div className="col-span-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-slate-300">
+                              Property Documents
+                            </Label>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => eKhataInputRef.current?.click()}
+                                disabled={readingEKhata || !canEdit}
+                                className="text-primary hover:bg-primary/10 flex h-7 items-center gap-1 text-xs font-semibold"
+                              >
+                                {readingEKhata ? (
+                                  <>
+                                    <Loader2 className="size-3 animate-spin" />{' '}
+                                    Reading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <FileText className="size-3" /> Read e-Khata
+                                    · {AI_FEATURE_COSTS.listing_parse} cr
+                                  </>
+                                )}
+                              </Button>
+                              <input
+                                type="file"
+                                ref={eKhataInputRef}
+                                onChange={onReadEKhata}
+                                accept=".pdf,.png,.jpg,.jpeg,.webp"
+                                className="hidden"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  documentInputRef.current?.click()
+                                }
+                                disabled={uploadingDocument}
+                                className="text-primary hover:bg-primary/10 flex h-7 items-center gap-1 text-xs font-semibold"
+                              >
+                                {uploadingDocument ? (
+                                  <>
+                                    <PropertyBlueprintLoader
+                                      size={14}
+                                      label="Uploading"
+                                    />{' '}
+                                    Uploading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="size-3" /> Upload
+                                  </>
+                                )}
+                              </Button>
+                              <input
+                                type="file"
+                                ref={documentInputRef}
+                                onChange={onUploadDocuments}
+                                multiple
+                                accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,text/plain"
+                                className="hidden"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="max-h-60 space-y-3 overflow-y-auto pr-1">
+                            {documents.map((doc, idx) => (
+                              <div
+                                key={idx}
+                                className="border-slate-850 flex flex-col items-start gap-2 rounded-lg border bg-slate-950/30 p-2.5 sm:flex-row sm:items-center"
+                              >
+                                <div className="grid w-full flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
+                                  <Input
+                                    value={doc.title}
+                                    onChange={(e) =>
+                                      handleDocumentTitleChange(
+                                        idx,
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="Document Title (e.g. Layout Sketch)"
+                                    className="h-8 w-full border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
+                                  />
+                                  <Input
+                                    value={doc.url}
+                                    onChange={(e) =>
+                                      handleDocumentUrlChange(
+                                        idx,
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="Document URL (e.g. https://...)"
+                                    className="h-8 w-full border-slate-700 bg-slate-800 font-mono text-xs text-white placeholder:text-slate-500"
+                                  />
+                                </div>
+                                <div className="flex shrink-0 gap-1.5 self-end sm:self-auto">
+                                  {doc.url.trim().length > 0 && (
+                                    <a
+                                      href={storagePublicUrl(doc.url)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
+                                      title="Open Document"
+                                    >
+                                      <ExternalLink className="size-3.5" />
+                                    </a>
+                                  )}
+                                  {documents.length > 1 && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() =>
+                                        handleRemoveDocumentUrl(idx)
+                                      }
+                                      className="h-8 w-8 shrink-0 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                                    >
+                                      <Trash2 className="size-3.5" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleAddDocumentUrl}
+                              className="mt-1 flex h-7 items-center gap-1 text-xs font-semibold text-slate-400 hover:text-white"
+                            >
+                              <Plus className="size-3" /> Add Document URL
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Description */}
-                  <div className="space-y-1.5 pt-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Label
-                        htmlFor="prop-description"
-                        className="text-slate-300"
-                      >
-                        Description
-                      </Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleGenerateAIDescription}
-                        disabled={generatingDescription || !title.trim()}
-                        className="text-primary hover:text-primary-hover hover:bg-primary/10 border-primary/20 flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {generatingDescription ? (
-                          <>
-                            <Loader2 className="size-3.5 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          <>
-                            <span>✨</span> Generate with AI
-                            <Badge
-                              variant="outline"
-                              className="border-primary/30 text-primary/80 ml-1 h-4 px-1 text-[9px] font-medium"
-                            >
-                              {AI_FEATURE_COSTS.property_description} cr
-                            </Badge>
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                    <Textarea
-                      id="prop-description"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Describe the property's design, styling details, location benefits, etc..."
-                      rows={4}
-                      className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                    />
-                    <p className="text-[10px] leading-normal font-medium text-slate-500">
-                      💡{' '}
-                      <span className="font-semibold text-slate-400">
-                        Tip for better AI results:
-                      </span>{' '}
-                      fill out title, area, amenities, landmarks, and other
-                      specs before generating.
-                    </p>
-                  </div>
-
-                  {/* Owner & Leads */}
-                  <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                    <h4 className="text-sm font-semibold text-white">
-                      Owner & Inquiries
-                    </h4>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div
-                        className="col-span-2 space-y-1.5 md:col-span-1"
-                        data-owner-dropdown
-                      >
-                        <Label htmlFor="prop-owner" className="text-slate-300">
-                          Select Contact (Owner/Agent)
+                    {/* Description */}
+                    <div
+                      id="pf-description"
+                      className="scroll-mt-2 space-y-1.5 pt-2"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Label
+                          htmlFor="prop-description"
+                          className="text-slate-300"
+                        >
+                          Description
                         </Label>
-                        <div className="relative">
-                          <Input
-                            type="text"
-                            placeholder="Search by name, phone or email..."
-                            value={ownerSearchInput}
-                            onChange={(e) => {
-                              setOwnerSearchInput(e.target.value);
-                              setIsOwnerDropdownOpen(true);
-                            }}
-                            onFocus={() => setIsOwnerDropdownOpen(true)}
-                            readOnly={!!ownerContactId}
-                            className={`h-9 border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500 ${
-                              ownerContactId ? 'cursor-default' : ''
-                            }`}
-                          />
-                          {ownerContactId && (
-                            <button
-                              type="button"
-                              onClick={() => handleOwnerSelect(null)}
-                              className="absolute top-1/2 right-2 -translate-y-1/2 text-slate-500 hover:text-white"
-                            >
-                              ×
-                            </button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleGenerateAIDescription}
+                          disabled={generatingDescription || !title.trim()}
+                          className="text-primary hover:text-primary-hover hover:bg-primary/10 border-primary/20 flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {generatingDescription ? (
+                            <>
+                              <Loader2 className="size-3.5 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <span>✨</span> Generate with AI
+                              <Badge
+                                variant="outline"
+                                className="border-primary/30 text-primary/80 ml-1 h-4 px-1 text-[9px] font-medium"
+                              >
+                                {AI_FEATURE_COSTS.property_description} cr
+                              </Badge>
+                            </>
                           )}
-                          {ownerContactId && (
-                            <div className="absolute top-1/2 right-8 -translate-y-1/2">
+                        </Button>
+                      </div>
+                      <Textarea
+                        id="prop-description"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Describe the property's design, styling details, location benefits, etc..."
+                        rows={4}
+                        className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                      />
+                      <p className="text-[10px] leading-normal font-medium text-slate-500">
+                        💡{' '}
+                        <span className="font-semibold text-slate-400">
+                          Tip for better AI results:
+                        </span>{' '}
+                        fill out title, area, amenities, landmarks, and other
+                        specs before generating.
+                      </p>
+                    </div>
+
+                    {/* Owner & Leads */}
+                    <div
+                      id="pf-owner"
+                      className="scroll-mt-2 space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4"
+                    >
+                      <h4 className="text-sm font-semibold text-white">
+                        Owner & Inquiries
+                      </h4>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div
+                          className="col-span-2 space-y-1.5 md:col-span-1"
+                          data-owner-dropdown
+                        >
+                          <Label
+                            htmlFor="prop-owner"
+                            className="text-slate-300"
+                          >
+                            Select Contact (Owner/Agent)
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              type="text"
+                              placeholder="Search by name, phone or email..."
+                              value={ownerSearchInput}
+                              onChange={(e) => {
+                                setOwnerSearchInput(e.target.value);
+                                setIsOwnerDropdownOpen(true);
+                              }}
+                              onFocus={() => setIsOwnerDropdownOpen(true)}
+                              readOnly={!!ownerContactId}
+                              className={`h-9 border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500 ${
+                                ownerContactId ? 'cursor-default' : ''
+                              }`}
+                            />
+                            {ownerContactId && (
+                              <button
+                                type="button"
+                                onClick={() => handleOwnerSelect(null)}
+                                className="absolute top-1/2 right-2 -translate-y-1/2 text-slate-500 hover:text-white"
+                              >
+                                ×
+                              </button>
+                            )}
+                            {ownerContactId && (
+                              <div className="absolute top-1/2 right-8 -translate-y-1/2">
+                                <span
+                                  className={`rounded px-1.5 py-0.5 text-[10px] ${
+                                    listingSource === 'agent'
+                                      ? 'bg-blue-500/20 text-blue-400'
+                                      : 'bg-amber-500/20 text-amber-400'
+                                  }`}
+                                >
+                                  {listingSource === 'agent'
+                                    ? 'Agent'
+                                    : 'Owner'}
+                                </span>
+                              </div>
+                            )}
+                            {isOwnerDropdownOpen &&
+                              filteredOwnerContacts.length > 0 && (
+                                <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-700 bg-slate-800 shadow-lg">
+                                  {filteredOwnerContacts.map((contact) => (
+                                    <button
+                                      key={contact.id}
+                                      type="button"
+                                      onClick={() =>
+                                        handleOwnerSelect(contact.id)
+                                      }
+                                      className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-700 ${
+                                        ownerContactId === contact.id
+                                          ? 'bg-primary/20 text-primary'
+                                          : 'text-white'
+                                      }`}
+                                    >
+                                      <span className="flex items-center gap-1.5 truncate">
+                                        <span className="truncate">
+                                          {contact.name || 'Unnamed'} (
+                                          {contact.phone})
+                                        </span>
+                                        <NameTagBadge tag={contact.name_tag} />
+                                      </span>
+                                      <span
+                                        className={`rounded px-1.5 py-0.5 text-[10px] ${
+                                          contact.classification === 'Agent'
+                                            ? 'bg-blue-500/20 text-blue-400'
+                                            : contact.classification === 'Owner'
+                                              ? 'bg-amber-500/20 text-amber-400'
+                                              : 'bg-slate-600 text-slate-300'
+                                        }`}
+                                      >
+                                        {contact.classification}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                          </div>
+                        </div>
+
+                        <div className="col-span-2 space-y-1.5 md:col-span-1">
+                          <Label
+                            htmlFor="prop-listing-source"
+                            className="text-slate-300"
+                          >
+                            Listing Source
+                          </Label>
+                          {ownerContactId ? (
+                            <div className="flex h-9 items-center rounded-md border border-slate-700 bg-slate-800 px-3">
                               <span
-                                className={`rounded px-1.5 py-0.5 text-[10px] ${
+                                className={`text-sm font-medium ${
                                   listingSource === 'agent'
-                                    ? 'bg-blue-500/20 text-blue-400'
-                                    : 'bg-amber-500/20 text-amber-400'
+                                    ? 'text-blue-400'
+                                    : 'text-amber-400'
                                 }`}
                               >
-                                {listingSource === 'agent' ? 'Agent' : 'Owner'}
+                                {listingSource === 'agent'
+                                  ? 'Referred by Agent'
+                                  : 'Direct (from Owner)'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex h-9 items-center rounded-md border border-slate-700 bg-slate-800/50 px-3">
+                              <span className="text-sm text-slate-500">
+                                Select a contact first
                               </span>
                             </div>
                           )}
-                          {isOwnerDropdownOpen &&
-                            filteredOwnerContacts.length > 0 && (
-                              <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-700 bg-slate-800 shadow-lg">
-                                {filteredOwnerContacts.map((contact) => (
-                                  <button
-                                    key={contact.id}
-                                    type="button"
-                                    onClick={() =>
-                                      handleOwnerSelect(contact.id)
-                                    }
-                                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-700 ${
-                                      ownerContactId === contact.id
-                                        ? 'bg-primary/20 text-primary'
-                                        : 'text-white'
-                                    }`}
-                                  >
-                                    <span className="flex items-center gap-1.5 truncate">
-                                      <span className="truncate">
-                                        {contact.name || 'Unnamed'} (
-                                        {contact.phone})
-                                      </span>
-                                      <NameTagBadge tag={contact.name_tag} />
-                                    </span>
-                                    <span
-                                      className={`rounded px-1.5 py-0.5 text-[10px] ${
-                                        contact.classification === 'Agent'
-                                          ? 'bg-blue-500/20 text-blue-400'
-                                          : contact.classification === 'Owner'
-                                            ? 'bg-amber-500/20 text-amber-400'
-                                            : 'bg-slate-600 text-slate-300'
-                                      }`}
-                                    >
-                                      {contact.classification}
-                                    </span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
+                          <p className="text-[10px] leading-normal font-medium text-slate-500">
+                            Auto-detected based on selected contact&apos;s
+                            classification
+                          </p>
                         </div>
-                      </div>
 
-                      <div className="col-span-2 space-y-1.5 md:col-span-1">
-                        <Label
-                          htmlFor="prop-listing-source"
-                          className="text-slate-300"
+                        <div
+                          className="col-span-2 space-y-3"
+                          ref={contactSearchRef}
                         >
-                          Listing Source
-                        </Label>
-                        {ownerContactId ? (
-                          <div className="flex h-9 items-center rounded-md border border-slate-700 bg-slate-800 px-3">
-                            <span
-                              className={`text-sm font-medium ${
-                                listingSource === 'agent'
-                                  ? 'text-blue-400'
-                                  : 'text-amber-400'
-                              }`}
-                            >
-                              {listingSource === 'agent'
-                                ? 'Referred by Agent'
-                                : 'Direct (from Owner)'}
+                          <div className="flex items-center justify-between">
+                            <Label className="text-slate-350 font-medium">
+                              Contacts with Shown Interest (Buyers & Agents)
+                            </Label>
+                            <span className="rounded-full border border-slate-800 bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                              {interestedContacts.length} Linked
                             </span>
                           </div>
-                        ) : (
-                          <div className="flex h-9 items-center rounded-md border border-slate-700 bg-slate-800/50 px-3">
-                            <span className="text-sm text-slate-500">
-                              Select a contact first
-                            </span>
-                          </div>
-                        )}
-                        <p className="text-[10px] leading-normal font-medium text-slate-500">
-                          Auto-detected based on selected contact&apos;s
-                          classification
-                        </p>
-                      </div>
 
-                      <div
-                        className="col-span-2 space-y-3"
-                        ref={contactSearchRef}
-                      >
-                        <div className="flex items-center justify-between">
-                          <Label className="text-slate-350 font-medium">
-                            Contacts with Shown Interest (Buyers & Agents)
-                          </Label>
-                          <span className="rounded-full border border-slate-800 bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                            {interestedContacts.length} Linked
-                          </span>
-                        </div>
-
-                        {/* Autocomplete Contact Search Input */}
-                        <div className="relative">
+                          {/* Autocomplete Contact Search Input */}
                           <div className="relative">
-                            <Search className="absolute top-2.5 left-3 h-4 w-4 text-slate-500" />
-                            <Input
-                              type="text"
-                              placeholder="Search Buyer or Agent by name, phone or email..."
-                              value={contactSearchInput}
-                              onChange={(e) => {
-                                setContactSearchInput(e.target.value);
-                                setIsContactDropdownOpen(true);
-                              }}
-                              onFocus={() => setIsContactDropdownOpen(true)}
-                              className="h-9 border-slate-700 bg-slate-800 pr-9 pl-9 text-xs text-white placeholder:text-slate-500"
-                            />
-                            {contactSearchInput && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setContactSearchInput('');
-                                  setIsContactDropdownOpen(false);
+                            <div className="relative">
+                              <Search className="absolute top-2.5 left-3 h-4 w-4 text-slate-500" />
+                              <Input
+                                type="text"
+                                placeholder="Search Buyer or Agent by name, phone or email..."
+                                value={contactSearchInput}
+                                onChange={(e) => {
+                                  setContactSearchInput(e.target.value);
+                                  setIsContactDropdownOpen(true);
                                 }}
-                                className="absolute top-2.5 right-3 text-slate-500 hover:text-white"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            )}
+                                onFocus={() => setIsContactDropdownOpen(true)}
+                                className="h-9 border-slate-700 bg-slate-800 pr-9 pl-9 text-xs text-white placeholder:text-slate-500"
+                              />
+                              {contactSearchInput && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setContactSearchInput('');
+                                    setIsContactDropdownOpen(false);
+                                  }}
+                                  className="absolute top-2.5 right-3 text-slate-500 hover:text-white"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Dropdown search results */}
+                            {isContactDropdownOpen &&
+                              contactSearchInput.trim() && (
+                                <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-slate-700 bg-slate-900 p-1 shadow-xl">
+                                  {contactSearchResults.length > 0 ? (
+                                    contactSearchResults.map((c) => (
+                                      <button
+                                        key={c.id}
+                                        type="button"
+                                        onClick={() =>
+                                          handleAddInterestedContact(c.id)
+                                        }
+                                        className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-left text-xs text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
+                                      >
+                                        <div className="truncate pr-4">
+                                          <span className="flex items-center gap-1.5 truncate font-semibold text-slate-200">
+                                            <span className="truncate">
+                                              {c.name || 'Unnamed'} ({c.phone})
+                                            </span>
+                                            <NameTagBadge tag={c.name_tag} />
+                                          </span>
+                                          <span className="block truncate text-[10px] text-slate-500">
+                                            Classification: {c.classification}
+                                          </span>
+                                        </div>
+                                        <Plus className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <div className="py-2 text-center text-xs text-slate-500">
+                                      No matching Buyers or Agents found (or
+                                      already linked)
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                           </div>
 
-                          {/* Dropdown search results */}
-                          {isContactDropdownOpen &&
-                            contactSearchInput.trim() && (
-                              <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-slate-700 bg-slate-900 p-1 shadow-xl">
-                                {contactSearchResults.length > 0 ? (
-                                  contactSearchResults.map((c) => (
-                                    <button
-                                      key={c.id}
-                                      type="button"
-                                      onClick={() =>
-                                        handleAddInterestedContact(c.id)
-                                      }
-                                      className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-left text-xs text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-                                    >
-                                      <div className="truncate pr-4">
-                                        <span className="flex items-center gap-1.5 truncate font-semibold text-slate-200">
-                                          <span className="truncate">
-                                            {c.name || 'Unnamed'} ({c.phone})
-                                          </span>
-                                          <NameTagBadge tag={c.name_tag} />
+                          {/* Linked Contacts list */}
+                          <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border border-slate-700 bg-slate-900 p-2">
+                            {interestedContacts.length > 0 ? (
+                              interestedContacts.map((c) => {
+                                const isHot =
+                                  c.lead_temp === 'HOT' ||
+                                  c.status === 'pending_review';
+                                const isContacted =
+                                  contactedContactIds.has(c.id) ||
+                                  !!c.last_contacted_at;
+                                const isCold =
+                                  c.lead_temp === 'COLD' ||
+                                  c.lead_temp === 'Dead';
+
+                                // Style based on interest and contact status
+                                let cardBorderClass =
+                                  'border-slate-800 bg-slate-800/20';
+                                if (isHot) {
+                                  cardBorderClass =
+                                    'border-[#00ff88]/40 bg-[#00ff88]/5 shadow-[0_0_8px_rgba(0,255,136,0.06)]';
+                                } else if (isCold) {
+                                  cardBorderClass =
+                                    'border-rose-950/30 bg-rose-950/5';
+                                } else if (isContacted) {
+                                  cardBorderClass =
+                                    'border-emerald-600/30 bg-emerald-950/5';
+                                }
+
+                                return (
+                                  <div
+                                    key={c.id}
+                                    className={`flex items-center justify-between gap-3 rounded-md border p-2.5 text-xs transition-all ${cardBorderClass}`}
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className="font-bold text-slate-200">
+                                          {c.name || 'Unnamed'}
                                         </span>
-                                        <span className="block truncate text-[10px] text-slate-500">
-                                          Classification: {c.classification}
+                                        <NameTagBadge tag={c.name_tag} />
+                                        <span className="text-[10px] text-slate-500">
+                                          ({c.phone})
                                         </span>
                                       </div>
-                                      <Plus className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                                    </button>
-                                  ))
-                                ) : (
-                                  <div className="py-2 text-center text-xs text-slate-500">
-                                    No matching Buyers or Agents found (or
-                                    already linked)
+                                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                        <span className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                                          {c.classification || 'Buyer'}
+                                        </span>
+                                        <span className="text-[10px] text-slate-600">
+                                          •
+                                        </span>
+
+                                        {/* Status badges */}
+                                        {isHot && (
+                                          <span className="animate-pulse rounded border border-[#00ff88]/30 bg-[#00ff88]/10 px-1.5 py-0.5 text-[9px] font-bold text-[#00ff88] uppercase">
+                                            Interested (Hot)
+                                          </span>
+                                        )}
+                                        {isContacted && (
+                                          <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[9px] font-medium text-white uppercase">
+                                            Contacted
+                                          </span>
+                                        )}
+                                        {isCold && (
+                                          <span className="rounded border border-rose-950/50 bg-rose-950/40 px-1.5 py-0.5 text-[9px] font-medium text-rose-400 uppercase">
+                                            Not Interested
+                                          </span>
+                                        )}
+                                        {!isHot && !isContacted && !isCold && (
+                                          <span className="bg-slate-850 rounded border border-slate-700 px-1.5 py-0.5 text-[9px] font-medium text-slate-400 uppercase">
+                                            Not Contacted
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex shrink-0 items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleGoToChat(c.id)}
+                                        className="hover:bg-slate-750 rounded border border-slate-700 bg-slate-800 p-1.5 text-slate-400 transition-colors hover:text-emerald-400"
+                                        title="Go to WhatsApp Chat Inbox"
+                                        aria-label="Open Chat"
+                                      >
+                                        <MessageSquare className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setInterestedContactIds((prev) =>
+                                            prev.filter((id) => id !== c.id)
+                                          );
+                                        }}
+                                        className="rounded border border-slate-700 bg-slate-800 p-1.5 text-slate-400 transition-colors hover:border-rose-900/50 hover:bg-rose-950/50 hover:text-rose-400"
+                                        title="Remove link"
+                                        aria-label="Remove Contact Link"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
                                   </div>
-                                )}
+                                );
+                              })
+                            ) : (
+                              <div className="py-6 text-center text-xs text-slate-500">
+                                No interested contacts linked to this property
+                                yet. Use the search bar above to link contacts.
                               </div>
                             )}
-                        </div>
-
-                        {/* Linked Contacts list */}
-                        <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border border-slate-700 bg-slate-900 p-2">
-                          {interestedContacts.length > 0 ? (
-                            interestedContacts.map((c) => {
-                              const isHot =
-                                c.lead_temp === 'HOT' ||
-                                c.status === 'pending_review';
-                              const isContacted =
-                                contactedContactIds.has(c.id) ||
-                                !!c.last_contacted_at;
-                              const isCold =
-                                c.lead_temp === 'COLD' ||
-                                c.lead_temp === 'Dead';
-
-                              // Style based on interest and contact status
-                              let cardBorderClass =
-                                'border-slate-800 bg-slate-800/20';
-                              if (isHot) {
-                                cardBorderClass =
-                                  'border-[#00ff88]/40 bg-[#00ff88]/5 shadow-[0_0_8px_rgba(0,255,136,0.06)]';
-                              } else if (isCold) {
-                                cardBorderClass =
-                                  'border-rose-950/30 bg-rose-950/5';
-                              } else if (isContacted) {
-                                cardBorderClass =
-                                  'border-emerald-600/30 bg-emerald-950/5';
-                              }
-
-                              return (
-                                <div
-                                  key={c.id}
-                                  className={`flex items-center justify-between gap-3 rounded-md border p-2.5 text-xs transition-all ${cardBorderClass}`}
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex flex-wrap items-center gap-1.5">
-                                      <span className="font-bold text-slate-200">
-                                        {c.name || 'Unnamed'}
-                                      </span>
-                                      <NameTagBadge tag={c.name_tag} />
-                                      <span className="text-[10px] text-slate-500">
-                                        ({c.phone})
-                                      </span>
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                      <span className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                                        {c.classification || 'Buyer'}
-                                      </span>
-                                      <span className="text-[10px] text-slate-600">
-                                        •
-                                      </span>
-
-                                      {/* Status badges */}
-                                      {isHot && (
-                                        <span className="animate-pulse rounded border border-[#00ff88]/30 bg-[#00ff88]/10 px-1.5 py-0.5 text-[9px] font-bold text-[#00ff88] uppercase">
-                                          Interested (Hot)
-                                        </span>
-                                      )}
-                                      {isContacted && (
-                                        <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[9px] font-medium text-white uppercase">
-                                          Contacted
-                                        </span>
-                                      )}
-                                      {isCold && (
-                                        <span className="rounded border border-rose-950/50 bg-rose-950/40 px-1.5 py-0.5 text-[9px] font-medium text-rose-400 uppercase">
-                                          Not Interested
-                                        </span>
-                                      )}
-                                      {!isHot && !isContacted && !isCold && (
-                                        <span className="bg-slate-850 rounded border border-slate-700 px-1.5 py-0.5 text-[9px] font-medium text-slate-400 uppercase">
-                                          Not Contacted
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="flex shrink-0 items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleGoToChat(c.id)}
-                                      className="hover:bg-slate-750 rounded border border-slate-700 bg-slate-800 p-1.5 text-slate-400 transition-colors hover:text-emerald-400"
-                                      title="Go to WhatsApp Chat Inbox"
-                                      aria-label="Open Chat"
-                                    >
-                                      <MessageSquare className="h-3.5 w-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setInterestedContactIds((prev) =>
-                                          prev.filter((id) => id !== c.id)
-                                        );
-                                      }}
-                                      className="rounded border border-slate-700 bg-slate-800 p-1.5 text-slate-400 transition-colors hover:border-rose-900/50 hover:bg-rose-950/50 hover:text-rose-400"
-                                      title="Remove link"
-                                      aria-label="Remove Contact Link"
-                                    >
-                                      <X className="h-3.5 w-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          ) : (
-                            <div className="py-6 text-center text-xs text-slate-500">
-                              No interested contacts linked to this property
-                              yet. Use the search bar above to link contacts.
-                            </div>
-                          )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Publish visibility Switch */}
-                  <div className="flex items-center justify-between border-t border-slate-800 pt-4">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="prop-published"
-                        checked={isPublished}
-                        onCheckedChange={setIsPublished}
-                      />
-                      <Label
-                        htmlFor="prop-published"
-                        className="cursor-pointer text-sm text-slate-300"
-                      >
-                        Publish / Visible on Listing Page
-                      </Label>
+                    <div
+                      id="pf-publish"
+                      className="sticky -bottom-4 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-900 px-6 py-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="prop-published"
+                          checked={isPublished}
+                          onCheckedChange={setIsPublished}
+                        />
+                        <Label
+                          htmlFor="prop-published"
+                          className="cursor-pointer text-sm text-slate-300"
+                        >
+                          Publish / Visible on Listing Page
+                        </Label>
+                      </div>
+                      <div className="ml-auto flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => onOpenChange(false)}
+                          disabled={saving}
+                          className="text-slate-350 border-slate-700 hover:bg-slate-800"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          disabled={saving}
+                          className="bg-primary hover:bg-primary/95 text-primary-foreground flex items-center gap-1.5 font-semibold"
+                        >
+                          {saving && (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          )}
+                          {isEdit ? 'Save Changes' : 'Create Listing'}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="mt-6 flex justify-end gap-2 border-t border-slate-800 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => onOpenChange(false)}
-                      disabled={saving}
-                      className="text-slate-350 border-slate-700 hover:bg-slate-800"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={saving}
-                      className="bg-primary hover:bg-primary/95 text-primary-foreground flex items-center gap-1.5 font-semibold"
-                    >
-                      {saving && <Loader2 className="size-3.5 animate-spin" />}
-                      {isEdit ? 'Save Changes' : 'Create Listing'}
-                    </Button>
-                  </div>
-                </form>
+                  </form>
+                </div>
               )}
             </TabsContent>
 
