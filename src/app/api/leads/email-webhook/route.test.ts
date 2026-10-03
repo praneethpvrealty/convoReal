@@ -104,6 +104,11 @@ vi.mock('@/lib/supabase/admin', () => {
   };
 });
 
+const dnsLookup = vi.fn();
+vi.mock('node:dns/promises', () => ({
+  lookup: (...args: unknown[]) => dnsLookup(...args),
+}));
+
 vi.mock('./auto-reply', () => ({
   sendAutoReply: vi
     .fn()
@@ -334,10 +339,14 @@ describe('Email Webhook Lead Parsing', () => {
   describe('resolvePhoneNumberFromUrl', () => {
     beforeEach(() => {
       vi.stubGlobal('fetch', vi.fn());
+      dnsLookup.mockReset();
+      dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
     });
 
     afterEach(() => {
       vi.unstubAllGlobals();
+      vi.mocked(console.error).mockRestore();
     });
 
     it('should extract phone number directly if present in the URL', async () => {
@@ -365,11 +374,77 @@ describe('Email Webhook Lead Parsing', () => {
       );
       expect(res).toBe('919900112233');
     });
+
+    it('follows the SES click tracker Housing wraps its links in, through the shortener', async () => {
+      const tracker =
+        'https://8czw49zf.r.ap-southeast-1.awstrack.me/L0/https:%2F%2Fhsng.co%2Fabc/1/0100';
+      const mockFetch = vi.fn().mockImplementation((url) => {
+        const location =
+          url === tracker
+            ? 'https://hsng.co/abc'
+            : url === 'https://hsng.co/abc'
+              ? 'https://housing.com/leads/whatsapp?lead_id=9'
+              : 'https://api.whatsapp.com/send?phone=919900112233';
+        return Promise.resolve({
+          status: 302,
+          headers: new Headers({ location }),
+        });
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      expect(await resolvePhoneNumberFromUrl(tracker)).toBe('919900112233');
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it.each([
+      ['the metadata address', 'http://169.254.169.254/latest/meta-data/'],
+      ['an internal address', 'http://10.0.0.8:8080/admin'],
+      ['localhost', 'http://localhost:6379/'],
+      ['a file: URL', 'file:///etc/passwd'],
+      ['a portal URL with credentials', 'https://a:b@housing.com/leads'],
+      ['a host that is not a portal', 'https://evil.example.com/whatsapp'],
+      ['a look-alike portal host', 'https://housing.com.evil.io/whatsapp'],
+    ])('never requests %s', async (_label, url) => {
+      const mockFetch = vi.fn();
+      vi.stubGlobal('fetch', mockFetch);
+
+      expect(await resolvePhoneNumberFromUrl(url)).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('never requests a portal host that resolves inside the network', async () => {
+      dnsLookup.mockResolvedValue([{ address: '10.0.0.8', family: 4 }]);
+      const mockFetch = vi.fn();
+      vi.stubGlobal('fetch', mockFetch);
+
+      expect(
+        await resolvePhoneNumberFromUrl('https://housing.com/leads/call')
+      ).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('does not follow a portal redirect that points off the allow-list', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        status: 302,
+        headers: new Headers({
+          location: 'http://169.254.169.254/latest/meta-data/',
+        }),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      expect(
+        await resolvePhoneNumberFromUrl('https://housing.com/leads/call')
+      ).toBeNull();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch.mock.calls[0][0]).toBe('https://housing.com/leads/call');
+    });
   });
 
   describe('resolveHousingPhone', () => {
     beforeEach(() => {
       vi.stubGlobal('fetch', vi.fn());
+      dnsLookup.mockReset();
+      dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
     });
 
     afterEach(() => {
@@ -1240,6 +1315,51 @@ Content-Transfer-Encoding: quoted-printable
       expect((contact.pref_areas as string[]) ?? []).not.toContain(
         'Your property'
       );
+    });
+
+    it('never requests a link in a lead email that points inside the network', async () => {
+      const mockFetch = vi.fn();
+      vi.stubGlobal('fetch', mockFetch);
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const payload = {
+        subject: 'Housing - Lead interested in your property',
+        from: '"Housing.com" <noreply@housing-mailer.com>',
+        text: [
+          'Test Buyer would like to talk to you',
+          'We have received a contact request from our user:',
+          'Name: Test Buyer',
+          'Email:',
+          'Contact:',
+          'Call Now',
+          'Chat On WhatsApp',
+          'who would like to talk to you regarding your independent house:',
+          '3 BHK Independent House',
+          'Koramangala',
+        ].join('\n'),
+        html: [
+          '<a href="http://169.254.169.254/latest/meta-data/whatsapp">Chat On WhatsApp</a>',
+          '<a href="http://10.0.0.8:8080/call">Call Now</a>',
+        ].join(''),
+      };
+
+      const req = new Request(
+        'http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const response = await POST(req);
+
+      expect(response.status).toBeLessThan(500);
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(mockDb.contacts).toHaveLength(0);
+
+      errorSpy.mockRestore();
+      vi.unstubAllGlobals();
     });
 
     it('does not file a Koramangala enquiry against the only house in inventory', async () => {

@@ -1,5 +1,6 @@
 import { Alert } from 'react-native';
 
+import { chunkIds } from '@/lib/calendar-tasks';
 import { openContactChat } from '@/lib/open-chat';
 import { loadEveryPage } from '@/lib/calendar-upcoming';
 import { buildTodoParticipantCheckIn } from '@/lib/todo-check-in';
@@ -240,4 +241,22 @@ export async function deleteTodo(id: string): Promise<void> {
     .select('id');
   if (error) throw error;
   if (!data?.length) throw new Error('Todo not found');
+}
+
+/** Clears the done group in one call per chunk of ids. Returns how many
+ *  rows were actually removed: like deleteTodo, a delete RLS refuses
+ *  removes zero rows and reports no error, so the count comes from the
+ *  rows read back, not from the ids sent. */
+export async function deleteCompletedTodos(ids: string[]): Promise<number> {
+  let deleted = 0;
+  for (const chunk of chunkIds(ids)) {
+    const { data, error } = await supabase
+      .from('todos')
+      .delete()
+      .in('id', chunk)
+      .select('id');
+    if (error) throw error;
+    deleted += data?.length ?? 0;
+  }
+  return deleted;
 }

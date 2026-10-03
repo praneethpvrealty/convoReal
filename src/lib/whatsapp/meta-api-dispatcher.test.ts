@@ -109,7 +109,7 @@ function makeDb(
             data: {
               account_id: ACCOUNT_ID,
               integration_type: overrides.integrationType ?? 'official_api',
-              phone_number_id: 'phone-1',
+              phone_number_id: '1029384756',
               access_token: encrypt('test-access-token'),
             },
             error: null,

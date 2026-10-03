@@ -285,8 +285,8 @@ export function AppointmentTaskRow({
                   onClick={() => onArchive(event, !archived)}
                   title={
                     archived
-                      ? 'Unarchive — list it in Tasks again'
-                      : 'Archive — hide it from Tasks; it stays on its day in the calendar'
+                      ? 'Unarchive — list it in the Schedule again'
+                      : 'Archive — hide it from the Schedule; it stays on its day in the calendar'
                   }
                   aria-label={`${archived ? 'Unarchive' : 'Archive'}: ${event.title}`}
                   className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-slate-800"

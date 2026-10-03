@@ -39,6 +39,7 @@ on:
       # Web modules the bundle imports through @shared/; [SHR-003] in
       # src/lib/mobile-parity.test.ts keeps this list whole.
       - 'src/lib/calendar/archive-sort.ts'
+      - 'src/lib/calendar/todo-groups.ts'
       - 'src/lib/dashboard/approval-order.ts'
       - 'src/lib/deals/co-broking.ts'
       - 'src/lib/deals/deadline-rules.ts'

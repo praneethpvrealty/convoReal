@@ -775,17 +775,25 @@
         },
         {
           "id": "CAL-009",
-          "rule": "The To-Do list beside the calendar is a lightweight checklist of to-dos alone on web and mobile: appointments are never folded into it, and the quick-add takes a title, an optional due date and a priority without tagging contacts or properties. A to-do added from a deal's Tasks tab keeps its deal and links back to it, and a contact or property a to-do already carries stays shown and opens the record on both surfaces; the calendar never sets those links.",
+          "rule": "The To-dos list beside the calendar is a lightweight checklist of to-dos alone on web and mobile: appointments are never folded into it, and the quick-add takes a title, an optional due date and a priority without tagging contacts or properties, showing the date and priority only once a title is typed. Open to-dos lead the list; done ones sit in one Done group, collapsed by default, through the shared src/lib/calendar/todo-groups rule, and Clear completed deletes them after a confirmation on both surfaces. A to-do added from a deal's Tasks tab keeps its deal and links back to it, and a contact or property a to-do already carries stays shown and opens the record on both surfaces; the calendar never sets those links.",
           "tests": [
             {
               "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CAL-009]"
+            },
+            {
+              "file": "src/lib/calendar/todo-groups.test.ts",
+              "case": "[CAL-009]"
+            },
+            {
+              "file": "mobile/lib/todo-groups.test.ts",
               "case": "[CAL-009]"
             }
           ]
         },
         {
           "id": "CAL-010",
-          "rule": "Everything pinned on the calendar's visible days — appointments and deal dates — is also listed as Tasks in date order (web beneath the Month and Week views and as the Agenda rows themselves; mobile on the selected day and in Upcoming), where an appointment's status is changed in place with the same actions on both surfaces (Done and Cancel while scheduled, Reopen afterwards) through PUT /api/appointments/[id], which re-arms the reminders on Reopen in the same write as the status and stamps a new reminder generation on Done, Cancel and Reopen alike (reminders_rearmed_at: every delivery claim records the generation it was made under, the cron takes over a claim from any other generation, and a reminder fetched or queued under an earlier generation is never sent), and a cancelled appointment stays on its day struck through rather than disappearing. A milestone date can be ticked done there through PATCH /api/deals/[id]/milestones/[milestoneId], which never moves the deal's stage (TXW-003); other deal dates open the record.",
+          "rule": "Everything pinned on the calendar's visible days — appointments and deal dates — is also listed as the Schedule in date order (web beneath the Month and Week views, scrolling with the pane rather than inside its own box, and as the Agenda rows themselves; mobile on the selected day and in Upcoming), where an appointment's status is changed in place with the same actions on both surfaces (Done and Cancel while scheduled, Reopen afterwards) through PUT /api/appointments/[id], which re-arms the reminders on Reopen in the same write as the status and stamps a new reminder generation on Done, Cancel and Reopen alike (reminders_rearmed_at: every delivery claim records the generation it was made under, the cron takes over a claim from any other generation, and a reminder fetched or queued under an earlier generation is never sent), and a cancelled appointment stays on its day struck through rather than disappearing. A milestone date can be ticked done there through PATCH /api/deals/[id]/milestones/[milestoneId], which never moves the deal's stage (TXW-003); other deal dates open the record.",
           "tests": [
             {
               "file": "src/lib/calendar/tasks-view.test.ts",
@@ -819,7 +827,7 @@
         },
         {
           "id": "CAL-011",
-          "rule": "A done or cancelled appointment can be archived and unarchived on web and mobile through POST /api/appointments/archive, which stamps appointments.archived_at for the caller's account only and never archives a scheduled event; Archive done archives every unarchived finished event in view (web: the Month or Week in view, mobile: the whole month shown, loaded in pages), sent in requests of up to 500 so none is left out, and the route refuses a read-only member. How archived events show is one three-way setting with the same modes on web and mobile, Grey out archived by default: Grey out keeps an archived event on the calendar grid (the web month grid, Week and Team views, and mobile's month dots) dimmed and greyed, and off Tasks, the Agenda and mobile's day and Upcoming lists; Hide archived takes it off the grid as well; List archived also lists it in Tasks, the Agenda and mobile's lists. The setting sits in the web calendar's filter row whenever an archived event is filtered in, and in mobile's chip row whenever the month shown or Upcoming holds one. It is remembered per user in profiles.calendar_archived_view, so the same choice applies on every browser and on the mobile app: saves run in the order chosen so the last choice is the one kept, the calendar re-reads the setting when it regains focus, and an unknown stored value reads as Grey out. Hide archived is the one exception to CAL-010's cancelled event staying on its day. Reopening clears the stamp, and an event whose status is scheduled is never hidden whichever writer reopened it.",
+          "rule": "A done or cancelled appointment can be archived and unarchived on web and mobile through POST /api/appointments/archive, which stamps appointments.archived_at for the caller's account only and never archives a scheduled event; Archive done archives every unarchived finished event in view (web: the Month or Week in view, mobile: the whole month shown, loaded in pages), sent in requests of up to 500 so none is left out, and the route refuses a read-only member. How archived events show is one three-way setting with the same modes on web and mobile, Grey out archived by default: Grey out keeps an archived event on the calendar grid (the web month grid, Week and Team views, and mobile's month dots) dimmed and greyed, and off the Schedule, the Agenda and mobile's day and Upcoming lists; Hide archived takes it off the grid as well; List archived also lists it in the Schedule, the Agenda and mobile's lists. The setting sits in the web calendar's filter row whenever an archived event is filtered in, and in mobile's chip row whenever the month shown or Upcoming holds one. It is remembered per user in profiles.calendar_archived_view, so the same choice applies on every browser and on the mobile app: saves run in the order chosen so the last choice is the one kept, the calendar re-reads the setting when it regains focus, and an unknown stored value reads as Grey out. Hide archived is the one exception to CAL-010's cancelled event staying on its day. Reopening clears the stamp, and an event whose status is scheduled is never hidden whichever writer reopened it.",
           "tests": [
             {
               "file": "src/lib/calendar/tasks-view.test.ts",
@@ -849,7 +857,7 @@
         },
         {
           "id": "CAL-012",
-          "rule": "Tasks are sorted by date and time with the same three modes on web and mobile, Upcoming first by default: today's items lead, then the days ahead soonest first, then past days most recent first, each day in clock order with a date-only deal date leading its day. Earliest first and Latest first order strictly by date and time. The mode applies to the web Tasks list and to mobile's day and Upcoming lists.",
+          "rule": "Schedule rows are sorted by date and time with the same three modes on web and mobile, Upcoming first by default: today's items lead, then the days ahead soonest first, then past days most recent first, each day in clock order with a date-only deal date leading its day. Earliest first and Latest first order strictly by date and time. The mode applies to the web Schedule list and to mobile's day and Upcoming lists.",
           "tests": [
             {
               "file": "src/lib/calendar/tasks-view.test.ts",
@@ -2713,6 +2721,33 @@
           "guards": [
             "supabase/migrations/20260919043000_whatsapp_retired_number_autoreply.sql"
           ]
+        },
+        {
+          "id": "WAN-007",
+          "rule": "A phone number id or WABA id is digits only. The settings save, the sandbox upgrade and the admin sandbox routes answer 400 for anything else before Meta or the database is touched, and the Graph helpers that address a number or a WABA by id (verify, register, subscribe, subscribed apps, registration state, permission check, and the free-form text send) refuse a malformed id without sending a request.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/registration.test.ts",
+              "case": "[WAN-007]"
+            },
+            {
+              "file": "src/app/api/whatsapp/config/route.test.ts",
+              "case": "[WAN-007]"
+            },
+            {
+              "file": "src/app/api/whatsapp/migrate/route.test.ts",
+              "case": "[WAN-007]"
+            },
+            {
+              "file": "src/app/api/admin/sandbox-config/route.test.ts",
+              "case": "[WAN-007]"
+            },
+            {
+              "file": "src/app/api/admin/sandbox-tenants/route.test.ts",
+              "case": "[WAN-007]"
+            }
+          ],
+          "guards": ["src/lib/whatsapp/meta-api.ts"]
         }
       ]
     },

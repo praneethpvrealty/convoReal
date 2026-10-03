@@ -16,6 +16,31 @@ export interface MetaSendResult {
   messageId: string;
 }
 
+const GRAPH_ID_PATTERN = /^\d+$/;
+const ABSENT_OR_GRAPH_ID_PATTERN = /^\d*$/;
+
+export function isGraphId(value: unknown): value is string {
+  return typeof value === 'string' && GRAPH_ID_PATTERN.test(value);
+}
+
+export function isAbsentOrGraphId(value: unknown): boolean {
+  const id = value ?? '';
+  return typeof id === 'string' && ABSENT_OR_GRAPH_ID_PATTERN.test(id);
+}
+
+/**
+ * Phone number ids and WABA ids are numeric strings. They are
+ * interpolated into the Graph URL path, so anything else is rejected
+ * before a request is built — `123/../456` would otherwise address a
+ * different Graph node with the caller's token.
+ */
+export function assertGraphId(value: string, label: string): string {
+  if (typeof value !== 'string' || !GRAPH_ID_PATTERN.test(value)) {
+    throw new Error(`${label} must contain digits only.`);
+  }
+  return value;
+}
+
 export interface MetaPhoneInfo {
   id: string;
   /** Not available on Meta test/sandbox numbers — falls back to the phone_number_id. */
@@ -281,7 +306,8 @@ export interface VerifyPhoneNumberArgs {
 export async function verifyPhoneNumber(
   args: VerifyPhoneNumberArgs
 ): Promise<MetaPhoneInfo> {
-  const { phoneNumberId, accessToken } = args;
+  const { accessToken } = args;
+  const phoneNumberId = assertGraphId(args.phoneNumberId, 'Phone Number ID');
   const headers = { Authorization: `Bearer ${accessToken}` };
 
   // Step 1: fetch only `id` — this field always exists on both real and
@@ -395,7 +421,8 @@ export interface RegisterPhoneNumberResult {
 export async function registerPhoneNumber(
   args: RegisterPhoneNumberArgs
 ): Promise<RegisterPhoneNumberResult> {
-  const { phoneNumberId, accessToken, pin } = args;
+  const { accessToken, pin } = args;
+  const phoneNumberId = assertGraphId(args.phoneNumberId, 'Phone Number ID');
   const url = `${META_API_BASE}/${phoneNumberId}/register`;
   const response = await fetch(url, {
     method: 'POST',
@@ -466,7 +493,8 @@ export interface SubscribeWabaToAppArgs {
 export async function subscribeWabaToApp(
   args: SubscribeWabaToAppArgs
 ): Promise<void> {
-  const { wabaId, accessToken } = args;
+  const { accessToken } = args;
+  const wabaId = assertGraphId(args.wabaId, 'WhatsApp Business Account ID');
   const url = `${META_API_BASE}/${wabaId}/subscribed_apps`;
   const response = await fetch(url, {
     method: 'POST',
@@ -498,7 +526,8 @@ export interface SubscribedApp {
 export async function getSubscribedApps(
   args: GetSubscribedAppsArgs
 ): Promise<SubscribedApp[]> {
-  const { wabaId, accessToken } = args;
+  const { accessToken } = args;
+  const wabaId = assertGraphId(args.wabaId, 'WhatsApp Business Account ID');
   const url = `${META_API_BASE}/${wabaId}/subscribed_apps`;
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -547,14 +576,8 @@ function sendBase(recipientType: RecipientType | undefined): string {
 export async function sendTextMessage(
   args: SendTextMessageArgs
 ): Promise<MetaSendResult> {
-  const {
-    phoneNumberId,
-    accessToken,
-    to,
-    text,
-    contextMessageId,
-    recipientType,
-  } = args;
+  const { accessToken, to, text, contextMessageId, recipientType } = args;
+  const phoneNumberId = assertGraphId(args.phoneNumberId, 'Phone Number ID');
   const url = `${sendBase(recipientType)}/${phoneNumberId}/messages`;
   const body: Record<string, unknown> = {
     messaging_product: 'whatsapp',
@@ -1594,7 +1617,7 @@ export async function checkWhatsAppPermissions(
   if (wabaId) {
     try {
       const response = await fetch(
-        `${META_API_BASE}/${wabaId}?fields=id,name`,
+        `${META_API_BASE}/${assertGraphId(wabaId, 'WhatsApp Business Account ID')}?fields=id,name`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         }

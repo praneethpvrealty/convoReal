@@ -3872,7 +3872,9 @@ describe('[CAL-008] deal dates are pinned on both calendars through the one dead
   });
 
   it('pins each date on its day and opens the deal record on both surfaces', () => {
-    expect(webCalendar).toContain('href={dealDateHref(d.dealId)}');
+    expect(webSource('components/calendar/month-cell.tsx')).toContain(
+      'href={dealDateHref(d.dealId)}'
+    );
     expect(webCalendar).toContain('dealDateLocalDay(d.dueDate).toDateString()');
     expect(mobileCalendar).toContain(
       '<Link href={dealDateHref(dealDate.dealId)} asChild>'
@@ -3919,6 +3921,32 @@ describe('[CAL-009] the to-do list is lightweight on both surfaces', () => {
     expect(mobileCalendar).toContain(
       'await addTodo({ accountId, title: trimmed, priority, dueDate });'
     );
+  });
+
+  it('keeps done to-dos in one collapsed group and clears them the same way on both surfaces', () => {
+    expect(webCalendar).toContain("} from '@/lib/calendar/todo-groups';");
+    expect(mobileCalendar).toContain(
+      "} from '@shared/lib/calendar/todo-groups';"
+    );
+    expect(webCalendar).toContain('splitTodosByCompletion(visibleTodos)');
+    expect(mobileCalendar).toContain('splitTodosByCompletion(remainingTodos)');
+    expect(webCalendar).toContain('useState(false);\n  const [clearingTodos');
+    expect(mobileCalendar).toContain(
+      'const [doneOpen, setDoneOpen] = useState(false);'
+    );
+    expect(webCalendar).toContain('confirm(clearCompletedPrompt(ids.length))');
+    expect(mobileCalendar).toContain(
+      "Alert.alert('Clear completed', clearCompletedPrompt(todos.length), ["
+    );
+    expect(webCalendar).toContain('completedTodoIds(doneTodos)');
+    expect(mobileCalendar).toContain(
+      'deleteCompletedTodos(completedTodoIds(todos))'
+    );
+    expect(mobileTodos).toContain(
+      'export async function deleteCompletedTodos('
+    );
+    expect(webCalendar).toContain('{todoTitle.trim() && (');
+    expect(mobileCalendar).toContain('{title.trim() ? (');
   });
 
   it('a deal task links back to its deal on both surfaces', () => {
@@ -4098,8 +4126,8 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
       expect(source).toContain('if (write === archivedViewLatest.current)');
     }
     expect(mobileCalendar).toContain('void refetchArchivedView();');
-    expect(webCalendar).toContain(
-      'isArchivedAppointment(appt) &&\n                                  ARCHIVED_EVENT_CHIP'
+    expect(webSource('components/calendar/month-cell.tsx')).toContain(
+      'isArchivedAppointment(appt) && ARCHIVED_EVENT_CHIP'
     );
     for (const view of ['week-view.tsx', 'team-view.tsx']) {
       expect(webSource(`components/calendar/${view}`)).toContain(
