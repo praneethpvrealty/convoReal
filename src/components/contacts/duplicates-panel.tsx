@@ -242,7 +242,7 @@ export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
 
   if (isPending) {
     return (
-      <div className="flex items-center gap-2 py-2 text-sm text-slate-500">
+      <div className="flex items-center gap-2 rounded-xl border border-slate-800/80 px-4 py-3 text-sm text-slate-500">
         <Loader2 className="h-4 w-4 animate-spin" />
         Checking for duplicates…
       </div>

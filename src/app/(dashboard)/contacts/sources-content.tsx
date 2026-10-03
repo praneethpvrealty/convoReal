@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { Handshake, Trophy, UserPlus } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { Skeleton, SkeletonCard } from '@/components/dashboard/skeleton';
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import {
   conversionRate,
@@ -51,9 +52,20 @@ export default function SourcesContent() {
 
   if (sourcesQuery.isLoading) {
     return (
-      <p className="py-16 text-center text-sm text-slate-500">
-        Loading lead sources...
-      </p>
+      <div
+        role="status"
+        aria-label="Loading lead sources"
+        aria-busy="true"
+        className="space-y-6"
+      >
+        <Skeleton className="h-4 w-80" />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <SkeletonCard key={i} className="border-slate-700 bg-slate-900" />
+          ))}
+        </div>
+        <SkeletonCard className="h-72 border-slate-700 bg-slate-900" />
+      </div>
     );
   }
 
