@@ -54,7 +54,7 @@ function ProjectCard({
           )}
         </div>
         {project.builder && (
-          <span className="shrink-0 rounded border border-slate-800 px-2 py-0.5 text-[10px] text-slate-400">
+          <span className="shrink-0 rounded border border-slate-800 px-2 py-0.5 text-[11px] text-slate-300">
             {project.builder}
           </span>
         )}
@@ -70,7 +70,7 @@ function ProjectCard({
         {bhk && <span className="text-xs text-slate-400">{bhk}</span>}
       </div>
 
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-slate-400">
         {projectAvailabilityLine(project.stats)}
       </p>
 

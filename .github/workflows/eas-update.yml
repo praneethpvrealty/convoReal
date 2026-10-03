@@ -47,6 +47,7 @@ on:
       - 'src/lib/format/date.ts'
       - 'src/lib/pulse/viewed-listings.ts'
       - 'src/lib/radar/alert-defaults.ts'
+      - 'src/lib/showcase/message-preview.ts'
       - 'src/lib/sweep/gap-actions.ts'
   workflow_dispatch:
     inputs:

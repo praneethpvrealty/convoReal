@@ -354,7 +354,7 @@ html[data-mode='dark'] {
   --color-slate-800: #242429;
   --color-slate-700: #383840;
   --color-slate-600: #55555f;
-  --color-slate-500: #71717c;
+  --color-slate-500: #8b8b96;
   --color-slate-400: #a0a0ab;
   --color-slate-300: #c6c6cf;
   --color-slate-200: #e2e2e8;
@@ -362,7 +362,7 @@ html[data-mode='dark'] {
   --color-slate-50: #f7f7fa;
   /* half-steps (see @theme) — graphite midpoints */
   --color-slate-350: #b3b3bd;
-  --color-slate-450: #888894;
+  --color-slate-450: #9696a1;
   --color-slate-550: #63636d;
   --color-slate-650: #46464f;
   --color-slate-750: #2e2e34;
@@ -537,14 +537,14 @@ html[data-mode='dark'][data-theme='verdant'] {
   --color-slate-800: #1c342a;
   --color-slate-700: #2e4a3e;
   --color-slate-600: #4a665a;
-  --color-slate-500: #6b857a;
+  --color-slate-500: #87a195;
   --color-slate-400: #9db5a9;
   --color-slate-300: #c2d4ca;
   --color-slate-200: #dde7e1;
   --color-slate-100: #ecf3ee;
   --color-slate-50: #f4f9f5;
   --color-slate-350: #afc2b6;
-  --color-slate-450: #829b8d;
+  --color-slate-450: #93ac9f;
   --color-slate-550: #5a7266;
   --color-slate-650: #3b5749;
   --color-slate-750: #243e32;

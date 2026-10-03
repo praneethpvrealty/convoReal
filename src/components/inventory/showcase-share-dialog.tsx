@@ -43,6 +43,7 @@ import {
 import { filterPropertiesBySearch } from '@/lib/inventory/search-filter';
 import { buildShowcaseShareLink } from '@/lib/inventory/showcase-share-link';
 import { formatShareAmount } from '@/lib/share-message-builder';
+import { previewSegments } from '@/lib/showcase/message-preview';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
   buildInventoryUpdateTemplatePayload,
@@ -161,6 +162,7 @@ export function ShowcaseShareDialog({
 
   // Step 3 — HOW.
   const [messageMode, setMessageMode] = useState<'pitch' | 'list'>('pitch');
+  const [editingPitch, setEditingPitch] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedMessage, setCopiedMessage] = useState(false);
   const [contacts, setContacts] = useState<PickerContact[]>([]);
@@ -1065,14 +1067,15 @@ Best regards`;
               <Button
                 onClick={() => void handleCopyLink()}
                 disabled={!generatedLink}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-9 shrink-0 items-center gap-1 px-3 text-xs font-semibold"
+                variant="outline"
+                className="text-slate-350 flex h-9 shrink-0 items-center gap-1 border-slate-800 px-3 text-xs font-semibold hover:bg-slate-800"
               >
                 {copied ? (
                   <Check className="size-3.5" />
                 ) : (
                   <Copy className="size-3.5" />
                 )}
-                {copied ? 'Copied' : 'Copy'}
+                {copied ? 'Copied' : 'Copy link'}
               </Button>
               <Button
                 variant="outline"
@@ -1110,22 +1113,71 @@ Best regards`;
 
               {messageMode === 'pitch' ? (
                 <>
-                  <Textarea
-                    value={pitchMessage}
-                    onChange={(e) => setPitchMessage(e.target.value)}
-                    className="min-h-[120px] resize-none border-slate-800 bg-slate-900 text-xs text-slate-200"
-                  />
-                  <p className="text-[10px] text-slate-500">
-                    Use{' '}
-                    <code className="text-primary rounded bg-slate-950 px-1 py-0.5">
-                      {'{portalUrl}'}
-                    </code>{' '}
-                    for the showcase link and{' '}
-                    <code className="text-primary rounded bg-slate-950 px-1 py-0.5">
-                      {'{name}'}
-                    </code>{' '}
-                    for the contact&apos;s first name.
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-slate-400">
+                      {editingPitch ? 'Editing template' : 'What they receive'}
+                    </span>
+                    <button
+                      type="button"
+                      aria-pressed={editingPitch}
+                      onClick={() => setEditingPitch((value) => !value)}
+                      className={`cursor-pointer rounded-md px-2 py-1 text-[11px] font-bold transition-all ${
+                        editingPitch
+                          ? 'bg-primary/15 text-primary'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {editingPitch ? 'Done' : 'Edit message'}
+                    </button>
+                  </div>
+                  {editingPitch ? (
+                    <>
+                      <Textarea
+                        value={pitchMessage}
+                        onChange={(e) => setPitchMessage(e.target.value)}
+                        className="min-h-[120px] resize-none border-slate-800 bg-slate-900 text-xs text-slate-200"
+                      />
+                      <p className="text-[10px] text-slate-500">
+                        Use{' '}
+                        <code className="text-primary rounded bg-slate-950 px-1 py-0.5">
+                          {'{portalUrl}'}
+                        </code>{' '}
+                        for the showcase link and{' '}
+                        <code className="text-primary rounded bg-slate-950 px-1 py-0.5">
+                          {'{name}'}
+                        </code>{' '}
+                        for the contact&apos;s first name.
+                      </p>
+                    </>
+                  ) : (
+                    <div
+                      data-testid="pitch-preview"
+                      className="max-h-[280px] min-h-[120px] overflow-y-auto rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2 text-xs whitespace-pre-wrap text-slate-200"
+                    >
+                      {previewSegments(pitchMessage, {
+                        name:
+                          selectedContacts.length === 1
+                            ? selectedContacts[0].name
+                            : null,
+                        portalUrl: generatedLink,
+                      }).map((segment, index) =>
+                        segment.kind === 'text' ? (
+                          <span key={index}>{segment.text}</span>
+                        ) : (
+                          <span
+                            key={index}
+                            className={
+                              segment.kind === 'link'
+                                ? 'bg-primary/15 text-primary inline-block max-w-full truncate rounded px-1 align-bottom font-mono'
+                                : 'bg-primary/15 text-primary rounded px-1'
+                            }
+                          >
+                            {segment.text}
+                          </span>
+                        )
+                      )}
+                    </div>
+                  )}
                 </>
               ) : scopeProperties === null ? (
                 <div className="h-24 animate-pulse rounded-lg bg-slate-900" />
