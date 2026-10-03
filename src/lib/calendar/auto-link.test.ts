@@ -18,13 +18,23 @@ const contacts = [
 
 describe('autoLinkContactProperty', () => {
   it('fills the property from the contact inquiry', () => {
-    const { contact, property } = autoLinkContactProperty(contacts[0], null, contacts, properties);
+    const { contact, property } = autoLinkContactProperty(
+      contacts[0],
+      null,
+      contacts,
+      properties
+    );
     expect(contact?.id).toBe('c-1');
     expect(property?.id).toBe('prop-1');
   });
 
   it('fills the contact from the property', () => {
-    const { contact, property } = autoLinkContactProperty(null, properties[0], contacts, properties);
+    const { contact, property } = autoLinkContactProperty(
+      null,
+      properties[0],
+      contacts,
+      properties
+    );
     expect(contact?.id).toBe('c-1');
     expect(property?.id).toBe('prop-1');
   });
@@ -34,19 +44,29 @@ describe('autoLinkContactProperty', () => {
       contacts[1],
       properties[1],
       contacts,
-      properties,
+      properties
     );
     expect(contact?.id).toBe('c-2');
     expect(property?.id).toBe('prop-2');
   });
 
   it('ignores an inquiry pointing at an unknown property', () => {
-    const { property } = autoLinkContactProperty(contacts[2], null, contacts, properties);
+    const { property } = autoLinkContactProperty(
+      contacts[2],
+      null,
+      contacts,
+      properties
+    );
     expect(property).toBeNull();
   });
 
   it('resolves nothing when both sides are missing', () => {
-    const { contact, property } = autoLinkContactProperty(null, null, contacts, properties);
+    const { contact, property } = autoLinkContactProperty(
+      null,
+      null,
+      contacts,
+      properties
+    );
     expect(contact).toBeNull();
     expect(property).toBeNull();
   });
@@ -54,13 +74,19 @@ describe('autoLinkContactProperty', () => {
 
 describe('linkedPropertyForContacts', () => {
   it('returns the first selected contact with a known linked property', () => {
-    const hit = linkedPropertyForContacts(['c-2', 'c-3', 'c-1'], contacts, properties);
+    const hit = linkedPropertyForContacts(
+      ['c-2', 'c-3', 'c-1'],
+      contacts,
+      properties
+    );
     expect(hit?.contact.id).toBe('c-1');
     expect(hit?.property.id).toBe('prop-1');
   });
 
   it('returns null when no selected contact has a resolvable link', () => {
-    expect(linkedPropertyForContacts(['c-2', 'c-3'], contacts, properties)).toBeNull();
+    expect(
+      linkedPropertyForContacts(['c-2', 'c-3'], contacts, properties)
+    ).toBeNull();
   });
 });
 

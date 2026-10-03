@@ -2,8 +2,10 @@
  * Drift guard for the mobile app's hand-ported mirrors of web logic.
  *
  * `mobile/` is a separate Expo project with its own package.json and
- * Metro root, so it cannot import from `src/` — several modules there
- * are maintained as copies and say so in their own header comments.
+ * Metro root. It can import dependency-free `src/` modules at runtime
+ * through `@shared/` (see [SHR-003] below), but most of the rules here
+ * predate that and are maintained as copies that say so in their own
+ * header comments.
  * Copies rot silently: before this suite existed the mobile plan card
  * advertised Starter as "50 contacts" (really 150) and Agency as
  * "unlimited broadcasts" (really 5,000).
@@ -3230,6 +3232,142 @@ describe('mobile/lib/import-counts.ts mirrors import-activity', () => {
   });
 });
 
+describe('[SHR-003] the web modules the mobile bundle runs are dependency-free', () => {
+  it('imports nothing at runtime but other src/ files by relative path', () => {
+    // mobile/metro.config.js bundles `@shared/*` runtime imports straight
+    // from src/ and refuses any package, alias or built-in such a module
+    // imports. That refusal only fires in the mobile CI job, which runs
+    // on mobile/** changes — so a web PR adding `import … from 'date-fns'`
+    // to a shared module would pass here and break the next OTA. This
+    // walks the same graph from the web side. `import type` and
+    // type-only re-exports are erased before Metro sees them.
+    const srcRoot = join(process.cwd(), 'src');
+    const mobileRoot = join(process.cwd(), 'mobile');
+    const SHARED = '@shared/';
+
+    const runtimeSpecifiers = (file: string): string[] => {
+      const source = ts.createSourceFile(
+        file,
+        readFileSync(file, 'utf8'),
+        ts.ScriptTarget.Latest,
+        true
+      );
+      const out: string[] = [];
+      const visit = (node: ts.Node) => {
+        if (
+          ts.isImportDeclaration(node) &&
+          ts.isStringLiteral(node.moduleSpecifier)
+        ) {
+          const clause = node.importClause;
+          const typeOnly =
+            !!clause &&
+            (clause.isTypeOnly ||
+              (!clause.name &&
+                !!clause.namedBindings &&
+                ts.isNamedImports(clause.namedBindings) &&
+                clause.namedBindings.elements.length > 0 &&
+                clause.namedBindings.elements.every((e) => e.isTypeOnly)));
+          if (!typeOnly) out.push(node.moduleSpecifier.text);
+        } else if (
+          ts.isExportDeclaration(node) &&
+          node.moduleSpecifier &&
+          ts.isStringLiteral(node.moduleSpecifier)
+        ) {
+          const typeOnly =
+            node.isTypeOnly ||
+            (!!node.exportClause &&
+              ts.isNamedExports(node.exportClause) &&
+              node.exportClause.elements.length > 0 &&
+              node.exportClause.elements.every((e) => e.isTypeOnly));
+          if (!typeOnly) out.push(node.moduleSpecifier.text);
+        } else if (
+          ts.isCallExpression(node) &&
+          (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+            (ts.isIdentifier(node.expression) &&
+              node.expression.text === 'require'))
+        ) {
+          const [arg] = node.arguments;
+          out.push(arg && ts.isStringLiteral(arg) ? arg.text : '<dynamic>');
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(source);
+      return out;
+    };
+    const resolveFile = (base: string): string | null => {
+      for (const ext of ['.ts', '.tsx', '/index.ts', '/index.tsx']) {
+        if (existsSync(base + ext)) return base + ext;
+      }
+      return null;
+    };
+    const rel = (file: string) => file.slice(process.cwd().length + 1);
+
+    const entries = new Set<string>();
+    for (const dir of ['app', 'components', 'lib']) {
+      for (const file of modulePathsUnder(mobileRoot, dir)) {
+        if (/\.test\.tsx?$/.test(file)) continue;
+        for (const spec of runtimeSpecifiers(file)) {
+          if (!spec.startsWith(SHARED)) continue;
+          const resolved = resolveFile(
+            join(srcRoot, spec.slice(SHARED.length))
+          );
+          expect(resolved, `${rel(file)} imports ${spec}`).not.toBeNull();
+          entries.add(resolved as string);
+        }
+      }
+    }
+    expect(entries.has(join(srcRoot, 'lib/calendar/archive-sort.ts'))).toBe(
+      true
+    );
+
+    const problems: string[] = [];
+    const seen = new Set<string>();
+    const queue = [...entries];
+    while (queue.length > 0) {
+      const file = queue.pop() as string;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      for (const spec of runtimeSpecifiers(file)) {
+        const next = /^\.\.?(\/|$)/.test(spec)
+          ? resolveFile(join(dirname(file), spec))
+          : null;
+        if (!next || !next.startsWith(srcRoot + '/')) {
+          problems.push(`${rel(file)} imports "${spec}"`);
+        } else {
+          queue.push(next);
+        }
+      }
+    }
+    expect(
+      problems,
+      `these web modules are bundled into the mobile app through @shared/ ` +
+        `but import something other than a src/ file by relative path, ` +
+        `which mobile/metro.config.js refuses: ${problems.join('; ')}`
+    ).toEqual([]);
+
+    const ciMobileFilter = readFileSync(
+      join(process.cwd(), '.github/workflows/ci.yml'),
+      'utf8'
+    ).match(/\n {12}mobile:\n((?: {14}(?:- .*|#.*)\n)+)/)?.[1];
+    const otaTrigger = readFileSync(
+      join(process.cwd(), '.github/workflows/eas-update.yml'),
+      'utf8'
+    ).match(/\n {4}paths:\n((?: {6}(?:- .*|#.*)\n)+)/)?.[1];
+    expect(ciMobileFilter, 'ci.yml mobile path filter').toBeDefined();
+    expect(otaTrigger, 'eas-update.yml push paths').toBeDefined();
+    for (const file of [...seen].map(rel).sort()) {
+      expect(
+        ciMobileFilter,
+        `${file} ships in the mobile bundle, so ci.yml's mobile filter must run the mobile job when it changes`
+      ).toContain(`- '${file}'`);
+      expect(
+        otaTrigger,
+        `${file} ships in the mobile bundle, so eas-update.yml must publish when it changes`
+      ).toContain(`- '${file}'`);
+    }
+  });
+});
+
 describe('contact language is one tap from the record on both surfaces', () => {
   it('[ALS-002] the mobile program reaches no server-only web subtree', () => {
     // Mobile type-checks every web module reachable from its @shared/
@@ -3818,28 +3956,34 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
   const webAgenda = webSource('components/calendar/agenda-view.tsx');
   const webCalendar = webSource('app/(dashboard)/calendar/page.tsx');
 
-  it('[CAL-012] keeps the archive and sort rules byte-identical to the web source', () => {
-    const marker = 'export interface ArchivableAppointmentLike {';
-    const body = (source: string) => {
-      const start = source.indexOf(marker);
-      expect(start, 'archive and sort marker missing').toBeGreaterThan(-1);
-      return source.slice(start);
-    };
-    expect(body(mobileTasks)).toBe(
-      body(webSource('lib/calendar/tasks-view.ts'))
+  it('[CAL-012] imports the archive and sort rules from the one web module on both surfaces', () => {
+    expect(mobileTasks).toContain(
+      "export * from '@shared/lib/calendar/archive-sort';"
     );
+    expect(webSource('lib/calendar/tasks-view.ts')).toContain(
+      "export * from './archive-sort';"
+    );
+    for (const source of [
+      mobileTasks,
+      webSource('lib/calendar/tasks-view.ts'),
+    ]) {
+      expect(source).not.toContain(
+        'export interface ArchivableAppointmentLike'
+      );
+      expect(source).not.toContain('export function sortTasksByTime');
+      expect(source).not.toContain('export const ARCHIVED_VIEWS');
+    }
   });
 
-  it('mirrors the archive rule and writes it through the archive route only', () => {
-    expect(mobileTasks).toContain(
+  it('shares the archive rule and writes it through the archive route only', () => {
+    const archiveSort = webSource('lib/calendar/archive-sort.ts');
+    expect(archiveSort).toContain(
       `export const ARCHIVE_BATCH_LIMIT = ${WEB_ARCHIVE_BATCH_LIMIT};`
     );
-    for (const source of [mobileTasks]) {
-      expect(source).toContain("return status !== 'scheduled';");
-      expect(source).toContain(
-        'return !!appointment.archived_at && canArchiveAppointment(appointment.status);'
-      );
-    }
+    expect(archiveSort).toContain("return status !== 'scheduled';");
+    expect(archiveSort).toContain(
+      'return !!appointment.archived_at && canArchiveAppointment(appointment.status);'
+    );
     expect(webCalendar).toContain('fetch("/api/appointments/archive", {');
     expect(
       mobileCalendar.match(/'\/api\/appointments\/archive'/g)
@@ -3923,15 +4067,19 @@ describe('[CAL-012] tasks are sorted by date and time the same way on both surfa
   const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
   const webCalendar = webSource('app/(dashboard)/calendar/page.tsx');
 
-  it('mirrors the sort modes and defaults both lists to Upcoming first', () => {
+  it('shares the sort modes and defaults both lists to Upcoming first', () => {
+    const archiveSort = webSource('lib/calendar/archive-sort.ts');
     for (const [mode, label] of Object.entries(TASK_SORT_LABELS)) {
-      expect(mobileTasks).toContain(`${mode}: '${label}'`);
+      expect(archiveSort).toContain(`${mode}: '${label}'`);
     }
-    expect(mobileTasks).toMatch(
+    expect(archiveSort).toMatch(
       /TASK_SORT_MODES: TaskSortMode\[\] = \[\s*'upcoming',\s*'earliest',\s*'latest',?\s*\]/
     );
-    expect(mobileTasks).toContain(
+    expect(archiveSort).toContain(
       'return day === today ? 0 : day > today ? 1 : 2;'
+    );
+    expect(mobileTasks).toContain(
+      "export * from '@shared/lib/calendar/archive-sort';"
     );
     expect(webCalendar).toContain('useState<TaskSortMode>("upcoming")');
     expect(mobileCalendar).toContain("useState<TaskSortMode>('upcoming')");

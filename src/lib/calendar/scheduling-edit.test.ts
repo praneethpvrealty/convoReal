@@ -53,7 +53,10 @@ vi.mock('@/lib/automations/admin-client', () => ({
           error: null,
         }),
         then: (resolve: (v: { data: unknown; error: null }) => unknown) =>
-          resolve({ data: pendingPatch ? null : rowsByTable[table] || [], error: null }),
+          resolve({
+            data: pendingPatch ? null : rowsByTable[table] || [],
+            error: null,
+          }),
       });
       return builder;
     },
@@ -136,7 +139,8 @@ describe('applySchedulingEdit', () => {
     });
     parseEventUpdate.mockResolvedValue({
       intent: 'schedule',
-      title: 'Meeting with Anand and Akhil - Lotus diagnostic property in Koramangala',
+      title:
+        'Meeting with Anand and Akhil - Lotus diagnostic property in Koramangala',
       event_type: 'meeting',
       start_time: '2026-09-19T16:30',
       end_time: '2026-09-19T17:30',
@@ -150,7 +154,9 @@ describe('applySchedulingEdit', () => {
       await applySchedulingEdit({ ...params, instruction: 'Its at 430pm.' })
     ).toBe('edited');
 
-    expect(parseEventUpdate.mock.calls[0][0].instruction).toBe('Its at 4:30 pm.');
+    expect(parseEventUpdate.mock.calls[0][0].instruction).toBe(
+      'Its at 4:30 pm.'
+    );
     expect(parseEventUpdate.mock.calls[0][0].current).toMatchObject({
       start_time: '2026-09-19T04:30',
       end_time: '2026-09-19T05:30',
@@ -163,14 +169,23 @@ describe('applySchedulingEdit', () => {
 
   it('[CAL-007] asks for the replacement time instead of confirming an unchanged event', async () => {
     expect(
-      await applySchedulingEdit({ ...params, instruction: 'This was the wrong time' })
+      await applySchedulingEdit({
+        ...params,
+        instruction: 'This was the wrong time',
+      })
     ).toBe('edited');
 
-    expect(updates.some((update) => update.table === 'appointments')).toBe(false);
+    expect(updates.some((update) => update.table === 'appointments')).toBe(
+      false
+    );
     expect(parseEventUpdate).not.toHaveBeenCalled();
     expect(burnCredits).not.toHaveBeenCalled();
-    expect(sendTextMessage.mock.calls[0][0].text).toContain('What is the correct date or time?');
-    expect(sendTextMessage.mock.calls[0][0].text).not.toContain('Updated on your calendar');
+    expect(sendTextMessage.mock.calls[0][0].text).toContain(
+      'What is the correct date or time?'
+    );
+    expect(sendTextMessage.mock.calls[0][0].text).not.toContain(
+      'Updated on your calendar'
+    );
   });
 
   it('[CAL-007] does not claim success when a stated replacement time cannot be parsed', async () => {
@@ -190,9 +205,15 @@ describe('applySchedulingEdit', () => {
       await applySchedulingEdit({ ...params, instruction: 'Move it to 430pm' })
     ).toBe('edited');
 
-    expect(updates.some((update) => update.table === 'appointments')).toBe(false);
-    expect(sendTextMessage.mock.calls[0][0].text).toContain("I couldn’t understand the new date or time");
-    expect(sendTextMessage.mock.calls[0][0].text).not.toContain('Updated on your calendar');
+    expect(updates.some((update) => update.table === 'appointments')).toBe(
+      false
+    );
+    expect(sendTextMessage.mock.calls[0][0].text).toContain(
+      'I couldn’t understand the new date or time'
+    );
+    expect(sendTextMessage.mock.calls[0][0].text).not.toContain(
+      'Updated on your calendar'
+    );
   });
 
   it('[CAL-006] preserves the original time when a reply only corrects the event name', async () => {
@@ -215,12 +236,15 @@ describe('applySchedulingEdit', () => {
     expect(
       await applySchedulingEdit({
         ...params,
-        instruction: 'Golden Anand regarding Varthur and Lotus Diagnostic building',
+        instruction:
+          'Golden Anand regarding Varthur and Lotus Diagnostic building',
       })
     ).toBe('edited');
 
     const patch = updates.find((u) => u.table === 'appointments')!.patch;
-    expect(patch.title).toBe('Golden Anand regarding Varthur and Lotus Diagnostic building');
+    expect(patch.title).toBe(
+      'Golden Anand regarding Varthur and Lotus Diagnostic building'
+    );
     expect(patch).not.toHaveProperty('start_time');
     expect(patch).not.toHaveProperty('end_time');
     expect(patch).not.toHaveProperty('reminder_morning_sent');
@@ -259,9 +283,9 @@ describe('applySchedulingEdit', () => {
       end_time: '2026-07-20T12:30:00.000Z',
     });
     expect(await applySchedulingEdit(params)).toBe('edited');
-    expect(updates.find((u) => u.table === 'appointments')?.patch.start_time).toBe(
-      '2026-08-03T11:30:00.000Z'
-    );
+    expect(
+      updates.find((u) => u.table === 'appointments')?.patch.start_time
+    ).toBe('2026-08-03T11:30:00.000Z');
   });
 
   it('removes an explicitly rejected property instead of retaining the old link', async () => {
@@ -305,10 +329,13 @@ describe('applySchedulingEdit', () => {
     expect(
       await applySchedulingEdit({
         ...params,
-        instruction: "This isn't the 40x60 residential house; it is at Pebble Bay apartments",
+        instruction:
+          "This isn't the 40x60 residential house; it is at Pebble Bay apartments",
       })
     ).toBe('edited');
-    expect(updates.find((u) => u.table === 'appointments')?.patch).toMatchObject({
+    expect(
+      updates.find((u) => u.table === 'appointments')?.patch
+    ).toMatchObject({
       contact_id: 'contact-kp',
       property_id: null,
       location: "Mrs. Prabha's residence, Pebble Bay apartments, RMV layout",
