@@ -2570,6 +2570,12 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     );
     expect(mobileScreen).toContain("{tab === 'money' && <FinancialsTab");
     expect(mobileScreen).toContain('<OverviewTab');
+    expect(mobileScreen).toContain('stage_id, value, currency,');
+    expect(mobileScreen).toContain("const currency = head?.currency ?? 'INR';");
+    expect(mobileScreen).toContain('formatDealAmount(amount, currency)');
+    expect(mobileScreen).not.toContain(
+      '<OverviewFigure label="Deal value" value={formatInr('
+    );
   });
 
   it('[TXW-009] prints a stakeholder number with exactly one plus sign on both surfaces', () => {
@@ -2601,6 +2607,12 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     const mobileList = mobileSource('app/(app)/deals.tsx');
     expect(mobileList).toContain('useBoardLayout()');
     expect(mobileList).toContain('BOARD_LAYOUTS.map(');
+    expect(mobileList).toContain('<SectionList<Deal, FlatSection>');
+    expect(mobileList).toContain('? flatStageOrder(stages ?? [])');
+    expect(mobileList).toContain(
+      "const OUTCOME_ORDER: readonly PipelineOutcome[] = [\n  'active',\n  'successful',\n  'lost',\n];"
+    );
+    expect(mobileList).toContain('scrollToLocation({');
     expect(
       webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
     ).toContain('useBoardLayout()');

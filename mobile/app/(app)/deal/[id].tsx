@@ -170,7 +170,7 @@ import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { PipelineStage } from '@/lib/types';
 import { CLOSING_RECORD_LABEL } from '@shared/lib/deals/routes';
-import { dealFee } from '@shared/lib/pipelines/deal-money';
+import { dealFee, formatDealAmount } from '@shared/lib/pipelines/deal-money';
 
 /** `friendlyError` takes the message text, and a rejected fetch can throw
  *  anything — so narrow it once here rather than at every call site. */
@@ -186,6 +186,7 @@ interface DealHead {
   pipeline_id: string;
   stage_id: string;
   value: number | null;
+  currency: string | null;
   brokerage_type: 'percentage' | 'fixed' | null;
   brokerage_value: number | null;
   brokerage_amount: number | null;
@@ -246,7 +247,7 @@ export default function DealWorkspaceScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          'id, title, contact_id, property_id, pipeline_id, stage_id, value, brokerage_type, brokerage_value, brokerage_amount, deal_group_id, status, lost_reason, lost_note, ' +
+          'id, title, contact_id, property_id, pipeline_id, stage_id, value, currency, brokerage_type, brokerage_value, brokerage_amount, deal_group_id, status, lost_reason, lost_note, ' +
             'stage:pipeline_stages(name), contact:contacts(name, second_name), group:deal_groups(id, name)'
         )
         .eq('id', dealId)
@@ -556,12 +557,13 @@ export default function DealWorkspaceScreen() {
               }}
             >
               Calculated brokerage:{' '}
-              {formatInr(
+              {formatDealAmount(
                 brokeragePreview(
                   head?.value ?? null,
                   brokerageType,
                   brokerageValue
-                )
+                ),
+                head?.currency ?? 'INR'
               )}
             </Text>
           ) : null}
@@ -1107,6 +1109,9 @@ function OverviewTab({
     ? (financials?.token.amount ?? null)
     : (financials?.token_amount ?? null);
   const tranches = tranchesQuery.data?.summary ?? null;
+  const currency = head?.currency ?? 'INR';
+  const money = (amount: number | null | undefined) =>
+    amount ? formatDealAmount(amount, currency) : '—';
 
   return (
     <ScrollView contentContainerStyle={styles.list}>
@@ -1307,16 +1312,16 @@ function OverviewTab({
         openLabel={label('money')}
         onOpen={() => onOpenTab('money')}
       >
-        <OverviewFigure label="Deal value" value={formatInr(head?.value)} />
+        <OverviewFigure label="Deal value" value={money(head?.value)} />
         <OverviewFigure
           label="Brokerage"
-          value={brokerage === null ? 'Not set' : formatInr(brokerage)}
+          value={brokerage === null ? 'Not set' : money(brokerage)}
         />
-        <OverviewFigure label="Collected" value={formatInr(collected)} />
+        <OverviewFigure label="Collected" value={money(collected)} />
         {brokerage !== null ? (
           <OverviewFigure
             label="Outstanding"
-            value={formatInr(Math.max(0, brokerage - (collected ?? 0)))}
+            value={money(Math.max(0, brokerage - (collected ?? 0)))}
             strong
           />
         ) : null}
@@ -1324,7 +1329,7 @@ function OverviewTab({
           label={tokenSafe ? 'Token (Token Safe)' : 'Token'}
           value={
             tokenAmount != null
-              ? formatInr(tokenAmount)
+              ? money(tokenAmount)
               : tokenSafe && financials?.token.status
                 ? `Escrow ${financials.token.status}`
                 : '—'
@@ -1334,11 +1339,11 @@ function OverviewTab({
           <>
             <OverviewFigure
               label="Payment schedule received"
-              value={formatInr(tranches.received)}
+              value={money(tranches.received)}
             />
             <OverviewFigure
               label="Payment schedule outstanding"
-              value={formatInr(tranches.outstanding)}
+              value={money(tranches.outstanding)}
             />
           </>
         ) : null}

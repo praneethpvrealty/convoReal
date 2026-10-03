@@ -1,15 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Stack, router } from 'expo-router';
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
   RefreshControl,
   ScrollView,
+  SectionList,
   StyleSheet,
   Text,
   View,
+  type ViewToken,
 } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
@@ -96,6 +98,25 @@ function brokeragePreview(
   const value = Number(raw);
   if (!Number.isFinite(value) || value <= 0) return 0;
   return type === 'fixed' ? value : ((dealValue ?? 0) * value) / 100;
+}
+
+const OUTCOME_ORDER: readonly PipelineOutcome[] = [
+  'active',
+  'successful',
+  'lost',
+];
+
+function flatStageOrder(stages: readonly PipelineStage[]): PipelineStage[] {
+  const byPosition = [...stages].sort((a, b) => a.position - b.position);
+  return OUTCOME_ORDER.flatMap((outcome) =>
+    byPosition.filter((stage) => pipelineOutcomeForStage(stage) === outcome)
+  );
+}
+
+interface FlatSection {
+  stage: PipelineStage;
+  marker: string | null;
+  data: Deal[];
 }
 
 export default function DealsScreen() {
@@ -232,20 +253,69 @@ export default function DealsScreen() {
   const visibleStages = useMemo(
     () =>
       flat
-        ? (stages ?? [])
+        ? flatStageOrder(stages ?? [])
         : (stages ?? []).filter(
             (stage) => pipelineOutcomeForStage(stage) === outcomeView
           ),
     [stages, outcomeView, flat]
   );
-  const firstClosedIndex = {
-    successful: visibleStages.findIndex(
-      (stage) => pipelineOutcomeForStage(stage) === 'successful'
-    ),
-    lost: visibleStages.findIndex(
-      (stage) => pipelineOutcomeForStage(stage) === 'lost'
-    ),
-  };
+  const firstClosedIndex = useMemo(
+    () => ({
+      successful: visibleStages.findIndex(
+        (stage) => pipelineOutcomeForStage(stage) === 'successful'
+      ),
+      lost: visibleStages.findIndex(
+        (stage) => pipelineOutcomeForStage(stage) === 'lost'
+      ),
+    }),
+    [visibleStages]
+  );
+  const flatSections = useMemo<FlatSection[]>(
+    () =>
+      flat
+        ? visibleStages.map((stage, index) => ({
+            stage,
+            marker:
+              index === firstClosedIndex.successful
+                ? 'Closed won'
+                : index === firstClosedIndex.lost
+                  ? 'Lost'
+                  : null,
+            data: boardList.filter((d) => d.stage_id === stage.id),
+          }))
+        : [],
+    [flat, visibleStages, firstClosedIndex, boardList]
+  );
+  const sectionListRef = useRef<SectionList<Deal, FlatSection>>(null);
+  const jumpRef = useRef<{ sectionIndex: number; retries: number } | null>(
+    null
+  );
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      if (jumpRef.current) return;
+      const top = viewableItems.find((token) => token.section)?.section as
+        FlatSection | undefined;
+      if (top) setStageId(top.stage.id);
+    },
+    []
+  );
+
+  function scrollToSection(sectionIndex: number) {
+    sectionListRef.current?.scrollToLocation({
+      sectionIndex,
+      itemIndex: 0,
+      viewOffset: 0,
+      animated: true,
+    });
+  }
+
+  function jumpToStage(index: number) {
+    const stage = visibleStages[index];
+    if (!stage) return;
+    jumpRef.current = { sectionIndex: index, retries: 0 };
+    setStageId(stage.id);
+    scrollToSection(index);
+  }
   const visibleStageCounts = useMemo(
     () =>
       visibleStages.map(
@@ -345,8 +415,10 @@ export default function DealsScreen() {
       });
       return;
     }
-    setOutcomeView(pipelineOutcomeForStage(stage));
-    setStageId(stage.id);
+    if (!flat) {
+      setOutcomeView(pipelineOutcomeForStage(stage));
+      setStageId(stage.id);
+    }
     await Promise.all(
       DEAL_SAVED_QUERY_KEYS.map((queryKey) =>
         queryClient.invalidateQueries({ queryKey })
@@ -523,12 +595,7 @@ export default function DealsScreen() {
           >
             <View style={styles.stageStrip}>
               {visibleStages.map((stage, index) => {
-                const marker =
-                  index === firstClosedIndex.successful
-                    ? 'Closed won'
-                    : index === firstClosedIndex.lost
-                      ? 'Lost'
-                      : null;
+                const marker = flatSections[index]?.marker ?? null;
                 return (
                   <Fragment key={stage.id}>
                     {marker ? (
@@ -547,7 +614,7 @@ export default function DealsScreen() {
                     <FilterChip
                       label={`${stage.name} (${visibleStageCounts[index]})`}
                       active={stage.id === activeStage}
-                      onPress={() => setStageId(stage.id)}
+                      onPress={() => jumpToStage(index)}
                     />
                   </Fragment>
                 );
@@ -570,7 +637,7 @@ export default function DealsScreen() {
         />
       ) : null}
 
-      {segment === 'board' && stageDeals.length > 0 ? (
+      {segment === 'board' && !flat && stageDeals.length > 0 ? (
         <Text style={[styles.stageSummary, { color: colors.textMuted }]}>
           {stageDeals.length} deal{stageDeals.length === 1 ? '' : 's'} ·{' '}
           {stageTotalsLabel(stageTotals(stageDeals), {
@@ -603,6 +670,122 @@ export default function DealsScreen() {
           icon="trending-up-outline"
           title="No pipeline yet"
           subtitle="Create your first sales pipeline on the web app — deals will show up here."
+        />
+      ) : flat ? (
+        <SectionList<Deal, FlatSection>
+          ref={sectionListRef}
+          style={{ flex: 1 }}
+          sections={flatSections}
+          keyExtractor={(d) => d.id}
+          stickySectionHeadersEnabled
+          contentContainerStyle={{ paddingBottom: spacing.xxl }}
+          refreshControl={
+            <RefreshControl
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
+              tintColor={colors.primary}
+            />
+          }
+          onViewableItemsChanged={onViewableItemsChanged}
+          onScrollBeginDrag={() => {
+            jumpRef.current = null;
+          }}
+          onScrollToIndexFailed={(info) => {
+            const jump = jumpRef.current;
+            if (!jump || jump.retries >= 3) return;
+            jump.retries += 1;
+            sectionListRef.current?.getScrollResponder()?.scrollTo({
+              y: info.averageItemLength * info.index,
+              animated: false,
+            });
+            setTimeout(() => {
+              if (jumpRef.current === jump) scrollToSection(jump.sectionIndex);
+            }, 120);
+          }}
+          ListEmptyComponent={
+            <EmptyState
+              icon="file-tray-outline"
+              title="No stages in this pipeline"
+              subtitle="Add stages to the pipeline and its deals will show up here."
+            />
+          }
+          renderSectionHeader={({ section }) => {
+            const totals = stageTotalsLabel(stageTotals(section.data), {
+              paid: isBrokeragePaidStage(section.stage),
+            });
+            return (
+              <View
+                style={[
+                  styles.sectionHeader,
+                  { backgroundColor: colors.background },
+                ]}
+              >
+                {section.marker ? (
+                  <Text
+                    style={[
+                      styles.sectionDivider,
+                      {
+                        color: colors.textFaint,
+                        borderTopColor: colors.border,
+                      },
+                    ]}
+                  >
+                    {section.marker}
+                  </Text>
+                ) : null}
+                <View
+                  style={styles.sectionTitleRow}
+                  accessibilityRole="header"
+                  accessibilityLabel={`${section.stage.name}, ${section.data.length} deal${section.data.length === 1 ? '' : 's'}, ${totals}`}
+                >
+                  <View
+                    style={[
+                      styles.stageDot,
+                      {
+                        backgroundColor: section.stage.color || colors.primary,
+                      },
+                    ]}
+                  />
+                  <Text
+                    style={[styles.sectionTitle, { color: colors.text }]}
+                    numberOfLines={1}
+                  >
+                    {section.stage.name}
+                  </Text>
+                  <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+                    {section.data.length}
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    fontSize: 12.5,
+                    color:
+                      section.data.length === 0
+                        ? colors.textFaint
+                        : colors.textMuted,
+                  }}
+                >
+                  {totals}
+                </Text>
+              </View>
+            );
+          }}
+          renderItem={({ item, index, section }) => (
+            <EnterRow index={index}>
+              <DealCard
+                deal={item}
+                stage={section.stage}
+                onMove={() => setMovingDeal(item)}
+                onReopen={() => void reopenDeal(item)}
+                onEdit={() =>
+                  router.push({
+                    pathname: '/(app)/deal-edit',
+                    params: { id: item.id },
+                  })
+                }
+              />
+            </EnterRow>
+          )}
         />
       ) : (
         <FlatList
@@ -1143,6 +1326,24 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.sm,
     marginLeft: spacing.xs,
   },
+  sectionHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    gap: 2,
+  },
+  sectionDivider: {
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stageDot: { width: 10, height: 10, borderRadius: 5 },
+  sectionTitle: { flexShrink: 1, fontSize: 14.5, fontFamily: fonts.bold },
   stageSummary: {
     fontSize: 12.5,
     paddingHorizontal: spacing.lg,
