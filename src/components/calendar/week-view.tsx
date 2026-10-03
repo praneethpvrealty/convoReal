@@ -121,7 +121,7 @@ export function WeekView({
                   href={dealDateHref(d.dealId)}
                   title={`${DEAL_DATE_KIND_LABELS[d.kind]} · ${d.subject} · ${deadlineLabel(d.daysLeft)}`}
                   className={cn(
-                    'block w-full rounded-md border px-1.5 py-1 text-left text-[10px] leading-snug transition-colors',
+                    'block w-full rounded-md border px-1.5 py-1 text-left text-[11px] leading-snug transition-colors',
                     DEAL_DATE_META.chip,
                     d.urgency === 'overdue' && 'border-rose-500/50'
                   )}
@@ -148,7 +148,7 @@ export function WeekView({
                     key={ev.id}
                     onClick={() => onEventClick(ev)}
                     className={cn(
-                      'block w-full rounded-md border px-1.5 py-1 text-left text-[10px] leading-snug transition-colors',
+                      'block w-full rounded-md border px-1.5 py-1 text-left text-[11px] leading-snug transition-colors',
                       meta.chip,
                       ev.status === 'cancelled' && 'line-through opacity-50',
                       ev.status === 'completed' && 'opacity-60',
@@ -162,7 +162,7 @@ export function WeekView({
                       </span>
                       {assignee && (
                         <span
-                          className="ml-auto rounded bg-slate-900/60 px-1 text-[8px] font-bold"
+                          className="ml-auto rounded bg-slate-900/60 px-1 text-[10px] font-bold"
                           title={assignee}
                         >
                           {memberInitials(assignee)}
