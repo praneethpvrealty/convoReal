@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { CONTACT_LIST_COLUMNS } from './list-columns';
 import {
+  CONTACTS_LOAD_TIMEOUT_MS,
   CONTACTS_PAGE_SIZE,
   loadContactsPage,
   type ContactListParams,
@@ -222,4 +223,28 @@ describe('loadContactsPage', () => {
       loadContactsPage(db, baseParams, async () => [])
     ).rejects.toEqual({ message: 'boom' });
   });
+
+  it('rejects after the deadline when a request never settles', async () => {
+    vi.useFakeTimers();
+    const hanging = {
+      from: () => {
+        const chain: Record<string, unknown> = {};
+        for (const method of CHAIN_METHODS) chain[method] = () => chain;
+        chain.then = () => undefined;
+        return chain;
+      },
+      rpc: () => ({ maybeSingle: () => new Promise(() => undefined) }),
+    } as unknown as SupabaseClient;
+    const result = loadContactsPage(hanging, baseParams, async () => []);
+    const settled = result.then(
+      () => 'resolved',
+      (error: Error) => error.message
+    );
+    await vi.advanceTimersByTimeAsync(CONTACTS_LOAD_TIMEOUT_MS);
+    expect(await settled).toBe('contacts fetch timed out after 20s');
+  });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });

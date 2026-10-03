@@ -144,7 +144,31 @@ const areaSearchClause = (term: string, options: AreaOption[]) => {
     : '';
 };
 
+export const CONTACTS_LOAD_TIMEOUT_MS = 20_000;
+
 export async function loadContactsPage(
+  db: DB,
+  params: ContactListParams,
+  areaOptions: () => Promise<AreaOption[]>
+): Promise<ContactListPage> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error('contacts fetch timed out after 20s')),
+      CONTACTS_LOAD_TIMEOUT_MS
+    );
+  });
+  try {
+    return await Promise.race([
+      runContactsPage(db, params, areaOptions),
+      deadline,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function runContactsPage(
   db: DB,
   params: ContactListParams,
   areaOptions: () => Promise<AreaOption[]>
