@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 3 October 2026
 
+- **Inbox bubbles render WhatsApp formatting, and previews start at the
+  message.** Bold, italic, strikethrough and monospace now show the way
+  WhatsApp shows them, on web and in the mobile app, instead of as raw
+  asterisks and underscores. The conversation list's preview skips a
+  bold-only header line such as "Your Property Update" and shows the
+  first line of the body, so twelve digests no longer read identically.
+  The small purple dot that sat on every open conversation is gone; a
+  dot now appears only for pending, closed or archived conversations.
 - **The Calendar loads once and fits the screen.** Opening it showed a
   property-card skeleton, then a spinner, before the month appeared; it
   now shows one calendar-shaped skeleton and fetches appointments and
