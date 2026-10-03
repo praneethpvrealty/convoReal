@@ -41,6 +41,8 @@ import {
   pulseVisitorLabel,
   groupEventsByVisitor,
   nextPulseFeedCursor,
+  nextRenderedListingCount,
+  PULSE_LISTINGS_RENDER_STEP,
   visitorContactRoute,
   type DedupedPulseEvent,
   type PulseFeedCursor,
@@ -77,6 +79,9 @@ export default function PulseScreen() {
   const [filter, setFilter] = useState<FeedFilter>('all');
   const [expandedVisitors, setExpandedVisitors] = useState<Set<string>>(
     new Set()
+  );
+  const [renderedListings, setRenderedListings] = useState(
+    PULSE_LISTINGS_RENDER_STEP
   );
   const [viewersFor, setViewersFor] = useState<{
     id: string;
@@ -209,8 +214,19 @@ export default function PulseScreen() {
                 style={styles.listingScroller}
                 contentContainerStyle={{ gap: spacing.sm }}
                 accessibilityLabel="Viewed listings"
+                scrollEventThrottle={100}
+                onScroll={({ nativeEvent }) => {
+                  const total = top.data.length;
+                  setRenderedListings((rendered) =>
+                    nextRenderedListingCount(rendered, total, {
+                      offsetY: nativeEvent.contentOffset.y,
+                      viewportHeight: nativeEvent.layoutMeasurement.height,
+                      contentHeight: nativeEvent.contentSize.height,
+                    })
+                  );
+                }}
               >
-                {top.data.map((p) => (
+                {top.data.slice(0, renderedListings).map((p) => (
                   <TopListingCard
                     key={p.propertyId}
                     listing={p}

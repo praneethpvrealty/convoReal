@@ -129,6 +129,24 @@ export const PULSE_FEED_PAGE_SIZE = 200;
 
 export const PULSE_VIEWED_LISTINGS_LIMIT = 500;
 
+export const PULSE_LISTINGS_RENDER_STEP = 20;
+
+const LISTINGS_END_THRESHOLD_PX = 200;
+
+export function nextRenderedListingCount(
+  rendered: number,
+  total: number,
+  scroll: { offsetY: number; viewportHeight: number; contentHeight: number }
+): number {
+  if (rendered >= total) return rendered;
+  const nearEnd =
+    scroll.offsetY + scroll.viewportHeight >=
+    scroll.contentHeight - LISTINGS_END_THRESHOLD_PX;
+  return nearEnd
+    ? Math.min(total, rendered + PULSE_LISTINGS_RENDER_STEP)
+    : rendered;
+}
+
 export interface PulseFeedCursor {
   createdAt: string;
   id: string;

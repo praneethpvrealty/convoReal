@@ -4,7 +4,9 @@ import {
   formatDwellTime,
   groupEventsByVisitor,
   nextPulseFeedCursor,
+  nextRenderedListingCount,
   PULSE_FEED_PAGE_SIZE,
+  PULSE_LISTINGS_RENDER_STEP,
   pulseFeedCursorFilter,
   pulseVisitorLabel,
   visitorContactRoute,
@@ -310,5 +312,25 @@ describe('[PLS-003] visitor label', () => {
         timeAgo
       )
     ).toBe('Anonymous guest · e3e4ba9d');
+  });
+});
+
+describe('[PLS-004] viewed listings render incrementally', () => {
+  const scroll = (offsetY: number) => ({
+    offsetY,
+    viewportHeight: 440,
+    contentHeight: 2000,
+  });
+
+  it('mounts another step only when the scroller nears its end', () => {
+    expect(nextRenderedListingCount(20, 500, scroll(0))).toBe(20);
+    expect(nextRenderedListingCount(20, 500, scroll(1400))).toBe(
+      20 + PULSE_LISTINGS_RENDER_STEP
+    );
+  });
+
+  it('never renders past the listings that exist', () => {
+    expect(nextRenderedListingCount(495, 500, scroll(1560))).toBe(500);
+    expect(nextRenderedListingCount(500, 500, scroll(1560))).toBe(500);
   });
 });

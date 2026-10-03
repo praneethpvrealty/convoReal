@@ -4409,7 +4409,7 @@ describe('[PLS-004] mobile Showcase Pulse lists every viewed listing like web', 
     );
     const screen = mobileSource('app/(app)/pulse.tsx');
     expect(screen).toMatch(/<ScrollView\s+nestedScrollEnabled/);
-    expect(screen).toContain('{top.data.map(');
+    expect(screen).toContain('top.data.slice(0, renderedListings).map(');
   });
 });
 
