@@ -8,6 +8,7 @@ import {
   propertyFiltersKey,
   PROPERTY_SORTS,
   statusParam,
+  sumAttentionListings,
   type PropertyFilters,
 } from './property-filters';
 
@@ -177,5 +178,45 @@ describe('propertyFiltersKey', () => {
     expect(propertyFiltersKey(withFilters({ minPrice: 0 }))).not.toBe(
       propertyFiltersKey(EMPTY_PROPERTY_FILTERS)
     );
+  });
+});
+
+describe('[PRP-030] needs attention filter', () => {
+  it('sends needs_attention=true when on and nothing when off', () => {
+    expect(applied(withFilters({ needsAttention: true }))).toEqual({
+      needs_attention: 'true',
+    });
+    expect(applied(EMPTY_PROPERTY_FILTERS)).not.toHaveProperty(
+      'needs_attention'
+    );
+  });
+
+  it('counts as an active filter and makes the filters dirty', () => {
+    const on = withFilters({ needsAttention: true });
+    expect(activePropertyFilterCount(on)).toBe(1);
+    expect(isPropertyFiltersDirty(on)).toBe(true);
+  });
+
+  it('changes the query key', () => {
+    expect(propertyFiltersKey(withFilters({ needsAttention: true }))).not.toBe(
+      propertyFiltersKey(EMPTY_PROPERTY_FILTERS)
+    );
+  });
+
+  it('pins status to Available so it never conflicts', () => {
+    expect(
+      statusParam(withFilters({ needsAttention: true, status: 'Sold' }), true)
+    ).toEqual(['status', 'Available']);
+  });
+
+  it('sums listings across rows, tolerating string bigints', () => {
+    expect(
+      sumAttentionListings([
+        { listings: '3' },
+        { listings: 4 },
+        { listings: null },
+      ])
+    ).toBe(7);
+    expect(sumAttentionListings(null)).toBe(0);
   });
 });

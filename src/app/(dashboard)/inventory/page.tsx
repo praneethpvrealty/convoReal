@@ -2,30 +2,30 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import { pushUrl } from '@/lib/navigation';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import InventoryContent from './inventory-content';
 import ProjectsContent from './projects-content';
-import AdsPage from '../ads/ads-content';
 import { FavoriteButton } from '@/components/layout/favorite-button';
 
-const META_ADS_ENABLED = !!process.env.NEXT_PUBLIC_META_ADS_APP_ID;
-
-type TabId = 'list' | 'projects' | 'ads';
+type TabId = 'list' | 'projects';
 
 export default function InventoryPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const tabs = useMemo(() => {
-    const list = [
+  const tabs = useMemo(
+    () => [
       { id: 'list' as TabId, label: 'Inventory List' },
       { id: 'projects' as TabId, label: 'Projects' },
-    ];
-    if (META_ADS_ENABLED) {
-      list.push({ id: 'ads' as TabId, label: 'Ads Campaigns' });
-    }
-    return list;
-  }, []);
+    ],
+    []
+  );
+
+  const legacyAdsTab = searchParams.get('tab') === 'ads';
+
+  useEffect(() => {
+    if (legacyAdsTab) router.replace('/ads');
+  }, [legacyAdsTab, router]);
 
   const activeTab = useMemo(() => {
     const tab = searchParams.get('tab') as TabId;
@@ -34,8 +34,6 @@ export default function InventoryPage() {
 
   const tabMeta = useMemo(() => {
     switch (activeTab) {
-      case 'ads':
-        return { label: 'Ads', href: '/inventory?tab=ads', icon: 'Megaphone' };
       case 'projects':
         return {
           label: 'Projects',
@@ -61,8 +59,7 @@ export default function InventoryPage() {
             Inventory
           </h1>
           <p className="mt-1.5 text-xs leading-relaxed font-medium text-slate-400 sm:text-sm">
-            Manage listings, create flyers, track approvals, and run ad
-            campaigns.
+            Manage listings, create flyers and track approvals.
           </p>
         </div>
         <FavoriteButton
@@ -95,7 +92,6 @@ export default function InventoryPage() {
       <div className="relative z-10">
         {activeTab === 'list' && <InventoryContent />}
         {activeTab === 'projects' && <ProjectsContent />}
-        {activeTab === 'ads' && <AdsPage />}
       </div>
     </div>
   );

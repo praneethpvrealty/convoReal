@@ -320,3 +320,43 @@ describe('PropertyList — card layout', () => {
     expect(badges().className).toContain('left-10');
   });
 });
+
+describe('PropertyList — Meta ad badge', () => {
+  it('[PRP-032] links an ACTIVE campaign as "Ad live" to /ads', () => {
+    render(
+      <PropertyList
+        properties={[listing('p1', 'Sarjapur Villa')]}
+        {...baseProps}
+        adStatuses={{ p1: 'ACTIVE' }}
+      />
+    );
+    const badge = screen.getByText('Ad live').closest('a');
+    expect(badge?.getAttribute('href')).toBe('/ads');
+    expect(screen.queryByText('Ad paused')).toBeNull();
+  });
+
+  it('[PRP-032] shows a PAUSED campaign as "Ad paused"', () => {
+    render(
+      <PropertyList
+        properties={[listing('p1', 'Sarjapur Villa')]}
+        {...baseProps}
+        adStatuses={{ p1: 'PAUSED' }}
+      />
+    );
+    expect(
+      screen.getByText('Ad paused').closest('a')?.getAttribute('href')
+    ).toBe('/ads');
+    expect(screen.queryByText('Ad live')).toBeNull();
+  });
+
+  it('[PRP-032] renders no ad badge without adStatuses', () => {
+    render(
+      <PropertyList
+        properties={[listing('p1', 'Sarjapur Villa')]}
+        {...baseProps}
+      />
+    );
+    expect(screen.queryByText('Ad live')).toBeNull();
+    expect(screen.queryByText('Ad paused')).toBeNull();
+  });
+});

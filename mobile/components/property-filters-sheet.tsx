@@ -38,6 +38,7 @@ export function PropertyFiltersSheet({
   resultCount,
   loading,
   hasNear,
+  attentionCount,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -48,6 +49,7 @@ export function PropertyFiltersSheet({
   /** A location anchor is active, so the route orders by distance and
    *  the sort chips would be a promise it does not keep. */
   hasNear: boolean;
+  attentionCount?: number;
 }) {
   const { colors, fonts: f } = useTheme();
 
@@ -84,6 +86,23 @@ export function PropertyFiltersSheet({
           gap: spacing.lg,
         }}
       >
+        <FilterGroup
+          label="Needs attention"
+          hint="Available listings missing photos, a price or a map pin"
+        >
+          <PillWrap>
+            <FilterPill
+              label={
+                attentionCount === undefined
+                  ? 'Needs attention'
+                  : `Needs attention · ${attentionCount}`
+              }
+              active={filters.needsAttention}
+              onPress={() => set({ needsAttention: !filters.needsAttention })}
+            />
+          </PillWrap>
+        </FilterGroup>
+
         {/* A category matches every subtype under it, so it sits above
             them rather than among them. */}
         <FilterGroup label="Category">

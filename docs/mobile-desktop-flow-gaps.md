@@ -18,7 +18,7 @@ Audit of the Expo app (`mobile/`, 27 route files) against the Next.js dashboard 
 | Team invitations               | `/api/invitations`, `/api/beta-invites`           | —                                                                    |
 | Portal import                  | `/api/portal-import`                              | —                                                                    |
 | Listing video / YouTube upload | `/api/youtube`                                    | —                                                                    |
-| Meta Ads                       | `/inventory?tab=ads`                              | Deliberately excluded ("Post Ad stays web-only").                    |
+| Meta Ads                       | `/ads`                                            | Deliberately excluded ("Post Ad stays web-only").                    |
 | Marketplace / match unlocks    | `/api/marketplace`, `/api/match-unlocks`          | —                                                                    |
 | Admin panel                    | `/admin`                                          | Super-admin only.                                                    |
 | Bug reports                    | `/api/bug-reports`                                | Mobile has only an error boundary.                                   |

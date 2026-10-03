@@ -25,6 +25,7 @@ export interface PropertyFilters {
   showcase: 'true' | 'false' | null;
   minPrice: number | null;
   maxPrice: number | null;
+  needsAttention: boolean;
   sort: PropertySort;
 }
 
@@ -35,6 +36,7 @@ export const EMPTY_PROPERTY_FILTERS: PropertyFilters = {
   showcase: null,
   minPrice: null,
   maxPrice: null,
+  needsAttention: false,
   sort: 'newest',
 };
 
@@ -76,14 +78,16 @@ export const PROPERTY_SORTS: {
 /** How many narrowing filters are on. Sort orders rather than narrows,
  *  so it stays out of the badge — same rule as the Contacts chip. */
 export function activePropertyFilterCount(filters: PropertyFilters): number {
-  return [
-    filters.type,
-    filters.status,
-    filters.source,
-    filters.showcase,
-    filters.minPrice,
-    filters.maxPrice,
-  ].filter((v) => v !== null).length;
+  return (
+    [
+      filters.type,
+      filters.status,
+      filters.source,
+      filters.showcase,
+      filters.minPrice,
+      filters.maxPrice,
+    ].filter((v) => v !== null).length + (filters.needsAttention ? 1 : 0)
+  );
 }
 
 /** True once anything differs from the defaults, sort included — what
@@ -101,6 +105,7 @@ export function propertyFiltersKey(filters: PropertyFilters): string {
     filters.showcase ?? '',
     filters.minPrice ?? '',
     filters.maxPrice ?? '',
+    filters.needsAttention ? 'attention' : '',
     filters.sort,
   ].join('|');
 }
@@ -116,6 +121,7 @@ export function statusParam(
   filters: PropertyFilters,
   includeUnavailable: boolean
 ): [name: string, value: string] {
+  if (filters.needsAttention) return ['status', 'Available'];
   if (filters.status) return ['status', filters.status];
   if (includeUnavailable) return ['exclude_archived', 'true'];
   return ['status', 'Available'];
@@ -134,6 +140,7 @@ export function applyPropertyFilterParams(
   filters: PropertyFilters,
   hasNear: boolean
 ): URLSearchParams {
+  if (filters.needsAttention) params.set('needs_attention', 'true');
   if (filters.type) params.set('type', filters.type);
   if (filters.source) params.set('listing_source', filters.source);
   if (filters.showcase) params.set('is_published', filters.showcase);
@@ -150,4 +157,17 @@ export function applyPropertyFilterParams(
     }
   }
   return params;
+}
+
+export interface AttentionCountRow {
+  listings: number | string | null;
+}
+
+export function sumAttentionListings(
+  rows: readonly AttentionCountRow[] | null | undefined
+): number {
+  return (rows ?? []).reduce((sum, row) => {
+    const n = Number(row.listings ?? 0);
+    return sum + (Number.isFinite(n) ? n : 0);
+  }, 0);
 }
