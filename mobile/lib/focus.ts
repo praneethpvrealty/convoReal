@@ -113,6 +113,117 @@ export function deadlineLabel(daysLeft: number): string {
   return `Due in ${daysLeft} days`;
 }
 
+const DEADLINE_KIND_ORDER: Record<FocusDeadlineKind, number> = {
+  milestone: 0,
+  payment: 1,
+  expected_close: 2,
+};
+
+/** Mirrored from src/lib/deals/deadlines.ts (sortDeadlines). */
+export function sortDeadlines<
+  T extends Pick<FocusDeadline, 'dueDate' | 'kind' | 'title'>,
+>(items: readonly T[]): T[] {
+  return [...items].sort(
+    (a, b) =>
+      a.dueDate.localeCompare(b.dueDate) ||
+      DEADLINE_KIND_ORDER[a.kind] - DEADLINE_KIND_ORDER[b.kind] ||
+      a.title.localeCompare(b.title)
+  );
+}
+
+/** Mirrored from src/lib/deals/deadlines.ts (DealDeadlineGroup). */
+export interface FocusDeadlineGroup {
+  dealId: string;
+  subject: string;
+  titles: string[];
+  dueDate: string;
+  daysLeft: number;
+  urgency: FocusDeadlineUrgency;
+  items: FocusDeadline[];
+}
+
+/** Mirrored from src/lib/deals/deadlines.ts (groupDeadlinesByDeal). */
+export function groupDeadlinesByDeal(
+  items: readonly FocusDeadline[]
+): FocusDeadlineGroup[] {
+  const groups = new Map<string, FocusDeadlineGroup>();
+  for (const d of sortDeadlines(items)) {
+    const group = groups.get(d.dealId);
+    if (!group) {
+      groups.set(d.dealId, {
+        dealId: d.dealId,
+        subject: d.subject,
+        titles: [d.title],
+        dueDate: d.dueDate,
+        daysLeft: d.daysLeft,
+        urgency: d.urgency,
+        items: [d],
+      });
+      continue;
+    }
+    group.items.push(d);
+    if (!group.titles.includes(d.title)) group.titles.push(d.title);
+  }
+  return [...groups.values()];
+}
+
+/** Mirrored from src/lib/deals/deadlines.ts (summarizeDeadlines). */
+export function summarizeDeadlines(
+  items: readonly Pick<FocusDeadline, 'urgency'>[]
+): Omit<FocusDeadlines, 'items'> {
+  return {
+    total: items.length,
+    overdue: items.filter((d) => d.urgency === 'overdue').length,
+    dueToday: items.filter((d) => d.urgency === 'today').length,
+    soon: items.filter((d) => d.urgency === 'soon').length,
+  };
+}
+
+export const STALE_REQUEST_HOURS = 72;
+
+export const REQUEST_URGENCY_LABELS: Record<FocusUrgency, string> = {
+  now: 'Now',
+  soon: 'Soon',
+  later: 'When you can',
+};
+
+/** Mirrored from src/app/(dashboard)/dashboard/focus-content.tsx (isStale). */
+export function isStaleRequest(
+  request: Pick<FocusRequest, 'urgency' | 'ageHours'>
+): boolean {
+  return request.urgency !== 'now' && request.ageHours >= STALE_REQUEST_HOURS;
+}
+
+/** Mirrored from src/app/(dashboard)/dashboard/focus-content.tsx (requestBadge). */
+export function requestBadge(
+  request: Pick<FocusRequest, 'urgency' | 'ageHours'>
+): { label: string; urgency: FocusUrgency } {
+  if (isStaleRequest(request))
+    return {
+      label: `${Math.floor(request.ageHours / 24)} d`,
+      urgency: 'later',
+    };
+  return {
+    label: REQUEST_URGENCY_LABELS[request.urgency],
+    urgency: request.urgency,
+  };
+}
+
+export function summarizeRequests(
+  requests: readonly Pick<FocusRequest, 'urgency' | 'ageHours'>[]
+): { now: number; stale: number; total: number; summary: string } {
+  const now = requests.filter((r) => r.urgency === 'now').length;
+  const stale = requests.filter(isStaleRequest).length;
+  const summary = requests.length
+    ? [
+        `${now} needing an answer now`,
+        `${requests.length} open in total`,
+        ...(stale > 0 ? [`${stale} waiting over 3 days`] : []),
+      ].join(' · ')
+    : '';
+  return { now, stale, total: requests.length, summary };
+}
+
 export interface FocusSnapshot {
   tasks: FocusTasks;
   deadlines: FocusDeadlines;

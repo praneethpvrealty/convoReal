@@ -3740,6 +3740,29 @@ describe('[TXW-020] deal deadlines reach both surfaces from the Focus snapshot',
     expect(webToday).toContain('loadDealDeadlines(');
   });
 
+  it('groups deadlines per deal and badges stale requests the same way on both screens', () => {
+    for (const line of [
+      'export function groupDeadlinesByDeal(',
+      'if (!group.titles.includes(d.title)) group.titles.push(d.title);',
+      'export const STALE_REQUEST_HOURS = 72;',
+      "return request.urgency !== 'now' && request.ageHours >= STALE_REQUEST_HOURS;",
+      'label: `${Math.floor(request.ageHours / 24)} d`,',
+      '`${now} needing an answer now`,',
+      '`${requests.length} open in total`,',
+      '`${stale} waiting over 3 days`',
+    ]) {
+      expect(mobileFocus, `mobile focus lacks ${line}`).toContain(line);
+    }
+    expect(webFocus).toContain('const STALE_REQUEST_HOURS = 72;');
+    expect(webFocus).toContain('groupDeadlinesByDeal(');
+    expect(webFocus).toContain('`${requestsNow} needing an answer now`');
+    expect(webFocus).toContain('`${requests.all.length} open in total`');
+    expect(webFocus).toContain('`${requestsStale} waiting over 3 days`');
+    expect(mobileScreen).toContain('groupDeadlinesByDeal(');
+    expect(mobileScreen).toContain('requestBadge(request)');
+    expect(mobileScreen).toContain('summarizeRequests(');
+  });
+
   it('reads the same SQL rule from the digest and never a hand-rolled query', () => {
     expect(digest).toContain('loadDealDeadlineRowsForAccount(');
     expect(digest).toContain('deadlinesForAgent(');
