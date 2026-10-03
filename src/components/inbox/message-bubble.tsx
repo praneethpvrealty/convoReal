@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { FormattedText } from '@/components/inbox/formatted-text';
 import type { Message, MessageReaction } from '@/types';
 import {
   Clock,
@@ -170,7 +171,9 @@ function MessageContent({ message }: { message: Message }) {
   switch (message.content_type) {
     case 'text':
       return (
-        <p className="text-sm break-words whitespace-pre-wrap">{displayText}</p>
+        <p className="text-sm break-words whitespace-pre-wrap">
+          <FormattedText text={displayText} />
+        </p>
       );
 
     case 'image':
@@ -183,7 +186,7 @@ function MessageContent({ message }: { message: Message }) {
           )}
           {displayText && (
             <p className="mt-1 text-sm break-words whitespace-pre-wrap">
-              {displayText}
+              <FormattedText text={displayText} />
             </p>
           )}
         </div>
@@ -203,7 +206,7 @@ function MessageContent({ message }: { message: Message }) {
           )}
           {displayText && (
             <p className="mt-1 text-sm break-words whitespace-pre-wrap">
-              {displayText}
+              <FormattedText text={displayText} />
             </p>
           )}
         </div>
@@ -245,7 +248,7 @@ function MessageContent({ message }: { message: Message }) {
           </span>
           {displayText && (
             <p className="mt-1 text-sm break-words whitespace-pre-wrap">
-              {displayText}
+              <FormattedText text={displayText} />
             </p>
           )}
         </div>
@@ -272,7 +275,7 @@ function MessageContent({ message }: { message: Message }) {
             Button reply
           </span>
           <p className="text-sm break-words whitespace-pre-wrap">
-            {displayText || '[Interactive reply]'}
+            <FormattedText text={displayText || '[Interactive reply]'} />
           </p>
         </div>
       );
@@ -281,7 +284,7 @@ function MessageContent({ message }: { message: Message }) {
     default:
       return (
         <p className="text-sm break-words whitespace-pre-wrap">
-          {displayText || '[Unsupported message type]'}
+          <FormattedText text={displayText || '[Unsupported message type]'} />
         </p>
       );
   }

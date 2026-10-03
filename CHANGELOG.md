@@ -29,6 +29,14 @@ than a written entry. Newest first.
   that replaces it, the Requirements tiles show placeholders instead of
   four zeros while the list loads, and the Archived filter's empty state
   says "No archived contacts" rather than "No contacts yet".
+- **Inbox bubbles render WhatsApp formatting, and previews start at the
+  message.** Bold, italic, strikethrough and monospace now show the way
+  WhatsApp shows them, on web and in the mobile app, instead of as raw
+  asterisks and underscores. The conversation list's preview skips a
+  bold-only header line such as "Your Property Update" and shows the
+  first line of the body, so twelve digests no longer read identically.
+  The small purple dot that sat on every open conversation is gone; a
+  dot now appears only for pending, closed or archived conversations.
 - **The Contacts table scans in one rhythm.** Every row is one line
   tall: the Areas, Categories and Tags columns show at most two chips
   and fold the rest into a "+N" whose tooltip names them, the HOT and
