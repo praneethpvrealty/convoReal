@@ -32,7 +32,7 @@
  *     INSERT raises 23505 and the runner catches & exits.
  */
 
-import { supabaseAdmin } from "./admin-client";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { storagePublicUrl } from "@/lib/storage/url";
 import {
   engineSendInteractiveButtons,

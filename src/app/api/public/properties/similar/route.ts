@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/automations/admin-client";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { storagePublicUrl } from "@/lib/storage/url";
 import { toPublicListingView } from "@/lib/inventory/showcase-visibility";
 import type { Property } from "@/types";

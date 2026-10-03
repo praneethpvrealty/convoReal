@@ -5,7 +5,7 @@
 // "App" maps to both the in-app bell and mobile push.
 // ============================================================
 
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getNotificationEvent } from '@/lib/notifications/events';
 import type { NotificationChannels } from '@/lib/notifications/create';
 

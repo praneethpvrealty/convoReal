@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { resolveAudienceOnServer, sendBroadcastRecipients } from '@/lib/broadcasts/sender';
 
 const INSERT_BATCH_SIZE = 200;

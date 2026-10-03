@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/automations/admin-client";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { renderFlyer } from "@/lib/inventory/flyer-render";
 import { parseFlyerOptions } from "@/lib/inventory/flyer-options";
 import { storagePublicUrl } from "@/lib/storage/url";

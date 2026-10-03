@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
 import { normalizePhone } from '@/lib/whatsapp/phone-utils';
 import { digestPeriod } from '@/lib/owners/owner-digest';
@@ -47,10 +47,7 @@ export async function GET() {
       return NextResponse.json({ data: { accounts: [] } });
     }
 
-    const admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const admin = supabaseAdmin();
 
     const { data: sourceContacts } = await admin.rpc('find_agent_source_contacts', {
       p_phone_last10: last10,

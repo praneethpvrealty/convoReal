@@ -125,9 +125,9 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
     }
 
     beforeAll(async () => {
-      const { billingAdmin } = await import('@/lib/billing/admin-client');
+      const { supabaseAdmin } = await import('@/lib/supabase/admin');
       const { getOrCreateWallet } = await import('./wallet');
-      supabase = billingAdmin();
+      supabase = supabaseAdmin();
 
       // A brand-new throwaway auth user — needed only so the
       // `accounts.owner_user_id` FK (NOT NULL, REFERENCES auth.users)

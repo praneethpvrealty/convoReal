@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { toErrorResponse } from '@/lib/auth/account';
 import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
-import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export async function GET() {
   try {

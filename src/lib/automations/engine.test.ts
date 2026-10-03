@@ -16,7 +16,7 @@ const h = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("./admin-client", () => {
+vi.mock("@/lib/supabase/admin", () => {
   const { state } = h;
 
   function resolve(ops: {

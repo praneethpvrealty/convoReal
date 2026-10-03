@@ -4,7 +4,7 @@ import {
   type MediaKind,
 } from '@/lib/whatsapp/meta-api'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
-import { supabaseAdmin } from './admin-client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 // ------------------------------------------------------------
 // Flows-side Meta sender (interactive variants).

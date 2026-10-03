@@ -3,7 +3,7 @@ import {
   withConversationLease,
 } from '@/lib/ai/qualification-lease';
 import { lookupConversation } from '@/lib/conversations/resolve';
-import { supabaseAdmin } from './admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { resumePendingExecution, type AutomationContext } from './engine';
 
 export const RESUME_BATCH_LIMIT = 50;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getPlanLimits } from '@/lib/billing/gates';
 import { isDowngrade } from '@/lib/billing/plan-config';
 import type { Plan } from '@/lib/billing/types';
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     const effectiveAt = sub.current_period_end ?? new Date().toISOString();
 
-    const admin = billingAdmin();
+    const admin = supabaseAdmin();
     await admin
       .from('subscriptions')
       .update({ pending_plan: newPlan, pending_plan_effective_at: effectiveAt })

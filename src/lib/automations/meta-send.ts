@@ -1,5 +1,5 @@
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
-import { supabaseAdmin } from './admin-client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 // ------------------------------------------------------------
 // Automation-side Meta sender.

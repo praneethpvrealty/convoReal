@@ -19,7 +19,7 @@
 // WhatsApp, so they pass whatsapp:false and add in-app + push).
 // ============================================================
 
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   sendWhatsAppMessageAndPersist,
   type DispatcherResult,

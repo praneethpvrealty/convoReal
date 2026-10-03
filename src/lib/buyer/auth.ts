@@ -16,10 +16,8 @@
 // ============================================================
 
 import { NextResponse, type NextRequest } from 'next/server';
-import {
-  createClient as createAdminClient,
-  type SupabaseClient,
-} from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 import { createClient } from '@/lib/supabase/server';
 import { UnauthorizedError, toErrorResponse } from '@/lib/auth/account';
@@ -50,17 +48,10 @@ export function toBuyerErrorResponse(err: unknown): NextResponse {
   return toErrorResponse(err);
 }
 
-let _admin: SupabaseClient | null = null;
 /** Service-role client for buyer routes. Bypasses RLS — every query
  *  built on it MUST be scoped through the caller's BuyerContext. */
 export function buyerAdmin(): SupabaseClient {
-  if (!_admin) {
-    _admin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-  }
-  return _admin;
+  return supabaseAdmin();
 }
 
 export interface BuyerContactLink {

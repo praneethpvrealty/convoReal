@@ -55,8 +55,8 @@ function makeAdmin() {
   };
 }
 
-vi.mock('@/lib/billing/admin-client', () => ({
-  billingAdmin: () => makeAdmin(),
+vi.mock('@/lib/supabase/admin', () => ({
+  supabaseAdmin: () => makeAdmin(),
 }));
 
 const grantMock = vi.fn(async () => undefined);

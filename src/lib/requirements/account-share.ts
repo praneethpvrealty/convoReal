@@ -470,6 +470,6 @@ function toSummary(
 }
 
 async function lookupAdmin() {
-  const { supabaseAdmin } = await import('@/lib/automations/admin-client');
+  const { supabaseAdmin } = await import('@/lib/supabase/admin');
   return supabaseAdmin();
 }

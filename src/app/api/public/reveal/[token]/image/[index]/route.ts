@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { storageObjectPath } from '@/lib/storage/url';
 import { maskPhone } from '@/lib/inventory/location-guard';

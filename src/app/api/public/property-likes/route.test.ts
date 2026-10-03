@@ -7,7 +7,7 @@ const state: {
   deleted: number;
 } = { singleQueue: {}, listQueue: {}, inserted: [], deleted: 0 };
 
-vi.mock('@/lib/automations/admin-client', () => {
+vi.mock('@/lib/supabase/admin', () => {
   function makeBuilder(table: string) {
     const builder: Record<string, unknown> = {};
     const chain = () => builder;

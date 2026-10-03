@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { normalizePhone } from '@/lib/whatsapp/phone-utils';
 import {
   buildSharedPropertyCopy,
@@ -42,11 +43,7 @@ export async function syncAgentSourceInventory(
   const phoneLast10 = normalizePhone(profile?.phone).slice(-10);
   if (!phoneLast10) return { imported: 0, matched: 0 };
 
-  const admin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-  return syncAgentSourceInventoryWithAdmin(admin, {
+  return syncAgentSourceInventoryWithAdmin(supabaseAdmin(), {
     accountId: ctx.accountId,
     userId: ctx.userId,
     phoneLast10,

@@ -30,7 +30,7 @@ vi.mock('next/cache', () => ({
   unstable_cache: <T,>(fn: T) => fn,
 }));
 
-vi.mock('@/lib/automations/admin-client', () => ({
+vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({}),
 }));
 

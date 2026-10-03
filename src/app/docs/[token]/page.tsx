@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { FileText, Download, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { DocAccessGate } from '@/components/documents/doc-access-gate';

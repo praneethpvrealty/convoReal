@@ -698,7 +698,7 @@ Meta Cloud API
 
 - Use `await createClient()` from `src/lib/supabase/server.ts` for the authenticated SSR client.
 - Auth-gated routes resolve the caller with `getCurrentAccount()` / `requireRole(min)` from `src/lib/auth/account.ts`, and report failures with `toErrorResponse(err)`. Do not hand-roll `auth.getUser()` plus a `profiles` lookup — that path skips the archived-account block and the role check. The `convoreal/no-raw-auth-in-routes` ESLint rule fails `auth.getUser()` inside any `route.ts`; platform-admin routes use `requirePlatformAdmin()` from `src/lib/auth/platform-admin.ts`, and the only exemptions are the routes that run before a caller has an account or for a persona that never gets one (profile setup, invitation redemption, Den and buyer sign-in completion, the WhatsApp config onboarding route). If a route's `catch` maps failures onto a domain error, resolve auth outside that `try` so a 401/403 is not reported as a send failure.
-- Use `supabaseAdmin()` from `src/lib/supabase/admin.ts` for webhooks/background jobs that need RLS bypass. Do not declare a local service-role singleton.
+- Use `supabaseAdmin()` from `src/lib/supabase/admin.ts` for webhooks/background jobs that need RLS bypass. Do not declare a local service-role singleton: the `convoreal/no-inline-service-role-client` ESLint rule fails any read of `SUPABASE_SERVICE_ROLE_KEY` outside that file and `src/scripts/`, so tests mock one module path, `@/lib/supabase/admin`.
 - Parse and validate request bodies; never trust user input.
 - Return early with `NextResponse.json({ error: ... }, { status: ... })` on errors.
 

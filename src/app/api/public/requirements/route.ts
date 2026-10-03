@@ -6,7 +6,7 @@ import {
   preferenceSourceHash,
   type ListingType,
 } from "@/lib/ai/preference-extraction";
-import { supabaseAdmin } from "@/lib/automations/admin-client";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
 import { assignTagsToContact } from "@/app/api/leads/email-webhook/db-utils";

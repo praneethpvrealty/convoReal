@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const maybeSingle = vi.fn();
-vi.mock('@/lib/automations/admin-client', () => ({
+vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
     from: () => ({
       select: () => ({

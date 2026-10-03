@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import {

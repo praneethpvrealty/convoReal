@@ -3,7 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { resolveConversation } from '@/lib/conversations/resolve';
-import { getAdminClient } from './admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   parseMimeEmail,
   decodeMimeSubject,
@@ -336,7 +336,7 @@ export async function POST(request: Request) {
       console.log(`[lead-webhook] ==========================================`);
 
       if (accountId) {
-        const supabase = getAdminClient();
+        const supabase = supabaseAdmin();
         const { error: dbErr } = await supabase
           .from('email_sync_configs')
           .upsert({
@@ -417,7 +417,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const supabase = getAdminClient();
+    const supabase = supabaseAdmin();
 
     // 1. account_id must be provided explicitly. Never fall back to the
     //    "first whatsapp_config" — that let a lead be routed to (and an
@@ -896,7 +896,6 @@ export async function POST(request: Request) {
         .from('contacts')
         // Opportunistic enrichment from a portal email; the inquiry below
         // is the point of this webhook, not the backfill.
-        // eslint-disable-next-line convoreal/supabase-write-guard
         .update(updatePayload)
         .eq('id', existingContact.id);
 
@@ -1009,7 +1008,6 @@ export async function POST(request: Request) {
               .from('conversations')
               // Preview refresh on a conversation just resolved above; the
               // message insert below is what this webhook is for.
-              // eslint-disable-next-line convoreal/supabase-write-guard
               .update({ ...leadState, updated_at: new Date().toISOString() })
               .eq('id', conversationId);
           }

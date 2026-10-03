@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { ListPropertyForm } from '@/components/showcase/list-property-form';
 import { BRANDING } from '@/config/branding';
 

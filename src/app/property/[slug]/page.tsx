@@ -33,7 +33,7 @@ import {
   resolveShareGrant,
   trackGrantView,
 } from '@/lib/inventory/share-grants';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { BRANDING } from '@/config/branding';
 import type { Property } from '@/types';
 

@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { greetingName } from '@/lib/contacts/lead-placeholder';

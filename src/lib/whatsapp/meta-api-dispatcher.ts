@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { standDownActiveFlowRuns } from '@/lib/whatsapp/agent-takeover'
 import { storagePublicUrl } from '@/lib/storage/url'
 import {
@@ -72,7 +73,7 @@ interface JourneyItemForPersonalLog {
 }
 
 async function logPersonalWhatsAppJourneyEvents(args: {
-  db: ReturnType<typeof createClient>
+  db: SupabaseClient
   accountId: string
   conversationId: string | null
   contactId: string
@@ -129,16 +130,8 @@ async function logPersonalWhatsAppJourneyEvents(args: {
   )
 }
 
-// Lazy initialize admin client fallback
-let _adminClient: ReturnType<typeof createClient> | null = null
-function defaultAdminClient() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
+function defaultAdminClient(): SupabaseClient {
+  return supabaseAdmin()
 }
 
 export interface SendWhatsAppAndPersistArgs {

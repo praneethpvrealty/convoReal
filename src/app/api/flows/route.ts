@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
-import { supabaseAdmin } from '@/lib/flows/admin-client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getFlowTemplate } from '@/lib/flows/templates'
 
 /**

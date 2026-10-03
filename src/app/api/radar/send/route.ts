@@ -1,5 +1,6 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
@@ -42,13 +43,6 @@ import type { MatchEvent, MessageTemplate, Property } from '@/types';
 // approved yet does a recipient come back unsent (`templateMissing`),
 // and the UI offers the one-click template setup.
 
-function adminClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
-
 const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // Same local helper as the broadcast route / broadcasts sender — renders
@@ -82,7 +76,7 @@ function propertyMessage(p: Property, baseUrl: string, visitorContactId: string)
 
 /** True when the contact messaged us within the 24h service window. */
 async function sessionState(
-  db: ReturnType<typeof adminClient>,
+  db: SupabaseClient,
   accountId: string,
   contactId: string,
 ): Promise<{ conversationId: string | null; open: boolean }> {
@@ -188,7 +182,7 @@ export async function POST(request: NextRequest) {
     }
     const targets = targetIds;
 
-    const db = adminClient();
+    const db = supabaseAdmin();
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     const results: Array<{
       id: string;

@@ -20,7 +20,7 @@ vi.mock('@/lib/credits/burn', () => ({
   burnCredits: (...a: unknown[]) => burnCredits(...a),
 }));
 
-vi.mock('@/lib/automations/admin-client', () => ({
+vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => {
     const builder: Record<string, unknown> = {};
     Object.assign(builder, {

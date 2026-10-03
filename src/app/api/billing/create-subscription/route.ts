@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { PLAN_CONFIG, isUpgrade } from '@/lib/billing/plan-config';
 import { getPlanLimits } from '@/lib/billing/gates';
 import type { Plan, BillingCycle } from '@/lib/billing/types';
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     if (!hasKeys) {
       console.log(`[DEVELOPMENT BYPASS] Razorpay key/plan not configured. Auto-activating ${plan} (${cycle}) for account ${ctx.accountId}`);
       
-      const admin = billingAdmin();
+      const admin = supabaseAdmin();
       const periodEnd = new Date();
       if (cycle === 'annual') periodEnd.setFullYear(periodEnd.getFullYear() + 1);
       else if (cycle === 'quarterly') periodEnd.setMonth(periodEnd.getMonth() + 3);
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
     const rzSub = await razorpayRes.json();
 
     // Persist a pending subscription row so the webhook knows which account to activate
-    const admin = billingAdmin();
+    const admin = supabaseAdmin();
     await admin.from('subscriptions').upsert(
       {
         account_id: ctx.accountId,

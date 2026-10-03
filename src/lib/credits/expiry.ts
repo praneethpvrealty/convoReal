@@ -11,7 +11,7 @@
 // as the source of truth rather than a separate expiry-tracking table.
 // ============================================================
 
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { CreditTransaction } from './types';
 
 const EXPIRING_TYPES = ['referral_signup', 'referral_upgrade', 'referral_passive', 'promo', 'admin_grant'] as const;
@@ -22,7 +22,7 @@ const EXPIRING_TYPES = ['referral_signup', 'referral_upgrade', 'referral_passive
  * the sum from the relevant bucket, and inserts an 'expiry' ledger row.
  */
 export async function expireStaleCredits(): Promise<{ accountsProcessed: number; totalExpired: number }> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
   const now = new Date().toISOString();
 
   const { data: staleTx, error } = await supabase

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getPlanLimits } from '@/lib/billing/gates';
 import { isUpgrade } from '@/lib/billing/plan-config';
 import type { Plan } from '@/lib/billing/types';
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     if (!hasKeys) {
       console.log(`[DEVELOPMENT BYPASS] Razorpay key/plan not configured. Auto-upgrading to ${newPlan} for account ${ctx.accountId}`);
       
-      const admin = billingAdmin();
+      const admin = supabaseAdmin();
       await admin
         .from('subscriptions')
         .update({ 
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Razorpay upgrade failed', details: err }, { status: 502 });
     }
 
-    const admin = billingAdmin();
+    const admin = supabaseAdmin();
     await admin
       .from('subscriptions')
       .update({ plan: newPlan, razorpay_plan_id: newRazorpayPlanId, pending_plan: null, pending_plan_effective_at: null })

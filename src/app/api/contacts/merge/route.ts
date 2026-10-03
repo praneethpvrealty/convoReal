@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { buildContactMergePatch } from '@/lib/contacts/merge';
 
 // POST /api/contacts/merge
@@ -16,13 +16,6 @@ import { buildContactMergePatch } from '@/lib/contacts/merge';
 //
 // Requires agent+ role. Both contacts must belong to the caller's account.
 
-function adminClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
-
 export async function POST(request: NextRequest) {
   try {
     const ctx = await requireRole('agent');
@@ -36,7 +29,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Source and target must be different contacts' }, { status: 400 });
     }
 
-    const admin = adminClient();
+    const admin = supabaseAdmin();
 
     // Verify both contacts belong to the caller's account and are not already merged
     const { data: contacts, error: fetchErr } = await admin

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { toErrorResponse, getCurrentAccount, type AccountContext } from '@/lib/auth/account'
-import { supabaseAdmin } from '@/lib/flows/admin-client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { validateFlowForActivation } from '@/lib/flows/validate'
 
 /**

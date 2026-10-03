@@ -9,7 +9,7 @@
 // contradict migration 073's "no backfill required" design.
 // ============================================================
 
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { CreditCurrency, PaymentGateway } from './types';
 
 interface CountryBilling {
@@ -77,7 +77,7 @@ export function resolveBillingFromPhone(phone: string | null | undefined): Count
  * the caller's own role.
  */
 export async function getOrDetectBillingGateway(accountId: string): Promise<CountryBilling> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
   const { data: sub } = await supabase
     .from('subscriptions')
     .select('billing_currency, billing_gateway')

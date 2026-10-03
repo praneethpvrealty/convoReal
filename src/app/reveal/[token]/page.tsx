@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { propertySlug } from '@/lib/showcase/property-slug';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { propertyMapPin } from '@/lib/maps/map-links';

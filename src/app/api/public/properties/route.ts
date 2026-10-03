@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/automations/admin-client";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { CATEGORY_SUBTYPES, parsePropertyQuery } from "@/lib/search-parser";
 import {
   checkRateLimit,

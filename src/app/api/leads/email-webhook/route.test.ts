@@ -27,7 +27,7 @@ const mockDb = {
   email_sync_configs: { account_id: 'acc-789', is_active: true }
 };
 
-vi.mock('./admin-client', () => {
+vi.mock('@/lib/supabase/admin', () => {
   const selectImpl = (table: string) => {
     if (table === 'whatsapp_config') return { data: { account_id: 'acc-789' }, error: null };
     if (table === 'email_sync_configs') return { data: { account_id: 'acc-789', is_active: true }, error: null };
@@ -88,7 +88,7 @@ vi.mock('./admin-client', () => {
     })
   };
   return {
-    getAdminClient: () => mockSupabase
+    supabaseAdmin: () => mockSupabase
   };
 });
 
