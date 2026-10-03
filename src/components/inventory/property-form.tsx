@@ -144,6 +144,8 @@ import {
   type EKhataFields,
 } from '@/lib/inventory/e-khata-fields';
 import { EKhataReviewDialog } from '@/components/inventory/e-khata-review-dialog';
+import { PropertyFormSectionNav } from '@/components/inventory/property-form-section-nav';
+import { propertyFormSections } from '@/lib/inventory/property-form-sections';
 import {
   looksLikeDocument,
   orderForCover,
@@ -3685,9 +3687,22 @@ export function PropertyForm({
     return dataset.filter((s) => s.toLowerCase().includes(query)).slice(0, 8);
   }, [query, localitiesDb]);
 
+  const formSections = propertyFormSections({
+    title,
+    price,
+    rentPerMonth,
+    city,
+    state: stateVal,
+    images,
+    description,
+    ownerContactId,
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden border-slate-700 bg-slate-900 p-0 text-slate-200 sm:max-w-2xl">
+      <DialogContent
+        className={`flex max-h-[90vh] flex-col overflow-hidden border-slate-700 bg-slate-900 p-0 text-slate-200 sm:max-w-2xl ${viewMode ? '' : 'lg:max-w-5xl'}`}
+      >
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
@@ -3722,27 +3737,28 @@ export function PropertyForm({
               </DialogDescription>
             </DialogHeader>
 
-            <TabsList className="mb-3 w-fit max-w-full overflow-x-auto border border-slate-800 bg-slate-900">
-              <TabsTrigger
-                value="details"
-                className="data-[state=active]:text-primary px-4 py-1.5 text-xs font-semibold text-slate-400 data-[state=active]:bg-slate-800"
-              >
-                Property Details
-              </TabsTrigger>
-              <TabsTrigger
-                value="matches"
-                className="data-[state=active]:text-primary px-4 py-1.5 text-xs font-semibold text-slate-400 data-[state=active]:bg-slate-800"
-              >
-                Matching Contacts ({isEdit ? displayedMatches.length : 0})
-              </TabsTrigger>
-              <TabsTrigger
-                value="enquiries"
-                disabled={!isEdit}
-                className="data-[state=active]:text-primary px-4 py-1.5 text-xs font-semibold text-slate-400 data-[state=active]:bg-slate-800"
-              >
-                Enquired Contacts ({isEdit ? enquiredContacts.length : 0})
-              </TabsTrigger>
-            </TabsList>
+            {isEdit && (
+              <TabsList className="mb-3 w-fit max-w-full overflow-x-auto border border-slate-800 bg-slate-900">
+                <TabsTrigger
+                  value="details"
+                  className="data-[state=active]:text-primary px-4 py-1.5 text-xs font-semibold text-slate-400 data-[state=active]:bg-slate-800"
+                >
+                  Property Details
+                </TabsTrigger>
+                <TabsTrigger
+                  value="matches"
+                  className="data-[state=active]:text-primary px-4 py-1.5 text-xs font-semibold text-slate-400 data-[state=active]:bg-slate-800"
+                >
+                  Matching Contacts ({displayedMatches.length})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="enquiries"
+                  className="data-[state=active]:text-primary px-4 py-1.5 text-xs font-semibold text-slate-400 data-[state=active]:bg-slate-800"
+                >
+                  Enquired Contacts ({enquiredContacts.length})
+                </TabsTrigger>
+              </TabsList>
+            )}
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -5384,9 +5400,18 @@ export function PropertyForm({
                   </div>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form
+                  onSubmit={handleSubmit}
+                  className="relative space-y-5 lg:pl-48"
+                >
+                  <div className="absolute inset-y-0 left-0 hidden w-40 lg:block">
+                    <PropertyFormSectionNav sections={formSections} />
+                  </div>
                   {/* Main Info */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div
+                    id="pf-basics"
+                    className="grid scroll-mt-2 grid-cols-2 gap-4"
+                  >
                     {isEdit && property?.property_code && (
                       <div className="animate-fade-in col-span-2 space-y-1.5">
                         <Label className="text-slate-400">
@@ -5935,7 +5960,10 @@ export function PropertyForm({
                   </div>
 
                   {/* Autocomplete Real Location Details */}
-                  <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                  <div
+                    id="pf-location"
+                    className="scroll-mt-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4"
+                  >
                     <h4 className="text-sm font-semibold text-white">
                       Property Location
                     </h4>
@@ -6820,7 +6848,10 @@ export function PropertyForm({
                   )}
 
                   {/* Area & Specification Fields */}
-                  <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                  <div
+                    id="pf-specs"
+                    className="scroll-mt-2 space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4"
+                  >
                     <h4 className="text-sm font-semibold text-white">
                       Area & Specs
                     </h4>
@@ -7570,7 +7601,10 @@ export function PropertyForm({
                       )}
 
                       {/* Images URLs Input */}
-                      <div className="col-span-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                      <div
+                        id="pf-media"
+                        className="col-span-2 scroll-mt-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4"
+                      >
                         <div className="flex items-center justify-between">
                           <Label className="text-slate-300">
                             Property Images
@@ -7930,7 +7964,10 @@ export function PropertyForm({
                   </div>
 
                   {/* Description */}
-                  <div className="space-y-1.5 pt-2">
+                  <div
+                    id="pf-description"
+                    className="scroll-mt-2 space-y-1.5 pt-2"
+                  >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <Label
                         htmlFor="prop-description"
@@ -7983,7 +8020,10 @@ export function PropertyForm({
                   </div>
 
                   {/* Owner & Leads */}
-                  <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                  <div
+                    id="pf-owner"
+                    className="scroll-mt-2 space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4"
+                  >
                     <h4 className="text-sm font-semibold text-white">
                       Owner & Inquiries
                     </h4>
@@ -8301,8 +8341,10 @@ export function PropertyForm({
                     </div>
                   </div>
 
-                  {/* Publish visibility Switch */}
-                  <div className="flex items-center justify-between border-t border-slate-800 pt-4">
+                  <div
+                    id="pf-publish"
+                    className="sticky -bottom-4 z-10 -mx-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-900 px-6 py-3 lg:-ml-[13.5rem]"
+                  >
                     <div className="flex items-center gap-2">
                       <Switch
                         id="prop-published"
@@ -8316,26 +8358,27 @@ export function PropertyForm({
                         Publish / Visible on Listing Page
                       </Label>
                     </div>
-                  </div>
-
-                  <div className="mt-6 flex justify-end gap-2 border-t border-slate-800 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => onOpenChange(false)}
-                      disabled={saving}
-                      className="text-slate-350 border-slate-700 hover:bg-slate-800"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={saving}
-                      className="bg-primary hover:bg-primary/95 text-primary-foreground flex items-center gap-1.5 font-semibold"
-                    >
-                      {saving && <Loader2 className="size-3.5 animate-spin" />}
-                      {isEdit ? 'Save Changes' : 'Create Listing'}
-                    </Button>
+                    <div className="ml-auto flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => onOpenChange(false)}
+                        disabled={saving}
+                        className="text-slate-350 border-slate-700 hover:bg-slate-800"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={saving}
+                        className="bg-primary hover:bg-primary/95 text-primary-foreground flex items-center gap-1.5 font-semibold"
+                      >
+                        {saving && (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        )}
+                        {isEdit ? 'Save Changes' : 'Create Listing'}
+                      </Button>
+                    </div>
                   </div>
                 </form>
               )}

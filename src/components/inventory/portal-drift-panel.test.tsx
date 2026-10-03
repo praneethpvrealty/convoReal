@@ -84,10 +84,10 @@ describe('PortalDriftPanel', () => {
     renderPanel();
 
     expect(
-      await screen.findByText(/1 portal ad out of step with your inventory/)
+      await screen.findByText(/1 portal ad doesn.t match your listings/)
     ).toBeTruthy();
     expect(screen.queryByText('Ad live on withdrawn stock')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /show/i }));
+    fireEvent.click(screen.getByRole('button', { name: /review/i }));
     expect(screen.getByText('Ad live on withdrawn stock')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /hide/i }));
     expect(screen.queryByText('Ad live on withdrawn stock')).toBeNull();
@@ -111,8 +111,8 @@ describe('PortalDriftPanel', () => {
 
     renderPanel();
 
-    await screen.findByText(/1 portal ad out of step with your inventory/);
-    fireEvent.click(screen.getByRole('button', { name: /show/i }));
+    await screen.findByText(/1 portal ad doesn.t match your listings/);
+    fireEvent.click(screen.getByRole('button', { name: /review/i }));
     expect(screen.getByText('Ad and listing disagree')).toBeTruthy();
     expect(screen.getByText(/3000 vs 2400 sq ft/)).toBeTruthy();
     expect(screen.queryByText(/Apartment vs/)).toBeNull();
@@ -124,13 +124,13 @@ describe('PortalDriftPanel', () => {
 
     renderPanel();
     expect(
-      await screen.findByText(/1 portal ad out of step with your inventory/)
+      await screen.findByText(/1 portal ad doesn.t match your listings/)
     ).toBeTruthy();
     fireEvent.click(screen.getByLabelText('Dismiss portal discrepancy banner'));
 
     await waitFor(() =>
       expect(
-        screen.queryByText(/1 portal ad out of step with your inventory/)
+        screen.queryByText(/1 portal ad doesn.t match your listings/)
       ).toBeNull()
     );
     expect(localStorage.getItem(KEY)).toBe(findingSignature(BASE_FINDING));
@@ -142,7 +142,7 @@ describe('PortalDriftPanel', () => {
 
     renderPanel();
     expect(
-      await screen.findByText(/1 portal ad out of step with your inventory/)
+      await screen.findByText(/1 portal ad doesn.t match your listings/)
     ).toBeTruthy();
     await waitFor(() => {
       expect(localStorage.getItem(KEY)).toBeNull();
@@ -154,19 +154,73 @@ describe('PortalDriftPanel', () => {
 
     const first = renderPanel();
     expect(
-      await first.findByText(/1 portal ad out of step with your inventory/)
+      await first.findByText(/1 portal ad doesn.t match your listings/)
     ).toBeTruthy();
     fireEvent.click(first.getByLabelText('Dismiss portal discrepancy banner'));
     await waitFor(() =>
       expect(
-        first.queryByText(/1 portal ad out of step with your inventory/)
+        first.queryByText(/1 portal ad doesn.t match your listings/)
       ).toBeNull()
     );
     first.unmount();
 
     renderPanel();
     expect(
-      screen.queryByText(/1 portal ad out of step with your inventory/)
+      screen.queryByText(/1 portal ad doesn.t match your listings/)
     ).toBeNull();
+  });
+
+  it('[PRP-028] explains the findings only after the panel is expanded', async () => {
+    mockDriftFetch([[BASE_FINDING]]);
+
+    renderPanel();
+
+    expect(
+      await screen.findByText(/1 portal ad doesn.t match your listings/)
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: /review/i })).toBeTruthy();
+    expect(screen.queryByText(/Spotted from the leads and emails/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /review/i }));
+    expect(screen.getByText(/Spotted from the leads and emails/)).toBeTruthy();
+  });
+
+  it('[PRP-028] links each finding to the portal listing editor and the listing', async () => {
+    const second: PortalDriftFinding = {
+      ...BASE_FINDING,
+      portalListingId: 'pb-202',
+      propertyId: 'prop/202 x',
+    };
+    mockDriftFetch([[BASE_FINDING, second]]);
+
+    renderPanel();
+
+    await screen.findByText(/2 portal ads don.t match your listings/);
+    fireEvent.click(screen.getByRole('button', { name: /review/i }));
+
+    const updateLinks = screen.getAllByRole('link', {
+      name: 'Update portal listing',
+    });
+    const openLinks = screen.getAllByRole('link', { name: 'Open listing' });
+    expect(updateLinks.map((a) => a.getAttribute('href'))).toEqual([
+      `/inventory?portalPropertyId=${encodeURIComponent(BASE_FINDING.propertyId)}`,
+      `/inventory?portalPropertyId=${encodeURIComponent(second.propertyId)}`,
+    ]);
+    expect(openLinks.map((a) => a.getAttribute('href'))).toEqual([
+      `/inventory?propertyId=${encodeURIComponent(BASE_FINDING.propertyId)}`,
+      `/inventory?propertyId=${encodeURIComponent(second.propertyId)}`,
+    ]);
+    expect(screen.getAllByRole('link', { name: /View ad/ })).toHaveLength(2);
+  });
+
+  it('[PRP-028] pluralises the headline for several findings', async () => {
+    mockDriftFetch([
+      [BASE_FINDING, { ...BASE_FINDING, portalListingId: 'pb-303' }],
+    ]);
+
+    renderPanel();
+
+    expect(
+      await screen.findByText("2 portal ads don't match your listings")
+    ).toBeTruthy();
   });
 });

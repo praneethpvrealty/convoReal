@@ -536,8 +536,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
    *  page-level Favorite button (contacts/page.tsx) can capture exactly
    *  this view instead of always favoriting the default "All Contacts". */
   const setActiveTabAndSync = (tab: QuickFilterTab) => {
+    if (tab === activeTab) return;
     setActiveTab(tab);
     setPage(0);
+    setContacts([]);
+    setLoading(true);
     const params = new URLSearchParams(searchParams?.toString());
     if (tab === 'active') {
       params.delete('filter');
@@ -1499,8 +1502,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             return;
           }
 
-          setTotalCount(count ?? 0);
-
           // Six tab counters from one scan of the account's contacts
           // (migration 20261003174500); the staff and won-deal rules
           // live in SQL, shared with the mobile tab.
@@ -1536,6 +1537,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
           if (!data || data.length === 0) {
             setContacts([]);
+            setTotalCount(count ?? 0);
             setLoading(false);
             return;
           }
@@ -1568,6 +1570,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           });
 
           setContacts(enriched);
+          setTotalCount(count ?? 0);
           setLoading(false);
         })(),
         new Promise<never>((_, reject) =>

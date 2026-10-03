@@ -212,10 +212,9 @@ async function main() {
         'Automations',
       ],
       ['17-shim-flows', '/flows', '/automations?tab=flows', 'Automations'],
-      // Only the redirect is covered here: the Ads Campaigns tab is gated on
-      // NEXT_PUBLIC_META_ADS_APP_ID, which this environment does not set, so
-      // Inventory legitimately falls back to its listing tab.
-      ['18-shim-ads', '/ads', '/inventory?tab=ads', 'Inventory'],
+      // /ads is a real page gated on NEXT_PUBLIC_META_ADS_APP_ID, which this
+      // environment does not set, so its kill switch sends it to Inventory.
+      ['18-shim-ads', '/ads', '/inventory', 'Inventory'],
     ] as const) {
       console.log(`visiting ${path} → ${lands}`);
       await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
