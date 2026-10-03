@@ -31,6 +31,12 @@ than a written entry. Newest first.
   example, could show "2 contacts" above the rows of the filter you had
   just left. The rows clear the moment you switch, and the count and
   rows now update together.
+- **The inbox list loads behind placeholder rows instead of a logo
+  splash.** Opening the Inbox used to show a centred ConvoReal logo and
+  "Loading conversations" for the first second, then swap to the list in
+  one jump. The column now shows eight grey rows shaped like
+  conversations until the real ones arrive, so nothing moves when they
+  do.
 - **The inbox keeps its full height, and its contact panel scrolls clear
   of the AI Assistant button.** The bottom padding that lets every other
   page scroll past the floating buttons is cancelled on the inbox, so the

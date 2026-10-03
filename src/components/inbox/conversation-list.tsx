@@ -33,8 +33,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { FavoriteButton } from '@/components/layout/favorite-button';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
-import { MessageBubbleLoader } from '@/components/ui/message-bubble-loader';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { ConversationListSkeleton } from '@/components/inbox/conversation-list-skeleton';
 import { conversationCloseReasonLabel } from '@/lib/conversations/closure';
 
 /** Strip WhatsApp formatting markers (*bold*, _italic_, ~strike~) for plain-text previews. */
@@ -575,15 +574,7 @@ export function ConversationList({
       {/* Conversation Items */}
       <ScrollArea className="min-h-0 flex-1">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-            <MessageBubbleLoader
-              size={104}
-              label="Loading conversations"
-              className="mb-3"
-            />
-            <ConvoRealLoader size={20} className="mb-2" />
-            <p className="text-sm">Loading conversations...</p>
-          </div>
+          <ConversationListSkeleton />
         ) : filtered.length === 0 ? (
           <div className="px-4 py-12 text-center">
             <p className="text-sm text-slate-500">
