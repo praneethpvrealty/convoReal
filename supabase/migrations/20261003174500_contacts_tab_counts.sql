@@ -19,8 +19,8 @@
 
 -- SECURITY DEFINER so the aggregate runs without per-row RLS
 -- evaluation, with the membership check done once in the WHERE
--- clause: a non-member gets no row rather than another account's
--- totals (same shape as inventory_stats, migration 168).
+-- clause: a non-member gets a row of zeros rather than another
+-- account's totals (same shape as inventory_stats, migration 168).
 CREATE OR REPLACE FUNCTION public.contacts_tab_counts(p_account_id UUID)
 RETURNS TABLE (
   active BIGINT,
