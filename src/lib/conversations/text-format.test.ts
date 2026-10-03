@@ -53,7 +53,7 @@ describe('parseWhatsAppFormatting', () => {
 });
 
 describe('conversationPreview', () => {
-  it('skips a bold-only header line and starts at the body', () => {
+  it('skips a bold-only header line, with or without an emoji prefix, and starts at the body', () => {
     const text =
       '📊 *Your Property Update*\n\nHi Adithi, here is the latest buyer activity on your listing.\n\n📈 Summary: 3 new enquiries';
     expect(
@@ -61,7 +61,16 @@ describe('conversationPreview', () => {
         '*Your Property Update*\n\nHi Adithi, here is the latest buyer activity.'
       )
     ).toBe('Hi Adithi, here is the latest buyer activity.');
-    expect(conversationPreview(text)).toMatch(/^📊 Your Property Update/);
+    expect(conversationPreview(text)).toBe(
+      'Hi Adithi, here is the latest buyer activity on your listing. 📈 Summary: 3 new enquiries'
+    );
+    expect(
+      conversationPreview(
+        '📣 *Your Inventory Reach Update — 3 Oct*\n\nHi Sreenath, here is the latest buyer activity on your 5 referred listings.'
+      )
+    ).toBe(
+      'Hi Sreenath, here is the latest buyer activity on your 5 referred listings.'
+    );
   });
 
   it('keeps a header-only message, strips markers and collapses whitespace', () => {

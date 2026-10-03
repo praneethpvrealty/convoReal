@@ -98,7 +98,7 @@ export function plainText(text: string): string {
     .join('');
 }
 
-const HEADER_LINE = /^\*[^*\n]+\*$/;
+const HEADER_LINE = /^[^\p{L}\p{N}*]*\*[^*\n]+\*[^\p{L}\p{N}*]*$/u;
 
 export function conversationPreview(text: string | null | undefined): string {
   if (!text) return '';
