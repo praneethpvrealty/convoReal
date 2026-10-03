@@ -13,7 +13,11 @@
 import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import { sendGroupMessage } from '@/lib/whatsapp/group-send';
 import { isMediaKind, normalizeCaption } from '@/lib/whatsapp/media-kinds';
 import { refuseStagedMedia } from '@/lib/whatsapp/staged-media';
@@ -21,7 +25,7 @@ import type { MediaKind } from '@/lib/whatsapp/meta-api';
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ groupId: string }> },
+  { params }: { params: Promise<{ groupId: string }> }
 ) {
   let accountId: string;
   let userId: string;
@@ -32,7 +36,10 @@ export async function POST(
   }
 
   try {
-    const limit = await checkRateLimit(`group-send:${userId}`, RATE_LIMITS.send);
+    const limit = await checkRateLimit(
+      `group-send:${userId}`,
+      RATE_LIMITS.send
+    );
     if (!limit.success) return rateLimitResponse(limit);
 
     const { groupId } = await params;
@@ -47,19 +54,19 @@ export async function POST(
             error: refusal.error,
             ...(refusal.code ? { code: refusal.code } : {}),
           },
-          { status: refusal.status },
+          { status: refusal.status }
         );
       }
       if (!isMediaKind(body?.media_kind)) {
         return NextResponse.json(
           { error: 'media_kind must be one of image, video, audio, document' },
-          { status: 400 },
+          { status: 400 }
         );
       }
     } else if (!body?.content_text?.trim()) {
       return NextResponse.json(
         { error: 'content_text is required' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -70,11 +77,15 @@ export async function POST(
       senderType: 'agent',
       kind: messageType,
       text: messageType === 'text' ? body.content_text : null,
-      mediaKind: messageType === 'media' ? (body.media_kind as MediaKind) : null,
+      mediaKind:
+        messageType === 'media' ? (body.media_kind as MediaKind) : null,
       mediaLink: messageType === 'media' ? body.media_url : null,
       mediaCaption:
         messageType === 'media'
-          ? (normalizeCaption(body.media_kind as MediaKind, body.content_text) ?? null)
+          ? (normalizeCaption(
+              body.media_kind as MediaKind,
+              body.content_text
+            ) ?? null)
           : null,
       mediaFilename:
         messageType === 'media' && body.media_kind === 'document'
@@ -86,7 +97,7 @@ export async function POST(
     if (!result.success) {
       return NextResponse.json(
         { error: result.error || 'Could not send to the group' },
-        { status: 502 },
+        { status: 502 }
       );
     }
 
@@ -99,7 +110,7 @@ export async function POST(
     console.error('[groups/send] failed:', error);
     return NextResponse.json(
       { error: 'Could not send to the group' },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

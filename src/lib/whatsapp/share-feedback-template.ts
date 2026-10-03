@@ -19,13 +19,11 @@ import { renderShareTemplateBody } from '@/lib/whatsapp/share-property-preview';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 
 export const SHARE_FEEDBACK_TEMPLATE_NAME = 'property_share_feedback';
-export const SHARE_FEEDBACK_TEMPLATE_NAMES = [
-  SHARE_FEEDBACK_TEMPLATE_NAME,
-];
+export const SHARE_FEEDBACK_TEMPLATE_NAMES = [SHARE_FEEDBACK_TEMPLATE_NAME];
 
-export function pickShareFeedbackTemplate<
-  T extends ApprovedTemplateCandidate,
->(rows: T[]): T | null {
+export function pickShareFeedbackTemplate<T extends ApprovedTemplateCandidate>(
+  rows: T[]
+): T | null {
   return pickApprovedTemplate(rows, SHARE_FEEDBACK_TEMPLATE_NAMES);
 }
 
@@ -65,9 +63,7 @@ export function buildShareFeedbackParams(
     rawName && !isPlaceholderLeadName(rawName)
       ? rawName.split(/\s+/)[0]
       : 'there';
-  return [
-    sanitizeTemplateParam(firstName) || 'there',
-  ];
+  return [sanitizeTemplateParam(firstName) || 'there'];
 }
 
 export function shareFeedbackLanguage(

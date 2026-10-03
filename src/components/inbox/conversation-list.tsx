@@ -1,30 +1,41 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
-import { storagePublicUrl } from "@/lib/storage/url";
-import { useAuth } from "@/hooks/use-auth";
-import { needsReply, needsReplyLabel, unanswered } from "@/lib/whatsapp/reply-state";
-import type { OrgRole } from "@/lib/auth/roles";
-import type { Conversation, ConversationStatus, Team } from "@/types";
-import { Search, ChevronDown, MoreVertical, Archive, ArchiveRestore, Users } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { Input } from "@/components/ui/input";
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
+import { storagePublicUrl } from '@/lib/storage/url';
+import { useAuth } from '@/hooks/use-auth';
+import {
+  needsReply,
+  needsReplyLabel,
+  unanswered,
+} from '@/lib/whatsapp/reply-state';
+import type { OrgRole } from '@/lib/auth/roles';
+import type { Conversation, ConversationStatus, Team } from '@/types';
+import {
+  Search,
+  ChevronDown,
+  MoreVertical,
+  Archive,
+  ArchiveRestore,
+  Users,
+} from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { toast } from "sonner";
-import { FavoriteButton } from "@/components/layout/favorite-button";
-import { NameTagBadge } from "@/components/contacts/name-tag-badge";
-import { MessageBubbleLoader } from "@/components/ui/message-bubble-loader";
-import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
-import { conversationCloseReasonLabel } from "@/lib/conversations/closure";
+} from '@/components/ui/dropdown-menu';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { toast } from 'sonner';
+import { FavoriteButton } from '@/components/layout/favorite-button';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import { MessageBubbleLoader } from '@/components/ui/message-bubble-loader';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { conversationCloseReasonLabel } from '@/lib/conversations/closure';
 
 /** Strip WhatsApp formatting markers (*bold*, _italic_, ~strike~) for plain-text previews. */
 function stripWhatsAppFormatting(text: string | null | undefined): string {
@@ -48,28 +59,28 @@ interface ConversationListProps {
 }
 
 const STATUS_COLORS: Record<ConversationStatus, string> = {
-  open: "bg-primary",
-  pending: "bg-amber-500",
-  closed: "bg-slate-500",
+  open: 'bg-primary',
+  pending: 'bg-amber-500',
+  closed: 'bg-slate-500',
 };
 
 type FilterValue =
   | ConversationStatus
-  | "all"
-  | "needs_reply"
-  | "unanswered"
-  | "active"
-  | "archived";
+  | 'all'
+  | 'needs_reply'
+  | 'unanswered'
+  | 'active'
+  | 'archived';
 
 const FILTER_OPTIONS: { label: string; value: FilterValue }[] = [
-  { label: "All", value: "all" },
-  { label: "Needs reply", value: "needs_reply" },
-  { label: "Unanswered", value: "unanswered" },
-  { label: "Active", value: "active" },
-  { label: "Open", value: "open" },
-  { label: "Pending", value: "pending" },
-  { label: "Closed", value: "closed" },
-  { label: "Archived", value: "archived" },
+  { label: 'All', value: 'all' },
+  { label: 'Needs reply', value: 'needs_reply' },
+  { label: 'Unanswered', value: 'unanswered' },
+  { label: 'Active', value: 'active' },
+  { label: 'Open', value: 'open' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'Closed', value: 'closed' },
+  { label: 'Archived', value: 'archived' },
 ];
 
 // ============================================================
@@ -84,40 +95,44 @@ const FILTER_OPTIONS: { label: string; value: FilterValue }[] = [
 // ============================================================
 
 /** "team:<id>" for a specific team (Manager only); otherwise a fixed tab. */
-type ScopeFilterValue = "all" | "unassigned" | "mine" | `team:${string}`;
+type ScopeFilterValue = 'all' | 'unassigned' | 'mine' | `team:${string}`;
 
 function scopeOptionsFor(
   orgRole: OrgRole | null,
-  teams: Team[],
+  teams: Team[]
 ): { label: string; value: ScopeFilterValue; icon?: boolean }[] {
-  if (orgRole === "org_manager") {
+  if (orgRole === 'org_manager') {
     return [
-      { label: "All", value: "all" },
-      { label: "Unassigned", value: "unassigned" },
-      { label: "Mine", value: "mine" },
-      ...teams.map((t) => ({ label: t.name, value: `team:${t.id}` as ScopeFilterValue, icon: true })),
+      { label: 'All', value: 'all' },
+      { label: 'Unassigned', value: 'unassigned' },
+      { label: 'Mine', value: 'mine' },
+      ...teams.map((t) => ({
+        label: t.name,
+        value: `team:${t.id}` as ScopeFilterValue,
+        icon: true,
+      })),
     ];
   }
   // Coordinator sees the whole account (RLS grants account-wide
   // visibility) but doesn't manage teams — so All / Unassigned / Mine
   // without the per-team dropdown a Manager gets.
-  if (orgRole === "org_coordinator") {
+  if (orgRole === 'org_coordinator') {
     return [
-      { label: "All", value: "all" },
-      { label: "Unassigned", value: "unassigned" },
-      { label: "Mine", value: "mine" },
+      { label: 'All', value: 'all' },
+      { label: 'Unassigned', value: 'unassigned' },
+      { label: 'Mine', value: 'mine' },
     ];
   }
-  if (orgRole === "org_leader") {
+  if (orgRole === 'org_leader') {
     return [
-      { label: "My Team", value: "all" },
-      { label: "Unassigned", value: "unassigned" },
-      { label: "Mine", value: "mine" },
+      { label: 'My Team', value: 'all' },
+      { label: 'Unassigned', value: 'unassigned' },
+      { label: 'Mine', value: 'mine' },
     ];
   }
   // org_agent, or role not yet loaded — RLS already scopes them to
   // their own conversations, so "Mine" is the only meaningful tab.
-  return [{ label: "Mine", value: "mine" }];
+  return [{ label: 'Mine', value: 'mine' }];
 }
 
 export function ConversationList({
@@ -129,15 +144,17 @@ export function ConversationList({
   resyncToken = 0,
 }: ConversationListProps) {
   const searchParams = useSearchParams();
-  const initialFilter = (searchParams.get("filter") as FilterValue) || "all";
-  const initialSearch = searchParams.get("search") || "";
+  const initialFilter = (searchParams.get('filter') as FilterValue) || 'all';
+  const initialSearch = searchParams.get('search') || '';
   const { orgRole, accountId, user, profile } = useAuth();
 
   const [search, setSearch] = useState(initialSearch);
   const [filter, setFilter] = useState<FilterValue>(
-    FILTER_OPTIONS.some((o) => o.value === initialFilter) ? initialFilter : "all"
+    FILTER_OPTIONS.some((o) => o.value === initialFilter)
+      ? initialFilter
+      : 'all'
   );
-  const [scopeFilter, setScopeFilter] = useState<ScopeFilterValue>("all");
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilterValue>('all');
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   // True once the very first fetch has completed — subsequent resyncs
@@ -146,8 +163,8 @@ export function ConversationList({
   const initialLoadDoneRef = useRef(false);
 
   useEffect(() => {
-    const filterParam = searchParams.get("filter") as FilterValue;
-    const searchParam = searchParams.get("search");
+    const filterParam = searchParams.get('filter') as FilterValue;
+    const searchParam = searchParams.get('search');
 
     const timer = setTimeout(() => {
       if (filterParam && FILTER_OPTIONS.some((o) => o.value === filterParam)) {
@@ -164,15 +181,15 @@ export function ConversationList({
   // RLS-scoped like everything else here; skipped entirely for
   // Leader/Agent since they never see this dropdown option.
   useEffect(() => {
-    if (orgRole !== "org_manager" || !accountId) return;
+    if (orgRole !== 'org_manager' || !accountId) return;
     let cancelled = false;
     (async () => {
       const supabase = createClient();
       const { data } = await supabase
-        .from("teams")
-        .select("*")
-        .eq("account_id", accountId)
-        .order("name", { ascending: true });
+        .from('teams')
+        .select('*')
+        .eq('account_id', accountId)
+        .order('name', { ascending: true });
       if (!cancelled) setTeams((data as Team[] | null) ?? []);
     })();
     return () => {
@@ -186,8 +203,13 @@ export function ConversationList({
   // changes mid-session. Falling back to the first valid option here
   // (render time) avoids an effect just to keep state "in sync" with
   // itself — see https://react.dev/learn/you-might-not-need-an-effect.
-  const scopeOptions = useMemo(() => scopeOptionsFor(orgRole, teams), [orgRole, teams]);
-  const effectiveScope: ScopeFilterValue = scopeOptions.some((o) => o.value === scopeFilter)
+  const scopeOptions = useMemo(
+    () => scopeOptionsFor(orgRole, teams),
+    [orgRole, teams]
+  );
+  const effectiveScope: ScopeFilterValue = scopeOptions.some(
+    (o) => o.value === scopeFilter
+  )
     ? scopeFilter
     : scopeOptions[0].value;
 
@@ -216,18 +238,18 @@ export function ConversationList({
 
     (async () => {
       const { data, error } = await supabase
-        .from("conversations")
-        .select("*, contact:contacts(*)")
+        .from('conversations')
+        .select('*, contact:contacts(*)')
         // Message-less conversation rows (opened by a flow whose send was
         // blocked, e.g. outside the 24-hour window) have nothing to show.
-        .not("last_message_at", "is", null)
-        .order("last_message_at", { ascending: false });
+        .not('last_message_at', 'is', null)
+        .order('last_message_at', { ascending: false });
 
       if (cancelled) return;
 
       if (error) {
         // Supabase errors have non-enumerable properties — log fields explicitly
-        console.error("Failed to fetch conversations:", {
+        console.error('Failed to fetch conversations:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -240,9 +262,11 @@ export function ConversationList({
       let fetched = data ?? [];
 
       if (profile?.phone) {
-        const userPhoneDigits = profile.phone.replace(/\D/g, "");
+        const userPhoneDigits = profile.phone.replace(/\D/g, '');
         fetched = fetched.filter(
-          (c) => !c.contact?.phone || c.contact.phone.replace(/\D/g, "") !== userPhoneDigits
+          (c) =>
+            !c.contact?.phone ||
+            c.contact.phone.replace(/\D/g, '') !== userPhoneDigits
         );
       }
 
@@ -268,30 +292,39 @@ export function ConversationList({
     // up on any events sent while the WS was disconnected or throttled.
   }, [resyncToken, profile?.phone]);
 
-  const userPhoneDigits = profile?.phone ? profile.phone.replace(/\D/g, "") : "";
+  const userPhoneDigits = profile?.phone
+    ? profile.phone.replace(/\D/g, '')
+    : '';
 
   // Busiest threads over the last 24 hours, counted in SQL by the
   // conversation_activity RPC — fetched only while the Active filter is on.
-  const [activityById, setActivityById] = useState<Map<string, number> | null>(null);
+  const [activityById, setActivityById] = useState<Map<string, number> | null>(
+    null
+  );
   useEffect(() => {
-    if (filter !== "active" || !accountId) return;
+    if (filter !== 'active' || !accountId) return;
     let cancelled = false;
     (async () => {
-      const { data, error } = await createClient().rpc("conversation_activity", {
-        p_account_id: accountId,
-        p_hours: 24,
-      });
+      const { data, error } = await createClient().rpc(
+        'conversation_activity',
+        {
+          p_account_id: accountId,
+          p_hours: 24,
+        }
+      );
       if (cancelled) return;
       if (error) {
-        console.error("Failed to fetch conversation activity:", error.message);
+        console.error('Failed to fetch conversation activity:', error.message);
         return;
       }
       setActivityById(
         new Map(
-          (data ?? []).map((r: { conversation_id: string; message_count: number }) => [
-            r.conversation_id,
-            Number(r.message_count),
-          ])
+          (data ?? []).map(
+            (r: { conversation_id: string; message_count: number }) => [
+              r.conversation_id,
+              Number(r.message_count),
+            ]
+          )
         )
       );
     })();
@@ -305,26 +338,32 @@ export function ConversationList({
 
     if (userPhoneDigits) {
       result = result.filter(
-        (c) => !c.contact?.phone || c.contact.phone.replace(/\D/g, "") !== userPhoneDigits
+        (c) =>
+          !c.contact?.phone ||
+          c.contact.phone.replace(/\D/g, '') !== userPhoneDigits
       );
     }
 
-    if (filter === "archived") {
+    if (filter === 'archived') {
       result = result.filter((c) => c.is_archived);
     } else {
       // Hide archived conversations from all non-archived views
       result = result.filter((c) => !c.is_archived);
-      if (filter === "needs_reply") {
+      if (filter === 'needs_reply') {
         // Longest-waiting first: the closer a thread is to losing its
         // 24-hour window, the higher it sits.
         result = result
           .filter((c) => needsReply(c) !== null)
           .sort(
             (a, b) =>
-              new Date(a.last_customer_message_at ?? a.last_message_at ?? 0).getTime() -
-              new Date(b.last_customer_message_at ?? b.last_message_at ?? 0).getTime()
+              new Date(
+                a.last_customer_message_at ?? a.last_message_at ?? 0
+              ).getTime() -
+              new Date(
+                b.last_customer_message_at ?? b.last_message_at ?? 0
+              ).getTime()
           );
-      } else if (filter === "unanswered") {
+      } else if (filter === 'unanswered') {
         // Longest silence first: the lead who has ignored us for a week
         // is the one worth another approach.
         result = result
@@ -334,23 +373,28 @@ export function ConversationList({
               new Date(a.last_message_at ?? 0).getTime() -
               new Date(b.last_message_at ?? 0).getTime()
           );
-      } else if (filter === "active") {
+      } else if (filter === 'active') {
         result = result
           .filter((c) => activityById?.has(c.id))
-          .sort((a, b) => (activityById?.get(b.id) ?? 0) - (activityById?.get(a.id) ?? 0));
-      } else if (filter !== "all") {
+          .sort(
+            (a, b) =>
+              (activityById?.get(b.id) ?? 0) - (activityById?.get(a.id) ?? 0)
+          );
+      } else if (filter !== 'all') {
         result = result.filter((c) => c.status === filter);
       }
     }
 
     // Assignment-scope tab — convenience narrowing on top of the
     // already-RLS-restricted result set (see scopeOptionsFor above).
-    if (effectiveScope === "unassigned") {
-      result = result.filter((c) => !c.assigned_agent_id && !c.assigned_team_id);
-    } else if (effectiveScope === "mine") {
+    if (effectiveScope === 'unassigned') {
+      result = result.filter(
+        (c) => !c.assigned_agent_id && !c.assigned_team_id
+      );
+    } else if (effectiveScope === 'mine') {
       result = result.filter((c) => c.assigned_agent_id === user?.id);
-    } else if (effectiveScope.startsWith("team:")) {
-      const scopedTeamId = effectiveScope.slice("team:".length);
+    } else if (effectiveScope.startsWith('team:')) {
+      const scopedTeamId = effectiveScope.slice('team:'.length);
       result = result.filter((c) => c.assigned_team_id === scopedTeamId);
     }
     // effectiveScope === "all": no extra filter. For a Leader this is
@@ -360,11 +404,12 @@ export function ConversationList({
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((c) => {
-        const name = c.contact?.name?.toLowerCase() ?? "";
-        const phone = c.contact?.phone?.toLowerCase() ?? "";
-        const lastMsg = c.last_message_text?.toLowerCase() ?? "";
-        const closeReason = conversationCloseReasonLabel(c.close_reason)?.toLowerCase() ?? "";
-        const closeNote = c.close_note?.toLowerCase() ?? "";
+        const name = c.contact?.name?.toLowerCase() ?? '';
+        const phone = c.contact?.phone?.toLowerCase() ?? '';
+        const lastMsg = c.last_message_text?.toLowerCase() ?? '';
+        const closeReason =
+          conversationCloseReasonLabel(c.close_reason)?.toLowerCase() ?? '';
+        const closeNote = c.close_note?.toLowerCase() ?? '';
         return (
           name.includes(q) ||
           phone.includes(q) ||
@@ -376,7 +421,15 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, effectiveScope, user?.id, userPhoneDigits, activityById]);
+  }, [
+    conversations,
+    filter,
+    search,
+    effectiveScope,
+    user?.id,
+    userPhoneDigits,
+    activityById,
+  ]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -398,52 +451,56 @@ export function ConversationList({
       const newArchived = !conv.is_archived;
       const supabase = createClient();
       const { data, error } = await supabase
-        .from("conversations")
+        .from('conversations')
         .update({ is_archived: newArchived })
-        .eq("id", conv.id)
-        .select("id");
+        .eq('id', conv.id)
+        .select('id');
 
       if (error || !data?.length) {
-        toast.error("Failed to update conversation");
+        toast.error('Failed to update conversation');
         return;
       }
 
       onArchiveChange?.(conv.id, newArchived);
-      toast.success(newArchived ? "Conversation archived" : "Conversation unarchived", {
-        action: {
-          label: "Undo",
-          onClick: async () => {
-            const supabase2 = createClient();
-            await supabase2
-              .from("conversations")
-              .update({ is_archived: !newArchived })
-              .eq("id", conv.id);
-            onArchiveChange?.(conv.id, !newArchived);
+      toast.success(
+        newArchived ? 'Conversation archived' : 'Conversation unarchived',
+        {
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              const supabase2 = createClient();
+              await supabase2
+                .from('conversations')
+                .update({ is_archived: !newArchived })
+                .eq('id', conv.id);
+              onArchiveChange?.(conv.id, !newArchived);
+            },
           },
-        },
-      });
+        }
+      );
     },
     [onArchiveChange]
   );
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
-  const activeScope = scopeOptions.find((o) => o.value === effectiveScope) ?? scopeOptions[0];
+  const activeScope =
+    scopeOptions.find((o) => o.value === effectiveScope) ?? scopeOptions[0];
 
   return (
     // w-full on mobile so the list occupies the whole viewport when it's
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
-    <div className="flex h-full w-full flex-col border-r border-slate-900/60 bg-slate-950/45 backdrop-blur-xl lg:w-80 min-h-0 overflow-hidden">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-slate-900/60 bg-slate-950/45 backdrop-blur-xl lg:w-80">
       {/* Search + Filter */}
       <div className="space-y-2.5 border-b border-slate-900/60 p-3.5">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <Input
               value={search}
               onChange={handleSearchChange}
               placeholder="Search conversations..."
-              className="border-slate-850 bg-slate-950/40 pl-9 text-sm text-white placeholder-slate-550 focus:border-primary/50 rounded-xl transition-all"
+              className="border-slate-850 placeholder-slate-550 focus:border-primary/50 rounded-xl bg-slate-950/40 pl-9 text-sm text-white transition-all"
             />
           </div>
           <FavoriteButton label="Inbox" href="/inbox" icon="MessageSquare" />
@@ -451,9 +508,9 @@ export function ConversationList({
 
         <div className="flex items-center gap-2">
           <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex items-center justify-center h-8 gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-350 hover:text-white rounded-xl border border-slate-900 bg-slate-950/20 hover:bg-slate-900/50 cursor-pointer transition-all">
-                {activeFilter?.label ?? "All"}
-                <ChevronDown className="h-3 w-3" />
+            <DropdownMenuTrigger className="text-slate-350 inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-900 bg-slate-950/20 px-3 py-1.5 text-xs font-bold transition-all hover:bg-slate-900/50 hover:text-white">
+              {activeFilter?.label ?? 'All'}
+              <ChevronDown className="h-3 w-3" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="start"
@@ -464,13 +521,17 @@ export function ConversationList({
                   key={opt.value}
                   onClick={() => setFilter(opt.value)}
                   className={cn(
-                    "text-sm",
+                    'text-sm',
                     filter === opt.value
-                      ? "text-primary"
-                      : opt.value === "archived" ? "text-slate-400" : "text-slate-300"
+                      ? 'text-primary'
+                      : opt.value === 'archived'
+                        ? 'text-slate-400'
+                        : 'text-slate-300'
                   )}
                 >
-                  {opt.value === "archived" && <Archive className="mr-2 h-3 w-3" />}
+                  {opt.value === 'archived' && (
+                    <Archive className="mr-2 h-3 w-3" />
+                  )}
                   {opt.label}
                 </DropdownMenuItem>
               ))}
@@ -482,9 +543,9 @@ export function ConversationList({
               option every role trivially has. */}
           {scopeOptions.length > 1 && (
             <DropdownMenu>
-              <DropdownMenuTrigger className="inline-flex items-center justify-center h-8 gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-350 hover:text-white rounded-xl border border-slate-900 bg-slate-950/20 hover:bg-slate-900/50 cursor-pointer transition-all">
+              <DropdownMenuTrigger className="text-slate-350 inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-900 bg-slate-950/20 px-3 py-1.5 text-xs font-bold transition-all hover:bg-slate-900/50 hover:text-white">
                 <Users className="h-3 w-3" />
-                {activeScope?.label ?? "All"}
+                {activeScope?.label ?? 'All'}
                 <ChevronDown className="h-3 w-3" />
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -496,8 +557,10 @@ export function ConversationList({
                     key={opt.value}
                     onClick={() => setScopeFilter(opt.value)}
                     className={cn(
-                      "text-sm",
-                      effectiveScope === opt.value ? "text-primary" : "text-slate-300"
+                      'text-sm',
+                      effectiveScope === opt.value
+                        ? 'text-primary'
+                        : 'text-slate-300'
                     )}
                   >
                     {opt.label}
@@ -510,17 +573,23 @@ export function ConversationList({
       </div>
 
       {/* Conversation Items */}
-      <ScrollArea className="flex-1 min-h-0">
+      <ScrollArea className="min-h-0 flex-1">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-            <MessageBubbleLoader size={104} label="Loading conversations" className="mb-3" />
+            <MessageBubbleLoader
+              size={104}
+              label="Loading conversations"
+              className="mb-3"
+            />
             <ConvoRealLoader size={20} className="mb-2" />
             <p className="text-sm">Loading conversations...</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-12 text-center">
             <p className="text-sm text-slate-500">
-              {filter === "archived" ? "No archived conversations" : "No conversations found"}
+              {filter === 'archived'
+                ? 'No archived conversations'
+                : 'No conversations found'}
             </p>
           </div>
         ) : (
@@ -530,7 +599,9 @@ export function ConversationList({
                 key={conv.id}
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
-                activityCount={filter === "active" ? activityById?.get(conv.id) : undefined}
+                activityCount={
+                  filter === 'active' ? activityById?.get(conv.id) : undefined
+                }
                 onSelect={handleSelect}
                 onArchiveToggle={handleArchiveToggle}
               />
@@ -560,10 +631,12 @@ function ConversationItem({
 }: ConversationItemProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const contact = conversation.contact;
-  const displayName = contact?.name || contact?.phone || "Unknown";
+  const displayName = contact?.name || contact?.phone || 'Unknown';
   const initials = displayName.charAt(0).toUpperCase();
   const reply = needsReply(conversation);
-  const closeReasonLabel = conversationCloseReasonLabel(conversation.close_reason);
+  const closeReasonLabel = conversationCloseReasonLabel(
+    conversation.close_reason
+  );
 
   const handleClick = useCallback(() => {
     onSelect(conversation);
@@ -573,34 +646,36 @@ function ConversationItem({
     ? formatDistanceToNow(new Date(conversation.last_message_at), {
         addSuffix: false,
       })
-    : "";
+    : '';
 
   const isUnread = conversation.unread_count > 0;
 
   return (
     <div
       className={cn(
-        "group relative flex w-full items-start gap-3 px-3.5 py-3.5 text-left transition-all hover:pl-4.5 border-l-2 select-none cursor-pointer duration-200",
+        'group relative flex w-full cursor-pointer items-start gap-3 border-l-2 px-3.5 py-3.5 text-left transition-all duration-200 select-none hover:pl-4.5',
         isActive
-          ? "border-l-primary bg-primary/10 text-white hover:pl-3.5"
+          ? 'border-l-primary bg-primary/10 text-white hover:pl-3.5'
           : isUnread
-          ? "border-l-primary bg-slate-900/60 text-white hover:bg-slate-900/85 hover:pl-4.5"
-          : "border-l-transparent text-slate-400 hover:bg-slate-900/30 hover:pl-4.5"
+            ? 'border-l-primary bg-slate-900/60 text-white hover:bg-slate-900/85 hover:pl-4.5'
+            : 'border-l-transparent text-slate-400 hover:bg-slate-900/30 hover:pl-4.5'
       )}
     >
       <button
         onClick={handleClick}
-        className="flex flex-1 items-start gap-3 min-w-0 text-left"
+        className="flex min-w-0 flex-1 items-start gap-3 text-left"
       >
         {/* Avatar */}
-        <div className={cn(
-          "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 border text-sm font-bold transition-all",
-          isActive
-            ? "border-primary text-primary-foreground"
-            : isUnread
-            ? "border-primary/60 text-white shadow-[0_0_8px_hsl(var(--primary)/0.25)]"
-            : "border-slate-750 text-slate-400"
-        )}>
+        <div
+          className={cn(
+            'relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-slate-800 text-sm font-bold transition-all',
+            isActive
+              ? 'border-primary text-primary-foreground'
+              : isUnread
+                ? 'border-primary/60 text-white shadow-[0_0_8px_hsl(var(--primary)/0.25)]'
+                : 'border-slate-750 text-slate-400'
+          )}
+        >
           {contact?.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -613,60 +688,71 @@ function ConversationItem({
           )}
           {/* Unread pulse dot on avatar */}
           {isUnread && !isActive && (
-            <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-primary border-2 border-slate-950 animate-pulse" />
+            <span className="bg-primary absolute -top-0.5 -right-0.5 h-3 w-3 animate-pulse rounded-full border-2 border-slate-950" />
           )}
         </div>
 
         {/* Content */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 min-w-0">
-              <span className={cn(
-                "truncate text-sm transition-all",
-                isActive
-                  ? "font-semibold text-white"
-                  : isUnread
-                  ? "font-bold text-white text-md tracking-wide"
-                  : "font-normal text-slate-400"
-              )}>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span
+                className={cn(
+                  'truncate text-sm transition-all',
+                  isActive
+                    ? 'font-semibold text-white'
+                    : isUnread
+                      ? 'text-md font-bold tracking-wide text-white'
+                      : 'font-normal text-slate-400'
+                )}
+              >
                 {displayName}
               </span>
               {contact?.name && <NameTagBadge tag={contact?.name_tag} />}
             </span>
-            <span className={cn(
-              "shrink-0 text-[10px] transition-all",
-              isActive
-                ? "text-primary-foreground/70"
-                : isUnread
-                ? "text-primary font-bold"
-                : "text-slate-500"
-            )}>{timeAgo}</span>
+            <span
+              className={cn(
+                'shrink-0 text-[10px] transition-all',
+                isActive
+                  ? 'text-primary-foreground/70'
+                  : isUnread
+                    ? 'text-primary font-bold'
+                    : 'text-slate-500'
+              )}
+            >
+              {timeAgo}
+            </span>
           </div>
           <div className="mt-1 flex items-center justify-between gap-2">
-            <p className={cn(
-              "truncate text-xs transition-all",
-              isActive
-                ? "text-slate-200"
-                : isUnread
-                ? "text-slate-100 font-semibold"
-                : "text-slate-500 font-normal"
-            )}>
-              {stripWhatsAppFormatting(conversation.last_message_text) || "No messages yet"}
+            <p
+              className={cn(
+                'truncate text-xs transition-all',
+                isActive
+                  ? 'text-slate-200'
+                  : isUnread
+                    ? 'font-semibold text-slate-100'
+                    : 'font-normal text-slate-500'
+              )}
+            >
+              {stripWhatsAppFormatting(conversation.last_message_text) ||
+                'No messages yet'}
             </p>
             <div className="flex shrink-0 items-center gap-1.5">
               {isUnread && (
-                <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1.5 text-[9px] font-black text-primary-foreground shadow-[0_0_8px_hsl(var(--primary)/0.6)]">
+                <span className="bg-primary text-primary-foreground flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1.5 text-[9px] font-black shadow-[0_0_8px_hsl(var(--primary)/0.6)]">
                   {conversation.unread_count}
                 </span>
               )}
               <span
                 className={cn(
-                  "h-2 w-2 rounded-full",
+                  'h-2 w-2 rounded-full',
                   conversation.is_archived
-                    ? "bg-slate-600"
+                    ? 'bg-slate-600'
                     : STATUS_COLORS[conversation.status]
                 )}
-                title={conversation.is_archived ? "archived" : conversation.status}
+                title={
+                  conversation.is_archived ? 'archived' : conversation.status
+                }
               />
             </div>
           </div>
@@ -675,10 +761,10 @@ function ConversationItem({
               {reply && (
                 <span
                   className={cn(
-                    "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold",
+                    'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold',
                     reply.windowExpired
-                      ? "bg-red-500/15 text-red-400"
-                      : "bg-amber-500/15 text-amber-400"
+                      ? 'bg-red-500/15 text-red-400'
+                      : 'bg-amber-500/15 text-amber-400'
                   )}
                 >
                   {needsReplyLabel(reply)}
@@ -693,7 +779,7 @@ function ConversationItem({
                 </span>
               )}
               {activityCount != null && (
-                <span className="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
+                <span className="bg-primary/15 text-primary inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold">
                   {activityCount} in 24h
                 </span>
               )}
@@ -705,24 +791,37 @@ function ConversationItem({
       {/* Context menu — archive / unarchive */}
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger
-          onClick={(e) => { e.stopPropagation(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
           className={cn(
-            "absolute right-2 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:text-white hover:bg-slate-700 transition-opacity",
-            menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            'absolute top-1/2 right-2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 transition-opacity hover:bg-slate-700 hover:text-white',
+            menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}
           aria-label="Conversation options"
         >
           <MoreVertical className="h-3.5 w-3.5" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="border-slate-900 bg-slate-950/95 backdrop-blur-xl min-w-36">
+        <DropdownMenuContent
+          align="end"
+          className="min-w-36 border-slate-900 bg-slate-950/95 backdrop-blur-xl"
+        >
           <DropdownMenuItem
-            onClick={(e) => { setMenuOpen(false); onArchiveToggle(conversation, e); }}
+            onClick={(e) => {
+              setMenuOpen(false);
+              onArchiveToggle(conversation, e);
+            }}
             className="gap-2 text-sm text-slate-300"
           >
             {conversation.is_archived ? (
-              <><ArchiveRestore className="h-3.5 w-3.5 text-slate-400" /> Unarchive</>
+              <>
+                <ArchiveRestore className="h-3.5 w-3.5 text-slate-400" />{' '}
+                Unarchive
+              </>
             ) : (
-              <><Archive className="h-3.5 w-3.5 text-slate-400" /> Archive</>
+              <>
+                <Archive className="h-3.5 w-3.5 text-slate-400" /> Archive
+              </>
             )}
           </DropdownMenuItem>
         </DropdownMenuContent>

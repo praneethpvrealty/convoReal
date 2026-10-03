@@ -20,7 +20,10 @@ import { Loader2, CalendarDays } from 'lucide-react';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { SearchableContactMultiSelect } from '@/components/ui/searchable-contact-multi-select';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
-import { linkedContactForProperty, linkedPropertyForContacts } from '@/lib/calendar/auto-link';
+import {
+  linkedContactForProperty,
+  linkedPropertyForContacts,
+} from '@/lib/calendar/auto-link';
 
 interface SimpleContact {
   id: string;
@@ -91,7 +94,9 @@ export function ScheduleDialog({
           .order('name'),
         supabase
           .from('properties')
-          .select('id, title, property_code, location, tags, price, type, bedrooms, area_sqft, area_unit, images')
+          .select(
+            'id, title, property_code, location, tags, price, type, bedrooms, area_sqft, area_unit, images'
+          )
           .eq('account_id', accountId)
           .order('title'),
       ]);
@@ -119,7 +124,7 @@ export function ScheduleDialog({
       const now = new Date();
       now.setMinutes(0, 0, 0);
       const start = new Date(now.getTime() + 60 * 60 * 1000); // +1 hour
-      const end = new Date(start.getTime() + 60 * 60 * 1000);   // +1 hour duration
+      const end = new Date(start.getTime() + 60 * 60 * 1000); // +1 hour duration
 
       const pad = (n: number) => String(n).padStart(2, '0');
       const formatDateTime = (d: Date) =>
@@ -133,7 +138,9 @@ export function ScheduleDialog({
   // Keep selection updated if contactId prop changes
   useEffect(() => {
     if (contactId) {
-      setSelectedContactIds((prev) => (prev.includes(contactId) ? prev : [contactId, ...prev]));
+      setSelectedContactIds((prev) =>
+        prev.includes(contactId) ? prev : [contactId, ...prev]
+      );
     }
   }, [contactId]);
 
@@ -152,7 +159,9 @@ export function ScheduleDialog({
       const hit = linkedPropertyForContacts(ids, contacts, properties);
       if (hit) {
         setSelectedPropertyId(hit.property.id);
-        toast.info(`Linked property "${hit.property.title}" from ${hit.contact.name}'s inquiry`);
+        toast.info(
+          `Linked property "${hit.property.title}" from ${hit.contact.name}'s inquiry`
+        );
       }
     }
   };
@@ -207,7 +216,8 @@ export function ScheduleDialog({
       onOpenChange(false);
       if (onSuccess) onSuccess();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to save schedule';
+      const msg =
+        err instanceof Error ? err.message : 'Failed to save schedule';
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -216,10 +226,10 @@ export function ScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg overflow-y-auto max-h-[calc(100vh-2rem)] my-auto p-6 shadow-2xl">
+      <DialogContent className="my-auto max-h-[calc(100vh-2rem)] overflow-y-auto border-slate-700 bg-slate-900 p-6 text-slate-200 shadow-2xl sm:max-w-lg">
         <DialogHeader className="border-b border-slate-800 pb-3">
-          <DialogTitle className="text-white flex items-center gap-2">
-            <CalendarDays className="h-5 w-5 text-primary" />
+          <DialogTitle className="flex items-center gap-2 text-white">
+            <CalendarDays className="text-primary h-5 w-5" />
             Schedule Appointment
           </DialogTitle>
           <DialogDescription className="text-slate-400">
@@ -229,7 +239,7 @@ export function ScheduleDialog({
 
         <form onSubmit={handleSave} className="space-y-4 py-3">
           <div className="space-y-1.5">
-            <Label htmlFor="title" className="text-slate-400 text-xs">
+            <Label htmlFor="title" className="text-xs text-slate-400">
               Title / Activity *
             </Label>
             <Input
@@ -238,13 +248,13 @@ export function ScheduleDialog({
               placeholder="e.g. Call client, Site Visit - JP Nagar"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="bg-slate-800 border-slate-700 text-white h-9 text-sm"
+              className="h-9 border-slate-700 bg-slate-800 text-sm text-white"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-slate-400 text-xs">
+              <Label className="text-xs text-slate-400">
                 Link Contacts (buyer, agent…)
               </Label>
               <SearchableContactMultiSelect
@@ -253,13 +263,14 @@ export function ScheduleDialog({
                 onChange={handleContactsChange}
                 placeholder="Search contacts..."
               />
-              <p className="text-[10px] text-slate-500 font-medium">
-                Reminders go to every linked contact — 7 AM on the day &amp; 1 hour before.
+              <p className="text-[10px] font-medium text-slate-500">
+                Reminders go to every linked contact — 7 AM on the day &amp; 1
+                hour before.
               </p>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-slate-400 text-xs">
+              <Label className="text-xs text-slate-400">
                 Link Property Listing
               </Label>
               <SearchablePropertySelect
@@ -274,7 +285,7 @@ export function ScheduleDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="startTime" className="text-slate-400 text-xs">
+              <Label htmlFor="startTime" className="text-xs text-slate-400">
                 Start Time *
               </Label>
               <DateTimePicker
@@ -285,7 +296,7 @@ export function ScheduleDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="endTime" className="text-slate-400 text-xs">
+              <Label htmlFor="endTime" className="text-xs text-slate-400">
                 End Time *
               </Label>
               <DateTimePicker
@@ -297,7 +308,7 @@ export function ScheduleDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="location" className="text-slate-400 text-xs">
+            <Label htmlFor="location" className="text-xs text-slate-400">
               Location / Meeting Link
             </Label>
             <Input
@@ -305,12 +316,12 @@ export function ScheduleDialog({
               placeholder="e.g. JP Nagar 5th Phase, or Google Meet URL"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              className="bg-slate-800 border-slate-700 text-white h-9 text-sm"
+              className="h-9 border-slate-700 bg-slate-800 text-sm text-white"
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="agenda" className="text-slate-400 text-xs">
+            <Label htmlFor="agenda" className="text-xs text-slate-400">
               Agenda — sent in the pre-event reminder
             </Label>
             <Textarea
@@ -319,12 +330,12 @@ export function ScheduleDialog({
               value={agenda}
               onChange={(e) => setAgenda(e.target.value)}
               rows={2}
-              className="bg-slate-800 border-slate-700 text-white text-sm resize-y"
+              className="resize-y border-slate-700 bg-slate-800 text-sm text-white"
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="notes" className="text-slate-400 text-xs">
+            <Label htmlFor="notes" className="text-xs text-slate-400">
               Notes / Description
             </Label>
             <Textarea
@@ -333,16 +344,16 @@ export function ScheduleDialog({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              className="bg-slate-800 border-slate-700 text-white text-sm resize-y"
+              className="resize-y border-slate-700 bg-slate-800 text-sm text-white"
             />
           </div>
 
-          <DialogFooter className="border-t border-slate-800 pt-4 mt-2">
+          <DialogFooter className="mt-2 border-t border-slate-800 pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800 h-9"
+              className="h-9 border-slate-700 text-slate-300 hover:bg-slate-800"
             >
               Cancel
             </Button>
@@ -351,7 +362,7 @@ export function ScheduleDialog({
               disabled={loading}
               className="bg-primary hover:bg-primary/90 text-primary-foreground h-9"
             >
-              {loading && <Loader2 className="size-4 animate-spin mr-1.5" />}
+              {loading && <Loader2 className="mr-1.5 size-4 animate-spin" />}
               Save Changes
             </Button>
           </DialogFooter>

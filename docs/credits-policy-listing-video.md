@@ -4,12 +4,12 @@
 
 A generated video consumes:
 
-| Item | Typical usage | Notes |
-|---|---|---|
-| Sarvam Translate (mayura) | ~400–600 chars | only for non-English narration |
-| Sarvam TTS (bulbul:v2) | ~400–600 chars | 1 request per ≤450-char chunk |
-| Worker CPU (ffmpeg) | ~30–60s | already-paid Railway container |
-| Storage + egress | ~2–3 MB | negligible; R2 later = free egress |
+| Item                      | Typical usage  | Notes                              |
+| ------------------------- | -------------- | ---------------------------------- |
+| Sarvam Translate (mayura) | ~400–600 chars | only for non-English narration     |
+| Sarvam TTS (bulbul:v2)    | ~400–600 chars | 1 request per ≤450-char chunk      |
+| Worker CPU (ffmpeg)       | ~30–60s        | already-paid Railway container     |
+| Storage + egress          | ~2–3 MB        | negligible; R2 later = free egress |
 
 Sarvam sells credits in ₹ packs (e.g. ₹10,000 → 12,500 credits →
 **₹0.80 per Sarvam credit**), pooled across all their APIs. At their

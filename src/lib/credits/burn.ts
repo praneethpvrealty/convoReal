@@ -10,7 +10,7 @@
 // client option — callers must resolve the account id server-side.
 // ============================================================
 
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getOrCreateWallet } from './wallet';
 import type { BillableFeatureKey } from './types';
 
@@ -47,10 +47,10 @@ export async function burnCredits(
   accountId: string,
   feature: BillableFeatureKey,
   cost: number,
-  opts: BurnOptions = {},
+  opts: BurnOptions = {}
 ): Promise<BurnResult> {
   const hardBlock = opts.hardBlock ?? true;
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
 
   // Ensure the wallet exists before attempting the RPC — accounts
   // created outside the normal signup trigger may not have one yet.
@@ -84,9 +84,9 @@ export async function refundCredits(
   accountId: string,
   feature: BillableFeatureKey,
   cost: number,
-  opts: { description?: string } = {},
+  opts: { description?: string } = {}
 ): Promise<{ success: boolean; balanceAfter: number }> {
-  const supabase = billingAdmin();
+  const supabase = supabaseAdmin();
   const description = opts.description ?? `${feature} refund`;
 
   const { data, error } = await supabase.rpc('refund_credits_tx', {
@@ -101,7 +101,8 @@ export async function refundCredits(
   }
 
   const row = Array.isArray(data) ? data[0] : data;
-  const balanceAfter = typeof row === 'number' ? row : Number(row?.balance_after ?? 0);
+  const balanceAfter =
+    typeof row === 'number' ? row : Number(row?.balance_after ?? 0);
 
   return {
     success: true,

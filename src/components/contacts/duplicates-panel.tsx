@@ -79,7 +79,10 @@ interface Props {
 const DUPLICATES_STALE_MS = 5 * 60 * 1000;
 
 function groupIds(group: DuplicateGroup): string {
-  return group.contacts.map((c) => c.id).sort().join(':');
+  return group.contacts
+    .map((c) => c.id)
+    .sort()
+    .join(':');
 }
 
 async function fetchDuplicateGroups(): Promise<DuplicateGroup[]> {
@@ -114,7 +117,11 @@ function ContactDifferences({ contacts }: { contacts: DuplicateContact[] }) {
         onClick={() => setOpen((v) => !v)}
         className="flex cursor-pointer items-center gap-1 text-xs text-amber-400/80 hover:text-amber-300"
       >
-        {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        {open ? (
+          <ChevronUp className="h-3 w-3" />
+        ) : (
+          <ChevronDown className="h-3 w-3" />
+        )}
         {open ? 'Hide' : 'Compare'} {differences.length} difference
         {differences.length !== 1 ? 's' : ''}
         {conflicts > 0 ? ` · ${conflicts} conflicting` : ''}
@@ -173,7 +180,8 @@ export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contactIds }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || 'Could not dismiss');
+      if (!res.ok)
+        throw new Error((await res.json()).error || 'Could not dismiss');
       await refetch();
       toast.success('Marked as different people', {
         action: {
@@ -260,7 +268,9 @@ export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
           title="Re-check for duplicates"
           className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-800/60 hover:text-slate-300"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`}
+          />
         </button>
       </div>
     );

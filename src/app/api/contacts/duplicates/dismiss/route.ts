@@ -36,7 +36,8 @@ function toFriendlyError(err: unknown): FriendlySupabaseError | null {
   return null;
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // POST   /api/contacts/duplicates/dismiss  — "these are different people"
 // DELETE /api/contacts/duplicates/dismiss  — undo that
@@ -46,7 +47,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // @/lib/contacts/duplicate-dismissal for why. Requires agent+.
 
 async function readIds(request: NextRequest): Promise<string[] | null> {
-  const body = (await request.json().catch(() => null)) as { contactIds?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as {
+    contactIds?: unknown;
+  } | null;
   const ids = body?.contactIds;
   if (!Array.isArray(ids) || ids.length < 2) return null;
   const normalised = [];
@@ -66,7 +69,7 @@ export async function POST(request: NextRequest) {
     if (!ids) {
       return NextResponse.json(
         { error: 'contactIds must hold at least two contact ids' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -98,7 +101,10 @@ export async function POST(request: NextRequest) {
         if (friendly.status === 200) {
           return NextResponse.json({ data: { dismissed: rows.length } });
         }
-        return NextResponse.json({ error: friendly.message }, { status: friendly.status });
+        return NextResponse.json(
+          { error: friendly.message },
+          { status: friendly.status }
+        );
       }
       throw error;
     }
@@ -116,7 +122,7 @@ export async function DELETE(request: NextRequest) {
     if (!ids) {
       return NextResponse.json(
         { error: 'contactIds must hold at least two contact ids' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -140,7 +146,10 @@ export async function DELETE(request: NextRequest) {
           if (friendly.status === 200) {
             continue;
           }
-          return NextResponse.json({ error: friendly.message }, { status: friendly.status });
+          return NextResponse.json(
+            { error: friendly.message },
+            { status: friendly.status }
+          );
         }
         throw error;
       }

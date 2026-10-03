@@ -25,8 +25,6 @@ describe('showcase card motion', () => {
   });
 
   it('clamps motion beyond the visible range', () => {
-    expect(showcaseCardMotion(4, false)).toEqual(
-      showcaseCardMotion(1, false)
-    );
+    expect(showcaseCardMotion(4, false)).toEqual(showcaseCardMotion(1, false));
   });
 });

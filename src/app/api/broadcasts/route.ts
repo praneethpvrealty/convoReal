@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
-import { resolveAudienceOnServer, sendBroadcastRecipients } from '@/lib/broadcasts/sender';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import {
+  resolveAudienceOnServer,
+  sendBroadcastRecipients,
+} from '@/lib/broadcasts/sender';
 
 const INSERT_BATCH_SIZE = 200;
 
@@ -11,7 +18,10 @@ export async function POST(request: NextRequest) {
     const ctx = await requireRole('agent');
 
     // Enforce per-user broadcast campaign start limit
-    const limit = await checkRateLimit(`broadcast:${ctx.userId}`, RATE_LIMITS.broadcast);
+    const limit = await checkRateLimit(
+      `broadcast:${ctx.userId}`,
+      RATE_LIMITS.broadcast
+    );
     if (!limit.success) {
       return rateLimitResponse(limit);
     }
@@ -21,20 +31,27 @@ export async function POST(request: NextRequest) {
 
     if (!name || !template || !audience || !variables) {
       return NextResponse.json(
-        { error: 'Missing required fields: name, template, audience, variables' },
-        { status: 400 },
+        {
+          error: 'Missing required fields: name, template, audience, variables',
+        },
+        { status: 400 }
       );
     }
 
     const admin = supabaseAdmin();
 
     // 1. Resolve contacts server-side
-    const contacts = await resolveAudienceOnServer(ctx.supabase, ctx.accountId, ctx.userId, audience);
+    const contacts = await resolveAudienceOnServer(
+      ctx.supabase,
+      ctx.accountId,
+      ctx.userId,
+      audience
+    );
 
     if (contacts.length === 0) {
       return NextResponse.json(
         { error: 'Audience is empty. No contacts matched the criteria.' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -61,7 +78,9 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (broadcastError || !broadcast) {
-      throw new Error(`Failed to create broadcast row: ${broadcastError?.message ?? 'unknown'}`);
+      throw new Error(
+        `Failed to create broadcast row: ${broadcastError?.message ?? 'unknown'}`
+      );
     }
 
     // 3. Batch insert recipient rows
@@ -87,20 +106,30 @@ export async function POST(request: NextRequest) {
           })
           .eq('id', broadcast.id);
 
-        throw new Error(`Failed to insert recipient batch: ${recipientError.message}`);
+        throw new Error(
+          `Failed to insert recipient batch: ${recipientError.message}`
+        );
       }
     }
 
     // 4. Trigger background dispatch in fire-and-forget style or via waitUntil
-    const reqWithWaitUntil = request as Request & { waitUntil?: (promise: Promise<unknown>) => void };
+    const reqWithWaitUntil = request as Request & {
+      waitUntil?: (promise: Promise<unknown>) => void;
+    };
     if (typeof reqWithWaitUntil.waitUntil === 'function') {
       reqWithWaitUntil.waitUntil(
-        sendBroadcastRecipients(broadcast.id, ctx.accountId, ctx.userId)
-          .catch((err) => console.error('[Broadcast Background Send] error:', err))
+        sendBroadcastRecipients(broadcast.id, ctx.accountId, ctx.userId).catch(
+          (err) => console.error('[Broadcast Background Send] error:', err)
+        )
       );
     } else {
-      void sendBroadcastRecipients(broadcast.id, ctx.accountId, ctx.userId)
-        .catch((err) => console.error('[Broadcast Background Send] error:', err));
+      void sendBroadcastRecipients(
+        broadcast.id,
+        ctx.accountId,
+        ctx.userId
+      ).catch((err) =>
+        console.error('[Broadcast Background Send] error:', err)
+      );
     }
 
     return NextResponse.json({

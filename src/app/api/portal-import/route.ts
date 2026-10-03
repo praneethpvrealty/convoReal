@@ -27,7 +27,11 @@ import {
   matchListing,
   type ExistingPortalLink,
 } from '@/lib/portal-import/listing-matcher';
-import type { HarvestedListing, HarvestPayload, ParsedListing } from '@/lib/portal-import/types';
+import type {
+  HarvestedListing,
+  HarvestPayload,
+  ParsedListing,
+} from '@/lib/portal-import/types';
 import type { Property } from '@/types';
 
 const MAX_BATCH = 300;
@@ -37,7 +41,9 @@ function isPortalKey(v: unknown): v is PortalKey {
   return typeof v === 'string' && (PORTAL_KEYS as string[]).includes(v);
 }
 
-function portalRowStatus(parsed: ParsedListing): 'active' | 'expired' | 'removed' {
+function portalRowStatus(
+  parsed: ParsedListing
+): 'active' | 'expired' | 'removed' {
   if (parsed.portalStatus === 'expired') return 'expired';
   if (parsed.portalStatus === 'inactive') return 'removed';
   return 'active';
@@ -46,51 +52,73 @@ function portalRowStatus(parsed: ParsedListing): 'active' | 'expired' | 'removed
 export async function POST(request: Request) {
   try {
     const ctx = await requireRole('agent');
-    const rate = await checkRateLimit(`portal-import:${ctx.userId}`, IMPORT_RATE);
+    const rate = await checkRateLimit(
+      `portal-import:${ctx.userId}`,
+      IMPORT_RATE
+    );
     if (!rate.success) return rateLimitResponse(rate);
 
     const body = (await request.json()) as Partial<HarvestPayload>;
     if (!isPortalKey(body.portal) || !Array.isArray(body.listings)) {
-      return NextResponse.json({ error: 'portal and listings are required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'portal and listings are required' },
+        { status: 400 }
+      );
     }
     if (body.listings.length === 0) {
-      return NextResponse.json({ error: 'No listings in the harvest payload' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'No listings in the harvest payload' },
+        { status: 400 }
+      );
     }
     if (body.listings.length > MAX_BATCH) {
-      return NextResponse.json({ error: `Batch too large (max ${MAX_BATCH})` }, { status: 400 });
+      return NextResponse.json(
+        { error: `Batch too large (max ${MAX_BATCH})` },
+        { status: 400 }
+      );
     }
     const portal = body.portal;
 
     const rawListings = body.listings.filter(
-      (l): l is HarvestedListing => !!l && typeof l.listingId === 'string' && l.listingId.length > 0 && typeof l.rawText === 'string'
+      (l): l is HarvestedListing =>
+        !!l &&
+        typeof l.listingId === 'string' &&
+        l.listingId.length > 0 &&
+        typeof l.rawText === 'string'
     );
 
     // In-batch dedup: the dashboard can render the same card twice
     // (sticky rows, pagination overlap) — last occurrence wins.
     const byListingId = new Map<string, HarvestedListing>();
     for (const raw of rawListings) byListingId.set(raw.listingId, raw);
-    const parsed = [...byListingId.values()].map((raw) => parseHarvestedListing(portal, raw));
+    const parsed = [...byListingId.values()].map((raw) =>
+      parseHarvestedListing(portal, raw)
+    );
 
-    const [{ data: propertiesData, error: propError }, { data: linksData, error: linkError }, { data: aliasesData, error: aliasError }, { data: stagedData, error: stagedError }] =
-      await Promise.all([
-        ctx.supabase
-          .from('properties')
-          .select('*')
-          .eq('account_id', ctx.accountId)
-          .neq('status', 'Archived'),
-        ctx.supabase
-          .from('property_portal_listings')
-          .select('property_id, portal, portal_listing_id, listing_url')
-          .eq('account_id', ctx.accountId),
-        ctx.supabase
-          .from('property_portal_listing_aliases')
-          .select('property_id, portal, portal_listing_id')
-          .eq('account_id', ctx.accountId),
-        ctx.supabase
-          .from('portal_import_items')
-          .select('portal, portal_listing_id, matched_property_id, match_status')
-          .eq('account_id', ctx.accountId),
-      ]);
+    const [
+      { data: propertiesData, error: propError },
+      { data: linksData, error: linkError },
+      { data: aliasesData, error: aliasError },
+      { data: stagedData, error: stagedError },
+    ] = await Promise.all([
+      ctx.supabase
+        .from('properties')
+        .select('*')
+        .eq('account_id', ctx.accountId)
+        .neq('status', 'Archived'),
+      ctx.supabase
+        .from('property_portal_listings')
+        .select('property_id, portal, portal_listing_id, listing_url')
+        .eq('account_id', ctx.accountId),
+      ctx.supabase
+        .from('property_portal_listing_aliases')
+        .select('property_id, portal, portal_listing_id')
+        .eq('account_id', ctx.accountId),
+      ctx.supabase
+        .from('portal_import_items')
+        .select('portal, portal_listing_id, matched_property_id, match_status')
+        .eq('account_id', ctx.accountId),
+    ]);
     if (propError || linkError || aliasError || stagedError) {
       throw propError || linkError || aliasError || stagedError;
     }
@@ -104,13 +132,24 @@ export async function POST(request: Request) {
     ];
     const committedByKey = new Map<string, string>();
     for (const row of stagedData || []) {
-      if (row.matched_property_id && (row.match_status === 'imported' || row.match_status === 'linked' || row.match_status === 'auto_matched')) {
-        committedByKey.set(`${row.portal}:${row.portal_listing_id}`, row.matched_property_id);
+      if (
+        row.matched_property_id &&
+        (row.match_status === 'imported' ||
+          row.match_status === 'linked' ||
+          row.match_status === 'auto_matched')
+      ) {
+        committedByKey.set(
+          `${row.portal}:${row.portal_listing_id}`,
+          row.matched_property_id
+        );
       }
     }
 
     const groups = groupCrossPortalDuplicates(
-      parsed.map((p) => ({ key: `${p.portal}:${p.portalListingId}`, parsed: p }))
+      parsed.map((p) => ({
+        key: `${p.portal}:${p.portalListingId}`,
+        parsed: p,
+      }))
     );
 
     const summary = { linked: 0, auto_matched: 0, review: 0, new: 0 };
@@ -118,7 +157,13 @@ export async function POST(request: Request) {
       const key = `${p.portal}:${p.portalListingId}`;
       const committedPropertyId = committedByKey.get(key) || null;
       const match = committedPropertyId
-        ? { bucket: 'linked' as const, propertyId: committedPropertyId, confidence: 1, reasons: ['already imported in a previous sync'], candidates: [] }
+        ? {
+            bucket: 'linked' as const,
+            propertyId: committedPropertyId,
+            confidence: 1,
+            reasons: ['already imported in a previous sync'],
+            candidates: [],
+          }
         : matchListing(p, properties, links);
       summary[match.bucket]++;
 
@@ -143,12 +188,19 @@ export async function POST(request: Request) {
         views: p.views,
         responses: p.responses,
         match_status: match.bucket,
-        matched_property_id: match.bucket === 'linked' || match.bucket === 'auto_matched' ? match.propertyId : null,
+        matched_property_id:
+          match.bucket === 'linked' || match.bucket === 'auto_matched'
+            ? match.propertyId
+            : null,
         match_confidence: match.confidence,
         match_reasons: match.reasons,
         match_candidates: match.candidates.map((c) => {
           const prop = properties.find((x) => x.id === c.propertyId);
-          return { ...c, title: prop?.title || '', location: prop?.sublocality || prop?.location || '' };
+          return {
+            ...c,
+            title: prop?.title || '',
+            location: prop?.sublocality || prop?.location || '',
+          };
         }),
         batch_group: groups.get(key) || null,
       };
@@ -157,7 +209,9 @@ export async function POST(request: Request) {
     const { data: staged, error: upsertError } = await ctx.supabase
       .from('portal_import_items')
       .upsert(rows, { onConflict: 'account_id,portal,portal_listing_id' })
-      .select('id, portal, portal_listing_id, listing_url, title, property_type, listing_for, price, bedrooms, area_sqft, locality, city, posted_on, expires_on, portal_status, views, responses, match_status, matched_property_id, match_confidence, match_reasons, match_candidates, batch_group');
+      .select(
+        'id, portal, portal_listing_id, listing_url, title, property_type, listing_for, price, bedrooms, area_sqft, locality, city, posted_on, expires_on, portal_status, views, responses, match_status, matched_property_id, match_confidence, match_reasons, match_candidates, batch_group'
+      );
     if (upsertError) throw upsertError;
 
     // Linked / auto-matched items refresh the existing portal link in
@@ -167,7 +221,9 @@ export async function POST(request: Request) {
       (staged || [])
         .filter((row) => row.matched_property_id)
         .map((row) => {
-          const p = parsed.find((x) => x.portalListingId === row.portal_listing_id);
+          const p = parsed.find(
+            (x) => x.portalListingId === row.portal_listing_id
+          );
           return {
             account_id: ctx.accountId,
             property_id: row.matched_property_id as string,
@@ -193,18 +249,28 @@ export async function POST(request: Request) {
 
     if (body.accountStats && typeof body.accountStats === 'object') {
       const s = body.accountStats;
-      const { error: statsError } = await ctx.supabase.from('portal_accounts').upsert(
-        {
-          account_id: ctx.accountId,
-          portal,
-          remaining_listings: typeof s.remainingListings === 'number' ? s.remainingListings : null,
-          remaining_refreshes: typeof s.remainingRefreshes === 'number' ? s.remainingRefreshes : null,
-          plan_name: typeof s.planName === 'string' ? s.planName.slice(0, 120) : null,
-          plan_expires_on: typeof s.planExpiresOn === 'string' ? s.planExpiresOn : null,
-          synced_at: new Date().toISOString(),
-        },
-        { onConflict: 'account_id,portal' }
-      );
+      const { error: statsError } = await ctx.supabase
+        .from('portal_accounts')
+        .upsert(
+          {
+            account_id: ctx.accountId,
+            portal,
+            remaining_listings:
+              typeof s.remainingListings === 'number'
+                ? s.remainingListings
+                : null,
+            remaining_refreshes:
+              typeof s.remainingRefreshes === 'number'
+                ? s.remainingRefreshes
+                : null,
+            plan_name:
+              typeof s.planName === 'string' ? s.planName.slice(0, 120) : null,
+            plan_expires_on:
+              typeof s.planExpiresOn === 'string' ? s.planExpiresOn : null,
+            synced_at: new Date().toISOString(),
+          },
+          { onConflict: 'account_id,portal' }
+        );
       if (statsError) throw statsError;
     }
 
@@ -217,20 +283,29 @@ export async function POST(request: Request) {
 export async function GET() {
   try {
     const ctx = await requireRole('viewer');
-    const [{ data: items, error: itemsError }, { data: portalAccounts, error: accountsError }] = await Promise.all([
+    const [
+      { data: items, error: itemsError },
+      { data: portalAccounts, error: accountsError },
+    ] = await Promise.all([
       ctx.supabase
         .from('portal_import_items')
-        .select('id, portal, portal_listing_id, listing_url, title, property_type, listing_for, price, bedrooms, area_sqft, locality, city, posted_on, expires_on, portal_status, views, responses, match_status, matched_property_id, match_confidence, match_reasons, match_candidates, batch_group, updated_at')
+        .select(
+          'id, portal, portal_listing_id, listing_url, title, property_type, listing_for, price, bedrooms, area_sqft, locality, city, posted_on, expires_on, portal_status, views, responses, match_status, matched_property_id, match_confidence, match_reasons, match_candidates, batch_group, updated_at'
+        )
         .eq('account_id', ctx.accountId)
         .in('match_status', ['review', 'new'])
         .order('updated_at', { ascending: false }),
       ctx.supabase
         .from('portal_accounts')
-        .select('portal, remaining_listings, remaining_refreshes, plan_name, plan_expires_on, synced_at')
+        .select(
+          'portal, remaining_listings, remaining_refreshes, plan_name, plan_expires_on, synced_at'
+        )
         .eq('account_id', ctx.accountId),
     ]);
     if (itemsError || accountsError) throw itemsError || accountsError;
-    return NextResponse.json({ data: { items: items || [], portalAccounts: portalAccounts || [] } });
+    return NextResponse.json({
+      data: { items: items || [], portalAccounts: portalAccounts || [] },
+    });
   } catch (err) {
     return toErrorResponse(err);
   }

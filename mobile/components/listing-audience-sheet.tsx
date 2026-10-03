@@ -117,58 +117,58 @@ export function ListingAudienceSheet({
               style={[sheetScrollArea, { maxHeight: 400 }]}
               keyboardShouldPersistTaps="handled"
             >
-            {listings.map((listing) => (
-              <Pressable
-                key={listing.propertyId}
-                disabled={busyId !== null}
-                onPress={() => {
-                  haptic.tap();
-                  onPick(listing);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`Select the ${listing.contactsCount} contacts who engaged with ${listing.title ?? 'this listing'}`}
-                style={[styles.row, { borderColor: colors.border }]}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      fontSize: 13.5,
-                      fontFamily: f.bold,
-                      color: colors.text,
-                    }}
-                  >
-                    {listing.title || 'Untitled listing'}
-                  </Text>
-                  {listing.propertyCode ? (
-                    <Text style={{ fontSize: 11, color: colors.textFaint }}>
-                      {listing.propertyCode}
-                    </Text>
-                  ) : null}
-                </View>
-                {busyId === listing.propertyId ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <View style={styles.count}>
+              {listings.map((listing) => (
+                <Pressable
+                  key={listing.propertyId}
+                  disabled={busyId !== null}
+                  onPress={() => {
+                    haptic.tap();
+                    onPick(listing);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select the ${listing.contactsCount} contacts who engaged with ${listing.title ?? 'this listing'}`}
+                  style={[styles.row, { borderColor: colors.border }]}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
                     <Text
+                      numberOfLines={1}
                       style={{
-                        fontSize: 11.5,
+                        fontSize: 13.5,
                         fontFamily: f.bold,
-                        color: colors.primary,
+                        color: colors.text,
                       }}
                     >
-                      {listing.contactsCount}
+                      {listing.title || 'Untitled listing'}
                     </Text>
-                    <Ionicons
-                      name="people-outline"
-                      size={14}
-                      color={colors.primary}
-                    />
+                    {listing.propertyCode ? (
+                      <Text style={{ fontSize: 11, color: colors.textFaint }}>
+                        {listing.propertyCode}
+                      </Text>
+                    ) : null}
                   </View>
-                )}
-              </Pressable>
-            ))}
-          </ScrollView>
+                  {busyId === listing.propertyId ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <View style={styles.count}>
+                      <Text
+                        style={{
+                          fontSize: 11.5,
+                          fontFamily: f.bold,
+                          color: colors.primary,
+                        }}
+                      >
+                        {listing.contactsCount}
+                      </Text>
+                      <Ionicons
+                        name="people-outline"
+                        size={14}
+                        color={colors.primary}
+                      />
+                    </View>
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
           </>
         )}
       </View>

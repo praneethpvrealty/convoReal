@@ -61,31 +61,31 @@ describe('buildKnownBriefNote', () => {
   });
 });
 
-describe("knownBriefValue — budget intent", () => {
+describe('knownBriefValue — budget intent', () => {
   const buyer = contact({
     pref_budget_min: 10000000,
     pref_budget_max: 20000000,
-    pref_listing_types: ["Sale"],
+    pref_listing_types: ['Sale'],
   });
 
-  it("never reuses a purchase budget as a monthly rent budget", () => {
-    expect(knownBriefValue(buyer, "budget", "rent")).toBeNull();
+  it('never reuses a purchase budget as a monthly rent budget', () => {
+    expect(knownBriefValue(buyer, 'budget', 'rent')).toBeNull();
   });
 
-  it("never reuses a budget when the node states no intent", () => {
-    expect(knownBriefValue(buyer, "budget", null)).toBeNull();
+  it('never reuses a budget when the node states no intent', () => {
+    expect(knownBriefValue(buyer, 'budget', null)).toBeNull();
   });
 
-  it("reuses a rent budget on the rent branch", () => {
+  it('reuses a rent budget on the rent branch', () => {
     const renter = contact({
       pref_budget_max: 50000,
-      pref_listing_types: ["Rent"],
+      pref_listing_types: ['Rent'],
     });
-    expect(knownBriefValue(renter, "budget", "rent")?.value).toBe("₹50,000");
+    expect(knownBriefValue(renter, 'budget', 'rent')?.value).toBe('₹50,000');
   });
 
-  it("still reuses locality whatever the branch", () => {
-    const c = contact({ areas_of_interest: ["Whitefield"] });
-    expect(knownBriefValue(c, "locality", "rent")?.value).toBe("Whitefield");
+  it('still reuses locality whatever the branch', () => {
+    const c = contact({ areas_of_interest: ['Whitefield'] });
+    expect(knownBriefValue(c, 'locality', 'rent')?.value).toBe('Whitefield');
   });
 });

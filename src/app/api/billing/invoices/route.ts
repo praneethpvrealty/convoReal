@@ -23,10 +23,12 @@ export async function GET() {
       return NextResponse.json({ invoices: [] });
     }
 
-    const credentials = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
+    const credentials = Buffer.from(
+      `${razorpayKeyId}:${razorpayKeySecret}`
+    ).toString('base64');
     const rzRes = await fetch(
       `https://api.razorpay.com/v1/invoices?subscription_id=${sub.razorpay_subscription_id}&count=24`,
-      { headers: { Authorization: `Basic ${credentials}` } },
+      { headers: { Authorization: `Basic ${credentials}` } }
     );
 
     if (!rzRes.ok) {

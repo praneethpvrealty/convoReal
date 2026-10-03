@@ -43,12 +43,12 @@ secrets for source-map upload.
 
 ## Builds
 
-| Command | Output | Use |
-|---------|--------|-----|
-| `eas build -p android --profile preview` | installable APK link | fastest "live" for the team |
-| `eas build -p android --profile production` | .aab | Play Store |
-| `eas build -p ios --profile production` | .ipa | TestFlight / App Store (needs Apple Developer, $99/yr) |
-| `eas submit -p android` / `-p ios` | — | store upload |
+| Command                                     | Output               | Use                                                    |
+| ------------------------------------------- | -------------------- | ------------------------------------------------------ |
+| `eas build -p android --profile preview`    | installable APK link | fastest "live" for the team                            |
+| `eas build -p android --profile production` | .aab                 | Play Store                                             |
+| `eas build -p ios --profile production`     | .ipa                 | TestFlight / App Store (needs Apple Developer, $99/yr) |
+| `eas submit -p android` / `-p ios`          | —                    | store upload                                           |
 
 ## After the first store build
 
@@ -56,8 +56,8 @@ secrets for source-map upload.
    - `ANDROID_APP_CERT_SHA256` — Play Console → Setup → App signing →
      SHA-256 of the app signing key.
    - `APPLE_TEAM_ID` — from your Apple Developer account.
-   Redeploy the site; then showcase links (`?property_id=…`) open the
-   app on devices that have it.
+     Redeploy the site; then showcase links (`?property_id=…`) open the
+     app on devices that have it.
 2. **Play Console** ($25 one-time): privacy policy URL, Data safety
    form (declare the contacts permission — the app only uploads
    contacts the user picks), content rating, screenshots.

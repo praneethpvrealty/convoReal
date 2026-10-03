@@ -1,46 +1,48 @@
-import { NextResponse } from 'next/server'
-import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
+import { NextResponse } from 'next/server';
+import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
 import {
   verifyPhoneNumber,
   registerPhoneNumber,
   subscribeWabaToApp,
   sendTemplateMessage,
-} from '@/lib/whatsapp/meta-api'
-import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
-import { getSandboxSystemConfig } from '@/lib/system-settings'
-import { normalizePhone } from '@/lib/whatsapp/phone-utils'
-import { supabaseAdmin } from '@/lib/supabase/admin'
+} from '@/lib/whatsapp/meta-api';
+import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
+import { getSandboxSystemConfig } from '@/lib/system-settings';
+import { normalizePhone } from '@/lib/whatsapp/phone-utils';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   isPhoneNumberClaimedElsewhere,
   upsertNumberProfile,
-} from '@/lib/whatsapp/number-profiles'
+} from '@/lib/whatsapp/number-profiles';
 
 export async function POST(request: Request) {
   try {
-    const { supabase, accountId, userId } = await getCurrentAccount()
+    const { supabase, accountId, userId } = await getCurrentAccount();
 
     // Load current config
     const { data: currentConfig } = await supabase
       .from('whatsapp_config')
       .select('*')
       .eq('account_id', accountId)
-      .single()
+      .single();
 
     if (!currentConfig) {
       return NextResponse.json(
-        { error: 'No WhatsApp configuration found. Please save sandbox first.' },
+        {
+          error: 'No WhatsApp configuration found. Please save sandbox first.',
+        },
         { status: 400 }
-      )
+      );
     }
 
     if (currentConfig.integration_type !== 'sandbox') {
       return NextResponse.json(
         { error: 'Migration is only available from Sandbox mode.' },
         { status: 400 }
-      )
+      );
     }
 
-    const body = await request.json()
+    const body = await request.json();
     const {
       phone_number_id,
       waba_id,
@@ -50,81 +52,87 @@ export async function POST(request: Request) {
       catalog_id,
       auto_sync_catalog,
       notify_leads,
-    } = body
+    } = body;
 
     // Validate required fields
     if (!phone_number_id?.trim() || !access_token?.trim()) {
       return NextResponse.json(
-        { error: 'Phone Number ID and Access Token are required for Official API.' },
+        {
+          error:
+            'Phone Number ID and Access Token are required for Official API.',
+        },
         { status: 400 }
-      )
+      );
     }
 
     // Check if another account already uses this phone_number_id
     const claimed = await isPhoneNumberClaimedElsewhere(
       supabaseAdmin(),
       phone_number_id.trim(),
-      accountId,
-    )
+      accountId
+    );
 
     if (claimed) {
       return NextResponse.json(
         {
-          error: 'This WhatsApp phone number is already linked to another account.',
+          error:
+            'This WhatsApp phone number is already linked to another account.',
         },
         { status: 409 }
-      )
+      );
     }
 
     // Verify credentials with Meta
-    let phoneInfo = null
+    let phoneInfo = null;
     try {
       phoneInfo = await verifyPhoneNumber({
         phoneNumberId: phone_number_id.trim(),
         accessToken: access_token.trim(),
-      })
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown Meta API error'
+      const message =
+        err instanceof Error ? err.message : 'Unknown Meta API error';
       return NextResponse.json(
         { error: `Meta API verification failed: ${message}` },
         { status: 400 }
-      )
+      );
     }
 
     // Encrypt tokens
-    let encryptedAccessToken: string
-    let encryptedVerifyToken: string | null = null
+    let encryptedAccessToken: string;
+    let encryptedVerifyToken: string | null = null;
     try {
-      encryptedAccessToken = encrypt(access_token.trim())
+      encryptedAccessToken = encrypt(access_token.trim());
       if (verify_token?.trim()) {
-        encryptedVerifyToken = encrypt(verify_token.trim())
+        encryptedVerifyToken = encrypt(verify_token.trim());
       }
     } catch {
       return NextResponse.json(
         { error: 'Failed to encrypt token. Check ENCRYPTION_KEY.' },
         { status: 500 }
-      )
+      );
     }
 
     // Register with Meta if PIN provided
-    let registeredAt: string | null = null
-    let registrationError: string | null = null
-    let subscribedAppsAt: string | null = null
+    let registeredAt: string | null = null;
+    let registrationError: string | null = null;
+    let subscribedAppsAt: string | null = null;
 
-    const hasPin = typeof pin === 'string' && pin.length > 0
+    const hasPin = typeof pin === 'string' && pin.length > 0;
     if (hasPin) {
       try {
         const regResult = await registerPhoneNumber({
           phoneNumberId: phone_number_id.trim(),
           accessToken: access_token.trim(),
           pin,
-        })
+        });
         if (regResult.testNumberSkipped) {
-          console.log('[migrate] Test number detected — skipping /register')
+          console.log('[migrate] Test number detected — skipping /register');
         }
-        registeredAt = new Date().toISOString()
+        registeredAt = new Date().toISOString();
       } catch (err) {
-        registrationError = err instanceof Error ? err.message : 'Registration failed'
+        registrationError =
+          err instanceof Error ? err.message : 'Registration failed';
       }
     }
 
@@ -133,16 +141,19 @@ export async function POST(request: Request) {
         await subscribeWabaToApp({
           wabaId: waba_id.trim(),
           accessToken: access_token.trim(),
-        })
-        subscribedAppsAt = new Date().toISOString()
+        });
+        subscribedAppsAt = new Date().toISOString();
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        console.warn('[migrate] WABA subscribed_apps failed (non-fatal):', message)
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(
+          '[migrate] WABA subscribed_apps failed (non-fatal):',
+          message
+        );
       }
     }
 
     // Store old sandbox code before migration
-    const oldSandboxCode = currentConfig.sandbox_code
+    const oldSandboxCode = currentConfig.sandbox_code;
 
     // Update config to Official API (trigger will record migration timestamp)
     const updatePayload = {
@@ -157,29 +168,30 @@ export async function POST(request: Request) {
       subscribed_apps_at: subscribedAppsAt,
       last_registration_error: registrationError,
       catalog_id: catalog_id?.trim() || null,
-      auto_sync_catalog: typeof auto_sync_catalog === 'boolean' ? auto_sync_catalog : false,
+      auto_sync_catalog:
+        typeof auto_sync_catalog === 'boolean' ? auto_sync_catalog : false,
       updated_at: new Date().toISOString(),
-    }
+    };
 
     const { data: migrated, error: updateError } = await supabase
       .from('whatsapp_config')
       .update(updatePayload)
       .eq('account_id', accountId)
-      .select('id')
+      .select('id');
 
     if (!updateError && !migrated?.length) {
       return NextResponse.json(
         { error: 'No WhatsApp configuration to migrate.' },
-        { status: 404 },
-      )
+        { status: 404 }
+      );
     }
 
     if (updateError) {
-      console.error('Migration update failed:', updateError)
+      console.error('Migration update failed:', updateError);
       return NextResponse.json(
         { error: 'Failed to update configuration during migration.' },
         { status: 500 }
-      )
+      );
     }
 
     try {
@@ -194,37 +206,47 @@ export async function POST(request: Request) {
           access_token: encryptedAccessToken,
           verify_token: encryptedVerifyToken,
           catalog_id: catalog_id?.trim() || null,
-          auto_sync_catalog: typeof auto_sync_catalog === 'boolean' ? auto_sync_catalog : false,
+          auto_sync_catalog:
+            typeof auto_sync_catalog === 'boolean' ? auto_sync_catalog : false,
           registered_at: registeredAt,
           subscribed_apps_at: subscribedAppsAt,
           last_registration_error: registrationError,
         },
         activatedAt: registrationError ? undefined : new Date().toISOString(),
         live: true,
-      })
+      });
     } catch (profileError) {
-      console.error('[migrate] Error saving whatsapp_number_profiles row:', profileError)
+      console.error(
+        '[migrate] Error saving whatsapp_number_profiles row:',
+        profileError
+      );
     }
 
     // Optionally notify active leads about the new number
-    let notifiedCount = 0
+    let notifiedCount = 0;
     if (notify_leads && phone_number_id) {
       try {
-        const sandboxSystem = await getSandboxSystemConfig()
-        if (sandboxSystem.enabled && sandboxSystem.access_token && sandboxSystem.phone_number_id) {
+        const sandboxSystem = await getSandboxSystemConfig();
+        if (
+          sandboxSystem.enabled &&
+          sandboxSystem.access_token &&
+          sandboxSystem.phone_number_id
+        ) {
           // Get all active sandbox conversations
           const { data: activeMappings } = await supabaseAdmin()
             .from('sandbox_sender_mappings')
             .select('sender_phone')
-            .eq('account_id', accountId)
+            .eq('account_id', accountId);
 
           if (activeMappings && activeMappings.length > 0) {
-            const systemToken = decrypt(sandboxSystem.access_token)
-            const systemPhoneId = sandboxSystem.phone_number_id
+            const systemToken = decrypt(sandboxSystem.access_token);
+            const systemPhoneId = sandboxSystem.phone_number_id;
 
             for (const mapping of activeMappings.slice(0, 50)) {
               // Limit to 50 to avoid rate limits
-              const phone = normalizePhone((mapping as { sender_phone: string }).sender_phone)
+              const phone = normalizePhone(
+                (mapping as { sender_phone: string }).sender_phone
+              );
               try {
                 await sendTemplateMessage({
                   phoneNumberId: systemPhoneId,
@@ -236,16 +258,16 @@ export async function POST(request: Request) {
                     'there',
                     `We have upgraded our WhatsApp number. Please save our new number for future messages.`,
                   ],
-                })
-                notifiedCount++
+                });
+                notifiedCount++;
               } catch (err) {
-                console.warn(`[migrate] Failed to notify ${phone}:`, err)
+                console.warn(`[migrate] Failed to notify ${phone}:`, err);
               }
             }
           }
         }
       } catch (err) {
-        console.error('[migrate] Lead notification failed:', err)
+        console.error('[migrate] Lead notification failed:', err);
       }
     }
 
@@ -260,9 +282,9 @@ export async function POST(request: Request) {
       message: registrationError
         ? `Saved Official API credentials, but Meta registration failed: ${registrationError}. Please check your PIN and retry.`
         : `Successfully migrated to Official API. Your conversations and contacts are preserved.`,
-    })
+    });
   } catch (error) {
-    console.error('Error in migration POST:', error)
-    return toErrorResponse(error)
+    console.error('Error in migration POST:', error);
+    return toErrorResponse(error);
   }
 }

@@ -17,10 +17,7 @@ const property = (over: Partial<InquiredProperty> = {}): InquiredProperty => ({
   ...over,
 });
 
-const stubDb = (
-  data: unknown,
-  error: { message: string } | null = null
-) => {
+const stubDb = (data: unknown, error: { message: string } | null = null) => {
   const calls: { fn?: string; args?: Record<string, unknown> } = {};
   return {
     db: {

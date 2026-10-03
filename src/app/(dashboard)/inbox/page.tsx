@@ -1,20 +1,24 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
-import { useRealtime } from "@/hooks/use-realtime";
-import { ConversationList } from "@/components/inbox/conversation-list";
-import { MessageThread } from "@/components/inbox/message-thread";
-import type { TemplateIntent } from "@/components/inbox/template-picker";
-import { ContactSidebar } from "@/components/inbox/contact-sidebar";
-import { WifiOff } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useAuth } from "@/hooks/use-auth";
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import type {
+  Conversation,
+  Message,
+  Contact,
+  ConversationStatus,
+} from '@/types';
+import { useRealtime } from '@/hooks/use-realtime';
+import { ConversationList } from '@/components/inbox/conversation-list';
+import { MessageThread } from '@/components/inbox/message-thread';
+import type { TemplateIntent } from '@/components/inbox/template-picker';
+import { ContactSidebar } from '@/components/inbox/contact-sidebar';
+import { WifiOff } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function InboxPage() {
-
   const searchParams = useSearchParams();
   const { profile } = useAuth();
   /**
@@ -22,21 +26,21 @@ export default function InboxPage() {
    * dashboard's recent-conversations list so the right thread opens
    * automatically instead of showing the empty center panel.
    */
-  const deepLinkConvId = searchParams.get("c");
+  const deepLinkConvId = searchParams.get('c');
   /**
    * `?draft=<text>` — a message the linking screen already composed
    * (the journey sheet's "still considering this?" check-in). Applied
    * to the composer only for the deep-linked thread, and only while
    * the box is empty.
    */
-  const [deepLinkDraft] = useState(() => searchParams.get("draft"));
+  const [deepLinkDraft] = useState(() => searchParams.get('draft'));
   /**
    * `?tpl=<json>` — the same nudge for a closed 24-hour window, where a
    * free-form draft could only fail. Carries the template name and its
    * filled parameters; the picker opens on it, the agent still sends.
    */
   const [deepLinkTemplate] = useState<TemplateIntent | null>(() => {
-    const raw = searchParams.get("tpl");
+    const raw = searchParams.get('tpl');
     if (!raw) return null;
     try {
       return JSON.parse(raw) as TemplateIntent;
@@ -108,57 +112,63 @@ export default function InboxPage() {
   // conversations stuck on "No messages yet" until the user reloaded.
   // Also self-heals if a realtime event was missed: callers can invoke
   // this whenever they reference a conversation id they don't recognise.
-  const hydrateConversation = useCallback(async (convId: string) => {
-    if (hydratingConvIdsRef.current.has(convId)) return;
-    hydratingConvIdsRef.current.add(convId);
-    try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("conversations")
-        .select("*, contact:contacts(*)")
-        .eq("id", convId)
-        .maybeSingle();
-      if (error) {
-        // Supabase errors have non-enumerable properties — log fields
-        // explicitly so the console message isn't just `{}`.
-        console.error("Failed to hydrate conversation:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        });
-        return;
-      }
-      if (!data) return;
-      const fetched = data as Conversation;
-
-      if (profile?.phone) {
-        const userPhoneDigits = profile.phone.replace(/\D/g, "");
-        if (fetched.contact?.phone && fetched.contact.phone.replace(/\D/g, "") === userPhoneDigits) {
+  const hydrateConversation = useCallback(
+    async (convId: string) => {
+      if (hydratingConvIdsRef.current.has(convId)) return;
+      hydratingConvIdsRef.current.add(convId);
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('conversations')
+          .select('*, contact:contacts(*)')
+          .eq('id', convId)
+          .maybeSingle();
+        if (error) {
+          // Supabase errors have non-enumerable properties — log fields
+          // explicitly so the console message isn't just `{}`.
+          console.error('Failed to hydrate conversation:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          });
           return;
         }
-      }
+        if (!data) return;
+        const fetched = data as Conversation;
 
-      setConversations((prev) => {
-        const existing = prev.find((c) => c.id === fetched.id);
-        if (existing) {
-          // Already in state — keep its fields (a realtime UPDATE may
-          // have landed while the fetch was in flight and patched
-          // last_message_text / unread_count to fresher values than
-          // the row we just read). Only backfill `contact`, which the
-          // realtime payloads never carry.
-          return prev.map((c) =>
-            c.id === fetched.id
-              ? { ...c, contact: c.contact ?? fetched.contact }
-              : c,
-          );
+        if (profile?.phone) {
+          const userPhoneDigits = profile.phone.replace(/\D/g, '');
+          if (
+            fetched.contact?.phone &&
+            fetched.contact.phone.replace(/\D/g, '') === userPhoneDigits
+          ) {
+            return;
+          }
         }
-        return [fetched, ...prev];
-      });
-    } finally {
-      hydratingConvIdsRef.current.delete(convId);
-    }
-  }, [profile?.phone]);
+
+        setConversations((prev) => {
+          const existing = prev.find((c) => c.id === fetched.id);
+          if (existing) {
+            // Already in state — keep its fields (a realtime UPDATE may
+            // have landed while the fetch was in flight and patched
+            // last_message_text / unread_count to fresher values than
+            // the row we just read). Only backfill `contact`, which the
+            // realtime payloads never carry.
+            return prev.map((c) =>
+              c.id === fetched.id
+                ? { ...c, contact: c.contact ?? fetched.contact }
+                : c
+            );
+          }
+          return [fetched, ...prev];
+        });
+      } finally {
+        hydratingConvIdsRef.current.delete(convId);
+      }
+    },
+    [profile?.phone]
+  );
 
   // The draft is captured into state above, so the URL no longer needs
   // to carry it — strip it so a refresh lands on a clean composer.
@@ -167,7 +177,7 @@ export default function InboxPage() {
     window.history.replaceState(
       null,
       '',
-      deepLinkConvId ? `/inbox?c=${deepLinkConvId}` : '/inbox',
+      deepLinkConvId ? `/inbox?c=${deepLinkConvId}` : '/inbox'
     );
   }, [deepLinkDraft, deepLinkTemplate, deepLinkConvId]);
 
@@ -189,9 +199,9 @@ export default function InboxPage() {
       // shared inbox even though the admin had it configured.
       // Resolve account_id via the profile and query by that.
       const { data: profile } = await supabase
-        .from("profiles")
-        .select("account_id")
-        .eq("user_id", user.id)
+        .from('profiles')
+        .select('account_id')
+        .eq('user_id', user.id)
         .maybeSingle();
       const accountId = profile?.account_id as string | undefined;
       if (!accountId) {
@@ -200,12 +210,12 @@ export default function InboxPage() {
       }
 
       const { data } = await supabase
-        .from("whatsapp_config")
-        .select("status")
-        .eq("account_id", accountId)
+        .from('whatsapp_config')
+        .select('status')
+        .eq('account_id', accountId)
         .maybeSingle();
 
-      setWhatsappConnected(data?.status === "connected");
+      setWhatsappConnected(data?.status === 'connected');
     };
 
     checkConnection();
@@ -216,17 +226,15 @@ export default function InboxPage() {
     (event: { eventType: string; new: Message; old: Partial<Message> }) => {
       const newMsg = event.new;
 
-      if (event.eventType === "INSERT") {
+      if (event.eventType === 'INSERT') {
         // Add to messages if it belongs to active conversation
-        if (
-          activeConversationIdRef.current === newMsg.conversation_id
-        ) {
+        if (activeConversationIdRef.current === newMsg.conversation_id) {
           setMessages((prev) => {
             // Avoid duplicates
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             // Replace optimistic message if it exists
             const withoutOptimistic = prev.filter(
-              (m) => !m.id.startsWith("temp-")
+              (m) => !m.id.startsWith('temp-')
             );
             return [...withoutOptimistic, newMsg];
           });
@@ -243,15 +251,15 @@ export default function InboxPage() {
               c.id === newMsg.conversation_id
                 ? {
                     ...c,
-                    last_message_text: newMsg.content_text ?? "",
+                    last_message_text: newMsg.content_text ?? '',
                     last_message_at: newMsg.created_at,
                     unread_count:
                       activeConversationIdRef.current === newMsg.conversation_id
                         ? 0
                         : c.unread_count + 1,
                   }
-                : c,
-            ),
+                : c
+            )
           );
         } else {
           // First time we're seeing this conv: the conv-INSERT event
@@ -263,7 +271,7 @@ export default function InboxPage() {
         }
       }
 
-      if (event.eventType === "UPDATE") {
+      if (event.eventType === 'UPDATE') {
         // Update message status
         setMessages((prev) =>
           prev.map((m) => (m.id === newMsg.id ? { ...m, ...newMsg } : m))
@@ -282,7 +290,7 @@ export default function InboxPage() {
     }) => {
       const conv = event.new;
 
-      if (event.eventType === "INSERT") {
+      if (event.eventType === 'INSERT') {
         // Prepend immediately for snappy UX so the new conv shows in the
         // list right away, then hydrate to fill in the `contact` join
         // (realtime payloads never include joins). Skip both if we
@@ -297,7 +305,7 @@ export default function InboxPage() {
         }
       }
 
-      if (event.eventType === "UPDATE") {
+      if (event.eventType === 'UPDATE') {
         if (knownConvIdsRef.current.has(conv.id)) {
           // If this UPDATE is for the conv the user is currently viewing,
           // suppress the incoming unread_count — the user is reading it
@@ -314,8 +322,8 @@ export default function InboxPage() {
                     ...conv,
                     unread_count: isActive ? 0 : conv.unread_count,
                   }
-                : c,
-            ),
+                : c
+            )
           );
         } else {
           // UPDATE arrived before the INSERT (or after a missed INSERT)
@@ -327,9 +335,7 @@ export default function InboxPage() {
 
         // Update active conversation if it changed
         if (activeConversation && conv.id === activeConversation.id) {
-          setActiveConversation((prev) =>
-            prev ? { ...prev, ...conv } : prev
-          );
+          setActiveConversation((prev) => (prev ? { ...prev, ...conv } : prev));
         }
       }
     },
@@ -341,7 +347,7 @@ export default function InboxPage() {
   // WS was disconnected (laptop sleep, network blip, background-tab
   // throttle) are simply lost. We need a way to catch up.
   const { isConnected } = useRealtime({
-    channelName: "inbox-realtime",
+    channelName: 'inbox-realtime',
     onMessageEvent: handleMessageEvent,
     onConversationEvent: handleConversationEvent,
     enabled: true,
@@ -385,13 +391,13 @@ export default function InboxPage() {
    */
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === 'visible') {
         setResyncToken((n) => n + 1);
       }
     };
-    document.addEventListener("visibilitychange", onVisibility);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 
@@ -408,16 +414,24 @@ export default function InboxPage() {
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
       const activeId = activeConversationIdRef.current;
-      const userPhoneDigits = profile?.phone ? profile.phone.replace(/\D/g, "") : "";
+      const userPhoneDigits = profile?.phone
+        ? profile.phone.replace(/\D/g, '')
+        : '';
       const loadedFiltered = userPhoneDigits
-        ? loaded.filter(c => !c.contact?.phone || c.contact.phone.replace(/\D/g, "") !== userPhoneDigits)
+        ? loaded.filter(
+            (c) =>
+              !c.contact?.phone ||
+              c.contact.phone.replace(/\D/g, '') !== userPhoneDigits
+          )
         : loaded;
 
       setConversations((prev) => {
         // First load (prev is empty) — just set the full list.
         if (prev.length === 0) {
           return activeId
-            ? loadedFiltered.map((c) => (c.id === activeId ? { ...c, unread_count: 0 } : c))
+            ? loadedFiltered.map((c) =>
+                c.id === activeId ? { ...c, unread_count: 0 } : c
+              )
             : loadedFiltered;
         }
 
@@ -444,10 +458,16 @@ export default function InboxPage() {
               existing.last_message_text === fresh.last_message_text &&
               existing.status === fresh.status &&
               existing.is_archived === fresh.is_archived;
-            result.push(unchanged ? existing : { ...existing, ...fresh, unread_count: unread });
+            result.push(
+              unchanged
+                ? existing
+                : { ...existing, ...fresh, unread_count: unread }
+            );
           } else {
             // Brand-new conversation not yet in state.
-            result.push(fresh.id === activeId ? { ...fresh, unread_count: 0 } : fresh);
+            result.push(
+              fresh.id === activeId ? { ...fresh, unread_count: 0 } : fresh
+            );
           }
         }
 
@@ -494,22 +514,22 @@ export default function InboxPage() {
           if (match.unread_count > 0) {
             const supabase = createClient();
             supabase
-              .from("conversations")
+              .from('conversations')
               .update({ unread_count: 0 })
-              .eq("id", match.id)
-              .select("id")
+              .eq('id', match.id)
+              .select('id')
               .then(({ data, error }) => {
                 if (error || !data?.length) {
                   console.error(
-                    "Failed to reset unread_count:",
-                    error ?? "no conversation changed",
+                    'Failed to reset unread_count:',
+                    error ?? 'no conversation changed'
                   );
                 }
               });
             setConversations((prev) =>
               prev.map((c) =>
-                c.id === match.id ? { ...c, unread_count: 0 } : c,
-              ),
+                c.id === match.id ? { ...c, unread_count: 0 } : c
+              )
             );
           }
         }
@@ -536,25 +556,23 @@ export default function InboxPage() {
       if (conv.unread_count > 0) {
         const supabase = createClient();
         supabase
-          .from("conversations")
+          .from('conversations')
           .update({ unread_count: 0 })
-          .eq("id", conv.id)
-          .select("id")
+          .eq('id', conv.id)
+          .select('id')
           .then(({ data, error }) => {
             if (error || !data?.length) {
               console.error(
-                "Failed to reset unread_count:",
-                error ?? "no conversation changed",
+                'Failed to reset unread_count:',
+                error ?? 'no conversation changed'
               );
             }
           });
       }
       setConversations((prev) =>
         prev.map((c) =>
-          c.id === conv.id && c.unread_count > 0
-            ? { ...c, unread_count: 0 }
-            : c,
-        ),
+          c.id === conv.id && c.unread_count > 0 ? { ...c, unread_count: 0 } : c
+        )
       );
       // Record the selection on the deep-link ref BEFORE we change the
       // URL. The router.replace below flips `deepLinkConvId`, which can
@@ -584,7 +602,6 @@ export default function InboxPage() {
     autoSelectedForDeepLinkRef.current = null;
     window.history.replaceState(null, '', '/inbox');
   }, []);
-
 
   const handleMessagesLoaded = useCallback((loaded: Message[]) => {
     setMessages(loaded);
@@ -619,18 +636,30 @@ export default function InboxPage() {
   );
 
   const handleAssignChange = useCallback(
-    (conversationId: string, assignedAgentId: string | null, assignedTeamId: string | null) => {
+    (
+      conversationId: string,
+      assignedAgentId: string | null,
+      assignedTeamId: string | null
+    ) => {
       setConversations((prev) =>
         prev.map((c) =>
           c.id === conversationId
-            ? { ...c, assigned_agent_id: assignedAgentId, assigned_team_id: assignedTeamId }
+            ? {
+                ...c,
+                assigned_agent_id: assignedAgentId,
+                assigned_team_id: assignedTeamId,
+              }
             : c
         )
       );
       if (activeConversation?.id === conversationId) {
         setActiveConversation((prev) =>
           prev
-            ? { ...prev, assigned_agent_id: assignedAgentId, assigned_team_id: assignedTeamId }
+            ? {
+                ...prev,
+                assigned_agent_id: assignedAgentId,
+                assigned_team_id: assignedTeamId,
+              }
             : prev
         );
       }
@@ -689,8 +718,8 @@ export default function InboxPage() {
             renders wider than the viewport. */}
         <div
           className={cn(
-            "flex h-full min-w-0 flex-1 lg:flex-none",
-            hasActiveConv ? "hidden lg:flex" : "flex",
+            'flex h-full min-w-0 flex-1 lg:flex-none',
+            hasActiveConv ? 'hidden lg:flex' : 'flex'
           )}
         >
           <ConversationList
@@ -715,8 +744,8 @@ export default function InboxPage() {
             on the right. Issue #165. */}
         <div
           className={cn(
-            "flex h-full min-w-0 flex-1 lg:flex",
-            hasActiveConv ? "flex" : "hidden lg:flex",
+            'flex h-full min-w-0 flex-1 lg:flex',
+            hasActiveConv ? 'flex' : 'hidden lg:flex'
           )}
         >
           <MessageThread
@@ -732,7 +761,7 @@ export default function InboxPage() {
             onBack={handleCloseConversation}
             initialDraft={
               activeConversation?.id === deepLinkConvId
-                ? deepLinkDraft ?? undefined
+                ? (deepLinkDraft ?? undefined)
                 : undefined
             }
             initialTemplate={

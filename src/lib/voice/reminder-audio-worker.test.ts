@@ -39,7 +39,8 @@ vi.mock('@/lib/supabase/admin', () => ({
         },
         eq: (column: string, value: unknown) => {
           filters.push([column, value]);
-          if (mutation && column !== 'account_id') state.mutations.push([mutation, [...filters]]);
+          if (mutation && column !== 'account_id')
+            state.mutations.push([mutation, [...filters]]);
           return builder;
         },
         is: (column: string, value: unknown) => {
@@ -47,17 +48,24 @@ vi.mock('@/lib/supabase/admin', () => ({
           if (mutation) state.mutations.push([mutation, [...filters]]);
           return builder;
         },
-        then: (resolve: (v: { error: { message: string } | null }) => unknown) =>
-          resolve({ error: mutation ? state.mutationError : null }),
+        then: (
+          resolve: (v: { error: { message: string } | null }) => unknown
+        ) => resolve({ error: mutation ? state.mutationError : null }),
         maybeSingle: async () => {
           const answer =
-            state.lookups.length > 1 ? state.lookups.shift()! : state.lookups[0];
-          if (answer === 'error') return { data: null, error: { message: 'timeout' } };
+            state.lookups.length > 1
+              ? state.lookups.shift()!
+              : state.lookups[0];
+          if (answer === 'error')
+            return { data: null, error: { message: 'timeout' } };
           if (answer === 'gone') return { data: null, error: null };
           return {
             data: {
               id: 'claim-1',
-              created_at: answer === 'renewed' ? '2026-09-29T10:05:00.000+00:00' : QUEUED_AT,
+              created_at:
+                answer === 'renewed'
+                  ? '2026-09-29T10:05:00.000+00:00'
+                  : QUEUED_AT,
               appointment: {
                 reminders_rearmed_at:
                   answer === 'rearmed'
@@ -134,7 +142,11 @@ const job = {
   userId: null,
   reminderType: '1h' as const,
   spokenText: 'Reminder',
-  fallback: { templateName: 'appointment_reminder', templateParams: [], bodyText: 'Reminder' },
+  fallback: {
+    templateName: 'appointment_reminder',
+    templateParams: [],
+    bodyText: 'Reminder',
+  },
 };
 
 function reset(lookups: Lookup[]) {
@@ -179,7 +191,10 @@ describe('processReminderAudioJob', () => {
     expect(state.sends).toBe(0);
 
     reset(['moved']);
-    await processReminderAudioJob({ ...job, rearmedAt: '2026-09-29T09:59:00.000Z' });
+    await processReminderAudioJob({
+      ...job,
+      rearmedAt: '2026-09-29T09:59:00.000Z',
+    });
     expect(state.sends).toBe(1);
   });
 
@@ -196,8 +211,21 @@ describe('processReminderAudioJob', () => {
     expect(state.burns).toBe(1);
     expect(state.sends).toBe(1);
     expect(state.mutations).toEqual([
-      ['update', [['account_id', 'acct-1'], ['id', 'claim-1']]],
-      ['update', [['account_id', 'acct-1'], ['id', 'claim-1'], ['created_at', QUEUED_AT]]],
+      [
+        'update',
+        [
+          ['account_id', 'acct-1'],
+          ['id', 'claim-1'],
+        ],
+      ],
+      [
+        'update',
+        [
+          ['account_id', 'acct-1'],
+          ['id', 'claim-1'],
+          ['created_at', QUEUED_AT],
+        ],
+      ],
     ]);
   });
 
@@ -263,7 +291,9 @@ describe('processReminderAudioJob', () => {
     expect(state.parked).toEqual([{ ...job, attempts: 2 }]);
     expect(
       errors.mock.calls.some(
-        (call) => typeof call[1] === 'string' && call[1].includes('"appointmentId":"appt-1"')
+        (call) =>
+          typeof call[1] === 'string' &&
+          call[1].includes('"appointmentId":"appt-1"')
       )
     ).toBe(true);
     errors.mockRestore();
@@ -279,7 +309,12 @@ describe('processReminderAudioJob', () => {
 
   it('[CAL-010] hands a note queued before generations were recorded back to the cron, unsent', async () => {
     reset(['stands']);
-    await processReminderAudioJob({ ...job, claimId: undefined, claimedAt: undefined, rearmedAt: undefined });
+    await processReminderAudioJob({
+      ...job,
+      claimId: undefined,
+      claimedAt: undefined,
+      rearmedAt: undefined,
+    });
     expect(state.sends).toBe(0);
     expect(state.requeued).toEqual([]);
     expect(state.rpcs).toEqual([
@@ -303,7 +338,12 @@ describe('processReminderAudioJob', () => {
     reset(['stands']);
     state.mutationError = { message: 'timeout' };
     state.parkFailures = 1;
-    await processReminderAudioJob({ ...job, claimId: undefined, claimedAt: undefined, rearmedAt: undefined });
+    await processReminderAudioJob({
+      ...job,
+      claimId: undefined,
+      claimedAt: undefined,
+      rearmedAt: undefined,
+    });
     expect(state.requeued).toEqual([]);
     expect(state.parked).toHaveLength(1);
   });

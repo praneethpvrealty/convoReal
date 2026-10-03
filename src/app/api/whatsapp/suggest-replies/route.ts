@@ -1,9 +1,13 @@
-import { NextResponse } from 'next/server'
-import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
-import { generateJson } from '@/lib/ai/gemini'
-import { REPLY_LANGUAGE_RULE } from '@/lib/languages'
-import { hasGeminiKey } from '@/lib/ai/gemini-keys'
+import { NextResponse } from 'next/server';
+import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
+import { generateJson } from '@/lib/ai/gemini';
+import { REPLY_LANGUAGE_RULE } from '@/lib/languages';
+import { hasGeminiKey } from '@/lib/ai/gemini-keys';
 
 /**
  * POST /api/whatsapp/suggest-replies — AI draft replies for the inbox.
@@ -18,34 +22,34 @@ import { hasGeminiKey } from '@/lib/ai/gemini-keys'
  * the caller's account_id.
  */
 
-const RECENT_MESSAGES = 15
-const MAX_SUGGESTIONS = 3
-const MAX_SUGGESTION_CHARS = 300
+const RECENT_MESSAGES = 15;
+const MAX_SUGGESTIONS = 3;
+const MAX_SUGGESTION_CHARS = 300;
 
 interface SuggestRequest {
-  conversation_id?: unknown
+  conversation_id?: unknown;
 }
 
 /** Gemini JSON mode occasionally wraps output in ``` fences. */
 function parseSuggestions(raw: string): string[] {
-  const cleaned = raw.replace(/```(?:json)?/gi, '').trim()
-  let parsed: unknown
+  const cleaned = raw.replace(/```(?:json)?/gi, '').trim();
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(cleaned)
+    parsed = JSON.parse(cleaned);
   } catch {
-    return []
+    return [];
   }
   const arr = Array.isArray(parsed)
     ? parsed
     : Array.isArray((parsed as { suggestions?: unknown })?.suggestions)
       ? (parsed as { suggestions: unknown[] }).suggestions
-      : []
+      : [];
   return arr
     .filter((s): s is string => typeof s === 'string')
     .map((s) => s.trim())
     .filter(Boolean)
     .map((s) => s.slice(0, MAX_SUGGESTION_CHARS))
-    .slice(0, MAX_SUGGESTIONS)
+    .slice(0, MAX_SUGGESTIONS);
 }
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a real-estate agent replying to a client on WhatsApp.
@@ -58,31 +62,31 @@ Rules:
 - Never invent specific property details, prices, or addresses that are not in the conversation.
 - Do not use markdown or numbering.
 
-Respond with ONLY a JSON array of ${MAX_SUGGESTIONS} strings, e.g. ["...", "...", "..."].`
+Respond with ONLY a JSON array of ${MAX_SUGGESTIONS} strings, e.g. ["...", "...", "..."].`;
 
 export async function POST(request: Request) {
   try {
-    const ctx = await getCurrentAccount()
+    const ctx = await getCurrentAccount();
 
     const userLimit = await checkRateLimit(
       `suggest:u:${ctx.userId}`,
-      RATE_LIMITS.suggestReplies,
-    )
-    if (!userLimit.success) return rateLimitResponse(userLimit)
+      RATE_LIMITS.suggestReplies
+    );
+    if (!userLimit.success) return rateLimitResponse(userLimit);
     const accountLimit = await checkRateLimit(
       `suggest:a:${ctx.accountId}`,
-      RATE_LIMITS.suggestRepliesDaily,
-    )
-    if (!accountLimit.success) return rateLimitResponse(accountLimit)
+      RATE_LIMITS.suggestRepliesDaily
+    );
+    if (!accountLimit.success) return rateLimitResponse(accountLimit);
 
-    const body = (await request.json().catch(() => ({}))) as SuggestRequest
+    const body = (await request.json().catch(() => ({}))) as SuggestRequest;
     const conversationId =
-      typeof body.conversation_id === 'string' ? body.conversation_id : ''
+      typeof body.conversation_id === 'string' ? body.conversation_id : '';
     if (!conversationId) {
       return NextResponse.json(
         { error: 'conversation_id is required' },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
     // Confirm the conversation belongs to the caller's account and pull
@@ -92,18 +96,18 @@ export async function POST(request: Request) {
       .select('id, contact:contacts(name)')
       .eq('id', conversationId)
       .eq('account_id', ctx.accountId)
-      .maybeSingle()
+      .maybeSingle();
 
     if (convError || !conversation) {
       return NextResponse.json(
         { error: 'Conversation not found' },
-        { status: 404 },
-      )
+        { status: 404 }
+      );
     }
 
     // Feature degrades gracefully on deployments without a Gemini key.
     if (!(await hasGeminiKey())) {
-      return NextResponse.json({ suggestions: [] })
+      return NextResponse.json({ suggestions: [] });
     }
 
     const { data: messages } = await ctx.supabase
@@ -111,13 +115,13 @@ export async function POST(request: Request) {
       .select('sender_type, content_type, content_text, created_at')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
-      .limit(RECENT_MESSAGES)
+      .limit(RECENT_MESSAGES);
 
     const contactRow = Array.isArray(conversation.contact)
       ? conversation.contact[0]
-      : conversation.contact
+      : conversation.contact;
     const contactName =
-      (contactRow as { name?: string } | null)?.name?.trim() || 'Client'
+      (contactRow as { name?: string } | null)?.name?.trim() || 'Client';
 
     // Oldest → newest for the model, text messages only (media has no
     // body to reason over). No text at all → nothing to reply to → no
@@ -127,23 +131,23 @@ export async function POST(request: Request) {
       .reverse()
       .filter((m) => m.content_type === 'text' && (m.content_text ?? '').trim())
       .map((m) => {
-        const who = m.sender_type === 'customer' ? contactName : 'Agent'
-        return `${who}: ${(m.content_text ?? '').trim()}`
+        const who = m.sender_type === 'customer' ? contactName : 'Agent';
+        return `${who}: ${(m.content_text ?? '').trim()}`;
       })
-      .join('\n')
+      .join('\n');
 
     if (!transcript) {
-      return NextResponse.json({ suggestions: [] })
+      return NextResponse.json({ suggestions: [] });
     }
 
     const raw = await generateJson(
       `Conversation so far:\n${transcript}\n\nWrite the agent's reply options now.`,
       SYSTEM_PROMPT,
-      { tier: 'lite', feature: 'suggest_replies' },
-    )
+      { tier: 'lite', feature: 'suggest_replies' }
+    );
 
-    return NextResponse.json({ suggestions: parseSuggestions(raw) })
+    return NextResponse.json({ suggestions: parseSuggestions(raw) });
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
 }

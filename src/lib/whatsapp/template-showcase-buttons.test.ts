@@ -16,13 +16,21 @@ describe('withShowcaseOrigin', () => {
     // The button parameter arrives as "?property_id=…&v=…", so the
     // placeholder has to survive in place or the link resolves to
     // nothing.
-    const out = withShowcaseOrigin('https://www.convoreal.com/{{2}}', SHOWCASE, APP);
+    const out = withShowcaseOrigin(
+      'https://www.convoreal.com/{{2}}',
+      SHOWCASE,
+      APP
+    );
     expect(out).toContain('{{2}}');
     expect(out.startsWith(SHOWCASE)).toBe(true);
   });
 
   it('never leaves a query on the base — that would break the suffix', () => {
-    const out = withShowcaseOrigin('https://www.convoreal.com/{{1}}', SHOWCASE, APP);
+    const out = withShowcaseOrigin(
+      'https://www.convoreal.com/{{1}}',
+      SHOWCASE,
+      APP
+    );
     expect(out).not.toContain('?');
   });
 
@@ -50,7 +58,11 @@ describe('withShowcaseOrigin', () => {
 
   it('preserves a real path rather than flattening it to the root', () => {
     expect(
-      withShowcaseOrigin('https://www.convoreal.com/property/{{1}}', SHOWCASE, APP)
+      withShowcaseOrigin(
+        'https://www.convoreal.com/property/{{1}}',
+        SHOWCASE,
+        APP
+      )
     ).toBe('https://aryavartaventures.convoreal.com/property/{{1}}');
   });
 

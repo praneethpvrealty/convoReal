@@ -37,10 +37,16 @@ describe('parseCoordinatePair', () => {
 
 describe('extractCoordinatesFromMapUrl', () => {
   const cases: [string, string][] = [
-    ['pin-share search URL', 'https://www.google.com/maps/search/?api=1&query=12.8669,77.5565483'],
+    [
+      'pin-share search URL',
+      'https://www.google.com/maps/search/?api=1&query=12.8669,77.5565483',
+    ],
     ['q parameter', 'https://maps.google.com/?q=12.8669,77.5565483'],
     ['ll parameter', 'https://maps.google.com/maps?ll=12.8669,77.5565483&z=17'],
-    ['encoded query', 'https://www.google.com/maps/search/?api=1&query=12.8669%2C77.5565483'],
+    [
+      'encoded query',
+      'https://www.google.com/maps/search/?api=1&query=12.8669%2C77.5565483',
+    ],
     ['viewport form', 'https://www.google.com/maps/@12.8669,77.5565483,17z'],
     [
       'place detail form',
@@ -57,7 +63,9 @@ describe('extractCoordinatesFromMapUrl', () => {
   });
 
   it('returns null for a short link that carries nothing', () => {
-    expect(extractCoordinatesFromMapUrl('https://maps.app.goo.gl/ZoCRFNyHvhL3aXhi9')).toBeNull();
+    expect(
+      extractCoordinatesFromMapUrl('https://maps.app.goo.gl/ZoCRFNyHvhL3aXhi9')
+    ).toBeNull();
   });
 });
 
@@ -80,10 +88,14 @@ describe('extractPlaceNameFromMapUrl', () => {
 
   it('ignores coordinate pairs and plus codes posing as place names', () => {
     expect(
-      extractPlaceNameFromMapUrl('https://www.google.com/maps/place/12.8669,77.5565483/@12.8,77.5,15z')
+      extractPlaceNameFromMapUrl(
+        'https://www.google.com/maps/place/12.8669,77.5565483/@12.8,77.5,15z'
+      )
     ).toBeNull();
     expect(
-      extractPlaceNameFromMapUrl('https://www.google.com/maps/place/7J4W%2BX8+Bengaluru/@12.8,77.5,15z')
+      extractPlaceNameFromMapUrl(
+        'https://www.google.com/maps/place/7J4W%2BX8+Bengaluru/@12.8,77.5,15z'
+      )
     ).toBeNull();
   });
 });
@@ -127,11 +139,18 @@ describe('reverse geocoding', () => {
           {
             place_id: 'abc',
             types: ['street_address'],
-            formatted_address: '1st Cross Rd, Anjanapura, Bengaluru, Karnataka 560062, India',
+            formatted_address:
+              '1st Cross Rd, Anjanapura, Bengaluru, Karnataka 560062, India',
             address_components: [
-              { long_name: 'Anjanapura', types: ['sublocality_level_1', 'sublocality'] },
+              {
+                long_name: 'Anjanapura',
+                types: ['sublocality_level_1', 'sublocality'],
+              },
               { long_name: 'Bengaluru', types: ['locality'] },
-              { long_name: 'Karnataka', types: ['administrative_area_level_1'] },
+              {
+                long_name: 'Karnataka',
+                types: ['administrative_area_level_1'],
+              },
             ],
           },
         ],
@@ -156,7 +175,11 @@ describe('reverse geocoding', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse({
         display_name: 'Anjanapura, Bengaluru South, Karnataka, 560062, India',
-        address: { suburb: 'Anjanapura', city: 'Bengaluru', state: 'Karnataka' },
+        address: {
+          suburb: 'Anjanapura',
+          city: 'Bengaluru',
+          state: 'Karnataka',
+        },
       })
     );
 
@@ -164,14 +187,18 @@ describe('reverse geocoding', () => {
 
     expect(result?.location).toBe('Anjanapura, Bengaluru');
     expect(result?.state).toBe('Karnataka');
-    expect(String(fetchMock.mock.calls[0][0])).toContain('nominatim.openstreetmap.org');
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      'nominatim.openstreetmap.org'
+    );
   });
 
   it('returns null instead of throwing when the geocoder fails', async () => {
     delete process.env.GOOGLE_MAPS_API_KEY;
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await resolveLocationFromCoordinates(12.8669, 77.5565483)).toBeNull();
+    expect(
+      await resolveLocationFromCoordinates(12.8669, 77.5565483)
+    ).toBeNull();
   });
 });
 
@@ -194,7 +221,11 @@ describe('resolveLocationFromGoogleMapLink', () => {
       url: '',
       json: async () => ({
         display_name: 'Anjanapura, Bengaluru, Karnataka, India',
-        address: { suburb: 'Anjanapura', city: 'Bengaluru', state: 'Karnataka' },
+        address: {
+          suburb: 'Anjanapura',
+          city: 'Bengaluru',
+          state: 'Karnataka',
+        },
       }),
     } as unknown as Response);
 
@@ -208,7 +239,9 @@ describe('resolveLocationFromGoogleMapLink', () => {
       longitude: 77.5565483,
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0][0])).toContain('nominatim.openstreetmap.org');
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      'nominatim.openstreetmap.org'
+    );
   });
 
   it('follows a short link and reverse-geocodes the coordinates behind it', async () => {
@@ -224,11 +257,17 @@ describe('resolveLocationFromGoogleMapLink', () => {
         url: '',
         json: async () => ({
           display_name: 'Anjanapura, Bengaluru, Karnataka, India',
-          address: { suburb: 'Anjanapura', city: 'Bengaluru', state: 'Karnataka' },
+          address: {
+            suburb: 'Anjanapura',
+            city: 'Bengaluru',
+            state: 'Karnataka',
+          },
         }),
       } as unknown as Response);
 
-    const result = await resolveLocationFromGoogleMapLink('https://maps.app.goo.gl/ZoCRFNyHvhL3aXhi9');
+    const result = await resolveLocationFromGoogleMapLink(
+      'https://maps.app.goo.gl/ZoCRFNyHvhL3aXhi9'
+    );
 
     expect(result).toMatchObject({
       location: 'Anjanapura Township, Bengaluru',
@@ -254,11 +293,13 @@ describe('resolveLocationFromGoogleMapLink', () => {
         url: '',
         json: async () => ({
           status: 'OK',
-          results: [{
-            place_id: 'chennapalli',
-            formatted_address: 'NH 48, Chennapalli, Tamil Nadu 635117, India',
-            geometry: { location: { lat: 12.641, lng: 78.01 } },
-          }],
+          results: [
+            {
+              place_id: 'chennapalli',
+              formatted_address: 'NH 48, Chennapalli, Tamil Nadu 635117, India',
+              geometry: { location: { lat: 12.641, lng: 78.01 } },
+            },
+          ],
         }),
       } as unknown as Response)
       .mockResolvedValueOnce({
@@ -266,14 +307,19 @@ describe('resolveLocationFromGoogleMapLink', () => {
         url: '',
         json: async () => ({
           status: 'OK',
-          results: [{
-            place_id: 'chennapalli',
-            formatted_address: 'NH 48, Chennapalli, Tamil Nadu 635117, India',
-            address_components: [
-              { long_name: 'Chennapalli', types: ['locality'] },
-              { long_name: 'Tamil Nadu', types: ['administrative_area_level_1'] },
-            ],
-          }],
+          results: [
+            {
+              place_id: 'chennapalli',
+              formatted_address: 'NH 48, Chennapalli, Tamil Nadu 635117, India',
+              address_components: [
+                { long_name: 'Chennapalli', types: ['locality'] },
+                {
+                  long_name: 'Tamil Nadu',
+                  types: ['administrative_area_level_1'],
+                },
+              ],
+            },
+          ],
         }),
       } as unknown as Response);
 
@@ -319,7 +365,9 @@ describe('resolveLocationFromGoogleMapLink', () => {
       json: async () => ({}),
     } as unknown as Response);
 
-    expect(await resolveLocationFromGoogleMapLink('https://maps.app.goo.gl/dead')).toBeNull();
+    expect(
+      await resolveLocationFromGoogleMapLink('https://maps.app.goo.gl/dead')
+    ).toBeNull();
   });
 });
 
@@ -339,7 +387,9 @@ describe('resolveCoordinatesFromMapLink', () => {
   it('reads inline coordinates without any network call', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     expect(
-      await resolveCoordinatesFromMapLink('https://www.google.com/maps?q=12.937435,77.617888')
+      await resolveCoordinatesFromMapLink(
+        'https://www.google.com/maps?q=12.937435,77.617888'
+      )
     ).toEqual({ latitude: 12.937435, longitude: 77.617888 });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -351,7 +401,9 @@ describe('resolveCoordinatesFromMapLink', () => {
       json: async () => ({}),
     } as unknown as Response);
 
-    expect(await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/abc')).toEqual({
+    expect(
+      await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/abc')
+    ).toEqual({
       latitude: 12.937435,
       longitude: 77.617888,
     });
@@ -384,14 +436,17 @@ describe('resolveCoordinatesFromMapLink', () => {
           results: [
             {
               place_id: 'plh',
-              formatted_address: 'Prestige Lakeside Habitat, Varthur, Bengaluru',
+              formatted_address:
+                'Prestige Lakeside Habitat, Varthur, Bengaluru',
               geometry: { location: { lat: 12.9416, lng: 77.7466 } },
             },
           ],
         }),
       } as unknown as Response);
 
-    expect(await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/place')).toEqual({
+    expect(
+      await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/place')
+    ).toEqual({
       latitude: 12.9416,
       longitude: 77.7466,
     });
@@ -404,23 +459,23 @@ describe('resolveCoordinatesFromMapLink', () => {
 
   it('[PRP-018] geocodes a ?q= address link without a redirect hop', async () => {
     process.env.GOOGLE_MAPS_API_KEY = 'test-key';
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          status: 'OK',
-          results: [{ geometry: { location: { lat: 12.9357, lng: 77.7128 } } }],
-        }),
-      } as unknown as Response);
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: 'OK',
+        results: [{ geometry: { location: { lat: 12.9357, lng: 77.7128 } } }],
+      }),
+    } as unknown as Response);
 
     expect(
-      await resolveCoordinatesFromMapLink('https://www.google.com/maps?q=Sobha+Dream+Acres,+Panathur')
+      await resolveCoordinatesFromMapLink(
+        'https://www.google.com/maps?q=Sobha+Dream+Acres,+Panathur'
+      )
     ).toEqual({ latitude: 12.9357, longitude: 77.7128 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('address')).toBe(
-      'Sobha Dream Acres, Panathur'
-    );
+    expect(
+      new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('address')
+    ).toBe('Sobha Dream Acres, Panathur');
   });
 
   it('[PRP-018] does not geocode a dead link that lands on the Maps home page', async () => {
@@ -431,7 +486,9 @@ describe('resolveCoordinatesFromMapLink', () => {
       json: async () => ({}),
     } as unknown as Response);
 
-    expect(await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/gone')).toBeNull();
+    expect(
+      await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/gone')
+    ).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -448,12 +505,16 @@ describe('resolveCoordinatesFromMapLink', () => {
         json: async () => ({ status: 'ZERO_RESULTS', results: [] }),
       } as unknown as Response);
 
-    expect(await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/nowhere')).toBeNull();
+    expect(
+      await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/nowhere')
+    ).toBeNull();
   });
 
   it('never throws when the redirect hop fails', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/dead')).toBeNull();
+    expect(
+      await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/dead')
+    ).toBeNull();
   });
 });

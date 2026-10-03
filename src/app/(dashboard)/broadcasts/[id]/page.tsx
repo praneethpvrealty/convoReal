@@ -40,10 +40,7 @@ import {
 import { toast } from 'sonner';
 import { ReengagementOutcome } from '@/components/reengagement/reengagement-outcome';
 import { isReengagementTemplate } from '@/lib/reengagement/funnel';
-import {
-  getBroadcastStatus,
-  getRecipientStatus,
-} from '@/lib/broadcast-status';
+import { getBroadcastStatus, getRecipientStatus } from '@/lib/broadcast-status';
 
 interface StatCardProps {
   label: string;
@@ -58,12 +55,16 @@ function StatCard({ label, value, total, icon, color }: StatCardProps) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
       <div className="flex items-center justify-between">
-        <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${color}`}>
+        <div
+          className={`flex h-8 w-8 items-center justify-center rounded-lg ${color}`}
+        >
           {icon}
         </div>
         <span className="text-xs text-slate-500">{pct}%</span>
       </div>
-      <p className="mt-3 text-2xl font-bold text-white">{value.toLocaleString()}</p>
+      <p className="mt-3 text-2xl font-bold text-white">
+        {value.toLocaleString()}
+      </p>
       <p className="text-xs text-slate-400">{label}</p>
     </div>
   );
@@ -104,9 +105,7 @@ function FunnelChart({ steps }: { steps: FunnelStep[] }) {
                 />
                 <span className="absolute inset-0 flex items-center px-3 text-xs font-medium text-white">
                   {step.value.toLocaleString()}
-                  <span className="ml-2 text-slate-300/80">
-                    ({pctOfSent}%)
-                  </span>
+                  <span className="ml-2 text-slate-300/80">({pctOfSent}%)</span>
                 </span>
               </div>
             </div>
@@ -158,7 +157,7 @@ export default function BroadcastDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<RecipientStatus | 'all'>(
-    'all',
+    'all'
   );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -187,7 +186,9 @@ export default function BroadcastDetailPage() {
         if (recsError) throw recsError;
         setRecipients(recs ?? []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load broadcast');
+        setError(
+          err instanceof Error ? err.message : 'Failed to load broadcast'
+        );
       } finally {
         setLoading(false);
       }
@@ -201,7 +202,7 @@ export default function BroadcastDetailPage() {
       statusFilter === 'all'
         ? recipients
         : recipients.filter((r) => r.status === statusFilter),
-    [recipients, statusFilter],
+    [recipients, statusFilter]
   );
 
   function handleExport() {
@@ -227,7 +228,9 @@ export default function BroadcastDetailPage() {
       r.error_message ?? '',
     ]);
     const csv = toCsv([header, ...rows]);
-    const safeName = broadcast.name.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+    const safeName = broadcast.name
+      .replace(/[^a-z0-9-_]+/gi, '-')
+      .toLowerCase();
     downloadBlob(`broadcast-${safeName}-${broadcastId.slice(0, 8)}.csv`, csv);
   }
 
@@ -267,15 +270,21 @@ export default function BroadcastDetailPage() {
 
       toast.success(
         `Retried ${data.retried} recipient${data.retried !== 1 ? 's' : ''}: ` +
-        `${data.succeeded} sent, ${data.failed} failed` +
-        (data.rateLimited > 0 ? `, ${data.rateLimited} rate-limited (will retry again)` : ''),
+          `${data.succeeded} sent, ${data.failed} failed` +
+          (data.rateLimited > 0
+            ? `, ${data.rateLimited} rate-limited (will retry again)`
+            : '')
       );
 
       // Reload page data
       const supabase = createClient();
       const [{ data: bc }, { data: recs }] = await Promise.all([
         supabase.from('broadcasts').select('*').eq('id', broadcastId).single(),
-        supabase.from('broadcast_recipients').select('*, contact:contacts(*)').eq('broadcast_id', broadcastId).order('created_at', { ascending: false }),
+        supabase
+          .from('broadcast_recipients')
+          .select('*, contact:contacts(*)')
+          .eq('broadcast_id', broadcastId)
+          .order('created_at', { ascending: false }),
       ]);
       if (bc) setBroadcast(bc);
       if (recs) setRecipients(recs);
@@ -289,7 +298,11 @@ export default function BroadcastDetailPage() {
   if (loading) {
     return (
       <div className="flex h-64 flex-col items-center justify-center text-slate-400">
-        <SignalWaveLoader size={104} label="Loading broadcast" className="mb-3" />
+        <SignalWaveLoader
+          size={104}
+          label="Loading broadcast"
+          className="mb-3"
+        />
         <ConvoRealLoader size={20} className="mb-2" />
         <p className="text-sm">Loading broadcast...</p>
       </div>
@@ -311,9 +324,17 @@ export default function BroadcastDetailPage() {
 
   const funnelSteps: FunnelStep[] = [
     { label: 'Sent', value: broadcast.sent_count, color: 'bg-primary' },
-    { label: 'Delivered', value: broadcast.delivered_count, color: 'bg-teal-500' },
+    {
+      label: 'Delivered',
+      value: broadcast.delivered_count,
+      color: 'bg-teal-500',
+    },
     { label: 'Read', value: broadcast.read_count, color: 'bg-blue-500' },
-    { label: 'Replied', value: broadcast.replied_count, color: 'bg-indigo-500' },
+    {
+      label: 'Replied',
+      value: broadcast.replied_count,
+      color: 'bg-indigo-500',
+    },
   ];
 
   return (
@@ -331,7 +352,9 @@ export default function BroadcastDetailPage() {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-white">{broadcast.name}</h1>
+              <h1 className="text-2xl font-bold text-white">
+                {broadcast.name}
+              </h1>
               <span
                 className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${status.classes}`}
               >
@@ -349,66 +372,68 @@ export default function BroadcastDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-        {/* Retry failed — shown when there are failed or rate-limited recipients */}
-        {recipients.some((r) => r.status === 'failed' || r.status === 'rate_limited') && (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={retrying || broadcast.status === 'sending'}
-            onClick={handleRetryFailed}
-            className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
-          >
-            {retrying ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RotateCcw className="h-3.5 w-3.5" />
-            )}
-            {retrying ? 'Retrying…' : 'Retry failed'}
-          </Button>
-        )}
-
-        {/* Delete — inline-confirm pattern matches the pipeline-settings
-            "Delete Pipeline" flow. Mid-send broadcasts can't be deleted
-            because orphaning in-flight Meta messages would leave the
-            funnel inconsistent. */}
-        {confirmDelete ? (
-          <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm">
-            <span className="text-red-300">Delete this broadcast?</span>
+          {/* Retry failed — shown when there are failed or rate-limited recipients */}
+          {recipients.some(
+            (r) => r.status === 'failed' || r.status === 'rate_limited'
+          ) && (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setConfirmDelete(false)}
-              disabled={deleting}
-              className="h-7 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
+              disabled={retrying || broadcast.status === 'sending'}
+              onClick={handleRetryFailed}
+              className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
             >
-              Cancel
+              {retrying ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5" />
+              )}
+              {retrying ? 'Retrying…' : 'Retry failed'}
             </Button>
+          )}
+
+          {/* Delete — inline-confirm pattern matches the pipeline-settings
+            "Delete Pipeline" flow. Mid-send broadcasts can't be deleted
+            because orphaning in-flight Meta messages would leave the
+            funnel inconsistent. */}
+          {confirmDelete ? (
+            <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm">
+              <span className="text-red-300">Delete this broadcast?</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+                className="h-7 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="h-7 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Confirm'}
+              </Button>
+            </div>
+          ) : (
             <Button
+              variant="outline"
               size="sm"
-              onClick={handleDelete}
-              disabled={deleting}
-              className="h-7 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              disabled={broadcast.status === 'sending'}
+              onClick={() => setConfirmDelete(true)}
+              title={
+                broadcast.status === 'sending'
+                  ? 'Cannot delete while a broadcast is actively sending'
+                  : 'Delete this broadcast'
+              }
+              className="border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10 disabled:opacity-40"
             >
-              {deleting ? 'Deleting…' : 'Confirm'}
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
             </Button>
-          </div>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={broadcast.status === 'sending'}
-            onClick={() => setConfirmDelete(true)}
-            title={
-              broadcast.status === 'sending'
-                ? 'Cannot delete while a broadcast is actively sending'
-                : 'Delete this broadcast'
-            }
-            className="border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10 disabled:opacity-40"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete
-          </Button>
-        )}
+          )}
         </div>
       </div>
 
@@ -466,10 +491,12 @@ export default function BroadcastDetailPage() {
           restated a requirement and what now matches them. */}
       {isReengagementTemplate(broadcast.template_name) && (
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-          <h2 className="text-sm font-medium text-white">Re-engagement outcome</h2>
+          <h2 className="text-sm font-medium text-white">
+            Re-engagement outcome
+          </h2>
           <p className="mt-0.5 mb-4 text-xs text-slate-400">
-            What this batch produced downstream — replies, restated requirements, and
-            matched inventory ready to shortlist.
+            What this batch produced downstream — replies, restated
+            requirements, and matched inventory ready to shortlist.
           </p>
           <ReengagementOutcome broadcastId={broadcastId} />
         </div>
@@ -513,9 +540,7 @@ export default function BroadcastDetailPage() {
                     key={s}
                     onClick={() => setStatusFilter(s)}
                     className={
-                      statusFilter === s
-                        ? 'text-primary'
-                        : 'text-slate-300'
+                      statusFilter === s ? 'text-primary' : 'text-slate-300'
                     }
                   >
                     {getRecipientStatus(s).label}

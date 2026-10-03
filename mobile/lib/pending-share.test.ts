@@ -27,7 +27,8 @@ describe('pendingShareBubbles', () => {
     const bubbles = pendingShareBubbles({
       conversationId: 'conv-1',
       text: 'Hi Salman, sharing a listing',
-      image: 'https://proj.supabase.co/storage/v1/object/public/property-images/a/front.jpg',
+      image:
+        'https://proj.supabase.co/storage/v1/object/public/property-images/a/front.jpg',
       caption: '4180 Sq.Ft. Commercial Plot',
       now: 1_700_000_000_000,
     });
@@ -40,7 +41,10 @@ describe('pendingShareBubbles', () => {
   });
 
   it('draws only the message when the listing has no photo', () => {
-    const bubbles = pendingShareBubbles({ conversationId: 'conv-1', text: 'Hi' });
+    const bubbles = pendingShareBubbles({
+      conversationId: 'conv-1',
+      text: 'Hi',
+    });
     expect(bubbles).toHaveLength(1);
     expect(bubbles[0].content_type).toBe('text');
   });
@@ -48,7 +52,10 @@ describe('pendingShareBubbles', () => {
 
 describe('staged shares', () => {
   it('stages a share for its thread and settles it with the outcome', () => {
-    const bubbles = pendingShareBubbles({ conversationId: 'conv-1', text: 'Hi' });
+    const bubbles = pendingShareBubbles({
+      conversationId: 'conv-1',
+      text: 'Hi',
+    });
     const id = stagePendingShare('conv-1', bubbles);
     expect(pendingSharesFor('conv-1')).toEqual([
       { id, conversationId: 'conv-1', bubbles, outcome: null },
@@ -68,7 +75,10 @@ describe('staged shares', () => {
       'conv-1',
       pendingShareBubbles({ conversationId: 'conv-1', text: 'Listing B' })
     );
-    expect(pendingSharesFor('conv-1').map((s) => s.id)).toEqual([first, second]);
+    expect(pendingSharesFor('conv-1').map((s) => s.id)).toEqual([
+      first,
+      second,
+    ]);
 
     settlePendingShare(first, { sent: false, error: 'Meta said no' });
     const [a, b] = pendingSharesFor('conv-1');
@@ -78,7 +88,9 @@ describe('staged shares', () => {
 
     clearPendingShare(first);
     expect(pendingSharesFor('conv-1').map((s) => s.id)).toEqual([second]);
-    expect(pendingSharesFor('conv-1')[0].bubbles[0].content_text).toBe('Listing B');
+    expect(pendingSharesFor('conv-1')[0].bubbles[0].content_text).toBe(
+      'Listing B'
+    );
   });
 
   it('ignores an outcome for a share that was never staged', () => {
@@ -103,7 +115,9 @@ describe('staged shares', () => {
 
 describe('shareOutcomeNotice', () => {
   it('says nothing about a share that went out', () => {
-    expect(shareOutcomeNotice({ sent: true, channel: 'freeform' }, 'Salman')).toBeNull();
+    expect(
+      shareOutcomeNotice({ sent: true, channel: 'freeform' }, 'Salman')
+    ).toBeNull();
   });
 
   it('explains a template still under review', () => {
@@ -112,20 +126,27 @@ describe('shareOutcomeNotice', () => {
       'Salman'
     );
     expect(notice?.title).toBe('Template awaiting Meta approval');
-    expect(notice?.message).toContain('Salman hasn’t messaged in the last 24 hours');
+    expect(notice?.message).toContain(
+      'Salman hasn’t messaged in the last 24 hours'
+    );
   });
 
   it('explains a template that was never set up', () => {
-    const notice = shareOutcomeNotice({ sent: false, templateStatus: 'NONE' }, 'Salman');
+    const notice = shareOutcomeNotice(
+      { sent: false, templateStatus: 'NONE' },
+      'Salman'
+    );
     expect(notice?.title).toBe('One-time template setup needed');
     expect(notice?.message).toContain('Org Manager');
   });
 
   it('keeps an abandoned request apart from a refusal', () => {
-    expect(shareOutcomeNotice({ sent: false, timedOut: true }, 'Salman')?.title).toBe(
-      'Still sending'
-    );
-    expect(shareOutcomeNotice({ sent: false, error: 'Meta said no' }, 'Salman')).toEqual({
+    expect(
+      shareOutcomeNotice({ sent: false, timedOut: true }, 'Salman')?.title
+    ).toBe('Still sending');
+    expect(
+      shareOutcomeNotice({ sent: false, error: 'Meta said no' }, 'Salman')
+    ).toEqual({
       title: 'Could not send',
       message: 'Meta said no',
     });

@@ -1,70 +1,87 @@
-import { NextResponse } from 'next/server'
-import { getCurrentAccount, requireRole, toErrorResponse } from '@/lib/auth/account'
-import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { getTemplate } from '@/lib/automations/templates'
-import { insertSteps, type BuilderStepInput } from '@/lib/automations/steps-tree'
+import { NextResponse } from 'next/server';
+import {
+  getCurrentAccount,
+  requireRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getTemplate } from '@/lib/automations/templates';
+import {
+  insertSteps,
+  type BuilderStepInput,
+} from '@/lib/automations/steps-tree';
 import {
   validateStepsForActivation,
   validateTriggerForActivation,
-} from '@/lib/automations/validate'
+} from '@/lib/automations/validate';
 
 // Listing is open to every member of a live account (the [id] GET is
 // too); only creating an automation carries the 'agent' gate its
 // mutation siblings use.
 export async function GET() {
   try {
-    const { supabase, accountId } = await getCurrentAccount()
+    const { supabase, accountId } = await getCurrentAccount();
 
     const { data, error } = await supabase
       .from('automations')
       .select('*')
       .eq('account_id', accountId)
-      .order('created_at', { ascending: false })
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ automations: data ?? [] })
+      .order('created_at', { ascending: false });
+    if (error)
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ automations: data ?? [] });
   } catch (error) {
-    return toErrorResponse(error)
+    return toErrorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
-  let userId: string
-  let accountId: string
+  let userId: string;
+  let accountId: string;
   try {
-    const ctx = await requireRole('agent')
-    userId = ctx.userId
-    accountId = ctx.accountId
+    const ctx = await requireRole('agent');
+    userId = ctx.userId;
+    accountId = ctx.accountId;
   } catch (error) {
-    return toErrorResponse(error)
+    return toErrorResponse(error);
   }
 
-  const body = await request.json().catch(() => null)
-  if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  const body = await request.json().catch(() => null);
+  if (!body)
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
 
-  const { name, description, trigger_type, trigger_config, is_active, steps, template } = body
+  const {
+    name,
+    description,
+    trigger_type,
+    trigger_config,
+    is_active,
+    steps,
+    template,
+  } = body;
 
-  let effectiveSteps: BuilderStepInput[] | undefined = steps
-  let effectiveName = name
-  let effectiveDescription = description
-  let effectiveTriggerType = trigger_type
-  let effectiveTriggerConfig = trigger_config
+  let effectiveSteps: BuilderStepInput[] | undefined = steps;
+  let effectiveName = name;
+  let effectiveDescription = description;
+  let effectiveTriggerType = trigger_type;
+  let effectiveTriggerConfig = trigger_config;
 
   if (template && (!steps || steps.length === 0)) {
-    const t = getTemplate(template)
+    const t = getTemplate(template);
     if (t) {
-      effectiveName = effectiveName ?? t.name
-      effectiveDescription = effectiveDescription ?? t.description
-      effectiveTriggerType = effectiveTriggerType ?? t.trigger_type
-      effectiveTriggerConfig = effectiveTriggerConfig ?? t.trigger_config
-      effectiveSteps = t.steps as unknown as BuilderStepInput[]
+      effectiveName = effectiveName ?? t.name;
+      effectiveDescription = effectiveDescription ?? t.description;
+      effectiveTriggerType = effectiveTriggerType ?? t.trigger_type;
+      effectiveTriggerConfig = effectiveTriggerConfig ?? t.trigger_config;
+      effectiveSteps = t.steps as unknown as BuilderStepInput[];
     }
   }
 
   if (!effectiveName || !effectiveTriggerType) {
     return NextResponse.json(
       { error: 'name and trigger_type are required' },
-      { status: 400 },
-    )
+      { status: 400 }
+    );
   }
 
   // Block activation of a clearly broken automation up-front instead of
@@ -73,20 +90,29 @@ export async function POST(request: Request) {
   // progress mid-build.
   if (is_active) {
     const issues = [
-      ...validateTriggerForActivation(effectiveTriggerType, effectiveTriggerConfig ?? {}),
-      ...validateStepsForActivation(
-        (effectiveSteps ?? []) as unknown as { step_type: string; step_config: Record<string, unknown> }[],
+      ...validateTriggerForActivation(
+        effectiveTriggerType,
+        effectiveTriggerConfig ?? {}
       ),
-    ]
+      ...validateStepsForActivation(
+        (effectiveSteps ?? []) as unknown as {
+          step_type: string;
+          step_config: Record<string, unknown>;
+        }[]
+      ),
+    ];
     if (issues.length > 0) {
       return NextResponse.json(
-        { error: 'Cannot activate automation with invalid configuration', issues },
-        { status: 400 },
-      )
+        {
+          error: 'Cannot activate automation with invalid configuration',
+          issues,
+        },
+        { status: 400 }
+      );
     }
   }
 
-  const admin = supabaseAdmin()
+  const admin = supabaseAdmin();
 
   const { data: automation, error: insertErr } = await admin
     .from('automations')
@@ -100,19 +126,19 @@ export async function POST(request: Request) {
       is_active: !!is_active,
     })
     .select()
-    .single()
+    .single();
 
   if (insertErr || !automation) {
     return NextResponse.json(
       { error: insertErr?.message ?? 'insert failed' },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 
   if (effectiveSteps && effectiveSteps.length > 0) {
-    const err = await insertSteps(automation.id, effectiveSteps)
-    if (err) return NextResponse.json({ error: err }, { status: 500 })
+    const err = await insertSteps(automation.id, effectiveSteps);
+    if (err) return NextResponse.json({ error: err }, { status: 500 });
   }
 
-  return NextResponse.json({ automation }, { status: 201 })
+  return NextResponse.json({ automation }, { status: 201 });
 }

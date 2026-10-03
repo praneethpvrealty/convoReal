@@ -107,14 +107,14 @@ describe('getCurrentAccount — archived account block', () => {
 
   it('throws AccountArchivedError for an archived account', async () => {
     h.state.profile = archivedProfile;
-    await expect(getCurrentAccount()).rejects.toBeInstanceOf(AccountArchivedError);
+    await expect(getCurrentAccount()).rejects.toBeInstanceOf(
+      AccountArchivedError
+    );
   });
 
   it('never returns a context for an archived account (no accidental fallthrough)', async () => {
     h.state.profile = archivedProfile;
-    await expect(getCurrentAccount()).rejects.toThrow(
-      /archived/i,
-    );
+    await expect(getCurrentAccount()).rejects.toThrow(/archived/i);
   });
 
   it('still throws UnauthorizedError first when there is no session, before touching status', async () => {
@@ -142,7 +142,7 @@ describe('requireOrgRole — org-hierarchy guard', () => {
       org_role: 'org_agent',
     };
     await expect(requireOrgRole('org_manager')).rejects.toBeInstanceOf(
-      ForbiddenError,
+      ForbiddenError
     );
   });
 
@@ -153,14 +153,14 @@ describe('requireOrgRole — org-hierarchy guard', () => {
       org_role: 'org_leader',
     };
     await expect(requireOrgRole('org_manager')).rejects.toThrow(
-      /Organization Manager/,
+      /Organization Manager/
     );
   });
 
   it('throws UnauthorizedError before the role check when there is no session', async () => {
     h.state.user = null;
     await expect(requireOrgRole('org_manager')).rejects.toBeInstanceOf(
-      UnauthorizedError,
+      UnauthorizedError
     );
   });
 });

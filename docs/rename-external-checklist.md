@@ -1,6 +1,6 @@
 # External changes checklist — Engine rename + fork cleanup
 
-Everything the rename needs that **isn't in the repo**. Ordered: item 1 must happen *before* the deploy, the rest can follow.
+Everything the rename needs that **isn't in the repo**. Ordered: item 1 must happen _before_ the deploy, the rest can follow.
 
 Nothing on this list can break a third party. Item 2 is not a rename task at all — it's an unrelated open endpoint the rename happened to surface.
 
@@ -14,15 +14,15 @@ Console UIs move around; the paths below are right as of writing, and the settin
 
 **Project → Settings → Environment Variables**
 
-| | |
-|---|---|
-| Name | `NEXT_PUBLIC_ENGINE_VERTICAL` |
-| Value | `real_estate` |
+|              |                                  |
+| ------------ | -------------------------------- |
+| Name         | `NEXT_PUBLIC_ENGINE_VERTICAL`    |
+| Value        | `real_estate`                    |
 | Environments | Production, Preview, Development |
 
 The old `NEXT_PUBLIC_CRM_VERTICAL` is no longer read. Delete it once the new one is in.
 
-*If you skip this:* nothing breaks. `src/config/marketing.ts` falls back to `'real_estate'`, which is the value you were running. Do it anyway so the fallback isn't load-bearing.
+_If you skip this:_ nothing breaks. `src/config/marketing.ts` falls back to `'real_estate'`, which is the value you were running. Do it anyway so the fallback isn't load-bearing.
 
 > `NEXT_PUBLIC_*` values are inlined at build time, not read at runtime — so this must be set **before** the build, and changing it later needs a redeploy, not just a restart.
 
@@ -46,15 +46,15 @@ Setting the key closes it, and breaks nothing because nothing calls it:
 openssl rand -hex 32
 ```
 
-| | |
-|---|---|
-| Name | `PUBLIC_API_KEY` |
-| Value | the generated string |
+|              |                                  |
+| ------------ | -------------------------------- |
+| Name         | `PUBLIC_API_KEY`                 |
+| Value        | the generated string             |
 | Environments | Production, Preview, Development |
 
 Callers then need an `x-api-key` header. If you later expose an external integration, hand it this key.
 
-*If you skip this:* nothing breaks and nothing regresses. The endpoint stays open to anyone, but rate limiting now bounds how fast it can be drained.
+_If you skip this:_ nothing breaks and nothing regresses. The endpoint stays open to anyone, but rate limiting now bounds how fast it can be drained.
 
 > **The limiter is in-process.** `src/lib/rate-limit.ts` holds its Map in one Node process, so on Vercel's serverless fan-out each instance carries its own budget and the effective ceiling is higher than the numbers above. It raises the cost of scraping; it doesn't make it impossible. Setting the API key is still the real control. If you later need a hard limit, swap `checkRateLimit` for a Redis-backed version — the return shape is fixed, so no call site changes.
 
@@ -84,16 +84,16 @@ Should say "visible only in the Engine".
 
 Rename `CRM_BASE_URL` → `ENGINE_BASE_URL`, same value. Redeploy the worker.
 
-*If you skip this:* the worker falls back to its hardcoded default (`https://app.convoreal.com`) and lead-sync emails post to the wrong host — or nowhere.
+_If you skip this:_ the worker falls back to its hardcoded default (`https://app.convoreal.com`) and lead-sync emails post to the wrong host — or nowhere.
 
 ### 5. Cloudflare — two email aliases
 
 **Email → Email Routing → Routing rules → Create address**
 
-| Address | Forwards to | Used by |
-|---|---|---|
-| `security@convoreal.com` | your inbox | `.github/SECURITY.md` |
-| `conduct@convoreal.com` | your inbox | `.github/CODE_OF_CONDUCT.md` |
+| Address                  | Forwards to | Used by                      |
+| ------------------------ | ----------- | ---------------------------- |
+| `security@convoreal.com` | your inbox  | `.github/SECURITY.md`        |
+| `conduct@convoreal.com`  | your inbox  | `.github/CODE_OF_CONDUCT.md` |
 
 Both files now publish these addresses on a **public** repo. Until they route, security reports bounce.
 
@@ -103,10 +103,10 @@ Also turn on **Settings → Code security → Private vulnerability reporting** 
 
 **Repo main page → About (gear icon)**, or **Settings → General**
 
-| Field | Currently | Change to |
-|---|---|---|
+| Field       | Currently                            | Change to                                               |
+| ----------- | ------------------------------------ | ------------------------------------------------------- |
 | Description | `Whatsap based crm tailered to real` | `WhatsApp-first deal engine for real-estate brokerages` |
-| Website | `https://wacrm-ruddy.vercel.app` | `https://www.convoreal.com` |
+| Website     | `https://wacrm-ruddy.vercel.app`     | `https://www.convoreal.com`                             |
 
 Both render at the top of a public repo page. The homepage URL is the most visible remaining trace of the fork, and the description has two typos plus "crm".
 

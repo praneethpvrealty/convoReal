@@ -44,10 +44,13 @@ function makeAdmin(store: Store): SupabaseClient {
         Promise.resolve(exec()).then(res, rej),
     };
     const matches = (row: Record<string, unknown>) => {
-      for (const [c, v] of Object.entries(b._eq)) if (row[c] !== v) return false;
-      for (const [c, vals] of Object.entries(b._in)) if (!vals.includes(row[c])) return false;
+      for (const [c, v] of Object.entries(b._eq))
+        if (row[c] !== v) return false;
+      for (const [c, vals] of Object.entries(b._in))
+        if (!vals.includes(row[c])) return false;
       for (const [c, v] of Object.entries(b._gte))
-        if (!(typeof row[c] === 'string' && (row[c] as string) >= v)) return false;
+        if (!(typeof row[c] === 'string' && (row[c] as string) >= v))
+          return false;
       return true;
     };
     const exec = () => {
@@ -63,7 +66,9 @@ function makeAdmin(store: Store): SupabaseClient {
     };
     return b;
   };
-  return { from: (t: string) => build(t as keyof Store) } as unknown as SupabaseClient;
+  return {
+    from: (t: string) => build(t as keyof Store),
+  } as unknown as SupabaseClient;
 }
 
 const NOW = new Date('2026-07-12T10:00:00.000Z');
@@ -120,7 +125,11 @@ describe('runMarketStats — consent gating', () => {
   it('does nothing when no account has consented', async () => {
     store.accounts = [account('a1', false)];
     store.properties = [property('a1')];
-    const summary = await runMarketStats(makeAdmin(store), cfg({ k_threshold: 1 }), NOW);
+    const summary = await runMarketStats(
+      makeAdmin(store),
+      cfg({ k_threshold: 1 }),
+      NOW
+    );
     expect(summary.consentingAccounts).toBe(0);
     expect(store.market_stats).toHaveLength(0);
   });
@@ -128,7 +137,11 @@ describe('runMarketStats — consent gating', () => {
   it("never counts a non-consenting account's rows", async () => {
     store.accounts = [account('a1', true), account('a2', false)];
     store.properties = [property('a1'), property('a2'), property('a2')];
-    const summary = await runMarketStats(makeAdmin(store), cfg({ k_threshold: 1 }), NOW);
+    const summary = await runMarketStats(
+      makeAdmin(store),
+      cfg({ k_threshold: 1 }),
+      NOW
+    );
     expect(summary.consentingAccounts).toBe(1);
     const cell = store.market_stats.find((r) => r.side === 'supply');
     expect(cell?.listings_count).toBe(1); // only a1's listing
@@ -199,7 +212,7 @@ describe('runMarketStats — supply metrics', () => {
     ];
     await runMarketStats(makeAdmin(store), cfg({ k_threshold: 1 }), NOW);
     const cell = store.market_stats.find(
-      (r) => r.side === 'supply' && r.period_month === `${THIS_MONTH}-01`,
+      (r) => r.side === 'supply' && r.period_month === `${THIS_MONTH}-01`
     );
     expect(cell?.sold_count).toBe(1);
     expect(cell?.median_sold_price).toBe(7_500_000);
@@ -208,8 +221,15 @@ describe('runMarketStats — supply metrics', () => {
 
   it('skips rows with no usable geography', async () => {
     store.accounts = [account('a1')];
-    store.properties = [property('a1', { city: null }), property('a1', { sublocality: null })];
-    const summary = await runMarketStats(makeAdmin(store), cfg({ k_threshold: 1 }), NOW);
+    store.properties = [
+      property('a1', { city: null }),
+      property('a1', { sublocality: null }),
+    ];
+    const summary = await runMarketStats(
+      makeAdmin(store),
+      cfg({ k_threshold: 1 }),
+      NOW
+    );
     expect(summary.supplyCells).toBe(0);
     expect(store.market_stats).toHaveLength(0);
   });
@@ -252,7 +272,9 @@ describe('runMarketStats — replace semantics', () => {
     const admin = makeAdmin(store);
     await runMarketStats(admin, cfg({ k_threshold: 1 }), NOW);
     await runMarketStats(admin, cfg({ k_threshold: 1 }), NOW);
-    expect(store.market_stats.filter((r) => r.side === 'supply')).toHaveLength(1);
+    expect(store.market_stats.filter((r) => r.side === 'supply')).toHaveLength(
+      1
+    );
   });
 
   it('drops previously-published cells after consent withdrawal', async () => {
@@ -262,7 +284,9 @@ describe('runMarketStats — replace semantics', () => {
     await runMarketStats(admin, cfg({ k_threshold: 1 }), NOW);
     expect(store.market_stats).toHaveLength(1);
 
-    (store.accounts[0] as { data_sharing_consent: boolean }).data_sharing_consent = false;
+    (
+      store.accounts[0] as { data_sharing_consent: boolean }
+    ).data_sharing_consent = false;
     await runMarketStats(admin, cfg({ k_threshold: 1 }), NOW);
     expect(store.market_stats).toHaveLength(0); // window replaced, cell gone
   });

@@ -25,8 +25,15 @@
 // Pure functions so payload and params are unit-testable.
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
-import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
-import { templateBody, templateButtonLabel } from '@/lib/whatsapp/template-copy';
+import {
+  DEFAULT_LANGUAGE,
+  metaLanguageCode,
+  type LanguageCode,
+} from '@/lib/languages';
+import {
+  templateBody,
+  templateButtonLabel,
+} from '@/lib/whatsapp/template-copy';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { BRANDING } from '@/config/branding';
@@ -40,7 +47,7 @@ export const JOURNEY_CHECKIN_TEMPLATE_NAME = 'enquiry_checkin_notice';
 export const JOURNEY_CHECKIN_TEMPLATE_NAMES = [JOURNEY_CHECKIN_TEMPLATE_NAME];
 
 export function pickJourneyCheckinTemplate<T extends ApprovedTemplateCandidate>(
-  rows: T[],
+  rows: T[]
 ): T | null {
   return pickApprovedTemplate(rows, JOURNEY_CHECKIN_TEMPLATE_NAMES);
 }
@@ -53,7 +60,7 @@ export const JOURNEY_CHECKIN_CLOSE_BUTTON = 'Close my enquiry';
 
 export function buildJourneyCheckinTemplatePayload(
   origin: string,
-  language: LanguageCode = DEFAULT_LANGUAGE,
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): TemplatePayload {
   const base = origin.replace(/\/+$/, '');
   return {
@@ -65,8 +72,14 @@ export function buildJourneyCheckinTemplatePayload(
       // The quick replies open the 24h window; the URL carries the
       // listing itself, the same suffix shape listing_details_notice
       // was approved with.
-      { type: 'QUICK_REPLY', text: templateButtonLabel('still_considering', language) },
-      { type: 'QUICK_REPLY', text: templateButtonLabel('close_enquiry', language) },
+      {
+        type: 'QUICK_REPLY',
+        text: templateButtonLabel('still_considering', language),
+      },
+      {
+        type: 'QUICK_REPLY',
+        text: templateButtonLabel('close_enquiry', language),
+      },
       {
         type: 'URL',
         text: templateButtonLabel('view_full_details', language),
@@ -92,7 +105,7 @@ export function buildJourneyCheckinTemplatePayload(
  */
 export function journeyCheckinUrlSuffix(
   property: { id: string; property_code?: string | null },
-  contactId: string,
+  contactId: string
 ): string {
   const id = property.property_code || property.id;
   return `?property_id=${encodeURIComponent(id)}&v=${encodeURIComponent(contactId)}`;
@@ -108,7 +121,7 @@ export function journeyCheckinUrlSuffix(
 export function buildJourneyCheckinParams(
   contactName: string | null | undefined,
   brandName: string | null | undefined,
-  propertyDescription: string,
+  propertyDescription: string
 ): [name: string, brand: string, property: string] {
   const raw = contactName?.trim() ?? '';
   const firstName =

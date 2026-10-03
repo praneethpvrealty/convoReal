@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isCurrentChunk, type Audience } from './chunks';
 import { buildCopilotScaffold, isAllowedRoute } from './knowledge';
 import {
@@ -88,21 +89,12 @@ export interface CachedAnswer {
   coverage?: MobileCoverage;
 }
 
-let _adminClient: SupabaseClient | null = null;
 function cacheAdmin(): SupabaseClient | null {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.SUPABASE_SERVICE_ROLE_KEY
-  ) {
+  try {
+    return supabaseAdmin();
+  } catch {
     return null;
   }
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-  }
-  return _adminClient;
 }
 
 const EMAIL_RE = /\S+@\S+\.\S+/;

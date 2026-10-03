@@ -60,7 +60,9 @@ describe('recordAnswer', () => {
     // as if the visitor had named no locality at all.
     const selected = recordAnswer(multiStep, 'HSR Layout', {});
     expect(answerList(selected, 'locality')).toEqual(['HSR Layout']);
-    expect(answerList(recordAnswer(multiStep, 'HSR Layout', selected), 'locality')).toEqual([]);
+    expect(
+      answerList(recordAnswer(multiStep, 'HSR Layout', selected), 'locality')
+    ).toEqual([]);
   });
 
   it('ignores blank answers', () => {

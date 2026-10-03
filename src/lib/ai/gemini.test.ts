@@ -44,7 +44,8 @@ describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
         // Property Listing Parsing / Updating
         if (userMessage.includes('Prime Corner Commercial Plot')) {
           mockText = JSON.stringify({
-            title: 'Prime Corner Commercial Plot for Sale – Banashankari 6th Stage, 3rd Block',
+            title:
+              'Prime Corner Commercial Plot for Sale – Banashankari 6th Stage, 3rd Block',
             price: 56000000,
             location: 'Banashankari 6th Stage, 3rd Block',
             type: 'Commercial Building',

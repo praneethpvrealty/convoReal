@@ -97,7 +97,9 @@ export function LearningPanel({ propertyId, onApplied }: LearningPanelProps) {
   if (!loaded || items.length === 0) return null;
 
   const proposals = items.filter((i): i is Proposal => i.kind === 'proposal');
-  const drifts = items.filter((i): i is PortalDrift => i.kind === 'portal_drift');
+  const drifts = items.filter(
+    (i): i is PortalDrift => i.kind === 'portal_drift'
+  );
 
   return (
     <div className="mb-4 space-y-4">

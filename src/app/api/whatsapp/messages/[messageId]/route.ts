@@ -22,7 +22,7 @@ const ACTIONS: Action[] = ['pin', 'unpin', 'hide', 'restore'];
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ messageId: string }> },
+  { params }: { params: Promise<{ messageId: string }> }
 ) {
   // Outside the try below, whose catch reports everything as an update
   // failure. Pinning and hiding are shared-inbox state, so they carry
@@ -50,7 +50,7 @@ export async function PATCH(
     if (!action || !ACTIONS.includes(action)) {
       return NextResponse.json(
         { error: `action must be one of ${ACTIONS.join(', ')}` },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -77,7 +77,7 @@ export async function PATCH(
     if (!conversation) {
       return NextResponse.json(
         { error: 'Conversation not found' },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
@@ -97,7 +97,7 @@ export async function PATCH(
             error: `Only ${MAX_PINNED_PER_CONVERSATION} messages can be pinned at once — unpin one first.`,
             code: 'PIN_LIMIT_REACHED',
           },
-          { status: 409 },
+          { status: 409 }
         );
       }
     }
@@ -123,7 +123,7 @@ export async function PATCH(
       console.error('[messages/state] update failed:', updateError.message);
       return NextResponse.json(
         { error: 'Could not update the message' },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -132,7 +132,7 @@ export async function PATCH(
     console.error('[messages/state] failed:', error);
     return NextResponse.json(
       { error: 'Could not update the message' },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

@@ -20,7 +20,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { syncPropertyVideoToYouTube } from '@/lib/youtube/upload';
 import { refundCredits } from '@/lib/credits/burn';
@@ -59,8 +59,10 @@ const run = (bin: string, args: string[]) =>
 /** Split narration on sentence boundaries into ≤max-char chunks
  *  (Sarvam caps text per request). Exported for tests. */
 export function chunkNarration(text: string, max = 450): string[] {
-  const sentences =
-    text.replace(/\s+/g, ' ').trim().match(/[^.!?।]+[.!?।]*\s*/g) ?? [text];
+  const sentences = text
+    .replace(/\s+/g, ' ')
+    .trim()
+    .match(/[^.!?।]+[.!?।]*\s*/g) ?? [text];
   const chunks: string[] = [];
   let cur = '';
   for (const s of sentences) {
@@ -74,7 +76,10 @@ export function chunkNarration(text: string, max = 450): string[] {
   return chunks;
 }
 
-async function sarvamPost(pathname: string, body: unknown): Promise<Record<string, unknown>> {
+async function sarvamPost(
+  pathname: string,
+  body: unknown
+): Promise<Record<string, unknown>> {
   const res = await fetch(`${SARVAM_API_BASE}${pathname}`, {
     method: 'POST',
     headers: {
@@ -85,7 +90,9 @@ async function sarvamPost(pathname: string, body: unknown): Promise<Record<strin
   });
   const raw = await res.text();
   if (!res.ok) {
-    throw new Error(`Sarvam ${pathname} → HTTP ${res.status}: ${raw.slice(0, 500)}`);
+    throw new Error(
+      `Sarvam ${pathname} → HTTP ${res.status}: ${raw.slice(0, 500)}`
+    );
   }
   return JSON.parse(raw) as Record<string, unknown>;
 }
@@ -93,12 +100,26 @@ async function sarvamPost(pathname: string, body: unknown): Promise<Record<strin
 async function makeNarrationWav(
   english: string,
   language: NarrationLanguage,
-  workDir: string,
+  workDir: string
 ): Promise<string> {
   const out = path.join(workDir, 'narration.wav');
   if (!SARVAM_API_KEY) {
-    console.warn('[listing-video] SARVAM_API_KEY not set — espeak-ng placeholder voice (English only).');
-    run('espeak-ng', ['-v', 'en-us+f3', '-s', '150', '-p', '40', '-a', '190', '-w', out, english]);
+    console.warn(
+      '[listing-video] SARVAM_API_KEY not set — espeak-ng placeholder voice (English only).'
+    );
+    run('espeak-ng', [
+      '-v',
+      'en-us+f3',
+      '-s',
+      '150',
+      '-p',
+      '40',
+      '-a',
+      '190',
+      '-w',
+      out,
+      english,
+    ]);
     return out;
   }
   let text = english;
@@ -110,7 +131,9 @@ async function makeNarrationWav(
       model: 'mayura:v1',
     });
     if (typeof t.translated_text !== 'string' || !t.translated_text.trim()) {
-      throw new Error(`Sarvam /translate returned no translated_text: ${JSON.stringify(t).slice(0, 300)}`);
+      throw new Error(
+        `Sarvam /translate returned no translated_text: ${JSON.stringify(t).slice(0, 300)}`
+      );
     }
     text = t.translated_text;
   }
@@ -126,7 +149,10 @@ async function makeNarrationWav(
       enable_preprocessing: true,
     });
     const b64 = Array.isArray(data.audios) ? (data.audios[0] as string) : null;
-    if (!b64) throw new Error(`Sarvam /text-to-speech returned no audios[0]: ${JSON.stringify(data).slice(0, 300)}`);
+    if (!b64)
+      throw new Error(
+        `Sarvam /text-to-speech returned no audios[0]: ${JSON.stringify(data).slice(0, 300)}`
+      );
     const f = path.join(workDir, `tts-${i}.wav`);
     fs.writeFileSync(f, Buffer.from(b64, 'base64'));
     files.push(f);
@@ -136,7 +162,18 @@ async function makeNarrationWav(
   } else {
     const list = path.join(workDir, 'tts-list.txt');
     fs.writeFileSync(list, files.map((f) => `file '${f}'`).join('\n'));
-    run(FFMPEG, ['-y', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', out]);
+    run(FFMPEG, [
+      '-y',
+      '-f',
+      'concat',
+      '-safe',
+      '0',
+      '-i',
+      list,
+      '-c',
+      'copy',
+      out,
+    ]);
   }
   return out;
 }
@@ -162,27 +199,43 @@ function makeMusicWav(workDir: string, seconds: number): string {
     const shimmer = 0.85 + 0.15 * Math.sin((2 * Math.PI * 0.13 * i) / sr);
     let s = 0;
     for (const f of chord) {
-      s += Math.sin((2 * Math.PI * f * i) / sr) + 0.35 * Math.sin((2 * Math.PI * (f / 2) * i) / sr);
+      s +=
+        Math.sin((2 * Math.PI * f * i) / sr) +
+        0.35 * Math.sin((2 * Math.PI * (f / 2) * i) / sr);
     }
     pcm[i] = Math.round(2600 * env * shimmer * (s / chord.length));
   }
   const header = Buffer.alloc(44);
-  header.write('RIFF', 0); header.writeUInt32LE(36 + n * 2, 4);
-  header.write('WAVEfmt ', 8); header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20); header.writeUInt16LE(1, 22);
-  header.writeUInt32LE(sr, 24); header.writeUInt32LE(sr * 2, 28);
-  header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34);
-  header.write('data', 36); header.writeUInt32LE(n * 2, 40);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + n * 2, 4);
+  header.write('WAVEfmt ', 8);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(sr, 24);
+  header.writeUInt32LE(sr * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(n * 2, 40);
   fs.writeFileSync(out, Buffer.concat([header, Buffer.from(pcm.buffer)]));
   return out;
 }
 
 const escText = (t: string) =>
-  t.replace(/\\/g, '\\\\').replace(/'/g, "\\\\\\'").replace(/:/g, '\\:').replace(/%/g, '\\%');
+  t
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\\\\\'")
+    .replace(/:/g, '\\:')
+    .replace(/%/g, '\\%');
 
 /** drawtext has no wrapping — break on words into up to `maxLines`
  *  newline-joined lines of ≤`maxChars`, ellipsizing overflow. */
-export function wrapLines(text: string, maxChars: number, maxLines: number): string {
+export function wrapLines(
+  text: string,
+  maxChars: number,
+  maxLines: number
+): string {
   const words = text.replace(/\s+/g, ' ').trim().split(' ');
   const lines: string[] = [];
   let cur = '';
@@ -214,12 +267,22 @@ function renderVideo(opts: {
   outPath: string;
   workDir: string;
 }): void {
-  const { photoFiles, captions, narrationWav, musicWav, brand, endCard, outPath, workDir } = opts;
+  const {
+    photoFiles,
+    captions,
+    narrationWav,
+    musicWav,
+    brand,
+    endCard,
+    outPath,
+    workDir,
+  } = opts;
   const segments: string[] = [];
   photoFiles.forEach((file, i) => {
     const seg = path.join(workDir, `seg${i}.mp4`);
     const frames = SEG_SECONDS * FPS;
-    const zoom = i % 2 === 0 ? `1.02+0.12*on/${frames}` : `1.14-0.12*on/${frames}`;
+    const zoom =
+      i % 2 === 0 ? `1.02+0.12*on/${frames}` : `1.14-0.12*on/${frames}`;
     const vf = [
       `crop='min(iw,ih*${W}/${H})':'min(ih,iw*${H}/${W})'`,
       `scale=${W * 2}:${H * 2}`,
@@ -228,8 +291,27 @@ function renderVideo(opts: {
       `drawtext=fontfile=${FONT}:text='${escText(brand)}':fontsize=26:fontcolor=white@0.9:box=1:boxcolor=0x0b1220@0.5:boxborderw=12:x=36:y=48`,
       `format=yuv420p`,
     ].join(',');
-    run(FFMPEG, ['-y', '-loop', '1', '-i', file, '-vf', vf, '-t', String(SEG_SECONDS),
-      '-r', String(FPS), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-an', seg]);
+    run(FFMPEG, [
+      '-y',
+      '-loop',
+      '1',
+      '-i',
+      file,
+      '-vf',
+      vf,
+      '-t',
+      String(SEG_SECONDS),
+      '-r',
+      String(FPS),
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '23',
+      '-an',
+      seg,
+    ]);
     segments.push(seg);
   });
 
@@ -241,63 +323,137 @@ function renderVideo(opts: {
     `drawtext=fontfile=${FONT}:text='Made with ConvoReal':fontsize=22:fontcolor=white@0.45:x=(w-text_w)/2:y=1160`,
     `format=yuv420p`,
   ].join(',');
-  run(FFMPEG, ['-y', '-f', 'lavfi', '-i', `color=c=0x0b1220:s=${W}x${H}:r=${FPS}`,
-    '-vf', endVf, '-t', '5', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-an', end]);
+  run(FFMPEG, [
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    `color=c=0x0b1220:s=${W}x${H}:r=${FPS}`,
+    '-vf',
+    endVf,
+    '-t',
+    '5',
+    '-c:v',
+    'libx264',
+    '-preset',
+    'veryfast',
+    '-crf',
+    '23',
+    '-an',
+    end,
+  ]);
   segments.push(end);
 
   const list = path.join(workDir, 'list.txt');
   fs.writeFileSync(list, segments.map((s) => `file '${s}'`).join('\n'));
   const silent = path.join(workDir, 'video.mp4');
-  run(FFMPEG, ['-y', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', silent]);
+  run(FFMPEG, [
+    '-y',
+    '-f',
+    'concat',
+    '-safe',
+    '0',
+    '-i',
+    list,
+    '-c',
+    'copy',
+    silent,
+  ]);
 
   const total = photoFiles.length * SEG_SECONDS + 5;
-  run(FFMPEG, ['-y', '-i', silent, '-i', musicWav, '-i', narrationWav,
+  run(FFMPEG, [
+    '-y',
+    '-i',
+    silent,
+    '-i',
+    musicWav,
+    '-i',
+    narrationWav,
     '-filter_complex',
     '[2:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,adelay=1000|1000,volume=1.6,apad,asplit=2[voiceA][voiceB];' +
-    '[1:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=0.45[bed];' +
-    '[bed][voiceA]sidechaincompress=threshold=0.04:ratio=8:attack=120:release=800[ducked];' +
-    `[ducked][voiceB]amix=inputs=2:duration=first:dropout_transition=2,afade=t=out:st=${total - 2}:d=2[a]`,
-    '-map', '0:v', '-map', '[a]', '-shortest', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '96k', outPath]);
+      '[1:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=0.45[bed];' +
+      '[bed][voiceA]sidechaincompress=threshold=0.04:ratio=8:attack=120:release=800[ducked];' +
+      `[ducked][voiceB]amix=inputs=2:duration=first:dropout_transition=2,afade=t=out:st=${total - 2}:d=2[a]`,
+    '-map',
+    '0:v',
+    '-map',
+    '[a]',
+    '-shortest',
+    '-c:v',
+    'copy',
+    '-c:a',
+    'aac',
+    '-b:a',
+    '96k',
+    outPath,
+  ]);
 }
 
 /** Process one queued job end-to-end. Throws only on programmer
  *  error — operational failures land in video_status='failed'. */
-export async function processListingVideoJob(job: ListingVideoJob): Promise<void> {
+export async function processListingVideoJob(
+  job: ListingVideoJob
+): Promise<void> {
   const admin = supabaseAdmin();
   const { data: property, error } = await admin
     .from('properties')
-    .select('id, account_id, title, type, bedrooms, city, sublocality, location, price, rent_per_month, listing_type, images, video_language')
+    .select(
+      'id, account_id, title, type, bedrooms, city, sublocality, location, price, rent_per_month, listing_type, images, video_language'
+    )
     .eq('id', job.propertyId)
     .eq('account_id', job.accountId)
     .maybeSingle();
   if (error || !property) {
-    console.error('[listing-video] property not found for job', job.propertyId, error?.message);
+    console.error(
+      '[listing-video] property not found for job',
+      job.propertyId,
+      error?.message
+    );
     return;
   }
-  const language: NarrationLanguage = isNarrationLanguage(job.language) ? job.language : 'en-IN';
-  await admin.from('properties').update({ video_status: 'processing', video_error: null }).eq('id', property.id);
+  const language: NarrationLanguage = isNarrationLanguage(job.language)
+    ? job.language
+    : 'en-IN';
+  await admin
+    .from('properties')
+    .update({ video_status: 'processing', video_error: null })
+    .eq('id', property.id);
 
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'listing-video-'));
   try {
-    const photoUrls = (property.images ?? []).filter((u: string) => u?.trim()).slice(0, MAX_PHOTOS).map(storagePublicUrl);
-    if (photoUrls.length === 0) throw new Error('Listing has no photos to build a video from.');
+    const photoUrls = (property.images ?? [])
+      .filter((u: string) => u?.trim())
+      .slice(0, MAX_PHOTOS)
+      .map(storagePublicUrl);
+    if (photoUrls.length === 0)
+      throw new Error('Listing has no photos to build a video from.');
     const photoFiles: string[] = [];
     for (let i = 0; i < photoUrls.length; i++) {
       const res = await fetch(photoUrls[i]);
-      if (!res.ok) throw new Error(`Photo download failed (${res.status}): ${photoUrls[i]}`);
+      if (!res.ok)
+        throw new Error(
+          `Photo download failed (${res.status}): ${photoUrls[i]}`
+        );
       const f = path.join(workDir, `photo-${i}.jpg`);
       fs.writeFileSync(f, Buffer.from(await res.arrayBuffer()));
       photoFiles.push(f);
     }
 
-    const { data: account } = await admin.from('accounts').select('name').eq('id', job.accountId).maybeSingle();
+    const { data: account } = await admin
+      .from('accounts')
+      .select('name')
+      .eq('id', job.accountId)
+      .maybeSingle();
     const brand = account?.name || 'ConvoReal';
     const script = buildNarrationScript(property);
     const captions = buildCaptions(property, photoFiles.length);
     const narrationWav = await makeNarrationWav(script, language, workDir);
     const musicWav = makeMusicWav(workDir, photoFiles.length * SEG_SECONDS + 6);
     const outPath = path.join(workDir, 'listing.mp4');
-    const locality = [property.sublocality, property.city].filter(Boolean).join(', ') || property.location || '';
+    const locality =
+      [property.sublocality, property.city].filter(Boolean).join(', ') ||
+      property.location ||
+      '';
     renderVideo({
       photoFiles,
       captions,
@@ -321,16 +477,23 @@ export async function processListingVideoJob(job: ListingVideoJob): Promise<void
       .from('property-videos')
       .upload(storagePath, bytes, { contentType: 'video/mp4', upsert: true });
     if (upErr) throw new Error(`Storage upload failed: ${upErr.message}`);
-    const { data: pub } = admin.storage.from('property-videos').getPublicUrl(storagePath);
+    const { data: pub } = admin.storage
+      .from('property-videos')
+      .getPublicUrl(storagePath);
 
-    await admin.from('properties').update({
-      video_url: pub.publicUrl,
-      video_status: 'ready',
-      video_language: language,
-      video_error: null,
-      video_generated_at: new Date().toISOString(),
-    }).eq('id', property.id);
-    console.log(`[listing-video] ready: property=${property.id} ${(bytes.length / 1024 / 1024).toFixed(1)}MB lang=${language}`);
+    await admin
+      .from('properties')
+      .update({
+        video_url: pub.publicUrl,
+        video_status: 'ready',
+        video_language: language,
+        video_error: null,
+        video_generated_at: new Date().toISOString(),
+      })
+      .eq('id', property.id);
+    console.log(
+      `[listing-video] ready: property=${property.id} ${(bytes.length / 1024 / 1024).toFixed(1)}MB lang=${language}`
+    );
 
     // Auto-upload the fresh render to the account's YouTube channel
     // (Unlisted) when one is connected with auto_upload on. Never
@@ -351,10 +514,17 @@ export async function processListingVideoJob(job: ListingVideoJob): Promise<void
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[listing-video] job failed:', message);
-    await admin.from('properties').update({ video_status: 'failed', video_error: message.slice(0, 500) }).eq('id', property.id);
+    await admin
+      .from('properties')
+      .update({ video_status: 'failed', video_error: message.slice(0, 500) })
+      .eq('id', property.id);
     // The route charged before queueing — give the credits back on failure.
     try {
-      await refundCredits(job.accountId, 'listing_video', AI_FEATURE_COSTS.listing_video);
+      await refundCredits(
+        job.accountId,
+        'listing_video',
+        AI_FEATURE_COSTS.listing_video
+      );
     } catch (refundErr) {
       console.error('[listing-video] refund failed:', refundErr);
     }

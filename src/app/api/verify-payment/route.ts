@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { toErrorResponse, getCurrentAccount } from '@/lib/auth/account';
 import { getRazorpayCredentials } from '@/lib/marketplace/razorpay';
 import crypto from 'crypto';
 
@@ -7,22 +7,20 @@ import crypto from 'crypto';
 // Request: { razorpay_payment_id: string, razorpay_order_id: string, razorpay_signature: string }
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    await getCurrentAccount();
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+  try {
     const body = await request.json().catch(() => ({}));
     const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = body;
 
     if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
       return NextResponse.json(
-        { error: 'Missing required fields: razorpay_payment_id, razorpay_order_id, razorpay_signature' },
+        {
+          error:
+            'Missing required fields: razorpay_payment_id, razorpay_order_id, razorpay_signature',
+        },
         { status: 400 }
       );
     }
@@ -54,10 +52,8 @@ export async function POST(request: Request) {
     });
   } catch (error: unknown) {
     console.error('[verify-payment] failed:', error);
-    const message = error instanceof Error ? error.message : 'Internal Server Error';
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    const message =
+      error instanceof Error ? error.message : 'Internal Server Error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

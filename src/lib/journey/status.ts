@@ -1,8 +1,6 @@
 type StatusAction = 'drop' | 'reactivate';
 
-export function parseJourneyStatusInput(
-  raw: unknown
-):
+export function parseJourneyStatusInput(raw: unknown):
   | {
       ok: true;
       value: { itemId: string; action: StatusAction; reason: string | null };

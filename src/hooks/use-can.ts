@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from '@/hooks/use-auth';
 
 /**
  * Typed action keys for `useCan`. Adding a capability = one new
@@ -9,13 +9,13 @@ import { useAuth } from "@/hooks/use-auth";
  * lets the compiler catch typos at every call site.
  */
 export type CanAction =
-  | "manage-members"
-  | "edit-settings"
-  | "send-messages"
-  | "view-only"
-  | "delete-account"
-  | "transfer-ownership"
-  | "view-guarded-locations";
+  | 'manage-members'
+  | 'edit-settings'
+  | 'send-messages'
+  | 'view-only'
+  | 'delete-account'
+  | 'transfer-ownership'
+  | 'view-guarded-locations';
 
 /**
  * Inline alternative to `<RequireRole>` for places that need a
@@ -49,22 +49,22 @@ export function useCan(action: CanAction): boolean {
   if (profileLoading || !orgRole) return false;
 
   switch (action) {
-    case "manage-members":
+    case 'manage-members':
       return canManageMembers;
-    case "edit-settings":
+    case 'edit-settings':
       return canEditSettings;
-    case "send-messages":
+    case 'send-messages':
       return canSendMessages;
-    case "view-only":
+    case 'view-only':
       // Old 'viewer' role folds into org_agent + is_read_only (082) —
       // check the flag directly rather than a role string.
       return isReadOnly;
-    case "view-guarded-locations":
+    case 'view-guarded-locations':
       // Account-wide privilege only; the listing agent's own-property
       // exception is enforced server-side per row (location_guarded flag).
       return canViewGuardedLocations;
-    case "delete-account":
-    case "transfer-ownership":
+    case 'delete-account':
+    case 'transfer-ownership':
       // Both owner-only actions — org_manager is the org-hierarchy
       // equivalent of the old 'owner' role.
       return isOrgManager;

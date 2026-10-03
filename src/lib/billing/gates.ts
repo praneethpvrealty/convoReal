@@ -60,7 +60,7 @@ export async function getPlanLimits(ctx: AccountContext): Promise<PlanLimits> {
  */
 export async function checkPlanLimit(
   ctx: AccountContext,
-  feature: GatedFeature,
+  feature: GatedFeature
 ): Promise<GateResult> {
   const limits = await getPlanLimits(ctx);
   const plan = limits.plan as Plan;
@@ -115,7 +115,8 @@ export async function checkPlanLimit(
         return {
           allowed: false,
           reason: 'Branded showcase requires Solo Pro or higher',
-          upgradeRequired: upgradeRequiredFor('branded_showcase', plan) ?? 'solo_pro',
+          upgradeRequired:
+            upgradeRequiredFor('branded_showcase', plan) ?? 'solo_pro',
         };
       }
       return { allowed: true };
@@ -256,7 +257,7 @@ export async function checkPlanLimit(
  */
 export async function checkAccountPropertyLimit(
   supabase: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<{ limitReached: boolean; limit: number; currentCount: number }> {
   const { data: limits } = await supabase
     .from('account_plan_limits')
@@ -264,7 +265,8 @@ export async function checkAccountPropertyLimit(
     .eq('account_id', accountId)
     .maybeSingle();
 
-  const limit = (limits as { max_properties: number } | null)?.max_properties ?? 50;
+  const limit =
+    (limits as { max_properties: number } | null)?.max_properties ?? 50;
   if (limit >= 999999) return { limitReached: false, limit, currentCount: 0 };
 
   const { count } = await supabase
@@ -285,7 +287,7 @@ export function gateResponse(gate: GateResult): Response {
       currentCount: gate.currentCount,
       limit: gate.limit,
     },
-    { status: 402 },
+    { status: 402 }
   );
 }
 
@@ -309,7 +311,7 @@ export function gateResponse(gate: GateResult): Response {
  */
 export async function accountHasApiAccess(
   db: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<boolean> {
   const { data, error } = await db
     .from('account_plan_limits')

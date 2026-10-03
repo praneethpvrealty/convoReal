@@ -8,3 +8,7 @@ package-lock.json
 # Generated / vendored
 supabase/migrations
 src/lib/copilot/knowledge-index.gen.ts
+# Own dependency tree, tsconfig and lint setup (see eslint.config.mjs globalIgnores)
+mcp
+# Parsed back as JSON by src/lib/mobile-parity.test.ts, so it keeps JSON.stringify quoting
+mobile/lib/i18n.ts

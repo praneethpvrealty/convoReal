@@ -23,9 +23,9 @@ import {
   MAX_OTP_ATTEMPTS,
   OTP_TTL_MS,
   type CoreFailureReason,
-} from "./admin-otp";
-import { PLAN_ORDER, isUpgrade as isUpgradePlan } from "./plan-config";
-import type { Plan } from "./types";
+} from './admin-otp';
+import { PLAN_ORDER, isUpgrade as isUpgradePlan } from './plan-config';
+import type { Plan } from './types';
 
 export { hashOtpCode, MAX_OTP_ATTEMPTS, OTP_TTL_MS };
 
@@ -56,9 +56,7 @@ export interface ChallengeCheckInput {
 }
 
 export type ChallengeFailureReason =
-  | CoreFailureReason
-  | "account_mismatch"
-  | "plan_mismatch";
+  CoreFailureReason | 'account_mismatch' | 'plan_mismatch';
 
 export type ChallengeResult =
   | { ok: true }
@@ -75,11 +73,17 @@ export type ChallengeResult =
  */
 export function evaluateChallenge(
   challenge: OtpChallengeRow | null,
-  input: ChallengeCheckInput,
+  input: ChallengeCheckInput
 ): ChallengeResult {
   return evaluateOtpChallenge(challenge, input, [
-    { reason: "account_mismatch" as const, matches: challenge?.account_id === input.accountId },
-    { reason: "plan_mismatch" as const, matches: challenge?.to_plan === input.plan },
+    {
+      reason: 'account_mismatch' as const,
+      matches: challenge?.account_id === input.accountId,
+    },
+    {
+      reason: 'plan_mismatch' as const,
+      matches: challenge?.to_plan === input.plan,
+    },
   ]);
 }
 
@@ -101,6 +105,9 @@ export function isUpgradeDirection(fromPlan: string, toPlan: string): boolean {
  * reset to the lower plan's allowance mid-cycle (confirmed decision).
  * 'starter' is never paid, so it never re-grants either.
  */
-export function shouldRegrantCredits(fromPlan: string, toPlan: string): boolean {
-  return isUpgradeDirection(fromPlan, toPlan) && toPlan !== "starter";
+export function shouldRegrantCredits(
+  fromPlan: string,
+  toPlan: string
+): boolean {
+  return isUpgradeDirection(fromPlan, toPlan) && toPlan !== 'starter';
 }

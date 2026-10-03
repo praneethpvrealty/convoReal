@@ -1,7 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   interpolateColor,
@@ -30,7 +36,11 @@ import {
   canReact,
   groupReactions,
 } from '@/lib/message-reactions';
-import { replyDragOffset, replyProgress, shouldTriggerReply } from '@/lib/swipe-reply';
+import {
+  replyDragOffset,
+  replyProgress,
+  shouldTriggerReply,
+} from '@/lib/swipe-reply';
 import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
 import type { Message, MessageReaction, MessageStatus } from '@/lib/types';
 
@@ -39,7 +49,13 @@ const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
 /** WhatsApp-style ticks that MORPH on status change: a small pop as
  *  the tick doubles on delivery, and a colour sweep to blue on read —
  *  instead of an instant icon swap. */
-function StatusTicks({ status, colors }: { status: MessageStatus; colors: ThemeColors }) {
+function StatusTicks({
+  status,
+  colors,
+}: {
+  status: MessageStatus;
+  colors: ThemeColors;
+}) {
   const read = status === 'read';
   const pop = useSharedValue(1);
   const blue = useSharedValue(read ? 1 : 0);
@@ -59,7 +75,11 @@ function StatusTicks({ status, colors }: { status: MessageStatus; colors: ThemeC
 
   const tickStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pop.value }],
-    color: interpolateColor(blue.value, [0, 1], [colors.outgoingMeta, colors.readTick]),
+    color: interpolateColor(
+      blue.value,
+      [0, 1],
+      [colors.outgoingMeta, colors.readTick]
+    ),
   }));
 
   if (status === 'failed') {
@@ -123,7 +143,13 @@ function isUploading(message: Message): boolean {
  * more than it gives, and a document has nothing to show inline — both
  * hand off to the OS, which already knows how to display them.
  */
-function MediaAttachment({ message, outgoing }: { message: Message; outgoing: boolean }) {
+function MediaAttachment({
+  message,
+  outgoing,
+}: {
+  message: Message;
+  outgoing: boolean;
+}) {
   const { colors, fonts: f } = useTheme();
   const [opening, setOpening] = useState(false);
   const isVideo = message.content_type === 'video';
@@ -139,7 +165,9 @@ function MediaAttachment({ message, outgoing }: { message: Message; outgoing: bo
       // The proxy is auth-gated, so a browser handoff would 401. Its
       // one-time Meta URL is fetched here and opened instead.
       if (source.kind === 'proxy') {
-        const response = await fetch(source.uri, { headers: await authHeaders() });
+        const response = await fetch(source.uri, {
+          headers: await authHeaders(),
+        });
         if (!response.ok) throw new Error('unavailable');
         await Linking.openURL(response.url || source.uri);
       } else {
@@ -156,7 +184,9 @@ function MediaAttachment({ message, outgoing }: { message: Message; outgoing: bo
     <Pressable
       onPress={open}
       accessibilityRole="button"
-      accessibilityLabel={isVideo ? 'Open video' : `Open ${message.content_text || 'document'}`}
+      accessibilityLabel={
+        isVideo ? 'Open video' : `Open ${message.content_text || 'document'}`
+      }
       style={styles.attachment}
     >
       {opening ? (
@@ -206,13 +236,22 @@ export function QuotedMessage({
       onPress={onPress}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={onPress ? 'Go to the quoted message' : undefined}
-      style={[styles.quote, { borderLeftColor: colors.primary, backgroundColor: colors.glass }]}
+      style={[
+        styles.quote,
+        { borderLeftColor: colors.primary, backgroundColor: colors.glass },
+      ]}
     >
       <View style={{ flex: 1, gap: 1 }}>
-        <Text style={{ fontSize: 11, fontFamily: f.bold, color: colors.primary }} numberOfLines={1}>
+        <Text
+          style={{ fontSize: 11, fontFamily: f.bold, color: colors.primary }}
+          numberOfLines={1}
+        >
           {messageAuthorLabel(message, contactName)}
         </Text>
-        <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={2}>
+        <Text
+          style={{ fontSize: 12.5, color: colors.textMuted }}
+          numberOfLines={2}
+        >
           {messagePreview(message)}
         </Text>
       </View>
@@ -276,7 +315,10 @@ export function MessageBubble({
 
   useEffect(() => {
     flash.value = highlighted
-      ? withSequence(withTiming(1, { duration: 160 }), withTiming(0, { duration: 1100 }))
+      ? withSequence(
+          withTiming(1, { duration: 160 }),
+          withTiming(0, { duration: 1100 })
+        )
       : withTiming(0, { duration: 200 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlighted]);
@@ -339,21 +381,46 @@ export function MessageBubble({
           accessibilityLabel={`Internal note, not sent to the contact. ${displayText ?? ''}`}
           style={[
             styles.privateNote,
-            { borderColor: colors.border, backgroundColor: colors.surfaceSunken },
+            {
+              borderColor: colors.border,
+              backgroundColor: colors.surfaceSunken,
+            },
           ]}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Ionicons name="lock-closed-outline" size={11} color={colors.textMuted} />
-            <Text style={{ fontSize: 10.5, fontFamily: f.bold, color: colors.textMuted }}>
+            <Ionicons
+              name="lock-closed-outline"
+              size={11}
+              color={colors.textMuted}
+            />
+            <Text
+              style={{
+                fontSize: 10.5,
+                fontFamily: f.bold,
+                color: colors.textMuted,
+              }}
+            >
               Internal note · not sent
             </Text>
           </View>
           {displayText ? (
-            <Text style={{ fontSize: 12.5, lineHeight: 18, color: colors.textMuted }}>
+            <Text
+              style={{
+                fontSize: 12.5,
+                lineHeight: 18,
+                color: colors.textMuted,
+              }}
+            >
               {displayText}
             </Text>
           ) : null}
-          <Text style={{ fontSize: 10, color: colors.textMuted, alignSelf: 'flex-end' }}>
+          <Text
+            style={{
+              fontSize: 10,
+              color: colors.textMuted,
+              alignSelf: 'flex-end',
+            }}
+          >
             {bubbleTime(message.created_at)}
           </Text>
         </View>
@@ -364,8 +431,16 @@ export function MessageBubble({
   return (
     <View style={{ alignItems: outgoing ? 'flex-end' : 'flex-start' }}>
       <View style={styles.row}>
-        <Animated.View pointerEvents="none" style={[styles.replyHint, hintStyle]}>
-          <View style={[styles.replyHintDisc, { backgroundColor: colors.primarySoft }]}>
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.replyHint, hintStyle]}
+        >
+          <View
+            style={[
+              styles.replyHintDisc,
+              { backgroundColor: colors.primarySoft },
+            ]}
+          >
             <Ionicons name="arrow-undo" size={15} color={colors.primary} />
           </View>
         </Animated.View>
@@ -373,7 +448,9 @@ export function MessageBubble({
         <GestureDetector gesture={gesture}>
           <Animated.View style={bubbleStyle}>
             <Pressable
-              onLongPress={(e) => onLongPress(message, e.nativeEvent.pageX, e.nativeEvent.pageY)}
+              onLongPress={(e) =>
+                onLongPress(message, e.nativeEvent.pageX, e.nativeEvent.pageY)
+              }
               accessibilityHint={
                 reactable
                   ? 'Swipe right to reply, double-tap to react, hold for more actions'
@@ -382,17 +459,33 @@ export function MessageBubble({
               style={[
                 styles.bubble,
                 outgoing
-                  ? { backgroundColor: colors.outgoingBubble, borderBottomRightRadius: 4 }
-                  : { backgroundColor: colors.incomingBubble, borderBottomLeftRadius: 4 },
+                  ? {
+                      backgroundColor: colors.outgoingBubble,
+                      borderBottomRightRadius: 4,
+                    }
+                  : {
+                      backgroundColor: colors.incomingBubble,
+                      borderBottomLeftRadius: 4,
+                    },
               ]}
             >
               <Animated.View
                 pointerEvents="none"
-                style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary }, flashStyle]}
+                style={[
+                  StyleSheet.absoluteFill,
+                  { backgroundColor: colors.primary },
+                  flashStyle,
+                ]}
               />
 
               {isBot ? (
-                <Text style={{ fontSize: 10.5, fontFamily: f.bold, color: colors.outgoingMeta }}>
+                <Text
+                  style={{
+                    fontSize: 10.5,
+                    fontFamily: f.bold,
+                    color: colors.outgoingMeta,
+                  }}
+                >
                   🤖 Bot
                 </Text>
               ) : null}
@@ -413,13 +506,17 @@ export function MessageBubble({
                 <AudioBubble mediaUrl={message.media_url} outgoing={outgoing} />
               ) : null}
 
-              {(message.content_type === 'video' || message.content_type === 'document') &&
+              {(message.content_type === 'video' ||
+                message.content_type === 'document') &&
               !isUploading(message) ? (
                 <MediaAttachment message={message} outgoing={outgoing} />
               ) : null}
 
-              {UNRENDERED_TYPES.includes(message.content_type) || isUploading(message) ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {UNRENDERED_TYPES.includes(message.content_type) ||
+              isUploading(message) ? (
+                <View
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                >
                   <Ionicons
                     name={MEDIA_ICONS[message.content_type] ?? 'attach-outline'}
                     size={15}
@@ -467,7 +564,9 @@ export function MessageBubble({
                 >
                   {bubbleTime(message.created_at)}
                 </Text>
-                {outgoing ? <StatusTicks status={message.status} colors={colors} /> : null}
+                {outgoing ? (
+                  <StatusTicks status={message.status} colors={colors} />
+                ) : null}
               </View>
 
               {failure ? (
@@ -477,17 +576,37 @@ export function MessageBubble({
                     borderRadius: radius.sm,
                     paddingHorizontal: 8,
                     paddingVertical: 6,
-                    backgroundColor: outgoing ? colors.dangerSoft : colors.surface,
+                    backgroundColor: outgoing
+                      ? colors.dangerSoft
+                      : colors.surface,
                   }}
                 >
-                  <Text style={{ fontSize: 11.5, fontFamily: f.semibold, color: colors.danger }}>
+                  <Text
+                    style={{
+                      fontSize: 11.5,
+                      fontFamily: f.semibold,
+                      color: colors.danger,
+                    }}
+                  >
                     {failure.title}
                   </Text>
-                  <Text style={{ marginTop: 2, fontSize: 11, color: colors.textMuted }}>
+                  <Text
+                    style={{
+                      marginTop: 2,
+                      fontSize: 11,
+                      color: colors.textMuted,
+                    }}
+                  >
                     {failure.detail}
                   </Text>
                   {failure.retryAt && !failure.canRetry ? (
-                    <Text style={{ marginTop: 2, fontSize: 10.5, color: colors.textMuted }}>
+                    <Text
+                      style={{
+                        marginTop: 2,
+                        fontSize: 10.5,
+                        color: colors.textMuted,
+                      }}
+                    >
                       Retry after {new Date(failure.retryAt).toLocaleString()}
                     </Text>
                   ) : null}
@@ -515,14 +634,22 @@ export function MessageBubble({
               style={[
                 styles.reactionPill,
                 {
-                  backgroundColor: group.mine ? colors.primarySoft : colors.surface,
+                  backgroundColor: group.mine
+                    ? colors.primarySoft
+                    : colors.surface,
                   borderColor: group.mine ? colors.primary : colors.border,
                 },
               ]}
             >
               <Text style={{ fontSize: 12 }}>{group.emoji}</Text>
               {group.count > 1 ? (
-                <Text style={{ fontSize: 10.5, fontFamily: f.semibold, color: colors.textMuted }}>
+                <Text
+                  style={{
+                    fontSize: 10.5,
+                    fontFamily: f.semibold,
+                    color: colors.textMuted,
+                  }}
+                >
                   {group.count}
                 </Text>
               ) : null}

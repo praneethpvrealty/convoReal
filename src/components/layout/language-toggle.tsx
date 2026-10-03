@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useLocale } from "@/hooks/use-locale";
-import { SUPPORTED_LANGUAGES, type LanguageCode } from "@/lib/languages";
-import { cn } from "@/lib/utils";
+import { useLocale } from '@/hooks/use-locale';
+import { SUPPORTED_LANGUAGES, type LanguageCode } from '@/lib/languages';
+import { cn } from '@/lib/utils';
 
 /**
  * Header switch between the languages an agent said they read.
@@ -58,10 +58,10 @@ function LanguagePill({
       aria-label={label}
       title={label}
       className={cn(
-        "rounded-md px-2 py-1 text-xs font-semibold transition-colors cursor-pointer",
+        'cursor-pointer rounded-md px-2 py-1 text-xs font-semibold transition-colors',
         isActive
-          ? "bg-primary/15 text-primary"
-          : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-200",
+          ? 'bg-primary/15 text-primary'
+          : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
       )}
     >
       {native}

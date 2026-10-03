@@ -5,7 +5,7 @@ const rpc = vi.fn();
 const reminders = vi.fn();
 const broadcasts = vi.fn();
 
-vi.mock('@/lib/automations/admin-client', () => ({
+vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({ rpc: (fn: string) => rpc(fn) }),
 }));
 

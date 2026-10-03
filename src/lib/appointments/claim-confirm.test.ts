@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  results: [] as Array<'stamped' | 'gone' | 'failed' | 'duplicate' | 'orphaned' | 'other'>,
+  results: [] as Array<
+    'stamped' | 'gone' | 'failed' | 'duplicate' | 'orphaned' | 'other'
+  >,
   updates: 0,
   patches: [] as Array<Record<string, unknown>>,
   inserts: [] as Array<Record<string, unknown>>,
@@ -18,9 +20,11 @@ vi.mock('@/lib/supabase/admin', () => ({
       state.rpcs.push([name, args]);
       const result =
         state.results.length > 1 ? state.results.shift()! : state.results[0];
-      if (result === 'failed') return { data: null, error: { message: 'timeout' } };
+      if (result === 'failed')
+        return { data: null, error: { message: 'timeout' } };
       return {
-        data: result === 'stamped' ? 'kept' : result === 'other' ? 'other' : 'none',
+        data:
+          result === 'stamped' ? 'kept' : result === 'other' ? 'other' : 'none',
         error: null,
       };
     },
@@ -49,14 +53,23 @@ vi.mock('@/lib/supabase/admin', () => ({
         },
         eq: () => builder,
         select: () => builder,
-        then: (resolve: (v: { error: null }) => unknown) => resolve({ error: null }),
+        then: (resolve: (v: { error: null }) => unknown) =>
+          resolve({ error: null }),
         maybeSingle: async () => {
           state.updates += 1;
           const result =
-            state.results.length > 1 ? state.results.shift()! : state.results[0];
-          if (result === 'failed') return { data: null, error: { message: 'timeout' } };
-          if (result === 'duplicate') return { data: null, error: { code: '23505', message: 'duplicate' } };
-          if (result === 'orphaned') return { data: null, error: { code: '23503', message: 'fk' } };
+            state.results.length > 1
+              ? state.results.shift()!
+              : state.results[0];
+          if (result === 'failed')
+            return { data: null, error: { message: 'timeout' } };
+          if (result === 'duplicate')
+            return {
+              data: null,
+              error: { code: '23505', message: 'duplicate' },
+            };
+          if (result === 'orphaned')
+            return { data: null, error: { code: '23503', message: 'fk' } };
           if (result === 'gone') return { data: null, error: null };
           return { data: { id: 'claim-1' }, error: null };
         },
@@ -99,7 +112,11 @@ const confirmation = {
   sentAt: '2026-09-29T10:00:05.000Z',
 };
 
-function reset(results: Array<'stamped' | 'gone' | 'failed' | 'duplicate' | 'orphaned' | 'other'>) {
+function reset(
+  results: Array<
+    'stamped' | 'gone' | 'failed' | 'duplicate' | 'orphaned' | 'other'
+  >
+) {
   state.results = results;
   state.updates = 0;
   state.patches = [];
@@ -117,7 +134,9 @@ describe('[CAL-010] confirming a reminder claim', () => {
     expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('stamped');
     reset(['gone', 'stamped']);
     expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('gone');
-    expect(state.patches).toEqual([{ sent_at: confirmation.sentAt, wa_message_id: 'wamid.1' }]);
+    expect(state.patches).toEqual([
+      { sent_at: confirmation.sentAt, wa_message_id: 'wamid.1' },
+    ]);
     expect(state.rpcs).toEqual([
       [
         'appointment_reminder_keep_prior_id',
@@ -141,7 +160,9 @@ describe('[CAL-010] confirming a reminder claim', () => {
     reset(['stamped']);
     state.currentGeneration = '2026-09-29T10:30:00.000Z';
     expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('stamped');
-    expect(state.patches).toEqual([{ sent_at: confirmation.sentAt, wa_message_id: null }]);
+    expect(state.patches).toEqual([
+      { sent_at: confirmation.sentAt, wa_message_id: null },
+    ]);
 
     reset(['gone']);
     state.currentGeneration = '2026-09-29T10:30:00.000Z';
@@ -186,20 +207,28 @@ describe('[CAL-010] confirming a reminder claim', () => {
     reset(['gone', 'gone', 'orphaned']);
     expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('gone');
     reset(['gone', 'gone', 'orphaned']);
-    await processReminderClaimConfirmJob({ kind: 'reminder_claim_confirm', ...confirmation });
+    await processReminderClaimConfirmJob({
+      kind: 'reminder_claim_confirm',
+      ...confirmation,
+    });
     expect(state.queued).toEqual([]);
   });
 
   it('keeps the earlier message id on a claim re-made under a new id while it was being put back', async () => {
     reset(['gone', 'gone', 'duplicate', 'stamped']);
     expect(await stampClaimSent(supabaseAdmin(), confirmation)).toBe('gone');
-    expect(state.rpcs.at(-1)?.[1]).toMatchObject({ p_claim_id: null, p_wa_message_id: 'wamid.1' });
+    expect(state.rpcs.at(-1)?.[1]).toMatchObject({
+      p_claim_id: null,
+      p_wa_message_id: 'wamid.1',
+    });
   });
 
-  it('holds the confirmation in process for the caller\'s window when the queue refuses too', async () => {
+  it("holds the confirmation in process for the caller's window when the queue refuses too", async () => {
     reset(['failed', 'failed', 'failed', 'stamped']);
     state.queueFails = true;
-    expect(await confirmClaimSent(supabaseAdmin(), confirmation, 5_000)).toBe(true);
+    expect(await confirmClaimSent(supabaseAdmin(), confirmation, 5_000)).toBe(
+      true
+    );
     expect(state.updates).toBe(4);
   });
 
@@ -214,30 +243,50 @@ describe('[CAL-010] confirming a reminder claim', () => {
     reset(['failed']);
     expect(await confirmClaimSent(supabaseAdmin(), confirmation)).toBe(true);
     expect(state.updates).toBe(CLAIM_CONFIRM_RETRY.attempts);
-    expect(state.queued).toEqual([{ kind: 'reminder_claim_confirm', ...confirmation }]);
+    expect(state.queued).toEqual([
+      { kind: 'reminder_claim_confirm', ...confirmation },
+    ]);
   });
 
   it('reports false only once the hold ran out with neither the database nor the queue taking it', async () => {
     reset(['failed']);
     state.queueFails = true;
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await confirmClaimSent(supabaseAdmin(), confirmation, 0)).toBe(false);
-    expect(errors.mock.calls.some((call) => String(call[1]).includes('"claimId":"claim-1"'))).toBe(true);
+    expect(await confirmClaimSent(supabaseAdmin(), confirmation, 0)).toBe(
+      false
+    );
+    expect(
+      errors.mock.calls.some((call) =>
+        String(call[1]).includes('"claimId":"claim-1"')
+      )
+    ).toBe(true);
     errors.mockRestore();
   });
 
   it('the queued job stamps the claim, or requeues itself after a pause until it can', async () => {
     reset(['stamped']);
-    await processReminderClaimConfirmJob({ kind: 'reminder_claim_confirm', ...confirmation });
+    await processReminderClaimConfirmJob({
+      kind: 'reminder_claim_confirm',
+      ...confirmation,
+    });
     expect(state.queued).toEqual([]);
 
     reset(['failed']);
-    await processReminderClaimConfirmJob({ kind: 'reminder_claim_confirm', ...confirmation, attempts: 2 });
-    expect(state.queued).toEqual([{ kind: 'reminder_claim_confirm', ...confirmation, attempts: 3 }]);
+    await processReminderClaimConfirmJob({
+      kind: 'reminder_claim_confirm',
+      ...confirmation,
+      attempts: 2,
+    });
+    expect(state.queued).toEqual([
+      { kind: 'reminder_claim_confirm', ...confirmation, attempts: 3 },
+    ]);
 
     reset(['failed', 'failed', 'stamped']);
     state.queueFails = true;
-    await processReminderClaimConfirmJob({ kind: 'reminder_claim_confirm', ...confirmation });
+    await processReminderClaimConfirmJob({
+      kind: 'reminder_claim_confirm',
+      ...confirmation,
+    });
     expect(state.updates).toBe(3);
   });
 });

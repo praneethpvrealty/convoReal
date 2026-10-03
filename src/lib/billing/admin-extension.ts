@@ -84,8 +84,7 @@ export interface ExtensionRequest {
 }
 
 export type ParseResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: string };
+  { ok: true; value: T } | { ok: false; error: string };
 
 /**
  * Validates and normalizes an extension request body.
@@ -298,9 +297,7 @@ export interface ExtensionChallengeRow extends OtpChallengeCore {
 }
 
 export type ExtensionFailureReason =
-  | CoreFailureReason
-  | 'action_mismatch'
-  | 'payload_mismatch';
+  CoreFailureReason | 'action_mismatch' | 'payload_mismatch';
 
 export type ExtensionChallengeResult =
   | { ok: true }

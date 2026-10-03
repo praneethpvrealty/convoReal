@@ -10,7 +10,10 @@ let queues: Record<string, QueuedResponse[]>;
 function makeDb() {
   return {
     from(table: string) {
-      const response = (queues[table] ?? []).shift() ?? { data: null, error: null };
+      const response = (queues[table] ?? []).shift() ?? {
+        data: null,
+        error: null,
+      };
       const builder: { [k: string]: (...args: unknown[]) => unknown } = {
         select: () => builder,
         eq: () => builder,
@@ -47,7 +50,9 @@ vi.mock('@/lib/showcase/account-showcase-url', () => ({
 }));
 
 vi.mock('@/lib/whatsapp/template-language', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/whatsapp/template-language')>()),
+  ...(await importOriginal<
+    typeof import('@/lib/whatsapp/template-language')
+  >()),
   resolveSendLanguage: async () => 'en',
 }));
 
@@ -71,11 +76,15 @@ const APPROVED_TEMPLATE = {
   category: 'Utility',
   language: 'en_US',
   body_text: 'Hi {{1}}! {{2}} — {{3}} at {{4}}.',
-  buttons: [{ type: 'URL', text: 'View property', url: 'https://example.com/{{1}}' }],
+  buttons: [
+    { type: 'URL', text: 'View property', url: 'https://example.com/{{1}}' },
+  ],
 };
 
 function request(query: string) {
-  return new Request(`http://localhost/api/whatsapp/share-property/preview${query}`) as never;
+  return new Request(
+    `http://localhost/api/whatsapp/share-property/preview${query}`
+  ) as never;
 }
 
 beforeEach(() => {
@@ -96,14 +105,21 @@ describe('share-property preview', () => {
 
   it('[PRP-012] returns the rendered template, its status and the listing photos', async () => {
     queues.properties = [{ data: PROPERTY, error: null }];
-    queues.contacts = [{ data: { id: 'contact-1', name: 'Rajath Kumar' }, error: null }];
+    queues.contacts = [
+      { data: { id: 'contact-1', name: 'Rajath Kumar' }, error: null },
+    ];
     queues.message_templates = [{ data: [APPROVED_TEMPLATE], error: null }];
 
     const res = await GET(request('?property_id=prop-1&contact_id=contact-1'));
     expect(res.status).toBe(200);
     const { data } = await res.json();
-    expect(data.template).toMatchObject({ name: 'new_property_alert', label: 'Listing details' });
-    expect(data.preview).toContain('Hi Rajath! Commercial BDA Property in HSR Layout — ₹25 Cr at HSR Layout Sector 2, Bangalore');
+    expect(data.template).toMatchObject({
+      name: 'new_property_alert',
+      label: 'Listing details',
+    });
+    expect(data.preview).toContain(
+      'Hi Rajath! Commercial BDA Property in HSR Layout — ₹25 Cr at HSR Layout Sector 2, Bangalore'
+    );
     expect(data.images).toEqual(PROPERTY.images);
     expect(data.unsent_reason).toBeNull();
   });

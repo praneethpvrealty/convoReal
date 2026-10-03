@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { captureVisitorLead } from '@/lib/showcase/visitor-lead';
@@ -174,7 +174,10 @@ export async function POST(request: NextRequest) {
         CatalogListing & { location_privacy?: string | null }
       >
     ).map((l) =>
-      isLocationGuarded({ type: l.type || '', location_privacy: l.location_privacy })
+      isLocationGuarded({
+        type: l.type || '',
+        location_privacy: l.location_privacy,
+      })
         ? { ...l, location: localityLabel(l) }
         : l
     );

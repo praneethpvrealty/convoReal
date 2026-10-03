@@ -32,7 +32,9 @@ async function inboxSummary(): Promise<WidgetSummary> {
       .eq('is_archived', false),
     supabase
       .from('conversations')
-      .select('last_message_text, last_message_at, contact:contacts(name, phone)')
+      .select(
+        'last_message_text, last_message_at, contact:contacts(name, phone)'
+      )
       .eq('is_archived', false)
       .not('last_message_at', 'is', null)
       .order('last_message_at', { ascending: false })
@@ -68,9 +70,14 @@ async function calendarSummary(): Promise<WidgetSummary> {
     .order('start_time', { ascending: true })
     .limit(50);
   if (error) throw error;
-  const appts = (rows ?? []) as { id: string; title: string; start_time: string }[];
+  const appts = (rows ?? []) as {
+    id: string;
+    title: string;
+    start_time: string;
+  }[];
   const now = Date.now();
-  const next = appts.find((a) => new Date(a.start_time).getTime() >= now) ?? null;
+  const next =
+    appts.find((a) => new Date(a.start_time).getTime() >= now) ?? null;
   return {
     value: String(appts.length),
     sub: next

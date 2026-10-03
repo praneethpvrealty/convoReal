@@ -19,19 +19,22 @@ const mockDb = {
       bedrooms: null,
       area_sqft: 5000,
       price: 25000000, // 2.5 Cr
-      property_code: 'IND123'
-    }
+      property_code: 'IND123',
+    },
   ] as MockRecord[],
   profiles: { user_id: 'user-456' },
   whatsapp_config: { account_id: 'acc-789' },
-  email_sync_configs: { account_id: 'acc-789', is_active: true }
+  email_sync_configs: { account_id: 'acc-789', is_active: true },
 };
 
-vi.mock('./admin-client', () => {
+vi.mock('@/lib/supabase/admin', () => {
   const selectImpl = (table: string) => {
-    if (table === 'whatsapp_config') return { data: { account_id: 'acc-789' }, error: null };
-    if (table === 'email_sync_configs') return { data: { account_id: 'acc-789', is_active: true }, error: null };
-    if (table === 'profiles') return { data: { user_id: 'user-456' }, error: null };
+    if (table === 'whatsapp_config')
+      return { data: { account_id: 'acc-789' }, error: null };
+    if (table === 'email_sync_configs')
+      return { data: { account_id: 'acc-789', is_active: true }, error: null };
+    if (table === 'profiles')
+      return { data: { user_id: 'user-456' }, error: null };
     if (table === 'properties') return { data: mockDb.properties, error: null };
     if (table === 'contacts') return { data: null, error: null };
     return { data: null, error: null };
@@ -40,21 +43,29 @@ vi.mock('./admin-client', () => {
   const mockSupabase = {
     from: vi.fn().mockImplementation((table) => {
       const builder = {
-        then: (resolve: (value: { data: MockRecord | MockRecord[] | null; error: null }) => unknown) => Promise.resolve(selectImpl(table)).then(resolve),
+        then: (
+          resolve: (value: {
+            data: MockRecord | MockRecord[] | null;
+            error: null;
+          }) => unknown
+        ) => Promise.resolve(selectImpl(table)).then(resolve),
         select: vi.fn().mockImplementation(() => builder),
         insert: vi.fn().mockImplementation((payload) => {
           const records = Array.isArray(payload) ? payload : [payload];
-          const recordsWithId = records.map(r => {
+          const recordsWithId = records.map((r) => {
             const record = { id: `${table}-mock-id`, ...r };
             if (table === 'contacts') mockDb.contacts.push(record);
-            if (table === 'email_sync_logs') mockDb.email_sync_logs.push(record);
+            if (table === 'email_sync_logs')
+              mockDb.email_sync_logs.push(record);
             if (table === 'tags') mockDb.tags.push(record);
             return record;
           });
           const chain = {
             select: vi.fn().mockImplementation(() => ({
-              single: vi.fn().mockResolvedValue({ data: recordsWithId[0], error: null })
-            }))
+              single: vi
+                .fn()
+                .mockResolvedValue({ data: recordsWithId[0], error: null }),
+            })),
           };
           return chain;
         }),
@@ -77,31 +88,34 @@ vi.mock('./admin-client', () => {
         order: vi.fn().mockImplementation(() => builder),
         limit: vi.fn().mockImplementation(() => builder),
         maybeSingle: vi.fn().mockImplementation(() => {
-          if (table === 'contacts') return Promise.resolve({ data: null, error: null });
+          if (table === 'contacts')
+            return Promise.resolve({ data: null, error: null });
           return Promise.resolve({ data: selectImpl(table).data, error: null });
         }),
         single: vi.fn().mockImplementation(() => {
           return Promise.resolve({ data: selectImpl(table).data, error: null });
-        })
+        }),
       };
       return builder;
-    })
+    }),
   };
   return {
-    getAdminClient: () => mockSupabase
+    supabaseAdmin: () => mockSupabase,
   };
 });
 
 vi.mock('./auto-reply', () => ({
-  sendAutoReply: vi.fn().mockResolvedValue({ success: true, messageId: 'auto-reply-msg-id' })
+  sendAutoReply: vi
+    .fn()
+    .mockResolvedValue({ success: true, messageId: 'auto-reply-msg-id' }),
 }));
 
 vi.mock('./unavailable-listing', () => ({
-  sendUnavailableListingReply: vi.fn().mockResolvedValue('available')
+  sendUnavailableListingReply: vi.fn().mockResolvedValue('available'),
 }));
 
 vi.mock('@/lib/automations/engine', () => ({
-  runAutomationsForTrigger: vi.fn().mockResolvedValue(undefined)
+  runAutomationsForTrigger: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {
@@ -124,15 +138,15 @@ import {
   checkLocationMatch,
   matchableSqft,
   interestFromTypeText,
-  POST
+  POST,
 } from './route';
 import { sendUnavailableListingReply } from './unavailable-listing';
-
 
 describe('Email Webhook Lead Parsing', () => {
   describe('parsePortalLead', () => {
     it('should parse Magicbricks emails correctly', () => {
-      const subject = 'Buyer has contacted you on Magicbricks for - Commercial Showroom';
+      const subject =
+        'Buyer has contacted you on Magicbricks for - Commercial Showroom';
       const body = `
         Dear Praneeth,
         A user is interested in your Property.
@@ -151,7 +165,8 @@ describe('Email Webhook Lead Parsing', () => {
     });
 
     it('should parse Magicbricks Industrial Land emails correctly', () => {
-      const subject = 'Hot Lead - Buyer has contacted you on Magicbricks for - Industrial Land for sale in Bommasandra';
+      const subject =
+        'Hot Lead - Buyer has contacted you on Magicbricks for - Industrial Land for sale in Bommasandra';
       const body = `
         Dear Praneeth,
         A user is interested in your Property, ID 79221031: Industrial Land in Bommasandra, Bangalore.
@@ -289,7 +304,7 @@ describe('Email Webhook Lead Parsing', () => {
       // Phone should be empty or a suspended/suspicious value that will get resolved
       // Since the body has the URL, the fallback parser might pick it up, but it contains a '/' and 'http', so it will be ignored now!
       expect(res.phone).toBe('');
-      
+
       const resolvedPhone = await resolveHousingPhone(html, body);
       expect(resolvedPhone).toBe('+919731330512');
     });
@@ -307,8 +322,12 @@ describe('Email Webhook Lead Parsing', () => {
       `;
       const res = extractHousingUrls(html);
       expect(res.mailtoEmail).toBe('sreeram@gmail.com');
-      expect(res.whatsappUrl).toBe('https://housing.com/leads/whatsapp?lead_id=12345');
-      expect(res.callNowUrl).toBe('https://housing.com/leads/call?lead_id=12345');
+      expect(res.whatsappUrl).toBe(
+        'https://housing.com/leads/whatsapp?lead_id=12345'
+      );
+      expect(res.callNowUrl).toBe(
+        'https://housing.com/leads/call?lead_id=12345'
+      );
     });
   });
 
@@ -333,15 +352,17 @@ describe('Email Webhook Lead Parsing', () => {
           return Promise.resolve({
             status: 302,
             headers: new Headers({
-              location: 'https://api.whatsapp.com/send?phone=919900112233'
-            })
+              location: 'https://api.whatsapp.com/send?phone=919900112233',
+            }),
           });
         }
         return Promise.reject(new Error('Unknown url'));
       });
       vi.stubGlobal('fetch', mockFetch);
 
-      const res = await resolvePhoneNumberFromUrl('https://housing.com/leads/whatsapp?lead_id=12345');
+      const res = await resolvePhoneNumberFromUrl(
+        'https://housing.com/leads/whatsapp?lead_id=12345'
+      );
       expect(res).toBe('919900112233');
     });
   });
@@ -360,8 +381,8 @@ describe('Email Webhook Lead Parsing', () => {
       const mockFetch = vi.fn().mockResolvedValue({
         status: 302,
         headers: new Headers({
-          location: 'https://api.whatsapp.com/send?phone=918887776665'
-        })
+          location: 'https://api.whatsapp.com/send?phone=918887776665',
+        }),
       });
       vi.stubGlobal('fetch', mockFetch);
 
@@ -372,15 +393,19 @@ describe('Email Webhook Lead Parsing', () => {
 
   describe('MIME & QP Decoders', () => {
     it('should decode MIME UTF-8 Q-encoded subject headers', () => {
-      const input = '=?UTF-8?Q?=28Gmail_Forwarding_confirmation_=E2=80=93_Receive_mail_from?=';
+      const input =
+        '=?UTF-8?Q?=28Gmail_Forwarding_confirmation_=E2=80=93_Receive_mail_from?=';
       const decoded = decodeMimeSubject(input);
       expect(decoded).toContain('Gmail Forwarding confirmation');
     });
 
     it('should decode Quoted-Printable body text with soft breaks', () => {
-      const input = 'Confirmation code: =\r\n12345678\r\nTo confirm, click: https://mail.google.com/mail/f-=3D12345';
+      const input =
+        'Confirmation code: =\r\n12345678\r\nTo confirm, click: https://mail.google.com/mail/f-=3D12345';
       const decoded = decodeQuotedPrintable(input);
-      expect(decoded).toBe('Confirmation code: 12345678\r\nTo confirm, click: https://mail.google.com/mail/f-=12345');
+      expect(decoded).toBe(
+        'Confirmation code: 12345678\r\nTo confirm, click: https://mail.google.com/mail/f-=12345'
+      );
     });
   });
 
@@ -446,7 +471,8 @@ describe('Email Webhook Lead Parsing', () => {
     // across lines in the HTML, so the code lands on a line of its own,
     // with no "Rs"/"received" left on it to disqualify it.
     it('reads the responder, not the advertisement code, when the header sentence wraps', () => {
-      const subject = 'Advertisement Response for Rs15 Crore, Other in  6th block Koramangala';
+      const subject =
+        'Advertisement Response for Rs15 Crore, Other in  6th block Koramangala';
       const body = `
         Property Advertisement Response
         Dear PRANEETH KUMAR
@@ -481,13 +507,17 @@ describe('Email Webhook Lead Parsing', () => {
 
   describe('extractLeadPhone', () => {
     it('takes a real number, with or without a country code', () => {
-      expect(extractLeadPhone('+91-9886155488 (Verified)')).toBe('+91-9886155488');
+      expect(extractLeadPhone('+91-9886155488 (Verified)')).toBe(
+        '+91-9886155488'
+      );
       expect(extractLeadPhone('9886155488')).toBe('9886155488');
       expect(extractLeadPhone('Mobile 098 8615 5488')).toBe('098 8615 5488');
     });
 
     it('refuses an advertisement or listing code', () => {
-      expect(extractLeadPhone('6th block Koramangala (C93313942) on')).toBeNull();
+      expect(
+        extractLeadPhone('6th block Koramangala (C93313942) on')
+      ).toBeNull();
       expect(extractLeadPhone('Dollars Colony (C89065520)')).toBeNull();
       expect(extractLeadPhone('Property ID 20327451')).toBeNull();
     });
@@ -525,7 +555,7 @@ Content-Transfer-Encoding: quoted-printable
 
 --boundary-123--
       `.trim();
-      
+
       const parsed = parseMimeEmail(rawEmail);
       expect(parsed.text.trim()).toBe('Hello plain text.');
       expect(parsed.html.trim()).toBe('<h1>Hello HTML</h1>');
@@ -534,7 +564,8 @@ Content-Transfer-Encoding: quoted-printable
 
   describe('checkIsNonLeadEmail', () => {
     it('should not filter out legitimate lead emails containing real estate keywords like sale, offer, or deal', () => {
-      const subject1 = 'Hot Lead - Buyer has contacted you on Magicbricks for - Industrial Land for sale in Bommasandra';
+      const subject1 =
+        'Hot Lead - Buyer has contacted you on Magicbricks for - Industrial Land for sale in Bommasandra';
       const sender1 = 'MagicBricks <info@magicbricks.com>';
       expect(checkIsNonLeadEmail(subject1, sender1)).toBe(false);
 
@@ -558,11 +589,24 @@ Content-Transfer-Encoding: quoted-printable
     });
 
     it('should correctly filter out actual system notifications and marketing blasts', () => {
-      expect(checkIsNonLeadEmail('Your password was updated', 'noreply@somebank.com')).toBe(true);
-      expect(checkIsNonLeadEmail('Account security notification', 'info@service.com')).toBe(true);
-      expect(checkIsNonLeadEmail('Magicbricks Weekly Digest', 'info@magicbricks.com')).toBe(true);
-      expect(checkIsNonLeadEmail('Flash Sale! Save 50% now', 'marketing@deals.com')).toBe(true);
-      expect(checkIsNonLeadEmail('Exclusive Offer for subscribers', 'promo@service.com')).toBe(true);
+      expect(
+        checkIsNonLeadEmail('Your password was updated', 'noreply@somebank.com')
+      ).toBe(true);
+      expect(
+        checkIsNonLeadEmail('Account security notification', 'info@service.com')
+      ).toBe(true);
+      expect(
+        checkIsNonLeadEmail('Magicbricks Weekly Digest', 'info@magicbricks.com')
+      ).toBe(true);
+      expect(
+        checkIsNonLeadEmail('Flash Sale! Save 50% now', 'marketing@deals.com')
+      ).toBe(true);
+      expect(
+        checkIsNonLeadEmail(
+          'Exclusive Offer for subscribers',
+          'promo@service.com'
+        )
+      ).toBe(true);
     });
 
     // The portals' listing-lifecycle mail is not a lead — it announces the
@@ -571,15 +615,21 @@ Content-Transfer-Encoding: quoted-printable
     // which the extractor would otherwise file as a buyer. Driven by the
     // real samples in __fixtures__ so a re-worded template shows up here.
     it('filters every listing-lifecycle fixture out of the lead path', () => {
-      const fixtures = readdirSync(join(__dirname, '__fixtures__')).filter((f) =>
-        f.endsWith('.txt')
+      const fixtures = readdirSync(join(__dirname, '__fixtures__')).filter(
+        (f) => f.endsWith('.txt')
       );
       expect(fixtures.length).toBeGreaterThan(0);
       for (const file of fixtures) {
         const raw = readFileSync(join(__dirname, '__fixtures__', file), 'utf8');
         const [subject, , fromLine] = raw.split('\n');
-        const sender = fromLine?.match(/<([^>]+)>/)?.[1] ?? fromLine?.replace(/^From:\s*/, '') ?? '';
-        expect(checkIsNonLeadEmail(subject, sender), `${file}: "${subject}"`).toBe(true);
+        const sender =
+          fromLine?.match(/<([^>]+)>/)?.[1] ??
+          fromLine?.replace(/^From:\s*/, '') ??
+          '';
+        expect(
+          checkIsNonLeadEmail(subject, sender),
+          `${file}: "${subject}"`
+        ).toBe(true);
       }
     });
   });
@@ -600,16 +650,28 @@ Content-Transfer-Encoding: quoted-printable
     });
 
     it('maps each recognized role suffix to its classification', () => {
-      expect(classificationFromNameSuffix('Kg Subramanian (Owner)')).toBe('Owner');
-      expect(classificationFromNameSuffix('Acme Builders (Developer)')).toBe('Developer');
-      expect(classificationFromNameSuffix('Acme Builders (Builder)')).toBe('Developer');
-      expect(classificationFromNameSuffix('Robert Smith (Agent)')).toBe('Agent');
-      expect(classificationFromNameSuffix('Some Landlord (Landlord)')).toBe('Owner');
+      expect(classificationFromNameSuffix('Kg Subramanian (Owner)')).toBe(
+        'Owner'
+      );
+      expect(classificationFromNameSuffix('Acme Builders (Developer)')).toBe(
+        'Developer'
+      );
+      expect(classificationFromNameSuffix('Acme Builders (Builder)')).toBe(
+        'Developer'
+      );
+      expect(classificationFromNameSuffix('Robert Smith (Agent)')).toBe(
+        'Agent'
+      );
+      expect(classificationFromNameSuffix('Some Landlord (Landlord)')).toBe(
+        'Owner'
+      );
       expect(classificationFromNameSuffix('A Seller (Seller)')).toBe('Seller');
       expect(classificationFromNameSuffix('Pushpa (Individual)')).toBe('Buyer');
       expect(classificationFromNameSuffix('John Doe (Buyer)')).toBe('Buyer');
       expect(classificationFromNameSuffix('A Tenant (Tenant)')).toBe('Buyer');
-      expect(classificationFromNameSuffix('A Customer (Customer)')).toBe('Buyer');
+      expect(classificationFromNameSuffix('A Customer (Customer)')).toBe(
+        'Buyer'
+      );
     });
 
     it('returns null when there is no role suffix, so the caller can apply its own default', () => {
@@ -636,7 +698,9 @@ Content-Transfer-Encoding: quoted-printable
     `;
 
     it('classifies an "(Owner)"-suffixed inquirer about YOUR listing as a Buyer', () => {
-      expect(classifyPortalLead('M L Srivastava (Owner)', housingInquiryEmail)).toBe('Buyer');
+      expect(
+        classifyPortalLead('M L Srivastava (Owner)', housingInquiryEmail)
+      ).toBe('Buyer');
     });
 
     it('collapses all ownership-type suffixes to Buyer on own-listing inquiries', () => {
@@ -649,13 +713,20 @@ Content-Transfer-Encoding: quoted-printable
     });
 
     it('keeps Agent classification even on own-listing inquiries — knowing the inquirer is an agent is real signal', () => {
-      expect(classifyPortalLead('Jaffar (Broker)', housingInquiryEmail)).toBe('Agent');
-      expect(classifyPortalLead('Robert Smith (Agent)', housingInquiryEmail)).toBe('Agent');
+      expect(classifyPortalLead('Jaffar (Broker)', housingInquiryEmail)).toBe(
+        'Agent'
+      );
+      expect(
+        classifyPortalLead('Robert Smith (Agent)', housingInquiryEmail)
+      ).toBe('Agent');
     });
 
     it('keeps the suffix mapping when the email is NOT an inquiry about your own listing', () => {
-      const ownerLeadEmail = 'An owner has posted a new property for sale in Devanahalli. Name: Kg Subramanian (Owner)';
-      expect(classifyPortalLead('Kg Subramanian (Owner)', ownerLeadEmail)).toBe('Owner');
+      const ownerLeadEmail =
+        'An owner has posted a new property for sale in Devanahalli. Name: Kg Subramanian (Owner)';
+      expect(classifyPortalLead('Kg Subramanian (Owner)', ownerLeadEmail)).toBe(
+        'Owner'
+      );
     });
 
     it('returns null when there is no role suffix', () => {
@@ -665,17 +736,31 @@ Content-Transfer-Encoding: quoted-printable
 
   describe('isInquiryAboutOwnListing', () => {
     it('detects the Housing "contact request from our user" phrasing', () => {
-      expect(isInquiryAboutOwnListing('We have received a contact request from our user')).toBe(true);
+      expect(
+        isInquiryAboutOwnListing(
+          'We have received a contact request from our user'
+        )
+      ).toBe(true);
     });
 
     it('detects "regarding your <property-type>" phrasing', () => {
-      expect(isInquiryAboutOwnListing('who would like to talk to you regarding your plot:')).toBe(true);
-      expect(isInquiryAboutOwnListing('is interested in your Property')).toBe(true);
-      expect(isInquiryAboutOwnListing('enquiry for your villa in Whitefield')).toBe(true);
+      expect(
+        isInquiryAboutOwnListing(
+          'who would like to talk to you regarding your plot:'
+        )
+      ).toBe(true);
+      expect(isInquiryAboutOwnListing('is interested in your Property')).toBe(
+        true
+      );
+      expect(
+        isInquiryAboutOwnListing('enquiry for your villa in Whitefield')
+      ).toBe(true);
     });
 
     it('does not fire on owner-lead marketplace emails', () => {
-      expect(isInquiryAboutOwnListing('An owner has posted a new property for sale')).toBe(false);
+      expect(
+        isInquiryAboutOwnListing('An owner has posted a new property for sale')
+      ).toBe(false);
       expect(isInquiryAboutOwnListing('')).toBe(false);
     });
   });
@@ -731,9 +816,10 @@ Content-Transfer-Encoding: quoted-printable
     it('prefers the agent-entered sublocality', () => {
       expect(
         areaLabelFromListing({
-          location: 'WJGP+87H Classic Property Developers, 1st Block Koramangala, Bengaluru',
+          location:
+            'WJGP+87H Classic Property Developers, 1st Block Koramangala, Bengaluru',
           sublocality: 'Koramangala 1st block',
-        }),
+        })
       ).toBe('Koramangala 1st block');
     });
 
@@ -743,7 +829,7 @@ Content-Transfer-Encoding: quoted-printable
           location:
             'WJGP+87H Classic Property Developers, 1st Block Koramangala, HSR Layout 5th Sector, Bengaluru, Karnataka 560034',
           sublocality: null,
-        }),
+        })
       ).toBe('1st Block Koramangala');
     });
 
@@ -752,13 +838,13 @@ Content-Transfer-Encoding: quoted-printable
         areaLabelFromListing({
           location: '#365, 24th Main, JP Nagar 6th Phase, Bengaluru',
           sublocality: null,
-        }),
+        })
       ).toBe('JP Nagar 6th Phase');
       expect(
         areaLabelFromListing({
           location: 'Sector, HSR Layout, Bengaluru',
           sublocality: 'Block',
-        }),
+        })
       ).toBe('HSR Layout');
     });
 
@@ -767,39 +853,58 @@ Content-Transfer-Encoding: quoted-printable
         areaLabelFromListing({
           location: 'Kudlu, SJR Blue waters, Bangalore, Karnataka',
           sublocality: null,
-        }),
+        })
       ).toBe('Kudlu');
     });
 
     it('returns null when nothing usable remains', () => {
-      expect(areaLabelFromListing({ location: null, sublocality: null })).toBeNull();
-      expect(areaLabelFromListing({ location: 'WJGP+87H', sublocality: '  ' })).toBeNull();
+      expect(
+        areaLabelFromListing({ location: null, sublocality: null })
+      ).toBeNull();
+      expect(
+        areaLabelFromListing({ location: 'WJGP+87H', sublocality: '  ' })
+      ).toBeNull();
     });
   });
 
   describe('checkLocationMatch', () => {
     it('should match exact locations', () => {
-      expect(checkLocationMatch('HSR Layout', 'HSR Layout, Bangalore')).toBe(true);
+      expect(checkLocationMatch('HSR Layout', 'HSR Layout, Bangalore')).toBe(
+        true
+      );
       expect(checkLocationMatch('JP Nagar', 'JP Nagar')).toBe(true);
     });
 
     it('should normalize Roman numerals to Arabic numbers', () => {
-      expect(checkLocationMatch('Surya City Phase II', 'Surya City Phase 2')).toBe(true);
+      expect(
+        checkLocationMatch('Surya City Phase II', 'Surya City Phase 2')
+      ).toBe(true);
       expect(checkLocationMatch('Phase I', 'Phase 1')).toBe(true);
     });
 
     it('should match using token overlap regardless of word order', () => {
-      expect(checkLocationMatch('Surya City Phase II', '#365, Sector C, Phase 2 Surya City')).toBe(true);
-      expect(checkLocationMatch('Phase 2 Surya City', 'Surya City Phase II')).toBe(true);
+      expect(
+        checkLocationMatch(
+          'Surya City Phase II',
+          '#365, Sector C, Phase 2 Surya City'
+        )
+      ).toBe(true);
+      expect(
+        checkLocationMatch('Phase 2 Surya City', 'Surya City Phase II')
+      ).toBe(true);
     });
 
     it('should return false for unrelated locations', () => {
-      expect(checkLocationMatch('HSR Layout', 'JP Nagar 2nd Phase')).toBe(false);
+      expect(checkLocationMatch('HSR Layout', 'JP Nagar 2nd Phase')).toBe(
+        false
+      );
       expect(checkLocationMatch('Whitefield', 'Electronic City')).toBe(false);
     });
 
     it('matches a locality held only in sublocality', () => {
-      expect(checkLocationMatch('Koramangala', 'Koramangala 1st block')).toBe(true);
+      expect(checkLocationMatch('Koramangala', 'Koramangala 1st block')).toBe(
+        true
+      );
       expect(checkLocationMatch('Koramangala', 'BTM Layout')).toBe(false);
     });
   });
@@ -807,54 +912,86 @@ Content-Transfer-Encoding: quoted-printable
   describe('matchableSqft', () => {
     it('falls back to land_area when a house or plot has no built-up area', () => {
       expect(
-        matchableSqft({ area_sqft: null, land_area: 4200, land_area_unit: 'Sq.Ft.' })
+        matchableSqft({
+          area_sqft: null,
+          land_area: 4200,
+          land_area_unit: 'Sq.Ft.',
+        })
       ).toBe(4200);
     });
 
     it('converts non-sqft land units', () => {
-      expect(matchableSqft({ area_sqft: null, land_area: 1, land_area_unit: 'Acre' })).toBe(43560);
+      expect(
+        matchableSqft({ area_sqft: null, land_area: 1, land_area_unit: 'Acre' })
+      ).toBe(43560);
     });
 
     it('prefers the built-up area when both are recorded', () => {
       expect(
-        matchableSqft({ area_sqft: 1800, land_area: 4200, land_area_unit: 'Sq.Ft.' })
+        matchableSqft({
+          area_sqft: 1800,
+          land_area: 4200,
+          land_area_unit: 'Sq.Ft.',
+        })
       ).toBe(1800);
     });
 
     it('is null when the listing records no size at all', () => {
-      expect(matchableSqft({ area_sqft: null, land_area: null, land_area_unit: null })).toBeNull();
+      expect(
+        matchableSqft({
+          area_sqft: null,
+          land_area: null,
+          land_area_unit: null,
+        })
+      ).toBeNull();
     });
   });
 
   describe('interestFromTypeText', () => {
     it('does not read a BHK count on a villa or house as a flat inquiry', () => {
       expect(interestFromTypeText('4 BHK Villa in HSR')).toBe('Villa');
-      expect(interestFromTypeText('3 BHK Independent House in Koramangala')).toBe('Residential House');
+      expect(
+        interestFromTypeText('3 BHK Independent House in Koramangala')
+      ).toBe('Residential House');
     });
 
     it('maps villas and houses to their own interests, not Vacant building', () => {
       expect(interestFromTypeText('Villa')).toBe('Villa');
-      expect(interestFromTypeText('Residential House')).toBe('Residential House');
+      expect(interestFromTypeText('Residential House')).toBe(
+        'Residential House'
+      );
       expect(interestFromTypeText('Farm House')).toBe('Farm House');
-      expect(interestFromTypeText('Rental building with some ROI')).toBe('Vacant building');
+      expect(interestFromTypeText('Rental building with some ROI')).toBe(
+        'Vacant building'
+      );
     });
 
     it('keeps the generic catch-all for plain flat inquiries', () => {
       expect(interestFromTypeText('2 BHK flat')).toBe('Flat/ Apartment');
-      expect(interestFromTypeText('Builder Floor Apartment')).toBe('Flat/ Apartment');
+      expect(interestFromTypeText('Builder Floor Apartment')).toBe(
+        'Flat/ Apartment'
+      );
       expect(interestFromTypeText('Penthouse')).toBe('Penthouse');
     });
 
     it('recognises plots without tripping on site visits, websites or landmarks', () => {
-      expect(interestFromTypeText('30x40 site in Sarjapur')).toBe('Vacant plot');
-      expect(interestFromTypeText('Residential Land/ Plot')).toBe('Vacant plot');
+      expect(interestFromTypeText('30x40 site in Sarjapur')).toBe(
+        'Vacant plot'
+      );
+      expect(interestFromTypeText('Residential Land/ Plot')).toBe(
+        'Vacant plot'
+      );
       expect(interestFromTypeText('Please arrange a site visit')).toBeNull();
-      expect(interestFromTypeText('saw it on your website near the landmark')).toBeNull();
+      expect(
+        interestFromTypeText('saw it on your website near the landmark')
+      ).toBeNull();
     });
 
     it('keeps commercial and industrial precedence', () => {
       expect(interestFromTypeText('Warehouse/ Godown')).toBe('Industrial');
-      expect(interestFromTypeText('Commercial Office Space')).toBe('Commercial');
+      expect(interestFromTypeText('Commercial Office Space')).toBe(
+        'Commercial'
+      );
     });
   });
 
@@ -876,14 +1013,15 @@ Content-Transfer-Encoding: quoted-printable
           bedrooms: null,
           area_sqft: 5000,
           price: 25000000, // 2.5 Cr
-          property_code: 'IND123'
-        }
+          property_code: 'IND123',
+        },
       ];
     });
 
     it('should process a Magicbricks Industrial Land lead, match with properties, extract preferences and auto-tag', async () => {
       const payload = {
-        subject: 'Hot Lead - Buyer has contacted you on Magicbricks for - Industrial Land for sale in Bommasandra',
+        subject:
+          'Hot Lead - Buyer has contacted you on Magicbricks for - Industrial Land for sale in Bommasandra',
         from: 'MagicBricks <info@magicbricks.com>',
         text: `
           Dear Praneeth,
@@ -894,14 +1032,17 @@ Content-Transfer-Encoding: quoted-printable
           Email: pushpa9876@gmail.com
           Message: I am interested in your property.
           Please get in touch with me
-        `
+        `,
       };
 
-      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const req = new Request(
+        'http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const response = await POST(req);
       expect(response.status).toBe(200);
@@ -912,7 +1053,7 @@ Content-Transfer-Encoding: quoted-printable
       expect(contact.name).toBe('Pushpa');
       expect(contact.phone).toBe('+919740750397');
       expect(contact.email).toBe('pushpa9876@gmail.com');
-      
+
       // Preferences read off the listing are inferred, not stated: they
       // land in the pref_* columns so the UI shows them as AI-derived.
       expect(contact.max_budget).toBeNull();
@@ -955,7 +1096,7 @@ Content-Transfer-Encoding: quoted-printable
         bedrooms: 4,
         area_sqft: 3500,
         price: 45000000, // 4.5 Cr
-        property_code: 'VIL456'
+        property_code: 'VIL456',
       });
 
       const payload = {
@@ -969,14 +1110,17 @@ Content-Transfer-Encoding: quoted-printable
           Mobile: +91-6381139611
           Email: thanveer@gmail.com
           Requirements: 4 BHK Villa in HSR
-        `
+        `,
       };
 
-      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const req = new Request(
+        'http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const response = await POST(req);
       expect(response.status).toBe(200);
@@ -1012,7 +1156,7 @@ Content-Transfer-Encoding: quoted-printable
         bedrooms: 4,
         area_sqft: 3500,
         price: 45000000,
-        property_code: 'VIL456'
+        property_code: 'VIL456',
       });
 
       const payload = {
@@ -1026,14 +1170,17 @@ Content-Transfer-Encoding: quoted-printable
           Mobile: +91-6381139611
           Email: thanveer@gmail.com
           Requirements: 4 BHK Villa in HSR, budget 5 Cr
-        `
+        `,
       };
 
-      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const req = new Request(
+        'http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const response = await POST(req);
       expect(response.status).toBe(200);
@@ -1062,11 +1209,14 @@ Content-Transfer-Encoding: quoted-printable
         html: '<a href="https://wa.me/919876543210">Chat On WhatsApp</a>',
       };
 
-      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const req = new Request(
+        'http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const response = await POST(req);
       expect(response.status).toBe(200);
@@ -1084,8 +1234,12 @@ Content-Transfer-Encoding: quoted-printable
       expect(log.error_message).toContain('Housing User');
 
       // Subject boilerplate must not become an area of interest.
-      expect((contact.areas_of_interest as string[]) ?? []).not.toContain('Your property');
-      expect((contact.pref_areas as string[]) ?? []).not.toContain('Your property');
+      expect((contact.areas_of_interest as string[]) ?? []).not.toContain(
+        'Your property'
+      );
+      expect((contact.pref_areas as string[]) ?? []).not.toContain(
+        'Your property'
+      );
     });
 
     it('does not file a Koramangala enquiry against the only house in inventory', async () => {
@@ -1114,11 +1268,14 @@ Content-Transfer-Encoding: quoted-printable
         ].join('\n'),
       };
 
-      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const req = new Request(
+        'http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
 
       expect((await POST(req)).status).toBe(200);
 
@@ -1172,11 +1329,18 @@ Content-Transfer-Encoding: quoted-printable
 
       for (const c of cases) {
         mockDb.contacts = [];
-        const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subject: c.subject, from: c.from, text: c.text })
-        });
+        const req = new Request(
+          'http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              subject: c.subject,
+              from: c.from,
+              text: c.text,
+            }),
+          }
+        );
         expect((await POST(req)).status).toBe(200);
         expect(mockDb.contacts[0].lead_portal).toBe(c.portal);
         expect(mockDb.contacts[0].lead_portal_listing_id).toBe(c.adId);
@@ -1195,11 +1359,14 @@ Content-Transfer-Encoding: quoted-printable
         ].join('\n'),
       };
 
-      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const req = new Request(
+        'http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
 
       expect((await POST(req)).status).toBe(200);
 
@@ -1237,11 +1404,14 @@ Content-Transfer-Encoding: quoted-printable
         ].join('\n'),
       };
 
-      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const req = new Request(
+        'http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
 
       expect((await POST(req)).status).toBe(200);
 

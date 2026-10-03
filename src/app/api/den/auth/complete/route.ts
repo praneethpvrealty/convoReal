@@ -12,13 +12,13 @@
 // lazily.
 // ============================================================
 
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from 'next/server';
 
-import { createClient } from "@/lib/supabase/server";
-import { UnauthorizedError } from "@/lib/auth/account";
-import { PhoneUnverifiedError, toDenErrorResponse } from "@/lib/den/auth";
-import { completeDenAuth } from "@/lib/den/linking";
-import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { createClient } from '@/lib/supabase/server';
+import { UnauthorizedError } from '@/lib/auth/account';
+import { PhoneUnverifiedError, toDenErrorResponse } from '@/lib/den/auth';
+import { completeDenAuth } from '@/lib/den/linking';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     let displayName: string | null = null;
     try {
       const body = await request.json();
-      if (typeof body?.display_name === "string") {
+      if (typeof body?.display_name === 'string') {
         displayName = body.display_name.trim().slice(0, 120) || null;
       }
     } catch {
@@ -51,13 +51,15 @@ export async function POST(request: NextRequest) {
     }
     // Fall back to the OAuth profile name for Google sign-ins.
     if (!displayName) {
-      const metaName = (user.user_metadata as Record<string, unknown> | null)?.full_name;
-      if (typeof metaName === "string" && metaName.trim()) displayName = metaName.trim();
+      const metaName = (user.user_metadata as Record<string, unknown> | null)
+        ?.full_name;
+      if (typeof metaName === 'string' && metaName.trim())
+        displayName = metaName.trim();
     }
 
     const result = await completeDenAuth({
       authUserId: user.id,
-      phone: user.phone.startsWith("+") ? user.phone : `+${user.phone}`,
+      phone: user.phone.startsWith('+') ? user.phone : `+${user.phone}`,
       displayName,
     });
 

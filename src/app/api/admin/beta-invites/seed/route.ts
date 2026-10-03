@@ -11,44 +11,26 @@
 // endpoint mints them in one call and returns every link once.
 // ============================================================
 
-import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { NextResponse } from 'next/server';
+import { toErrorResponse } from '@/lib/auth/account';
+import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
 
-import { inviteBaseUrl } from "@/lib/auth/invite-base-url";
+import { inviteBaseUrl } from '@/lib/auth/invite-base-url';
 import {
   betaInviteShareMessage,
   betaInviteUrl,
   generateBetaInvite,
-} from "@/lib/beta/invites";
-import { createClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+} from '@/lib/beta/invites';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /** Bounded so a typo'd loop can't mint hundreds of live links. */
 const MAX_SEEDS_PER_CALL = 25;
 
-async function requireSuperAdmin(supabase: SupabaseClient) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false as const, status: 401, body: { error: "Unauthorized" } };
-  }
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (profile?.role !== "super_admin") {
-    return { ok: false as const, status: 403, body: { error: "Forbidden" } };
-  }
-  return { ok: true as const };
-}
-
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const guard = await requireSuperAdmin(supabase);
-  if (!guard.ok) {
-    return NextResponse.json(guard.body, { status: guard.status });
+  try {
+    await requirePlatformAdmin();
+  } catch (err) {
+    return toErrorResponse(err);
   }
 
   let labels: string[] = [];
@@ -60,11 +42,11 @@ export async function POST(request: Request) {
     };
     if (Array.isArray(body.labels)) {
       labels = body.labels
-        .filter((l): l is string => typeof l === "string")
+        .filter((l): l is string => typeof l === 'string')
         .map((l) => l.trim().slice(0, 80))
         .filter(Boolean);
     }
-    if (typeof body.count === "number" && Number.isFinite(body.count)) {
+    if (typeof body.count === 'number' && Number.isFinite(body.count)) {
       count = Math.floor(body.count);
     }
   } catch {
@@ -76,20 +58,22 @@ export async function POST(request: Request) {
   const total = labels.length > 0 ? labels.length : count;
   if (total < 1) {
     return NextResponse.json(
-      { error: "Nothing to mint — pass `count` or `labels`" },
-      { status: 400 },
+      { error: 'Nothing to mint — pass `count` or `labels`' },
+      { status: 400 }
     );
   }
   if (total > MAX_SEEDS_PER_CALL) {
     return NextResponse.json(
-      { error: `Refusing to mint more than ${MAX_SEEDS_PER_CALL} seeds at once` },
-      { status: 400 },
+      {
+        error: `Refusing to mint more than ${MAX_SEEDS_PER_CALL} seeds at once`,
+      },
+      { status: 400 }
     );
   }
 
   const admin = supabaseAdmin();
-  const base = inviteBaseUrl(request, "POST /api/admin/beta-invites/seed");
-  const { data: program } = await admin.rpc("beta_program_public");
+  const base = inviteBaseUrl(request, 'POST /api/admin/beta-invites/seed');
+  const { data: program } = await admin.rpc('beta_program_public');
   const prog = program as {
     account_cap: number;
     seats_taken: number;
@@ -109,7 +93,7 @@ export async function POST(request: Request) {
     const label = labels[i] ?? null;
     const { token, hash, code } = generateBetaInvite();
 
-    const { data, error } = await admin.rpc("issue_beta_seed", {
+    const { data, error } = await admin.rpc('issue_beta_seed', {
       p_token_hash: hash,
       p_code: code,
       p_label: label,
@@ -118,7 +102,7 @@ export async function POST(request: Request) {
     });
 
     if (error) {
-      console.error("[POST /api/admin/beta-invites/seed] RPC error:", error);
+      console.error('[POST /api/admin/beta-invites/seed] RPC error:', error);
       // Partial success is reported rather than swallowed — the seeds
       // already minted are live links and the caller has to know.
       return NextResponse.json(
@@ -128,7 +112,7 @@ export async function POST(request: Request) {
           mintedCount: minted.length,
           requested: total,
         },
-        { status: 500 },
+        { status: 500 }
       );
     }
 

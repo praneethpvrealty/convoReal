@@ -25,12 +25,19 @@
 //   }
 // ============================================================
 
-import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { createClient } from "@/lib/supabase/server";
-import { toLanguageCode, type LanguageCode } from "@/lib/languages";
-import { hasMinRole, hasMinOrgRole, isAccountRole, isOrgRole, type AccountRole, type OrgRole } from "./roles";
+import { createClient } from '@/lib/supabase/server';
+import { toLanguageCode, type LanguageCode } from '@/lib/languages';
+import {
+  hasMinRole,
+  hasMinOrgRole,
+  isAccountRole,
+  isOrgRole,
+  type AccountRole,
+  type OrgRole,
+} from './roles';
 
 // ------------------------------------------------------------
 // Errors
@@ -41,17 +48,17 @@ import { hasMinRole, hasMinOrgRole, isAccountRole, isOrgRole, type AccountRole, 
 
 export class UnauthorizedError extends Error {
   readonly status = 401 as const;
-  constructor(message = "Unauthorized") {
+  constructor(message = 'Unauthorized') {
     super(message);
-    this.name = "UnauthorizedError";
+    this.name = 'UnauthorizedError';
   }
 }
 
 export class ForbiddenError extends Error {
   readonly status = 403 as const;
-  constructor(message = "Forbidden") {
+  constructor(message = 'Forbidden') {
     super(message);
-    this.name = "ForbiddenError";
+    this.name = 'ForbiddenError';
   }
 }
 
@@ -64,9 +71,11 @@ export class ForbiddenError extends Error {
  */
 export class AccountArchivedError extends Error {
   readonly status = 403 as const;
-  constructor(message = "This workspace has been archived. Contact support to reactivate it.") {
+  constructor(
+    message = 'This workspace has been archived. Contact support to reactivate it.'
+  ) {
     super(message);
-    this.name = "AccountArchivedError";
+    this.name = 'AccountArchivedError';
   }
 }
 
@@ -74,7 +83,7 @@ export class UserFacingError extends Error {
   readonly status: number;
   constructor(message: string, status = 400) {
     super(message);
-    this.name = "UserFacingError";
+    this.name = 'UserFacingError';
     this.status = status;
   }
 }
@@ -102,15 +111,16 @@ export function toErrorResponse(err: unknown): NextResponse {
   }
 
   // Handle common configuration/user-facing errors thrown as standard Error objects
-  if (err instanceof Error && (
-    err.message.includes("Razorpay is not configured") ||
-    err.message.includes("Stripe is not configured")
-  )) {
+  if (
+    err instanceof Error &&
+    (err.message.includes('Razorpay is not configured') ||
+      err.message.includes('Stripe is not configured'))
+  ) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
 
-  console.error("[toErrorResponse] uncategorized error:", err);
-  return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  console.error('[toErrorResponse] uncategorized error:', err);
+  return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
 }
 
 // ------------------------------------------------------------
@@ -172,20 +182,22 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   // shouldn't exist) yields no row and trips the guard below
   // rather than silently returning a half-populated profile.
   const { data, error } = await supabase
-    .from("profiles")
-    .select("account_id, account_role, org_role, team_id, is_read_only, active_ui_language, account:accounts!inner(id, name, status, default_language)")
-    .eq("user_id", user.id)
+    .from('profiles')
+    .select(
+      'account_id, account_role, org_role, team_id, is_read_only, active_ui_language, account:accounts!inner(id, name, status, default_language)'
+    )
+    .eq('user_id', user.id)
     .maybeSingle();
 
   if (error) {
-    console.error("[getCurrentAccount] profile fetch error:", error);
-    throw new ForbiddenError("Could not load account context");
+    console.error('[getCurrentAccount] profile fetch error:', error);
+    throw new ForbiddenError('Could not load account context');
   }
   if (!data || !data.account_id || !data.account_role || !data.account) {
     // Pre-migration profile, or a manual insert that skipped the
     // signup trigger. The user is authenticated but the app has
     // no way to scope their queries — treat as forbidden.
-    throw new ForbiddenError("Profile is not linked to an account");
+    throw new ForbiddenError('Profile is not linked to an account');
   }
   if (!isAccountRole(data.account_role)) {
     // The DB enum should make this impossible, but a future
@@ -201,7 +213,9 @@ export async function getCurrentAccount(): Promise<AccountContext> {
 
   // Supabase's typed client returns related rows as an array even
   // for `!inner` single-record joins; normalise to a single object.
-  const accountRow = Array.isArray(data.account) ? data.account[0] : data.account;
+  const accountRow = Array.isArray(data.account)
+    ? data.account[0]
+    : data.account;
 
   // Hard block at the one chokepoint nearly every API route funnels
   // through — the read-only overlay in dashboard-shell.tsx is a UX nicety,
@@ -210,7 +224,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   // ingesting messages and burning credits indefinitely (see
   // processMessage() in webhook-handler.ts for the equivalent block on
   // that path, which doesn't go through getCurrentAccount at all).
-  if ((accountRow as { status?: string }).status === "archived") {
+  if ((accountRow as { status?: string }).status === 'archived') {
     throw new AccountArchivedError();
   }
 
@@ -227,7 +241,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
       id: accountRow.id,
       name: accountRow.name,
       defaultLanguage: toLanguageCode(
-        (accountRow as { default_language?: unknown }).default_language,
+        (accountRow as { default_language?: unknown }).default_language
       ),
     },
   };
@@ -244,7 +258,7 @@ export async function requireRole(min: AccountRole): Promise<AccountContext> {
   const ctx = await getCurrentAccount();
   if (!hasMinRole(ctx.role, min)) {
     throw new ForbiddenError(
-      `This action requires the '${min}' role or higher`,
+      `This action requires the '${min}' role or higher`
     );
   }
   return ctx;
@@ -256,11 +270,11 @@ export async function requireRole(min: AccountRole): Promise<AccountContext> {
  * them write; every workspace mutation boundary refuses them here.
  */
 export async function requireWriteRole(
-  min: AccountRole,
+  min: AccountRole
 ): Promise<AccountContext> {
   const ctx = await requireRole(min);
   if (ctx.isReadOnly) {
-    throw new ForbiddenError("Read-only members cannot make changes.");
+    throw new ForbiddenError('Read-only members cannot make changes.');
   }
   return ctx;
 }
@@ -278,9 +292,9 @@ export async function requireOrgRole(min: OrgRole): Promise<AccountContext> {
   const ctx = await getCurrentAccount();
   if (!hasMinOrgRole(ctx.orgRole, min)) {
     throw new ForbiddenError(
-      min === "org_manager"
-        ? "Only the Organization Manager can perform this action."
-        : `This action requires the '${min}' role or higher`,
+      min === 'org_manager'
+        ? 'Only the Organization Manager can perform this action.'
+        : `This action requires the '${min}' role or higher`
     );
   }
   return ctx;

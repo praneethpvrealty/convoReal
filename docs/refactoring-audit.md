@@ -1,68 +1,72 @@
-# Codebase Refactoring & De-bloating Audit
+# Codebase Refactoring Audit
 
-To ensure the codebase remains clean, maintainable, and type-safe before we make major architectural scaling modifications, this audit highlights duplicated codes, services, utility functions, and architectural bottlenecks, along with proposed refactoring candidates.
+A ranked list of the places where the codebase has outgrown its own rules, with the measurements that put each one on the list. Re-count before acting on a number; every figure here drifts with each feature.
 
----
+The first audit (early 2026) named three items. All three shipped: the WhatsApp send-and-persist logic lives in `src/lib/whatsapp/meta-api-dispatcher.ts` and the automation, flow, reminder and broadcast callers are thin wrappers over it; `src/app/api/whatsapp/webhook/route.ts` is a 130-line entry point; currency formatting has a home in `src/lib/currency-utils.ts`. The complexity moved rather than disappeared, which is what the list below records.
 
-## 1. Major Duplications (Action Required)
+## Done
 
-### A. WhatsApp Send & DB Persistence Logic
-* **Where it is duplicated**:
-  1. [`src/app/api/whatsapp/send/route.ts`](./src/app/api/whatsapp/send/route.ts) (User-initiated manually sent texts/templates)
-  2. [`src/app/api/whatsapp/broadcast/route.ts`](./src/app/api/whatsapp/broadcast/route.ts) (Bulk template broadcasts)
-  3. [`src/lib/automations/meta-send.ts`](./src/lib/automations/meta-send.ts) (Automation engine sending text/templates)
-  4. [`src/lib/flows/meta-send.ts`](./src/lib/flows/meta-send.ts) (Interactive buttons, lists, and media sends)
-  5. [`src/lib/appointments/reminder.ts`](./src/lib/appointments/reminder.ts) (Visit reminder crons)
-* **What is duplicated**:
-  - Fetching/resolving account-level `whatsapp_config` + token decryption.
-  - Generating and checking `phoneVariants(sanitizedPhone)` (to dynamically handle prefix mismatches, country codes, and trunk 0s).
-  - Executing retry attempts inside a catch block that isolates `isRecipientNotAllowedError`.
-  - Auto-updating the `contacts` record with the corrected phone number variant when a variant succeeds.
-  - Logging the outgoing message in the `messages` table and updating `conversations.last_message_text`, `last_message_at`, and `updated_at`.
-* **Proposed Action**:
-  - Extract a unified helper `sendWhatsAppMessageAndPersist(...)` in a central module like [`src/lib/whatsapp/meta-api-dispatcher.ts`](./src/lib/whatsapp/meta-api-dispatcher.ts).
-  - Reduce the codebase by approximately **400+ lines** of duplicated wrapper logic.
+| Item                                                                                                                                                                                                                                                                                                                                        | Shipped in                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| One service-role client factory. Five modules exported their own singleton under five names and eighteen more built one inline. All of them now call `supabaseAdmin()`, and `convoreal/no-inline-service-role-client` fails any other read of the key.                                                                                      | `release/refactor-guardrails` |
+| Shared auth helpers in every route. Twenty-five routes resolved the caller with a raw `auth.getUser()`, eleven of them re-implementing the super-admin check beside `requirePlatformAdmin()`. `convoreal/no-raw-auth-in-routes` keeps it that way.                                                                                          | `release/refactor-guardrails` |
+| Prettier enforced. The config said single quotes, semicolons and an 80-column width; about 1,200 files under `src/`, `mobile/`, `docs/`, `e2e/` and the root disagreed in one way or another, and CI never ran `format:check`. It does now, in the `lint` job. `mcp/` keeps its own toolchain and is ignored, as it already was for ESLint. | `release/refactor-guardrails` |
 
-### B. Currency & Value Formatting
-* **Where it is duplicated**:
-  1. [`src/components/pipelines/pipeline-board.tsx`](./src/components/pipelines/pipeline-board.tsx)
-  2. [`src/components/pipelines/pipeline-analytics.tsx`](./src/components/pipelines/pipeline-analytics.tsx)
-  3. [`src/components/pipelines/deal-card.tsx`](./src/components/pipelines/deal-card.tsx)
-  4. [`src/components/dashboard/pipeline-donut.tsx`](./src/components/dashboard/pipeline-donut.tsx)
-  5. [`src/app/(dashboard)/dashboard/page.tsx`](./src/app/(dashboard)/dashboard/page.tsx)
-* **What is duplicated**:
-  - `formatCurrency(value, currency)` and `formatCurrencyShort(value, currency)`.
-* **Proposed Action**:
-  - Extract these formatting helpers into the existing utility file [`src/lib/currency-utils.ts`](./src/lib/currency-utils.ts) (which currently only handles icon rendering) and import them directly.
+## Open, in order
 
----
+### 1. The inbound WhatsApp chain is one function
 
-## 2. High-Complexity / Code Bloat Concerns
+`src/lib/whatsapp/webhook-handler.ts` is 5,713 lines. `handleInboundChain` (from line 1724) runs for roughly 2,100 lines of sequential branches, 140 of them, with 87 direct table queries in the file and no test importing it. Each reply kind is already its own function (reminder buttons, enquiry card, property-share yes, show more, browse all, update session), so the split is mechanical: move each into `src/lib/whatsapp/inbound/`, make the chain a router keyed on message kind, and test each handler alone.
 
-### A. The Monolithic Webhook Route (`webhook/route.ts`)
-* **File location**: [`src/app/api/whatsapp/webhook/route.ts`](./src/app/api/whatsapp/webhook/route.ts)
-* **Complexity**: **1,335 lines** of code in a single file.
-* **The Smell**:
-  - Handles everything from token verification, webhook routing, status receipt handling, raw text/media/location parsing, vCard imports, appointment text parsing, chatbot triggers, to interactive reply captures.
-* **Proposed Action**:
-  - Break this endpoint down into sub-handlers (e.g. `src/lib/whatsapp/webhook/handlers/status-handler.ts`, `message-handler.ts`, and `vcard-parser.ts` helper).
-  - This prepares the codebase for Phase 3 of the Scaling Blueprint where the webhook ingress receiver is moved to Go. If the router is already modularized, translating it becomes a trivial exercise.
+### 2. God components without tests
 
-### B. Chatbot Engine SQL Queries (`chatbot-engine.ts`)
-* **File location**: [`src/lib/ai/chatbot-engine.ts`](./src/lib/ai/chatbot-engine.ts)
-* **Complexity**: **1,300+ lines** containing 40+ raw `.from()` Supabase calls.
-* **The Smell**:
-  - Database queries, Gemini parsing parameters, fallback messages, and draft state transitions are intermingled, making testing difficult.
-* **Proposed Action**:
-  - Move state operations into repository functions like `getActiveDraftSession`, `createDraftSession`, and `commitDraftToProperties`.
-  - Keep `chatbot-engine.ts` purely focused on prompt compiling, state decision tree logic, and AI response mapping.
+| File                                                 | Lines | `useState` | Direct queries or fetches |
+| ---------------------------------------------------- | ----- | ---------- | ------------------------- |
+| `src/components/inventory/property-form.tsx`         | 7,686 | 144        | 26                        |
+| `src/components/contacts/contact-detail-view.tsx`    | 4,160 | 89         | 40                        |
+| `src/components/showcase/showcase-view.tsx`          | 3,998 |            |                           |
+| `src/components/inventory/property-share-dialog.tsx` | 3,659 |            |                           |
+| `src/app/(dashboard)/contacts/contacts-content.tsx`  | 3,195 | 52         | 36                        |
 
----
+None has a sibling test. Split the property form into section components over one reducer-backed form-state hook. Move each screen's reads into react-query hooks: 63 client files already use react-query, 24 still hand-roll the effect-plus-fetch-plus-state triple the handbook forbids.
 
-## 3. Recommended Refactoring Plan
+### 3. Repeated `COUNT(*)` on one screen
 
-We recommend executing a quick clean-up phase before embarking on the scaling changes:
+The contacts screen issues seven exact counts per load, inventory two, and five other client files one each. §2.6 asks for one `SECURITY DEFINER` aggregate per screen (the pattern is in migrations 168–170). Contacts first.
 
-1. **Phase A (Immediate - Easy Wins)**: Extract `formatCurrency` to `src/lib/currency-utils.ts` and refactor the component imports.
-2. **Phase B (Immediate - High Value)**: Create `meta-api-dispatcher.ts` and refactor manual sends, automations, reminders, and flows to use the unified helper. This will consolidate Meta-specific behaviors, reducing bugs related to variant checks.
-3. **Phase C (Preparatory)**: Break up `webhook/route.ts` into isolated handler modules under a `webhook/handlers/` folder to clean up the webhook endpoint.
+### 4. Web and mobile each own the same query
+
+Mobile holds 183 direct Supabase reads across 52 files. The contacts list is the sharpest case: the web file selects the buyer-consent columns with a comment explaining why they must travel, and the mobile file selects a different column list without them. Give the contacts list, contact detail and agent detail a shared API route or a shared column spec under `src/lib/`, and point both surfaces at it.
+
+### 5. Rupee formatting written thirty-five times
+
+Nine local `formatPrice`, five `formatINR`, three `formatRupees`, three `formatInr`, five `formatBudget` variants, plus `mobile/lib/format.ts`. Lakh and crore rounding can differ between a flyer, a digest, the showcase and the app. One module with compact, full, range and budget formatters, and a shared table of test vectors the mobile copy also runs. Fold in `getInitials` (three copies), `truncate` (two) and the two `normalizePhone` implementations (`src/lib/deals/stakeholders.ts` versus `src/lib/whatsapp/phone-utils.ts`), where divergence is a correctness risk.
+
+### 6. Chatbot engine
+
+`src/lib/ai/chatbot-engine.ts` is 3,876 lines with 70 direct queries and one test file. Move the draft-session reads and writes into repository functions and leave the engine with prompt assembly and the decision tree.
+
+### 7. Typing
+
+147 `as unknown as` casts, 147 casts to `Record<string, unknown>`, 53 explicit-any suppressions, and no generated Supabase types: `src/types/index.ts` is 1,655 hand-maintained lines. Generate `database.types.ts` and type the clients; the casts retire as rows become typed.
+
+### 8. Smaller items
+
+- Nine client files under `src/app/(dashboard)` exceed 800 lines, and `calendar/page.tsx` is a 2,110-line page file rather than a server page wrapping client content.
+- Hook files mix kebab-case (`use-auth.tsx`) and camelCase (`useCredits.ts`); §2.4 asks for camelCase.
+- `src/lib/whatsapp/` holds 105 files flat, thirteen of them `template-*`. Subfolders for templates, digests and inbound handlers, done alongside item 1.
+- 1,467 bare `console.error` calls and no logger.
+- A NUL byte sits inside a template literal at line 134 of `src/lib/contacts/parties.ts` as a map-key separator. It works, and it makes grep treat the file as binary; write it as `\u0000`.
+
+## Measuring again
+
+```bash
+# largest non-test files
+find src -type f \( -name '*.ts' -o -name '*.tsx' \) ! -name '*.test.*' -exec wc -l {} + | sort -rn | head -40
+# exact counts in browser code
+grep -rn "count: 'exact'" src/components src/hooks src/app --include='*.tsx' --include='*.ts' | grep -v '/api/' | grep -v '\.test\.'
+# rupee formatters
+grep -rnE "(function|const) [a-zA-Z]*(Inr|INR|Rupee|Price|Budget)[A-Za-z]*\s*(=|\()" src mobile/lib --include='*.ts' --include='*.tsx' | grep -v '\.test\.' | grep -iE "format|label"
+# routes still off the shared auth helpers (should be the lint exemptions only)
+grep -rl "auth.getUser()" src/app/api --include=route.ts
+```

@@ -235,10 +235,7 @@ export interface TodayInsights {
 }
 
 export async function fetchTodayInsights(): Promise<TodayInsights> {
-  return withAnalyticsTimeout(
-    fetchTodayInsightsUnbounded(),
-    'Today analytics'
-  );
+  return withAnalyticsTimeout(fetchTodayInsightsUnbounded(), 'Today analytics');
 }
 
 async function fetchTodayInsightsUnbounded(): Promise<TodayInsights> {

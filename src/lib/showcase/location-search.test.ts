@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Property } from '@/types';
-import {
-  locationCandidates,
-  matchesSelectedLocation,
-} from './location-search';
+import { locationCandidates, matchesSelectedLocation } from './location-search';
 
 const properties = [
   {

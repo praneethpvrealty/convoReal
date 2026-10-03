@@ -53,14 +53,14 @@ export function TemplateLanguageTabs({
         const meta = metaLanguageCode(code);
         const inLanguage = templates.filter((t) => matchesLanguage(t, code));
         const approvedEngine = inLanguage.filter(
-          (t) => engineTemplateNames.has(t.name) && isApproved(t),
+          (t) => engineTemplateNames.has(t.name) && isApproved(t)
         ).length;
         const awaitingReview = inLanguage.filter(
           (t) =>
             code !== 'en' &&
             engineTemplateNames.has(t.name) &&
             !t.translation_reviewed_at &&
-            !isApproved(t),
+            !isApproved(t)
         ).length;
 
         return (
@@ -72,10 +72,10 @@ export function TemplateLanguageTabs({
             onClick={() => onChange(code)}
             title={`${SUPPORTED_LANGUAGES[code].label} (${meta})`}
             className={cn(
-              'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer',
+              'flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
               code === active
                 ? 'bg-primary/15 text-primary'
-                : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200',
+                : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
             )}
           >
             <span>{SUPPORTED_LANGUAGES[code].native}</span>
@@ -86,7 +86,7 @@ export function TemplateLanguageTabs({
                   ? 'bg-emerald-500/15 text-emerald-400'
                   : approvedEngine > 0
                     ? 'bg-amber-500/15 text-amber-400'
-                    : 'bg-slate-800 text-slate-500',
+                    : 'bg-slate-800 text-slate-500'
               )}
             >
               {approvedEngine}/{engineTemplateCount}

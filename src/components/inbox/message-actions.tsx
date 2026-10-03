@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode } from 'react';
 import {
   CornerUpLeft,
   Copy,
@@ -9,24 +9,24 @@ import {
   RotateCw,
   SmilePlus,
   Trash2,
-} from "lucide-react";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from '@/components/ui/popover';
 import {
   canRetryDeliveryFailure,
   stripDeliveryFailure,
-} from "@/lib/whatsapp/delivery-failure";
-import type { Message } from "@/types";
-import { HIDE_ACTION_LABEL } from "@/lib/whatsapp/message-state";
+} from '@/lib/whatsapp/delivery-failure';
+import type { Message } from '@/types';
+import { HIDE_ACTION_LABEL } from '@/lib/whatsapp/message-state';
 
 // WhatsApp's own quick-reaction bar starts with these six. Picking the same
 // set keeps the affordance familiar without pulling in a 300KB emoji library.
-const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 interface MessageActionsProps {
   message: Message;
@@ -59,15 +59,15 @@ export function actionableText(message: Message): string {
  *  to put back on the wire. */
 export function canResend(message: Message): boolean {
   return (
-    message.sender_type !== "customer" &&
-    actionableText(message) !== "" &&
+    message.sender_type !== 'customer' &&
+    actionableText(message) !== '' &&
     canRetryDeliveryFailure(message)
   );
 }
 
 /** Anything with text can be forwarded, from either side of the thread. */
 export function canForward(message: Message): boolean {
-  return actionableText(message) !== "";
+  return actionableText(message) !== '';
 }
 
 /**
@@ -92,7 +92,7 @@ export function MessageActions({
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const isAgent =
-    message.sender_type === "agent" || message.sender_type === "bot";
+    message.sender_type === 'agent' || message.sender_type === 'bot';
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -100,16 +100,16 @@ export function MessageActions({
   };
 
   const handleCopy = async () => {
-    const text = message.content_text ?? "";
+    const text = message.content_text ?? '';
     if (!text) {
-      toast.error("Nothing to copy");
+      toast.error('Nothing to copy');
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("Copied");
+      toast.success('Copied');
     } catch {
-      toast.error("Copy failed");
+      toast.error('Copy failed');
     }
     setTouchOpen(false);
   };
@@ -140,10 +140,7 @@ export function MessageActions({
   // in the row no longer reveals the toolbar.
   return (
     <div
-      className={cn(
-        "flex w-full",
-        isAgent ? "justify-end" : "justify-start",
-      )}
+      className={cn('flex w-full', isAgent ? 'justify-end' : 'justify-start')}
       onContextMenu={handleContextMenu}
       onBlur={() => setTouchOpen(false)}
     >
@@ -152,100 +149,100 @@ export function MessageActions({
        *  an unbroken URL) push past the cap and shove the row past
        *  100%, which used to bleed across into the contact-sidebar
        *  area. See issue #165. */}
-      <div className="group/actions relative min-w-0 max-w-[75%]">
+      <div className="group/actions relative max-w-[75%] min-w-0">
         {children}
-      <div
-        data-touch-open={touchOpen || pickerOpen ? "true" : undefined}
-        className={cn(
-          "absolute -top-3 z-10 flex h-7 items-center gap-0.5 rounded-full border border-slate-700 bg-slate-900/95 px-1 shadow-md backdrop-blur-sm transition-opacity",
-          "opacity-0 group-hover/actions:opacity-100 group-focus-within/actions:opacity-100",
-          "data-[touch-open=true]:opacity-100",
-          isAgent ? "right-3" : "left-3",
-        )}
-      >
-        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-          <PopoverTrigger
-            className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
-            aria-label="React"
-          >
-            <SmilePlus className="h-3.5 w-3.5" />
-          </PopoverTrigger>
-          <PopoverContent
-            className="flex w-auto flex-row gap-1 p-1.5"
-            sideOffset={6}
-          >
-            {QUICK_EMOJIS.map((e) => (
-              <button
-                key={e}
-                type="button"
-                onClick={() => handlePickEmoji(e)}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition-transform hover:scale-125 hover:bg-slate-700"
-                aria-label={`React with ${e}`}
-              >
-                {e}
-              </button>
-            ))}
-          </PopoverContent>
-        </Popover>
-        <button
-          type="button"
-          onClick={handleReply}
-          className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
-          aria-label="Reply"
+        <div
+          data-touch-open={touchOpen || pickerOpen ? 'true' : undefined}
+          className={cn(
+            'absolute -top-3 z-10 flex h-7 items-center gap-0.5 rounded-full border border-slate-700 bg-slate-900/95 px-1 shadow-md backdrop-blur-sm transition-opacity',
+            'opacity-0 group-focus-within/actions:opacity-100 group-hover/actions:opacity-100',
+            'data-[touch-open=true]:opacity-100',
+            isAgent ? 'right-3' : 'left-3'
+          )}
         >
-          <CornerUpLeft className="h-3.5 w-3.5" />
-        </button>
-        {canResend(message) && (
+          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+            <PopoverTrigger
+              className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
+              aria-label="React"
+            >
+              <SmilePlus className="h-3.5 w-3.5" />
+            </PopoverTrigger>
+            <PopoverContent
+              className="flex w-auto flex-row gap-1 p-1.5"
+              sideOffset={6}
+            >
+              {QUICK_EMOJIS.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => handlePickEmoji(e)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition-transform hover:scale-125 hover:bg-slate-700"
+                  aria-label={`React with ${e}`}
+                >
+                  {e}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
           <button
             type="button"
-            onClick={handleResend}
+            onClick={handleReply}
             className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
-            aria-label="Send again"
+            aria-label="Reply"
           >
-            <RotateCw className="h-3.5 w-3.5" />
+            <CornerUpLeft className="h-3.5 w-3.5" />
           </button>
-        )}
-        {canForward(message) && (
+          {canResend(message) && (
+            <button
+              type="button"
+              onClick={handleResend}
+              className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
+              aria-label="Send again"
+            >
+              <RotateCw className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {canForward(message) && (
+            <button
+              type="button"
+              onClick={handleForward}
+              className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
+              aria-label="Forward"
+            >
+              <Forward className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button
             type="button"
-            onClick={handleForward}
+            onClick={handleCopy}
             className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
-            aria-label="Forward"
+            aria-label="Copy"
           >
-            <Forward className="h-3.5 w-3.5" />
+            <Copy className="h-3.5 w-3.5" />
           </button>
-        )}
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
-          aria-label="Copy"
-        >
-          <Copy className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={onTogglePin}
-          className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
-          aria-label={message.pinned_at ? "Unpin" : "Pin"}
-          title={
-            message.pinned_at
-              ? "Unpin from this conversation"
-              : "Pin for your team — the contact sees no change"
-          }
-        >
-          <Pin className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={onHide}
-          className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-rose-300"
-          aria-label={HIDE_ACTION_LABEL}
-          title={`${HIDE_ACTION_LABEL} — removes it from your inbox only`}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={onTogglePin}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
+            aria-label={message.pinned_at ? 'Unpin' : 'Pin'}
+            title={
+              message.pinned_at
+                ? 'Unpin from this conversation'
+                : 'Pin for your team — the contact sees no change'
+            }
+          >
+            <Pin className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onHide}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-rose-300"
+            aria-label={HIDE_ACTION_LABEL}
+            title={`${HIDE_ACTION_LABEL} — removes it from your inbox only`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );

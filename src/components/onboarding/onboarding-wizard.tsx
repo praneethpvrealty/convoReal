@@ -284,21 +284,19 @@ function StarterTemplates() {
         const names = new Set(rows.map((t) => t.name));
         const drafts = rows.filter((t) => (t.status || 'DRAFT') === 'DRAFT');
         payloads = [
-          ...drafts.map(
-            (t): TemplatePayload => ({
-              name: t.name!,
-              category: t.category!,
-              language: t.language || 'en_US',
-              header_type: t.header_type,
-              header_content: t.header_content,
-              header_media_url: t.header_media_url,
-              header_handle: t.header_handle,
-              body_text: t.body_text!,
-              footer_text: t.footer_text,
-              buttons: t.buttons,
-              sample_values: t.sample_values,
-            })
-          ),
+          ...drafts.map((t): TemplatePayload => ({
+            name: t.name!,
+            category: t.category!,
+            language: t.language || 'en_US',
+            header_type: t.header_type,
+            header_content: t.header_content,
+            header_media_url: t.header_media_url,
+            header_handle: t.header_handle,
+            body_text: t.body_text!,
+            footer_text: t.footer_text,
+            buttons: t.buttons,
+            sample_values: t.sample_values,
+          })),
           ...builtins.filter((b) => !names.has(b.name)),
         ];
       }

@@ -28,20 +28,32 @@ function entry(id: string, ageMs: number): LedgerEntry {
 
 describe('planLedgerActions', () => {
   it('never reprocesses an entry the engine already logged', () => {
-    const plan = planLedgerActions([entry('a', PUSH_GRACE_MS * 2)], new Set(['a']), NOW);
+    const plan = planLedgerActions(
+      [entry('a', PUSH_GRACE_MS * 2)],
+      new Set(['a']),
+      NOW
+    );
 
     expect(plan.markOnly.map((e) => e.id)).toEqual(['a']);
     expect(plan.reingest).toHaveLength(0);
   });
 
   it('re-ingests an unknown entry past the push grace window', () => {
-    const plan = planLedgerActions([entry('b', PUSH_GRACE_MS + 1)], new Set(), NOW);
+    const plan = planLedgerActions(
+      [entry('b', PUSH_GRACE_MS + 1)],
+      new Set(),
+      NOW
+    );
 
     expect(plan.reingest.map((e) => e.id)).toEqual(['b']);
   });
 
   it('defers a fresh entry so an in-flight push is not raced', () => {
-    const plan = planLedgerActions([entry('c', PUSH_GRACE_MS - 1)], new Set(), NOW);
+    const plan = planLedgerActions(
+      [entry('c', PUSH_GRACE_MS - 1)],
+      new Set(),
+      NOW
+    );
 
     expect(plan.deferred.map((e) => e.id)).toEqual(['c']);
     expect(plan.reingest).toHaveLength(0);

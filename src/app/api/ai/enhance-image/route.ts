@@ -35,14 +35,22 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null);
     if (!body || !body.prompt) {
-      return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Prompt is required' },
+        { status: 400 }
+      );
     }
 
     const { prompt, aspectRatio = '1:1', image } = body;
 
     if (!(await hasImageProvider(provider))) {
-      console.error(`[AI Enhance] No usable key for image provider "${provider}".`);
-      return NextResponse.json({ error: IMAGE_PROVIDER_UNAVAILABLE }, { status: 503 });
+      console.error(
+        `[AI Enhance] No usable key for image provider "${provider}".`
+      );
+      return NextResponse.json(
+        { error: IMAGE_PROVIDER_UNAVAILABLE },
+        { status: 503 }
+      );
     }
 
     const cost = AI_FEATURE_COSTS.image_enhance;
@@ -58,17 +66,21 @@ export async function POST(request: Request) {
           creditsNeeded: cost,
           upgradeRequired: true,
         },
-        { status: 402 },
+        { status: 402 }
       );
     }
 
     if (image) {
-      console.log('[AI Enhance] Note: image-to-image refinement is not supported; generating from the text prompt.');
+      console.log(
+        '[AI Enhance] Note: image-to-image refinement is not supported; generating from the text prompt.'
+      );
     }
 
     let imageResult: string;
     try {
-      console.log(`[AI Enhance] Requesting generation (provider=${provider}) with prompt: "${prompt}"`);
+      console.log(
+        `[AI Enhance] Requesting generation (provider=${provider}) with prompt: "${prompt}"`
+      );
       imageResult = await generateAiImage({
         prompt,
         aspectRatio,
@@ -80,9 +92,15 @@ export async function POST(request: Request) {
       // API or network failure: refund the credits
       await refundCredits(accountId, 'image_enhance', cost);
       const err = apiErr as StatusError;
-      console.error('[AI Enhance] API call failed, refunded credits. Error:', err.message);
+      console.error(
+        '[AI Enhance] API call failed, refunded credits. Error:',
+        err.message
+      );
       const status = err.status || 500;
-      return NextResponse.json({ error: err.message || 'AI generation failed' }, { status });
+      return NextResponse.json(
+        { error: err.message || 'AI generation failed' },
+        { status }
+      );
     }
 
     return NextResponse.json({

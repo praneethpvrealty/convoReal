@@ -32,38 +32,38 @@
  *     INSERT raises 23505 and the runner catches & exits.
  */
 
-import { supabaseAdmin } from "./admin-client";
-import { storagePublicUrl } from "@/lib/storage/url";
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { storagePublicUrl } from '@/lib/storage/url';
 import {
   engineSendInteractiveButtons,
   engineSendInteractiveList,
   engineSendMedia,
   engineSendText,
-} from "./meta-send";
-import { decideFallback, resolveFallbackPolicy } from "./fallback";
-import { parseBudgetText, type BudgetContext } from "@/lib/bot/catalog-match";
-import { formatBudgetINR } from "@/lib/outreach/playbooks";
-import { appendRequirement } from "@/lib/ai/buyer-qualification";
+} from './meta-send';
+import { decideFallback, resolveFallbackPolicy } from './fallback';
+import { parseBudgetText, type BudgetContext } from '@/lib/bot/catalog-match';
+import { formatBudgetINR } from '@/lib/outreach/playbooks';
+import { appendRequirement } from '@/lib/ai/buyer-qualification';
 import {
   BRIEF_CONFIRMED_VAR,
   BUDGET_CONTEXT_VAR,
   buildKnownBriefNote,
   knownBriefValue,
   type KnownBriefValue,
-} from "./known-brief";
-import type { Contact } from "@/types";
-import { syncContactPreferences } from "@/lib/contacts/preference-sync";
-import { generateMatchEventForContact } from "@/lib/radar/engine";
-import { createNotification } from "@/lib/notifications/create";
-import { BRIDGE_REPLY_HINT } from "@/lib/whatsapp/reply-bridge";
-import { logListingsSent } from "@/lib/whatsapp/share-property-send";
+} from './known-brief';
+import type { Contact } from '@/types';
+import { syncContactPreferences } from '@/lib/contacts/preference-sync';
+import { generateMatchEventForContact } from '@/lib/radar/engine';
+import { createNotification } from '@/lib/notifications/create';
+import { BRIDGE_REPLY_HINT } from '@/lib/whatsapp/reply-bridge';
+import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { looksLikeQuestion } from '@/lib/ai/lead-question';
-import { grantAlertsConsent } from "./alerts-subscribe";
+import { grantAlertsConsent } from './alerts-subscribe';
 import {
   accountPropertyShowcaseUrl,
   accountShowcaseBrowseUrl,
-} from "@/lib/showcase/account-showcase-url";
-import { checkAccountPropertyLimit } from "@/lib/billing/gates";
+} from '@/lib/showcase/account-showcase-url';
+import { checkAccountPropertyLimit } from '@/lib/billing/gates';
 import {
   type CollectInputNodeConfig,
   type ConditionNodeConfig,
@@ -83,7 +83,7 @@ import {
   type StartNodeConfig,
   type StartPropertyIntakeNodeConfig,
   type KeywordTriggerConfig,
-} from "./types";
+} from './types';
 
 // ============================================================
 // Pure helpers — extracted so engine.test.ts can exercise them
@@ -96,14 +96,14 @@ import {
  */
 export function matchReplyId(
   node: { node_type: string; config: Record<string, unknown> },
-  reply_id: string,
+  reply_id: string
 ): string | null {
-  if (node.node_type === "send_buttons") {
+  if (node.node_type === 'send_buttons') {
     const cfg = node.config as unknown as SendButtonsNodeConfig;
     const hit = cfg.buttons?.find((b) => b.reply_id === reply_id);
     return hit?.next_node_key ?? null;
   }
-  if (node.node_type === "send_list") {
+  if (node.node_type === 'send_list') {
     const cfg = node.config as unknown as SendListNodeConfig;
     for (const section of cfg.sections ?? []) {
       const hit = section.rows?.find((r) => r.reply_id === reply_id);
@@ -133,7 +133,7 @@ export function findReplyIdAcrossNodes(
     config: Record<string, unknown>;
   }>,
   reply_id: string,
-  exclude_node_key?: string | null,
+  exclude_node_key?: string | null
 ): { node_key: string; next_node_key: string } | null {
   for (const node of nodes) {
     if (exclude_node_key && node.node_key === exclude_node_key) continue;
@@ -161,17 +161,19 @@ export const UNMATCHED_TEXT_MAX_LENGTH = 600;
 export function appendUnmatchedText(
   existing: string | null | undefined,
   rawText: string,
-  max = UNMATCHED_TEXT_MAX_LENGTH,
+  max = UNMATCHED_TEXT_MAX_LENGTH
 ): string | null {
-  const text = rawText.replace(/\s+/g, " ").trim();
+  const text = rawText.replace(/\s+/g, ' ').trim();
   // "ok" / "hi" — conversational noise, not requirements.
   if (text.length < 3) return null;
-  const base = (existing ?? "").trim();
+  const base = (existing ?? '').trim();
   if (base.toLowerCase().includes(text.toLowerCase())) return null;
   const combined = base ? `${base} | ${text}` : text;
   // Cap total length keeping the NEWEST content — the latest message
   // is the one the agent most needs to see.
-  return combined.length > max ? combined.slice(combined.length - max) : combined;
+  return combined.length > max
+    ? combined.slice(combined.length - max)
+    : combined;
 }
 
 /**
@@ -204,50 +206,50 @@ export const SUBSCRIBE_UNCONFIRMED_TEXT =
  * question and must still reach the fallback policy.
  */
 const ACKNOWLEDGEMENTS = new Set([
-  "k",
-  "ok",
-  "ok ok",
-  "okay",
-  "okey",
-  "okie",
-  "okk",
-  "ok ji",
-  "alright",
-  "all right",
-  "sure",
-  "fine",
-  "great",
-  "good",
-  "cool",
-  "nice",
-  "noted",
-  "got it",
-  "understood",
-  "thanks",
-  "thank you",
-  "thanks a lot",
-  "thank u",
-  "thx",
-  "ty",
-  "sari",
-  "seri",
-  "theek hai",
-  "thik hai",
-  "acha",
-  "achha",
+  'k',
+  'ok',
+  'ok ok',
+  'okay',
+  'okey',
+  'okie',
+  'okk',
+  'ok ji',
+  'alright',
+  'all right',
+  'sure',
+  'fine',
+  'great',
+  'good',
+  'cool',
+  'nice',
+  'noted',
+  'got it',
+  'understood',
+  'thanks',
+  'thank you',
+  'thanks a lot',
+  'thank u',
+  'thx',
+  'ty',
+  'sari',
+  'seri',
+  'theek hai',
+  'thik hai',
+  'acha',
+  'achha',
 ]);
 
 export function isAcknowledgementOnly(text: string): boolean {
-  const raw = (text ?? "").trim();
+  const raw = (text ?? '').trim();
   if (!raw) return false;
   // Only affirmative reactions count. Stripping every emoji instead
   // would swallow "👎" and "❌" — a rejection the agent has to see.
   const withoutAffirmative = raw.replace(
     /[\u{1F44D}\u{1F44C}\u{1F64F}\u{2705}\u{1F642}\u{1F60A}\u{2764}\u{1F44F}\u{1F389}\u{FE0F}]/gu,
-    " ",
+    ' '
   );
   const stripped = withoutAffirmative
-    .replace(/[.!,\s]+/g, " ")
+    .replace(/[.!,\s]+/g, ' ')
     .trim()
     .toLowerCase();
   if (!stripped) return withoutAffirmative !== raw;
@@ -274,15 +276,15 @@ export const BUDGET_CORRECTION_CONFIRM = (text: string): string =>
  */
 export function matchesKeywordTrigger(
   text: string,
-  cfg: KeywordTriggerConfig,
+  cfg: KeywordTriggerConfig
 ): boolean {
   if (!text || !cfg.keywords?.length) return false;
-  const matchType = cfg.match_type ?? "contains";
+  const matchType = cfg.match_type ?? 'contains';
   const haystack = cfg.case_sensitive ? text : text.toLowerCase();
   for (const raw of cfg.keywords) {
     if (!raw) continue;
     const needle = cfg.case_sensitive ? raw : raw.toLowerCase();
-    if (matchType === "exact") {
+    if (matchType === 'exact') {
       if (haystack === needle) return true;
       continue;
     }
@@ -298,40 +300,40 @@ function containsWord(haystack: string, needle: string): boolean {
   const trimmed = needle.trim();
   if (!trimmed) return false;
   if (!/[\p{L}\p{N}]/u.test(trimmed)) return haystack.includes(trimmed);
-  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(
     `(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`,
-    "u",
+    'u'
   ).test(haystack);
 }
 
 /** Nodes that advance to a next_node_key without waiting for input. */
 export function isAutoAdvancing(node_type: string): boolean {
   return (
-    node_type === "start" ||
-    node_type === "send_message" ||
-    node_type === "send_media" ||
-    node_type === "send_property_listings" ||
-    node_type === "condition" ||
-    node_type === "set_tag"
+    node_type === 'start' ||
+    node_type === 'send_message' ||
+    node_type === 'send_media' ||
+    node_type === 'send_property_listings' ||
+    node_type === 'condition' ||
+    node_type === 'set_tag'
   );
 }
 
 /** Nodes that send a prompt and suspend awaiting a customer reply. */
 export function isSuspending(node_type: string): boolean {
   return (
-    node_type === "send_buttons" ||
-    node_type === "send_list" ||
-    node_type === "collect_input"
+    node_type === 'send_buttons' ||
+    node_type === 'send_list' ||
+    node_type === 'collect_input'
   );
 }
 
 /** Nodes that end the run. */
 export function isTerminal(node_type: string): boolean {
   return (
-    node_type === "handoff" ||
-    node_type === "start_property_intake" ||
-    node_type === "end"
+    node_type === 'handoff' ||
+    node_type === 'start_property_intake' ||
+    node_type === 'end'
   );
 }
 
@@ -341,7 +343,7 @@ export function isTerminal(node_type: string): boolean {
  * DB lookup for `tag` / `contact_field` subjects.
  */
 export function evaluateConditionPredicate(args: {
-  operator: ConditionNodeConfig["operator"];
+  operator: ConditionNodeConfig['operator'];
   /**
    * Resolved value of the subject. `undefined` means the subject is
    * absent (no var with that key / no such tag / contact field is
@@ -352,16 +354,16 @@ export function evaluateConditionPredicate(args: {
   configValue: string | undefined;
 }): boolean {
   switch (args.operator) {
-    case "present":
-      return args.subjectValue !== undefined && args.subjectValue !== "";
-    case "absent":
-      return args.subjectValue === undefined || args.subjectValue === "";
-    case "equals":
+    case 'present':
+      return args.subjectValue !== undefined && args.subjectValue !== '';
+    case 'absent':
+      return args.subjectValue === undefined || args.subjectValue === '';
+    case 'equals':
       if (args.subjectValue === undefined) return false;
-      return args.subjectValue === (args.configValue ?? "");
-    case "contains":
+      return args.subjectValue === (args.configValue ?? '');
+    case 'contains':
       if (args.subjectValue === undefined) return false;
-      return args.subjectValue.includes(args.configValue ?? "");
+      return args.subjectValue.includes(args.configValue ?? '');
   }
 }
 
@@ -375,7 +377,7 @@ type AdminClient = ReturnType<typeof supabaseAdmin>;
 async function loadActiveRunForContact(
   db: AdminClient,
   accountId: string,
-  contactId: string,
+  contactId: string
 ): Promise<FlowRunRow | null> {
   // The partial unique index `idx_one_active_run_per_contact` was
   // rebuilt in migration 017 over `(account_id, contact_id)` — so
@@ -386,15 +388,15 @@ async function loadActiveRunForContact(
   // forgiving: pick the newest, let the cron sweep clean up the
   // stale one.
   const { data, error } = await db
-    .from("flow_runs")
-    .select("*")
-    .eq("account_id", accountId)
-    .eq("contact_id", contactId)
-    .eq("status", "active")
-    .order("started_at", { ascending: false })
+    .from('flow_runs')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .eq('status', 'active')
+    .order('started_at', { ascending: false })
     .limit(1);
   if (error) {
-    console.error("[flows] loadActiveRunForContact error:", error.message);
+    console.error('[flows] loadActiveRunForContact error:', error.message);
     return null;
   }
   const rows = (data as FlowRunRow[] | null) ?? [];
@@ -403,15 +405,15 @@ async function loadActiveRunForContact(
 
 async function loadFlow(
   db: AdminClient,
-  flowId: string,
+  flowId: string
 ): Promise<FlowRow | null> {
   const { data, error } = await db
-    .from("flows")
-    .select("*")
-    .eq("id", flowId)
+    .from('flows')
+    .select('*')
+    .eq('id', flowId)
     .maybeSingle();
   if (error) {
-    console.error("[flows] loadFlow error:", error.message);
+    console.error('[flows] loadFlow error:', error.message);
     return null;
   }
   return (data as FlowRow | null) ?? null;
@@ -428,14 +430,14 @@ async function loadFlow(
  */
 async function loadAllNodes(
   db: AdminClient,
-  flowId: string,
+  flowId: string
 ): Promise<Map<string, FlowNodeRow>> {
   const { data, error } = await db
-    .from("flow_nodes")
-    .select("*")
-    .eq("flow_id", flowId);
+    .from('flow_nodes')
+    .select('*')
+    .eq('flow_id', flowId);
   if (error) {
-    console.error("[flows] loadAllNodes error:", error.message);
+    console.error('[flows] loadAllNodes error:', error.message);
     return new Map();
   }
   const map = new Map<string, FlowNodeRow>();
@@ -476,11 +478,10 @@ export interface ListingRow {
  *
  * Exported for tests.
  */
-export function preferLocality<T extends { sublocality?: string | null; location?: string | null }>(
-  properties: T[],
-  localityText: string | null,
-): T[] {
-  const wanted = (localityText || "")
+export function preferLocality<
+  T extends { sublocality?: string | null; location?: string | null },
+>(properties: T[], localityText: string | null): T[] {
+  const wanted = (localityText || '')
     .toLowerCase()
     .split(/[,/]|\band\b|\bor\b/)
     .map((part) => part.trim())
@@ -490,7 +491,10 @@ export function preferLocality<T extends { sublocality?: string | null; location
   const hits: T[] = [];
   const rest: T[] = [];
   for (const p of properties) {
-    const haystack = [p.sublocality, p.location].filter(Boolean).join(" ").toLowerCase();
+    const haystack = [p.sublocality, p.location]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
     (wanted.some((w) => haystack.includes(w)) ? hits : rest).push(p);
   }
   return [...hits, ...rest];
@@ -513,7 +517,7 @@ export function splitByBudget(
   limit: number,
   /** Decides what an unqualified figure means — "35 to 40" is thousands
    *  a month to a renter and lakh to a buyer. */
-  context?: BudgetContext,
+  context?: BudgetContext
 ): {
   withinBudget: ListingRow[];
   aboveBudget: ListingRow[];
@@ -540,11 +544,16 @@ export function splitByBudget(
   const stretchCeiling = max * 1.1;
   const nextBandCeiling = max * 1.35;
   const above = properties
-    .filter((p) => p.price != null && p.price > max && p.price <= stretchCeiling)
+    .filter(
+      (p) => p.price != null && p.price > max && p.price <= stretchCeiling
+    )
     .sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
   const nextBudget = properties
     .filter(
-      (p) => p.price != null && p.price > stretchCeiling && p.price <= nextBandCeiling,
+      (p) =>
+        p.price != null &&
+        p.price > stretchCeiling &&
+        p.price <= nextBandCeiling
     )
     .sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
     .slice(0, limit);
@@ -562,7 +571,7 @@ export function splitByBudget(
 
 export function effectiveBudgetText(
   confirmedContactBudget: string | null,
-  flowRunBudget: string | null,
+  flowRunBudget: string | null
 ): string | null {
   return confirmedContactBudget || flowRunBudget;
 }
@@ -574,13 +583,13 @@ export function effectiveBudgetText(
  */
 async function contactBudgetText(
   db: AdminClient,
-  run: FlowRunRow,
+  run: FlowRunRow
 ): Promise<string | null> {
   if (!run.contact_id) return null;
   const { data } = await db
-    .from("contacts")
-    .select("pref_budget_min, pref_budget_max")
-    .eq("id", run.contact_id)
+    .from('contacts')
+    .select('pref_budget_min, pref_budget_max')
+    .eq('id', run.contact_id)
     .maybeSingle();
   const max = data?.pref_budget_max as number | null | undefined;
   if (max == null || max <= 0) return null;
@@ -597,21 +606,21 @@ async function contactBudgetText(
  */
 async function alreadyOfferedPropertyIds(
   db: AdminClient,
-  run: FlowRunRow,
+  run: FlowRunRow
 ): Promise<Set<string>> {
   if (!run.contact_id) return new Set();
   const [shared, rejected] = await Promise.all([
     db
-      .from("property_shares")
-      .select("property_id")
-      .eq("account_id", run.account_id)
-      .eq("contact_id", run.contact_id),
+      .from('property_shares')
+      .select('property_id')
+      .eq('account_id', run.account_id)
+      .eq('contact_id', run.contact_id),
     db
-      .from("listing_feedback")
-      .select("property_id")
-      .eq("account_id", run.account_id)
-      .eq("contact_id", run.contact_id)
-      .eq("verdict", "rejected"),
+      .from('listing_feedback')
+      .select('property_id')
+      .eq('account_id', run.account_id)
+      .eq('contact_id', run.contact_id)
+      .eq('verdict', 'rejected'),
   ]);
   const ids = new Set<string>();
   for (const row of [...(shared.data ?? []), ...(rejected.data ?? [])]) {
@@ -625,14 +634,14 @@ async function alreadyOfferedPropertyIds(
  *  Null when the run has no contact or the row has gone. */
 async function loadRunContact(
   db: AdminClient,
-  run: FlowRunRow,
+  run: FlowRunRow
 ): Promise<Contact | null> {
   if (!run.contact_id) return null;
   const { data } = await db
-    .from("contacts")
-    .select("*")
-    .eq("id", run.contact_id)
-    .eq("account_id", run.account_id)
+    .from('contacts')
+    .select('*')
+    .eq('id', run.contact_id)
+    .eq('account_id', run.account_id)
     .maybeSingle();
   return (data as Contact | null) ?? null;
 }
@@ -649,10 +658,10 @@ export interface ShownListing {
 
 /** Run var holding the last listing set. Underscored: engine
  *  bookkeeping, not a customer-captured answer. */
-export const SHOWN_LISTINGS_VAR = "__shown_listings";
-export const SELECTED_LISTING_VAR = "__selected_listing";
-export const NEXT_BUDGET_LISTINGS_VAR = "__next_budget_listings";
-export const EXPLORE_NEXT_BUDGET_REPLY_ID = "explore_next_budget";
+export const SHOWN_LISTINGS_VAR = '__shown_listings';
+export const SELECTED_LISTING_VAR = '__selected_listing';
+export const NEXT_BUDGET_LISTINGS_VAR = '__next_budget_listings';
+export const EXPLORE_NEXT_BUDGET_REPLY_ID = 'explore_next_budget';
 
 export function buildPostListingsPrompt(nextBudgetCount: number): string {
   const lines = [
@@ -660,33 +669,35 @@ export function buildPostListingsPrompt(nextBudgetCount: number): string {
   ];
   if (nextBudgetCount > 0) {
     lines.push(
-      "",
-      `If none of these suits you, I also have ${nextBudgetCount} ${nextBudgetCount === 1 ? "property" : "properties"} in the next budget range. Would you like to explore them?`,
+      '',
+      `If none of these suits you, I also have ${nextBudgetCount} ${nextBudgetCount === 1 ? 'property' : 'properties'} in the next budget range. Would you like to explore them?`
     );
   }
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 export function buildListingInterestReply(pick: ShownListing): string {
   const label = pick.code ? `${pick.title} (${pick.code})` : pick.title;
   return [
     `🙏 *Thank you!* You've selected *${label}*.`,
-    ...(pick.url ? ["", `🔗 View photos and full property details: ${pick.url}`] : []),
-    "",
-    "One of our consultants has been notified and will call you shortly to answer your questions and arrange a site visit.",
-  ].join("\n");
+    ...(pick.url
+      ? ['', `🔗 View photos and full property details: ${pick.url}`]
+      : []),
+    '',
+    'One of our consultants has been notified and will call you shortly to answer your questions and arrange a site visit.',
+  ].join('\n');
 }
 
 function selectedListingFromVars(
-  vars: Record<string, unknown> | null | undefined,
+  vars: Record<string, unknown> | null | undefined
 ): ShownListing | null {
   const value = vars?.[SELECTED_LISTING_VAR];
-  if (!value || typeof value !== "object") return null;
+  if (!value || typeof value !== 'object') return null;
   const candidate = value as Partial<ShownListing>;
   if (
-    typeof candidate.n !== "number" ||
-    typeof candidate.id !== "string" ||
-    typeof candidate.title !== "string"
+    typeof candidate.n !== 'number' ||
+    typeof candidate.id !== 'string' ||
+    typeof candidate.title !== 'string'
   ) {
     return null;
   }
@@ -694,20 +705,20 @@ function selectedListingFromVars(
     n: candidate.n,
     id: candidate.id,
     title: candidate.title,
-    code: typeof candidate.code === "string" ? candidate.code : null,
-    url: typeof candidate.url === "string" ? candidate.url : undefined,
+    code: typeof candidate.code === 'string' ? candidate.code : null,
+    url: typeof candidate.url === 'string' ? candidate.url : undefined,
   };
 }
 
 function nextBudgetListingsFromVars(
-  vars: Record<string, unknown> | null | undefined,
+  vars: Record<string, unknown> | null | undefined
 ): ListingRow[] {
   const value = vars?.[NEXT_BUDGET_LISTINGS_VAR];
   if (!Array.isArray(value)) return [];
   return value.filter((candidate): candidate is ListingRow => {
-    if (!candidate || typeof candidate !== "object") return false;
+    if (!candidate || typeof candidate !== 'object') return false;
     const row = candidate as Partial<ListingRow>;
-    return typeof row.id === "string" && typeof row.title === "string";
+    return typeof row.id === 'string' && typeof row.title === 'string';
   });
 }
 
@@ -721,10 +732,13 @@ function nextBudgetListingsFromVars(
  */
 export function matchListingSelection(
   text: string,
-  shown: ShownListing[],
+  shown: ShownListing[]
 ): ShownListing | null {
   if (!shown || shown.length === 0) return null;
-  const cleaned = (text || "").trim().toLowerCase().replace(/^(no\.?|number|#|option)\s*/, "");
+  const cleaned = (text || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^(no\.?|number|#|option)\s*/, '');
   // One number and nothing else — "2 and 4" is a conversation for an
   // agent, and "call me on 9880012345" is certainly not a selection.
   if (!/^\d{1,2}[.)]?$/.test(cleaned)) return null;
@@ -746,39 +760,42 @@ async function recordListingInterest(
   db: AdminClient,
   run: FlowRunRow,
   node: FlowNodeRow,
-  pick: ShownListing,
+  pick: ShownListing
 ): Promise<string | null> {
   if (run.contact_id) {
-    const { error } = await db.from("contact_property_inquiries").upsert(
+    const { error } = await db.from('contact_property_inquiries').upsert(
       {
         contact_id: run.contact_id,
         property_id: pick.id,
         account_id: run.account_id,
-        inquiry_source: "WhatsApp Flow",
+        inquiry_source: 'WhatsApp Flow',
         notes: `Replied "${pick.n}" to the listings sent in chat.`,
       },
-      { onConflict: "contact_id,property_id", ignoreDuplicates: true },
+      { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
     );
     if (error) {
       // A failed write must not swallow the customer's reply — they
       // still get routed to an agent below.
-      console.error("[flows] listing interest upsert failed:", error.message);
+      console.error('[flows] listing interest upsert failed:', error.message);
     } else {
       const { error: markerError } = await db
-        .from("contact_property_inquiries")
+        .from('contact_property_inquiries')
         .update({ via_portal_link: false })
-        .eq("account_id", run.account_id)
-        .eq("contact_id", run.contact_id)
-        .eq("property_id", pick.id)
-        .eq("via_portal_link", true);
+        .eq('account_id', run.account_id)
+        .eq('contact_id', run.contact_id)
+        .eq('property_id', pick.id)
+        .eq('via_portal_link', true);
       if (markerError) {
-        console.error("[flows] listing interest marker failed:", markerError.message);
+        console.error(
+          '[flows] listing interest marker failed:',
+          markerError.message
+        );
       }
     }
   }
 
-  await logEvent(db, run.id, "reply_received", node.node_key, {
-    reason: "listing_interest",
+  await logEvent(db, run.id, 'reply_received', node.node_key, {
+    reason: 'listing_interest',
     property_id: pick.id,
     property_code: pick.code,
     selection: pick.n,
@@ -791,7 +808,7 @@ async function recordListingInterest(
         db,
         run.account_id,
         { id: pick.id, property_code: pick.code },
-        run.contact_id,
+        run.contact_id
       );
     } catch {
       selectedUrl = undefined;
@@ -800,14 +817,18 @@ async function recordListingInterest(
   const selected = { ...pick, url: selectedUrl };
   const vars = {
     ...run.vars,
-    interested_property: pick.code ? `${pick.title} (${pick.code})` : pick.title,
+    interested_property: pick.code
+      ? `${pick.title} (${pick.code})`
+      : pick.title,
     interested_property_link: selectedUrl,
     [SELECTED_LISTING_VAR]: selected,
   };
-  await db.from("flow_runs").update({ vars }).eq("id", run.id);
+  await db.from('flow_runs').update({ vars }).eq('id', run.id);
   run.vars = vars;
 
-  return resolveInterestTarget(node.config as unknown as SendButtonsNodeConfig & ListingInterestRouting);
+  return resolveInterestTarget(
+    node.config as unknown as SendButtonsNodeConfig & ListingInterestRouting
+  );
 }
 
 /**
@@ -820,11 +841,17 @@ async function recordListingInterest(
  * Exported for tests.
  */
 export function resolveInterestTarget(
-  cfg: SendButtonsNodeConfig & ListingInterestRouting,
+  cfg: SendButtonsNodeConfig & ListingInterestRouting
 ): string | null {
   if (cfg.interest_node_key) return cfg.interest_node_key;
-  const agentButton = cfg.buttons?.find((b) => /agent|talk|contact/i.test(b.title));
-  return agentButton?.next_node_key ?? cfg.buttons?.[cfg.buttons.length - 1]?.next_node_key ?? null;
+  const agentButton = cfg.buttons?.find((b) =>
+    /agent|talk|contact/i.test(b.title)
+  );
+  return (
+    agentButton?.next_node_key ??
+    cfg.buttons?.[cfg.buttons.length - 1]?.next_node_key ??
+    null
+  );
 }
 
 /**
@@ -853,13 +880,13 @@ function withBrowseLine(text: string, line: string | null): string {
  *  listings still go out. */
 async function showcaseBrowseLine(
   db: AdminClient,
-  run: FlowRunRow,
+  run: FlowRunRow
 ): Promise<string | null> {
   try {
     const url = await accountShowcaseBrowseUrl(
       db,
       run.account_id,
-      run.contact_id,
+      run.contact_id
     );
     return url ? browseAllHint(url) : null;
   } catch {
@@ -870,7 +897,7 @@ async function showcaseBrowseLine(
 async function fetchAndFormatPropertyListings(
   db: AdminClient,
   run: FlowRunRow,
-  cfg: SendPropertyListingsNodeConfig,
+  cfg: SendPropertyListingsNodeConfig
 ): Promise<{
   text: string;
   shown: ShownListing[];
@@ -888,36 +915,38 @@ async function fetchAndFormatPropertyListings(
   const excluded = await alreadyOfferedPropertyIds(db, run);
   const pool = Math.min(limit * 6 + excluded.size, 200);
   let query = db
-    .from("properties")
-    .select("id, title, location, type, bedrooms, area_sqft, price, property_code, listing_type, rental_income, roi, floor_tenancies")
-    .eq("account_id", run.account_id)
-    .eq("is_published", true)
-    .eq("status", "Available")
-    .order("created_at", { ascending: false })
+    .from('properties')
+    .select(
+      'id, title, location, type, bedrooms, area_sqft, price, property_code, listing_type, rental_income, roi, floor_tenancies'
+    )
+    .eq('account_id', run.account_id)
+    .eq('is_published', true)
+    .eq('status', 'Available')
+    .order('created_at', { ascending: false })
     .limit(pool);
 
   if (cfg.filter_types && cfg.filter_types.length > 0) {
-    query = query.in("type", cfg.filter_types);
+    query = query.in('type', cfg.filter_types);
   } else if (cfg.filter_type) {
-    query = query.eq("type", cfg.filter_type);
+    query = query.eq('type', cfg.filter_type);
   }
   if (cfg.filter_listing_type) {
-    query = query.eq("listing_type", cfg.filter_listing_type);
+    query = query.eq('listing_type', cfg.filter_listing_type);
   }
 
   const { data: properties, error } = await query;
   if (error) {
-    console.error("[flows] property listings query failed:", error.message);
+    console.error('[flows] property listings query failed:', error.message);
     throw new Error(`Property query failed: ${error.message}`);
   }
 
   const fresh = ((properties ?? []) as ListingRow[]).filter(
-    (p) => !excluded.has(p.id),
+    (p) => !excluded.has(p.id)
   );
 
   const intro = cfg.intro_text
     ? interpolateVars(cfg.intro_text, run.vars)
-    : "🏡 *Available Properties*\n";
+    : '🏡 *Available Properties*\n';
 
   const browseLine = await showcaseBrowseLine(db, run);
 
@@ -926,7 +955,7 @@ async function fetchAndFormatPropertyListings(
       text: withBrowseLine(
         cfg.empty_text ??
           `${intro}\n\nSorry, no matching properties are currently available. Our team will reach out when something suitable is listed.`,
-        browseLine,
+        browseLine
       ),
       shown: [],
       nextBudget: [],
@@ -940,17 +969,17 @@ async function fetchAndFormatPropertyListings(
   const confirmedContactBudget = await contactBudgetText(db, run);
   const budgetText = effectiveBudgetText(
     confirmedContactBudget,
-    typeof run.vars?.budget === "string" ? run.vars.budget : null,
+    typeof run.vars?.budget === 'string' ? run.vars.budget : null
   );
 
   const { withinBudget, aboveBudget, nextBudget } = splitByBudget(
     preferLocality(
       fresh,
-      typeof run.vars?.locality === "string" ? run.vars.locality : null,
+      typeof run.vars?.locality === 'string' ? run.vars.locality : null
     ),
     budgetText,
     limit,
-    cfg.filter_listing_type === "Rent" ? "rent" : "sale",
+    cfg.filter_listing_type === 'Rent' ? 'rent' : 'sale'
   );
   const shown = [...withinBudget, ...aboveBudget];
 
@@ -958,16 +987,16 @@ async function fetchAndFormatPropertyListings(
     return {
       text: withBrowseLine(
         cfg.empty_text ??
-          "🔍 *Nothing close to your confirmed budget is available right now.*\n\nOur team will reach out when a suitable property is listed.",
-        browseLine,
+          '🔍 *Nothing close to your confirmed budget is available right now.*\n\nOur team will reach out when a suitable property is listed.',
+        browseLine
       ),
       shown: [],
       nextBudget,
     };
   }
 
-  const currency = "₹";
-  const lines: (string | null)[] = [intro, ""];
+  const currency = '₹';
+  const lines: (string | null)[] = [intro, ''];
   const shownListings: ShownListing[] = [];
   const yieldingCategory = /rent\s*yield/i.test(
     `${cfg.intro_text ?? ''} ${String(run.vars?.category ?? '')}`
@@ -980,18 +1009,19 @@ async function fetchAndFormatPropertyListings(
     // a lead who said 1-2cr should not have to read four prices to work
     // out that nothing here is theirs.
     if (withinBudget.length > 0 && i === withinBudget.length) {
-      lines.push("_Above your budget, but worth a look:_", "");
+      lines.push('_Above your budget, but worth a look:_', '');
     }
     const priceLabel =
-      (p.listing_type === "Rent" || p.listing_type === "Built to Suit") && p.price
+      (p.listing_type === 'Rent' || p.listing_type === 'Built to Suit') &&
+      p.price
         ? `${currency}${(p.price / 1000).toFixed(0)}K/month`
-        : p.listing_type === "JV/JD"
-          ? "JV / Joint Development — enquire"
+        : p.listing_type === 'JV/JD'
+          ? 'JV / Joint Development — enquire'
           : p.price && p.price >= 10000000
-            ? `${currency}${(p.price / 10000000).toFixed(2).replace(/\.?0+$/, "")} Cr`
+            ? `${currency}${(p.price / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`
             : p.price
-              ? `${currency}${(p.price / 100000).toFixed(2).replace(/\.?0+$/, "")}L`
-              : "Price on request";
+              ? `${currency}${(p.price / 100000).toFixed(2).replace(/\.?0+$/, '')}L`
+              : 'Price on request';
 
     const specs = [
       p.type,
@@ -999,13 +1029,13 @@ async function fetchAndFormatPropertyListings(
       p.area_sqft ? `${p.area_sqft} sqft` : null,
     ]
       .filter(Boolean)
-      .join(" | ");
+      .join(' | ');
 
     const showcaseLink = await accountPropertyShowcaseUrl(
       db,
       run.account_id,
       p,
-      run.contact_id,
+      run.contact_id
     );
 
     lines.push(`${idx}. *${p.title}* — ${p.location}`);
@@ -1013,19 +1043,23 @@ async function fetchAndFormatPropertyListings(
     lines.push(`   Price: ${priceLabel}`);
     if (yieldingCategory) {
       if (p.rental_income) {
-        lines.push(`   Rent: ${currency}${p.rental_income.toLocaleString('en-IN')}/month`);
+        lines.push(
+          `   Rent: ${currency}${p.rental_income.toLocaleString('en-IN')}/month`
+        );
       }
       if (p.roi) lines.push(`   Yield: ${p.roi}%`);
       const tenants = (p.floor_tenancies ?? [])
         .map((row) => row.tenant_name?.trim())
         .filter((name): name is string => Boolean(name));
       if (tenants.length > 0) {
-        lines.push(`   Tenant${tenants.length === 1 ? '' : 's'}: ${tenants.slice(0, 3).join(', ')}${tenants.length > 3 ? ` +${tenants.length - 3}` : ''}`);
+        lines.push(
+          `   Tenant${tenants.length === 1 ? '' : 's'}: ${tenants.slice(0, 3).join(', ')}${tenants.length > 3 ? ` +${tenants.length - 3}` : ''}`
+        );
       }
     }
     if (p.property_code) lines.push(`   Code: ${p.property_code}`);
     lines.push(`   🔗 ${showcaseLink}`);
-    lines.push("");
+    lines.push('');
     shownListings.push({
       n: idx,
       id: p.id,
@@ -1042,9 +1076,9 @@ async function fetchAndFormatPropertyListings(
     text: withBrowseLine(
       lines
         .filter((l): l is string => l !== null)
-        .join("\n")
+        .join('\n')
         .slice(0, bodyBudget),
-      browseLine,
+      browseLine
     ),
     shown: shownListings,
     nextBudget,
@@ -1054,12 +1088,12 @@ async function fetchAndFormatPropertyListings(
 async function sendNextBudgetListings(
   db: AdminClient,
   run: FlowRunRow,
-  properties: ListingRow[],
+  properties: ListingRow[]
 ): Promise<void> {
   const shown: ShownListing[] = [];
   const lines = [
-    `Here ${properties.length === 1 ? "is" : "are"} ${properties.length} ${properties.length === 1 ? "option" : "options"} in the next budget range:`,
-    "",
+    `Here ${properties.length === 1 ? 'is' : 'are'} ${properties.length} ${properties.length === 1 ? 'option' : 'options'} in the next budget range:`,
+    '',
   ];
 
   for (let i = 0; i < properties.length; i += 1) {
@@ -1068,26 +1102,26 @@ async function sendNextBudgetListings(
       db,
       run.account_id,
       property,
-      run.contact_id,
+      run.contact_id
     );
     const price = property.price
       ? property.price >= 10_000_000
-        ? `₹${(property.price / 10_000_000).toFixed(2).replace(/\.?0+$/, "")} Cr`
-        : `₹${(property.price / 100_000).toFixed(2).replace(/\.?0+$/, "")}L`
-      : "Price on request";
+        ? `₹${(property.price / 10_000_000).toFixed(2).replace(/\.?0+$/, '')} Cr`
+        : `₹${(property.price / 100_000).toFixed(2).replace(/\.?0+$/, '')}L`
+      : 'Price on request';
     const specs = [
       property.type,
       property.area_sqft ? `${property.area_sqft} sqft` : null,
     ]
       .filter(Boolean)
-      .join(" | ");
+      .join(' | ');
     lines.push(`*${i + 1}. ${property.title}*`);
     if (specs) lines.push(specs);
     lines.push(
-      `📍 ${property.location ?? "Location available on request"}`,
+      `📍 ${property.location ?? 'Location available on request'}`,
       `Price: ${price}`,
       url,
-      "",
+      ''
     );
     shown.push({
       n: i + 1,
@@ -1098,7 +1132,7 @@ async function sendNextBudgetListings(
     });
   }
   lines.push(
-    "Interested in one? Reply with its number to open the full details, and our consultant will call you shortly.",
+    'Interested in one? Reply with its number to open the full details, and our consultant will call you shortly.'
   );
 
   const { whatsapp_message_id } = await engineSendText({
@@ -1106,24 +1140,24 @@ async function sendNextBudgetListings(
     userId: run.user_id,
     conversationId: run.conversation_id!,
     contactId: run.contact_id!,
-    text: lines.filter(Boolean).join("\n").slice(0, 4000),
+    text: lines.filter(Boolean).join('\n').slice(0, 4000),
   });
   await logListingsSent(
     db,
     run.account_id,
     run.user_id,
     run.contact_id!,
-    shown.map((listing) => listing.id),
+    shown.map((listing) => listing.id)
   );
   const vars = {
     ...run.vars,
     [SHOWN_LISTINGS_VAR]: shown,
     [NEXT_BUDGET_LISTINGS_VAR]: [],
   };
-  await db.from("flow_runs").update({ vars }).eq("id", run.id);
+  await db.from('flow_runs').update({ vars }).eq('id', run.id);
   run.vars = vars;
-  await logEvent(db, run.id, "message_sent", run.current_node_key, {
-    reason: "next_budget_listings_sent",
+  await logEvent(db, run.id, 'message_sent', run.current_node_key, {
+    reason: 'next_budget_listings_sent',
     whatsapp_message_id,
     listing_count: shown.length,
   });
@@ -1133,19 +1167,19 @@ async function logEvent(
   db: AdminClient,
   flowRunId: string,
   event_type:
-    | "started"
-    | "node_entered"
-    | "message_sent"
-    | "reply_received"
-    | "fallback_fired"
-    | "handoff"
-    | "timeout"
-    | "error"
-    | "completed",
+    | 'started'
+    | 'node_entered'
+    | 'message_sent'
+    | 'reply_received'
+    | 'fallback_fired'
+    | 'handoff'
+    | 'timeout'
+    | 'error'
+    | 'completed',
   node_key: string | null,
-  payload: Record<string, unknown> = {},
+  payload: Record<string, unknown> = {}
 ): Promise<void> {
-  const { error } = await db.from("flow_run_events").insert({
+  const { error } = await db.from('flow_run_events').insert({
     flow_run_id: flowRunId,
     event_type,
     node_key,
@@ -1153,7 +1187,7 @@ async function logEvent(
   });
   if (error) {
     // Logging failure is non-fatal — surface but don't throw.
-    console.error("[flows] logEvent error:", error.message);
+    console.error('[flows] logEvent error:', error.message);
   }
 }
 
@@ -1171,25 +1205,25 @@ async function isDuplicateInbound(
   db: AdminClient,
   accountId: string,
   contactId: string,
-  metaMessageId: string,
+  metaMessageId: string
 ): Promise<boolean> {
   // Fetch ALL run ids for this contact in this account (active +
   // historical). Bounded by how many flows the customer has been
   // through — small.
   const { data: runs } = await db
-    .from("flow_runs")
-    .select("id")
-    .eq("account_id", accountId)
-    .eq("contact_id", contactId);
+    .from('flow_runs')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId);
   if (!runs?.length) return false;
   const runIds = runs.map((r) => (r as { id: string }).id);
 
   const { count } = await db
-    .from("flow_run_events")
-    .select("id", { count: "exact", head: true })
-    .in("flow_run_id", runIds)
-    .eq("event_type", "reply_received")
-    .filter("payload->>meta_message_id", "eq", metaMessageId);
+    .from('flow_run_events')
+    .select('id', { count: 'exact', head: true })
+    .in('flow_run_id', runIds)
+    .eq('event_type', 'reply_received')
+    .filter('payload->>meta_message_id', 'eq', metaMessageId);
   return (count ?? 0) > 0;
 }
 
@@ -1198,17 +1232,17 @@ async function hasRunBefore(
   db: AdminClient,
   accountId: string,
   flowId: string,
-  contactId: string,
+  contactId: string
 ): Promise<boolean> {
   const { data, error } = await db
-    .from("flow_runs")
-    .select("id")
-    .eq("account_id", accountId)
-    .eq("flow_id", flowId)
-    .eq("contact_id", contactId)
+    .from('flow_runs')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('flow_id', flowId)
+    .eq('contact_id', contactId)
     .limit(1);
   if (error) {
-    console.error("[flows] hasRunBefore error:", error.message);
+    console.error('[flows] hasRunBefore error:', error.message);
     return false;
   }
   return ((data as unknown[] | null) ?? []).length > 0;
@@ -1220,15 +1254,17 @@ async function findEntryFlow(
   contactId: string,
   message: ParsedInbound,
   isFirstInbound: boolean,
-  repliesRatherThanOpens: boolean,
+  repliesRatherThanOpens: boolean
 ): Promise<FlowRow | null> {
   // Text messages and interactive button replies can match entry triggers.
   // Interactive list replies are excluded — they advance existing flows.
   // Template QUICK_REPLY buttons send `interactive_reply` with the button
   // title as text; this lets a button press start a new flow.
   const msgKind = message.kind;
-  if (msgKind !== "text" && msgKind !== "interactive_reply") {
-    console.log(`[flows][findEntryFlow] Skipped: message kind=${msgKind} is not text or interactive_reply`);
+  if (msgKind !== 'text' && msgKind !== 'interactive_reply') {
+    console.log(
+      `[flows][findEntryFlow] Skipped: message kind=${msgKind} is not text or interactive_reply`
+    );
     return null;
   }
 
@@ -1236,35 +1272,43 @@ async function findEntryFlow(
   // (the builder discourages double-trigger overlap; partial index
   // makes the lookup index-supported).
   const { data: flows, error } = await db
-    .from("flows")
-    .select("*")
-    .eq("account_id", accountId)
-    .eq("status", "active")
-    .order("created_at", { ascending: true });
+    .from('flows')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: true });
   if (error || !flows) {
-    console.log(`[flows][findEntryFlow] DB error or no flows: ${error?.message || 'empty result'}`);
+    console.log(
+      `[flows][findEntryFlow] DB error or no flows: ${error?.message || 'empty result'}`
+    );
     return null;
   }
 
   const typed = flows as FlowRow[];
-  console.log(`[flows][findEntryFlow] Found ${typed.length} active flow(s) for account ${accountId}`);
+  console.log(
+    `[flows][findEntryFlow] Found ${typed.length} active flow(s) for account ${accountId}`
+  );
 
   // Extract the text to match against keywords:
   // - text messages: use the message body
   // - interactive replies (button presses): use the button title
   const matchText =
-    message.kind === "text"
+    message.kind === 'text'
       ? message.text
-      : message.kind === "interactive_reply"
+      : message.kind === 'interactive_reply'
         ? message.reply_title
-        : "";
+        : '';
   console.log(`[flows][findEntryFlow] Matching text: "${matchText}"`);
 
   for (const flow of typed) {
-    console.log(`[flows][findEntryFlow] Checking flow: id=${flow.id}, name=${flow.name}, trigger_type=${flow.trigger_type}`);
-    if (flow.trigger_type === "keyword") {
+    console.log(
+      `[flows][findEntryFlow] Checking flow: id=${flow.id}, name=${flow.name}, trigger_type=${flow.trigger_type}`
+    );
+    if (flow.trigger_type === 'keyword') {
       const cfg = flow.trigger_config as KeywordTriggerConfig;
-      console.log(`[flows][findEntryFlow]   Keywords: [${cfg.keywords?.join(", ") || "none"}], match_type=${cfg.match_type || "contains"}`);
+      console.log(
+        `[flows][findEntryFlow]   Keywords: [${cfg.keywords?.join(', ') || 'none'}], match_type=${cfg.match_type || 'contains'}`
+      );
       const matched = matchesKeywordTrigger(matchText, cfg);
       console.log(`[flows][findEntryFlow]   Match result: ${matched}`);
       if (matched) {
@@ -1272,18 +1316,27 @@ async function findEntryFlow(
           repliesRatherThanOpens &&
           (await hasRunBefore(db, accountId, flow.id, contactId))
         ) {
-          console.log(`[flows][findEntryFlow]   Skipped: this contact has already been through this flow and the message replies rather than opens`);
+          console.log(
+            `[flows][findEntryFlow]   Skipped: this contact has already been through this flow and the message replies rather than opens`
+          );
           continue;
         }
         return flow;
       }
-    } else if (flow.trigger_type === "first_inbound_message" && isFirstInbound) {
-      console.log(`[flows][findEntryFlow]   Matched first_inbound_message trigger`);
+    } else if (
+      flow.trigger_type === 'first_inbound_message' &&
+      isFirstInbound
+    ) {
+      console.log(
+        `[flows][findEntryFlow]   Matched first_inbound_message trigger`
+      );
       return flow;
     }
     // 'manual' triggers do not auto-start from inbound messages.
   }
-  console.log(`[flows][findEntryFlow] No flow matched for text: "${matchText}"`);
+  console.log(
+    `[flows][findEntryFlow] No flow matched for text: "${matchText}"`
+  );
   return null;
 }
 
@@ -1299,8 +1352,8 @@ async function sendButtonsAndSuspend(
   node: FlowNodeRow,
   // Reprompts pass REPROMPT_BODY_TEXT — same buttons, apologetic copy,
   // and no header (headers carry branch-intro phrasing).
-  bodyOverride?: string,
-): Promise<{ outcome: "advanced"; node_key: string }> {
+  bodyOverride?: string
+): Promise<{ outcome: 'advanced'; node_key: string }> {
   const cfg = node.config as unknown as SendButtonsNodeConfig;
   const nextBudget = nextBudgetListingsFromVars(run.vars);
   const buttons =
@@ -1308,7 +1361,7 @@ async function sendButtonsAndSuspend(
       ? [
           {
             id: EXPLORE_NEXT_BUDGET_REPLY_ID,
-            title: "Next Budget Range",
+            title: 'Next Budget Range',
           },
           ...cfg.buttons
             .filter((button) => /agent|talk|contact/i.test(button.title))
@@ -1336,24 +1389,24 @@ async function sendButtonsAndSuspend(
     footerText: cfg.footer_text,
     buttons,
   });
-  await logEvent(db, run.id, "message_sent", node.node_key, {
-    node_type: "send_buttons",
+  await logEvent(db, run.id, 'message_sent', node.node_key, {
+    node_type: 'send_buttons',
     whatsapp_message_id,
   });
   // Look up our internal message id so we can stash it on the run.
   // Cheap — indexed on `messages.message_id`.
   const { data: msg } = await db
-    .from("messages")
-    .select("id")
-    .eq("message_id", whatsapp_message_id)
+    .from('messages')
+    .select('id')
+    .eq('message_id', whatsapp_message_id)
     .maybeSingle();
   await db
-    .from("flow_runs")
+    .from('flow_runs')
     .update({
       last_prompt_message_id: (msg as { id: string } | null)?.id ?? null,
     })
-    .eq("id", run.id);
-  return { outcome: "advanced", node_key: node.node_key };
+    .eq('id', run.id);
+  return { outcome: 'advanced', node_key: node.node_key };
 }
 
 async function sendListAndSuspend(
@@ -1361,8 +1414,8 @@ async function sendListAndSuspend(
   run: FlowRunRow,
   node: FlowNodeRow,
   // Reprompts pass REPROMPT_BODY_TEXT — see sendButtonsAndSuspend.
-  bodyOverride?: string,
-): Promise<{ outcome: "advanced"; node_key: string }> {
+  bodyOverride?: string
+): Promise<{ outcome: 'advanced'; node_key: string }> {
   const cfg = node.config as unknown as SendListNodeConfig;
   const { whatsapp_message_id } = await engineSendInteractiveList({
     accountId: run.account_id,
@@ -1382,34 +1435,34 @@ async function sendListAndSuspend(
       })),
     })),
   });
-  await logEvent(db, run.id, "message_sent", node.node_key, {
-    node_type: "send_list",
+  await logEvent(db, run.id, 'message_sent', node.node_key, {
+    node_type: 'send_list',
     whatsapp_message_id,
   });
   const { data: msg } = await db
-    .from("messages")
-    .select("id")
-    .eq("message_id", whatsapp_message_id)
+    .from('messages')
+    .select('id')
+    .eq('message_id', whatsapp_message_id)
     .maybeSingle();
   await db
-    .from("flow_runs")
+    .from('flow_runs')
     .update({
       last_prompt_message_id: (msg as { id: string } | null)?.id ?? null,
     })
-    .eq("id", run.id);
-  return { outcome: "advanced", node_key: node.node_key };
+    .eq('id', run.id);
+  return { outcome: 'advanced', node_key: node.node_key };
 }
 
 /** Vars worth telling an agent about, in the order they read naturally.
  *  Underscored engine bookkeeping (the shown-listings array) is skipped. */
 const BRIEF_VAR_LABELS: [key: string, label: string][] = [
-  ["intent", "Looking to"],
-  ["category", "Type"],
-  ["budget", "Budget"],
-  ["locality", "Area"],
-  ["interested_property", "Interested in"],
-  ["interested_property_link", "Property link"],
-  ["email", "Email"],
+  ['intent', 'Looking to'],
+  ['category', 'Type'],
+  ['budget', 'Budget'],
+  ['locality', 'Area'],
+  ['interested_property', 'Interested in'],
+  ['interested_property_link', 'Property link'],
+  ['email', 'Email'],
 ];
 
 /**
@@ -1419,22 +1472,24 @@ const BRIEF_VAR_LABELS: [key: string, label: string][] = [
  *
  * Exported for tests.
  */
-export function buildHandoffBrief(vars: Record<string, unknown> | null | undefined): string {
-  if (!vars) return "";
+export function buildHandoffBrief(
+  vars: Record<string, unknown> | null | undefined
+): string {
+  if (!vars) return '';
   const parts: string[] = [];
   for (const [key, label] of BRIEF_VAR_LABELS) {
     const value = vars[key];
-    if (typeof value === "string" && value.trim()) {
+    if (typeof value === 'string' && value.trim()) {
       parts.push(`${label}: ${value.trim()}`);
     }
   }
-  return parts.join(" · ");
+  return parts.join(' · ');
 }
 
 async function executeHandoff(
   db: AdminClient,
   run: FlowRunRow,
-  node: FlowNodeRow,
+  node: FlowNodeRow
 ): Promise<void> {
   const cfg = node.config as { assign_to?: string; note?: string };
 
@@ -1443,24 +1498,24 @@ async function executeHandoff(
   // before the update so the notification and the assignment agree.
   const { data: conv } = run.conversation_id
     ? await db
-        .from("conversations")
-        .select("assigned_agent_id")
-        .eq("id", run.conversation_id)
+        .from('conversations')
+        .select('assigned_agent_id')
+        .eq('id', run.conversation_id)
         .maybeSingle()
     : { data: null };
   const assignee =
     cfg.assign_to ?? (conv?.assigned_agent_id as string | null) ?? run.user_id;
 
   const convUpdate: Record<string, unknown> = {
-    status: "pending",
+    status: 'pending',
     updated_at: new Date().toISOString(),
   };
   if (cfg.assign_to) convUpdate.assigned_agent_id = cfg.assign_to;
   if (run.conversation_id) {
     await db
-      .from("conversations")
+      .from('conversations')
       .update(convUpdate)
-      .eq("id", run.conversation_id);
+      .eq('id', run.conversation_id);
   }
 
   const brief = buildHandoffBrief(run.vars);
@@ -1470,13 +1525,19 @@ async function executeHandoff(
   // it outlives the flow run.
   if (run.contact_id && brief) {
     const { data: contact } = await db
-      .from("contacts")
-      .select("name, requirements")
-      .eq("id", run.contact_id)
+      .from('contacts')
+      .select('name, requirements')
+      .eq('id', run.contact_id)
       .maybeSingle();
-    const merged = appendRequirement(contact?.requirements as string | null, brief);
+    const merged = appendRequirement(
+      contact?.requirements as string | null,
+      brief
+    );
     if (merged && merged !== contact?.requirements) {
-      await db.from("contacts").update({ requirements: merged }).eq("id", run.contact_id);
+      await db
+        .from('contacts')
+        .update({ requirements: merged })
+        .eq('id', run.contact_id);
     }
   }
 
@@ -1485,62 +1546,71 @@ async function executeHandoff(
   // was looking at the inbox.
   if (assignee) {
     const { data: contact } = run.contact_id
-      ? await db.from("contacts").select("name, phone").eq("id", run.contact_id).maybeSingle()
+      ? await db
+          .from('contacts')
+          .select('name, phone')
+          .eq('id', run.contact_id)
+          .maybeSingle()
       : { data: null };
-    const who = (contact?.name as string | null) || (contact?.phone as string | null) || "A lead";
+    const who =
+      (contact?.name as string | null) ||
+      (contact?.phone as string | null) ||
+      'A lead';
     try {
       await createNotification({
         accountId: run.account_id,
         userId: assignee,
-        type: "new_message",
-        eventKey: "flow_handoff",
+        type: 'new_message',
+        eventKey: 'flow_handoff',
         title: `${who} asked to speak to an agent`,
         body: brief || cfg.note || null,
-        entityType: "conversation",
+        entityType: 'conversation',
         entityId: run.conversation_id,
-        link: run.conversation_id ? `/inbox?conversation=${run.conversation_id}` : null,
+        link: run.conversation_id
+          ? `/inbox?conversation=${run.conversation_id}`
+          : null,
         whatsappText: [
-          "🙋 *A lead asked to speak to an agent*",
+          '🙋 *A lead asked to speak to an agent*',
           `👤 ${who}`,
           brief ? `\n${brief}` : null,
-          "",
+          '',
           BRIDGE_REPLY_HINT,
         ]
           .filter((l): l is string => l !== null)
-          .join("\n"),
+          .join('\n'),
       });
     } catch (err) {
       // A notification failure must not strand the run mid-handoff.
-      console.error("[flows] handoff notification failed:", err);
+      console.error('[flows] handoff notification failed:', err);
     }
   }
 
-  await logEvent(db, run.id, "handoff", node.node_key, {
+  await logEvent(db, run.id, 'handoff', node.node_key, {
     note: cfg.note ?? null,
     brief: brief || null,
     assigned_to: assignee ?? null,
   });
-  await endRun(db, run.id, "handed_off", "handoff_node");
+  await endRun(db, run.id, 'handed_off', 'handoff_node');
 }
 
 const DEFAULT_LISTING_INTAKE_PROMPT =
-  "📋 *List Your Property*\n\n" +
-  "Ready to get your property in front of serious buyers? Just share a few details and photos, " +
+  '📋 *List Your Property*\n\n' +
+  'Ready to get your property in front of serious buyers? Just share a few details and photos, ' +
   "and we'll put together a polished listing for you.\n\n" +
-  "• 📸 *Photos* — any angle, as many as you have\n" +
-  "• 📝 *Details* — location, price, type, BHK, area, amenities, anything else worth mentioning\n\n" +
+  '• 📸 *Photos* — any angle, as many as you have\n' +
+  '• 📝 *Details* — location, price, type, BHK, area, amenities, anything else worth mentioning\n\n' +
   "Send it all at once or a bit at a time — we'll piece it together and show you a preview before it goes live.\n\n" +
-  "_Type *cancel* anytime to stop._";
+  '_Type *cancel* anytime to stop._';
 
 /** Reply id for the "Talk to an Agent" button shown when an account's
  *  property limit blocks a new WhatsApp submission. Handled explicitly
  *  by `processExternalListingMessage` when an active session exists. */
-const TALK_TO_AGENT_LIMIT_REPLY_ID = "talk_to_agent_limit";
+const TALK_TO_AGENT_LIMIT_REPLY_ID = 'talk_to_agent_limit';
 
 async function sendPropertyLimitReachedMessage(
   db: AdminClient,
   run: FlowRunRow,
-  node: FlowNodeRow,
+  node: FlowNodeRow
 ): Promise<void> {
   const accountMeta = await loadAccountMeta(db, run.account_id);
   const phone = accountMeta.contact_phone;
@@ -1549,7 +1619,7 @@ async function sendPropertyLimitReachedMessage(
     `⚠️ *We're unable to accept new listings right now.*\n\n` +
     `${businessName ? `*${businessName}*'s` : "The property owner's"} account has reached its listing capacity. ` +
     `Please reach out to them directly to arrange your submission.` +
-    (phone ? `\n\n📞 Call or WhatsApp: ${phone}` : "");
+    (phone ? `\n\n📞 Call or WhatsApp: ${phone}` : '');
 
   try {
     const { whatsapp_message_id } = await engineSendInteractiveButtons({
@@ -1558,16 +1628,18 @@ async function sendPropertyLimitReachedMessage(
       conversationId: run.conversation_id!,
       contactId: run.contact_id!,
       bodyText: text,
-      buttons: [{ id: TALK_TO_AGENT_LIMIT_REPLY_ID, title: "Talk to an Agent" }],
+      buttons: [
+        { id: TALK_TO_AGENT_LIMIT_REPLY_ID, title: 'Talk to an Agent' },
+      ],
     });
-    await logEvent(db, run.id, "message_sent", node.node_key, {
-      node_type: "start_property_intake",
-      reason: "property_limit_reached",
+    await logEvent(db, run.id, 'message_sent', node.node_key, {
+      node_type: 'start_property_intake',
+      reason: 'property_limit_reached',
       whatsapp_message_id,
     });
   } catch (err) {
-    await logEvent(db, run.id, "error", node.node_key, {
-      reason: "property_limit_message_failed",
+    await logEvent(db, run.id, 'error', node.node_key, {
+      reason: 'property_limit_message_failed',
       detail: err instanceof Error ? err.message : String(err),
     });
   }
@@ -1577,9 +1649,9 @@ async function sendPropertyLimitReachedMessage(
   // pending listing to free up a slot, or upgrade the plan).
   if (run.conversation_id) {
     await db
-      .from("conversations")
-      .update({ status: "pending", updated_at: new Date().toISOString() })
-      .eq("id", run.conversation_id);
+      .from('conversations')
+      .update({ status: 'pending', updated_at: new Date().toISOString() })
+      .eq('id', run.conversation_id);
   }
 }
 
@@ -1604,14 +1676,14 @@ async function sendPropertyLimitReachedMessage(
 async function executeStartPropertyIntake(
   db: AdminClient,
   run: FlowRunRow,
-  node: FlowNodeRow,
+  node: FlowNodeRow
 ): Promise<void> {
   const cfg = node.config as unknown as StartPropertyIntakeNodeConfig;
 
   const { limitReached } = await checkAccountPropertyLimit(db, run.account_id);
   if (limitReached) {
     await sendPropertyLimitReachedMessage(db, run, node);
-    await endRun(db, run.id, "handed_off", "property_limit_reached");
+    await endRun(db, run.id, 'handed_off', 'property_limit_reached');
     return;
   }
 
@@ -1623,34 +1695,41 @@ async function executeStartPropertyIntake(
       contactId: run.contact_id!,
       text: cfg.intro_text || DEFAULT_LISTING_INTAKE_PROMPT,
     });
-    await logEvent(db, run.id, "message_sent", node.node_key, {
-      node_type: "start_property_intake",
+    await logEvent(db, run.id, 'message_sent', node.node_key, {
+      node_type: 'start_property_intake',
       whatsapp_message_id,
     });
   } catch (err) {
-    await logEvent(db, run.id, "error", node.node_key, {
-      reason: "listing_intake_prompt_failed",
+    await logEvent(db, run.id, 'error', node.node_key, {
+      reason: 'listing_intake_prompt_failed',
       detail: err instanceof Error ? err.message : String(err),
     });
   }
 
   // Idempotent — a retried webhook delivery for the same button tap
   // would otherwise violate the UNIQUE(contact_id) constraint.
-  const { error: insertErr } = await db.from("property_draft_sessions").insert({
+  const { error: insertErr } = await db.from('property_draft_sessions').insert({
     account_id: run.account_id,
     contact_id: run.contact_id!,
     draft_data: { images: [] },
-    status: "collecting",
-    session_mode: "external",
+    status: 'collecting',
+    session_mode: 'external',
   });
-  if (insertErr && !insertErr.message?.includes("23505") && !insertErr.message?.includes("duplicate key")) {
-    console.error("[flows] executeStartPropertyIntake insert error:", insertErr.message);
+  if (
+    insertErr &&
+    !insertErr.message?.includes('23505') &&
+    !insertErr.message?.includes('duplicate key')
+  ) {
+    console.error(
+      '[flows] executeStartPropertyIntake insert error:',
+      insertErr.message
+    );
   }
 
-  await logEvent(db, run.id, "handoff", node.node_key, {
-    note: "External WhatsApp lister started property intake.",
+  await logEvent(db, run.id, 'handoff', node.node_key, {
+    note: 'External WhatsApp lister started property intake.',
   });
-  await endRun(db, run.id, "handed_off", "property_intake_started");
+  await endRun(db, run.id, 'handed_off', 'property_intake_started');
 }
 
 /**
@@ -1668,36 +1747,37 @@ async function executeStartPropertyIntake(
 async function evaluateConditionNode(
   db: AdminClient,
   run: FlowRunRow,
-  cfg: ConditionNodeConfig,
+  cfg: ConditionNodeConfig
 ): Promise<boolean> {
   let subjectValue: string | undefined;
-  if (cfg.subject === "var") {
+  if (cfg.subject === 'var') {
     const v = run.vars[cfg.subject_key];
-    subjectValue = typeof v === "string" ? v : v === undefined ? undefined : String(v);
-  } else if (cfg.subject === "tag") {
+    subjectValue =
+      typeof v === 'string' ? v : v === undefined ? undefined : String(v);
+  } else if (cfg.subject === 'tag') {
     const { count } = await db
-      .from("contact_tags")
-      .select("contact_id", { count: "exact", head: true })
-      .eq("contact_id", run.contact_id!)
-      .eq("tag_id", cfg.subject_key);
+      .from('contact_tags')
+      .select('contact_id', { count: 'exact', head: true })
+      .eq('contact_id', run.contact_id!)
+      .eq('tag_id', cfg.subject_key);
     // For tags, "present" really is the only meaningful test — the
     // `present`/`absent` operators are the natural fit. equals/contains
     // against a tag UUID would still work mechanically (compare its
     // existence to the value).
     subjectValue = (count ?? 0) > 0 ? cfg.subject_key : undefined;
   } else {
-    const ALLOWED = ["name", "email", "phone", "company"] as const;
+    const ALLOWED = ['name', 'email', 'phone', 'company'] as const;
     type AllowedField = (typeof ALLOWED)[number];
     if (!ALLOWED.includes(cfg.subject_key as AllowedField)) {
       throw new Error(`unsupported contact_field: ${cfg.subject_key}`);
     }
     const { data } = await db
-      .from("contacts")
+      .from('contacts')
       .select(cfg.subject_key)
-      .eq("id", run.contact_id!)
+      .eq('id', run.contact_id!)
       .maybeSingle();
     const raw = (data as Record<string, unknown> | null)?.[cfg.subject_key];
-    subjectValue = typeof raw === "string" && raw.length > 0 ? raw : undefined;
+    subjectValue = typeof raw === 'string' && raw.length > 0 ? raw : undefined;
   }
   return evaluateConditionPredicate({
     operator: cfg.operator,
@@ -1715,16 +1795,16 @@ async function evaluateConditionNode(
 function interpolateVars(
   template: string,
   vars: Record<string, unknown>,
-  account?: Record<string, string>,
+  account?: Record<string, string>
 ): string {
-  if (!template) return "";
+  if (!template) return '';
   let result = template.replace(/\{\{vars\.([a-zA-Z0-9_]+)\}\}/g, (_, key) => {
     const v = vars[key];
-    return v === undefined || v === null ? "" : String(v);
+    return v === undefined || v === null ? '' : String(v);
   });
   if (account) {
     result = result.replace(/\{\{account\.([a-zA-Z0-9_]+)\}\}/g, (_, key) => {
-      return account[key] ?? "";
+      return account[key] ?? '';
     });
   }
   return result;
@@ -1732,42 +1812,42 @@ function interpolateVars(
 
 async function loadAccountMeta(
   db: AdminClient,
-  accountId: string,
+  accountId: string
 ): Promise<Record<string, string>> {
   const [settings, account] = await Promise.all([
     db
-      .from("showcase_settings")
-      .select("contact_phone")
-      .eq("account_id", accountId)
+      .from('showcase_settings')
+      .select('contact_phone')
+      .eq('account_id', accountId)
       .maybeSingle(),
-    db.from("accounts").select("name").eq("id", accountId).maybeSingle(),
+    db.from('accounts').select('name').eq('id', accountId).maybeSingle(),
   ]);
   if (settings.error || account.error) {
     console.error(
-      "[flows] loadAccountMeta error:",
-      (settings.error || account.error)?.message,
+      '[flows] loadAccountMeta error:',
+      (settings.error || account.error)?.message
     );
   }
   return {
-    contact_phone: settings.data?.contact_phone ?? "",
-    business_name: account.data?.name ?? "",
+    contact_phone: settings.data?.contact_phone ?? '',
+    business_name: account.data?.name ?? '',
   };
 }
 
 async function endRun(
   db: AdminClient,
   runId: string,
-  status: "completed" | "handed_off" | "timed_out" | "failed",
-  reason: string,
+  status: 'completed' | 'handed_off' | 'timed_out' | 'failed',
+  reason: string
 ): Promise<void> {
   await db
-    .from("flow_runs")
+    .from('flow_runs')
     .update({
       status,
       ended_at: new Date().toISOString(),
       end_reason: reason,
     })
-    .eq("id", runId);
+    .eq('id', runId);
 }
 
 // ============================================================
@@ -1781,36 +1861,36 @@ async function advanceFromNodeKey(
   db: AdminClient,
   run: FlowRunRow,
   startNodeKey: string,
-  nodes: Map<string, FlowNodeRow>,
-): Promise<{ outcome: "advanced" | "completed" | "handed_off" }> {
+  nodes: Map<string, FlowNodeRow>
+): Promise<{ outcome: 'advanced' | 'completed' | 'handed_off' }> {
   let currentKey: string | null = startNodeKey;
   // Defensive cap — if a flow has a cycle (which the validator
   // SHOULD catch but doesn't yet in v1), we bail rather than loop.
   for (let safety = 0; safety < 64; safety += 1) {
     if (!currentKey) {
-      await logEvent(db, run.id, "error", null, {
-        reason: "next_node_key was null mid-advance",
+      await logEvent(db, run.id, 'error', null, {
+        reason: 'next_node_key was null mid-advance',
       });
-      await endRun(db, run.id, "failed", "missing_next_node");
-      return { outcome: "completed" };
+      await endRun(db, run.id, 'failed', 'missing_next_node');
+      return { outcome: 'completed' };
     }
     const node: FlowNodeRow | null = nodes.get(currentKey) ?? null;
     if (!node) {
-      await logEvent(db, run.id, "error", currentKey, {
-        reason: "node_not_found",
+      await logEvent(db, run.id, 'error', currentKey, {
+        reason: 'node_not_found',
       });
-      await endRun(db, run.id, "failed", "node_not_found");
-      return { outcome: "completed" };
+      await endRun(db, run.id, 'failed', 'node_not_found');
+      return { outcome: 'completed' };
     }
-    await logEvent(db, run.id, "node_entered", node.node_key, {
+    await logEvent(db, run.id, 'node_entered', node.node_key, {
       node_type: node.node_type,
     });
 
-    if (node.node_type === "start") {
+    if (node.node_type === 'start') {
       currentKey = (node.config as unknown as StartNodeConfig).next_node_key;
       continue;
     }
-    if (node.node_type === "send_message") {
+    if (node.node_type === 'send_message') {
       const cfg = node.config as unknown as SendMessageNodeConfig;
       const selectedListing = selectedListingFromVars(run.vars);
       // Written before the confirmation goes out, so the message and
@@ -1824,11 +1904,11 @@ async function advanceFromNodeKey(
         subscribeFailed = !(await grantAlertsConsent(
           db,
           run.account_id,
-          run.contact_id,
+          run.contact_id
         ));
         if (subscribeFailed) {
-          await logEvent(db, run.id, "error", node.node_key, {
-            reason: "alerts_consent_write_failed",
+          await logEvent(db, run.id, 'error', node.node_key, {
+            reason: 'alerts_consent_write_failed',
           });
         }
       }
@@ -1848,30 +1928,33 @@ async function advanceFromNodeKey(
         if (selectedListing) {
           const nextVars = { ...run.vars };
           delete nextVars[SELECTED_LISTING_VAR];
-          await db.from("flow_runs").update({ vars: nextVars }).eq("id", run.id);
+          await db
+            .from('flow_runs')
+            .update({ vars: nextVars })
+            .eq('id', run.id);
           run.vars = nextVars;
         }
-        await logEvent(db, run.id, "message_sent", node.node_key, {
-          node_type: "send_message",
+        await logEvent(db, run.id, 'message_sent', node.node_key, {
+          node_type: 'send_message',
           whatsapp_message_id,
         });
       } catch (err) {
-        await logEvent(db, run.id, "error", node.node_key, {
-          reason: "send_text_failed",
+        await logEvent(db, run.id, 'error', node.node_key, {
+          reason: 'send_text_failed',
           detail: err instanceof Error ? err.message : String(err),
         });
-        await endRun(db, run.id, "failed", "send_text_failed");
-        return { outcome: "completed" };
+        await endRun(db, run.id, 'failed', 'send_text_failed');
+        return { outcome: 'completed' };
       }
       currentKey = cfg.next_node_key;
       continue;
     }
-    if (node.node_type === "send_media") {
+    if (node.node_type === 'send_media') {
       const cfg = node.config as unknown as SendMediaNodeConfig;
       try {
         const { whatsapp_message_id } = await engineSendMedia({
           accountId: run.account_id,
-    userId: run.user_id,
+          userId: run.user_id,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           kind: cfg.media_type,
@@ -1881,28 +1964,32 @@ async function advanceFromNodeKey(
             : undefined,
           filename: cfg.filename,
         });
-        await logEvent(db, run.id, "message_sent", node.node_key, {
-          node_type: "send_media",
+        await logEvent(db, run.id, 'message_sent', node.node_key, {
+          node_type: 'send_media',
           media_type: cfg.media_type,
           whatsapp_message_id,
         });
       } catch (err) {
-        await logEvent(db, run.id, "error", node.node_key, {
-          reason: "send_media_failed",
+        await logEvent(db, run.id, 'error', node.node_key, {
+          reason: 'send_media_failed',
           detail: err instanceof Error ? err.message : String(err),
         });
-        await endRun(db, run.id, "failed", "send_media_failed");
-        return { outcome: "completed" };
+        await endRun(db, run.id, 'failed', 'send_media_failed');
+        return { outcome: 'completed' };
       }
       currentKey = cfg.next_node_key;
       continue;
     }
-    if (node.node_type === "send_property_listings") {
-      const cfg = node.config as unknown as import("./types").SendPropertyListingsNodeConfig;
+    if (node.node_type === 'send_property_listings') {
+      const cfg =
+        node.config as unknown as import('./types').SendPropertyListingsNodeConfig;
       let shownCount = 0;
       try {
-        const { text: listingsText, shown, nextBudget } =
-          await fetchAndFormatPropertyListings(db, run, cfg);
+        const {
+          text: listingsText,
+          shown,
+          nextBudget,
+        } = await fetchAndFormatPropertyListings(db, run, cfg);
         const { whatsapp_message_id } = await engineSendText({
           accountId: run.account_id,
           userId: run.user_id,
@@ -1920,7 +2007,7 @@ async function advanceFromNodeKey(
             run.account_id,
             run.user_id,
             run.contact_id,
-            shown.map((l) => l.id),
+            shown.map((l) => l.id)
           );
         }
         const withListings = {
@@ -1928,19 +2015,22 @@ async function advanceFromNodeKey(
           [SHOWN_LISTINGS_VAR]: shown,
           [NEXT_BUDGET_LISTINGS_VAR]: nextBudget,
         };
-        await db.from("flow_runs").update({ vars: withListings }).eq("id", run.id);
+        await db
+          .from('flow_runs')
+          .update({ vars: withListings })
+          .eq('id', run.id);
         run.vars = withListings;
-        await logEvent(db, run.id, "message_sent", node.node_key, {
-          node_type: "send_property_listings",
+        await logEvent(db, run.id, 'message_sent', node.node_key, {
+          node_type: 'send_property_listings',
           whatsapp_message_id,
         });
       } catch (err) {
-        await logEvent(db, run.id, "error", node.node_key, {
-          reason: "send_property_listings_failed",
+        await logEvent(db, run.id, 'error', node.node_key, {
+          reason: 'send_property_listings_failed',
           detail: err instanceof Error ? err.message : String(err),
         });
-        await endRun(db, run.id, "failed", "send_property_listings_failed");
-        return { outcome: "completed" };
+        await endRun(db, run.id, 'failed', 'send_property_listings_failed');
+        return { outcome: 'completed' };
       }
       // Nothing was shown, so the usual follow-up ("Interested in any of
       // these? Reply with its number") would be asking about an empty
@@ -1951,24 +2041,32 @@ async function advanceFromNodeKey(
           : cfg.next_node_key;
       continue;
     }
-    if (node.node_type === "collect_input") {
+    if (node.node_type === 'collect_input') {
       // We may already hold these answers — from an earlier funnel run,
       // a call, or the preference flow. Asking again is the moment a
       // lead decides nobody is keeping a record. Every consecutive
       // question we can answer is collected first, so the note that
       // replaces them names all of them rather than only the first.
       const contactForBrief = await loadRunContact(db, run);
-      const skipped: Array<{ node_key: string; var_key: string; known: KnownBriefValue }> = [];
+      const skipped: Array<{
+        node_key: string;
+        var_key: string;
+        known: KnownBriefValue;
+      }> = [];
       let scan: FlowNodeRow | null = node;
-      while (scan && scan.node_type === "collect_input") {
+      while (scan && scan.node_type === 'collect_input') {
         const scanCfg = scan.config as unknown as CollectInputNodeConfig;
         const known = knownBriefValue(
           contactForBrief,
           scanCfg.var_key,
-          scanCfg.budget_context ?? null,
+          scanCfg.budget_context ?? null
         );
         if (!known) break;
-        skipped.push({ node_key: scan.node_key, var_key: scanCfg.var_key, known });
+        skipped.push({
+          node_key: scan.node_key,
+          var_key: scanCfg.var_key,
+          known,
+        });
         scan = nodes.get(scanCfg.next_node_key) ?? null;
       }
       if (skipped.length > 0) {
@@ -1983,13 +2081,15 @@ async function advanceFromNodeKey(
         for (const s of skipped) newVars[s.var_key] = s.known.value;
         // The context the correction path needs to read a bare "3 Cr"
         // as a sale figure or a monthly rent.
-        const budgetNode = skipped.find((s) => s.var_key === "budget");
+        const budgetNode = skipped.find((s) => s.var_key === 'budget');
         if (budgetNode) {
           newVars[BUDGET_CONTEXT_VAR] =
-            (nodes.get(budgetNode.node_key)!
-              .config as unknown as CollectInputNodeConfig).budget_context ?? null;
+            (
+              nodes.get(budgetNode.node_key)!
+                .config as unknown as CollectInputNodeConfig
+            ).budget_context ?? null;
         }
-        await db.from("flow_runs").update({ vars: newVars }).eq("id", run.id);
+        await db.from('flow_runs').update({ vars: newVars }).eq('id', run.id);
         run.vars = newVars;
         if (!alreadyConfirmed) {
           try {
@@ -2001,14 +2101,14 @@ async function advanceFromNodeKey(
               text: buildKnownBriefNote(skipped.map((s) => s.known.label)),
             });
           } catch (err) {
-            await logEvent(db, run.id, "error", node.node_key, {
-              reason: "known_brief_send_failed",
+            await logEvent(db, run.id, 'error', node.node_key, {
+              reason: 'known_brief_send_failed',
               detail: err instanceof Error ? err.message : String(err),
             });
           }
         }
-        await logEvent(db, run.id, "node_entered", node.node_key, {
-          reason: "collect_input_skipped_known",
+        await logEvent(db, run.id, 'node_entered', node.node_key, {
+          reason: 'collect_input_skipped_known',
           var_keys: skipped.map((s) => s.var_key),
         });
         currentKey = lastCfg.next_node_key;
@@ -2020,155 +2120,152 @@ async function advanceFromNodeKey(
       try {
         const { whatsapp_message_id } = await engineSendText({
           accountId: run.account_id,
-    userId: run.user_id,
+          userId: run.user_id,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           text: interpolateVars(cfg.prompt_text, run.vars),
         });
-        await logEvent(db, run.id, "message_sent", node.node_key, {
-          node_type: "collect_input",
+        await logEvent(db, run.id, 'message_sent', node.node_key, {
+          node_type: 'collect_input',
           whatsapp_message_id,
         });
         const { data: msg } = await db
-          .from("messages")
-          .select("id")
-          .eq("message_id", whatsapp_message_id)
+          .from('messages')
+          .select('id')
+          .eq('message_id', whatsapp_message_id)
           .maybeSingle();
         await db
-          .from("flow_runs")
+          .from('flow_runs')
           .update({
             last_prompt_message_id: (msg as { id: string } | null)?.id ?? null,
           })
-          .eq("id", run.id);
+          .eq('id', run.id);
       } catch (err) {
-        await logEvent(db, run.id, "error", node.node_key, {
-          reason: "collect_input_prompt_failed",
+        await logEvent(db, run.id, 'error', node.node_key, {
+          reason: 'collect_input_prompt_failed',
           detail: err instanceof Error ? err.message : String(err),
         });
-        await endRun(db, run.id, "failed", "collect_input_prompt_failed");
-        return { outcome: "completed" };
+        await endRun(db, run.id, 'failed', 'collect_input_prompt_failed');
+        return { outcome: 'completed' };
       }
       const advanced = await advanceCurrentNodeKey(
         db,
         run.id,
         run.current_node_key,
-        node.node_key,
+        node.node_key
       );
       if (!advanced) {
-        await logEvent(db, run.id, "error", node.node_key, {
-          reason: "lost_race_during_advance",
+        await logEvent(db, run.id, 'error', node.node_key, {
+          reason: 'lost_race_during_advance',
         });
       }
-      return { outcome: "advanced" };
+      return { outcome: 'advanced' };
     }
-    if (node.node_type === "condition") {
+    if (node.node_type === 'condition') {
       const cfg = node.config as unknown as ConditionNodeConfig;
-      let branch: "true" | "false";
+      let branch: 'true' | 'false';
       try {
-        branch = (await evaluateConditionNode(db, run, cfg))
-          ? "true"
-          : "false";
+        branch = (await evaluateConditionNode(db, run, cfg)) ? 'true' : 'false';
       } catch (err) {
-        await logEvent(db, run.id, "error", node.node_key, {
-          reason: "condition_evaluation_failed",
+        await logEvent(db, run.id, 'error', node.node_key, {
+          reason: 'condition_evaluation_failed',
           detail: err instanceof Error ? err.message : String(err),
         });
-        await endRun(db, run.id, "failed", "condition_evaluation_failed");
-        return { outcome: "completed" };
+        await endRun(db, run.id, 'failed', 'condition_evaluation_failed');
+        return { outcome: 'completed' };
       }
-      currentKey =
-        branch === "true" ? cfg.true_next : cfg.false_next;
-      await logEvent(db, run.id, "node_entered", node.node_key, {
+      currentKey = branch === 'true' ? cfg.true_next : cfg.false_next;
+      await logEvent(db, run.id, 'node_entered', node.node_key, {
         condition_result: branch,
         advancing_to: currentKey,
       });
       continue;
     }
-    if (node.node_type === "set_tag") {
+    if (node.node_type === 'set_tag') {
       const cfg = node.config as unknown as SetTagNodeConfig;
       try {
-        if (cfg.mode === "add") {
+        if (cfg.mode === 'add') {
           await db
-            .from("contact_tags")
+            .from('contact_tags')
             .upsert(
               { contact_id: run.contact_id!, tag_id: cfg.tag_id },
-              { onConflict: "contact_id,tag_id" },
+              { onConflict: 'contact_id,tag_id' }
             );
         } else {
           await db
-            .from("contact_tags")
+            .from('contact_tags')
             .delete()
-            .eq("contact_id", run.contact_id!)
-            .eq("tag_id", cfg.tag_id);
+            .eq('contact_id', run.contact_id!)
+            .eq('tag_id', cfg.tag_id);
         }
       } catch (err) {
         // Non-fatal — log + advance. A tag-write failure shouldn't
         // strand the customer mid-flow.
-        await logEvent(db, run.id, "error", node.node_key, {
-          reason: "set_tag_failed",
+        await logEvent(db, run.id, 'error', node.node_key, {
+          reason: 'set_tag_failed',
           detail: err instanceof Error ? err.message : String(err),
         });
       }
       currentKey = cfg.next_node_key;
       continue;
     }
-    if (node.node_type === "send_buttons") {
+    if (node.node_type === 'send_buttons') {
       await sendButtonsAndSuspend(db, run, node);
       // Persist the new current_node_key via optimistic UPDATE.
       const advanced = await advanceCurrentNodeKey(
         db,
         run.id,
         run.current_node_key,
-        node.node_key,
+        node.node_key
       );
       if (!advanced) {
-        await logEvent(db, run.id, "error", node.node_key, {
-          reason: "lost_race_during_advance",
+        await logEvent(db, run.id, 'error', node.node_key, {
+          reason: 'lost_race_during_advance',
         });
       }
-      return { outcome: "advanced" };
+      return { outcome: 'advanced' };
     }
-    if (node.node_type === "send_list") {
+    if (node.node_type === 'send_list') {
       await sendListAndSuspend(db, run, node);
       const advanced = await advanceCurrentNodeKey(
         db,
         run.id,
         run.current_node_key,
-        node.node_key,
+        node.node_key
       );
       if (!advanced) {
-        await logEvent(db, run.id, "error", node.node_key, {
-          reason: "lost_race_during_advance",
+        await logEvent(db, run.id, 'error', node.node_key, {
+          reason: 'lost_race_during_advance',
         });
       }
-      return { outcome: "advanced" };
+      return { outcome: 'advanced' };
     }
-    if (node.node_type === "handoff") {
+    if (node.node_type === 'handoff') {
       await executeHandoff(db, run, node);
-      return { outcome: "handed_off" };
+      return { outcome: 'handed_off' };
     }
-    if (node.node_type === "start_property_intake") {
+    if (node.node_type === 'start_property_intake') {
       await executeStartPropertyIntake(db, run, node);
-      return { outcome: "handed_off" };
+      return { outcome: 'handed_off' };
     }
-    if (node.node_type === "end") {
-      await logEvent(db, run.id, "completed", node.node_key);
-      await endRun(db, run.id, "completed", "end_node");
-      return { outcome: "completed" };
+    if (node.node_type === 'end') {
+      await logEvent(db, run.id, 'completed', node.node_key);
+      await endRun(db, run.id, 'completed', 'end_node');
+      return { outcome: 'completed' };
     }
     // Unknown node type — shouldn't happen given the CHECK constraint.
-    await logEvent(db, run.id, "error", node.node_key, {
+    await logEvent(db, run.id, 'error', node.node_key, {
       reason: `unknown_node_type:${node.node_type}`,
     });
-    await endRun(db, run.id, "failed", "unknown_node_type");
-    return { outcome: "completed" };
+    await endRun(db, run.id, 'failed', 'unknown_node_type');
+    return { outcome: 'completed' };
   }
   // Safety break — log + fail.
-  await logEvent(db, run.id, "error", currentKey, {
-    reason: "advance_loop_safety_break",
+  await logEvent(db, run.id, 'error', currentKey, {
+    reason: 'advance_loop_safety_break',
   });
-  await endRun(db, run.id, "failed", "advance_loop_overflow");
-  return { outcome: "completed" };
+  await endRun(db, run.id, 'failed', 'advance_loop_overflow');
+  return { outcome: 'completed' };
 }
 
 /**
@@ -2181,26 +2278,26 @@ async function advanceCurrentNodeKey(
   db: AdminClient,
   runId: string,
   expectedOldKey: string | null,
-  newKey: string,
+  newKey: string
 ): Promise<boolean> {
   // PostgREST: when expectedOldKey is null we can't `.eq` (would match
   // any row); use `.is('current_node_key', null)` instead.
   let q = db
-    .from("flow_runs")
+    .from('flow_runs')
     .update({
       current_node_key: newKey,
       last_advanced_at: new Date().toISOString(),
     })
-    .eq("id", runId)
-    .eq("status", "active");
+    .eq('id', runId)
+    .eq('status', 'active');
   if (expectedOldKey === null) {
-    q = q.is("current_node_key", null);
+    q = q.is('current_node_key', null);
   } else {
-    q = q.eq("current_node_key", expectedOldKey);
+    q = q.eq('current_node_key', expectedOldKey);
   }
-  const { data, error } = await q.select("id");
+  const { data, error } = await q.select('id');
   if (error) {
-    console.error("[flows] advanceCurrentNodeKey error:", error.message);
+    console.error('[flows] advanceCurrentNodeKey error:', error.message);
     return false;
   }
   return Array.isArray(data) && data.length > 0;
@@ -2211,7 +2308,7 @@ async function advanceCurrentNodeKey(
 // ============================================================
 
 export async function dispatchInboundToFlows(
-  input: DispatchInboundInput & { isFirstInboundMessage: boolean },
+  input: DispatchInboundInput & { isFirstInboundMessage: boolean }
 ): Promise<DispatchInboundResult> {
   const db = supabaseAdmin();
   const logPrefix = `[flows][dispatch][account=${input.accountId}][contact=${input.contactId}]`;
@@ -2219,26 +2316,30 @@ export async function dispatchInboundToFlows(
     const activeRun = await loadActiveRunForContact(
       db,
       input.accountId,
-      input.contactId,
+      input.contactId
     );
 
     // Idempotency — only matters if there's already a run for this
     // contact. For new runs, the partial unique index catches duplicate
     // starts at INSERT time.
     if (activeRun) {
-      console.log(`${logPrefix} Active run found: flow_id=${activeRun.flow_id}, current_node=${activeRun.current_node_key}`);
+      console.log(
+        `${logPrefix} Active run found: flow_id=${activeRun.flow_id}, current_node=${activeRun.current_node_key}`
+      );
       const dupe = await isDuplicateInbound(
         db,
         input.accountId,
         input.contactId,
-        input.message.meta_message_id,
+        input.message.meta_message_id
       );
       if (dupe) {
-        console.log(`${logPrefix} Duplicate inbound ignored (meta_message_id=${input.message.meta_message_id})`);
+        console.log(
+          `${logPrefix} Duplicate inbound ignored (meta_message_id=${input.message.meta_message_id})`
+        );
         return {
           consumed: true,
           flow_run_id: activeRun.id,
-          outcome: "duplicate_inbound_ignored",
+          outcome: 'duplicate_inbound_ignored',
         };
       }
       // One SELECT for the whole flow's nodes — advance loop is now
@@ -2251,31 +2352,37 @@ export async function dispatchInboundToFlows(
     // unless the caller suppressed entry (owner contacts must never be
     // greeted by a buyer-intake flow).
     if (input.allowEntry === false) {
-      console.log(`${logPrefix} Entry suppressed by caller (allowEntry=false).`);
-      return { consumed: false, outcome: "entry_suppressed" };
+      console.log(
+        `${logPrefix} Entry suppressed by caller (allowEntry=false).`
+      );
+      return { consumed: false, outcome: 'entry_suppressed' };
     }
-    console.log(`${logPrefix} No active run. Searching for matching flow... message_kind=${input.message.kind}`);
+    console.log(
+      `${logPrefix} No active run. Searching for matching flow... message_kind=${input.message.kind}`
+    );
     const flow = await findEntryFlow(
       db,
       input.accountId,
       input.contactId,
       input.message,
       input.isFirstInboundMessage,
-      input.repliesRatherThanOpens === true,
+      input.repliesRatherThanOpens === true
     );
     if (!flow || !flow.entry_node_id) {
       console.log(`${logPrefix} No matching flow found.`);
-      return { consumed: false, outcome: "no_match" };
+      return { consumed: false, outcome: 'no_match' };
     }
-    console.log(`${logPrefix} Flow matched: id=${flow.id}, name=${flow.name}, trigger_type=${flow.trigger_type}`);
+    console.log(
+      `${logPrefix} Flow matched: id=${flow.id}, name=${flow.name}, trigger_type=${flow.trigger_type}`
+    );
     const nodes = await loadAllNodes(db, flow.id);
     return startNewRun(db, flow, input, nodes);
   } catch (err) {
     console.error(
       `${logPrefix} threw:`,
-      err instanceof Error ? err.message : err,
+      err instanceof Error ? err.message : err
     );
-    return { consumed: false, outcome: "no_match" };
+    return { consumed: false, outcome: 'no_match' };
   }
 }
 
@@ -2283,7 +2390,7 @@ async function handleReplyForActiveRun(
   db: AdminClient,
   run: FlowRunRow,
   message: ParsedInbound,
-  nodes: Map<string, FlowNodeRow>,
+  nodes: Map<string, FlowNodeRow>
 ): Promise<DispatchInboundResult> {
   // Note: we intentionally do NOT persist the raw customer text. A
   // `collect_input` prompt that asks "what's your card number?" would
@@ -2292,28 +2399,28 @@ async function handleReplyForActiveRun(
   // table. Length is enough for "did they actually reply?" debugging;
   // for the captured value itself, the `node_entered` event already
   // records `captured_key` + `captured_length` after the var is stored.
-  await logEvent(db, run.id, "reply_received", run.current_node_key, {
+  await logEvent(db, run.id, 'reply_received', run.current_node_key, {
     meta_message_id: message.meta_message_id,
     reply_kind: message.kind,
-    reply_id: message.kind === "interactive_reply" ? message.reply_id : null,
-    text_length: message.kind === "text" ? message.text.length : null,
+    reply_id: message.kind === 'interactive_reply' ? message.reply_id : null,
+    text_length: message.kind === 'text' ? message.text.length : null,
   });
 
   if (!run.current_node_key) {
     // Defensive — a run with status='active' but no current node is
     // malformed. Fail the run rather than spin.
-    await endRun(db, run.id, "failed", "active_run_missing_current_node");
+    await endRun(db, run.id, 'failed', 'active_run_missing_current_node');
     return {
       consumed: true,
       flow_run_id: run.id,
-      outcome: "no_match",
+      outcome: 'no_match',
     };
   }
 
   const currentNode = nodes.get(run.current_node_key) ?? null;
   if (!currentNode) {
-    await endRun(db, run.id, "failed", "current_node_not_found");
-    return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
+    await endRun(db, run.id, 'failed', 'current_node_not_found');
+    return { consumed: true, flow_run_id: run.id, outcome: 'no_match' };
   }
 
   // Two ways a reply can advance:
@@ -2324,48 +2431,48 @@ async function handleReplyForActiveRun(
   let matched: string | null = null;
   const nextBudget = nextBudgetListingsFromVars(run.vars);
   const requestsNextBudget =
-    currentNode.node_type === "send_buttons" &&
+    currentNode.node_type === 'send_buttons' &&
     nextBudget.length > 0 &&
-    ((message.kind === "interactive_reply" &&
+    ((message.kind === 'interactive_reply' &&
       message.reply_id === EXPLORE_NEXT_BUDGET_REPLY_ID) ||
-      (message.kind === "text" &&
+      (message.kind === 'text' &&
         /^(?:yes|sure|next|show|explore)(?:\s+(?:them|more|next))?[.!]?$/i.test(
-          message.text.trim(),
+          message.text.trim()
         )));
   if (requestsNextBudget) {
     try {
       await sendNextBudgetListings(db, run, nextBudget);
     } catch (err) {
-      await logEvent(db, run.id, "error", currentNode.node_key, {
-        reason: "next_budget_listings_send_failed",
+      await logEvent(db, run.id, 'error', currentNode.node_key, {
+        reason: 'next_budget_listings_send_failed',
         detail: err instanceof Error ? err.message : String(err),
       });
     }
-    return { consumed: true, flow_run_id: run.id, outcome: "advanced" };
+    return { consumed: true, flow_run_id: run.id, outcome: 'advanced' };
   }
 
   // A bare "ok" / "thanks" closes an exchange; it is not an answer and
   // not a mistake. Consume it silently rather than capturing it as the
   // customer's budget or apologising for not understanding it. Check the
   // next-budget invitation first because "yes" and "sure" are valid answers.
-  if (message.kind === "text" && isAcknowledgementOnly(message.text)) {
-    await logEvent(db, run.id, "node_entered", currentNode.node_key, {
-      reason: "acknowledgement_ignored",
+  if (message.kind === 'text' && isAcknowledgementOnly(message.text)) {
+    await logEvent(db, run.id, 'node_entered', currentNode.node_key, {
+      reason: 'acknowledgement_ignored',
     });
-    return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
+    return { consumed: true, flow_run_id: run.id, outcome: 'no_match' };
   }
   if (
-    message.kind === "interactive_reply" &&
-    (currentNode.node_type === "send_buttons" ||
-      currentNode.node_type === "send_list")
+    message.kind === 'interactive_reply' &&
+    (currentNode.node_type === 'send_buttons' ||
+      currentNode.node_type === 'send_list')
   ) {
     matched = matchReplyId(currentNode, message.reply_id);
   } else if (
-    message.kind === "text" &&
-    currentNode.node_type === "send_buttons" &&
+    message.kind === 'text' &&
+    currentNode.node_type === 'send_buttons' &&
     matchListingSelection(
       message.text,
-      (run.vars?.[SHOWN_LISTINGS_VAR] as ShownListing[] | undefined) ?? [],
+      (run.vars?.[SHOWN_LISTINGS_VAR] as ShownListing[] | undefined) ?? []
     )
   ) {
     // The listings we just sent were numbered and the customer answered
@@ -2374,12 +2481,12 @@ async function handleReplyForActiveRun(
     // rather than reprompting them to tap a button instead.
     const pick = matchListingSelection(
       message.text,
-      (run.vars?.[SHOWN_LISTINGS_VAR] as ShownListing[] | undefined) ?? [],
+      (run.vars?.[SHOWN_LISTINGS_VAR] as ShownListing[] | undefined) ?? []
     )!;
     matched = await recordListingInterest(db, run, currentNode, pick);
   } else if (
-    message.kind === "text" &&
-    currentNode.node_type === "collect_input"
+    message.kind === 'text' &&
+    currentNode.node_type === 'collect_input'
   ) {
     const cfg = currentNode.config as unknown as CollectInputNodeConfig;
     const captured = message.text.trim();
@@ -2387,19 +2494,19 @@ async function handleReplyForActiveRun(
       // Persist captured value + reset reprompt count atomically.
       const newVars = { ...run.vars, [cfg.var_key]: captured };
       const { error: capErr } = await db
-        .from("flow_runs")
+        .from('flow_runs')
         .update({
           vars: newVars,
           reprompt_count: 0,
         })
-        .eq("id", run.id);
+        .eq('id', run.id);
       if (!capErr) {
         // Mirror the UPDATE in-memory so downstream interpolation in
         // the advance loop sees the captured var without us having to
         // re-SELECT the whole row.
         run.vars = newVars;
         run.reprompt_count = 0;
-        await logEvent(db, run.id, "node_entered", currentNode.node_key, {
+        await logEvent(db, run.id, 'node_entered', currentNode.node_key, {
           captured_key: cfg.var_key,
           captured_length: captured.length,
         });
@@ -2411,16 +2518,16 @@ async function handleReplyForActiveRun(
   // Stale-button branch switch: the tap didn't match the current
   // node, but some earlier node in this flow owns the reply_id — the
   // customer scrolled up and picked a different branch. Honour it.
-  if (!matched && message.kind === "interactive_reply") {
+  if (!matched && message.kind === 'interactive_reply') {
     const hit = findReplyIdAcrossNodes(
       nodes.values(),
       message.reply_id,
-      currentNode.node_key,
+      currentNode.node_key
     );
     if (hit) {
       matched = hit.next_node_key;
-      await logEvent(db, run.id, "node_entered", hit.node_key, {
-        reason: "stale_button_branch_switch",
+      await logEvent(db, run.id, 'node_entered', hit.node_key, {
+        reason: 'stale_button_branch_switch',
         reply_id: message.reply_id,
         from_node: currentNode.node_key,
       });
@@ -2433,36 +2540,37 @@ async function handleReplyForActiveRun(
   // — everything else stays with the fallback policy below.
   if (
     !matched &&
-    message.kind === "text" &&
+    message.kind === 'text' &&
     run.contact_id &&
     currentNode.node_type !== 'collect_input'
   ) {
-    const context =
-      run.vars?.[BUDGET_CONTEXT_VAR] === "rent" ? "rent" : "sale";
+    const context = run.vars?.[BUDGET_CONTEXT_VAR] === 'rent' ? 'rent' : 'sale';
     // A bare number is a listing pick far more often than a budget —
     // "2" must not silently become ₹2 Cr. Require a unit or a currency
     // marker, which every real budget correction carries.
-    const looksLikeBudget = /(?:₹|rs\.?|\b(?:cr|crore|crores|lakh|lakhs|lac|lacs|l|k)\b)/i.test(
-      message.text,
-    );
+    const looksLikeBudget =
+      /(?:₹|rs\.?|\b(?:cr|crore|crores|lakh|lakhs|lac|lacs|l|k)\b)/i.test(
+        message.text
+      );
     const parsed = looksLikeBudget
       ? parseBudgetText(message.text, context)
       : { min: null, max: null };
     if (parsed.max && parsed.max > 0) {
-      const text = formatBudgetINR(parsed.min, parsed.max) ?? message.text.trim();
+      const text =
+        formatBudgetINR(parsed.min, parsed.max) ?? message.text.trim();
       const newVars = { ...run.vars, budget: text };
-      await db.from("flow_runs").update({ vars: newVars }).eq("id", run.id);
+      await db.from('flow_runs').update({ vars: newVars }).eq('id', run.id);
       run.vars = newVars;
       await db
-        .from("contacts")
+        .from('contacts')
         .update({
           pref_budget_min: parsed.min,
           pref_budget_max: parsed.max,
         })
-        .eq("id", run.contact_id)
-        .eq("account_id", run.account_id);
-      await logEvent(db, run.id, "node_entered", run.current_node_key, {
-        reason: "budget_correction_applied",
+        .eq('id', run.contact_id)
+        .eq('account_id', run.account_id);
+      await logEvent(db, run.id, 'node_entered', run.current_node_key, {
+        reason: 'budget_correction_applied',
       });
       try {
         await engineSendText({
@@ -2473,12 +2581,12 @@ async function handleReplyForActiveRun(
           text: BUDGET_CORRECTION_CONFIRM(text),
         });
       } catch (err) {
-        await logEvent(db, run.id, "error", run.current_node_key, {
-          reason: "budget_correction_confirm_failed",
+        await logEvent(db, run.id, 'error', run.current_node_key, {
+          reason: 'budget_correction_confirm_failed',
           detail: err instanceof Error ? err.message : String(err),
         });
       }
-      return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
+      return { consumed: true, flow_run_id: run.id, outcome: 'no_match' };
     }
   }
 
@@ -2491,12 +2599,12 @@ async function handleReplyForActiveRun(
   // the eventual handoff sees it. (Raw text deliberately does NOT go
   // into flow_run_events — see the privacy note at the top of this
   // function; contact.requirements is agent-facing by design.)
-  if (!matched && message.kind === "text" && run.contact_id) {
+  if (!matched && message.kind === 'text' && run.contact_id) {
     await captureUnmatchedTextOnContact(
       db,
       run.account_id,
       run.contact_id,
-      message.text,
+      message.text
     );
   }
 
@@ -2510,9 +2618,9 @@ async function handleReplyForActiveRun(
     // local copy is the source of truth.
     if (run.reprompt_count !== 0) {
       const { error } = await db
-        .from("flow_runs")
+        .from('flow_runs')
         .update({ reprompt_count: 0 })
-        .eq("id", run.id);
+        .eq('id', run.id);
       if (!error) run.reprompt_count = 0;
     }
     const outcome = await advanceFromNodeKey(db, run, matched, nodes);
@@ -2525,68 +2633,68 @@ async function handleReplyForActiveRun(
 
   // No match → fallback. Apply the policy.
   const policy = resolveFallbackPolicy(
-    (await loadFlow(db, run.flow_id))?.fallback_policy,
+    (await loadFlow(db, run.flow_id))?.fallback_policy
   );
   const newReprompts = run.reprompt_count + 1;
   await db
-    .from("flow_runs")
+    .from('flow_runs')
     .update({ reprompt_count: newReprompts })
-    .eq("id", run.id);
+    .eq('id', run.id);
 
   const action = decideFallback({ policy, reprompt_count: newReprompts });
-  await logEvent(db, run.id, "fallback_fired", run.current_node_key, {
+  await logEvent(db, run.id, 'fallback_fired', run.current_node_key, {
     action: action.type,
     reprompt_count: newReprompts,
   });
-  if (action.type === "ignore") {
+  if (action.type === 'ignore') {
     // Don't consume — let automations have a shot at it.
-    return { consumed: false, flow_run_id: run.id, outcome: "no_match" };
+    return { consumed: false, flow_run_id: run.id, outcome: 'no_match' };
   }
-  if (action.type === "reprompt") {
+  if (action.type === 'reprompt') {
     // Re-send the same options with apologetic copy (same node, no
     // current_node_key change) — repeating the branch intro verbatim
     // reads like the bot ignored what the customer just said.
-    if (currentNode.node_type === "send_buttons") {
+    if (currentNode.node_type === 'send_buttons') {
       await sendButtonsAndSuspend(db, run, currentNode, REPROMPT_BODY_TEXT);
-    } else if (currentNode.node_type === "send_list") {
+    } else if (currentNode.node_type === 'send_list') {
       await sendListAndSuspend(db, run, currentNode, REPROMPT_BODY_TEXT);
-    } else if (currentNode.node_type === "collect_input") {
+    } else if (currentNode.node_type === 'collect_input') {
       // Customer typed something we couldn't accept (empty after trim,
       // or var_key missing — rare). Re-send the prompt so they try again.
       const cfg = currentNode.config as unknown as CollectInputNodeConfig;
       try {
         await engineSendText({
           accountId: run.account_id,
-    userId: run.user_id,
+          userId: run.user_id,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           text: interpolateVars(cfg.prompt_text, run.vars),
         });
       } catch (err) {
-        await logEvent(db, run.id, "error", currentNode.node_key, {
-          reason: "reprompt_send_failed",
+        await logEvent(db, run.id, 'error', currentNode.node_key, {
+          reason: 'reprompt_send_failed',
           detail: err instanceof Error ? err.message : String(err),
         });
       }
     }
-    return { consumed: true, flow_run_id: run.id, outcome: "fallback_fired" };
+    return { consumed: true, flow_run_id: run.id, outcome: 'fallback_fired' };
   }
-  if (action.type === "handoff") {
+  if (action.type === 'handoff') {
     if (run.conversation_id) {
       await db
-        .from("conversations")
-        .update({ status: "pending", updated_at: new Date().toISOString() })
-        .eq("id", run.conversation_id);
+        .from('conversations')
+        .update({ status: 'pending', updated_at: new Date().toISOString() })
+        .eq('id', run.conversation_id);
     }
-    await logEvent(db, run.id, "handoff", run.current_node_key, {
-      reason: "fallback_exhausted",
+    await logEvent(db, run.id, 'handoff', run.current_node_key, {
+      reason: 'fallback_exhausted',
     });
-    await endRun(db, run.id, "handed_off", "fallback_exhausted");
-    return { consumed: true, flow_run_id: run.id, outcome: "handed_off" };
+    await endRun(db, run.id, 'handed_off', 'fallback_exhausted');
+    return { consumed: true, flow_run_id: run.id, outcome: 'handed_off' };
   }
   // action.type === 'end'
-  await endRun(db, run.id, "completed", "fallback_exhausted_end");
-  return { consumed: true, flow_run_id: run.id, outcome: "completed" };
+  await endRun(db, run.id, 'completed', 'fallback_exhausted_end');
+  return { consumed: true, flow_run_id: run.id, outcome: 'completed' };
 }
 
 /**
@@ -2599,23 +2707,23 @@ async function captureUnmatchedTextOnContact(
   db: AdminClient,
   accountId: string,
   contactId: string,
-  rawText: string,
+  rawText: string
 ): Promise<void> {
   try {
     const { data: contact } = await db
-      .from("contacts")
-      .select("requirements")
-      .eq("id", contactId)
+      .from('contacts')
+      .select('requirements')
+      .eq('id', contactId)
       .maybeSingle();
     const merged = appendUnmatchedText(
       (contact as { requirements?: string | null } | null)?.requirements,
-      rawText,
+      rawText
     );
     if (merged === null) return;
     await db
-      .from("contacts")
+      .from('contacts')
       .update({ requirements: merged, updated_at: new Date().toISOString() })
-      .eq("id", contactId);
+      .eq('id', contactId);
 
     // Storing the text is not the same as understanding it. Matching,
     // Radar and the buyer digest all read pref_*, never requirements —
@@ -2625,14 +2733,16 @@ async function captureUnmatchedTextOnContact(
     void syncContactPreferences(db, accountId, contactId)
       .then((r) => {
         if (r.status === 'updated') {
-          void generateMatchEventForContact(db, accountId, contactId).catch(() => {});
+          void generateMatchEventForContact(db, accountId, contactId).catch(
+            () => {}
+          );
         }
       })
       .catch(() => {});
   } catch (err) {
     console.error(
-      "[flows] captureUnmatchedTextOnContact failed:",
-      err instanceof Error ? err.message : err,
+      '[flows] captureUnmatchedTextOnContact failed:',
+      err instanceof Error ? err.message : err
     );
   }
 }
@@ -2641,13 +2751,13 @@ async function startNewRun(
   db: AdminClient,
   flow: FlowRow,
   input: DispatchInboundInput,
-  nodes: Map<string, FlowNodeRow>,
+  nodes: Map<string, FlowNodeRow>
 ): Promise<DispatchInboundResult> {
   // INSERT — partial unique index `idx_one_active_run_per_contact`
   // catches concurrent inserts with 23505. We catch and return as
   // consumed:true (the parallel webhook handles it).
   const { data: inserted, error: insErr } = await db
-    .from("flow_runs")
+    .from('flow_runs')
     .insert({
       flow_id: flow.id,
       // Tenancy: NOT NULL post-017. The partial unique index
@@ -2660,22 +2770,22 @@ async function startNewRun(
       user_id: flow.user_id,
       contact_id: input.contactId,
       conversation_id: input.conversationId,
-      status: "active",
+      status: 'active',
       current_node_key: flow.entry_node_id,
     })
-    .select("*")
+    .select('*')
     .maybeSingle();
   if (insErr) {
     // 23505 = unique_violation → another webhook is starting the run.
-    const msg = insErr.message ?? "";
-    if (msg.includes("23505") || msg.includes("duplicate key")) {
-      return { consumed: true, outcome: "duplicate_inbound_ignored" };
+    const msg = insErr.message ?? '';
+    if (msg.includes('23505') || msg.includes('duplicate key')) {
+      return { consumed: true, outcome: 'duplicate_inbound_ignored' };
     }
-    console.error("[flows] startNewRun insert error:", insErr.message);
-    return { consumed: false, outcome: "no_match" };
+    console.error('[flows] startNewRun insert error:', insErr.message);
+    return { consumed: false, outcome: 'no_match' };
   }
   const run = inserted as FlowRunRow;
-  await logEvent(db, run.id, "started", flow.entry_node_id, {
+  await logEvent(db, run.id, 'started', flow.entry_node_id, {
     flow_id: flow.id,
     trigger_type: flow.trigger_type,
     meta_message_id: input.message.meta_message_id,
@@ -2688,12 +2798,12 @@ async function startNewRun(
   // same flow would otherwise both read N and both write N+1, losing
   // a count. Mirrors the automations engine's use of
   // `increment_automation_execution_count` (migration 007).
-  const { error: incErr } = await db.rpc("increment_flow_execution_count", {
+  const { error: incErr } = await db.rpc('increment_flow_execution_count', {
     p_flow_id: flow.id,
   });
   if (incErr) {
     // Non-fatal — the run itself succeeded; only the counter is off.
-    console.error("[flows] execution_count rpc error:", incErr.message);
+    console.error('[flows] execution_count rpc error:', incErr.message);
   }
 
   // Run the advance loop starting from the entry node.
@@ -2701,6 +2811,6 @@ async function startNewRun(
   return {
     consumed: true,
     flow_run_id: run.id,
-    outcome: outcome.outcome === "advanced" ? "started" : outcome.outcome,
+    outcome: outcome.outcome === 'advanced' ? 'started' : outcome.outcome,
   };
 }

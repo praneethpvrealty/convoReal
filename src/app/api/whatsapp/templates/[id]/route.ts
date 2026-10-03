@@ -1,25 +1,25 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server';
 import {
   requireOrgRole,
   toErrorResponse,
   type AccountContext,
-} from '@/lib/auth/account'
-import { decrypt } from '@/lib/whatsapp/encryption'
+} from '@/lib/auth/account';
+import { decrypt } from '@/lib/whatsapp/encryption';
 import {
   deleteMessageTemplate,
   editMessageTemplate,
-} from '@/lib/whatsapp/meta-api'
+} from '@/lib/whatsapp/meta-api';
 import {
   validateTemplatePayload,
   type TemplatePayload,
-} from '@/lib/whatsapp/template-validators'
-import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components'
-import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons'
+} from '@/lib/whatsapp/template-validators';
+import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components';
+import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons';
 import {
   requiresTranslationReview,
   editMatchesReviewedCopy,
   TRANSLATION_EDIT_UNREVIEWED_MESSAGE,
-} from '@/lib/whatsapp/translation-review'
+} from '@/lib/whatsapp/translation-review';
 
 /**
  * Per-template lifecycle endpoint.
@@ -38,50 +38,53 @@ import {
  * already-submitted templates.
  */
 
-const EDITABLE_STATUSES = new Set(['APPROVED', 'REJECTED', 'PAUSED'])
+const EDITABLE_STATUSES = new Set(['APPROVED', 'REJECTED', 'PAUSED']);
 
 // uuid v4 plus the looser shape Postgres gen_random_uuid emits.
 // We don't need exhaustive RFC parsing — just enough to reject
 // "../etc/passwd"-style payloads before they hit Supabase.
 const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isDryRun(): boolean {
   return (
     process.env.WHATSAPP_TEMPLATES_DRY_RUN === 'true' ||
     process.env.WHATSAPP_TEMPLATES_DRY_RUN === '1'
-  )
+  );
 }
 
 export async function PATCH(
   request: Request,
-  context: { params: Promise<{ id: string }> },
+  context: { params: Promise<{ id: string }> }
 ) {
   // Template management is org_manager-only (product decision, see
   // migration 146). Resolved outside the main try so a 401/403
   // doesn't collapse into the generic 500.
-  let ctx: AccountContext
+  let ctx: AccountContext;
   try {
-    ctx = await requireOrgRole('org_manager')
+    ctx = await requireOrgRole('org_manager');
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
-  const { supabase, accountId } = ctx
+  const { supabase, accountId } = ctx;
 
   try {
-    const { id } = await context.params
+    const { id } = await context.params;
     if (!UUID_RE.test(id)) {
       return NextResponse.json(
         { error: 'Invalid template id.' },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
-    let payload: TemplatePayload
+    let payload: TemplatePayload;
     try {
-      payload = (await request.json()) as TemplatePayload
+      payload = (await request.json()) as TemplatePayload;
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Invalid JSON body.' },
+        { status: 400 }
+      );
     }
 
     // RLS handles ownership, but we need the existing row to read
@@ -89,13 +92,16 @@ export async function PATCH(
     const { data: existing, error: lookupErr } = await supabase
       .from('message_templates')
       .select(
-        'id, name, status, category, meta_template_id, language, body_text, footer_text, translation_reviewed_at',
+        'id, name, status, category, meta_template_id, language, body_text, footer_text, translation_reviewed_at'
       )
       .eq('id', id)
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
     if (lookupErr || !existing) {
-      return NextResponse.json({ error: 'Template not found.' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Template not found.' },
+        { status: 404 }
+      );
     }
 
     // The translation gate holds for edits too: an edit is how a
@@ -111,8 +117,8 @@ export async function PATCH(
           error: TRANSLATION_EDIT_UNREVIEWED_MESSAGE,
           code: 'TRANSLATION_REVIEW_REQUIRED',
         },
-        { status: 409 },
-      )
+        { status: 409 }
+      );
     }
 
     if (!existing.meta_template_id) {
@@ -121,8 +127,8 @@ export async function PATCH(
           error:
             'This template was never submitted to Meta — use New Template to submit it instead.',
         },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
     if (!EDITABLE_STATUSES.has(existing.status)) {
@@ -130,8 +136,8 @@ export async function PATCH(
         {
           error: `Templates in status ${existing.status} cannot be edited. Allowed: APPROVED, REJECTED, PAUSED.`,
         },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
     if (payload.category === 'Authentication') {
@@ -140,8 +146,8 @@ export async function PATCH(
           error:
             'AUTHENTICATION templates are not editable here — manage them in Meta WhatsApp Manager.',
         },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
     // Meta fixes a template's category at review and refuses to move it
@@ -158,8 +164,8 @@ export async function PATCH(
         {
           error: `Meta will not move an approved template from ${existing.category} to ${payload.category} — the category is fixed when it first passes review. Submit this content as a new template under a different name, or appeal the category in WhatsApp Manager (Business Support) within 60 days.`,
         },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
     // Same rule as submission: buyer-facing links belong on the
@@ -168,32 +174,32 @@ export async function PATCH(
     // its URL corrected, so it has to apply here too — a fix that only
     // reached new templates would leave every live one pointing at the
     // shared site forever.
-    payload = await withAccountShowcaseButtons(supabase, accountId, payload)
+    payload = await withAccountShowcaseButtons(supabase, accountId, payload);
 
     try {
-      validateTemplatePayload(payload)
+      validateTemplatePayload(payload);
     } catch (e) {
       return NextResponse.json(
         { error: e instanceof Error ? e.message : 'Validation failed.' },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
-    const metaPayload = buildMetaTemplatePayload(payload)
+    const metaPayload = buildMetaTemplatePayload(payload);
 
     if (!isDryRun()) {
       const { data: config, error: configError } = await supabase
         .from('whatsapp_config')
         .select('*')
         .eq('account_id', accountId)
-        .single()
+        .single();
       if (configError || !config) {
         return NextResponse.json(
           { error: 'WhatsApp not configured.' },
-          { status: 400 },
-        )
+          { status: 400 }
+        );
       }
-      const accessToken = decrypt(config.access_token)
+      const accessToken = decrypt(config.access_token);
       try {
         await editMessageTemplate({
           metaTemplateId: existing.meta_template_id,
@@ -204,9 +210,9 @@ export async function PATCH(
           // silent Marketing re-categorisation. Without it we would
           // save Utility locally while Meta keeps billing Marketing.
           category: metaPayload.category,
-        })
+        });
       } catch (e) {
-        const message = e instanceof Error ? e.message : 'Meta edit failed.'
+        const message = e instanceof Error ? e.message : 'Meta edit failed.';
         await supabase
           .from('message_templates')
           // Recording why Meta rejected the edit, on a path that already
@@ -216,8 +222,8 @@ export async function PATCH(
             submission_error: message,
             last_submitted_at: new Date().toISOString(),
           })
-          .eq('id', id)
-        return NextResponse.json({ error: message }, { status: 502 })
+          .eq('id', id);
+        return NextResponse.json({ error: message }, { status: 502 });
       }
     }
 
@@ -241,55 +247,55 @@ export async function PATCH(
       })
       .eq('id', id)
       .select()
-      .single()
+      .single();
 
     if (updErr) {
       return NextResponse.json(
         {
           error: `Edited on Meta but failed to save locally: ${updErr.message}. Run "Sync from Meta" to recover.`,
         },
-        { status: 500 },
-      )
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
       success: true,
       template: row,
       dry_run: isDryRun(),
-    })
+    });
   } catch (error) {
-    console.error('Error editing template:', error)
+    console.error('Error editing template:', error);
     return NextResponse.json(
       {
         error:
           error instanceof Error ? error.message : 'Failed to edit template.',
       },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 }
 
 export async function DELETE(
   _request: Request,
-  context: { params: Promise<{ id: string }> },
+  context: { params: Promise<{ id: string }> }
 ) {
   // Same org_manager gate as PATCH — deleting a template also
   // deletes it on Meta, which breaks any broadcast still using it.
-  let ctx: AccountContext
+  let ctx: AccountContext;
   try {
-    ctx = await requireOrgRole('org_manager')
+    ctx = await requireOrgRole('org_manager');
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
-  const { supabase, accountId } = ctx
+  const { supabase, accountId } = ctx;
 
   try {
-    const { id } = await context.params
+    const { id } = await context.params;
     if (!UUID_RE.test(id)) {
       return NextResponse.json(
         { error: 'Invalid template id.' },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
     const { data: existing, error: lookupErr } = await supabase
@@ -297,9 +303,12 @@ export async function DELETE(
       .select('id, name, meta_template_id')
       .eq('id', id)
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
     if (lookupErr || !existing) {
-      return NextResponse.json({ error: 'Template not found.' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Template not found.' },
+        { status: 404 }
+      );
     }
 
     if (existing.meta_template_id && !isDryRun()) {
@@ -307,24 +316,24 @@ export async function DELETE(
         .from('whatsapp_config')
         .select('*')
         .eq('account_id', accountId)
-        .single()
+        .single();
       if (configError || !config || !config.waba_id) {
         return NextResponse.json(
           { error: 'WhatsApp not configured — cannot delete on Meta.' },
-          { status: 400 },
-        )
+          { status: 400 }
+        );
       }
-      const accessToken = decrypt(config.access_token)
+      const accessToken = decrypt(config.access_token);
       try {
         await deleteMessageTemplate({
           wabaId: config.waba_id,
           accessToken,
           name: existing.name,
           metaTemplateId: existing.meta_template_id,
-        })
+        });
       } catch (e) {
-        const message = e instanceof Error ? e.message : 'Meta delete failed.'
-        
+        const message = e instanceof Error ? e.message : 'Meta delete failed.';
+
         // If the template does not exist on Meta or the parameter is invalid (e.g. template ID belongs to a different WABA),
         // we log the warning but proceed with local deletion so the user isn't stuck with stale templates.
         const isNotFoundError =
@@ -334,11 +343,13 @@ export async function DELETE(
           message.includes('100') ||
           message.includes('404') ||
           message.includes('400');
-          
+
         if (!isNotFoundError) {
-          return NextResponse.json({ error: message }, { status: 502 })
+          return NextResponse.json({ error: message }, { status: 502 });
         }
-        console.warn(`Template delete failed on Meta with: "${message}". Proceeding with local database deletion.`)
+        console.warn(
+          `Template delete failed on Meta with: "${message}". Proceeding with local database deletion.`
+        );
       }
     }
 
@@ -346,31 +357,31 @@ export async function DELETE(
       .from('message_templates')
       .delete()
       .eq('id', id)
-      .select('id')
+      .select('id');
     if (!delErr && !deleted?.length) {
       return NextResponse.json(
         { error: 'Template not found' },
-        { status: 404 },
-      )
+        { status: 404 }
+      );
     }
     if (delErr) {
       return NextResponse.json(
         {
           error: `Deleted on Meta but failed to delete locally: ${delErr.message}.`,
         },
-        { status: 500 },
-      )
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ success: true, dry_run: isDryRun() })
+    return NextResponse.json({ success: true, dry_run: isDryRun() });
   } catch (error) {
-    console.error('Error deleting template:', error)
+    console.error('Error deleting template:', error);
     return NextResponse.json(
       {
         error:
           error instanceof Error ? error.message : 'Failed to delete template.',
       },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 }

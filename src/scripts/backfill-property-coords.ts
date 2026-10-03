@@ -51,7 +51,9 @@ async function main() {
   }
 
   const candidates = (rows || []).filter((r) => (r.location || '').trim());
-  console.log(`${candidates.length} properties need geocoding${dryRun ? ' (dry run)' : ''}.`);
+  console.log(
+    `${candidates.length} properties need geocoding${dryRun ? ' (dry run)' : ''}.`
+  );
 
   let ok = 0;
   let failed = 0;
@@ -60,10 +62,16 @@ async function main() {
     // Prefer the most specific stable parts; location already usually
     // contains sublocality/city/state, but append them when absent.
     const parts = [row.location.trim()];
-    if (row.city && !row.location.toLowerCase().includes(row.city.toLowerCase())) {
+    if (
+      row.city &&
+      !row.location.toLowerCase().includes(row.city.toLowerCase())
+    ) {
       parts.push(row.city.trim());
     }
-    if (row.state && !row.location.toLowerCase().includes(row.state.toLowerCase())) {
+    if (
+      row.state &&
+      !row.location.toLowerCase().includes(row.state.toLowerCase())
+    ) {
       parts.push(row.state.trim());
     }
     const address = parts.join(', ');
@@ -92,7 +100,9 @@ async function main() {
           failed++;
         } else {
           ok++;
-          console.log(`  ✓ ${row.id}: ${geo.latitude.toFixed(5)},${geo.longitude.toFixed(5)}  (${address})`);
+          console.log(
+            `  ✓ ${row.id}: ${geo.latitude.toFixed(5)},${geo.longitude.toFixed(5)}  (${address})`
+          );
         }
       }
     } catch (err) {
@@ -103,7 +113,9 @@ async function main() {
     if ((i + 1) % 10 === 0) await sleep(1000); // ~10 req/s
   }
 
-  console.log(`Done. ${ok} geocoded, ${failed} failed, ${candidates.length - ok - failed} skipped.`);
+  console.log(
+    `Done. ${ok} geocoded, ${failed} failed, ${candidates.length - ok - failed} skipped.`
+  );
 }
 
 main();

@@ -32,7 +32,10 @@ function inr(n: number) {
   return `${sign}₹${Math.abs(n).toLocaleString('en-IN')}`;
 }
 
-const STATUS_BADGE: Record<LiaisonJobStatus, { label: string; className: string }> = {
+const STATUS_BADGE: Record<
+  LiaisonJobStatus,
+  { label: string; className: string }
+> = {
   open: {
     label: 'Open',
     className: 'border-sky-500/30 bg-sky-500/10 text-sky-400',
@@ -51,7 +54,7 @@ export function JobStatusBadge({ status }: { status: LiaisonJobStatus }) {
   const meta = STATUS_BADGE[status];
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-wider font-semibold shrink-0 ${meta.className}`}
+      className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold tracking-wider uppercase ${meta.className}`}
     >
       {meta.label}
     </span>
@@ -120,13 +123,17 @@ export function JobDetailDialog({
         const data = await res.json().catch(() => null);
         throw new Error(data?.error ?? 'Request failed');
       }
-      toast.success(direction === 'in' ? 'Receipt recorded' : 'Payment recorded');
+      toast.success(
+        direction === 'in' ? 'Receipt recorded' : 'Payment recorded'
+      );
       setAmount('');
       setNote('');
       onChanged();
     } catch (err) {
       console.error('Error recording payment:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to record payment');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to record payment'
+      );
     } finally {
       setSavingPayment(false);
     }
@@ -171,12 +178,14 @@ export function JobDetailDialog({
           ? 'Job marked completed'
           : status === 'cancelled'
             ? 'Job cancelled'
-            : 'Job reopened',
+            : 'Job reopened'
       );
       onChanged();
     } catch (err) {
       console.error('Error updating status:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to update status');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update status'
+      );
     } finally {
       setUpdatingStatus(false);
     }
@@ -184,22 +193,22 @@ export function JobDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-slate-700 bg-slate-900 text-slate-200 sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-white flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-white">
             {job.service_name}
             <JobStatusBadge status={job.status} />
           </DialogTitle>
           <DialogDescription className="text-slate-400">
             {job.liaisons?.name ?? 'Unknown liaison'}
             {job.contacts && (
-              <span className="inline-flex items-center gap-1 ml-3">
+              <span className="ml-3 inline-flex items-center gap-1">
                 <User className="size-3" />
                 {job.contacts.name || job.contacts.phone}
               </span>
             )}
             {job.properties && (
-              <span className="inline-flex items-center gap-1 ml-3">
+              <span className="ml-3 inline-flex items-center gap-1">
                 <Building className="size-3" />
                 {job.properties.title}
               </span>
@@ -210,50 +219,56 @@ export function JobDetailDialog({
         {/* Money summary */}
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2.5">
-            <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">
+            <p className="text-[9px] font-semibold tracking-wider text-slate-500 uppercase">
               Client
             </p>
-            <p className="text-sm font-bold text-white mt-1">
+            <p className="mt-1 text-sm font-bold text-white">
               {inr(totals.received)}
               {job.client_charge !== null && (
-                <span className="text-slate-500 font-medium"> / {inr(job.client_charge)}</span>
+                <span className="font-medium text-slate-500">
+                  {' '}
+                  / {inr(job.client_charge)}
+                </span>
               )}
             </p>
             {totals.clientBalance !== null && totals.clientBalance > 0 && (
-              <p className="text-[10px] font-semibold text-amber-400 mt-0.5">
+              <p className="mt-0.5 text-[10px] font-semibold text-amber-400">
                 {inr(totals.clientBalance)} to collect
               </p>
             )}
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2.5">
-            <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">
+            <p className="text-[9px] font-semibold tracking-wider text-slate-500 uppercase">
               Liaison
             </p>
-            <p className="text-sm font-bold text-white mt-1">
+            <p className="mt-1 text-sm font-bold text-white">
               {inr(totals.paid)}
               {job.liaison_fee !== null && (
-                <span className="text-slate-500 font-medium"> / {inr(job.liaison_fee)}</span>
+                <span className="font-medium text-slate-500">
+                  {' '}
+                  / {inr(job.liaison_fee)}
+                </span>
               )}
             </p>
             {totals.liaisonBalance !== null && totals.liaisonBalance > 0 && (
-              <p className="text-[10px] font-semibold text-amber-400 mt-0.5">
+              <p className="mt-0.5 text-[10px] font-semibold text-amber-400">
                 {inr(totals.liaisonBalance)} to pay
               </p>
             )}
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2.5">
-            <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">
+            <p className="text-[9px] font-semibold tracking-wider text-slate-500 uppercase">
               Margin
             </p>
             <p
-              className={`text-sm font-bold mt-1 ${
+              className={`mt-1 text-sm font-bold ${
                 totals.realizedMargin < 0 ? 'text-red-400' : 'text-emerald-400'
               }`}
             >
               {inr(totals.realizedMargin)}
             </p>
             {totals.agreedMargin !== null && (
-              <p className="text-[10px] text-slate-500 mt-0.5">
+              <p className="mt-0.5 text-[10px] text-slate-500">
                 agreed {inr(totals.agreedMargin)}
               </p>
             )}
@@ -261,7 +276,7 @@ export function JobDetailDialog({
         </div>
 
         {job.notes && (
-          <p className="text-[11px] text-slate-400 whitespace-pre-wrap border border-slate-800 rounded-lg bg-slate-950/40 p-2.5">
+          <p className="rounded-lg border border-slate-800 bg-slate-950/40 p-2.5 text-[11px] whitespace-pre-wrap text-slate-400">
             {job.notes}
           </p>
         )}
@@ -272,7 +287,7 @@ export function JobDetailDialog({
             <button
               type="button"
               onClick={() => setDirection('in')}
-              className={`flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
+              className={`flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors ${
                 direction === 'in'
                   ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
                   : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:text-white'
@@ -284,7 +299,7 @@ export function JobDetailDialog({
             <button
               type="button"
               onClick={() => setDirection('out')}
-              className={`flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
+              className={`flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors ${
                 direction === 'out'
                   ? 'border-amber-500/40 bg-amber-500/10 text-amber-400'
                   : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:text-white'
@@ -300,19 +315,19 @@ export function JobDetailDialog({
               onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
               placeholder="Amount ₹"
               inputMode="numeric"
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+              className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
             />
             <Input
               type="date"
               value={paidOn}
               onChange={(e) => setPaidOn(e.target.value)}
-              className="bg-slate-800 border-slate-700 text-white h-8 text-xs"
+              className="h-8 border-slate-700 bg-slate-800 text-xs text-white"
             />
             <Button
               size="sm"
               onClick={handleAddPayment}
               disabled={savingPayment}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 text-xs font-bold cursor-pointer"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 cursor-pointer text-xs font-bold"
             >
               {savingPayment && <Loader2 className="size-3 animate-spin" />}
               Add
@@ -322,14 +337,14 @@ export function JobDetailDialog({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Note, e.g. advance / final settlement"
-            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+            className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
           />
         </div>
 
         {/* Ledger */}
         <div className="space-y-1">
           {payments.length === 0 ? (
-            <p className="text-[11px] text-slate-500 text-center py-3">
+            <p className="py-3 text-center text-[11px] text-slate-500">
               No payments recorded yet.
             </p>
           ) : (
@@ -341,29 +356,31 @@ export function JobDetailDialog({
                   className="flex items-center gap-2 rounded-lg border border-slate-800/70 bg-slate-950/30 px-2.5 py-1.5"
                 >
                   {p.direction === 'in' ? (
-                    <ArrowDownLeft className="size-3.5 text-emerald-400 shrink-0" />
+                    <ArrowDownLeft className="size-3.5 shrink-0 text-emerald-400" />
                   ) : (
-                    <ArrowUpRight className="size-3.5 text-amber-400 shrink-0" />
+                    <ArrowUpRight className="size-3.5 shrink-0 text-amber-400" />
                   )}
-                  <span className="text-xs font-bold text-white shrink-0">
+                  <span className="shrink-0 text-xs font-bold text-white">
                     {inr(p.amount)}
                   </span>
-                  <span className="text-[10px] text-slate-500 shrink-0">
+                  <span className="shrink-0 text-[10px] text-slate-500">
                     {new Date(p.paid_on).toLocaleDateString(undefined, {
                       day: 'numeric',
                       month: 'short',
                       year: 'numeric',
                     })}
                   </span>
-                  <span className="text-[10px] text-slate-400 truncate flex-1">
+                  <span className="flex-1 truncate text-[10px] text-slate-400">
                     {p.note ??
-                      (p.direction === 'in' ? 'Received from client' : 'Paid to liaison')}
+                      (p.direction === 'in'
+                        ? 'Received from client'
+                        : 'Paid to liaison')}
                   </span>
                   <button
                     type="button"
                     onClick={() => handleDeletePayment(p.id)}
                     aria-label="Delete entry"
-                    className="text-slate-600 hover:text-red-400 transition-colors cursor-pointer shrink-0"
+                    className="shrink-0 cursor-pointer text-slate-600 transition-colors hover:text-red-400"
                   >
                     <Trash2 className="size-3" />
                   </button>
@@ -380,7 +397,7 @@ export function JobDetailDialog({
                 size="sm"
                 onClick={() => handleStatusChange('completed')}
                 disabled={updatingStatus}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white h-8 text-xs font-bold gap-1 cursor-pointer"
+                className="h-8 cursor-pointer gap-1 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500"
               >
                 <CheckCircle2 className="size-3.5" />
                 Mark completed
@@ -390,7 +407,7 @@ export function JobDetailDialog({
                 variant="outline"
                 onClick={() => handleStatusChange('cancelled')}
                 disabled={updatingStatus}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800 h-8 text-xs gap-1 cursor-pointer"
+                className="h-8 cursor-pointer gap-1 border-slate-700 text-xs text-slate-300 hover:bg-slate-800"
               >
                 <XCircle className="size-3.5" />
                 Cancel job
@@ -402,7 +419,7 @@ export function JobDetailDialog({
               variant="outline"
               onClick={() => handleStatusChange('open')}
               disabled={updatingStatus}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800 h-8 text-xs gap-1 cursor-pointer"
+              className="h-8 cursor-pointer gap-1 border-slate-700 text-xs text-slate-300 hover:bg-slate-800"
             >
               <RotateCcw className="size-3.5" />
               Reopen
@@ -413,7 +430,7 @@ export function JobDetailDialog({
               size="sm"
               variant="ghost"
               onClick={() => onRequestEdit(job)}
-              className="h-8 px-2 text-[10px] text-slate-400 hover:text-white hover:bg-slate-800 gap-1 cursor-pointer"
+              className="h-8 cursor-pointer gap-1 px-2 text-[10px] text-slate-400 hover:bg-slate-800 hover:text-white"
             >
               <Edit className="size-3" />
               Edit
@@ -422,7 +439,7 @@ export function JobDetailDialog({
               size="sm"
               variant="ghost"
               onClick={() => onRequestDelete(job)}
-              className="h-8 px-2 text-[10px] text-slate-400 hover:text-red-400 hover:bg-slate-800 gap-1 cursor-pointer"
+              className="h-8 cursor-pointer gap-1 px-2 text-[10px] text-slate-400 hover:bg-slate-800 hover:text-red-400"
             >
               <Trash2 className="size-3" />
               Delete

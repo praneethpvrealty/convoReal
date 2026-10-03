@@ -15,10 +15,19 @@ import {
 import { getWidgetInfo, WidgetPreview } from 'react-native-android-widget';
 
 import { HOME_WIDGET_QUERY_KEY } from '@/components/home-widgets';
-import { OsWidgetView, osWidgetPalette, type OsWidgetPalette } from '@/components/os-widget';
+import {
+  OsWidgetView,
+  osWidgetPalette,
+  type OsWidgetPalette,
+} from '@/components/os-widget';
 import { SectionLabel } from '@/components/ui';
 import { haptic } from '@/lib/haptics';
-import { OS_WIDGET_NAMES, WIDGET_DEFS, WIDGET_IDS, type WidgetId } from '@/lib/home-widgets';
+import {
+  OS_WIDGET_NAMES,
+  WIDGET_DEFS,
+  WIDGET_IDS,
+  type WidgetId,
+} from '@/lib/home-widgets';
 import { updateAllOsWidgets } from '@/lib/os-widget-updates';
 import { bubbleTime } from '@/lib/format';
 import { fonts, radius, spacing, useTheme } from '@/lib/theme';
@@ -34,24 +43,41 @@ export default function OsWidgetsScreen() {
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
-      <Stack.Screen options={{ headerShown: true, title: 'Home-screen widgets' }} />
+      <Stack.Screen
+        options={{ headerShown: true, title: 'Home-screen widgets' }}
+      />
 
       <View
-        style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+        style={[
+          styles.card,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        ]}
       >
         <View style={styles.introRow}>
           <Ionicons name="grid-outline" size={20} color={colors.primary} />
-          <Text style={{ flex: 1, fontSize: 13.5, lineHeight: 19, color: colors.textMuted }}>
+          <Text
+            style={{
+              flex: 1,
+              fontSize: 13.5,
+              lineHeight: 19,
+              color: colors.textMuted,
+            }}
+          >
             Put any ConvoReal screen on your phone's home screen:{' '}
-            <Text style={{ fontFamily: f.bold, color: colors.text }}>{ADD_STEPS}</Text>. Widgets
-            refresh every 30 minutes, whenever you open the app, and when you tap Update below.
-            Tapping a widget opens its screen.
+            <Text style={{ fontFamily: f.bold, color: colors.text }}>
+              {ADD_STEPS}
+            </Text>
+            . Widgets refresh every 30 minutes, whenever you open the app, and
+            when you tap Update below. Tapping a widget opens its screen.
           </Text>
         </View>
         <UpdateAllButton />
       </View>
 
-      <SectionLabel text="Available widgets" style={{ marginTop: spacing.sm }} />
+      <SectionLabel
+        text="Available widgets"
+        style={{ marginTop: spacing.sm }}
+      />
       {WIDGET_IDS.map((id) => (
         <OsWidgetCard key={id} id={id} />
       ))}
@@ -129,16 +155,31 @@ function OsWidgetCard({ id }: { id: WidgetId }) {
   const nativePreviewReady = isAndroid && !isError && instances !== undefined;
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+      ]}
+    >
       <View style={styles.cardHead}>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ fontSize: 15.5, fontFamily: f.bold, color: colors.text }}>
+          <Text
+            style={{ fontSize: 15.5, fontFamily: f.bold, color: colors.text }}
+          >
             {def.label}
           </Text>
-          <Text style={{ fontSize: 12.5, color: colors.textMuted }}>{def.description}</Text>
+          <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+            {def.description}
+          </Text>
         </View>
         {isAndroid ? (
-          <Text style={{ fontSize: 12, fontFamily: f.semibold, color: colors.textFaint }}>
+          <Text
+            style={{
+              fontSize: 12,
+              fontFamily: f.semibold,
+              color: colors.textFaint,
+            }}
+          >
             {isError
               ? 'needs full app build'
               : instances
@@ -193,13 +234,24 @@ function MockWidgetPreview({
   return (
     <View style={[styles.mock, { backgroundColor: palette.background, width }]}>
       <View style={styles.mockHead}>
-        <Text style={{ fontSize: 11, fontFamily: fonts.bold, letterSpacing: 0.8, color: palette.accent }}>
+        <Text
+          style={{
+            fontSize: 11,
+            fontFamily: fonts.bold,
+            letterSpacing: 0.8,
+            color: palette.accent,
+          }}
+        >
           {WIDGET_DEFS[id].label.toUpperCase()}
         </Text>
         <Text style={{ fontSize: 10, color: palette.muted }}>ConvoReal</Text>
       </View>
       <Text
-        style={{ fontSize: 26, fontFamily: fonts.extrabold, color: palette.text }}
+        style={{
+          fontSize: 26,
+          fontFamily: fonts.extrabold,
+          color: palette.text,
+        }}
         numberOfLines={1}
       >
         {summary ? summary.value : '—'}
@@ -209,16 +261,30 @@ function MockWidgetPreview({
       </Text>
       {(summary?.lines ?? []).slice(0, 3).map((line, index) => (
         <View key={`${line.title}-${index}`} style={styles.mockLine}>
-          <Text style={{ fontSize: 12, fontFamily: fonts.bold, color: palette.text }} numberOfLines={1}>
+          <Text
+            style={{
+              fontSize: 12,
+              fontFamily: fonts.bold,
+              color: palette.text,
+            }}
+            numberOfLines={1}
+          >
             {line.title}
           </Text>
-          <Text style={{ flex: 1, fontSize: 12, color: palette.muted }} numberOfLines={1}>
+          <Text
+            style={{ flex: 1, fontSize: 12, color: palette.muted }}
+            numberOfLines={1}
+          >
             {line.detail}
           </Text>
-          <Text style={{ fontSize: 10, color: palette.muted }}>{line.time}</Text>
+          <Text style={{ fontSize: 10, color: palette.muted }}>
+            {line.time}
+          </Text>
         </View>
       ))}
-      <Text style={{ fontSize: 10, color: palette.muted, marginTop: spacing.sm }}>
+      <Text
+        style={{ fontSize: 10, color: palette.muted, marginTop: spacing.sm }}
+      >
         Updated {bubbleTime(new Date().toISOString())}
       </Text>
     </View>
@@ -226,7 +292,11 @@ function MockWidgetPreview({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  container: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.xxl,
+  },
   card: {
     borderWidth: 1,
     borderRadius: radius.lg,

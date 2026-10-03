@@ -45,28 +45,33 @@ describe('PROPERTY_SHARE_TEMPLATE_NAMES', () => {
 describe('pickPropertyShareTemplate', () => {
   it('leads with the photo template when there is an image', () => {
     expect(
-      pickPropertyShareTemplate([row(PHOTOS), row(TEXT)], { hasImage: true })?.name,
+      pickPropertyShareTemplate([row(PHOTOS), row(TEXT)], { hasImage: true })
+        ?.name
     ).toBe(PHOTOS);
   });
 
   it('sends text when there is nothing to lead with', () => {
     expect(
-      pickPropertyShareTemplate([row(PHOTOS), row(TEXT)], { hasImage: false })?.name,
+      pickPropertyShareTemplate([row(PHOTOS), row(TEXT)], { hasImage: false })
+        ?.name
     ).toBe(TEXT);
   });
 
   it('still sends when the photo template is not approved yet', () => {
     // The rename is under review — a share must not wait for it.
     expect(
-      pickPropertyShareTemplate([row(PHOTOS, 'Utility', 'PENDING'), row(TEXT)], {
-        hasImage: true,
-      })?.name,
+      pickPropertyShareTemplate(
+        [row(PHOTOS, 'Utility', 'PENDING'), row(TEXT)],
+        {
+          hasImage: true,
+        }
+      )?.name
     ).toBe(TEXT);
   });
 
   it('uses the photo template rather than nothing when text is missing', () => {
     expect(
-      pickPropertyShareTemplate([row(PHOTOS)], { hasImage: false })?.name,
+      pickPropertyShareTemplate([row(PHOTOS)], { hasImage: false })?.name
     ).toBe(PHOTOS);
   });
 
@@ -74,8 +79,8 @@ describe('pickPropertyShareTemplate', () => {
     expect(
       pickPropertyShareTemplate(
         [row(PHOTOS, 'Utility', 'PENDING'), row('property_enquiry_photos')],
-        { hasImage: true },
-      )?.name,
+        { hasImage: true }
+      )?.name
     ).toBe('property_enquiry_photos');
   });
 
@@ -83,9 +88,12 @@ describe('pickPropertyShareTemplate', () => {
     // Marketing is silently dropped at the per-user cap (131049), so a
     // miscategorised rename must never win just for having an image.
     expect(
-      pickPropertyShareTemplate([row(PHOTOS, 'Marketing'), row(TEXT, 'Utility')], {
-        hasImage: true,
-      })?.name,
+      pickPropertyShareTemplate(
+        [row(PHOTOS, 'Marketing'), row(TEXT, 'Utility')],
+        {
+          hasImage: true,
+        }
+      )?.name
     ).toBe(TEXT);
   });
 
@@ -93,7 +101,9 @@ describe('pickPropertyShareTemplate', () => {
     // This runs against every template an account owns in the share
     // dialog, so a name outside both chains is not a candidate at all.
     expect(
-      pickPropertyShareTemplate([row('some_other_template')], { hasImage: true }),
+      pickPropertyShareTemplate([row('some_other_template')], {
+        hasImage: true,
+      })
     ).toBeNull();
   });
 
@@ -101,8 +111,8 @@ describe('pickPropertyShareTemplate', () => {
     expect(
       pickPropertyShareTemplate(
         [row(PHOTOS, 'Utility', 'REJECTED'), row(TEXT, 'Utility', 'PENDING')],
-        { hasImage: true },
-      ),
+        { hasImage: true }
+      )
     ).toBeNull();
   });
 });
@@ -115,17 +125,22 @@ describe('pickShareDialogTemplate', () => {
     expect(pickShareDialogTemplate(rows, opts)?.name).toBe(TEXT);
   });
 
-  it('prefers Utility among the account\'s own share templates', () => {
+  it("prefers Utility among the account's own share templates", () => {
     const rows = [
       row('share_property_details', 'Marketing'),
       row('share_property_details_with_image', 'Marketing'),
       row('property_detail_notice', 'Utility'),
     ];
-    expect(pickShareDialogTemplate(rows, opts)?.name).toBe('property_detail_notice');
+    expect(pickShareDialogTemplate(rows, opts)?.name).toBe(
+      'property_detail_notice'
+    );
   });
 
   it('prefers Utility in the loose keyword tier too', () => {
-    const rows = [row('send_the_listing', 'Marketing'), row('property_note', 'Utility')];
+    const rows = [
+      row('send_the_listing', 'Marketing'),
+      row('property_note', 'Utility'),
+    ];
     expect(pickShareDialogTemplate(rows, opts)?.name).toBe('property_note');
   });
 
@@ -149,14 +164,16 @@ describe('pickShareDialogTemplate', () => {
     const rows = [row('appointment_reminder'), row('owner_property_digest')];
     // Neither is a share template, so it falls through to the
     // last resort rather than pre-selecting a reminder by name.
-    expect(pickShareDialogTemplate(rows, opts)?.name).toBe('appointment_reminder');
+    expect(pickShareDialogTemplate(rows, opts)?.name).toBe(
+      'appointment_reminder'
+    );
   });
 });
 
 describe('firstPropertyImage', () => {
   it('skips the blank strings half-finished edits leave behind', () => {
     expect(firstPropertyImage(['', '   ', 'property-images/a/img-1.jpg'])).toBe(
-      'property-images/a/img-1.jpg',
+      'property-images/a/img-1.jpg'
     );
   });
 
@@ -179,7 +196,10 @@ describe('shareHeaderImage', () => {
 
   it('falls back to the brand card for a listing with no photos', () => {
     expect(
-      shareHeaderImage({ images: [], brandImage: 'property-images/a/brand.png' }),
+      shareHeaderImage({
+        images: [],
+        brandImage: 'property-images/a/brand.png',
+      })
     ).toContain('brand.png');
   });
 
@@ -192,7 +212,7 @@ describe('shareHeaderImage', () => {
     // Meta fetches the header image itself, so a bucket-relative path
     // would arrive as a broken header rather than no header.
     expect(shareHeaderImage({ images: ['property-images/a/img-1.jpg'] })).toBe(
-      'https://test.supabase.co/storage/v1/object/public/property-images/a/img-1.jpg',
+      'https://test.supabase.co/storage/v1/object/public/property-images/a/img-1.jpg'
     );
   });
 });
@@ -210,14 +230,24 @@ describe('propertyShareParams', () => {
   } as unknown as Property;
 
   it('gives the current photo template a dedicated map parameter', () => {
-    const params = propertyShareParams(PHOTOS, 'Gopi Krishnan', property, 'Aryavarta Ventures');
+    const params = propertyShareParams(
+      PHOTOS,
+      'Gopi Krishnan',
+      property,
+      'Aryavarta Ventures'
+    );
     expect(params).toHaveLength(6);
     expect(params[1]).toBe('Aryavarta Ventures');
     expect(params[5]).toBe('https://maps.app.goo.gl/example');
   });
 
   it('folds the map into the approved text template location immediately', () => {
-    const params = propertyShareParams(TEXT, 'Gopi Krishnan', property, 'Aryavarta Ventures');
+    const params = propertyShareParams(
+      TEXT,
+      'Gopi Krishnan',
+      property,
+      'Aryavarta Ventures'
+    );
     expect(params).toHaveLength(5);
     expect(params[4]).toContain('Google Maps: https://maps.app.goo.gl/example');
   });
@@ -232,16 +262,28 @@ describe('propertyShareParams', () => {
       'property_enquiry_photos',
       'new_property_alert',
     ]) {
-      const params = propertyShareParams(name, 'Gopi', property, 'Aryavarta Ventures');
+      const params = propertyShareParams(
+        name,
+        'Gopi',
+        property,
+        'Aryavarta Ventures'
+      );
       expect(params, name).toHaveLength(4);
       expect(params[1], name).toBe('3 BHK at Sattva Exotic');
     }
   });
 
   it('keeps the greeting first on both shapes', () => {
-    expect(propertyShareParams(TEXT, 'Gopi Krishnan', property, 'X')[0]).toBe('Gopi');
+    expect(propertyShareParams(TEXT, 'Gopi Krishnan', property, 'X')[0]).toBe(
+      'Gopi'
+    );
     expect(
-      propertyShareParams('property_enquiry_info', 'Gopi Krishnan', property, 'X')[0],
+      propertyShareParams(
+        'property_enquiry_info',
+        'Gopi Krishnan',
+        property,
+        'X'
+      )[0]
     ).toBe('Gopi');
   });
 
@@ -269,11 +311,11 @@ describe('propertyShareParams', () => {
     } as Property;
     expect(propertyShareMapUrl(guarded)).toBeNull();
     expect(propertyShareParams(PHOTOS, 'Gopi', guarded, 'Aryavarta')[5]).toBe(
-      'Available on request',
+      'Available on request'
     );
-    expect(propertyShareParams(TEXT, 'Gopi', guarded, 'Aryavarta')[4]).not.toContain(
-      'maps.app.goo.gl',
-    );
+    expect(
+      propertyShareParams(TEXT, 'Gopi', guarded, 'Aryavarta')[4]
+    ).not.toContain('maps.app.goo.gl');
   });
 });
 

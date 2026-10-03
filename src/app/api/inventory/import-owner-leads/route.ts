@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
-import { normalizePhone, normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import {
+  normalizePhone,
+  normalizePhoneWithCountryCode,
+} from '@/lib/whatsapp/phone-utils';
 import type { PortalKey } from '@/lib/portals/post-kit';
 
 interface IncomingOwnerLead {
@@ -41,10 +48,13 @@ function parseLeadPrice(priceStr?: string | null): number {
 
 function inferPropertyType(title?: string | null): string {
   const t = (title || '').toLowerCase();
-  if (t.includes('apartment') || t.includes('flat') || t.includes('bhk')) return 'Apartment';
+  if (t.includes('apartment') || t.includes('flat') || t.includes('bhk'))
+    return 'Apartment';
   if (t.includes('villa') || t.includes('independent house')) return 'Villa';
-  if (t.includes('plot') || t.includes('land') || t.includes('layout')) return 'Plot';
-  if (t.includes('commercial') || t.includes('office') || t.includes('shop')) return 'Commercial';
+  if (t.includes('plot') || t.includes('land') || t.includes('layout'))
+    return 'Plot';
+  if (t.includes('commercial') || t.includes('office') || t.includes('shop'))
+    return 'Commercial';
   return 'Residential';
 }
 
@@ -75,7 +85,10 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     if (!body || !Array.isArray(body.leads)) {
-      return NextResponse.json({ error: 'Invalid payload: expected an array of leads' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid payload: expected an array of leads' },
+        { status: 400 }
+      );
     }
 
     const leads: IncomingOwnerLead[] = body.leads;
@@ -100,7 +113,9 @@ export async function POST(request: Request) {
 
       // 1. Find or create the Owner Contact
       let contactId: string | null = null;
-      const phoneCandidates = Array.from(new Set([rawPhone, normalizedPhone, digits, `+${digits}`])).filter(Boolean);
+      const phoneCandidates = Array.from(
+        new Set([rawPhone, normalizedPhone, digits, `+${digits}`])
+      ).filter(Boolean);
 
       const { data: existingContacts } = await ctx.supabase
         .from('contacts')
@@ -115,9 +130,12 @@ export async function POST(request: Request) {
         const contactGate = await checkPlanLimit(ctx, 'contacts');
         if (!contactGate.allowed) return gateResponse(contactGate);
 
-        const ownerName = typeof lead.name === 'string' && lead.name.trim() && lead.name.trim().toLowerCase() !== 'unknown owner'
-          ? lead.name.trim()
-          : 'Unknown Owner';
+        const ownerName =
+          typeof lead.name === 'string' &&
+          lead.name.trim() &&
+          lead.name.trim().toLowerCase() !== 'unknown owner'
+            ? lead.name.trim()
+            : 'Unknown Owner';
 
         const { data: newContact, error: contactError } = await ctx.supabase
           .from('contacts')
@@ -134,7 +152,10 @@ export async function POST(request: Request) {
           .single();
 
         if (contactError || !newContact) {
-          console.error('[import-owner-leads] Contact insert failed:', contactError);
+          console.error(
+            '[import-owner-leads] Contact insert failed:',
+            contactError
+          );
           continue;
         }
         contactId = newContact.id;
@@ -164,8 +185,12 @@ export async function POST(request: Request) {
         const propType = inferPropertyType(lead.title);
         const notes = [
           lead.url ? `Portal URL: ${lead.url}` : null,
-          lead.capturedAt ? `Captured on: ${new Date(lead.capturedAt).toISOString()}` : null,
-        ].filter(Boolean).join('\n');
+          lead.capturedAt
+            ? `Captured on: ${new Date(lead.capturedAt).toISOString()}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join('\n');
 
         const description = lead.rawText
           ? `Imported from ${portalLabel}.\n\n${lead.rawText.slice(0, 2000)}`
@@ -189,7 +214,10 @@ export async function POST(request: Request) {
           });
 
         if (propertyError) {
-          console.error('[import-owner-leads] Property insert failed:', propertyError);
+          console.error(
+            '[import-owner-leads] Property insert failed:',
+            propertyError
+          );
         } else {
           importedCount++;
         }
@@ -201,4 +229,3 @@ export async function POST(request: Request) {
     return toErrorResponse(err);
   }
 }
-

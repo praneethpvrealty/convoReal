@@ -51,12 +51,22 @@ function compressImageOnClient(file: File): Promise<Blob> {
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext('2d');
-      if (!ctx) { reject(new Error('Canvas unavailable')); return; }
+      if (!ctx) {
+        reject(new Error('Canvas unavailable'));
+        return;
+      }
       ctx.drawImage(img, 0, 0, w, h);
-      canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Compression failed')), 'image/jpeg', 0.75);
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error('Compression failed'))),
+        'image/jpeg',
+        0.75
+      );
     };
 
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Image load failed'));
+    };
     img.src = url;
   });
 }
@@ -92,7 +102,8 @@ function toForm(project: Project | null): ProjectForm {
     city: project.city ?? '',
     possession_date: project.possession_date ?? '',
     total_units: project.total_units != null ? String(project.total_units) : '',
-    total_floors: project.total_floors != null ? String(project.total_floors) : '',
+    total_floors:
+      project.total_floors != null ? String(project.total_floors) : '',
     description: project.description ?? '',
   };
 }
@@ -177,7 +188,11 @@ export function ProjectFormDialog({
         }
 
         let uploadFile: File | Blob = file;
-        if (file.type.startsWith('image/') && file.type !== 'image/svg+xml' && file.type !== 'image/gif') {
+        if (
+          file.type.startsWith('image/') &&
+          file.type !== 'image/svg+xml' &&
+          file.type !== 'image/gif'
+        ) {
           try {
             uploadFile = await compressImageOnClient(file);
           } catch {
@@ -210,7 +225,8 @@ export function ProjectFormDialog({
         toast.success(`Uploaded ${uploaded.length} image(s)`);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Image upload failed';
+      const message =
+        err instanceof Error ? err.message : 'Image upload failed';
       toast.error(message);
     } finally {
       setUploadingImage(false);
@@ -273,7 +289,9 @@ export function ProjectFormDialog({
       onOpenChange(false);
     } catch (err) {
       console.error('Project save failed:', err);
-      toast.error(err instanceof Error ? err.message : 'Could not save the project');
+      toast.error(
+        err instanceof Error ? err.message : 'Could not save the project'
+      );
     } finally {
       setSaving(false);
     }
@@ -294,7 +312,10 @@ export function ProjectFormDialog({
 
         <form onSubmit={handleSave} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="project-name" className="text-slate-350 font-medium">
+            <Label
+              htmlFor="project-name"
+              className="text-slate-350 font-medium"
+            >
               Project name
             </Label>
             <Input
@@ -309,7 +330,10 @@ export function ProjectFormDialog({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="project-builder" className="text-slate-350 font-medium">
+              <Label
+                htmlFor="project-builder"
+                className="text-slate-350 font-medium"
+              >
                 Builder
               </Label>
               <Input
@@ -321,7 +345,10 @@ export function ProjectFormDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="project-possession" className="text-slate-350 font-medium">
+              <Label
+                htmlFor="project-possession"
+                className="text-slate-350 font-medium"
+              >
                 Possession
               </Label>
               <Input
@@ -336,7 +363,10 @@ export function ProjectFormDialog({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="project-locality" className="text-slate-350 font-medium">
+              <Label
+                htmlFor="project-locality"
+                className="text-slate-350 font-medium"
+              >
                 Locality
               </Label>
               <Input
@@ -348,7 +378,10 @@ export function ProjectFormDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="project-city" className="text-slate-350 font-medium">
+              <Label
+                htmlFor="project-city"
+                className="text-slate-350 font-medium"
+              >
                 City
               </Label>
               <Input
@@ -363,7 +396,10 @@ export function ProjectFormDialog({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="project-units" className="text-slate-350 font-medium">
+              <Label
+                htmlFor="project-units"
+                className="text-slate-350 font-medium"
+              >
                 Total units
               </Label>
               <Input
@@ -381,7 +417,10 @@ export function ProjectFormDialog({
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="project-floors" className="text-slate-350 font-medium">
+              <Label
+                htmlFor="project-floors"
+                className="text-slate-350 font-medium"
+              >
                 Total floors
               </Label>
               <Input
@@ -397,7 +436,10 @@ export function ProjectFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="project-description" className="text-slate-350 font-medium">
+            <Label
+              htmlFor="project-description"
+              className="text-slate-350 font-medium"
+            >
               About the project
             </Label>
             <Textarea
@@ -411,7 +453,10 @@ export function ProjectFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="project-amenities" className="text-slate-350 font-medium">
+            <Label
+              htmlFor="project-amenities"
+              className="text-slate-350 font-medium"
+            >
               Amenities
             </Label>
             {amenities.length > 0 && (
@@ -419,13 +464,13 @@ export function ProjectFormDialog({
                 {amenities.map((amenity) => (
                   <span
                     key={amenity}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border border-slate-750 bg-slate-800/60 text-slate-300 font-medium"
+                    className="border-slate-750 flex items-center gap-1.5 rounded-full border bg-slate-800/60 px-3 py-1 text-xs font-medium text-slate-300"
                   >
                     {amenity}
                     <button
                       type="button"
                       onClick={() => removeAmenity(amenity)}
-                      className="text-slate-500 hover:text-red-400 cursor-pointer"
+                      className="cursor-pointer text-slate-500 hover:text-red-400"
                     >
                       <X className="size-3" />
                     </button>
@@ -458,7 +503,7 @@ export function ProjectFormDialog({
                 size="sm"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingImage}
-                className="h-7 cursor-pointer gap-1 text-xs font-semibold text-primary hover:bg-primary/10"
+                className="text-primary hover:bg-primary/10 h-7 cursor-pointer gap-1 text-xs font-semibold"
               >
                 {uploadingImage ? (
                   <>
@@ -492,7 +537,7 @@ export function ProjectFormDialog({
                     <button
                       type="button"
                       onClick={() => removeImage(idx)}
-                      className="absolute -right-1.5 -top-1.5 flex size-5 cursor-pointer items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-red-400 hover:text-red-300"
+                      className="absolute -top-1.5 -right-1.5 flex size-5 cursor-pointer items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-red-400 hover:text-red-300"
                     >
                       <Trash2 className="size-3" />
                     </button>

@@ -14,7 +14,11 @@
   if (document.getElementById(LAUNCHER_ID)) return;
 
   const HOST = window.location.hostname;
-  const PORTAL = HOST.includes('99acres') ? '99acres' : HOST.includes('magicbricks') ? 'magicbricks' : 'housing';
+  const PORTAL = HOST.includes('99acres')
+    ? '99acres'
+    : HOST.includes('magicbricks')
+      ? 'magicbricks'
+      : 'housing';
   const STORE_KEY = 'convorealOwnerLeads';
 
   function normText(t) {
@@ -24,7 +28,8 @@
   function hashText(t) {
     let h = 5381;
     const s = normText(t).toLowerCase();
-    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+    for (let i = 0; i < s.length; i++)
+      h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
     return `h${h.toString(36)}`;
   }
 
@@ -50,7 +55,9 @@
       if (!el) break;
       const text = normText(el.innerText || '');
       // Look for common patterns: "Posted by: John", "Owner: Jane"
-      const match = text.match(/(?:posted by|owner|seller|agent)[\s:]*([A-Za-z\s]{3,25})/i);
+      const match = text.match(
+        /(?:posted by|owner|seller|agent)[\s:]*([A-Za-z\s]{3,25})/i
+      );
       if (match && match[1].trim().toLowerCase() !== 'owner') {
         return match[1].trim();
       }
@@ -60,25 +67,35 @@
   }
 
   function extractPrice(text) {
-    const match = text.match(/(?:₹|rs\.?|inr)[\s]*([\d,]+(?:\.\d+)?[\s]*(?:lac|lakh|cr|crore|k)?)/i);
+    const match = text.match(
+      /(?:₹|rs\.?|inr)[\s]*([\d,]+(?:\.\d+)?[\s]*(?:lac|lakh|cr|crore|k)?)/i
+    );
     return match ? match[0] : '';
   }
 
   function scrapeCurrentPage() {
     const fullText = normText(document.body.innerText || '');
-    
+
     // Attempt 1: Find all phone numbers on the page
     const allPhones = extractPhones(fullText);
-    
+
     if (allPhones.length === 0) {
-      return { error: 'No phone numbers found. Make sure you have clicked "View Contact" to reveal the number first.' };
+      return {
+        error:
+          'No phone numbers found. Make sure you have clicked "View Contact" to reveal the number first.',
+      };
     }
 
     // Try to isolate the specific block that contains the phone number to get relevant details
     const phoneNodes = [];
-    
+
     // Find text nodes containing the phone number
-    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+    const walk = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
     let n;
     while ((n = walk.nextNode())) {
       if (extractPhones(n.nodeValue).length > 0) {
@@ -89,15 +106,15 @@
     let ownerName = 'Unknown Owner';
     let price = extractPrice(fullText);
     let title = document.title;
-    
+
     if (phoneNodes.length > 0) {
       // Pick the first one and try to find the container card
       let container = phoneNodes[0];
       ownerName = extractName(container);
-      
+
       // Go up a few levels to get local context for price/title if not on detail page
-      for (let i=0; i<6; i++) {
-        if(container.parentElement) container = container.parentElement;
+      for (let i = 0; i < 6; i++) {
+        if (container.parentElement) container = container.parentElement;
       }
       const localText = normText(container.innerText || '');
       const localPrice = extractPrice(localText);
@@ -113,7 +130,7 @@
       name: ownerName,
       phone: allPhones[0],
       rawText: fullText.substring(0, 2000), // store some context
-      capturedAt: Date.now()
+      capturedAt: Date.now(),
     };
   }
 
@@ -143,8 +160,12 @@
   let expanded = false;
   function setExpanded(val) {
     expanded = val;
-    document.getElementById(PANEL_ID).style.display = expanded ? 'flex' : 'none';
-    document.getElementById(LAUNCHER_ID).style.display = expanded ? 'none' : 'block';
+    document.getElementById(PANEL_ID).style.display = expanded
+      ? 'flex'
+      : 'none';
+    document.getElementById(LAUNCHER_ID).style.display = expanded
+      ? 'none'
+      : 'block';
   }
 
   function renderPanel() {
@@ -152,29 +173,56 @@
     const panel = el('div');
     panel.id = PANEL_ID;
     panel.style.cssText = [
-      'position:fixed', 'left:16px', 'bottom:76px', 'z-index:2147483646', 'width:300px',
-      'background:#1e1b4b', 'border:1px solid #4338ca', 'border-radius:12px',
-      'box-shadow:0 8px 32px rgba(0,0,0,.5)', 'font-family:system-ui,sans-serif',
-      'color:#e0e7ff', 'font-size:12px', 'overflow:hidden', 'display:none', 'flex-direction:column',
+      'position:fixed',
+      'left:16px',
+      'bottom:76px',
+      'z-index:2147483646',
+      'width:300px',
+      'background:#1e1b4b',
+      'border:1px solid #4338ca',
+      'border-radius:12px',
+      'box-shadow:0 8px 32px rgba(0,0,0,.5)',
+      'font-family:system-ui,sans-serif',
+      'color:#e0e7ff',
+      'font-size:12px',
+      'overflow:hidden',
+      'display:none',
+      'flex-direction:column',
     ].join(';');
 
-    const header = el('div', 'display:flex;align-items:center;gap:8px;padding:10px 12px;background:#312e81;cursor:pointer');
+    const header = el(
+      'div',
+      'display:flex;align-items:center;gap:8px;padding:10px 12px;background:#312e81;cursor:pointer'
+    );
     const title = el('div', 'flex:1');
-    title.appendChild(el('div', 'font-weight:800;color:#818cf8', 'Owner Lead Capture'));
-    title.appendChild(el('div', 'color:#c7d2fe;font-size:10px', 'Save owners to ConvoReal'));
+    title.appendChild(
+      el('div', 'font-weight:800;color:#818cf8', 'Owner Lead Capture')
+    );
+    title.appendChild(
+      el('div', 'color:#c7d2fe;font-size:10px', 'Save owners to ConvoReal')
+    );
     header.appendChild(title);
     header.appendChild(el('span', 'color:#c7d2fe;font-size:14px', '−'));
     header.addEventListener('click', () => setExpanded(false));
     panel.appendChild(header);
 
-    const body = el('div', 'display:flex;flex-direction:column;gap:8px;padding:10px 12px');
-    const status = el('div', 'color:#c7d2fe;min-height:16px', 'Reveal the number first, then capture.');
+    const body = el(
+      'div',
+      'display:flex;flex-direction:column;gap:8px;padding:10px 12px'
+    );
+    const status = el(
+      'div',
+      'color:#c7d2fe;min-height:16px',
+      'Reveal the number first, then capture.'
+    );
     const counter = el('div', 'color:#818cf8;font-weight:700');
 
-    const captureBtn = el('button',
+    const captureBtn = el(
+      'button',
       'background:#6366f1;border:none;border-radius:8px;color:#fff;font-weight:800;padding:8px;cursor:pointer;font-size:12px',
-      'Capture Owner Lead');
-    
+      'Capture Owner Lead'
+    );
+
     captureBtn.addEventListener('click', () => {
       const data = scrapeCurrentPage();
       if (data.error) {
@@ -189,14 +237,18 @@
       }
     });
 
-    const clearBtn = el('button',
+    const clearBtn = el(
+      'button',
       'background:transparent;border:1px solid #4c1d95;border-radius:8px;color:#c7d2fe;padding:6px;cursor:pointer;font-size:11px',
-      'Clear unimported leads');
-    clearBtn.addEventListener('click', () => clearLeads(() => {
-      counter.textContent = '';
-      status.textContent = 'Cleared queue.';
-      status.style.color = '#c7d2fe';
-    }));
+      'Clear unimported leads'
+    );
+    clearBtn.addEventListener('click', () =>
+      clearLeads(() => {
+        counter.textContent = '';
+        status.textContent = 'Cleared queue.';
+        status.style.color = '#c7d2fe';
+      })
+    );
 
     body.appendChild(captureBtn);
     body.appendChild(status);
@@ -216,13 +268,27 @@
   function ensureLauncher() {
     let launcher = document.getElementById(LAUNCHER_ID);
     if (launcher) return launcher;
-    launcher = el('button', [
-      'position:fixed', 'left:16px', 'bottom:16px', 'z-index:2147483646',
-      'height:48px', 'padding:0 14px', 'border-radius:9999px', 'border:1px solid #4338ca',
-      'background:linear-gradient(135deg,#4f46e5,#3730a3)', 'color:#fff',
-      'font-weight:800', 'font-size:12px', 'font-family:system-ui,sans-serif',
-      'cursor:pointer', 'box-shadow:0 6px 24px rgba(79,70,229,.45)',
-    ].join(';'), 'Capture Owner');
+    launcher = el(
+      'button',
+      [
+        'position:fixed',
+        'left:16px',
+        'bottom:16px',
+        'z-index:2147483646',
+        'height:48px',
+        'padding:0 14px',
+        'border-radius:9999px',
+        'border:1px solid #4338ca',
+        'background:linear-gradient(135deg,#4f46e5,#3730a3)',
+        'color:#fff',
+        'font-weight:800',
+        'font-size:12px',
+        'font-family:system-ui,sans-serif',
+        'cursor:pointer',
+        'box-shadow:0 6px 24px rgba(79,70,229,.45)',
+      ].join(';'),
+      'Capture Owner'
+    );
     launcher.id = LAUNCHER_ID;
     launcher.addEventListener('click', () => setExpanded(true));
     document.body.appendChild(launcher);

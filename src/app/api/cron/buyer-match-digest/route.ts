@@ -23,7 +23,8 @@ import { sendBuyerMatchDigests } from '@/lib/buyer/digest-sender';
  * (503) when no secret is configured.
  */
 export async function GET(request: Request) {
-  const expected = process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET;
+  const expected =
+    process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET;
   if (!expected) {
     return NextResponse.json({ error: 'cron not configured' }, { status: 503 });
   }

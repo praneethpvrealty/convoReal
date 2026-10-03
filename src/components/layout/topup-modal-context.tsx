@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 // ============================================================
 // Shared "buy credits" modal state — the header chip's "+ Buy
@@ -11,7 +11,13 @@
 // open/closed state so components across the layout can trigger it.
 // ============================================================
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 interface TopupModalContextValue {
   isOpen: boolean;
@@ -30,16 +36,20 @@ export function TopupModalProvider({ children }: { children: ReactNode }) {
       openTopupModal: () => setIsOpen(true),
       closeTopupModal: () => setIsOpen(false),
     }),
-    [isOpen],
+    [isOpen]
   );
 
-  return <TopupModalContext.Provider value={value}>{children}</TopupModalContext.Provider>;
+  return (
+    <TopupModalContext.Provider value={value}>
+      {children}
+    </TopupModalContext.Provider>
+  );
 }
 
 export function useTopupModal(): TopupModalContextValue {
   const ctx = useContext(TopupModalContext);
   if (!ctx) {
-    throw new Error("useTopupModal must be used within a TopupModalProvider");
+    throw new Error('useTopupModal must be used within a TopupModalProvider');
   }
   return ctx;
 }

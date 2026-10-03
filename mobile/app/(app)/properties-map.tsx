@@ -2,10 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 
 import { apiFetch } from '@/lib/api';
 import { nativeMapsAvailable } from '@/lib/maps-support';
@@ -14,7 +19,7 @@ import { formatInr } from '@/lib/format';
 import { buildPropertyParams } from '@/app/(app)/(tabs)/properties';
 import { propertyFiltersKey } from '@/lib/property-filters';
 import { usePropertySearch } from '@/lib/property-search-store';
-import { mapPin, radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { mapPin, radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { PropertiesResponse, Property } from '@/lib/types';
 
 const BENGALURU = {
@@ -59,7 +64,9 @@ export default function PropertiesMapScreen() {
         locations
       );
       params.set('limit', '100');
-      return apiFetch<PropertiesResponse>(`/api/properties?${params.toString()}`);
+      return apiFetch<PropertiesResponse>(
+        `/api/properties?${params.toString()}`
+      );
     },
   });
 
@@ -77,7 +84,10 @@ export default function PropertiesMapScreen() {
     const t = setTimeout(() => {
       mapRef.current?.fitToCoordinates(
         pinned.map((p) => ({ latitude: p.latitude, longitude: p.longitude })),
-        { edgePadding: { top: 80, right: 60, bottom: 120, left: 60 }, animated: true }
+        {
+          edgePadding: { top: 80, right: 60, bottom: 120, left: 60 },
+          animated: true,
+        }
       );
     }, 350);
     return () => clearTimeout(t);
@@ -94,47 +104,63 @@ export default function PropertiesMapScreen() {
       {!nativeMapsAvailable ? (
         <MapFallback count={pinned.length} near={near} />
       ) : (
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFill}
-        initialRegion={
-          near
-            ? {
-                latitude: near.latitude,
-                longitude: near.longitude,
-                latitudeDelta: near.radiusKm / 45,
-                longitudeDelta: near.radiusKm / 45,
-              }
-            : BENGALURU
-        }
-        userInterfaceStyle={dark ? 'dark' : 'light'}
-        showsUserLocation={Boolean(near && !near.place_id)}
-      >
-        {pinned.map((p) => {
-          const price =
-            p.listing_type === 'Rent'
-              ? p.rent_per_month
-                ? `${formatInr(p.rent_per_month)}/mo`
-                : '—'
-              : formatInr(p.price);
-          const available = p.status === 'Available';
-          return (
-            <Marker
-              key={p.id}
-              coordinate={{ latitude: p.latitude, longitude: p.longitude }}
-              title={p.title}
-              description={[price, p.sublocality ?? p.city ?? ''].filter(Boolean).join(' · ')}
-              onCalloutPress={() => router.push(`/(app)/property/${p.id}`)}
-            >
-              {/* Reference-style mint price pill instead of a pin. */}
-              <View style={[styles.pricePin, !available && styles.pricePinMuted]}>
-                <View style={[styles.pinDot, !available && { backgroundColor: mapPin.dotMuted }]} />
-                <Text style={[styles.pinText, !available && { color: mapPin.textMuted }]}>{price}</Text>
-              </View>
-            </Marker>
-          );
-        })}
-      </MapView>
+        <MapView
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          initialRegion={
+            near
+              ? {
+                  latitude: near.latitude,
+                  longitude: near.longitude,
+                  latitudeDelta: near.radiusKm / 45,
+                  longitudeDelta: near.radiusKm / 45,
+                }
+              : BENGALURU
+          }
+          userInterfaceStyle={dark ? 'dark' : 'light'}
+          showsUserLocation={Boolean(near && !near.place_id)}
+        >
+          {pinned.map((p) => {
+            const price =
+              p.listing_type === 'Rent'
+                ? p.rent_per_month
+                  ? `${formatInr(p.rent_per_month)}/mo`
+                  : '—'
+                : formatInr(p.price);
+            const available = p.status === 'Available';
+            return (
+              <Marker
+                key={p.id}
+                coordinate={{ latitude: p.latitude, longitude: p.longitude }}
+                title={p.title}
+                description={[price, p.sublocality ?? p.city ?? '']
+                  .filter(Boolean)
+                  .join(' · ')}
+                onCalloutPress={() => router.push(`/(app)/property/${p.id}`)}
+              >
+                {/* Reference-style mint price pill instead of a pin. */}
+                <View
+                  style={[styles.pricePin, !available && styles.pricePinMuted]}
+                >
+                  <View
+                    style={[
+                      styles.pinDot,
+                      !available && { backgroundColor: mapPin.dotMuted },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.pinText,
+                      !available && { color: mapPin.textMuted },
+                    ]}
+                  >
+                    {price}
+                  </Text>
+                </View>
+              </Marker>
+            );
+          })}
+        </MapView>
       )}
 
       <View
@@ -152,17 +178,39 @@ export default function PropertiesMapScreen() {
         ) : (
           <>
             <Ionicons name="location" size={14} color={colors.primary} />
-            <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.text }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: f.semibold,
+                color: colors.text,
+              }}
+            >
               {pinned.length} of {data?.data.length ?? 0} results have map pins
             </Text>
             <View style={{ flex: 1 }} />
             <Pressable onPress={() => router.back()} hitSlop={8}>
-              <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.primary }}>List</Text>
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: f.bold,
+                  color: colors.primary,
+                }}
+              >
+                List
+              </Text>
             </Pressable>
           </>
         )}
       </View>
-      <Text style={[styles.hint, { color: colors.textFaint, bottom: Math.max(insets.bottom, spacing.md) }]}>
+      <Text
+        style={[
+          styles.hint,
+          {
+            color: colors.textFaint,
+            bottom: Math.max(insets.bottom, spacing.md),
+          },
+        ]}
+      >
         Tap a pin, then its card, to open the property.
       </Text>
     </View>
@@ -174,7 +222,13 @@ export default function PropertiesMapScreen() {
  * explain instead of showing a black canvas, and hand off to the
  * Google Maps app for the current search area.
  */
-function MapFallback({ count, near }: { count: number; near: { label: string; latitude: number; longitude: number } | null }) {
+function MapFallback({
+  count,
+  near,
+}: {
+  count: number;
+  near: { label: string; latitude: number; longitude: number } | null;
+}) {
   const { colors, fonts: f } = useTheme();
   const openArea = () =>
     openInMaps({
@@ -184,15 +238,34 @@ function MapFallback({ count, near }: { count: number; near: { label: string; la
     });
   return (
     <View style={fallbackStyles.wrap}>
-      <View style={[fallbackStyles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+      <View
+        style={[
+          fallbackStyles.card,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        ]}
+      >
         <Ionicons name="map-outline" size={34} color={colors.primary} />
-        <Text style={{ fontSize: 16.5, fontFamily: f.bold, color: colors.text, textAlign: 'center' }}>
+        <Text
+          style={{
+            fontSize: 16.5,
+            fontFamily: f.bold,
+            color: colors.text,
+            textAlign: 'center',
+          }}
+        >
           Map tiles need the installed app
         </Text>
-        <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.textMuted, textAlign: 'center' }}>
+        <Text
+          style={{
+            fontSize: 13.5,
+            lineHeight: 20,
+            color: colors.textMuted,
+            textAlign: 'center',
+          }}
+        >
           Expo Go on Android can't render Google Maps. Your {count} pinned
-          result{count === 1 ? '' : 's'} will appear here in the full app build —
-          for now, browse them in the List or open the area in Google Maps.
+          result{count === 1 ? '' : 's'} will appear here in the full app build
+          — for now, browse them in the List or open the area in Google Maps.
         </Text>
         <Pressable
           onPress={openArea}
@@ -200,8 +273,18 @@ function MapFallback({ count, near }: { count: number; near: { label: string; la
           accessibilityLabel="Open area in Google Maps"
           style={[fallbackStyles.button, { backgroundColor: colors.primary }]}
         >
-          <Ionicons name="navigate-outline" size={16} color={colors.onPrimary} />
-          <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.onPrimary }}>
+          <Ionicons
+            name="navigate-outline"
+            size={16}
+            color={colors.onPrimary}
+          />
+          <Text
+            style={{
+              fontSize: 14,
+              fontFamily: f.bold,
+              color: colors.onPrimary,
+            }}
+          >
             Open in Google Maps
           </Text>
         </Pressable>

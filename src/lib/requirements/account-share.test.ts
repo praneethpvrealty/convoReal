@@ -49,10 +49,7 @@ describe('[REQ-001] direct account requirement sharing', () => {
 
 describe('[REQ-002] saved requirement lifecycle', () => {
   const route = readFileSync(
-    join(
-      process.cwd(),
-      'src/app/api/contacts/[id]/requirements/route.ts'
-    ),
+    join(process.cwd(), 'src/app/api/contacts/[id]/requirements/route.ts'),
     'utf8'
   );
 

@@ -34,7 +34,7 @@ export async function GET() {
   try {
     // Use eval import to escape Next.js/Turbopack static analysis warnings for uninstalled modules
     const { ImapFlow } = await eval('import("imapflow")');
-    
+
     const activeClient: ImapClient = new ImapFlow({
       host,
       port,
@@ -48,7 +48,7 @@ export async function GET() {
     client = activeClient;
 
     await activeClient.connect();
-    
+
     // Select Inbox
     const lock = await activeClient.getMailboxLock('INBOX');
     const processedEmails: string[] = [];
@@ -56,7 +56,7 @@ export async function GET() {
     try {
       // Fetch unread messages
       const searchResults = await activeClient.search({ seen: false });
-      
+
       for (const seq of searchResults) {
         const message = await activeClient.fetchOne(seq, {
           source: true,
@@ -66,29 +66,37 @@ export async function GET() {
 
         const subject = message.envelope.subject || '';
         const bodyText = message.source.toString();
-        
+
         // Match subjects for real estate portals
-        const isLead = /magicbricks|housing|99acres/i.test(subject) || /magicbricks|housing|99acres/i.test(bodyText);
+        const isLead =
+          /magicbricks|housing|99acres/i.test(subject) ||
+          /magicbricks|housing|99acres/i.test(bodyText);
         if (isLead) {
           // Send to our parser webhook API internally
-          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+          const baseUrl =
+            process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
           const token = process.env.LEADS_WEBHOOK_TOKEN || '';
-          
-          const response = await fetch(`${baseUrl}/api/leads/email-webhook?token=${token}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              subject,
-              text: bodyText,
-            }),
-          });
+
+          const response = await fetch(
+            `${baseUrl}/api/leads/email-webhook?token=${token}`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                subject,
+                text: bodyText,
+              }),
+            }
+          );
 
           if (response.ok) {
             const result = await response.json();
-            processedEmails.push(`Subject: "${subject}" -> ${result.status} (Contact ID: ${result.contactId})`);
-            
+            processedEmails.push(
+              `Subject: "${subject}" -> ${result.status} (Contact ID: ${result.contactId})`
+            );
+
             // Mark email as read / seen
             await activeClient.messageFlagsAdd(seq, ['\\Seen']);
           }
@@ -115,10 +123,13 @@ export async function GET() {
         // Safe check
       }
     }
-    return NextResponse.json({
-      status: 'failed',
-      error: error.message || 'IMAP connection failed',
-      note: 'Ensure imapflow is installed in package.json if executing syncs.',
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        status: 'failed',
+        error: error.message || 'IMAP connection failed',
+        note: 'Ensure imapflow is installed in package.json if executing syncs.',
+      },
+      { status: 500 }
+    );
   }
 }

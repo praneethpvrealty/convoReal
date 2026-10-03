@@ -1,6 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+} from 'react-native';
 
 import { ApiError } from '@/lib/api';
 import { signOut } from '@/lib/auth-store';
@@ -22,7 +28,11 @@ interface DeleteAccountRowProps {
  * account (App Store Guideline 5.1.1(v)). Two prompts, because the
  * action is irreversible and the second one is the last exit.
  */
-export function DeleteAccountRow({ consequence, onDelete, onDeleted }: DeleteAccountRowProps) {
+export function DeleteAccountRow({
+  consequence,
+  onDelete,
+  onDeleted,
+}: DeleteAccountRowProps) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState(false);
 
@@ -35,7 +45,9 @@ export function DeleteAccountRow({ consequence, onDelete, onDeleted }: DeleteAcc
     } catch (e) {
       Alert.alert(
         'Could not delete your account',
-        friendlyError(e instanceof ApiError ? e.message : 'Try again in a moment.')
+        friendlyError(
+          e instanceof ApiError ? e.message : 'Try again in a moment.'
+        )
       );
     } finally {
       setBusy(false);
@@ -78,7 +90,9 @@ export function DeleteAccountRow({ consequence, onDelete, onDeleted }: DeleteAcc
       ) : (
         <Ionicons name="trash-outline" size={18} color={colors.danger} />
       )}
-      <Text style={{ color: colors.danger, fontSize: 15.5, fontFamily: f.bold }}>
+      <Text
+        style={{ color: colors.danger, fontSize: 15.5, fontFamily: f.bold }}
+      >
         Delete my account
       </Text>
     </Pressable>

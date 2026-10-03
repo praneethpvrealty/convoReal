@@ -56,7 +56,9 @@ export default function NewBroadcastScreen() {
   const [audienceType, setAudienceType] = useState<'all' | 'tags'>('all');
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [excludeTagIds, setExcludeTagIds] = useState<string[]>([]);
-  const [variables, setVariables] = useState<Record<string, VariableMapping>>({});
+  const [variables, setVariables] = useState<Record<string, VariableMapping>>(
+    {}
+  );
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,7 +80,10 @@ export default function NewBroadcastScreen() {
   const { data: tags } = useQuery({
     queryKey: ['tags'],
     queryFn: async () => {
-      const { data, error: err } = await supabase.from('tags').select('id, name, color').order('name');
+      const { data, error: err } = await supabase
+        .from('tags')
+        .select('id, name, color')
+        .order('name');
       if (err) throw err;
       return (data ?? []) as Tag[];
     },
@@ -111,7 +116,11 @@ export default function NewBroadcastScreen() {
           .from('contact_tags')
           .select('contact_id')
           .in('tag_id', tagIds);
-        includedIds = [...new Set((data ?? []).map((r: { contact_id: string }) => r.contact_id))];
+        includedIds = [
+          ...new Set(
+            (data ?? []).map((r: { contact_id: string }) => r.contact_id)
+          ),
+        ];
         if (includedIds.length === 0) return 0;
       }
       let excludedIds: string[] = [];
@@ -120,16 +129,25 @@ export default function NewBroadcastScreen() {
           .from('contact_tags')
           .select('contact_id')
           .in('tag_id', excludeTagIds);
-        excludedIds = [...new Set((data ?? []).map((r: { contact_id: string }) => r.contact_id))];
+        excludedIds = [
+          ...new Set(
+            (data ?? []).map((r: { contact_id: string }) => r.contact_id)
+          ),
+        ];
       }
-      let query = supabase.from('contacts').select('id', { count: 'exact', head: true });
+      let query = supabase
+        .from('contacts')
+        .select('id', { count: 'exact', head: true });
       if (includedIds) query = query.in('id', includedIds);
       const { count } = await query;
       if (!count) return 0;
       if (excludedIds.length === 0) return count;
       // Exclusions overlap the included set, so subtract only the ones
       // that are actually in it rather than the raw excluded total.
-      let overlapQuery = supabase.from('contacts').select('id', { count: 'exact', head: true }).in('id', excludedIds);
+      let overlapQuery = supabase
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .in('id', excludedIds);
       if (includedIds) overlapQuery = overlapQuery.in('id', includedIds);
       const { count: overlap } = await overlapQuery;
       return Math.max(0, count - (overlap ?? 0));
@@ -148,7 +166,11 @@ export default function NewBroadcastScreen() {
     if (!name.trim()) setName(next.name.replace(/_/g, ' '));
   }
 
-  function toggle(list: string[], setList: (next: string[]) => void, id: string) {
+  function toggle(
+    list: string[],
+    setList: (next: string[]) => void,
+    id: string
+  ) {
     haptic.tap();
     setList(list.includes(id) ? list.filter((t) => t !== id) : [...list, id]);
   }
@@ -198,62 +220,98 @@ export default function NewBroadcastScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl }}
+          contentContainerStyle={{
+            padding: spacing.lg,
+            gap: spacing.lg,
+            paddingBottom: spacing.xl,
+          }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
           {error ? <Banner kind="error" text={error} /> : null}
 
           <TourTarget id="broadcast-compose">
-          <View style={{ gap: spacing.sm }}>
-            <SectionLabel text="Template" style={{ color: colors.textMuted }} />
-            {loadingTemplates ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : (templates ?? []).length === 0 ? (
-              <EmptyState
-                icon="document-text-outline"
-                title="No approved templates"
-                subtitle="WhatsApp only sends broadcasts from templates Meta has approved. Submit one from the web app, then come back once it is approved."
+            <View style={{ gap: spacing.sm }}>
+              <SectionLabel
+                text="Template"
+                style={{ color: colors.textMuted }}
               />
-            ) : (
-              <View style={{ gap: spacing.sm }}>
-                {(templates ?? []).map((t) => {
-                  const active = template?.id === t.id;
-                  return (
-                    <Pressable
-                      key={t.id}
-                      onPress={() => pickTemplate(t)}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: active }}
-                      accessibilityLabel={t.name}
-                      style={[
-                        styles.card,
-                        {
-                          backgroundColor: active ? colors.primarySoft : colors.glass,
-                          borderColor: active ? colors.primary : colors.glassBorder,
-                        },
-                      ]}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                        <Ionicons
-                          name={active ? 'radio-button-on' : 'radio-button-off'}
-                          size={17}
-                          color={active ? colors.primary : colors.textFaint}
-                        />
-                        <Text style={{ flex: 1, fontSize: 14, fontFamily: f.semibold, color: colors.text }}>
-                          {t.name.replace(/_/g, ' ')}
+              {loadingTemplates ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (templates ?? []).length === 0 ? (
+                <EmptyState
+                  icon="document-text-outline"
+                  title="No approved templates"
+                  subtitle="WhatsApp only sends broadcasts from templates Meta has approved. Submit one from the web app, then come back once it is approved."
+                />
+              ) : (
+                <View style={{ gap: spacing.sm }}>
+                  {(templates ?? []).map((t) => {
+                    const active = template?.id === t.id;
+                    return (
+                      <Pressable
+                        key={t.id}
+                        onPress={() => pickTemplate(t)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: active }}
+                        accessibilityLabel={t.name}
+                        style={[
+                          styles.card,
+                          {
+                            backgroundColor: active
+                              ? colors.primarySoft
+                              : colors.glass,
+                            borderColor: active
+                              ? colors.primary
+                              : colors.glassBorder,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: spacing.sm,
+                          }}
+                        >
+                          <Ionicons
+                            name={
+                              active ? 'radio-button-on' : 'radio-button-off'
+                            }
+                            size={17}
+                            color={active ? colors.primary : colors.textFaint}
+                          />
+                          <Text
+                            style={{
+                              flex: 1,
+                              fontSize: 14,
+                              fontFamily: f.semibold,
+                              color: colors.text,
+                            }}
+                          >
+                            {t.name.replace(/_/g, ' ')}
+                          </Text>
+                          <Text
+                            style={{ fontSize: 11, color: colors.textFaint }}
+                          >
+                            {t.language}
+                          </Text>
+                        </View>
+                        <Text
+                          style={{
+                            fontSize: 12.5,
+                            lineHeight: 18,
+                            color: colors.textMuted,
+                          }}
+                        >
+                          {t.body_text}
                         </Text>
-                        <Text style={{ fontSize: 11, color: colors.textFaint }}>{t.language}</Text>
-                      </View>
-                      <Text style={{ fontSize: 12.5, lineHeight: 18, color: colors.textMuted }}>
-                        {t.body_text}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-          </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
           </TourTarget>
 
           {template ? (
@@ -266,7 +324,10 @@ export default function NewBroadcastScreen() {
               />
 
               <View style={{ gap: spacing.sm }}>
-                <SectionLabel text="Who receives it" style={{ color: colors.textMuted }} />
+                <SectionLabel
+                  text="Who receives it"
+                  style={{ color: colors.textMuted }}
+                />
                 <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                   <FilterChip
                     label="All contacts"
@@ -287,7 +348,13 @@ export default function NewBroadcastScreen() {
                 </View>
 
                 {audienceType === 'tags' ? (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      flexWrap: 'wrap',
+                      gap: spacing.sm,
+                    }}
+                  >
                     {(tags ?? []).map((tag) => (
                       <FilterChip
                         key={tag.id}
@@ -299,20 +366,40 @@ export default function NewBroadcastScreen() {
                   </View>
                 ) : null}
 
-                <SectionLabel text="Skip anyone tagged" style={{ color: colors.textMuted }} />
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+                <SectionLabel
+                  text="Skip anyone tagged"
+                  style={{ color: colors.textMuted }}
+                />
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: spacing.sm,
+                  }}
+                >
                   {(tags ?? []).map((tag) => (
                     <FilterChip
                       key={tag.id}
                       label={tag.name}
                       active={excludeTagIds.includes(tag.id)}
-                      onPress={() => toggle(excludeTagIds, setExcludeTagIds, tag.id)}
+                      onPress={() =>
+                        toggle(excludeTagIds, setExcludeTagIds, tag.id)
+                      }
                     />
                   ))}
                 </View>
 
-                <View style={[styles.count, { backgroundColor: colors.surfaceSunken }]}>
-                  <Ionicons name="people-outline" size={16} color={colors.primary} />
+                <View
+                  style={[
+                    styles.count,
+                    { backgroundColor: colors.surfaceSunken },
+                  ]}
+                >
+                  <Ionicons
+                    name="people-outline"
+                    size={16}
+                    color={colors.primary}
+                  />
                   <Text style={{ fontSize: 13, color: colors.text }}>
                     {counting
                       ? 'Counting recipients…'
@@ -325,20 +412,38 @@ export default function NewBroadcastScreen() {
 
               {variableKeys.length > 0 ? (
                 <View style={{ gap: spacing.sm }}>
-                  <SectionLabel text="Fill in the blanks" style={{ color: colors.textMuted }} />
+                  <SectionLabel
+                    text="Fill in the blanks"
+                    style={{ color: colors.textMuted }}
+                  />
                   {variableKeys.map((key) => {
                     const mapping = variables[key];
                     return (
                       <View key={key} style={{ gap: 6 }}>
-                        <Text style={{ fontSize: 12, fontFamily: f.bold, color: colors.textMuted }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontFamily: f.bold,
+                            color: colors.textMuted,
+                          }}
+                        >
                           {`{{${key}}}`}
                         </Text>
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            flexWrap: 'wrap',
+                            gap: spacing.sm,
+                          }}
+                        >
                           {CONTACT_FIELDS.map((field) => (
                             <FilterChip
                               key={field.value}
                               label={field.label}
-                              active={mapping?.type === 'field' && mapping.value === field.value}
+                              active={
+                                mapping?.type === 'field' &&
+                                mapping.value === field.value
+                              }
                               onPress={() => {
                                 haptic.tap();
                                 setVariables((prev) => ({
@@ -379,9 +484,19 @@ export default function NewBroadcastScreen() {
               ) : null}
 
               <View style={{ gap: spacing.sm }}>
-                <SectionLabel text="Preview" style={{ color: colors.textMuted }} />
-                <View style={[styles.preview, { backgroundColor: colors.primarySoft }]}>
-                  <Text style={{ fontSize: 14, lineHeight: 20, color: colors.text }}>
+                <SectionLabel
+                  text="Preview"
+                  style={{ color: colors.textMuted }}
+                />
+                <View
+                  style={[
+                    styles.preview,
+                    { backgroundColor: colors.primarySoft },
+                  ]}
+                >
+                  <Text
+                    style={{ fontSize: 14, lineHeight: 20, color: colors.text }}
+                  >
                     {previewBody(template.body_text, variables, sample ?? {})}
                   </Text>
                   {template.footer_text ? (
@@ -391,7 +506,8 @@ export default function NewBroadcastScreen() {
                   ) : null}
                 </View>
                 <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
-                  Shown with a sample contact. Each recipient gets their own values.
+                  Shown with a sample contact. Each recipient gets their own
+                  values.
                 </Text>
               </View>
 
@@ -405,7 +521,13 @@ export default function NewBroadcastScreen() {
                 disabled={!ready || sending}
                 busy={sending}
               />
-              <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}>
+              <Text
+                style={{
+                  fontSize: 11.5,
+                  color: colors.textFaint,
+                  textAlign: 'center',
+                }}
+              >
                 Sending starts immediately and cannot be undone.
               </Text>
             </>

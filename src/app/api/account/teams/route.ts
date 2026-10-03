@@ -14,29 +14,32 @@
 // RLS only allows self-updates).
 // ============================================================
 
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
-import { getCurrentAccount, toErrorResponse } from "@/lib/auth/account";
-import { getPlanLimits } from "@/lib/billing/gates";
+import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
+import { getPlanLimits } from '@/lib/billing/gates';
 import {
   checkRateLimit,
   rateLimitResponse,
   RATE_LIMITS,
-} from "@/lib/rate-limit";
+} from '@/lib/rate-limit';
 
 export async function GET() {
   try {
     const ctx = await getCurrentAccount();
 
     const { data, error } = await ctx.supabase
-      .from("teams")
-      .select("*")
-      .eq("account_id", ctx.accountId)
-      .order("name", { ascending: true });
+      .from('teams')
+      .select('*')
+      .eq('account_id', ctx.accountId)
+      .order('name', { ascending: true });
 
     if (error) {
-      console.error("[GET /api/account/teams] fetch error:", error);
-      return NextResponse.json({ error: "Failed to load teams" }, { status: 500 });
+      console.error('[GET /api/account/teams] fetch error:', error);
+      return NextResponse.json(
+        { error: 'Failed to load teams' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ teams: data ?? [] });
@@ -48,10 +51,10 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const ctx = await getCurrentAccount();
-    if (ctx.orgRole !== "org_manager" && ctx.orgRole !== "org_leader") {
+    if (ctx.orgRole !== 'org_manager' && ctx.orgRole !== 'org_leader') {
       return NextResponse.json(
-        { error: "This action requires the Org Leader role or higher" },
-        { status: 403 },
+        { error: 'This action requires the Org Leader role or higher' },
+        { status: 403 }
       );
     }
 
@@ -59,34 +62,42 @@ export async function POST(request: Request) {
     if (!limits.has_teams) {
       return NextResponse.json(
         {
-          error: "Teams require the Team plan or higher",
-          upgradeRequired: "team",
+          error: 'Teams require the Team plan or higher',
+          upgradeRequired: 'team',
         },
-        { status: 402 },
+        { status: 402 }
       );
     }
 
     const limit = await checkRateLimit(
       `leader:createTeam:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
-    const body = (await request.json().catch(() => null)) as { name?: unknown } | null;
+    const body = (await request.json().catch(() => null)) as {
+      name?: unknown;
+    } | null;
     const name = body?.name;
-    if (typeof name !== "string" || name.trim().length === 0) {
-      return NextResponse.json({ error: "'name' is required" }, { status: 400 });
+    if (typeof name !== 'string' || name.trim().length === 0) {
+      return NextResponse.json(
+        { error: "'name' is required" },
+        { status: 400 }
+      );
     }
 
     const { data, error } = await ctx.supabase
-      .from("teams")
+      .from('teams')
       .insert({ account_id: ctx.accountId, name: name.trim() })
       .select()
       .single();
 
     if (error) {
-      console.error("[POST /api/account/teams] insert error:", error);
-      return NextResponse.json({ error: "Failed to create team" }, { status: 500 });
+      console.error('[POST /api/account/teams] insert error:', error);
+      return NextResponse.json(
+        { error: 'Failed to create team' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(data, { status: 201 });

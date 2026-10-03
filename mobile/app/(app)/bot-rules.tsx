@@ -17,11 +17,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
 type Influence =
-  | 'tone'
-  | 'question_order'
-  | 'volunteering'
-  | 'collateral'
-  | 'handover';
+  'tone' | 'question_order' | 'volunteering' | 'collateral' | 'handover';
 
 interface Rule {
   id: string;

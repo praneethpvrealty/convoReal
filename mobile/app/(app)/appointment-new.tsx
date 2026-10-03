@@ -14,7 +14,14 @@ import {
 } from 'react-native';
 
 import { InlineDateTimePicker } from '@/components/datetime-field';
-import { Avatar, Banner, PrimaryButton, Tag, TextField, nameTagCap } from '@/components/ui';
+import {
+  Avatar,
+  Banner,
+  PrimaryButton,
+  Tag,
+  TextField,
+  nameTagCap,
+} from '@/components/ui';
 import { VoiceScheduler } from '@/components/voice-scheduler';
 import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
@@ -64,15 +71,20 @@ export default function NewAppointmentScreen() {
   const debouncedContactSearch = useDebounced(contactSearch);
   const [contact, setContact] = useState<Contact | null>(() =>
     params.contactId && params.contactPhone
-      ? ({ id: params.contactId, name: params.contactName || undefined, phone: params.contactPhone } as Contact)
+      ? ({
+          id: params.contactId,
+          name: params.contactName || undefined,
+          phone: params.contactPhone,
+        } as Contact)
       : null
   );
   const locationRef = useRef<TextInput>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [voice, setVoice] = useState<{ transcript: string | null; description: string | null } | null>(
-    null
-  );
+  const [voice, setVoice] = useState<{
+    transcript: string | null;
+    description: string | null;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
 
   function applyVoicePrefill(prefill: VoicePrefill) {
@@ -85,10 +97,15 @@ export default function NewAppointmentScreen() {
       setContact(prefill.contact);
       setContactSearch('');
     }
-    setVoice({ transcript: prefill.transcript, description: prefill.description });
+    setVoice({
+      transcript: prefill.transcript,
+      description: prefill.description,
+    });
     const hints = voiceHints(prefill);
     setNotice(
-      hints.length > 0 ? hints.join(' ') : 'Filled from voice — review below, then tap Schedule.'
+      hints.length > 0
+        ? hints.join(' ')
+        : 'Filled from voice — review below, then tap Schedule.'
     );
   }
 
@@ -111,7 +128,11 @@ export default function NewAppointmentScreen() {
   // button made the only thing showing a time open the date picker.
   const dateLabel = useMemo(
     () =>
-      start.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }),
+      start.toLocaleDateString([], {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      }),
     [start]
   );
   const timeLabel = useMemo(
@@ -138,7 +159,13 @@ export default function NewAppointmentScreen() {
       contact_id: contact?.id ?? null,
       contact_ids: contact ? [contact.id] : [],
       property_id: params.propertyId ?? null,
-      ...(voice ? { source: 'voice', transcript: voice.transcript, description: voice.description } : {}),
+      ...(voice
+        ? {
+            source: 'voice',
+            transcript: voice.transcript,
+            description: voice.description,
+          }
+        : {}),
     });
     setSaving(false);
     if (insertError) {
@@ -149,7 +176,9 @@ export default function NewAppointmentScreen() {
     haptic.success();
     queryClient.invalidateQueries({ queryKey: ['appointments'] });
     if (contact) {
-      queryClient.invalidateQueries({ queryKey: ['contact-appointments', contact.id] });
+      queryClient.invalidateQueries({
+        queryKey: ['contact-appointments', contact.id],
+      });
     }
     router.back();
   }
@@ -165,8 +194,11 @@ export default function NewAppointmentScreen() {
           title: 'New appointment',
         }}
       />
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag">
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         {error ? <Banner kind="error" text={error} /> : null}
 
         <VoiceScheduler
@@ -204,7 +236,9 @@ export default function NewAppointmentScreen() {
                 style={[
                   styles.typeChip,
                   {
-                    backgroundColor: active ? colors.primarySoft : colors.surface,
+                    backgroundColor: active
+                      ? colors.primarySoft
+                      : colors.surface,
                     borderColor: active ? colors.primary : colors.border,
                   },
                 ]}
@@ -225,22 +259,48 @@ export default function NewAppointmentScreen() {
 
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <Pressable
-            style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.pickerButton,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={() => setPicker('date')}
             accessibilityRole="button"
             accessibilityLabel={`Date — ${dateLabel}`}
           >
-            <Ionicons name="calendar-outline" size={16} color={colors.primary} />
-            <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}>{dateLabel}</Text>
+            <Ionicons
+              name="calendar-outline"
+              size={16}
+              color={colors.primary}
+            />
+            <Text
+              style={{
+                fontSize: 14,
+                fontFamily: f.semibold,
+                color: colors.text,
+              }}
+            >
+              {dateLabel}
+            </Text>
           </Pressable>
           <Pressable
-            style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.pickerButton,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={() => setPicker('time')}
             accessibilityRole="button"
             accessibilityLabel={`Time — ${timeLabel}`}
           >
             <Ionicons name="time-outline" size={16} color={colors.primary} />
-            <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}>{timeLabel}</Text>
+            <Text
+              style={{
+                fontSize: 14,
+                fontFamily: f.semibold,
+                color: colors.text,
+              }}
+            >
+              {timeLabel}
+            </Text>
           </Pressable>
         </View>
         {picker ? (
@@ -261,9 +321,21 @@ export default function NewAppointmentScreen() {
         />
 
         {contact ? (
-          <View style={[styles.contactRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.contactRow,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
             <Avatar name={contact.name || contactHandle(contact)} size={30} />
-            <Text style={{ flex: 1, fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}>
+            <Text
+              style={{
+                flex: 1,
+                fontSize: 14.5,
+                fontFamily: f.semibold,
+                color: colors.text,
+              }}
+            >
               {contact.name || contactHandle(contact)}
             </Text>
             <Pressable
@@ -272,7 +344,11 @@ export default function NewAppointmentScreen() {
               accessibilityRole="button"
               accessibilityLabel="Remove attached contact"
             >
-              <Ionicons name="close-circle" size={18} color={colors.textFaint} />
+              <Ionicons
+                name="close-circle"
+                size={18}
+                color={colors.textFaint}
+              />
             </Pressable>
           </View>
         ) : (
@@ -285,7 +361,13 @@ export default function NewAppointmentScreen() {
             {(contactOptions ?? []).map((c) => (
               <Pressable
                 key={c.id}
-                style={[styles.contactRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[
+                  styles.contactRow,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
                 onPress={() => {
                   setContact(c);
                   setContactSearch('');
@@ -317,7 +399,9 @@ export default function NewAppointmentScreen() {
           />
         </View>
 
-        <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
+        <Text
+          style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}
+        >
           {eventType === 'call'
             ? 'Calls stay internal — only you get the reminder, attached contacts are not messaged.'
             : 'Attached contacts get automatic WhatsApp reminders (morning-of and 1 hour before).'}

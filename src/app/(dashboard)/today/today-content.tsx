@@ -1,9 +1,9 @@
-"use client"
+'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import {
   BarChart3,
   CalendarDays,
@@ -18,15 +18,15 @@ import {
   Smartphone,
   Timer,
   UserPlus,
-} from 'lucide-react'
+} from 'lucide-react';
 
-import { createClient } from '@/lib/supabase/client'
-import { useAuth } from '@/hooks/use-auth'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button, buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
-import { InfoHint } from '@/components/ui/info-hint'
-import { NameTagBadge } from '@/components/contacts/name-tag-badge'
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { InfoHint } from '@/components/ui/info-hint';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
   endOfLocalDay,
   loadExpiringSessions,
@@ -39,22 +39,22 @@ import {
   type QuietHotLead,
   type RangeInsights,
   type TodaysAgenda,
-} from '@/lib/today/queries'
+} from '@/lib/today/queries';
 import {
   deadlineLabel,
   loadDealDeadlines,
   todayDateKey,
   type DealDeadline,
-} from '@/lib/deals/deadlines'
-import { daysAgoStart, startOfLocalDay } from '@/lib/dashboard/date-utils'
-import { hasPhone } from '@/lib/contacts/reachability'
-import type { Contact } from '@/types'
-import { resolveRequirementSource } from '@/lib/requirements/profiles'
-import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from '@/lib/copilot/actions'
+} from '@/lib/deals/deadlines';
+import { daysAgoStart, startOfLocalDay } from '@/lib/dashboard/date-utils';
+import { hasPhone } from '@/lib/contacts/reachability';
+import type { Contact } from '@/types';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from '@/lib/copilot/actions';
 
-const HOUR_MS = 3_600_000
+const HOUR_MS = 3_600_000;
 
-type RangePreset = 'today' | 'yesterday' | '7d' | '30d' | 'custom'
+type RangePreset = 'today' | 'yesterday' | '7d' | '30d' | 'custom';
 
 const RANGE_CHIPS: { key: RangePreset; label: string }[] = [
   { key: 'today', label: 'Today' },
@@ -62,35 +62,37 @@ const RANGE_CHIPS: { key: RangePreset; label: string }[] = [
   { key: '7d', label: '7 days' },
   { key: '30d', label: '30 days' },
   { key: 'custom', label: 'Custom' },
-]
+];
 
 /** [start, end] of the selected insights range in local time, or null
  *  while a custom range is still incomplete/invalid. */
 function resolveRange(
   preset: RangePreset,
   customStart: string,
-  customEnd: string,
+  customEnd: string
 ): [Date, Date] | null {
   switch (preset) {
     case 'today':
-      return [startOfLocalDay(), endOfLocalDay()]
+      return [startOfLocalDay(), endOfLocalDay()];
     case 'yesterday':
-      return [daysAgoStart(1), endOfLocalDay(daysAgoStart(1))]
+      return [daysAgoStart(1), endOfLocalDay(daysAgoStart(1))];
     case '7d':
-      return [daysAgoStart(6), endOfLocalDay()]
+      return [daysAgoStart(6), endOfLocalDay()];
     case '30d':
-      return [daysAgoStart(29), endOfLocalDay()]
+      return [daysAgoStart(29), endOfLocalDay()];
     case 'custom': {
-      if (!customStart || !customEnd) return null
-      const start = new Date(`${customStart}T00:00:00`)
-      const end = new Date(`${customEnd}T00:00:00`)
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return null
-      return [start, endOfLocalDay(end)]
+      if (!customStart || !customEnd) return null;
+      const start = new Date(`${customStart}T00:00:00`);
+      const end = new Date(`${customEnd}T00:00:00`);
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end)
+        return null;
+      return [start, endOfLocalDay(end)];
     }
   }
 }
 
-type SectionFilter = 'all' | 'windows' | 'hot' | 'replies' | 'agenda' | 'deadlines'
+type SectionFilter =
+  'all' | 'windows' | 'hot' | 'replies' | 'agenda' | 'deadlines';
 
 const FILTER_CHIPS: { key: SectionFilter; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -99,7 +101,7 @@ const FILTER_CHIPS: { key: SectionFilter; label: string }[] = [
   { key: 'replies', label: 'Replies' },
   { key: 'agenda', label: 'Agenda' },
   { key: 'deadlines', label: 'Deadlines' },
-]
+];
 
 interface TodayPageProps {
   /**
@@ -109,7 +111,7 @@ interface TodayPageProps {
    * the signals Focus has no card for: reply windows, cooling leads,
    * and the activity numbers.
    */
-  embedded?: boolean
+  embedded?: boolean;
 }
 
 // ------------------------------------------------------------
@@ -117,55 +119,62 @@ interface TodayPageProps {
 // ------------------------------------------------------------
 
 function formatBudget(val: number) {
-  if (val >= 10000000) return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
-  if (val >= 100000) return `₹${(val / 100000).toFixed(2).replace(/\.00$/, '')} L`
-  return `₹${val.toLocaleString('en-IN')}`
+  if (val >= 10000000)
+    return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+  if (val >= 100000)
+    return `₹${(val / 100000).toFixed(2).replace(/\.00$/, '')} L`;
+  return `₹${val.toLocaleString('en-IN')}`;
 }
 
 function countdownLabel(expiresAt: string, nowMs: number) {
-  const diff = new Date(expiresAt).getTime() - nowMs
-  if (diff <= 0) return 'Expired'
-  const h = Math.floor(diff / HOUR_MS)
-  const m = Math.floor((diff % HOUR_MS) / 60_000)
-  return h > 0 ? `${h}h ${m}m left` : `${m}m left`
+  const diff = new Date(expiresAt).getTime() - nowMs;
+  if (diff <= 0) return 'Expired';
+  const h = Math.floor(diff / HOUR_MS);
+  const m = Math.floor((diff % HOUR_MS) / 60_000);
+  return h > 0 ? `${h}h ${m}m left` : `${m}m left`;
 }
 
 function agoLabel(at: string, nowMs: number) {
-  const diff = Math.max(0, nowMs - new Date(at).getTime())
-  const h = Math.floor(diff / HOUR_MS)
-  if (h < 1) return `${Math.max(1, Math.floor(diff / 60_000))}m ago`
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
+  const diff = Math.max(0, nowMs - new Date(at).getTime());
+  const h = Math.floor(diff / HOUR_MS);
+  if (h < 1) return `${Math.max(1, Math.floor(diff / 60_000))}m ago`;
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
 }
 
 function silentLabel(days: number) {
-  if (days <= 0) return 'quiet today'
-  return days === 1 ? '1 day silent' : `${days} days silent`
+  if (days <= 0) return 'quiet today';
+  return days === 1 ? '1 day silent' : `${days} days silent`;
 }
 
 function timeChip(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function refreshedLabel(refreshedAtMs: number, nowMs: number) {
-  const mins = Math.floor((nowMs - refreshedAtMs) / 60_000)
-  if (mins < 1) return 'Refreshed just now'
-  return `Refreshed ${mins}m ago`
+  const mins = Math.floor((nowMs - refreshedAtMs) / 60_000);
+  if (mins < 1) return 'Refreshed just now';
+  return `Refreshed ${mins}m ago`;
 }
 
 function classificationBadge(c: Contact | null) {
-  if (!c?.classification) return null
+  if (!c?.classification) return null;
   const cls =
     c.classification === 'Buyer'
       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
       : c.classification === 'Agent'
         ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
-        : 'bg-slate-800 text-slate-400 border-slate-700'
+        : 'bg-slate-800 text-slate-400 border-slate-700';
   return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold ${cls}`}>
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold ${cls}`}
+    >
       {c.classification}
     </span>
-  )
+  );
 }
 
 // ------------------------------------------------------------
@@ -173,300 +182,325 @@ function classificationBadge(c: Contact | null) {
 // ------------------------------------------------------------
 
 export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
-  const router = useRouter()
-  const { user, accountId } = useAuth()
+  const router = useRouter();
+  const { user, accountId } = useAuth();
 
-  const [expiring, setExpiring] = useState<ExpiringSessionItem[] | null>(null)
-  const [expiringLoading, setExpiringLoading] = useState(true)
+  const [expiring, setExpiring] = useState<ExpiringSessionItem[] | null>(null);
+  const [expiringLoading, setExpiringLoading] = useState(true);
 
-  const [hotLeads, setHotLeads] = useState<QuietHotLead[] | null>(null)
-  const [hotLoading, setHotLoading] = useState(true)
+  const [hotLeads, setHotLeads] = useState<QuietHotLead[] | null>(null);
+  const [hotLoading, setHotLoading] = useState(true);
 
-  const [agenda, setAgenda] = useState<TodaysAgenda | null>(null)
-  const [agendaLoading, setAgendaLoading] = useState(true)
+  const [agenda, setAgenda] = useState<TodaysAgenda | null>(null);
+  const [agendaLoading, setAgendaLoading] = useState(true);
 
-  const [deadlines, setDeadlines] = useState<DealDeadline[] | null>(null)
-  const [deadlinesLoading, setDeadlinesLoading] = useState(true)
+  const [deadlines, setDeadlines] = useState<DealDeadline[] | null>(null);
+  const [deadlinesLoading, setDeadlinesLoading] = useState(true);
 
-  const [insights, setInsights] = useState<RangeInsights | null>(null)
-  const [insightsLoading, setInsightsLoading] = useState(true)
-  const [rangePreset, setRangePreset] = useState<RangePreset>('today')
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd] = useState('')
+  const [insights, setInsights] = useState<RangeInsights | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+  const [rangePreset, setRangePreset] = useState<RangePreset>('today');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
 
-  const [filter, setFilter] = useState<SectionFilter>('all')
+  const [filter, setFilter] = useState<SectionFilter>('all');
   /** Agenda rows mid-way through their optimistic strikethrough. */
-  const [completing, setCompleting] = useState<Set<string>>(new Set())
+  const [completing, setCompleting] = useState<Set<string>>(new Set());
 
-  const [refreshedAt, setRefreshedAt] = useState(() => Date.now())
+  const [refreshedAt, setRefreshedAt] = useState(() => Date.now());
   // 30s tick drives the countdown chips and the "Refreshed Xm ago"
   // label without re-fetching anything.
-  const [now, setNow] = useState(() => Date.now())
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 30_000)
-    return () => window.clearInterval(id)
-  }, [])
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const loadAll = useCallback(() => {
-    const db = createClient()
-    setExpiringLoading(true)
-    setHotLoading(true)
-    setAgendaLoading(true)
-    setDeadlinesLoading(true)
+    const db = createClient();
+    setExpiringLoading(true);
+    setHotLoading(true);
+    setAgendaLoading(true);
+    setDeadlinesLoading(true);
 
     // Fire everything in parallel; each section owns its skeleton so a
     // slow loader never blocks the others (same as the dashboard page).
     void loadExpiringSessions(db)
       .then((items) => setExpiring(items))
       .catch((err) => console.error('[today] expiring sessions failed:', err))
-      .finally(() => setExpiringLoading(false))
+      .finally(() => setExpiringLoading(false));
 
     void loadHotGoingQuiet(db)
       .then((leads) => setHotLeads(leads))
       .catch((err) => console.error('[today] hot leads failed:', err))
-      .finally(() => setHotLoading(false))
+      .finally(() => setHotLoading(false));
 
     void loadTodaysAgenda(db)
       .then((a) => setAgenda(a))
       .catch((err) => console.error('[today] agenda failed:', err))
-      .finally(() => setAgendaLoading(false))
+      .finally(() => setAgendaLoading(false));
 
     if (accountId) {
       void loadDealDeadlines(db, accountId, todayDateKey())
         .then((rows) => setDeadlines(rows))
         .catch((err) => console.error('[today] deal deadlines failed:', err))
-        .finally(() => setDeadlinesLoading(false))
+        .finally(() => setDeadlinesLoading(false));
     } else {
-      setDeadlinesLoading(false)
+      setDeadlinesLoading(false);
     }
 
-    setRefreshedAt(Date.now())
-    setNow(Date.now())
-  }, [accountId])
+    setRefreshedAt(Date.now());
+    setNow(Date.now());
+  }, [accountId]);
 
   useEffect(() => {
     // Microtask defer keeps the synchronous loading-flag setters out of
     // the effect body (react-hooks/set-state-in-effect) — same pattern
     // as the pipelines page's fetchCurrency effect.
-    if (accountId) Promise.resolve().then(() => loadAll())
-  }, [accountId, loadAll])
+    if (accountId) Promise.resolve().then(() => loadAll());
+  }, [accountId, loadAll]);
 
   useEffect(() => {
     const removeCompletedAppointment = (event: Event) => {
       const appointmentId = (event as CustomEvent<{ appointmentId?: string }>)
-        .detail?.appointmentId
-      if (!appointmentId) return
+        .detail?.appointmentId;
+      if (!appointmentId) return;
       setAgenda((current) =>
         current
           ? {
               ...current,
               appointments: current.appointments.filter(
-                (appointment) => appointment.id !== appointmentId,
+                (appointment) => appointment.id !== appointmentId
               ),
             }
-          : current,
-      )
+          : current
+      );
       setCompleting((current) => {
-        const key = `appointment-${appointmentId}`
-        if (!current.has(key)) return current
-        const next = new Set(current)
-        next.delete(key)
-        return next
-      })
-    }
+        const key = `appointment-${appointmentId}`;
+        if (!current.has(key)) return current;
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+    };
     window.addEventListener(
       COPILOT_APPOINTMENT_COMPLETED_EVENT,
-      removeCompletedAppointment,
-    )
+      removeCompletedAppointment
+    );
     return () =>
       window.removeEventListener(
         COPILOT_APPOINTMENT_COMPLETED_EVENT,
-        removeCompletedAppointment,
-      )
-  }, [])
+        removeCompletedAppointment
+      );
+  }, []);
 
   // Insights refetch on range change and on manual refresh (refreshedAt
   // bumps whenever loadAll runs). A stale-guard drops out-of-order
   // responses when the user flips ranges quickly.
   useEffect(() => {
-    if (!accountId) return
-    const range = resolveRange(rangePreset, customStart, customEnd)
-    if (!range) return // incomplete custom range — keep showing the last numbers
-    let cancelled = false
+    if (!accountId) return;
+    const range = resolveRange(rangePreset, customStart, customEnd);
+    if (!range) return; // incomplete custom range — keep showing the last numbers
+    let cancelled = false;
     Promise.resolve().then(() => {
-      setInsightsLoading(true)
+      setInsightsLoading(true);
       loadRangeInsights(createClient(), range[0], range[1])
         .then((data) => {
-          if (!cancelled) setInsights(data)
+          if (!cancelled) setInsights(data);
         })
         .catch((err) => console.error('[today] insights failed:', err))
         .finally(() => {
-          if (!cancelled) setInsightsLoading(false)
-        })
-    })
+          if (!cancelled) setInsightsLoading(false);
+        });
+    });
     return () => {
-      cancelled = true
-    }
-  }, [accountId, rangePreset, customStart, customEnd, refreshedAt])
+      cancelled = true;
+    };
+  }, [accountId, rangePreset, customStart, customEnd, refreshedAt]);
 
   // --- Split loader 1's list into the two visible sections ------------
   const { windowsClosing, awaitingReply } = useMemo(() => {
-    const closing: ExpiringSessionItem[] = []
-    const awaiting: ExpiringSessionItem[] = []
+    const closing: ExpiringSessionItem[] = [];
+    const awaiting: ExpiringSessionItem[] = [];
     for (const item of expiring ?? []) {
-      const expiresIn = new Date(item.expiresAt).getTime() - now
+      const expiresIn = new Date(item.expiresAt).getTime() - now;
       if (expiresIn <= 6 * HOUR_MS) {
-        closing.push(item)
+        closing.push(item);
       } else if (now - new Date(item.lastCustomerAt).getTime() > 2 * HOUR_MS) {
-        awaiting.push(item) // recent (<2h) chats are excluded entirely
+        awaiting.push(item); // recent (<2h) chats are excluded entirely
       }
     }
-    return { windowsClosing: closing, awaitingReply: awaiting }
-  }, [expiring, now])
+    return { windowsClosing: closing, awaitingReply: awaiting };
+  }, [expiring, now]);
 
-  const agendaCount = (agenda?.appointments.length ?? 0) + (agenda?.todos.length ?? 0)
-  const deadlineCount = deadlines?.length ?? 0
+  const agendaCount =
+    (agenda?.appointments.length ?? 0) + (agenda?.todos.length ?? 0);
+  const deadlineCount = deadlines?.length ?? 0;
 
   // --- Row actions ------------------------------------------------------
 
   const handleHandled = (conversationId: string) => {
     setExpiring((prev) =>
-      prev ? prev.filter((i) => i.conversation.id !== conversationId) : prev,
-    )
-  }
+      prev ? prev.filter((i) => i.conversation.id !== conversationId) : prev
+    );
+  };
 
   const handleMarkContacted = async (contact: Contact) => {
-    const db = createClient()
+    const db = createClient();
     const { error } = await db
       .from('contacts')
       .update({ last_contacted_at: new Date().toISOString() })
-      .eq('id', contact.id)
+      .eq('id', contact.id);
     if (error) {
-      console.error('[today] mark contacted failed:', error)
-      toast.error('Failed to mark as contacted')
-      return
+      console.error('[today] mark contacted failed:', error);
+      toast.error('Failed to mark as contacted');
+      return;
     }
-    setHotLeads((prev) => (prev ? prev.filter((l) => l.contact.id !== contact.id) : prev))
-    toast.success(`${contact.name || contact.phone} marked as contacted`)
-  }
+    setHotLeads((prev) =>
+      prev ? prev.filter((l) => l.contact.id !== contact.id) : prev
+    );
+    toast.success(`${contact.name || contact.phone} marked as contacted`);
+  };
 
   const handleOpenChatForContact = async (contact: Contact) => {
     if (!hasPhone(contact)) {
-      toast.error('This contact has no phone number')
-      return
+      toast.error('This contact has no phone number');
+      return;
     }
-    const db = createClient()
+    const db = createClient();
     const { data, error } = await db
       .from('conversations')
       .select('id')
       .eq('contact_id', contact.id)
       .order('updated_at', { ascending: false })
-      .limit(1)
-    if (error) console.error('[today] conversation lookup failed:', error)
-    const conversationId = (data as { id: string }[] | null)?.[0]?.id
+      .limit(1);
+    if (error) console.error('[today] conversation lookup failed:', error);
+    const conversationId = (data as { id: string }[] | null)?.[0]?.id;
     if (conversationId) {
-      router.push(`/inbox?c=${conversationId}`)
+      router.push(`/inbox?c=${conversationId}`);
     } else {
       // No thread yet — fall back to WhatsApp directly.
-      window.open(`https://wa.me/${contact.phone.replace(/\D/g, '')}`, '_blank')
+      window.open(
+        `https://wa.me/${contact.phone.replace(/\D/g, '')}`,
+        '_blank'
+      );
     }
-  }
+  };
 
   /** Open native WhatsApp, mark contacted, and log a note in one click. */
   const handleWhatsAppDirect = async (contact: Contact) => {
     if (!hasPhone(contact)) {
-      toast.error('This contact has no phone number')
-      return
+      toast.error('This contact has no phone number');
+      return;
     }
     // 1. Open WhatsApp immediately (must be synchronous for popup blocker)
-    window.open(`https://wa.me/${contact.phone.replace(/\D/g, '')}`, '_blank')
+    window.open(`https://wa.me/${contact.phone.replace(/\D/g, '')}`, '_blank');
 
     // 2. Mark contacted + log note in the background
-    const db = createClient()
-    const now = new Date().toISOString()
+    const db = createClient();
+    const now = new Date().toISOString();
 
     const [contactRes, noteRes] = await Promise.allSettled([
       db
         .from('contacts')
         .update({ last_contacted_at: now })
         .eq('id', contact.id),
-      db
-        .from('contact_notes')
-        .insert({
-          contact_id: contact.id,
-          user_id: user?.id,
-          account_id: accountId,
-          note_text: '📱 Contacted via personal WhatsApp',
-        }),
-    ])
+      db.from('contact_notes').insert({
+        contact_id: contact.id,
+        user_id: user?.id,
+        account_id: accountId,
+        note_text: '📱 Contacted via personal WhatsApp',
+      }),
+    ]);
 
-    const contactErr = contactRes.status === 'fulfilled' ? contactRes.value.error : contactRes.reason
-    const noteErr = noteRes.status === 'fulfilled' ? noteRes.value.error : noteRes.reason
+    const contactErr =
+      contactRes.status === 'fulfilled'
+        ? contactRes.value.error
+        : contactRes.reason;
+    const noteErr =
+      noteRes.status === 'fulfilled' ? noteRes.value.error : noteRes.reason;
 
-    if (contactErr) console.error('[today] whatsapp mark contacted failed:', contactErr)
-    if (noteErr) console.error('[today] whatsapp note insert failed:', noteErr)
+    if (contactErr)
+      console.error('[today] whatsapp mark contacted failed:', contactErr);
+    if (noteErr) console.error('[today] whatsapp note insert failed:', noteErr);
 
     // 3. Optimistically remove the card
-    setHotLeads((prev) => (prev ? prev.filter((l) => l.contact.id !== contact.id) : prev))
-    toast.success(`Opened WhatsApp for ${contact.name || contact.phone}`)
-  }
+    setHotLeads((prev) =>
+      prev ? prev.filter((l) => l.contact.id !== contact.id) : prev
+    );
+    toast.success(`Opened WhatsApp for ${contact.name || contact.phone}`);
+  };
 
-  const completeAgendaItem = (kind: 'appointment' | 'todo', item: AgendaAppointment | AgendaTodo) => {
-    const key = `${kind}-${item.id}`
-    setCompleting((prev) => new Set(prev).add(key))
+  const completeAgendaItem = (
+    kind: 'appointment' | 'todo',
+    item: AgendaAppointment | AgendaTodo
+  ) => {
+    const key = `${kind}-${item.id}`;
+    setCompleting((prev) => new Set(prev).add(key));
 
     // Optimistic: strikethrough now, drop the row 400ms later.
     window.setTimeout(() => {
       setAgenda((prev) => {
-        if (!prev) return prev
+        if (!prev) return prev;
         return kind === 'appointment'
-          ? { ...prev, appointments: prev.appointments.filter((a) => a.id !== item.id) }
-          : { ...prev, todos: prev.todos.filter((t) => t.id !== item.id) }
-      })
+          ? {
+              ...prev,
+              appointments: prev.appointments.filter((a) => a.id !== item.id),
+            }
+          : { ...prev, todos: prev.todos.filter((t) => t.id !== item.id) };
+      });
       setCompleting((prev) => {
-        const next = new Set(prev)
-        next.delete(key)
-        return next
-      })
-    }, 400)
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }, 400);
 
-    const db = createClient()
+    const db = createClient();
     const update =
       kind === 'appointment'
-        ? db.from('appointments').update({ status: 'completed' }).eq('id', item.id)
-        : db.from('todos').update({ completed: true }).eq('id', item.id)
+        ? db
+            .from('appointments')
+            .update({ status: 'completed' })
+            .eq('id', item.id)
+        : db.from('todos').update({ completed: true }).eq('id', item.id);
 
     void update.then(({ error }) => {
-      if (!error) return
-      console.error(`[today] complete ${kind} failed:`, error)
-      toast.error(`Failed to complete ${kind === 'appointment' ? 'appointment' : 'to-do'}`)
+      if (!error) return;
+      console.error(`[today] complete ${kind} failed:`, error);
+      toast.error(
+        `Failed to complete ${kind === 'appointment' ? 'appointment' : 'to-do'}`
+      );
       // Revert: un-strike and put the row back in order.
       setCompleting((prev) => {
-        const next = new Set(prev)
-        next.delete(key)
-        return next
-      })
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
       setAgenda((prev) => {
-        if (!prev) return prev
+        if (!prev) return prev;
         if (kind === 'appointment') {
-          const appt = item as AgendaAppointment
-          if (prev.appointments.some((a) => a.id === appt.id)) return prev
+          const appt = item as AgendaAppointment;
+          if (prev.appointments.some((a) => a.id === appt.id)) return prev;
           const appointments = [...prev.appointments, appt].sort((a, b) =>
-            a.start_time.localeCompare(b.start_time),
-          )
-          return { ...prev, appointments }
+            a.start_time.localeCompare(b.start_time)
+          );
+          return { ...prev, appointments };
         }
-        const todo = item as AgendaTodo
-        if (prev.todos.some((t) => t.id === todo.id)) return prev
-        const todos = [...prev.todos, todo].sort((a, b) => a.due_date.localeCompare(b.due_date))
-        return { ...prev, todos }
-      })
-    })
-  }
+        const todo = item as AgendaTodo;
+        if (prev.todos.some((t) => t.id === todo.id)) return prev;
+        const todos = [...prev.todos, todo].sort((a, b) =>
+          a.due_date.localeCompare(b.due_date)
+        );
+        return { ...prev, todos };
+      });
+    });
+  };
 
-  const anyLoading = expiringLoading || hotLoading || agendaLoading || deadlinesLoading
+  const anyLoading =
+    expiringLoading || hotLoading || agendaLoading || deadlinesLoading;
   const show = (key: Exclude<SectionFilter, 'all'>) =>
-    (!embedded || key !== 'agenda') && (filter === 'all' || filter === key)
+    (!embedded || key !== 'agenda') && (filter === 'all' || filter === key);
 
   return (
     <div className="space-y-6">
@@ -474,9 +508,12 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
       {!embedded && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">Today</h1>
-            <p className="mt-1.5 text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
-              Everything that needs your attention right now — reply windows, cooling leads, today&apos;s schedule, and your activity numbers.
+            <h1 className="text-3xl font-extrabold tracking-tight text-white">
+              Today
+            </h1>
+            <p className="mt-1.5 text-xs leading-relaxed font-medium text-slate-400 sm:text-sm">
+              Everything that needs your attention right now — reply windows,
+              cooling leads, today&apos;s schedule, and your activity numbers.
             </p>
           </div>
           <Button
@@ -484,16 +521,20 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
             size="sm"
             onClick={loadAll}
             disabled={anyLoading}
-            className="shrink-0 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-900/40 rounded-xl cursor-pointer"
+            className="shrink-0 cursor-pointer rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-900/40 hover:text-white"
           >
-            <RefreshCw className={`size-3.5 ${anyLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`size-3.5 ${anyLoading ? 'animate-spin' : ''}`}
+            />
             {refreshedLabel(refreshedAt, now)} · Refresh
           </Button>
         </div>
       )}
 
       {/* Stat cards */}
-      <div className={`grid grid-cols-2 gap-4 ${embedded ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
+      <div
+        className={`grid grid-cols-2 gap-4 ${embedded ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}
+      >
         <StatCard
           label="Windows closing"
           value={windowsClosing.length}
@@ -531,10 +572,10 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
       </div>
 
       {/* Activity insights */}
-      <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+      <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
-            <BarChart3 className="size-4 text-primary" />
+          <h2 className="flex items-center gap-2 text-sm font-black tracking-wider text-white uppercase">
+            <BarChart3 className="text-primary size-4" />
             Activity insights
             <InfoHint text="Your working numbers for the selected period — inquiries, contacts, message volume, replies, and showcase link opens." />
           </h2>
@@ -544,7 +585,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
                 key={chip.key}
                 type="button"
                 onClick={() => setRangePreset(chip.key)}
-                className={`rounded-full border px-3 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                className={`cursor-pointer rounded-full border px-3 py-1 text-[11px] font-bold transition-colors ${
                   rangePreset === chip.key
                     ? 'border-primary/50 bg-primary/10 text-primary'
                     : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700 hover:text-slate-200'
@@ -563,7 +604,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
               value={customStart}
               max={customEnd || undefined}
               onChange={(e) => setCustomStart(e.target.value)}
-              className="h-8 rounded-lg border border-slate-800 bg-slate-950 px-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary [color-scheme:dark]"
+              className="focus:ring-primary h-8 rounded-lg border border-slate-800 bg-slate-950 px-2.5 text-xs text-slate-200 [color-scheme:dark] focus:ring-1 focus:outline-none"
             />
             <span className="text-xs font-bold text-slate-500">to</span>
             <input
@@ -571,7 +612,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
               value={customEnd}
               min={customStart || undefined}
               onChange={(e) => setCustomEnd(e.target.value)}
-              className="h-8 rounded-lg border border-slate-800 bg-slate-950 px-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary [color-scheme:dark]"
+              className="focus:ring-primary h-8 rounded-lg border border-slate-800 bg-slate-950 px-2.5 text-xs text-slate-200 [color-scheme:dark] focus:ring-1 focus:outline-none"
             />
             {(!customStart || !customEnd) && (
               <span className="text-[11px] font-medium text-slate-500">
@@ -581,7 +622,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
           </div>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           <InsightTile
             label="New inquiries"
             value={insights?.newInquiries ?? 0}
@@ -634,20 +675,22 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
 
       {/* Filter chips */}
       <div className="flex flex-wrap gap-2">
-        {FILTER_CHIPS.filter((chip) => !embedded || chip.key !== 'agenda').map((chip) => (
-          <button
-            key={chip.key}
-            type="button"
-            onClick={() => setFilter(chip.key)}
-            className={`rounded-full border px-3.5 py-1.5 text-xs font-bold transition-colors cursor-pointer ${
-              filter === chip.key
-                ? 'border-primary/50 bg-primary/10 text-primary'
-                : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-            }`}
-          >
-            {chip.label}
-          </button>
-        ))}
+        {FILTER_CHIPS.filter((chip) => !embedded || chip.key !== 'agenda').map(
+          (chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => setFilter(chip.key)}
+              className={`cursor-pointer rounded-full border px-3.5 py-1.5 text-xs font-bold transition-colors ${
+                filter === chip.key
+                  ? 'border-primary/50 bg-primary/10 text-primary'
+                  : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+              }`}
+            >
+              {chip.label}
+            </button>
+          )
+        )}
       </div>
 
       {/* a) Windows closing */}
@@ -691,87 +734,92 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
           ) : (
             <div className="flex flex-col gap-3">
               {hotLeads.map(({ contact, daysSilent }) => {
-                const source = resolveRequirementSource(contact)
+                const source = resolveRequirementSource(contact);
                 const areaHints = Array.from(
-                  new Set([...(source.areas_of_interest ?? []), ...(source.pref_areas ?? [])]),
-                )
-                const budgetMax = source.pref_budget_max ?? source.max_budget
+                  new Set([
+                    ...(source.areas_of_interest ?? []),
+                    ...(source.pref_areas ?? []),
+                  ])
+                );
+                const budgetMax = source.pref_budget_max ?? source.max_budget;
                 return (
-                <div
-                  key={contact.id}
-                  className="rounded-xl border border-slate-800 bg-slate-900 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <Avatar className="size-9 border border-slate-800 shrink-0">
-                      <AvatarFallback className="bg-amber-500/10 text-xs font-black text-amber-400">
-                        {(contact.name || contact.phone || '?').charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-black text-white truncate">
-                          {contact.name || contact.phone}
-                        </span>
-                        <NameTagBadge tag={contact.name_tag} />
-                        <span className="inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold text-amber-400">
-                          {silentLabel(daysSilent)}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-slate-400 font-medium">
-                        {source.no_budget
-                          ? 'Budget: no limit'
-                          : budgetMax
-                            ? `Budget: ${formatBudget(budgetMax)}`
-                            : 'Budget: not specified'}
-                      </p>
-                      {areaHints.length > 0 && (
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {areaHints.slice(0, 3).map((area) => (
-                            <span
-                              key={area}
-                              className="inline-flex items-center rounded-lg bg-slate-950/40 border border-slate-800 px-2 py-0.5 text-[9px] font-bold text-slate-400"
-                            >
-                              {area}
-                            </span>
-                          ))}
-                          {areaHints.length > 3 && (
-                            <span className="text-[9px] font-bold text-slate-500 self-center">
-                              +{areaHints.length - 3}
-                            </span>
-                          )}
+                  <div
+                    key={contact.id}
+                    className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <Avatar className="size-9 shrink-0 border border-slate-800">
+                        <AvatarFallback className="bg-amber-500/10 text-xs font-black text-amber-400">
+                          {(contact.name || contact.phone || '?')
+                            .charAt(0)
+                            .toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="truncate text-sm font-black text-white">
+                            {contact.name || contact.phone}
+                          </span>
+                          <NameTagBadge tag={contact.name_tag} />
+                          <span className="inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold text-amber-400">
+                            {silentLabel(daysSilent)}
+                          </span>
                         </div>
-                      )}
+                        <p className="mt-0.5 text-xs font-medium text-slate-400">
+                          {source.no_budget
+                            ? 'Budget: no limit'
+                            : budgetMax
+                              ? `Budget: ${formatBudget(budgetMax)}`
+                              : 'Budget: not specified'}
+                        </p>
+                        {areaHints.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {areaHints.slice(0, 3).map((area) => (
+                              <span
+                                key={area}
+                                className="inline-flex items-center rounded-lg border border-slate-800 bg-slate-950/40 px-2 py-0.5 text-[9px] font-bold text-slate-400"
+                              >
+                                {area}
+                              </span>
+                            ))}
+                            {areaHints.length > 3 && (
+                              <span className="self-center text-[9px] font-bold text-slate-500">
+                                +{areaHints.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => void handleOpenChatForContact(contact)}
+                        className="cursor-pointer rounded-xl text-xs font-bold"
+                      >
+                        <MessageSquare className="size-3.5" />
+                        Open chat
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => void handleWhatsAppDirect(contact)}
+                        className="cursor-pointer rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
+                      >
+                        <Smartphone className="size-3.5" />
+                        WhatsApp
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleMarkContacted(contact)}
+                        className="cursor-pointer rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800/60 hover:text-white"
+                      >
+                        <Check className="size-3.5" />
+                        Mark contacted
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      size="sm"
-                      onClick={() => void handleOpenChatForContact(contact)}
-                      className="text-xs font-bold rounded-xl cursor-pointer"
-                    >
-                      <MessageSquare className="size-3.5" />
-                      Open chat
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => void handleWhatsAppDirect(contact)}
-                      className="text-xs font-bold rounded-xl cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white"
-                    >
-                      <Smartphone className="size-3.5" />
-                      WhatsApp
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void handleMarkContacted(contact)}
-                      className="text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl cursor-pointer"
-                    >
-                      <Check className="size-3.5" />
-                      Mark contacted
-                    </Button>
-                  </div>
-                </div>
-                )
+                );
               })}
             </div>
           )}
@@ -819,32 +867,36 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
           ) : (
             <div className="flex flex-col gap-3">
               {agenda?.appointments.map((appt) => {
-                const striking = completing.has(`appointment-${appt.id}`)
+                const striking = completing.has(`appointment-${appt.id}`);
                 return (
                   <div
                     key={appt.id}
-                    className="rounded-xl border border-slate-800 bg-slate-900 p-4 flex items-center gap-3"
+                    className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4"
                   >
                     <button
                       type="button"
                       onClick={() => completeAgendaItem('appointment', appt)}
                       disabled={striking}
                       aria-label={`Mark appointment "${appt.title}" completed`}
-                      className={`size-5 shrink-0 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
+                      className={`flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors ${
                         striking
                           ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
-                          : 'border-slate-600 hover:border-emerald-400 text-transparent hover:text-emerald-400/60'
+                          : 'border-slate-600 text-transparent hover:border-emerald-400 hover:text-emerald-400/60'
                       }`}
                     >
                       <Check className="size-3" />
                     </button>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400 shrink-0">
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
                       <Clock className="size-3" />
                       {timeChip(appt.start_time)}
                     </span>
-                    <div className={`min-w-0 flex-1 ${striking ? 'line-through opacity-50' : ''}`}>
-                      <p className="text-sm font-bold text-white truncate">{appt.title}</p>
-                      <p className="text-xs text-slate-400 font-medium truncate">
+                    <div
+                      className={`min-w-0 flex-1 ${striking ? 'line-through opacity-50' : ''}`}
+                    >
+                      <p className="truncate text-sm font-bold text-white">
+                        {appt.title}
+                      </p>
+                      <p className="truncate text-xs font-medium text-slate-400">
                         {[
                           appt.contact?.name || appt.contact?.phone,
                           appt.property?.title,
@@ -855,31 +907,31 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
                       </p>
                     </div>
                   </div>
-                )
+                );
               })}
               {agenda?.todos.map((todo) => {
-                const striking = completing.has(`todo-${todo.id}`)
-                const overdue = new Date(todo.due_date).getTime() < now
+                const striking = completing.has(`todo-${todo.id}`);
+                const overdue = new Date(todo.due_date).getTime() < now;
                 return (
                   <div
                     key={todo.id}
-                    className="rounded-xl border border-slate-800 bg-slate-900 p-4 flex items-center gap-3"
+                    className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4"
                   >
                     <button
                       type="button"
                       onClick={() => completeAgendaItem('todo', todo)}
                       disabled={striking}
                       aria-label={`Mark to-do "${todo.title}" completed`}
-                      className={`size-5 shrink-0 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
+                      className={`flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors ${
                         striking
                           ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
-                          : 'border-slate-600 hover:border-emerald-400 text-transparent hover:text-emerald-400/60'
+                          : 'border-slate-600 text-transparent hover:border-emerald-400 hover:text-emerald-400/60'
                       }`}
                     >
                       <Check className="size-3" />
                     </button>
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold shrink-0 ${
+                      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
                         overdue
                           ? 'border-rose-500/25 bg-rose-500/10 text-rose-400'
                           : 'border-slate-700 bg-slate-800/60 text-slate-300'
@@ -888,18 +940,25 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
                       <Clock className="size-3" />
                       {overdue ? 'Overdue' : `Due ${timeChip(todo.due_date)}`}
                     </span>
-                    <div className={`min-w-0 flex-1 ${striking ? 'line-through opacity-50' : ''}`}>
-                      <p className="text-sm font-bold text-white truncate">{todo.title}</p>
+                    <div
+                      className={`min-w-0 flex-1 ${striking ? 'line-through opacity-50' : ''}`}
+                    >
+                      <p className="truncate text-sm font-bold text-white">
+                        {todo.title}
+                      </p>
                       {(todo.contact || todo.property) && (
-                        <p className="text-xs text-slate-400 font-medium truncate">
-                          {[todo.contact?.name || todo.contact?.phone, todo.property?.title]
+                        <p className="truncate text-xs font-medium text-slate-400">
+                          {[
+                            todo.contact?.name || todo.contact?.phone,
+                            todo.property?.title,
+                          ]
                             .filter(Boolean)
                             .join(' · ')}
                         </p>
                       )}
                     </div>
                   </div>
-                )
+                );
               })}
             </div>
           )}
@@ -923,10 +982,10 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
                 <Link
                   key={`${d.dealId}:${d.milestoneId ?? d.kind}`}
                   href={`/deals/${d.dealId}`}
-                  className="rounded-xl border border-slate-800 bg-slate-900 p-4 flex items-center gap-3 transition-colors hover:border-slate-600"
+                  className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-slate-600"
                 >
                   <span
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold shrink-0 ${
+                    className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
                       d.urgency === 'overdue'
                         ? 'border-rose-500/25 bg-rose-500/10 text-rose-400'
                         : d.urgency === 'today'
@@ -938,8 +997,10 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
                     {deadlineLabel(d.daysLeft)}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-white truncate">{d.title}</p>
-                    <p className="text-xs text-slate-400 font-medium truncate">
+                    <p className="truncate text-sm font-bold text-white">
+                      {d.title}
+                    </p>
+                    <p className="truncate text-xs font-medium text-slate-400">
                       {d.subject} · {d.dueDate}
                     </p>
                   </div>
@@ -950,7 +1011,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
         </Section>
       )}
     </div>
-  )
+  );
 }
 
 // ------------------------------------------------------------
@@ -965,17 +1026,17 @@ function InsightTile({
   icon,
   hint,
 }: {
-  label: string
-  value: number
-  suffix?: string
-  loading: boolean
-  icon: React.ReactNode
-  hint?: string
+  label: string;
+  value: number;
+  suffix?: string;
+  loading: boolean;
+  icon: React.ReactNode;
+  hint?: string;
 }) {
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
       <div className="flex items-center justify-between gap-1">
-        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center min-w-0 truncate">
+        <span className="flex min-w-0 items-center truncate text-[10px] font-bold tracking-wider text-slate-400 uppercase">
           {label}
           {hint && <InfoHint text={hint} />}
         </span>
@@ -988,13 +1049,15 @@ function InsightTile({
           <>
             {value}
             {suffix && (
-              <span className="ml-1 text-xs font-bold text-slate-500">{suffix}</span>
+              <span className="ml-1 text-xs font-bold text-slate-500">
+                {suffix}
+              </span>
             )}
           </>
         )}
       </div>
     </div>
-  )
+  );
 }
 
 function StatCard({
@@ -1005,27 +1068,31 @@ function StatCard({
   valueClass,
   hint,
 }: {
-  label: string
-  value: number
-  loading: boolean
-  icon: React.ReactNode
-  valueClass: string
-  hint?: string
+  label: string;
+  value: number;
+  loading: boolean;
+  icon: React.ReactNode;
+  valueClass: string;
+  hint?: string;
 }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center">
+        <span className="flex items-center text-xs font-bold tracking-wider text-slate-400 uppercase">
           {label}
           {hint && <InfoHint text={hint} />}
         </span>
         {icon}
       </div>
       <div className={`mt-2.5 text-2xl font-black ${valueClass}`}>
-        {loading ? <div className="h-8 w-10 animate-pulse rounded-lg bg-slate-800" /> : value}
+        {loading ? (
+          <div className="h-8 w-10 animate-pulse rounded-lg bg-slate-800" />
+        ) : (
+          value
+        )}
       </div>
     </div>
-  )
+  );
 }
 
 function Section({
@@ -1034,14 +1101,14 @@ function Section({
   children,
   hint,
 }: {
-  title: string
-  count: number
-  children: React.ReactNode
-  hint?: string
+  title: string;
+  count: number;
+  children: React.ReactNode;
+  hint?: string;
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-black text-white flex items-center gap-2">
+      <h2 className="flex items-center gap-2 text-sm font-black text-white">
         <span className="flex items-center">
           {title}
           {hint && <InfoHint text={hint} />}
@@ -1052,16 +1119,19 @@ function Section({
       </h2>
       {children}
     </section>
-  )
+  );
 }
 
 function SkeletonRows({ rows = 3 }: { rows?: number }) {
   return (
     <div className="flex flex-col gap-3">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+        <div
+          key={i}
+          className="rounded-xl border border-slate-800 bg-slate-900 p-4"
+        >
           <div className="flex items-center gap-3">
-            <div className="size-9 animate-pulse rounded-full bg-slate-800 shrink-0" />
+            <div className="size-9 shrink-0 animate-pulse rounded-full bg-slate-800" />
             <div className="flex-1 space-y-2">
               <div className="h-3.5 w-1/3 animate-pulse rounded bg-slate-800" />
               <div className="h-3 w-2/3 animate-pulse rounded bg-slate-800" />
@@ -1070,7 +1140,7 @@ function SkeletonRows({ rows = 3 }: { rows?: number }) {
         </div>
       ))}
     </div>
-  )
+  );
 }
 
 function EmptyState() {
@@ -1078,7 +1148,7 @@ function EmptyState() {
     <div className="rounded-xl border border-dashed border-slate-800 py-8 text-center">
       <p className="text-xs font-medium text-slate-500">All clear here ✓</p>
     </div>
-  )
+  );
 }
 
 function SessionCard({
@@ -1087,26 +1157,28 @@ function SessionCard({
   mode,
   onHandled,
 }: {
-  item: ExpiringSessionItem
-  now: number
-  mode: 'countdown' | 'ago'
-  onHandled: (conversationId: string) => void
+  item: ExpiringSessionItem;
+  now: number;
+  mode: 'countdown' | 'ago';
+  onHandled: (conversationId: string) => void;
 }) {
-  const { conversation, contact, lastCustomerAt, expiresAt } = item
-  const displayName = contact?.name || contact?.phone || 'Unknown contact'
-  const urgent = new Date(expiresAt).getTime() - now < 2 * HOUR_MS
+  const { conversation, contact, lastCustomerAt, expiresAt } = item;
+  const displayName = contact?.name || contact?.phone || 'Unknown contact';
+  const urgent = new Date(expiresAt).getTime() - now < 2 * HOUR_MS;
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-start gap-3 min-w-0">
-        <Avatar className="size-9 border border-slate-800 shrink-0">
-          <AvatarFallback className="bg-primary/10 text-xs font-black text-primary">
+    <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-start gap-3">
+        <Avatar className="size-9 shrink-0 border border-slate-800">
+          <AvatarFallback className="bg-primary/10 text-primary text-xs font-black">
             {displayName.charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-black text-white truncate">{displayName}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate text-sm font-black text-white">
+              {displayName}
+            </span>
             {classificationBadge(contact)}
             {mode === 'countdown' ? (
               <span
@@ -1127,16 +1199,19 @@ function SessionCard({
             )}
           </div>
           {conversation.last_message_text && (
-            <p className="mt-1 text-xs text-slate-400 font-medium truncate max-w-md">
+            <p className="mt-1 max-w-md truncate text-xs font-medium text-slate-400">
               {conversation.last_message_text}
             </p>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex shrink-0 items-center gap-2">
         <Link
           href={`/inbox?c=${conversation.id}`}
-          className={cn(buttonVariants({ size: 'sm' }), 'text-xs font-bold rounded-xl')}
+          className={cn(
+            buttonVariants({ size: 'sm' }),
+            'rounded-xl text-xs font-bold'
+          )}
         >
           <MessageSquare className="size-3.5" />
           Open chat
@@ -1145,11 +1220,11 @@ function SessionCard({
           variant="ghost"
           size="sm"
           onClick={() => onHandled(conversation.id)}
-          className="text-xs font-bold text-slate-500 hover:text-white hover:bg-slate-800/60 rounded-xl cursor-pointer"
+          className="cursor-pointer rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-800/60 hover:text-white"
         >
           Handled ✓
         </Button>
       </div>
     </div>
-  )
+  );
 }

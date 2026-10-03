@@ -57,8 +57,7 @@ export type CoreFailureReason =
   | 'wrong_code';
 
 export type OtpResult<R extends string> =
-  | { ok: true }
-  | { ok: false; reason: R; incrementAttempts: boolean };
+  { ok: true } | { ok: false; reason: R; incrementAttempts: boolean };
 
 /** An action-specific check that must hold before the code is compared.
  *  `matches: false` rejects with `reason` and burns an attempt. */

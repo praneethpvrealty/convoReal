@@ -10,8 +10,26 @@
  * renumber of everything already merged.
  */
 export const KNOWN_DUPLICATE_PREFIXES: ReadonlySet<string> = new Set([
-  "063", "073", "078", "092", "103", "110", "115", "126", "151", "154",
-  "166", "173", "175", "179", "194", "195", "198", "200", "203", "204",
+  '063',
+  '073',
+  '078',
+  '092',
+  '103',
+  '110',
+  '115',
+  '126',
+  '151',
+  '154',
+  '166',
+  '173',
+  '175',
+  '179',
+  '194',
+  '195',
+  '198',
+  '200',
+  '203',
+  '204',
 ]);
 
 export function migrationPrefix(filename: string): string | null {
@@ -20,7 +38,9 @@ export function migrationPrefix(filename: string): string | null {
 }
 
 /** Prefix → the filenames sharing it, for prefixes used more than once. */
-export function findDuplicatePrefixes(filenames: string[]): Map<string, string[]> {
+export function findDuplicatePrefixes(
+  filenames: string[]
+): Map<string, string[]> {
   const byPrefix = new Map<string, string[]>();
   for (const name of filenames) {
     const prefix = migrationPrefix(name);
@@ -37,14 +57,15 @@ export function findDuplicatePrefixes(filenames: string[]): Map<string, string[]
 }
 
 /** Duplicates that are not part of the frozen history — i.e. new ones. */
-export function findNewDuplicatePrefixes(filenames: string[]): Map<string, string[]> {
+export function findNewDuplicatePrefixes(
+  filenames: string[]
+): Map<string, string[]> {
   const fresh = new Map<string, string[]>();
   for (const [prefix, names] of findDuplicatePrefixes(filenames)) {
     if (!KNOWN_DUPLICATE_PREFIXES.has(prefix)) fresh.set(prefix, names);
   }
   return fresh;
 }
-
 
 /**
  * Sequential prefixes through 293 are frozen legacy history. New migrations

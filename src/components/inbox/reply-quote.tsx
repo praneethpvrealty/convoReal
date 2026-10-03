@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { Message } from "@/types";
+import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { Message } from '@/types';
 
 interface ReplyQuoteProps {
   /** Sender label of the quoted message: "You" for our own messages,
@@ -25,14 +25,12 @@ export function ReplyQuote({
   return (
     <div
       className={cn(
-        "flex items-start gap-2 border-l-2 border-primary px-2 py-1",
-        isChip
-          ? "rounded-md bg-slate-800/80"
-          : "mb-1.5 rounded-md bg-black/20",
+        'border-primary flex items-start gap-2 border-l-2 px-2 py-1',
+        isChip ? 'rounded-md bg-slate-800/80' : 'mb-1.5 rounded-md bg-black/20'
       )}
     >
       <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="truncate text-[11px] font-medium text-primary">
+        <div className="text-primary truncate text-[11px] font-medium">
           {authorLabel}
         </div>
         {/* Wrap the preview instead of truncating to a single line.
@@ -42,7 +40,7 @@ export function ReplyQuote({
          *  layout wider, shoving the contact sidebar off-screen.
          *  `break-words` also wraps long URLs that have no whitespace
          *  to break on. Issue #165. */}
-        <div className="whitespace-pre-wrap break-words text-xs text-slate-200/80">
+        <div className="text-xs break-words whitespace-pre-wrap text-slate-200/80">
           {preview}
         </div>
       </div>
@@ -64,19 +62,19 @@ export function ReplyQuote({
 export function buildReplyPreview(message: Message): string {
   if (message.content_text) return message.content_text;
   switch (message.content_type) {
-    case "image":
-      return "[Image]";
-    case "video":
-      return "[Video]";
-    case "audio":
-      return "[Audio]";
-    case "document":
-      return "[Document]";
-    case "location":
-      return "[Location]";
-    case "template":
-      return "[Template]";
+    case 'image':
+      return '[Image]';
+    case 'video':
+      return '[Video]';
+    case 'audio':
+      return '[Audio]';
+    case 'document':
+      return '[Document]';
+    case 'location':
+      return '[Location]';
+    case 'template':
+      return '[Template]';
     default:
-      return "[Message]";
+      return '[Message]';
   }
 }

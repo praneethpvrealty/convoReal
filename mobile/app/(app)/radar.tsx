@@ -97,9 +97,7 @@ export default function RadarScreen() {
       const allChecked = allIds.every((id) => current.has(id));
       return {
         ...prev,
-        [evt.id]: allChecked
-          ? new Set<string>()
-          : new Set(allIds),
+        [evt.id]: allChecked ? new Set<string>() : new Set(allIds),
       };
     });
   };
@@ -165,15 +163,13 @@ export default function RadarScreen() {
       if (res.templateMissing > 0) {
         const names = res.results
           .filter((r) => r.status === 'templateMissing')
-          .map(
-            (r) => {
-              const match = evt.matches.find((item) => item.id === r.id);
-              const manual = (manualContacts[evt.id] ?? []).find(
-                (contact) => contact.id === r.id
-              );
-              return match?.name || manual?.name || manual?.phone || 'Unknown';
-            }
-          );
+          .map((r) => {
+            const match = evt.matches.find((item) => item.id === r.id);
+            const manual = (manualContacts[evt.id] ?? []).find(
+              (contact) => contact.id === r.id
+            );
+            return match?.name || manual?.name || manual?.phone || 'Unknown';
+          });
         setTemplateMissingFor((prev) => ({ ...prev, [evt.id]: names }));
       }
       if (res.sent > 0 && res.templateMissing === 0) {
@@ -265,13 +261,20 @@ export default function RadarScreen() {
         hint="Search active Buyers or Agents who were not suggested by this match."
         confirmLabel="Add"
         initialSelected={
-          pickerEvent ? manualContacts[pickerEvent.id] ?? NO_CONTACTS : NO_CONTACTS
+          pickerEvent
+            ? (manualContacts[pickerEvent.id] ?? NO_CONTACTS)
+            : NO_CONTACTS
         }
-        maxSelections={pickerEvent ? Math.max(0, 20 - pickerEvent.matches.length) : 0}
+        maxSelections={
+          pickerEvent ? Math.max(0, 20 - pickerEvent.matches.length) : 0
+        }
         searchKey={pickerEvent ? `radar-${pickerEvent.id}` : 'radar'}
         searchContacts={async (query) => {
           if (!pickerEvent) return [];
-          return (await searchRadarContacts(pickerEvent.id, query)) as Contact[];
+          return (await searchRadarContacts(
+            pickerEvent.id,
+            query
+          )) as Contact[];
         }}
         onSelectMany={(contacts) => {
           if (!pickerEvent) return;
@@ -310,7 +313,10 @@ function EventCard({
 }) {
   const { colors, fonts: f } = useTheme();
   const displayTargets = [
-    ...event.matches.map((match) => ({ ...match, manuallyAdded: false as const })),
+    ...event.matches.map((match) => ({
+      ...match,
+      manuallyAdded: false as const,
+    })),
     ...manualContacts.map((contact) => ({
       id: contact.id,
       name: contact.name || contact.phone || 'Contact',
@@ -366,15 +372,33 @@ function EventCard({
               accessibilityLabel="Add contacts"
               style={styles.addContacts}
             >
-              <Ionicons name="person-add-outline" size={14} color={colors.primary} />
-              <Text style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}>
+              <Ionicons
+                name="person-add-outline"
+                size={14}
+                color={colors.primary}
+              />
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontFamily: f.bold,
+                  color: colors.primary,
+                }}
+              >
                 Add contacts
               </Text>
             </Pressable>
           ) : null}
-          <Pressable onPress={onToggleAll} hitSlop={8} accessibilityRole="button">
+          <Pressable
+            onPress={onToggleAll}
+            hitSlop={8}
+            accessibilityRole="button"
+          >
             <Text
-              style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}
+              style={{
+                fontSize: 12,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
             >
               {allChecked ? 'Deselect all' : 'Select all'}
             </Text>
@@ -391,11 +415,7 @@ function EventCard({
             scoreLabel={
               match.manuallyAdded ? 'Added manually' : `${match.score}%`
             }
-            tone={
-              match.manuallyAdded
-                ? 'accent'
-                : scoreTone(match.score ?? 0)
-            }
+            tone={match.manuallyAdded ? 'accent' : scoreTone(match.score ?? 0)}
             chips={match.chips.slice(0, 3).map((chip) => ({ label: chip }))}
             selected={selected.has(match.id)}
             onToggle={() => onToggleTarget(match.id)}

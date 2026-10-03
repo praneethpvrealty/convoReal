@@ -62,7 +62,7 @@ export function LanguageUsageCard() {
       <CardContent>
         {loading ? (
           <div className="flex justify-center py-6">
-            <Loader2 className="size-5 animate-spin text-primary" />
+            <Loader2 className="text-primary size-5 animate-spin" />
           </div>
         ) : !data ? (
           <p className="py-4 text-sm text-slate-500">
@@ -75,8 +75,8 @@ export function LanguageUsageCard() {
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                 <span>
                   {data.unservedContacts.toLocaleString('en-IN')} contact
-                  {data.unservedContacts === 1 ? '' : 's'} would be messaged in a
-                  language you have no approved template for. Those sends fall
+                  {data.unservedContacts === 1 ? '' : 's'} would be messaged in
+                  a language you have no approved template for. Those sends fall
                   back to English.
                 </span>
               </p>
@@ -102,17 +102,17 @@ export function LanguageUsageCard() {
                       <td className="py-2 text-white">
                         {languageDisplay(row.language)}
                       </td>
-                      <td className="py-2 text-right tabular-nums text-slate-300">
+                      <td className="py-2 text-right text-slate-300 tabular-nums">
                         {row.contacts.toLocaleString('en-IN')}
                       </td>
                       {/* The gap between this and Contacts is how many
                           are inheriting the account default rather than
                           having said anything — i.e. how big the
                           assumption is. */}
-                      <td className="py-2 text-right tabular-nums text-slate-500">
+                      <td className="py-2 text-right text-slate-500 tabular-nums">
                         {row.contactsExplicit.toLocaleString('en-IN')}
                       </td>
-                      <td className="py-2 text-right tabular-nums text-slate-300">
+                      <td className="py-2 text-right text-slate-300 tabular-nums">
                         {row.agents.toLocaleString('en-IN')}
                       </td>
                       <td
@@ -120,7 +120,7 @@ export function LanguageUsageCard() {
                           'py-2 text-right tabular-nums',
                           row.unservedDemand
                             ? 'font-semibold text-amber-400'
-                            : 'text-slate-300',
+                            : 'text-slate-300'
                         )}
                       >
                         {row.approvedTemplates}

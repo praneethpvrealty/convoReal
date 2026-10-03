@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import { evaluateNudges } from '@/lib/copilot/nudges';
 
 /**
@@ -14,7 +18,7 @@ export async function GET() {
 
     const limit = await checkRateLimit(
       `copilot-nudges:${ctx.accountId}`,
-      RATE_LIMITS.copilotNudges,
+      RATE_LIMITS.copilotNudges
     );
     if (!limit.success) return rateLimitResponse(limit);
 

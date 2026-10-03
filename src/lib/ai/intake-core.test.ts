@@ -33,7 +33,9 @@ const mockResolve = vi.mocked(resolveLocationFromGoogleMapLink);
 const mockResolveCoords = vi.mocked(resolveLocationFromCoordinates);
 
 // Fully-null draft; each test overrides only the fields it exercises.
-function makeDraft(overrides: Partial<ParsedPropertyDraft> = {}): ParsedPropertyDraft {
+function makeDraft(
+  overrides: Partial<ParsedPropertyDraft> = {}
+): ParsedPropertyDraft {
   return {
     title: null,
     price: null,
@@ -68,7 +70,9 @@ function makeDraft(overrides: Partial<ParsedPropertyDraft> = {}): ParsedProperty
   };
 }
 
-function makeContact(overrides: Partial<ParsedContactDraft> = {}): ParsedContactDraft {
+function makeContact(
+  overrides: Partial<ParsedContactDraft> = {}
+): ParsedContactDraft {
   return {
     name: null,
     name_tag: null,
@@ -84,7 +88,9 @@ function makeContact(overrides: Partial<ParsedContactDraft> = {}): ParsedContact
   };
 }
 
-function makeContainer(contacts: ParsedContactDraft[]): ParsedContactDraftsContainer {
+function makeContainer(
+  contacts: ParsedContactDraft[]
+): ParsedContactDraftsContainer {
   return { contacts };
 }
 
@@ -111,8 +117,14 @@ describe('backfillLocationFromMapLink', () => {
   });
 
   it('fills location from the resolved map link when missing', async () => {
-    mockResolve.mockResolvedValue({ ...resolved, location: 'Koramangala, Bengaluru' });
-    const draft = makeDraft({ location: null, google_map_link: 'https://maps.app.goo.gl/y' });
+    mockResolve.mockResolvedValue({
+      ...resolved,
+      location: 'Koramangala, Bengaluru',
+    });
+    const draft = makeDraft({
+      location: null,
+      google_map_link: 'https://maps.app.goo.gl/y',
+    });
     const result = await backfillLocationFromMapLink(draft);
     expect(result.location).toBe('Koramangala, Bengaluru');
     expect(mockResolve).toHaveBeenCalledWith('https://maps.app.goo.gl/y');
@@ -124,7 +136,8 @@ describe('backfillLocationFromMapLink', () => {
       location: null,
       city: 'Bangalore',
       state: 'Karnataka',
-      google_map_link: 'https://www.google.com/maps/search/?api=1&query=12.8669,77.5565483',
+      google_map_link:
+        'https://www.google.com/maps/search/?api=1&query=12.8669,77.5565483',
     });
     const result = await backfillLocationFromMapLink(draft);
     expect(result).toMatchObject({
@@ -180,7 +193,10 @@ describe('backfillLocationFromMapLink', () => {
 
   it('resolves a bare coordinate pair sent as the location', async () => {
     mockResolveCoords.mockResolvedValue(resolved);
-    const draft = makeDraft({ location: '12.8669,77.5565483', google_map_link: null });
+    const draft = makeDraft({
+      location: '12.8669,77.5565483',
+      google_map_link: null,
+    });
     const result = await backfillLocationFromMapLink(draft);
     expect(mockResolveCoords).toHaveBeenCalledWith(12.8669, 77.5565483);
     expect(result.location).toBe('Anjanapura, Bengaluru');
@@ -191,7 +207,10 @@ describe('backfillLocationFromMapLink', () => {
 
   it('does not re-resolve a link it already resolved', async () => {
     mockResolve.mockResolvedValue(resolved);
-    const draft = makeDraft({ location: null, google_map_link: 'https://maps.app.goo.gl/y' });
+    const draft = makeDraft({
+      location: null,
+      google_map_link: 'https://maps.app.goo.gl/y',
+    });
     const once = await backfillLocationFromMapLink(draft);
     const twice = await backfillLocationFromMapLink(once);
     expect(twice).toBe(once);
@@ -212,7 +231,10 @@ describe('backfillLocationFromMapLink', () => {
 
   it('keeps the draft unchanged when resolution returns null', async () => {
     mockResolve.mockResolvedValue(null);
-    const draft = makeDraft({ location: null, google_map_link: 'https://maps.app.goo.gl/z' });
+    const draft = makeDraft({
+      location: null,
+      google_map_link: 'https://maps.app.goo.gl/z',
+    });
     const result = await backfillLocationFromMapLink(draft);
     expect(result).toBe(draft);
     expect(result.location).toBeNull();
@@ -230,7 +252,11 @@ describe('deriveDraftStatus', () => {
 
 describe('validateDraft', () => {
   it('accepts a complete sale draft', () => {
-    const draft = makeDraft({ title: 'HSR 3BHK', price: 15000000, location: 'HSR Layout' });
+    const draft = makeDraft({
+      title: 'HSR 3BHK',
+      price: 15000000,
+      location: 'HSR Layout',
+    });
     expect(validateDraft(draft)).toEqual({ isValid: true, missingFields: [] });
   });
 
@@ -251,7 +277,11 @@ describe('validateDraft', () => {
   });
 
   it('requires Rent (not Price) when listing_type is Rent', () => {
-    const draft = makeDraft({ title: 'x', location: 'y', listing_type: 'Rent' });
+    const draft = makeDraft({
+      title: 'x',
+      location: 'y',
+      listing_type: 'Rent',
+    });
     expect(validateDraft(draft).missingFields).toEqual(['Rent']);
   });
 
@@ -261,7 +291,12 @@ describe('validateDraft', () => {
   });
 
   it('treats rent_per_month of 0 as missing', () => {
-    const draft = makeDraft({ title: 'x', location: 'y', listing_type: 'Rent', rent_per_month: 0 });
+    const draft = makeDraft({
+      title: 'x',
+      location: 'y',
+      listing_type: 'Rent',
+      rent_per_month: 0,
+    });
     expect(validateDraft(draft).missingFields).toEqual(['Rent']);
   });
 
@@ -286,7 +321,9 @@ describe('validateDraft', () => {
       location: 'Hoskote Road',
       listing_type: 'JV/JD',
     });
-    expect(validateDraft(draft).missingFields).toEqual(['JD terms (e.g. area share 60:40)']);
+    expect(validateDraft(draft).missingFields).toEqual([
+      'JD terms (e.g. area share 60:40)',
+    ]);
   });
 
   it('accepts a share split or goodwill as the JD terms', () => {
@@ -318,7 +355,9 @@ describe('validateContactDraftsContainer', () => {
   });
 
   it('accepts a container of valid contacts', () => {
-    const container = makeContainer([makeContact({ name: 'Ravi', phone: '9876543210' })]);
+    const container = makeContainer([
+      makeContact({ name: 'Ravi', phone: '9876543210' }),
+    ]);
     expect(validateContactDraftsContainer(container)).toEqual({
       isValid: true,
       missingFields: [],
@@ -331,7 +370,10 @@ describe('validateContactDraftsContainer', () => {
     const result = validateContactDraftsContainer(container);
     expect(result.isValid).toBe(false);
     expect(result.invalidCount).toBe(1);
-    expect(result.missingFields).toEqual(['Contact #1 Name', 'Contact #1 Phone']);
+    expect(result.missingFields).toEqual([
+      'Contact #1 Name',
+      'Contact #1 Phone',
+    ]);
   });
 
   it('counts only invalid contacts and indexes them correctly', () => {
@@ -347,8 +389,18 @@ describe('validateContactDraftsContainer', () => {
 
 describe('formatDraftPreviewMessage', () => {
   it('shows Price for a sale draft and hides the rent block', () => {
-    const draft = makeDraft({ title: 'HSR 3BHK', price: 15000000, location: 'HSR Layout', type: 'Flat/ Apartment' });
-    const msg = formatDraftPreviewMessage('📝 Draft', draft, 'awaiting_confirmation', []);
+    const draft = makeDraft({
+      title: 'HSR 3BHK',
+      price: 15000000,
+      location: 'HSR Layout',
+      type: 'Flat/ Apartment',
+    });
+    const msg = formatDraftPreviewMessage(
+      '📝 Draft',
+      draft,
+      'awaiting_confirmation',
+      []
+    );
     expect(msg).toContain('*Price:* ₹1,50,00,000');
     expect(msg).not.toContain('*Maintenance:*');
     expect(msg).toContain('*Beds/Baths:*');
@@ -363,7 +415,12 @@ describe('formatDraftPreviewMessage', () => {
       location: 'HSR',
       type: 'Flat/ Apartment',
     });
-    const msg = formatDraftPreviewMessage('📝 Draft', draft, 'awaiting_confirmation', []);
+    const msg = formatDraftPreviewMessage(
+      '📝 Draft',
+      draft,
+      'awaiting_confirmation',
+      []
+    );
     expect(msg).toContain('*Rent:* ₹35,000/month');
     expect(msg).toContain('*Maintenance:* ₹2,000/month');
     expect(msg).not.toContain('*Price:*');
@@ -380,7 +437,12 @@ describe('formatDraftPreviewMessage', () => {
       builder_share_percent: 40,
       goodwill_amount: 2000000,
     });
-    const msg = formatDraftPreviewMessage('📝 Draft', draft, 'awaiting_confirmation', []);
+    const msg = formatDraftPreviewMessage(
+      '📝 Draft',
+      draft,
+      'awaiting_confirmation',
+      []
+    );
     expect(msg).toContain('*Deal:* JV / Joint Development');
     expect(msg).toContain('*Structure:* Area Share');
     expect(msg).toContain('*Owner : Builder Share:* 60 : 40');
@@ -396,61 +458,133 @@ describe('formatDraftPreviewMessage', () => {
       listing_type: 'JV/JD' as const,
       jv_structure: 'Revenue Share' as const,
     };
-    const without = formatDraftPreviewMessage('h', makeDraft(base), 'awaiting_confirmation', []);
+    const without = formatDraftPreviewMessage(
+      'h',
+      makeDraft(base),
+      'awaiting_confirmation',
+      []
+    );
     expect(without).not.toContain('Expected Project Value');
-    const withValue = formatDraftPreviewMessage('h', makeDraft({ ...base, price: 500000000 }), 'awaiting_confirmation', []);
+    const withValue = formatDraftPreviewMessage(
+      'h',
+      makeDraft({ ...base, price: 500000000 }),
+      'awaiting_confirmation',
+      []
+    );
     expect(withValue).toContain('*Expected Project Value:* ₹50,00,00,000');
   });
 
   it('renders GST ≤ 100 as a percentage and > 100 as rupees', () => {
-    const pct = formatDraftPreviewMessage('h', makeDraft({ listing_type: 'Rent', rent_per_month: 1, gst: 18 }), 'collecting', []);
+    const pct = formatDraftPreviewMessage(
+      'h',
+      makeDraft({ listing_type: 'Rent', rent_per_month: 1, gst: 18 }),
+      'collecting',
+      []
+    );
     expect(pct).toContain('*GST:* 18%');
-    const rupees = formatDraftPreviewMessage('h', makeDraft({ listing_type: 'Rent', rent_per_month: 1, gst: 5000 }), 'collecting', []);
+    const rupees = formatDraftPreviewMessage(
+      'h',
+      makeDraft({ listing_type: 'Rent', rent_per_month: 1, gst: 5000 }),
+      'collecting',
+      []
+    );
     expect(rupees).toContain('*GST:* ₹5,000');
   });
 
   it('hides Beds/Baths for commercial and land types', () => {
-    const land = makeDraft({ title: 'Plot', price: 5000000, location: 'x', type: 'Residential Land/ Plot' });
-    expect(formatDraftPreviewMessage('h', land, 'awaiting_confirmation', [])).not.toContain('*Beds/Baths:*');
-    const comm = makeDraft({ title: 'Shop', price: 5000000, location: 'x', type: 'Commercial Shop' });
-    expect(formatDraftPreviewMessage('h', comm, 'awaiting_confirmation', [])).not.toContain('*Beds/Baths:*');
+    const land = makeDraft({
+      title: 'Plot',
+      price: 5000000,
+      location: 'x',
+      type: 'Residential Land/ Plot',
+    });
+    expect(
+      formatDraftPreviewMessage('h', land, 'awaiting_confirmation', [])
+    ).not.toContain('*Beds/Baths:*');
+    const comm = makeDraft({
+      title: 'Shop',
+      price: 5000000,
+      location: 'x',
+      type: 'Commercial Shop',
+    });
+    expect(
+      formatDraftPreviewMessage('h', comm, 'awaiting_confirmation', [])
+    ).not.toContain('*Beds/Baths:*');
   });
 
   it('renders the confirm footer when awaiting_confirmation', () => {
-    const msg = formatDraftPreviewMessage('h', makeDraft({ title: 't', price: 1, location: 'l' }), 'awaiting_confirmation', []);
+    const msg = formatDraftPreviewMessage(
+      'h',
+      makeDraft({ title: 't', price: 1, location: 'l' }),
+      'awaiting_confirmation',
+      []
+    );
     expect(msg).toContain('All mandatory fields populated');
   });
 
   it('renders the missing-fields footer when collecting', () => {
-    const msg = formatDraftPreviewMessage('h', makeDraft(), 'collecting', ['Title', 'Price', 'Location']);
+    const msg = formatDraftPreviewMessage('h', makeDraft(), 'collecting', [
+      'Title',
+      'Price',
+      'Location',
+    ]);
     expect(msg).toContain('*Still missing:* Title, Price, Location');
   });
 
   it('reports the attached image count', () => {
-    const draft = makeDraft({ title: 't', price: 1, location: 'l', images: ['a.jpg', 'b.jpg'] });
-    expect(formatDraftPreviewMessage('h', draft, 'awaiting_confirmation', [])).toContain('*Images:* 2 attached');
+    const draft = makeDraft({
+      title: 't',
+      price: 1,
+      location: 'l',
+      images: ['a.jpg', 'b.jpg'],
+    });
+    expect(
+      formatDraftPreviewMessage('h', draft, 'awaiting_confirmation', [])
+    ).toContain('*Images:* 2 attached');
   });
 
   it('reports the attached document count', () => {
-    const draft = makeDraft({ title: 't', price: 1, location: 'l', documents: ['a.pdf'] });
-    expect(formatDraftPreviewMessage('h', draft, 'awaiting_confirmation', [])).toContain('*Documents:* 1 attached');
+    const draft = makeDraft({
+      title: 't',
+      price: 1,
+      location: 'l',
+      documents: ['a.pdf'],
+    });
+    expect(
+      formatDraftPreviewMessage('h', draft, 'awaiting_confirmation', [])
+    ).toContain('*Documents:* 1 attached');
   });
 
   it('includes the listing owner/agent line with phone and role', () => {
     const draft = makeDraft({
-      title: 't', price: 1, location: 'l',
-      owner_contact_name: 'Sridhar', owner_contact_phone: '9999900000', owner_contact_role: 'Agent',
+      title: 't',
+      price: 1,
+      location: 'l',
+      owner_contact_name: 'Sridhar',
+      owner_contact_phone: '9999900000',
+      owner_contact_role: 'Agent',
     });
-    expect(formatDraftPreviewMessage('h', draft, 'awaiting_confirmation', [])).toContain('*Listing Owner/Agent:* Sridhar (9999900000) [Agent]');
+    expect(
+      formatDraftPreviewMessage('h', draft, 'awaiting_confirmation', [])
+    ).toContain('*Listing Owner/Agent:* Sridhar (9999900000) [Agent]');
   });
 });
 
 describe('formatContactDraftsPreview', () => {
   it('renders each contact with a 1-based index and the confirm footer', () => {
     const container = makeContainer([
-      makeContact({ name: 'Ravi', phone: '9876543210', classification: 'Buyer' }),
+      makeContact({
+        name: 'Ravi',
+        phone: '9876543210',
+        classification: 'Buyer',
+      }),
     ]);
-    const msg = formatContactDraftsPreview('📝 Drafts', container, 'awaiting_confirmation', []);
+    const msg = formatContactDraftsPreview(
+      '📝 Drafts',
+      container,
+      'awaiting_confirmation',
+      []
+    );
     expect(msg).toContain('*Contact #1:*');
     expect(msg).toContain('• *Name:* Ravi');
     expect(msg).toContain('• *Phone:* 9876543210');
@@ -460,14 +594,22 @@ describe('formatContactDraftsPreview', () => {
 
   it('marks missing name and phone', () => {
     const container = makeContainer([makeContact()]);
-    const msg = formatContactDraftsPreview('h', container, 'collecting', ['Contact #1 Name', 'Contact #1 Phone']);
+    const msg = formatContactDraftsPreview('h', container, 'collecting', [
+      'Contact #1 Name',
+      'Contact #1 Phone',
+    ]);
     expect(msg).toContain('• *Name:* ❓ _Missing_');
     expect(msg).toContain('• *Phone:* ❓ _Missing_');
     expect(msg).toContain('*Still missing:* Contact #1 Name, Contact #1 Phone');
   });
 
   it('renders the empty-container fallback', () => {
-    const msg = formatContactDraftsPreview('h', makeContainer([]), 'collecting', ['No contacts found']);
+    const msg = formatContactDraftsPreview(
+      'h',
+      makeContainer([]),
+      'collecting',
+      ['No contacts found']
+    );
     expect(msg).toContain('_No contacts parsed._');
   });
 
@@ -476,8 +618,17 @@ describe('formatContactDraftsPreview', () => {
       makeContact({ name: 'Ravi', phone: '9876543210' }),
       makeContact({ name: 'Priya', phone: '9000000000' }),
     ]);
-    const warnings = [null, '\n♻️ *Already in your contacts as "Priya S".* Confirming updates them.'];
-    const msg = formatContactDraftsPreview('h', container, 'awaiting_confirmation', [], warnings);
+    const warnings = [
+      null,
+      '\n♻️ *Already in your contacts as "Priya S".* Confirming updates them.',
+    ];
+    const msg = formatContactDraftsPreview(
+      'h',
+      container,
+      'awaiting_confirmation',
+      [],
+      warnings
+    );
     expect(msg).toContain('Already in your contacts as "Priya S"');
     // The first contact has no warning line
     const firstBlock = msg.split('*Contact #2:*')[0];
@@ -485,24 +636,51 @@ describe('formatContactDraftsPreview', () => {
   });
 
   it('shows the referrer line only when a referrer name is present', () => {
-    const withRef = makeContainer([makeContact({ name: 'A', phone: '1', referrer_name: 'Mahesh', referrer_phone: '5551212' })]);
-    expect(formatContactDraftsPreview('h', withRef, 'awaiting_confirmation', [])).toContain('• *Referrer:* Mahesh (5551212)');
+    const withRef = makeContainer([
+      makeContact({
+        name: 'A',
+        phone: '1',
+        referrer_name: 'Mahesh',
+        referrer_phone: '5551212',
+      }),
+    ]);
+    expect(
+      formatContactDraftsPreview('h', withRef, 'awaiting_confirmation', [])
+    ).toContain('• *Referrer:* Mahesh (5551212)');
     const noRef = makeContainer([makeContact({ name: 'A', phone: '1' })]);
-    expect(formatContactDraftsPreview('h', noRef, 'awaiting_confirmation', [])).not.toContain('*Referrer:*');
+    expect(
+      formatContactDraftsPreview('h', noRef, 'awaiting_confirmation', [])
+    ).not.toContain('*Referrer:*');
   });
 
   it('shows the name tag line only when a tag is present', () => {
-    const withTag = makeContainer([makeContact({ name: 'Vijay Sarthi', phone: '1', name_tag: 'Advocate' })]);
-    expect(formatContactDraftsPreview('h', withTag, 'awaiting_confirmation', [])).toContain('• *Name Tag:* 🏷️ Advocate');
+    const withTag = makeContainer([
+      makeContact({ name: 'Vijay Sarthi', phone: '1', name_tag: 'Advocate' }),
+    ]);
+    expect(
+      formatContactDraftsPreview('h', withTag, 'awaiting_confirmation', [])
+    ).toContain('• *Name Tag:* 🏷️ Advocate');
     const noTag = makeContainer([makeContact({ name: 'A', phone: '1' })]);
-    expect(formatContactDraftsPreview('h', noTag, 'awaiting_confirmation', [])).not.toContain('*Name Tag:*');
+    expect(
+      formatContactDraftsPreview('h', noTag, 'awaiting_confirmation', [])
+    ).not.toContain('*Name Tag:*');
   });
 
   it('shows the requirements line only when requirements are present', () => {
-    const withReq = makeContainer([makeContact({ name: 'A', phone: '1', requirements: '1 acre near Hosur Main Road, market rate' })]);
-    expect(formatContactDraftsPreview('h', withReq, 'awaiting_confirmation', [])).toContain('• *Requirements:* 1 acre near Hosur Main Road, market rate');
+    const withReq = makeContainer([
+      makeContact({
+        name: 'A',
+        phone: '1',
+        requirements: '1 acre near Hosur Main Road, market rate',
+      }),
+    ]);
+    expect(
+      formatContactDraftsPreview('h', withReq, 'awaiting_confirmation', [])
+    ).toContain('• *Requirements:* 1 acre near Hosur Main Road, market rate');
     const noReq = makeContainer([makeContact({ name: 'A', phone: '1' })]);
-    expect(formatContactDraftsPreview('h', noReq, 'awaiting_confirmation', [])).not.toContain('*Requirements:*');
+    expect(
+      formatContactDraftsPreview('h', noReq, 'awaiting_confirmation', [])
+    ).not.toContain('*Requirements:*');
   });
 });
 
@@ -514,51 +692,99 @@ describe('mergeFreeText', () => {
   });
 
   it('concatenates distinct text and de-duplicates contained text', () => {
-    expect(mergeFreeText('near metro', 'budget 90L')).toBe('near metro\nbudget 90L');
-    expect(mergeFreeText('wants a plot near metro', 'near metro')).toBe('wants a plot near metro');
-    expect(mergeFreeText('near metro', 'wants a plot near metro')).toBe('wants a plot near metro');
+    expect(mergeFreeText('near metro', 'budget 90L')).toBe(
+      'near metro\nbudget 90L'
+    );
+    expect(mergeFreeText('wants a plot near metro', 'near metro')).toBe(
+      'wants a plot near metro'
+    );
+    expect(mergeFreeText('near metro', 'wants a plot near metro')).toBe(
+      'wants a plot near metro'
+    );
   });
 });
 
 describe('mergeContactDraft', () => {
   it('keeps existing identity and folds in incoming requirements/notes', () => {
-    const base = makeContact({ name: 'Swaroop', phone: '919108381003', classification: 'Buyer', notes: 'From WhatsApp', requirements: '1 acre Hosur Main Road' });
-    const add = makeContact({ name: null, phone: null, classification: 'Buyer', notes: null, requirements: '20000 sq ft to 2 acre, market rate' });
+    const base = makeContact({
+      name: 'Swaroop',
+      phone: '919108381003',
+      classification: 'Buyer',
+      notes: 'From WhatsApp',
+      requirements: '1 acre Hosur Main Road',
+    });
+    const add = makeContact({
+      name: null,
+      phone: null,
+      classification: 'Buyer',
+      notes: null,
+      requirements: '20000 sq ft to 2 acre, market rate',
+    });
     const merged = mergeContactDraft(base, add);
     expect(merged.name).toBe('Swaroop');
     expect(merged.phone).toBe('919108381003');
-    expect(merged.requirements).toBe('1 acre Hosur Main Road\n20000 sq ft to 2 acre, market rate');
+    expect(merged.requirements).toBe(
+      '1 acre Hosur Main Road\n20000 sq ft to 2 acre, market rate'
+    );
     expect(merged.notes).toBe('From WhatsApp');
   });
 
   it('upgrades classification away from Others', () => {
-    const base = makeContact({ name: 'A', phone: '1', classification: 'Others' });
+    const base = makeContact({
+      name: 'A',
+      phone: '1',
+      classification: 'Others',
+    });
     const add = makeContact({ classification: 'Buyer' });
     expect(mergeContactDraft(base, add).classification).toBe('Buyer');
   });
 
   it('keeps the existing name tag and fills it from the update when absent', () => {
     const base = makeContact({ name: 'Vijay Sarthi', name_tag: 'Advocate' });
-    expect(mergeContactDraft(base, makeContact({ name_tag: 'CA' })).name_tag).toBe('Advocate');
+    expect(
+      mergeContactDraft(base, makeContact({ name_tag: 'CA' })).name_tag
+    ).toBe('Advocate');
     const untagged = makeContact({ name: 'Vijay Sarthi' });
-    expect(mergeContactDraft(untagged, makeContact({ name_tag: 'Advocate' })).name_tag).toBe('Advocate');
+    expect(
+      mergeContactDraft(untagged, makeContact({ name_tag: 'Advocate' }))
+        .name_tag
+    ).toBe('Advocate');
   });
 });
 
 describe('mergeContactDraftsContainer', () => {
   it('merges an identity-less follow-up into the active single-contact draft', () => {
-    const existing = makeContainer([makeContact({ name: 'Swaroop', phone: '919108381003', classification: 'Buyer', requirements: '1 acre Hosur Main Road' })]);
-    const incoming = makeContainer([makeContact({ name: null, phone: null, classification: 'Buyer', requirements: '20000 sq ft to 2 acre' })]);
+    const existing = makeContainer([
+      makeContact({
+        name: 'Swaroop',
+        phone: '919108381003',
+        classification: 'Buyer',
+        requirements: '1 acre Hosur Main Road',
+      }),
+    ]);
+    const incoming = makeContainer([
+      makeContact({
+        name: null,
+        phone: null,
+        classification: 'Buyer',
+        requirements: '20000 sq ft to 2 acre',
+      }),
+    ]);
     const merged = mergeContactDraftsContainer(existing, incoming);
     expect(merged.contacts).toHaveLength(1);
     expect(merged.contacts[0].name).toBe('Swaroop');
     expect(merged.contacts[0].phone).toBe('919108381003');
-    expect(merged.contacts[0].requirements).toBe('1 acre Hosur Main Road\n20000 sq ft to 2 acre');
+    expect(merged.contacts[0].requirements).toBe(
+      '1 acre Hosur Main Road\n20000 sq ft to 2 acre'
+    );
   });
 
   it('appends genuinely-additional incoming contacts beyond the existing count', () => {
     const existing = makeContainer([makeContact({ name: 'A', phone: '1' })]);
-    const incoming = makeContainer([makeContact({ name: null, phone: null, requirements: 'more info' }), makeContact({ name: 'B', phone: '2' })]);
+    const incoming = makeContainer([
+      makeContact({ name: null, phone: null, requirements: 'more info' }),
+      makeContact({ name: 'B', phone: '2' }),
+    ]);
     const merged = mergeContactDraftsContainer(existing, incoming);
     expect(merged.contacts).toHaveLength(2);
     expect(merged.contacts[0].name).toBe('A');
@@ -566,7 +792,10 @@ describe('mergeContactDraftsContainer', () => {
   });
 
   it('returns the incoming contacts when there is no existing draft', () => {
-    const merged = mergeContactDraftsContainer(makeContainer([]), makeContainer([makeContact({ name: 'A', phone: '1' })]));
+    const merged = mergeContactDraftsContainer(
+      makeContainer([]),
+      makeContainer([makeContact({ name: 'A', phone: '1' })])
+    );
     expect(merged.contacts).toHaveLength(1);
     expect(merged.contacts[0].name).toBe('A');
   });
@@ -607,7 +836,10 @@ describe('applyExplicitContactDraftUpdate', () => {
     ]);
 
     expect(
-      applyExplicitContactDraftUpdate(current, 'Name -  Akanksha Singh, company - Godrej')
+      applyExplicitContactDraftUpdate(
+        current,
+        'Name -  Akanksha Singh, company - Godrej'
+      )
     ).toEqual({
       contacts: [
         expect.objectContaining({
@@ -622,19 +854,29 @@ describe('applyExplicitContactDraftUpdate', () => {
 
   it('hands unlabelled or unknown segments to the AI updater', () => {
     const one = makeContainer([makeContact({ name: 'A' })]);
-    expect(applyExplicitContactDraftUpdate(one, 'Name - Singh, Akanksha')).toBeNull();
-    expect(applyExplicitContactDraftUpdate(one, 'Name - A B, budget - 2cr')).toBeNull();
-    expect(applyExplicitContactDraftUpdate(one, 'Name - A B, email - not-an-email')).toBeNull();
+    expect(
+      applyExplicitContactDraftUpdate(one, 'Name - Singh, Akanksha')
+    ).toBeNull();
+    expect(
+      applyExplicitContactDraftUpdate(one, 'Name - A B, budget - 2cr')
+    ).toBeNull();
+    expect(
+      applyExplicitContactDraftUpdate(one, 'Name - A B, email - not-an-email')
+    ).toBeNull();
     expect(applyExplicitContactDraftUpdate(one, 'Name-A B')).toBeNull();
   });
 
   it('reads hyphenated labels whole instead of splitting on their hyphen', () => {
     const one = makeContainer([makeContact({ name: 'A' })]);
     expect(
-      applyExplicitContactDraftUpdate(one, 'Name - Akanksha, company-name - Godrej')?.contacts[0]
+      applyExplicitContactDraftUpdate(
+        one,
+        'Name - Akanksha, company-name - Godrej'
+      )?.contacts[0]
     ).toEqual(expect.objectContaining({ name: 'Akanksha', company: 'Godrej' }));
     expect(
-      applyExplicitContactDraftUpdate(one, 'Name: A - B, Email: a@b.co')?.contacts[0]
+      applyExplicitContactDraftUpdate(one, 'Name: A - B, Email: a@b.co')
+        ?.contacts[0]
     ).toEqual(expect.objectContaining({ name: 'A - B', email: 'a@b.co' }));
   });
 
@@ -663,7 +905,11 @@ describe('reconcileContactDrafts', () => {
     // that person's requirements.
     const out = reconcileContactDrafts(
       makeContainer([draft('Vasundhara', null)]),
-      makeContainer([draft('Vasundhara Purva Atmosphere', '9972225992', { requirements: 'Around 4cr' })])
+      makeContainer([
+        draft('Vasundhara Purva Atmosphere', '9972225992', {
+          requirements: 'Around 4cr',
+        }),
+      ])
     );
     expect(out.replaced).toBe(false);
     expect(out.container.contacts).toHaveLength(1);
@@ -686,7 +932,10 @@ describe('reconcileContactDrafts', () => {
 
   it('merges against the matched contact, not the shared index', () => {
     const out = reconcileContactDrafts(
-      makeContainer([draft('Anita', '9000000001'), draft('Bhaskar', '9000000002')]),
+      makeContainer([
+        draft('Anita', '9000000001'),
+        draft('Bhaskar', '9000000002'),
+      ]),
       makeContainer([draft('Bhaskar', '9000000002', { email: 'b@x.com' })])
     );
     expect(out.replaced).toBe(false);
@@ -697,14 +946,20 @@ describe('reconcileContactDrafts', () => {
   it('replaces when even one incoming contact is a stranger', () => {
     const out = reconcileContactDrafts(
       makeContainer([draft('Anita', '9000000001')]),
-      makeContainer([draft('Anita', '9000000001'), draft('Chetan', '9000000009')])
+      makeContainer([
+        draft('Anita', '9000000001'),
+        draft('Chetan', '9000000009'),
+      ])
     );
     expect(out.replaced).toBe(true);
     expect(out.container.contacts).toHaveLength(2);
   });
 
   it('takes the incoming card when there is no draft to reconcile with', () => {
-    const out = reconcileContactDrafts(makeContainer([]), makeContainer([draft('Anita')]));
+    const out = reconcileContactDrafts(
+      makeContainer([]),
+      makeContainer([draft('Anita')])
+    );
     expect(out.replaced).toBe(true);
     expect(out.container.contacts[0].name).toBe('Anita');
   });

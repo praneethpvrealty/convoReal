@@ -64,7 +64,6 @@ export async function loadEnquiryNoticeContext(
     if (pid) enquiredIdByContact.set(c.id, pid);
   }
 
-
   if (enquiredIdByContact.size > 0) {
     const { data } = await db
       .from('properties')

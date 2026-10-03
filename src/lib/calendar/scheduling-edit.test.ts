@@ -34,7 +34,7 @@ vi.mock('@/lib/notifications/create', () => ({
   createNotification: vi.fn(async () => {}),
 }));
 
-vi.mock('@/lib/automations/admin-client', () => ({
+vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
       const builder: Record<string, unknown> = {};

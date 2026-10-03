@@ -1,35 +1,35 @@
-import { NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   requireOrgRole,
   toErrorResponse,
   type AccountContext,
-} from '@/lib/auth/account'
-import { decrypt } from '@/lib/whatsapp/encryption'
+} from '@/lib/auth/account';
+import { decrypt } from '@/lib/whatsapp/encryption';
 import {
   findMessageTemplate,
   submitMessageTemplate,
   uploadSampleMedia,
-} from '@/lib/whatsapp/meta-api'
+} from '@/lib/whatsapp/meta-api';
 import {
   validateTemplatePayload,
   type TemplatePayload,
-} from '@/lib/whatsapp/template-validators'
-import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components'
-import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons'
+} from '@/lib/whatsapp/template-validators';
+import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components';
+import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons';
 import {
   normalizeCategory,
   normalizeStatus,
-} from '@/lib/whatsapp/template-status-normalize'
-import { stampFor } from '@/lib/whatsapp/copy-revision-stamp'
-import { withMetaHeldCategory } from '@/lib/whatsapp/template-category-lock'
-import { metaTemplatePayloadFields } from '@/lib/whatsapp/meta-template-row'
+} from '@/lib/whatsapp/template-status-normalize';
+import { stampFor } from '@/lib/whatsapp/copy-revision-stamp';
+import { withMetaHeldCategory } from '@/lib/whatsapp/template-category-lock';
+import { metaTemplatePayloadFields } from '@/lib/whatsapp/meta-template-row';
 import {
   requiresTranslationReview,
   isTranslationReviewed,
   TRANSLATION_REVIEW_REQUIRED_MESSAGE,
   TRANSLATION_REVIEW_MISSING_DRAFT_MESSAGE,
-} from '@/lib/whatsapp/translation-review'
+} from '@/lib/whatsapp/translation-review';
 
 /**
  * Shared upsert payload builder — both the Meta-failure path and the
@@ -41,14 +41,14 @@ function buildUpsertRow(
   userId: string,
   payload: TemplatePayload,
   extras: {
-    status: 'DRAFT' | string
-    metaTemplateId: string | null
-    submissionError: string | null
+    status: 'DRAFT' | string;
+    metaTemplateId: string | null;
+    submissionError: string | null;
     /** Category Meta actually assigned, when it returned one — Meta can
      *  approve a Utility submission as MARKETING, and the effective
      *  category is what frequency caps (error 131049) key off. */
-    metaCategory?: TemplatePayload['category'] | null
-  },
+    metaCategory?: TemplatePayload['category'] | null;
+  }
 ) {
   return {
     // Account tenancy — required NOT NULL on message_templates as
@@ -77,12 +77,12 @@ function buildUpsertRow(
     // webhook will set it again if Meta still rejects.
     rejection_reason: extras.submissionError ? null : null,
     last_submitted_at: new Date().toISOString(),
-  }
+  };
 }
 
 async function upsertTemplateRow(
   supabase: SupabaseClient,
-  row: ReturnType<typeof buildUpsertRow>,
+  row: ReturnType<typeof buildUpsertRow>
 ) {
   // First, query if a template with the same (user_id, name, language) already exists.
   // This manual lookup-then-update/insert logic is robust against missing database-level
@@ -93,7 +93,7 @@ async function upsertTemplateRow(
     .eq('user_id', row.user_id)
     .eq('name', row.name)
     .eq('language', row.language)
-    .maybeSingle()
+    .maybeSingle();
 
   // Stamped here rather than in buildUpsertRow because the stamp needs
   // the origin already on the row, and this is where that is in hand.
@@ -107,9 +107,9 @@ async function upsertTemplateRow(
       row.name,
       row.language,
       row,
-      existing?.copy_revision as string | null | undefined,
+      existing?.copy_revision as string | null | undefined
     ),
-  }
+  };
 
   if (existing?.id) {
     return supabase
@@ -117,13 +117,9 @@ async function upsertTemplateRow(
       .update(stamped)
       .eq('id', existing.id)
       .select()
-      .single()
+      .single();
   } else {
-    return supabase
-      .from('message_templates')
-      .insert(stamped)
-      .select()
-      .single()
+    return supabase.from('message_templates').insert(stamped).select().single();
   }
 }
 
@@ -133,7 +129,7 @@ async function upsertTemplateRow(
  * of it (a retry racing the first request, or a save that failed).
  */
 const LANGUAGE_EXISTS_RE =
-  /already exists|already .*content for this template|content in this language already exists/i
+  /already exists|already .*content for this template|content in this language already exists/i;
 
 /**
  * Record a refused submit without losing what Meta holds. A row that
@@ -147,7 +143,7 @@ async function recordSubmissionFailure(
   accountId: string,
   userId: string,
   payload: TemplatePayload,
-  message: string,
+  message: string
 ) {
   // Every row for this (name, language) in the account, not one: the
   // unique index is per user, so teammates can each hold one, and a
@@ -157,12 +153,12 @@ async function recordSubmissionFailure(
     .select('id, meta_template_id')
     .eq('account_id', accountId)
     .eq('name', payload.name)
-    .eq('language', payload.language)
+    .eq('language', payload.language);
   if (lookupError) {
-    console.error('[templates/submit] failure lookup error:', lookupError)
-    return
+    console.error('[templates/submit] failure lookup error:', lookupError);
+    return;
   }
-  const held = (rows ?? []).find((r) => r.meta_template_id)
+  const held = (rows ?? []).find((r) => r.meta_template_id);
   if (held) {
     await supabase
       .from('message_templates')
@@ -171,8 +167,8 @@ async function recordSubmissionFailure(
         submission_error: message,
         last_submitted_at: new Date().toISOString(),
       })
-      .eq('id', held.id)
-    return
+      .eq('id', held.id);
+    return;
   }
   await upsertTemplateRow(
     supabase,
@@ -180,8 +176,8 @@ async function recordSubmissionFailure(
       status: 'DRAFT',
       metaTemplateId: null,
       submissionError: message,
-    }),
-  )
+    })
+  );
 }
 
 /**
@@ -203,20 +199,23 @@ export async function POST(request: Request) {
   // migration 146): templates go to Meta under the account's one
   // WhatsApp number and affect its quality rating. Resolved outside
   // the main try so a 401/403 doesn't collapse into the generic 500.
-  let ctx: AccountContext
+  let ctx: AccountContext;
   try {
-    ctx = await requireOrgRole('org_manager')
+    ctx = await requireOrgRole('org_manager');
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
-  const { supabase, userId, accountId } = ctx
+  const { supabase, userId, accountId } = ctx;
 
   try {
-    let payload: TemplatePayload
+    let payload: TemplatePayload;
     try {
-      payload = (await request.json()) as TemplatePayload
+      payload = (await request.json()) as TemplatePayload;
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Invalid JSON body.' },
+        { status: 400 }
+      );
     }
 
     if (payload.category === 'Authentication') {
@@ -225,8 +224,8 @@ export async function POST(request: Request) {
           error:
             'AUTHENTICATION templates are not yet supported here — create them in Meta WhatsApp Manager and use "Sync from Meta".',
         },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
     // Every buyer-facing link goes to the brokerage's own showcase.
@@ -238,15 +237,15 @@ export async function POST(request: Request) {
     // buyer who tapped it left the brokerage's showcase for the default
     // one. The account is known here and nowhere in the client, so this
     // is the one place that can be right for every template at once.
-    payload = await withAccountShowcaseButtons(supabase, accountId, payload)
+    payload = await withAccountShowcaseButtons(supabase, accountId, payload);
 
     try {
-      validateTemplatePayload(payload)
+      validateTemplatePayload(payload);
     } catch (e) {
       return NextResponse.json(
         { error: e instanceof Error ? e.message : 'Validation failed.' },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
     // One name, one category. Meta fixes a template name's category
@@ -257,23 +256,26 @@ export async function POST(request: Request) {
     // Meta has approved several English variants as Marketing, so a
     // translation has to be sent under whatever Meta already holds —
     // see template-category-lock.ts.
-    const requestedCategory = payload.category
+    const requestedCategory = payload.category;
     const { data: siblings, error: siblingsError } = await supabase
       .from('message_templates')
       .select('category, meta_template_id, status')
       .eq('account_id', accountId)
       .eq('name', payload.name)
-      .not('meta_template_id', 'is', null)
+      .not('meta_template_id', 'is', null);
     if (siblingsError) {
       // Fail closed: submitting with an unverified category would
       // recreate the very Meta error this lookup exists to prevent.
-      console.error('[templates/submit] category lookup error:', siblingsError)
+      console.error('[templates/submit] category lookup error:', siblingsError);
       return NextResponse.json(
-        { error: 'Could not confirm the category Meta holds for this template. Try again.' },
-        { status: 500 },
-      )
+        {
+          error:
+            'Could not confirm the category Meta holds for this template. Try again.',
+        },
+        { status: 500 }
+      );
     }
-    payload = withMetaHeldCategory(payload, siblings ?? []).payload
+    payload = withMetaHeldCategory(payload, siblings ?? []).payload;
 
     // The translation gate. Enforced here rather than only in the UI
     // because this route is the single door to Meta — the template
@@ -287,7 +289,7 @@ export async function POST(request: Request) {
         .eq('account_id', accountId)
         .eq('name', payload.name)
         .eq('language', payload.language)
-        .maybeSingle()
+        .maybeSingle();
 
       if (!existing) {
         return NextResponse.json(
@@ -295,8 +297,8 @@ export async function POST(request: Request) {
             error: TRANSLATION_REVIEW_MISSING_DRAFT_MESSAGE,
             code: 'TRANSLATION_DRAFT_REQUIRED',
           },
-          { status: 409 },
-        )
+          { status: 409 }
+        );
       }
       if (!isTranslationReviewed(existing)) {
         return NextResponse.json(
@@ -304,36 +306,36 @@ export async function POST(request: Request) {
             error: TRANSLATION_REVIEW_REQUIRED_MESSAGE,
             code: 'TRANSLATION_REVIEW_REQUIRED',
           },
-          { status: 409 },
-        )
+          { status: 409 }
+        );
       }
     }
 
     const dryRun =
       process.env.WHATSAPP_TEMPLATES_DRY_RUN === 'true' ||
-      process.env.WHATSAPP_TEMPLATES_DRY_RUN === '1'
+      process.env.WHATSAPP_TEMPLATES_DRY_RUN === '1';
 
-    let metaTemplateId: string
-    let metaStatus: string
-    let metaCategory: TemplatePayload['category'] | null = null
+    let metaTemplateId: string;
+    let metaStatus: string;
+    let metaCategory: TemplatePayload['category'] | null = null;
 
     if (dryRun) {
-      metaTemplateId = `dry-run-${crypto.randomUUID()}`
-      metaStatus = 'PENDING'
+      metaTemplateId = `dry-run-${crypto.randomUUID()}`;
+      metaStatus = 'PENDING';
     } else {
       const { data: config, error: configError } = await supabase
         .from('whatsapp_config')
         .select('*')
         .eq('account_id', accountId)
-        .single()
+        .single();
       if (configError || !config) {
         return NextResponse.json(
           {
             error:
               'WhatsApp not configured. Connect your WhatsApp Business account in Settings first.',
           },
-          { status: 400 },
-        )
+          { status: 400 }
+        );
       }
       if (!config.waba_id) {
         return NextResponse.json(
@@ -341,11 +343,11 @@ export async function POST(request: Request) {
             error:
               'WABA (WhatsApp Business Account) ID missing. Re-connect your account in Settings.',
           },
-          { status: 400 },
-        )
+          { status: 400 }
+        );
       }
 
-      const accessToken = decrypt(config.access_token)
+      const accessToken = decrypt(config.access_token);
       try {
         // Meta's create-template endpoint only accepts a Resumable
         // Upload handle as the sample for media headers — a plain URL
@@ -358,30 +360,30 @@ export async function POST(request: Request) {
           !payload.header_handle &&
           payload.header_media_url
         ) {
-          const sample = await fetch(payload.header_media_url)
+          const sample = await fetch(payload.header_media_url);
           if (!sample.ok) {
             throw new Error(
-              `Could not fetch the header sample (HTTP ${sample.status}) from ${payload.header_media_url}`,
-            )
+              `Could not fetch the header sample (HTTP ${sample.status}) from ${payload.header_media_url}`
+            );
           }
           const fileType =
-            sample.headers.get('content-type')?.split(';')[0] || 'image/png'
+            sample.headers.get('content-type')?.split(';')[0] || 'image/png';
           payload.header_handle = await uploadSampleMedia({
             accessToken,
             data: await sample.arrayBuffer(),
             fileType,
-          })
+          });
         }
         const meta = await submitMessageTemplate({
           wabaId: config.waba_id,
           accessToken,
           payload: buildMetaTemplatePayload(payload),
-        })
-        metaTemplateId = meta.id
-        metaStatus = meta.status
-        metaCategory = meta.category ? normalizeCategory(meta.category) : null
+        });
+        metaTemplateId = meta.id;
+        metaStatus = meta.status;
+        metaCategory = meta.category ? normalizeCategory(meta.category) : null;
       } catch (e) {
-        const message = e instanceof Error ? e.message : 'Meta submit failed.'
+        const message = e instanceof Error ? e.message : 'Meta submit failed.';
         // "Already exists" is not a failure to record: Meta has the
         // variant, so adopt it. The row ends up exactly as a sync would
         // leave it, and the reviewer is not told to create a new
@@ -393,31 +395,33 @@ export async function POST(request: Request) {
               name: payload.name,
               language: payload.language,
             }).catch(() => null)
-          : null
+          : null;
         if (held) {
           // Adopt Meta's words too: the local payload may be a later
           // rewording that Meta never accepted.
-          payload = { ...payload, ...metaTemplatePayloadFields(held) }
-          metaTemplateId = held.id
-          metaStatus = held.status
-          metaCategory = held.category ? normalizeCategory(held.category) : null
+          payload = { ...payload, ...metaTemplatePayloadFields(held) };
+          metaTemplateId = held.id;
+          metaStatus = held.status;
+          metaCategory = held.category
+            ? normalizeCategory(held.category)
+            : null;
         } else {
           await recordSubmissionFailure(
             supabase,
             accountId,
             userId,
             payload,
-            message,
-          )
-          const isRateLimit = /\b429\b/.test(message)
+            message
+          );
+          const isRateLimit = /\b429\b/.test(message);
           return NextResponse.json(
             {
               error: isRateLimit
                 ? 'Meta rate limit hit (100 template creates per hour). Try again later.'
                 : message,
             },
-            { status: isRateLimit ? 429 : 502 },
-          )
+            { status: isRateLimit ? 429 : 502 }
+          );
         }
       }
     }
@@ -429,8 +433,8 @@ export async function POST(request: Request) {
         metaTemplateId,
         submissionError: null,
         metaCategory,
-      }),
-    )
+      })
+    );
 
     if (upsertErr) {
       // The submit succeeded on Meta's side but we failed to persist
@@ -441,12 +445,12 @@ export async function POST(request: Request) {
           error: `Submitted to Meta but failed to save locally: ${upsertErr.message}. Run "Sync from Meta" to recover.`,
           meta_template_id: metaTemplateId,
         },
-        { status: 500 },
-      )
+        { status: 500 }
+      );
     }
 
-    const assignedCategory = metaCategory ?? payload.category
-    const categoryChanged = assignedCategory !== requestedCategory
+    const assignedCategory = metaCategory ?? payload.category;
+    const categoryChanged = assignedCategory !== requestedCategory;
 
     return NextResponse.json({
       success: true,
@@ -460,15 +464,15 @@ export async function POST(request: Request) {
             },
           }
         : {}),
-    })
+    });
   } catch (error) {
-    console.error('Error submitting template:', error)
+    console.error('Error submitting template:', error);
     return NextResponse.json(
       {
         error:
           error instanceof Error ? error.message : 'Failed to submit template.',
       },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 }

@@ -17,7 +17,7 @@ import { isNarrationLanguage } from '@/lib/video/listing-video';
  */
 export async function POST(
   request: Request,
-  context: { params: Promise<{ id: string }> },
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -29,7 +29,9 @@ export async function POST(
     } catch {
       // empty body → default language
     }
-    const language = isNarrationLanguage(body.language) ? body.language : 'en-IN';
+    const language = isNarrationLanguage(body.language)
+      ? body.language
+      : 'en-IN';
 
     const { data: property } = await ctx.supabase
       .from('properties')
@@ -38,27 +40,41 @@ export async function POST(
       .eq('account_id', ctx.accountId)
       .maybeSingle();
     if (!property) {
-      return NextResponse.json({ error: 'Property not found.' }, { status: 404 });
-    }
-    const photoCount = (property.images ?? []).filter((u: string) => u?.trim()).length;
-    if (photoCount === 0) {
       return NextResponse.json(
-        { error: 'Add at least one photo first — the video is built from the listing photos.' },
-        { status: 400 },
+        { error: 'Property not found.' },
+        { status: 404 }
       );
     }
-    if (property.video_status === 'queued' || property.video_status === 'processing') {
+    const photoCount = (property.images ?? []).filter((u: string) =>
+      u?.trim()
+    ).length;
+    if (photoCount === 0) {
+      return NextResponse.json(
+        {
+          error:
+            'Add at least one photo first — the video is built from the listing photos.',
+        },
+        { status: 400 }
+      );
+    }
+    if (
+      property.video_status === 'queued' ||
+      property.video_status === 'processing'
+    ) {
       return NextResponse.json(
         { error: 'A video is already being generated for this property.' },
-        { status: 409 },
+        { status: 409 }
       );
     }
 
     const redisUrl = process.env.REDIS_URL;
     if (!redisUrl) {
       return NextResponse.json(
-        { error: 'Video generation requires the queue worker (REDIS_URL is not configured on this deployment).' },
-        { status: 503 },
+        {
+          error:
+            'Video generation requires the queue worker (REDIS_URL is not configured on this deployment).',
+        },
+        { status: 503 }
       );
     }
 
@@ -68,8 +84,11 @@ export async function POST(
     const burn = await burnCredits(ctx.accountId, 'listing_video', cost);
     if (!burn.success) {
       return NextResponse.json(
-        { error: `Not enough credits — generating a video costs ${cost} cr.`, deficit: burn.deficit },
-        { status: 402 },
+        {
+          error: `Not enough credits — generating a video costs ${cost} cr.`,
+          deficit: burn.deficit,
+        },
+        { status: 402 }
       );
     }
 
@@ -78,18 +97,25 @@ export async function POST(
     // render in flight.
     const { data: queued } = await ctx.supabase
       .from('properties')
-      .update({ video_status: 'queued', video_language: language, video_error: null })
+      .update({
+        video_status: 'queued',
+        video_language: language,
+        video_error: null,
+      })
       .eq('id', id)
       .select('id');
 
     if (!queued?.length) {
       return NextResponse.json(
         { error: 'Property not found, or you cannot change it' },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
-    const redis = new Redis(redisUrl, { maxRetriesPerRequest: 2, lazyConnect: true });
+    const redis = new Redis(redisUrl, {
+      maxRetriesPerRequest: 2,
+      lazyConnect: true,
+    });
     try {
       await redis.connect();
       await redis.rpush(
@@ -100,7 +126,7 @@ export async function POST(
           accountId: ctx.accountId,
           language,
           requestedBy: ctx.userId,
-        }),
+        })
       );
     } finally {
       redis.disconnect();
@@ -126,7 +152,7 @@ export async function POST(
  */
 export async function DELETE(
   _request: Request,
-  context: { params: Promise<{ id: string }> },
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -139,22 +165,40 @@ export async function DELETE(
       .eq('account_id', ctx.accountId)
       .maybeSingle();
     if (!property) {
-      return NextResponse.json({ error: 'Property not found.' }, { status: 404 });
-    }
-    if (property.video_status === 'queued' || property.video_status === 'processing') {
       return NextResponse.json(
-        { error: 'A video is being generated right now — wait for it to finish first.' },
-        { status: 409 },
+        { error: 'Property not found.' },
+        { status: 404 }
       );
     }
-    if (property.youtube_status === 'queued' || property.youtube_status === 'uploading') {
+    if (
+      property.video_status === 'queued' ||
+      property.video_status === 'processing'
+    ) {
       return NextResponse.json(
-        { error: 'This video is being uploaded to YouTube — wait for it to finish first.' },
-        { status: 409 },
+        {
+          error:
+            'A video is being generated right now — wait for it to finish first.',
+        },
+        { status: 409 }
+      );
+    }
+    if (
+      property.youtube_status === 'queued' ||
+      property.youtube_status === 'uploading'
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'This video is being uploaded to YouTube — wait for it to finish first.',
+        },
+        { status: 409 }
       );
     }
     if (!property.video_url && !property.video_status) {
-      return NextResponse.json({ error: 'This property has no video.' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'This property has no video.' },
+        { status: 404 }
+      );
     }
 
     // Storage deletes need the service role; the path's account prefix
@@ -183,7 +227,7 @@ export async function DELETE(
     if (!cleared?.length) {
       return NextResponse.json(
         { error: 'Property not found, or you cannot change it' },
-        { status: 404 },
+        { status: 404 }
       );
     }
 

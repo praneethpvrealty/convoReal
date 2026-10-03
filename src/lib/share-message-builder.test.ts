@@ -173,16 +173,19 @@ describe('buildPropertyShareMessage', () => {
 
 describe('propertyShowcaseUrl', () => {
   it('appends property_id preserving existing query params', () => {
-    expect(propertyShowcaseUrl('https://www.convoreal.com/', baseProperty)).toBe(
-      'https://www.convoreal.com/?property_id=p1'
-    );
-    expect(propertyShowcaseUrl('https://www.convoreal.com/?ref=acc1', baseProperty)).toBe(
-      'https://www.convoreal.com/?ref=acc1&property_id=p1'
-    );
+    expect(
+      propertyShowcaseUrl('https://www.convoreal.com/', baseProperty)
+    ).toBe('https://www.convoreal.com/?property_id=p1');
+    expect(
+      propertyShowcaseUrl('https://www.convoreal.com/?ref=acc1', baseProperty)
+    ).toBe('https://www.convoreal.com/?ref=acc1&property_id=p1');
   });
 
   it('prefers the property code over the id', () => {
-    const withCode = { ...baseProperty, property_code: 'PROP-1006' } as Property;
+    const withCode = {
+      ...baseProperty,
+      property_code: 'PROP-1006',
+    } as Property;
     expect(propertyShowcaseUrl('https://www.convoreal.com/', withCode)).toBe(
       'https://www.convoreal.com/?property_id=PROP-1006'
     );
@@ -197,24 +200,28 @@ describe('showcaseOriginForHost', () => {
   });
 
   it('swaps the host prefix for the configured subdomain', () => {
-    expect(showcaseOriginForHost('www.convoreal.com', 'https:', 'aryavartaventures')).toBe(
-      'https://aryavartaventures.convoreal.com'
-    );
-    expect(showcaseOriginForHost('other.convoreal.com', 'https:', 'aryavartaventures')).toBe(
-      'https://aryavartaventures.convoreal.com'
-    );
+    expect(
+      showcaseOriginForHost('www.convoreal.com', 'https:', 'aryavartaventures')
+    ).toBe('https://aryavartaventures.convoreal.com');
+    expect(
+      showcaseOriginForHost(
+        'other.convoreal.com',
+        'https:',
+        'aryavartaventures'
+      )
+    ).toBe('https://aryavartaventures.convoreal.com');
   });
 
   it('prefixes the subdomain on bare domains, localhost, and IPs', () => {
-    expect(showcaseOriginForHost('convoreal.com', 'https:', 'aryavartaventures')).toBe(
-      'https://aryavartaventures.convoreal.com'
-    );
-    expect(showcaseOriginForHost('localhost:3000', 'http:', 'aryavartaventures')).toBe(
-      'http://aryavartaventures.localhost:3000'
-    );
-    expect(showcaseOriginForHost('127.0.0.1:3000', 'http:', 'aryavartaventures')).toBe(
-      'http://aryavartaventures.127.0.0.1:3000'
-    );
+    expect(
+      showcaseOriginForHost('convoreal.com', 'https:', 'aryavartaventures')
+    ).toBe('https://aryavartaventures.convoreal.com');
+    expect(
+      showcaseOriginForHost('localhost:3000', 'http:', 'aryavartaventures')
+    ).toBe('http://aryavartaventures.localhost:3000');
+    expect(
+      showcaseOriginForHost('127.0.0.1:3000', 'http:', 'aryavartaventures')
+    ).toBe('http://aryavartaventures.127.0.0.1:3000');
   });
 });
 
@@ -222,7 +229,10 @@ describe('link order — WhatsApp previews the FIRST url', () => {
   it('puts the showcase link above the map link on a complete share', () => {
     // baseProperty is a plot, so the location guard suppresses its map —
     // override it off, the way the existing map tests do.
-    const unguarded = { ...baseProperty, location_privacy: 'exact' } as unknown as Property;
+    const unguarded = {
+      ...baseProperty,
+      location_privacy: 'exact',
+    } as unknown as Property;
     const msg = buildPropertyShareMessage({
       property: unguarded,
       url: URL,
@@ -235,7 +245,10 @@ describe('link order — WhatsApp previews the FIRST url', () => {
   });
 
   it('puts the showcase link above the map link on the details reveal', () => {
-    const msg = buildInquiryDetailsMessage({ property: baseProperty, url: URL });
+    const msg = buildInquiryDetailsMessage({
+      property: baseProperty,
+      url: URL,
+    });
     expect(msg.indexOf(URL)).toBeLessThan(msg.indexOf('maps.app.goo.gl'));
   });
 
@@ -253,7 +266,10 @@ describe('link order — WhatsApp previews the FIRST url', () => {
 
 describe('buildInquiryDetailsMessage', () => {
   it('carries the complete details plus the showcase link', () => {
-    const msg = buildInquiryDetailsMessage({ property: baseProperty, url: URL });
+    const msg = buildInquiryDetailsMessage({
+      property: baseProperty,
+      url: URL,
+    });
     expect(msg).toContain(
       'Here are the complete details for the property "15000 sqft Residential Land in Koramangala" you inquired about:'
     );
@@ -264,7 +280,10 @@ describe('buildInquiryDetailsMessage', () => {
   });
 
   it('still reveals the map link for a guarded listing — this is the post-approval send', () => {
-    const msg = buildInquiryDetailsMessage({ property: baseProperty, url: URL });
+    const msg = buildInquiryDetailsMessage({
+      property: baseProperty,
+      url: URL,
+    });
     expect(msg).toContain('🗺 Map: https://maps.app.goo.gl/xyz');
   });
 
@@ -274,7 +293,9 @@ describe('buildInquiryDetailsMessage', () => {
       location: '80 Feet Road, Koramangala 4th Block',
     } as Property;
     const msg = buildInquiryDetailsMessage({ property: withAddress, url: URL });
-    expect(msg).toContain('📍 *Exact Address:* 80 Feet Road, Koramangala 4th Block');
+    expect(msg).toContain(
+      '📍 *Exact Address:* 80 Feet Road, Koramangala 4th Block'
+    );
   });
 
   it('omits the exact address line when it would duplicate the locality', () => {
@@ -293,7 +314,9 @@ describe('buildInquiryDetailsMessage', () => {
 describe('buildShareTargets', () => {
   it('encodes the message into each deep link', () => {
     const targets = buildShareTargets('Hello *world* & co', URL, 'My Property');
-    expect(targets.whatsapp).toBe(`https://wa.me/?text=${encodeURIComponent('Hello *world* & co')}`);
+    expect(targets.whatsapp).toBe(
+      `https://wa.me/?text=${encodeURIComponent('Hello *world* & co')}`
+    );
     expect(targets.telegram).toContain(encodeURIComponent(URL));
     expect(targets.email).toContain('subject=My%20Property');
     expect(targets.sms.startsWith('sms:?&body=')).toBe(true);
@@ -326,12 +349,12 @@ describe('greetingName', () => {
 
 describe('showcaseBaseUrl', () => {
   it('uses the account subdomain when it has one, with no ref param', () => {
-    expect(showcaseBaseUrl('https://www.convoreal.com', 'aryavarta', 'acc-1')).toBe(
-      'https://aryavarta.convoreal.com/'
-    );
+    expect(
+      showcaseBaseUrl('https://www.convoreal.com', 'aryavarta', 'acc-1')
+    ).toBe('https://aryavarta.convoreal.com/');
   });
 
-  it("tags the bare site with ?ref= when there is no subdomain, so the catalog knows whose listings to show", () => {
+  it('tags the bare site with ?ref= when there is no subdomain, so the catalog knows whose listings to show', () => {
     expect(showcaseBaseUrl('https://www.convoreal.com', null, 'acc-1')).toBe(
       'https://www.convoreal.com/?ref=acc-1'
     );
@@ -351,9 +374,9 @@ describe('showcaseBaseUrl', () => {
 
   it('produces a base that propertyShowcaseUrl can extend without losing ref', () => {
     const base = showcaseBaseUrl('https://www.convoreal.com', null, 'acc-1');
-    expect(propertyShowcaseUrl(base, { ...baseProperty, property_code: 'CR-12' })).toBe(
-      'https://www.convoreal.com/?ref=acc-1&property_id=CR-12'
-    );
+    expect(
+      propertyShowcaseUrl(base, { ...baseProperty, property_code: 'CR-12' })
+    ).toBe('https://www.convoreal.com/?ref=acc-1&property_id=CR-12');
   });
 });
 
@@ -378,7 +401,9 @@ describe('land area', () => {
       detail: 'complete',
       tone: 'professional',
     });
-    expect(msg).toContain('📐 Commercial Office Space · 5371 Sq.Ft. built-up · 2400 sqft land');
+    expect(msg).toContain(
+      '📐 Commercial Office Space · 5371 Sq.Ft. built-up · 2400 sqft land'
+    );
   });
 
   it('shows land area on a standard share', () => {

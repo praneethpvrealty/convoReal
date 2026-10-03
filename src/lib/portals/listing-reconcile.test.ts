@@ -9,7 +9,9 @@ import {
 describe('portalFromQuestion', () => {
   it('reads the portal out of the message that prompted this', () => {
     expect(
-      portalFromQuestion('It says as 4000sqft in magicbricks. Is it thecsame one???')
+      portalFromQuestion(
+        'It says as 4000sqft in magicbricks. Is it thecsame one???'
+      )
     ).toBe('magicbricks');
   });
 

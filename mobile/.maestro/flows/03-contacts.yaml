@@ -3,9 +3,9 @@ name: contacts
 ---
 - launchApp
 - tapOn:
-    id: "tab-contacts"
+    id: 'tab-contacts'
 - extendedWaitUntil:
     visible:
-      id: "contacts-search"
+      id: 'contacts-search'
     timeout: 15000
 - takeScreenshot: .maestro/shots/03-contacts

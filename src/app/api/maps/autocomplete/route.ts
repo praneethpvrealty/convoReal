@@ -20,11 +20,17 @@ export async function GET(request: NextRequest) {
   try {
     const ctx = await requireRole('viewer');
 
-    const limit = await checkRateLimit(`maps:autocomplete:${ctx.userId}`, AUTOCOMPLETE_LIMIT);
+    const limit = await checkRateLimit(
+      `maps:autocomplete:${ctx.userId}`,
+      AUTOCOMPLETE_LIMIT
+    );
     if (!limit.success) return rateLimitResponse(limit);
 
     if (!hasGoogleMapsKey()) {
-      return NextResponse.json({ error: 'Maps API not configured' }, { status: 501 });
+      return NextResponse.json(
+        { error: 'Maps API not configured' },
+        { status: 501 }
+      );
     }
 
     const input = request.nextUrl.searchParams.get('input')?.trim() || '';
@@ -33,7 +39,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ suggestions: [] });
     }
     if (!session) {
-      return NextResponse.json({ error: 'session is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'session is required' },
+        { status: 400 }
+      );
     }
 
     const suggestions = await placesAutocomplete(input, session);

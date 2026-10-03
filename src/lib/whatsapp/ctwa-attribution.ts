@@ -52,7 +52,9 @@ function clean(v: string | undefined | null): string | null {
  * Returns null when there's no meaningful attribution (no ad id and no
  * click id) — those are the two fields that make it a real CTWA lead.
  */
-export function extractReferral(referral: WhatsAppReferral | undefined | null): NormalizedReferral | null {
+export function extractReferral(
+  referral: WhatsAppReferral | undefined | null
+): NormalizedReferral | null {
   if (!referral) return null;
   const sourceId = clean(referral.source_id);
   const ctwaClid = clean(referral.ctwa_clid);
@@ -94,12 +96,18 @@ interface ContactUpgradeInput {
  */
 export function deriveContactUpgrade(
   current: ContactUpgradeInput,
-  ref: NormalizedReferral,
+  ref: NormalizedReferral
 ): { source?: string; referrer?: string; classification?: 'Buyer' } {
-  const update: { source?: string; referrer?: string; classification?: 'Buyer' } = {};
+  const update: {
+    source?: string;
+    referrer?: string;
+    classification?: 'Buyer';
+  } = {};
   if (!current.source || !current.source.trim()) update.source = CTWA_SOURCE;
-  if (!current.referrer || !current.referrer.trim()) update.referrer = formatReferrerLabel(ref);
-  if (!current.classification || current.classification === 'Others') update.classification = 'Buyer';
+  if (!current.referrer || !current.referrer.trim())
+    update.referrer = formatReferrerLabel(ref);
+  if (!current.classification || current.classification === 'Others')
+    update.classification = 'Buyer';
   return update;
 }
 
@@ -123,36 +131,47 @@ interface ProcessArgs {
  * Phase C ships, ad_campaigns doesn't exist and this always returns
  * null — the referral is still captured and the contact still stamped.
  */
-export async function processCtwaReferral(args: ProcessArgs): Promise<{ linkedPropertyId: string | null }> {
-  const { admin, accountId, contactId, conversationId, messageId, contact, contactWasCreated } = args;
+export async function processCtwaReferral(
+  args: ProcessArgs
+): Promise<{ linkedPropertyId: string | null }> {
+  const {
+    admin,
+    accountId,
+    contactId,
+    conversationId,
+    messageId,
+    contact,
+    contactWasCreated,
+  } = args;
 
   const ref = extractReferral(args.referral);
   if (!ref) return { linkedPropertyId: null };
 
   // 1. Record the referral (idempotent on message_id).
   try {
-    await admin
-      .from('ctwa_referrals')
-      .upsert(
-        {
-          account_id: accountId,
-          contact_id: contactId,
-          conversation_id: conversationId,
-          message_id: messageId,
-          source_type: ref.sourceType,
-          source_id: ref.sourceId,
-          source_url: ref.sourceUrl,
-          headline: ref.headline,
-          body: ref.body,
-          media_type: ref.mediaType,
-          image_url: ref.imageUrl,
-          video_url: ref.videoUrl,
-          ctwa_clid: ref.ctwaClid,
-        },
-        { onConflict: 'message_id', ignoreDuplicates: true },
-      );
+    await admin.from('ctwa_referrals').upsert(
+      {
+        account_id: accountId,
+        contact_id: contactId,
+        conversation_id: conversationId,
+        message_id: messageId,
+        source_type: ref.sourceType,
+        source_id: ref.sourceId,
+        source_url: ref.sourceUrl,
+        headline: ref.headline,
+        body: ref.body,
+        media_type: ref.mediaType,
+        image_url: ref.imageUrl,
+        video_url: ref.videoUrl,
+        ctwa_clid: ref.ctwaClid,
+      },
+      { onConflict: 'message_id', ignoreDuplicates: true }
+    );
   } catch (err) {
-    console.error('[ctwa-attribution] referral insert failed (non-fatal):', err);
+    console.error(
+      '[ctwa-attribution] referral insert failed (non-fatal):',
+      err
+    );
   }
 
   // 2. Stamp the contact (upgrade-only).

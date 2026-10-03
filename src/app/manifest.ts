@@ -49,4 +49,3 @@ export default function manifest(): MetadataRoute.Manifest {
 
   return manifestObj as MetadataRoute.Manifest;
 }
-

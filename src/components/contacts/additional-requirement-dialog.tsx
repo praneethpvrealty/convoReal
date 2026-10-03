@@ -62,8 +62,7 @@ export function AdditionalRequirementDialog({
         body: JSON.stringify({ text, source: 'personal_whatsapp' }),
       });
       const body = (await response.json().catch(() => ({}))) as
-        | SaveResult
-        | { error?: string };
+        SaveResult | { error?: string };
       if (!response.ok || !('data' in body)) {
         throw new Error(
           ('error' in body && body.error) || 'Could not save the requirement'

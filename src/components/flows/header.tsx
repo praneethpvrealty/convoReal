@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Editor header — flow name / description, status badge, dirty
@@ -15,7 +15,7 @@
  * /flows/[id]/runs) — those don't belong in the hook.
  */
 
-import { useRouter } from "next/navigation";
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   History,
@@ -25,16 +25,13 @@ import {
   Save,
   Trash2,
   Workflow,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import {
-  useFlowEditor,
-  type BuilderState,
-} from "./flow-editor-state";
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { useFlowEditor, type BuilderState } from './flow-editor-state';
 
 export function EditorHeader() {
   const router = useRouter();
@@ -56,7 +53,7 @@ export function EditorHeader() {
       <div className="flex items-center gap-2 text-xs text-slate-500">
         <button
           type="button"
-          onClick={() => router.push("/flows")}
+          onClick={() => router.push('/flows')}
           className="inline-flex items-center gap-1 hover:text-slate-300"
         >
           <ArrowLeft className="h-3 w-3" />
@@ -65,19 +62,17 @@ export function EditorHeader() {
       </div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <Workflow className="h-5 w-5 shrink-0 text-primary" />
+          <Workflow className="text-primary h-5 w-5 shrink-0" />
           <Input
             value={state.name}
-            onChange={(e) =>
-              setState((s) => ({ ...s, name: e.target.value }))
-            }
+            onChange={(e) => setState((s) => ({ ...s, name: e.target.value }))}
             placeholder="Flow name"
             className="max-w-md bg-slate-900 text-lg font-semibold"
           />
           <StatusBadge status={state.status} />
           {dirty && (
             <span
-              className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-amber-300"
+              className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium tracking-wide text-amber-300 uppercase"
               title="Unsaved changes — hit Save to persist"
               aria-live="polite"
             >
@@ -104,11 +99,11 @@ export function EditorHeader() {
             <Trash2 className="h-3.5 w-3.5" />
             Delete
           </Button>
-          {state.status === "active" ? (
+          {state.status === 'active' ? (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void setStatus("draft")}
+              onClick={() => void setStatus('draft')}
               disabled={activating}
             >
               {activating ? (
@@ -122,11 +117,11 @@ export function EditorHeader() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void setStatus("active")}
+              onClick={() => void setStatus('active')}
               disabled={activating || !canActivate}
               title={
                 !canActivate
-                  ? "Fix the issues below before activating"
+                  ? 'Fix the issues below before activating'
                   : undefined
               }
             >
@@ -160,14 +155,14 @@ export function EditorHeader() {
   );
 }
 
-function StatusBadge({ status }: { status: BuilderState["status"] }) {
+function StatusBadge({ status }: { status: BuilderState['status'] }) {
   const cls = {
-    draft: "border-slate-700 bg-slate-800 text-slate-300",
-    active: "border-emerald-600/40 bg-emerald-500/10 text-emerald-300",
-    archived: "border-slate-700 bg-slate-800/50 text-slate-500",
+    draft: 'border-slate-700 bg-slate-800 text-slate-300',
+    active: 'border-emerald-600/40 bg-emerald-500/10 text-emerald-300',
+    archived: 'border-slate-700 bg-slate-800/50 text-slate-500',
   }[status];
   return (
-    <Badge variant="outline" className={cn("shrink-0", cls)}>
+    <Badge variant="outline" className={cn('shrink-0', cls)}>
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </Badge>
   );

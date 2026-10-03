@@ -73,14 +73,14 @@ function isSqftUnit(unit: string | null | undefined): boolean {
   );
 }
 
-export function comparableAreasSqft(
-  property: ReconcilableProperty
-): number[] {
+export function comparableAreasSqft(property: ReconcilableProperty): number[] {
   const areas = [property.area_sqft, property.super_built_area];
   if (property.land_area && isSqftUnit(property.land_area_unit)) {
     areas.push(property.land_area);
   }
-  return [...new Set(areas.filter((area): area is number => !!area && area > 0))];
+  return [
+    ...new Set(areas.filter((area): area is number => !!area && area > 0)),
+  ];
 }
 
 /** The primary area used by older callers that need one figure. */
@@ -109,7 +109,11 @@ export function findPortalDiscrepancies(
 
   for (const listing of listings) {
     const portalArea = listing.areaSqft;
-    const pairs: [ReconciledField, number | null | undefined, number | null | undefined][] = [
+    const pairs: [
+      ReconciledField,
+      number | null | undefined,
+      number | null | undefined,
+    ][] = [
       ['price', property.price, listing.price],
       ['bedrooms', property.bedrooms, listing.bedrooms],
     ];
@@ -118,7 +122,8 @@ export function findPortalDiscrepancies(
       if (!ours || !theirs) continue;
       // Bedrooms are a count: 2 is not 3, and no rounding excuses it.
       const gap = drift(ours, theirs);
-      if (field === 'bedrooms' ? ours === theirs : gap <= DRIFT_TOLERANCE) continue;
+      if (field === 'bedrooms' ? ours === theirs : gap <= DRIFT_TOLERANCE)
+        continue;
 
       out.push({
         portal: listing.portal,
@@ -164,7 +169,10 @@ const PORTAL_MENTION: Record<PortalKey, RegExp> = {
 /** The portal a buyer named in their question, if any. */
 export function portalFromQuestion(question: string): PortalKey | null {
   const text = question || '';
-  for (const [key, pattern] of Object.entries(PORTAL_MENTION) as [PortalKey, RegExp][]) {
+  for (const [key, pattern] of Object.entries(PORTAL_MENTION) as [
+    PortalKey,
+    RegExp,
+  ][]) {
     if (pattern.test(text)) return key;
   }
   return null;

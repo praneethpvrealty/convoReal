@@ -1,7 +1,11 @@
 import { MANROPE } from './fontData';
 
 export function injectFonts() {
-  if (typeof document === 'undefined' || document.getElementById('manrope-faces')) return;
+  if (
+    typeof document === 'undefined' ||
+    document.getElementById('manrope-faces')
+  )
+    return;
   const style = document.createElement('style');
   style.id = 'manrope-faces';
   style.textContent = Object.entries(MANROPE)

@@ -18,7 +18,8 @@ export interface AppConfig {
 export function useAppConfig(): AppConfig | undefined {
   const { data } = useQuery({
     queryKey: ['app-config'],
-    queryFn: () => apiFetch<{ data: AppConfig }>('/api/config').then((r) => r.data),
+    queryFn: () =>
+      apiFetch<{ data: AppConfig }>('/api/config').then((r) => r.data),
     staleTime: 60 * 60 * 1000,
   });
   return data;

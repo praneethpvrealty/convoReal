@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import { recordFeedback } from '@/lib/copilot/qa-cache';
 
 /**
@@ -18,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     const limit = await checkRateLimit(
       `copilot-fb:${ctx.userId}`,
-      RATE_LIMITS.copilotFeedback,
+      RATE_LIMITS.copilotFeedback
     );
     if (!limit.success) return rateLimitResponse(limit);
 
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest) {
     if (!UUID_RE.test(cacheId) || !vote) {
       return NextResponse.json(
         { error: 'cacheId (uuid) and vote (up|down) required' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 

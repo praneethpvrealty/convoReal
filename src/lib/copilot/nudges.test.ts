@@ -103,7 +103,7 @@ describe('evaluateNudges', () => {
 
     const nudges = await evaluateNudges(
       makeDb({ ...populated, journey_items: 4 }),
-      'acc-1',
+      'acc-1'
     );
     const nudge = nudges.find((n) => n.id === 'journeys-stalled');
     expect(nudge?.message).toContain('4 properties');
@@ -114,9 +114,12 @@ describe('evaluateNudges', () => {
     mockMatches.mockResolvedValue([{ id: 'm1' } as never]);
     const nudges = await evaluateNudges(
       makeDb({ ...populated, journey_items: 1 }),
-      'acc-1',
+      'acc-1'
     );
-    expect(nudges.map((n) => n.id)).toEqual(['journeys-stalled', 'radar-matches']);
+    expect(nudges.map((n) => n.id)).toEqual([
+      'journeys-stalled',
+      'radar-matches',
+    ]);
     expect(nudges[0].message).toContain('1 property has sat');
   });
 
@@ -130,13 +133,13 @@ describe('evaluateNudges', () => {
   it('pulse nudge respects the 3-view threshold', async () => {
     const below = await evaluateNudges(
       makeDb({ ...populated, showcase_events: 2 }),
-      'acc-1',
+      'acc-1'
     );
     expect(below.find((n) => n.id === 'pulse-weekly-views')).toBeUndefined();
 
     const at = await evaluateNudges(
       makeDb({ ...populated, showcase_events: 3 }),
-      'acc-1',
+      'acc-1'
     );
     const nudge = at.find((n) => n.id === 'pulse-weekly-views');
     expect(nudge?.message).toContain('3 views');
@@ -146,13 +149,13 @@ describe('evaluateNudges', () => {
   it('email-leads nudge waits for WhatsApp, then fires until sync is on', async () => {
     const before = await evaluateNudges(
       makeDb({ ...populated, whatsapp_config: 0, email_sync_configs: 0 }),
-      'acc-1',
+      'acc-1'
     );
     expect(before.find((n) => n.id === 'setup-email-leads')).toBeUndefined();
 
     const after = await evaluateNudges(
       makeDb({ ...populated, email_sync_configs: 0 }),
-      'acc-1',
+      'acc-1'
     );
     const nudge = after.find((n) => n.id === 'setup-email-leads');
     expect(nudge?.cta?.tourId).toBe('email-lead-sync');
@@ -161,15 +164,13 @@ describe('evaluateNudges', () => {
   it('showcase-brand nudge waits for properties, then fires until branded', async () => {
     const before = await evaluateNudges(
       makeDb({ ...populated, properties: 0, showcase_settings: 0 }),
-      'acc-1',
+      'acc-1'
     );
-    expect(
-      before.find((n) => n.id === 'setup-showcase-brand'),
-    ).toBeUndefined();
+    expect(before.find((n) => n.id === 'setup-showcase-brand')).toBeUndefined();
 
     const after = await evaluateNudges(
       makeDb({ ...populated, showcase_settings: 0 }),
-      'acc-1',
+      'acc-1'
     );
     const nudge = after.find((n) => n.id === 'setup-showcase-brand');
     expect(nudge?.cta?.href).toBe('/settings?tab=showcase');

@@ -18,9 +18,14 @@ const SQFT_PER_UNIT: Record<string, number> = {
 };
 
 /** Maps any spelling of an area unit onto a `SQFT_PER_UNIT` key. */
-export function canonicalAreaUnit(raw: string | null | undefined): string | null {
+export function canonicalAreaUnit(
+  raw: string | null | undefined
+): string | null {
   if (!raw) return null;
-  const key = raw.toLowerCase().replace(/[^a-z]/g, '').replace(/s$/, '');
+  const key = raw
+    .toLowerCase()
+    .replace(/[^a-z]/g, '')
+    .replace(/s$/, '');
   if (key.startsWith('sqf') || key === 'sf') return 'sqft';
   if (key.startsWith('sqy')) return 'sqyd';
   if (key.startsWith('sqm')) return 'sqmtr';
@@ -31,7 +36,10 @@ export function canonicalAreaUnit(raw: string | null | undefined): string | null
   return null;
 }
 
-export function toSquareFeet(value: number | null | undefined, unit: string | null | undefined): number | null {
+export function toSquareFeet(
+  value: number | null | undefined,
+  unit: string | null | undefined
+): number | null {
   if (!value || value <= 0 || !Number.isFinite(value)) return null;
   const factor = SQFT_PER_UNIT[canonicalAreaUnit(unit) ?? 'sqft'];
   return factor ? value * factor : null;

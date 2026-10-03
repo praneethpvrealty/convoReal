@@ -1,7 +1,7 @@
-import { timingSafeEqual } from 'node:crypto'
-import { NextResponse } from 'next/server'
-import { denAdmin } from '@/lib/den/auth'
-import { runDealModeSweep } from '@/lib/den/matching-sweep'
+import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { denAdmin } from '@/lib/den/auth';
+import { runDealModeSweep } from '@/lib/den/matching-sweep';
 
 /**
  * Owners Den — Deal Mode matching sweep cron. Matches every published
@@ -17,27 +17,31 @@ import { runDealModeSweep } from '@/lib/den/matching-sweep'
  * secret is configured.
  */
 export async function GET(request: Request) {
-  const expected = process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET
+  const expected =
+    process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET;
   if (!expected) {
-    return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
+    return NextResponse.json({ error: 'cron not configured' }, { status: 503 });
   }
   const supplied =
     request.headers.get('x-cron-secret') ||
     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
-    ''
-  const suppliedBuf = Buffer.from(supplied)
-  const expectedBuf = Buffer.from(expected)
-  if (suppliedBuf.length !== expectedBuf.length || !timingSafeEqual(suppliedBuf, expectedBuf)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    '';
+  const suppliedBuf = Buffer.from(supplied);
+  const expectedBuf = Buffer.from(expected);
+  if (
+    suppliedBuf.length !== expectedBuf.length ||
+    !timingSafeEqual(suppliedBuf, expectedBuf)
+  ) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const summary = await runDealModeSweep(denAdmin())
-    console.log('[deal-mode-matching]', JSON.stringify(summary))
-    return NextResponse.json(summary)
+    const summary = await runDealModeSweep(denAdmin());
+    console.log('[deal-mode-matching]', JSON.stringify(summary));
+    return NextResponse.json(summary);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('[deal-mode-matching] run failed:', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[deal-mode-matching] run failed:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -185,7 +185,9 @@ export function TemplateManager() {
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
-  const [submittingEngineTemplate, setSubmittingEngineTemplate] = useState<string | null>(null);
+  const [submittingEngineTemplate, setSubmittingEngineTemplate] = useState<
+    string | null
+  >(null);
   const submitLockRef = useRef(false);
   // Which language tab is open. Meta keys a template on (name,
   // language), so this is not a filter over one list — it is which of
@@ -282,7 +284,10 @@ export function TemplateManager() {
 
   // Meta decides the category: it fixes a name's category at first
   // review and a later language of the same name can only follow it.
-  function notifyCategoryChanged(change: { requested: string; assigned: string }) {
+  function notifyCategoryChanged(change: {
+    requested: string;
+    assigned: string;
+  }) {
     toast.info(
       `Submitted as ${change.assigned}, not ${change.requested} — Meta fixed this template's category when its first language was reviewed, and every language shares it.`
     );
@@ -602,7 +607,7 @@ export function TemplateManager() {
 
   // Rows belonging to the open language tab.
   const visibleTemplates = templates.filter((t) =>
-    templateMatchesLanguage(t, activeLanguage),
+    templateMatchesLanguage(t, activeLanguage)
   );
 
   // Engine templates with no row IN THIS LANGUAGE. These are sent by
@@ -611,7 +616,7 @@ export function TemplateManager() {
   // hard for a Kannada-speaking buyer as a missing English one does
   // for everyone.
   const missingEngine = missingEngineTemplates(
-    visibleTemplates.map((t) => t.name),
+    visibleTemplates.map((t) => t.name)
   );
 
   // English is source copy and submits in one tap, as it always has.
@@ -649,7 +654,9 @@ export function TemplateManager() {
       if (data?.category_changed) notifyCategoryChanged(data.category_changed);
       if (accountId) await fetchTemplates(accountId);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Template submission failed');
+      toast.error(
+        err instanceof Error ? err.message : 'Template submission failed'
+      );
     } finally {
       submitLockRef.current = false;
       setSubmittingEngineTemplate(null);
@@ -668,10 +675,14 @@ export function TemplateManager() {
       const res = await fetch(`/api/whatsapp/templates/draft/${template.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body_text: next, footer_text: template.footer_text }),
+        body: JSON.stringify({
+          body_text: next,
+          footer_text: template.footer_text,
+        }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || `Save failed (HTTP ${res.status})`);
+      if (!res.ok)
+        throw new Error(data?.error || `Save failed (HTTP ${res.status})`);
       toast.success('Wording saved — mark it reviewed when it reads right.');
       setEditingCopyId(null);
       if (accountId) await fetchTemplates(accountId);
@@ -679,7 +690,9 @@ export function TemplateManager() {
       // Validation messages from the route name the exact problem
       // (placeholder moved, two adjacent, body too long), so surface
       // them rather than a generic failure.
-      toast.error(err instanceof Error ? err.message : 'Failed to save wording');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to save wording'
+      );
     } finally {
       setSavingCopy(false);
     }
@@ -698,13 +711,16 @@ export function TemplateManager() {
         { method: 'POST' }
       );
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      if (!res.ok)
+        throw new Error(data?.error || `Failed (HTTP ${res.status})`);
       toast.success(
         'Updated to the latest wording — read it once more, then mark it reviewed.'
       );
       if (accountId) await fetchTemplates(accountId);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update wording');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update wording'
+      );
     } finally {
       setAdoptingId(null);
     }
@@ -735,7 +751,8 @@ export function TemplateManager() {
         method: approving ? 'POST' : 'DELETE',
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || `Request failed (HTTP ${res.status})`);
+      if (!res.ok)
+        throw new Error(data?.error || `Request failed (HTTP ${res.status})`);
       toast.success(
         approving
           ? 'Marked reviewed — this translation can now be submitted to Meta.'
@@ -743,7 +760,9 @@ export function TemplateManager() {
       );
       if (accountId) await fetchTemplates(accountId);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update review');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update review'
+      );
     } finally {
       setReviewing(null);
     }
@@ -781,12 +800,17 @@ export function TemplateManager() {
         }
       );
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || `Submission failed (HTTP ${res.status})`);
+      if (!res.ok)
+        throw new Error(
+          data?.error || `Submission failed (HTTP ${res.status})`
+        );
       toast.success(`${def.label} submitted to Meta.`);
       if (data?.category_changed) notifyCategoryChanged(data.category_changed);
       if (accountId) await fetchTemplates(accountId);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Template submission failed');
+      toast.error(
+        err instanceof Error ? err.message : 'Template submission failed'
+      );
     } finally {
       submitLockRef.current = false;
       setSubmittingEngineTemplate(null);
@@ -847,8 +871,8 @@ export function TemplateManager() {
           The {languageDisplay(activeLanguage)} wording ConvoReal ships was
           machine-written and has not been checked by a native speaker. Drafts
           here are held locally until someone who reads{' '}
-          {SUPPORTED_LANGUAGES[activeLanguage].label} marks them reviewed —
-          Meta never sees an unreviewed translation.
+          {SUPPORTED_LANGUAGES[activeLanguage].label} marks them reviewed — Meta
+          never sees an unreviewed translation.
         </p>
       )}
 
@@ -873,7 +897,9 @@ export function TemplateManager() {
                       {t.name}
                     </code>
                   </p>
-                  <p className="text-xs leading-normal text-slate-400">{t.whyItMatters}</p>
+                  <p className="text-xs leading-normal text-slate-400">
+                    {t.whyItMatters}
+                  </p>
                 </div>
                 <Button
                   onClick={() => handleCreateEngineTemplate(t.name)}
@@ -926,7 +952,9 @@ export function TemplateManager() {
             const copyUpdate = hasCopyUpdate(drift);
             const theirWording = drift === 'customised_and_outdated';
             const newerBody =
-              copyKey && copyUpdate ? shippedCopy(copyKey, activeLanguage).body_text : '';
+              copyKey && copyUpdate
+                ? shippedCopy(copyKey, activeLanguage).body_text
+                : '';
             return (
               <Card
                 key={template.id}
@@ -976,10 +1004,10 @@ export function TemplateManager() {
                           className="border-slate-700 bg-slate-950 font-normal text-white"
                         />
                         <p className="text-[11px] leading-relaxed text-slate-500">
-                          Keep every {'{{1}}'}, {'{{2}}'} … exactly as it is — you
-                          can move one within the sentence, but not add, remove or
-                          renumber them. Saving clears the review so the corrected
-                          wording gets read once more.
+                          Keep every {'{{1}}'}, {'{{2}}'} … exactly as it is —
+                          you can move one within the sentence, but not add,
+                          remove or renumber them. Saving clears the review so
+                          the corrected wording gets read once more.
                         </p>
                         <div className="flex gap-2">
                           <Button
@@ -1022,113 +1050,117 @@ export function TemplateManager() {
                         are replaced by a decision rather than a tap, and
                         a template Meta already holds goes through the
                         edit dialog because submitting re-opens review. */}
-                    {isOrgManager && copyUpdate && editingCopyId !== template.id && (
-                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-2">
-                        <span className="flex items-center gap-1.5 text-xs font-semibold text-primary">
-                          <Sparkles className="size-3.5" />
-                          Newer wording
-                        </span>
-                        <span className="flex-1 text-[11px] leading-normal text-slate-400">
-                          {theirWording
-                            ? 'ConvoReal has improved this copy, but the wording here is your own. Ours is offered for comparison — take it only if it reads better than what you wrote.'
-                            : template.meta_template_id
-                              ? 'ConvoReal has improved this copy since your template was created. Taking it re-opens Meta review, and this template keeps sending its current wording until that clears.'
-                              : 'ConvoReal has improved this copy since your draft was created. Nothing here has been edited, so the new wording is safe to take.'}
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            if (template.meta_template_id) {
-                              openEditWithShippedCopy(template);
-                            } else if (theirWording) {
-                              setCopyDraft(newerBody);
-                              setEditingCopyId(template.id);
-                            } else {
-                              handleAdoptCopy(template);
-                            }
-                          }}
-                          disabled={adoptingId !== null}
-                          className="border-primary/40 bg-transparent text-primary hover:bg-primary/10"
-                        >
-                          {adoptingId === template.id ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : null}
-                          {template.meta_template_id || theirWording
-                            ? 'Review the new wording'
-                            : 'Use the new wording'}
-                        </Button>
-                      </div>
-                    )}
+                    {isOrgManager &&
+                      copyUpdate &&
+                      editingCopyId !== template.id && (
+                        <div className="border-primary/30 bg-primary/5 flex flex-wrap items-center gap-2 rounded-lg border px-2.5 py-2">
+                          <span className="text-primary flex items-center gap-1.5 text-xs font-semibold">
+                            <Sparkles className="size-3.5" />
+                            Newer wording
+                          </span>
+                          <span className="flex-1 text-[11px] leading-normal text-slate-400">
+                            {theirWording
+                              ? 'ConvoReal has improved this copy, but the wording here is your own. Ours is offered for comparison — take it only if it reads better than what you wrote.'
+                              : template.meta_template_id
+                                ? 'ConvoReal has improved this copy since your template was created. Taking it re-opens Meta review, and this template keeps sending its current wording until that clears.'
+                                : 'ConvoReal has improved this copy since your draft was created. Nothing here has been edited, so the new wording is safe to take.'}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              if (template.meta_template_id) {
+                                openEditWithShippedCopy(template);
+                              } else if (theirWording) {
+                                setCopyDraft(newerBody);
+                                setEditingCopyId(template.id);
+                              } else {
+                                handleAdoptCopy(template);
+                              }
+                            }}
+                            disabled={adoptingId !== null}
+                            className="border-primary/40 text-primary hover:bg-primary/10 bg-transparent"
+                          >
+                            {adoptingId === template.id ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : null}
+                            {template.meta_template_id || theirWording
+                              ? 'Review the new wording'
+                              : 'Use the new wording'}
+                          </Button>
+                        </div>
+                      )}
                     {/* Translation review. For a non-English Engine
                         template that has not reached Meta, or that Meta
                         rejected — while Meta holds it pending or approved
                         the copy is Meta's record and the gate is done. */}
                     {isOrgManager && gated && (
-                        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-2.5 py-2">
-                          {template.translation_reviewed_at ? (
-                            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-                              <CheckCircle2 className="size-3.5" />
-                              Reviewed
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-400">
-                              <Clock className="size-3.5" />
-                              Awaiting review
-                            </span>
-                          )}
-                          <span className="flex-1 text-[11px] leading-normal text-slate-500">
-                            {template.translation_reviewed_at
-                              ? 'Editing the wording clears this automatically.'
-                              : `Read the wording above as a ${SUPPORTED_LANGUAGES[activeLanguage].label} speaker would. Fix it with Edit wording if it reads wrong, then mark it reviewed.`}
+                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-2.5 py-2">
+                        {template.translation_reviewed_at ? (
+                          <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                            <CheckCircle2 className="size-3.5" />
+                            Reviewed
                           </span>
-                          {!template.translation_reviewed_at &&
-                            editingCopyId !== template.id && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setCopyDraft(template.body_text);
-                                  setEditingCopyId(template.id);
-                                }}
-                                className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
-                              >
-                                <Pencil className="size-3.5" />
-                                Edit wording
-                              </Button>
-                            )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleToggleReview(template)}
-                            disabled={reviewing !== null || editingCopyId === template.id}
-                            className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
-                          >
-                            {reviewing === template.id ? (
-                              <Loader2 className="size-3.5 animate-spin" />
-                            ) : template.translation_reviewed_at ? (
-                              'Withdraw'
-                            ) : (
-                              'Mark reviewed'
-                            )}
-                          </Button>
-                          {template.translation_reviewed_at && (
+                        ) : (
+                          <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-400">
+                            <Clock className="size-3.5" />
+                            Awaiting review
+                          </span>
+                        )}
+                        <span className="flex-1 text-[11px] leading-normal text-slate-500">
+                          {template.translation_reviewed_at
+                            ? 'Editing the wording clears this automatically.'
+                            : `Read the wording above as a ${SUPPORTED_LANGUAGES[activeLanguage].label} speaker would. Fix it with Edit wording if it reads wrong, then mark it reviewed.`}
+                        </span>
+                        {!template.translation_reviewed_at &&
+                          editingCopyId !== template.id && (
                             <Button
                               size="sm"
-                              onClick={() => handleSubmitReviewed(template)}
-                              disabled={submittingEngineTemplate !== null}
-                              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                              variant="outline"
+                              onClick={() => {
+                                setCopyDraft(template.body_text);
+                                setEditingCopyId(template.id);
+                              }}
+                              className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
                             >
-                              {submittingEngineTemplate === template.name ? (
-                                <Loader2 className="size-3.5 animate-spin" />
-                              ) : (
-                                <Send className="size-3.5" />
-                              )}
-                              Submit to Meta
+                              <Pencil className="size-3.5" />
+                              Edit wording
                             </Button>
                           )}
-                        </div>
-                      )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleToggleReview(template)}
+                          disabled={
+                            reviewing !== null || editingCopyId === template.id
+                          }
+                          className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
+                        >
+                          {reviewing === template.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : template.translation_reviewed_at ? (
+                            'Withdraw'
+                          ) : (
+                            'Mark reviewed'
+                          )}
+                        </Button>
+                        {template.translation_reviewed_at && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleSubmitReviewed(template)}
+                            disabled={submittingEngineTemplate !== null}
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                          >
+                            {submittingEngineTemplate === template.name ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <Send className="size-3.5" />
+                            )}
+                            Submit to Meta
+                          </Button>
+                        )}
+                      </div>
+                    )}
 
                     {/* A submission_error on an APPROVED row is the
                         record of a refused EDIT, not a problem with the
@@ -1137,7 +1169,8 @@ export function TemplateManager() {
                         it reads as "this template is broken" about one
                         that is sending fine. */}
                     {(template.rejection_reason ||
-                      (template.submission_error && statusKey !== 'APPROVED')) && (
+                      (template.submission_error &&
+                        statusKey !== 'APPROVED')) && (
                       <div className="flex items-start gap-1.5 rounded border border-red-900/40 bg-red-950/20 px-2 py-1.5 text-xs text-red-400">
                         <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
                         <span>
@@ -1339,8 +1372,8 @@ export function TemplateManager() {
                   ) : (
                     <>
                       Must match the exact code on Meta — <code>en_US</code> and{' '}
-                      <code>en</code> are distinct. Submit the same template name
-                      once per language to reach contacts in theirs.
+                      <code>en</code> are distinct. Submit the same template
+                      name once per language to reach contacts in theirs.
                     </>
                   )}
                 </p>
@@ -1426,9 +1459,7 @@ export function TemplateManager() {
                       variant="outline"
                       disabled={uploadingHeader}
                       onClick={() =>
-                        document
-                          .getElementById('header-media-upload')
-                          ?.click()
+                        document.getElementById('header-media-upload')?.click()
                       }
                       className="shrink-0 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
                     >

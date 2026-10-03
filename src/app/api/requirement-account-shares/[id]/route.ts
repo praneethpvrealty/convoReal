@@ -32,7 +32,10 @@ export async function PATCH(
       request.json().catch(() => null),
     ]);
     if (body?.action !== 'decline') {
-      return NextResponse.json({ error: 'Unsupported action' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Unsupported action' },
+        { status: 400 }
+      );
     }
     await declineRequirementAccountShare(ctx, id);
     return NextResponse.json({ data: { id, status: 'declined' } });

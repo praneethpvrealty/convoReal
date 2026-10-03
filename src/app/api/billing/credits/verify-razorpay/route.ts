@@ -26,7 +26,10 @@ export async function POST(request: Request) {
     const orderId = String(body?.orderId ?? '');
 
     if (!orderId) {
-      return NextResponse.json({ error: 'orderId is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'orderId is required' },
+        { status: 400 }
+      );
     }
 
     // Get the order details from our database
@@ -46,20 +49,29 @@ export async function POST(request: Request) {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      return NextResponse.json({ error: 'Razorpay not configured' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Razorpay not configured' },
+        { status: 500 }
+      );
     }
 
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-    const rzRes = await fetch(`https://api.razorpay.com/v1/orders/${orderId}/payments`, {
-      headers: {
-        Authorization: `Basic ${auth}`,
-      },
-    });
+    const rzRes = await fetch(
+      `https://api.razorpay.com/v1/orders/${orderId}/payments`,
+      {
+        headers: {
+          Authorization: `Basic ${auth}`,
+        },
+      }
+    );
 
     if (!rzRes.ok) {
       const errBody = await rzRes.json().catch(() => ({}));
       console.error('[verify-razorpay] Razorpay API error:', errBody);
-      return NextResponse.json({ error: 'Failed to fetch payment status from Razorpay' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to fetch payment status from Razorpay' },
+        { status: 500 }
+      );
     }
 
     const rzData = (await rzRes.json()) as RazorpayPaymentsResponse;
@@ -100,7 +112,7 @@ export async function POST(request: Request) {
       console.warn(
         '[verify-razorpay] Order not marked paid:',
         order.id,
-        capturedPayment.id,
+        capturedPayment.id
       );
     }
 

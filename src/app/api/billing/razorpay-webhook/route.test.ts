@@ -40,7 +40,8 @@ function makeAdmin() {
         eq(col: string, val: unknown) {
           filters[col] = val;
           // For updates the chain terminates at `.eq()` and is awaited.
-          if (op === 'update') return Promise.resolve({ data: null, error: null });
+          if (op === 'update')
+            return Promise.resolve({ data: null, error: null });
           return builder;
         },
         maybeSingle() {
@@ -55,8 +56,8 @@ function makeAdmin() {
   };
 }
 
-vi.mock('@/lib/billing/admin-client', () => ({
-  billingAdmin: () => makeAdmin(),
+vi.mock('@/lib/supabase/admin', () => ({
+  supabaseAdmin: () => makeAdmin(),
 }));
 
 const grantMock = vi.fn(async () => undefined);
@@ -68,14 +69,18 @@ vi.mock('@/lib/credits/grant', () => ({
 
 const referralMock = vi.fn(async () => undefined);
 vi.mock('@/lib/credits/referral', () => ({
-  processReferralConversion: (...args: unknown[]) => referralMock(...(args as [])),
+  processReferralConversion: (...args: unknown[]) =>
+    referralMock(...(args as [])),
 }));
 
 const { POST } = await import('./route');
 
 const SECRET = 'whsec_test';
 
-function chargedEvent(withId: boolean, opts: { paymentId?: string | null } = {}) {
+function chargedEvent(
+  withId: boolean,
+  opts: { paymentId?: string | null } = {}
+) {
   const paymentId = 'paymentId' in opts ? opts.paymentId : 'pay_1';
   return {
     ...(withId ? { id: 'evt_charged_1' } : {}),
@@ -89,14 +94,19 @@ function chargedEvent(withId: boolean, opts: { paymentId?: string | null } = {})
           plan_id: 'plan_team_monthly',
         },
       },
-      payment: { entity: { ...(paymentId ? { id: paymentId } : {}), amount: 79900 } },
+      payment: {
+        entity: { ...(paymentId ? { id: paymentId } : {}), amount: 79900 },
+      },
     },
   };
 }
 
 function post(event: unknown, secret = SECRET) {
   const rawBody = JSON.stringify(event);
-  const signature = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(rawBody)
+    .digest('hex');
   return POST(
     new Request('http://localhost/api/billing/razorpay-webhook', {
       method: 'POST',

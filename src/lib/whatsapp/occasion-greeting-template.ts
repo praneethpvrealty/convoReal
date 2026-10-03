@@ -11,7 +11,7 @@
 // assigns). Sends are gated by the STOP ALERTS opt-out: declined
 // contacts are filtered out of every broadcast audience.
 
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import {
   submitMessageTemplate,

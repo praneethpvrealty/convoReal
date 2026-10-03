@@ -4,7 +4,7 @@ import {
   toErrorResponse,
   ForbiddenError,
 } from '@/lib/auth/account';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   canViewExactLocation,
   maskName,

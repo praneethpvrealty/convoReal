@@ -52,17 +52,39 @@ describe('clampRadiusKm', () => {
 
 describe('buildTargeting', () => {
   it('builds a precise radius target from coordinates', () => {
-    const result = buildTargeting({ latitude: 12.91, longitude: 77.64, city: 'Bengaluru' }, 5);
+    const result = buildTargeting(
+      { latitude: 12.91, longitude: 77.64, city: 'Bengaluru' },
+      5
+    );
     expect(result.precise).toBe(true);
     expect(result.cityFallback).toBeNull();
-    const geo = (result.targeting as { geo_locations: { custom_locations: Array<{ latitude: number; radius: number; distance_unit: string }> } }).geo_locations;
-    expect(geo.custom_locations[0]).toMatchObject({ latitude: 12.91, longitude: 77.64, radius: 5, distance_unit: 'kilometer' });
+    const geo = (
+      result.targeting as {
+        geo_locations: {
+          custom_locations: Array<{
+            latitude: number;
+            radius: number;
+            distance_unit: string;
+          }>;
+        };
+      }
+    ).geo_locations;
+    expect(geo.custom_locations[0]).toMatchObject({
+      latitude: 12.91,
+      longitude: 77.64,
+      radius: 5,
+      distance_unit: 'kilometer',
+    });
   });
 
   it('clamps the radius inside the precise target', () => {
     const result = buildTargeting({ latitude: 1, longitude: 2 }, 999);
-    const geo = result.targeting as { geo_locations: { custom_locations: Array<{ radius: number }> } };
-    expect(geo.geo_locations.custom_locations[0].radius).toBe(RADIUS_BOUNDS.maxKm);
+    const geo = result.targeting as {
+      geo_locations: { custom_locations: Array<{ radius: number }> };
+    };
+    expect(geo.geo_locations.custom_locations[0].radius).toBe(
+      RADIUS_BOUNDS.maxKm
+    );
   });
 
   it('returns a city fallback (no targeting) when coordinates are absent', () => {

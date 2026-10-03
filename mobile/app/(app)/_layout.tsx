@@ -40,31 +40,31 @@ export default function AppLayout() {
 
   return (
     <CopilotTourProvider>
-    <View style={{ flex: 1 }}>
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        headerTitleStyle: { fontFamily: f.bold, color: colors.text },
-        // Solid underlay matching the aurora base — native headers
-        // can't take a translucent fill without layout surprises.
-        headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.text,
-        headerShadowVisible: false,
-        contentStyle: { backgroundColor: 'transparent' },
-        animation: 'slide_from_right',
-        gestureEnabled: true,
-        fullScreenGestureEnabled: true,
-      }}
-    >
-      {/* Screens register themselves; each file owns its title and
+      <View style={{ flex: 1 }}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            headerTitleStyle: { fontFamily: f.bold, color: colors.text },
+            // Solid underlay matching the aurora base — native headers
+            // can't take a translucent fill without layout surprises.
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.text,
+            headerShadowVisible: false,
+            contentStyle: { backgroundColor: 'transparent' },
+            animation: 'slide_from_right',
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+          }}
+        >
+          {/* Screens register themselves; each file owns its title and
           headerRight via its own <Stack.Screen options>. The shared
           header look lives in screenOptions above. */}
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="verify-phone" />
-    </Stack>
-    <CopilotWidget />
-    <AppLockGate />
-    </View>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="verify-phone" />
+        </Stack>
+        <CopilotWidget />
+        <AppLockGate />
+      </View>
     </CopilotTourProvider>
   );
 }

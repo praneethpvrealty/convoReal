@@ -29,10 +29,12 @@ export const AGENT_TAKEOVER_WINDOW_MS = 24 * 60 * 60 * 1000;
 export async function hasRecentAgentReply(
   db: SupabaseClient,
   conversationId: string,
-  now: Date = new Date(),
+  now: Date = new Date()
 ): Promise<boolean> {
   try {
-    const since = new Date(now.getTime() - AGENT_TAKEOVER_WINDOW_MS).toISOString();
+    const since = new Date(
+      now.getTime() - AGENT_TAKEOVER_WINDOW_MS
+    ).toISOString();
     const { data, error } = await db
       .from('messages')
       .select('id')
@@ -60,7 +62,7 @@ export async function hasRecentAgentReply(
 export async function standDownActiveFlowRuns(
   db: SupabaseClient,
   accountId: string,
-  contactId: string,
+  contactId: string
 ): Promise<number> {
   try {
     const { data, error } = await db

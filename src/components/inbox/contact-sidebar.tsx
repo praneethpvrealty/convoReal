@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, createElement } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
+import { useState, useEffect, useCallback, createElement } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import type { Contact, Deal, ContactNote, Tag } from '@/types';
 import {
   Phone,
   Mail,
@@ -17,15 +17,15 @@ import {
   X,
   CheckSquare,
   Square,
-} from "lucide-react";
-import { getCurrencyIcon } from "@/lib/currency-utils";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { format } from "date-fns";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { storagePublicUrl } from "@/lib/storage/url";
-import { contactHandle } from "@/lib/contacts/reachability";
+} from 'lucide-react';
+import { getCurrencyIcon } from '@/lib/currency-utils';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { storagePublicUrl } from '@/lib/storage/url';
+import { contactHandle } from '@/lib/contacts/reachability';
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -34,30 +34,30 @@ interface ContactSidebarProps {
 export function ContactSidebar({ contact }: ContactSidebarProps) {
   const { user, accountId } = useAuth();
   const [copied, setCopied] = useState(false);
-  const [currency, setCurrency] = useState("INR");
+  const [currency, setCurrency] = useState('INR');
   const [deals, setDeals] = useState<Deal[]>([]);
 
   const fetchCurrency = useCallback(async () => {
     try {
       const supabase = createClient();
       const { data } = await supabase
-        .from("showcase_settings")
-        .select("currency")
+        .from('showcase_settings')
+        .select('currency')
         .single();
       if (data?.currency) {
         setCurrency(data.currency);
       }
     } catch (err) {
-      console.error("Failed to load showcase settings currency:", err);
+      console.error('Failed to load showcase settings currency:', err);
     }
   }, []);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
-  const [newNote, setNewNote] = useState("");
+  const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
   // Track which note is being edited: null = none
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState("");
+  const [editingText, setEditingText] = useState('');
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -67,19 +67,19 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     // Fetch deals, notes, and tags in parallel
     const [dealsRes, notesRes, tagsRes] = await Promise.all([
       supabase
-        .from("deals")
-        .select("*, stage:pipeline_stages(*)")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
+        .from('deals')
+        .select('*, stage:pipeline_stages(*)')
+        .eq('contact_id', contact.id)
+        .order('created_at', { ascending: false }),
       supabase
-        .from("contact_notes")
-        .select("*")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
+        .from('contact_notes')
+        .select('*')
+        .eq('contact_id', contact.id)
+        .order('created_at', { ascending: false }),
       supabase
-        .from("contact_tags")
-        .select("id, tag_id, tags(*)")
-        .eq("contact_id", contact.id),
+        .from('contact_tags')
+        .select('id, tag_id, tags(*)')
+        .eq('contact_id', contact.id),
     ]);
 
     if (dealsRes.data) setDeals(dealsRes.data);
@@ -125,7 +125,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     }
 
     const { data, error } = await supabase
-      .from("contact_notes")
+      .from('contact_notes')
       .insert({
         contact_id: contact.id,
         user_id: user.id,
@@ -138,7 +138,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
     if (!error && data) {
       setNotes((prev) => [data, ...prev]);
-      setNewNote("");
+      setNewNote('');
     }
     setAddingNote(false);
   }, [contact, newNote, user, accountId]);
@@ -151,16 +151,18 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     );
     const supabase = createClient();
     const { data, error } = await supabase
-      .from("contact_notes")
+      .from('contact_notes')
       .update({ is_completed: newVal })
-      .eq("id", note.id)
-      .select("id");
+      .eq('id', note.id)
+      .select('id');
     if (error || !data?.length) {
       // Revert on failure
       setNotes((prev) =>
-        prev.map((n) => (n.id === note.id ? { ...n, is_completed: !newVal } : n))
+        prev.map((n) =>
+          n.id === note.id ? { ...n, is_completed: !newVal } : n
+        )
       );
-      toast.error("Failed to update note");
+      toast.error('Failed to update note');
     }
   }, []);
 
@@ -171,7 +173,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
   const handleCancelEdit = useCallback(() => {
     setEditingNoteId(null);
-    setEditingText("");
+    setEditingText('');
   }, []);
 
   const handleSaveEdit = useCallback(
@@ -183,16 +185,16 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         prev.map((n) => (n.id === noteId ? { ...n, note_text: trimmed } : n))
       );
       setEditingNoteId(null);
-      setEditingText("");
+      setEditingText('');
 
       const supabase = createClient();
       const { data, error } = await supabase
-        .from("contact_notes")
+        .from('contact_notes')
         .update({ note_text: trimmed })
-        .eq("id", noteId)
-        .select("id");
+        .eq('id', noteId)
+        .select('id');
       if (error || !data?.length) {
-        toast.error("Failed to save note");
+        toast.error('Failed to save note');
         // Refetch to restore true state
         fetchContactData();
       }
@@ -200,60 +202,57 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     [editingText, fetchContactData]
   );
 
-  const handleDeleteNote = useCallback(
-    async (note: ContactNote) => {
-      // Optimistic removal
-      setNotes((prev) => prev.filter((n) => n.id !== note.id));
-      toast("Note deleted", {
-        action: {
-          label: "Undo",
-          onClick: () => {
-            // Restore the note in local state; the DB row is still there
-            setNotes((prev) => {
-              // Insert back in roughly the right position (newest first)
-              const idx = prev.findIndex(
-                (n) => new Date(n.created_at) < new Date(note.created_at)
-              );
-              const copy = [...prev];
-              copy.splice(idx === -1 ? copy.length : idx, 0, note);
-              return copy;
-            });
-          },
+  const handleDeleteNote = useCallback(async (note: ContactNote) => {
+    // Optimistic removal
+    setNotes((prev) => prev.filter((n) => n.id !== note.id));
+    toast('Note deleted', {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          // Restore the note in local state; the DB row is still there
+          setNotes((prev) => {
+            // Insert back in roughly the right position (newest first)
+            const idx = prev.findIndex(
+              (n) => new Date(n.created_at) < new Date(note.created_at)
+            );
+            const copy = [...prev];
+            copy.splice(idx === -1 ? copy.length : idx, 0, note);
+            return copy;
+          });
         },
-        // After toast dismisses / times out actually delete from DB
-        duration: 4000,
-        onDismiss: async () => {
-          const supabase = createClient();
-          // The row is already gone from the list; if the delete does not
-          // land, say so rather than leaving the note to reappear on the
-          // next load with no explanation.
-          const { data, error } = await supabase
-            .from("contact_notes")
-            .delete()
-            .eq("id", note.id)
-            .select("id");
-          if (error || !data?.length) {
-            toast.error("Could not delete that note — it will reappear.");
-          }
-        },
-        onAutoClose: async () => {
-          const supabase = createClient();
-          // The row is already gone from the list; if the delete does not
-          // land, say so rather than leaving the note to reappear on the
-          // next load with no explanation.
-          const { data, error } = await supabase
-            .from("contact_notes")
-            .delete()
-            .eq("id", note.id)
-            .select("id");
-          if (error || !data?.length) {
-            toast.error("Could not delete that note — it will reappear.");
-          }
-        },
-      });
-    },
-    []
-  );
+      },
+      // After toast dismisses / times out actually delete from DB
+      duration: 4000,
+      onDismiss: async () => {
+        const supabase = createClient();
+        // The row is already gone from the list; if the delete does not
+        // land, say so rather than leaving the note to reappear on the
+        // next load with no explanation.
+        const { data, error } = await supabase
+          .from('contact_notes')
+          .delete()
+          .eq('id', note.id)
+          .select('id');
+        if (error || !data?.length) {
+          toast.error('Could not delete that note — it will reappear.');
+        }
+      },
+      onAutoClose: async () => {
+        const supabase = createClient();
+        // The row is already gone from the list; if the delete does not
+        // land, say so rather than leaving the note to reappear on the
+        // next load with no explanation.
+        const { data, error } = await supabase
+          .from('contact_notes')
+          .delete()
+          .eq('id', note.id)
+          .select('id');
+        if (error || !data?.length) {
+          toast.error('Could not delete that note — it will reappear.');
+        }
+      },
+    });
+  }, []);
 
   if (!contact) {
     return (
@@ -288,7 +287,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               {displayName}
               {contact.name_tag && (
                 <span
-                  className="ml-1.5 inline-flex items-center align-middle bg-slate-700/40 border border-slate-600/50 text-slate-300 font-medium px-1.5 py-0.5 rounded text-[10px] select-none"
+                  className="ml-1.5 inline-flex items-center rounded border border-slate-600/50 bg-slate-700/40 px-1.5 py-0.5 align-middle text-[10px] font-medium text-slate-300 select-none"
                   title="Name Tag — internal label, not sent in messages"
                 >
                   {contact.name_tag}
@@ -309,7 +308,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               <Phone className="h-4 w-4 text-slate-500" />
               <span className="flex-1 text-left">{contact.phone}</span>
               {copied ? (
-                <Check className="h-3 w-3 text-primary" />
+                <Check className="text-primary h-3 w-3" />
               ) : (
                 <Copy className="h-3 w-3 text-slate-600" />
               )}
@@ -328,7 +327,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
           {/* Tags */}
           <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
+            <div className="flex items-center gap-2 px-1 text-xs font-medium tracking-wider text-slate-500 uppercase">
               <TagIcon className="h-3 w-3" />
               Tags
             </div>
@@ -357,8 +356,10 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
           {/* Active Deals */}
           <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
-              {createElement(getCurrencyIcon(currency), { className: "h-3 w-3" })}
+            <div className="flex items-center gap-2 px-1 text-xs font-medium tracking-wider text-slate-500 uppercase">
+              {createElement(getCurrencyIcon(currency), {
+                className: 'h-3 w-3',
+              })}
               Active Deals
             </div>
             <div className="mt-2 space-y-2">
@@ -377,21 +378,21 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                       <span>
                         {(() => {
                           const activeCurrency = deal.currency || currency;
-                          if (activeCurrency === "INR") {
+                          if (activeCurrency === 'INR') {
                             const val = Number(deal.value || 0);
                             if (val >= 10000000) {
                               return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
                             } else if (val >= 100000) {
                               return `₹${(val / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
                             }
-                            return new Intl.NumberFormat("en-IN", {
-                              style: "currency",
-                              currency: "INR",
+                            return new Intl.NumberFormat('en-IN', {
+                              style: 'currency',
+                              currency: 'INR',
                               maximumFractionDigits: 0,
                             }).format(val);
                           }
-                          return new Intl.NumberFormat("en-US", {
-                            style: "currency",
+                          return new Intl.NumberFormat('en-US', {
+                            style: 'currency',
                             currency: activeCurrency,
                             maximumFractionDigits: 0,
                           }).format(Number(deal.value || 0));
@@ -420,7 +421,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
           {/* Notes */}
           <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
+            <div className="flex items-center gap-2 px-1 text-xs font-medium tracking-wider text-slate-500 uppercase">
               <StickyNote className="h-3 w-3" />
               Notes
             </div>
@@ -431,17 +432,17 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                       handleAddNote();
                     }
                   }}
                   placeholder="Add a note... (⌘+Enter to save)"
                   rows={2}
-                  className="flex-1 resize-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-primary/50"
+                  className="focus:border-primary/50 flex-1 resize-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white placeholder-slate-500 outline-none"
                 />
                 <Button
                   size="sm"
-                  className="h-auto bg-primary px-2 hover:bg-primary/90"
+                  className="bg-primary hover:bg-primary/90 h-auto px-2"
                   onClick={handleAddNote}
                   disabled={!newNote.trim() || addingNote}
                 >
@@ -510,17 +511,18 @@ function NoteCard({
             value={editingText}
             onChange={(e) => onEditingTextChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Escape") onCancelEdit();
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) onSaveEdit(note.id);
+              if (e.key === 'Escape') onCancelEdit();
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey))
+                onSaveEdit(note.id);
             }}
             rows={3}
-            className="w-full resize-none rounded-md border border-slate-600 bg-slate-700 px-2 py-1.5 text-xs text-white outline-none focus:border-primary/50"
+            className="focus:border-primary/50 w-full resize-none rounded-md border border-slate-600 bg-slate-700 px-2 py-1.5 text-xs text-white outline-none"
           />
           <div className="flex gap-1.5">
             <button
               onClick={() => onSaveEdit(note.id)}
               disabled={!editingText.trim()}
-              className="flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[10px] font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+              className="bg-primary hover:bg-primary/90 flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-white disabled:opacity-50"
             >
               <Check className="h-2.5 w-2.5" />
               Save
@@ -540,11 +542,11 @@ function NoteCard({
           {/* Checkbox / todo toggle */}
           <button
             onClick={() => onToggleComplete(note)}
-            className="mt-0.5 shrink-0 text-slate-500 hover:text-primary transition-colors"
-            title={note.is_completed ? "Mark as incomplete" : "Mark as done"}
+            className="hover:text-primary mt-0.5 shrink-0 text-slate-500 transition-colors"
+            title={note.is_completed ? 'Mark as incomplete' : 'Mark as done'}
           >
             {note.is_completed ? (
-              <CheckSquare className="h-3.5 w-3.5 text-primary" />
+              <CheckSquare className="text-primary h-3.5 w-3.5" />
             ) : (
               <Square className="h-3.5 w-3.5" />
             )}
@@ -554,34 +556,36 @@ function NoteCard({
           <div className="min-w-0 flex-1">
             <p
               className={cn(
-                "whitespace-pre-wrap text-xs leading-relaxed",
+                'text-xs leading-relaxed whitespace-pre-wrap',
                 note.is_completed
-                  ? "text-slate-500 line-through"
-                  : "text-slate-300"
+                  ? 'text-slate-500 line-through'
+                  : 'text-slate-300'
               )}
             >
               {note.note_text}
             </p>
             <p className="mt-1 text-[10px] text-slate-600">
-              {format(new Date(note.created_at), "MMM d, yyyy HH:mm")}
+              {format(new Date(note.created_at), 'MMM d, yyyy HH:mm')}
             </p>
           </div>
 
           {/* Action buttons — visible on hover */}
-          <div className={cn(
-            "flex shrink-0 items-center gap-0.5 transition-opacity",
-            "opacity-0 group-hover:opacity-100"
-          )}>
+          <div
+            className={cn(
+              'flex shrink-0 items-center gap-0.5 transition-opacity',
+              'opacity-0 group-hover:opacity-100'
+            )}
+          >
             <button
               onClick={() => onStartEdit(note)}
-              className="flex h-5 w-5 items-center justify-center rounded text-slate-500 hover:bg-slate-700 hover:text-white transition-colors"
+              className="flex h-5 w-5 items-center justify-center rounded text-slate-500 transition-colors hover:bg-slate-700 hover:text-white"
               title="Edit note"
             >
               <Pencil className="h-2.5 w-2.5" />
             </button>
             <button
               onClick={() => onDelete(note)}
-              className="flex h-5 w-5 items-center justify-center rounded text-slate-500 hover:bg-red-900/40 hover:text-red-400 transition-colors"
+              className="flex h-5 w-5 items-center justify-center rounded text-slate-500 transition-colors hover:bg-red-900/40 hover:text-red-400"
               title="Delete note"
             >
               <Trash2 className="h-2.5 w-2.5" />

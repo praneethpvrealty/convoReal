@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import type { Conversation } from "@/types";
+import { useEffect, useRef, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import type { Conversation } from '@/types';
 
 /**
  * Count of conversations with at least one unread inbound message for
@@ -25,8 +25,8 @@ export function useTotalUnread(): number {
 
     async function fetchCounts() {
       const { data, error } = await supabase
-        .from("conversations")
-        .select("id, unread_count");
+        .from('conversations')
+        .select('id, unread_count');
       if (cancelled || error || !data) return;
 
       const map = new Map<string, number>();
@@ -47,20 +47,20 @@ export function useTotalUnread(): number {
     // Resync when the tab becomes visible again to catch any missed
     // realtime events during background/throttled WebSocket.
     function handleVisibilityChange() {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === 'visible') {
         fetchCounts();
       }
     }
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const channel = supabase
-      .channel("total-unread-realtime")
+      .channel('total-unread-realtime')
       .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "conversations" },
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'conversations' },
         (payload) => {
           const map = countsRef.current;
-          if (payload.eventType === "DELETE") {
+          if (payload.eventType === 'DELETE') {
             const oldRow = payload.old as Partial<Conversation>;
             if (oldRow.id) map.delete(oldRow.id);
           } else {
@@ -71,13 +71,13 @@ export function useTotalUnread(): number {
           let sum = 0;
           for (const n of map.values()) if (n > 0) sum += 1;
           setTotal(sum);
-        },
+        }
       )
       .subscribe();
 
     return () => {
       cancelled = true;
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       supabase.removeChannel(channel);
     };
   }, []);

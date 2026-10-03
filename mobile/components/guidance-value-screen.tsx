@@ -5,7 +5,13 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
-import { Banner, FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
+import {
+  Banner,
+  FilterChip,
+  PrimaryButton,
+  SectionLabel,
+  TextField,
+} from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import {
@@ -38,7 +44,9 @@ interface GuidanceValueScreenProps {
 }
 
 function errorText(err: unknown): string {
-  return err instanceof ApiError || err instanceof Error ? err.message : 'Try again.';
+  return err instanceof ApiError || err instanceof Error
+    ? err.message
+    : 'Try again.';
 }
 
 export function GuidanceValueScreen({
@@ -66,7 +74,9 @@ export function GuidanceValueScreen({
 
   const options = { building_rate_per_sqft: Number(buildingRate) || null };
   const selected =
-    result?.matches.find((m) => m.rate.id === selectedId) ?? result?.matches[0] ?? null;
+    result?.matches.find((m) => m.rate.id === selectedId) ??
+    result?.matches[0] ??
+    null;
 
   const apply = (data: LookupResult) => {
     setResult(data);
@@ -139,17 +149,28 @@ export function GuidanceValueScreen({
     }
   }
 
-  const set = <K extends keyof ScheduleDraft>(key: K, value: ScheduleDraft[K]) =>
+  const set = <K extends keyof ScheduleDraft>(
+    key: K,
+    value: ScheduleDraft[K]
+  ) =>
     setDraft((current) => (current ? { ...current, [key]: value } : current));
 
-  const card = [styles.card, { backgroundColor: colors.surface, borderColor: colors.border }];
-  const muted = { color: colors.textMuted, fontFamily: f.regular, fontSize: 13 };
+  const card = [
+    styles.card,
+    { backgroundColor: colors.surface, borderColor: colors.border },
+  ];
+  const muted = {
+    color: colors.textMuted,
+    fontFamily: f.regular,
+    fontSize: 13,
+  };
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
       <Text style={muted}>
-        Upload the schedule of a Karnataka sale deed or an RTC (PDF or photo, under 4 MB). We read the
-        location and extent and match it to the published guidance value notification.
+        Upload the schedule of a Karnataka sale deed or an RTC (PDF or photo,
+        under 4 MB). We read the location and extent and match it to the
+        published guidance value notification.
         {creditCost ? ` Reading it costs ${creditCost} credits.` : ''}
       </Text>
 
@@ -168,7 +189,13 @@ export function GuidanceValueScreen({
         }}
         accessibilityRole="button"
       >
-        <Text style={{ color: colors.primary, fontFamily: f.bold, textAlign: 'center' }}>
+        <Text
+          style={{
+            color: colors.primary,
+            fontFamily: f.bold,
+            textAlign: 'center',
+          }}
+        >
           Enter details manually
         </Text>
       </Pressable>
@@ -178,12 +205,14 @@ export function GuidanceValueScreen({
           <SectionLabel text="Saved" />
           {saved.data.map((row) => (
             <View key={row.id} style={card}>
-              <Text style={{ color: colors.text, fontFamily: f.bold, fontSize: 16 }}>
+              <Text
+                style={{ color: colors.text, fontFamily: f.bold, fontSize: 16 }}
+              >
                 {formatRupees(Number(row.total_value))}
               </Text>
               <Text style={muted}>
-                {row.rate_snapshot.locality ?? row.rate_snapshot.village ?? ''} ·{' '}
-                {new Date(row.created_at).toLocaleDateString('en-IN')}
+                {row.rate_snapshot.locality ?? row.rate_snapshot.village ?? ''}{' '}
+                · {new Date(row.created_at).toLocaleDateString('en-IN')}
               </Text>
             </View>
           ))}
@@ -194,34 +223,90 @@ export function GuidanceValueScreen({
         <View style={{ gap: spacing.md }}>
           <SectionLabel text="Property schedule" />
           {base?.summary ? <Text style={muted}>{base.summary}</Text> : null}
-          {base && schedulePrinted(base) ? <Text style={muted}>{schedulePrinted(base)}</Text> : null}
-          <TextField label="Area / layout / block" value={draft.locality} onChangeText={(v) => set('locality', v)} />
-          <TextField label="Road / street" value={draft.road} onChangeText={(v) => set('road', v)} />
-          <TextField label="Village" value={draft.village} onChangeText={(v) => set('village', v)} />
-          <TextField label="District" value={draft.district} onChangeText={(v) => set('district', v)} />
-          <TextField label="Survey no." value={draft.survey_number} onChangeText={(v) => set('survey_number', v)} />
+          {base && schedulePrinted(base) ? (
+            <Text style={muted}>{schedulePrinted(base)}</Text>
+          ) : null}
+          <TextField
+            label="Area / layout / block"
+            value={draft.locality}
+            onChangeText={(v) => set('locality', v)}
+          />
+          <TextField
+            label="Road / street"
+            value={draft.road}
+            onChangeText={(v) => set('road', v)}
+          />
+          <TextField
+            label="Village"
+            value={draft.village}
+            onChangeText={(v) => set('village', v)}
+          />
+          <TextField
+            label="District"
+            value={draft.district}
+            onChangeText={(v) => set('district', v)}
+          />
+          <TextField
+            label="Survey no."
+            value={draft.survey_number}
+            onChangeText={(v) => set('survey_number', v)}
+          />
           <SectionLabel text="Property type" />
           <View style={styles.chips}>
             {KIND_OPTIONS.map((o) => (
-              <FilterChip key={o.value} label={o.label} active={draft.kind === o.value} onPress={() => set('kind', draft.kind === o.value ? '' : o.value)} />
+              <FilterChip
+                key={o.value}
+                label={o.label}
+                active={draft.kind === o.value}
+                onPress={() =>
+                  set('kind', draft.kind === o.value ? '' : o.value)
+                }
+              />
             ))}
           </View>
           <SectionLabel text="Usage" />
           <View style={styles.chips}>
             {USAGE_OPTIONS.map((o) => (
-              <FilterChip key={o.value} label={o.label} active={draft.usage === o.value} onPress={() => set('usage', draft.usage === o.value ? '' : o.value)} />
+              <FilterChip
+                key={o.value}
+                label={o.label}
+                active={draft.usage === o.value}
+                onPress={() =>
+                  set('usage', draft.usage === o.value ? '' : o.value)
+                }
+              />
             ))}
           </View>
-          <TextField label="Land / site area" keyboardType="decimal-pad" value={draft.land_value} onChangeText={(v) => set('land_value', v)} />
+          <TextField
+            label="Land / site area"
+            keyboardType="decimal-pad"
+            value={draft.land_value}
+            onChangeText={(v) => set('land_value', v)}
+          />
           <View style={styles.chips}>
             {AREA_UNIT_OPTIONS.map((o) => (
-              <FilterChip key={o.value} label={o.label} active={draft.land_unit === o.value} onPress={() => set('land_unit', o.value)} />
+              <FilterChip
+                key={o.value}
+                label={o.label}
+                active={draft.land_unit === o.value}
+                onPress={() => set('land_unit', o.value)}
+              />
             ))}
           </View>
-          <TextField label="Built-up area" keyboardType="decimal-pad" value={draft.built_value} onChangeText={(v) => set('built_value', v)} />
+          <TextField
+            label="Built-up area"
+            keyboardType="decimal-pad"
+            value={draft.built_value}
+            onChangeText={(v) => set('built_value', v)}
+          />
           <View style={styles.chips}>
             {AREA_UNIT_OPTIONS.map((o) => (
-              <FilterChip key={o.value} label={o.label} active={draft.built_unit === o.value} onPress={() => set('built_unit', o.value)} />
+              <FilterChip
+                key={o.value}
+                label={o.label}
+                active={draft.built_unit === o.value}
+                onPress={() => set('built_unit', o.value)}
+              />
             ))}
           </View>
           <TextField
@@ -254,14 +339,22 @@ export function GuidanceValueScreen({
       {selected ? (
         <View style={card}>
           <Text style={muted}>Guidance value</Text>
-          <Text style={{ color: colors.text, fontFamily: f.bold, fontSize: 26 }}>
+          <Text
+            style={{ color: colors.text, fontFamily: f.bold, fontSize: 26 }}
+          >
             {selected.valuation.total_value !== null
               ? formatRupees(selected.valuation.total_value)
               : '—'}
           </Text>
           <Text style={muted}>{rateHeadline(selected.rate)}</Text>
           {selected.valuation.missing.length > 0 ? (
-            <Text style={{ color: colors.danger, fontFamily: f.semibold, fontSize: 13 }}>
+            <Text
+              style={{
+                color: colors.danger,
+                fontFamily: f.semibold,
+                fontSize: 13,
+              }}
+            >
               {selected.valuation.missing.includes('land_area')
                 ? 'The schedule does not state the land / site area. Enter it and recalculate.'
                 : 'Enter the built-up area and recalculate.'}
@@ -274,15 +367,17 @@ export function GuidanceValueScreen({
             </Text>
           ) : null}
           <Text style={[muted, { fontSize: 11 }]}>
-            An estimate from the published notification. Confirm on Kaveri Online before paying
-            stamp duty.
+            An estimate from the published notification. Confirm on Kaveri
+            Online before paying stamp duty.
           </Text>
           {canSave && subject ? (
             <PrimaryButton
               label={dealId ? 'Save to transaction' : 'Save to property'}
               icon="save-outline"
               busy={busy === 'save'}
-              disabled={busy !== null || selected.valuation.total_value === null}
+              disabled={
+                busy !== null || selected.valuation.total_value === null
+              }
               onPress={save}
             />
           ) : null}
@@ -302,18 +397,34 @@ export function GuidanceValueScreen({
                 accessibilityState={{ selected: active }}
                 style={[
                   ...card,
-                  active ? { borderColor: colors.primary, borderWidth: 2 } : null,
+                  active
+                    ? { borderColor: colors.primary, borderWidth: 2 }
+                    : null,
                 ]}
               >
                 <View style={styles.row}>
-                  <Text style={{ flex: 1, color: colors.text, fontFamily: f.bold }}>
+                  <Text
+                    style={{ flex: 1, color: colors.text, fontFamily: f.bold }}
+                  >
                     {rateLocation(m.rate)}
                   </Text>
-                  {active ? <Ionicons name="checkmark-circle" size={18} color={colors.primary} /> : null}
+                  {active ? (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={18}
+                      color={colors.primary}
+                    />
+                  ) : null}
                 </View>
-                <Text style={{ color: colors.text, fontFamily: f.regular }}>{rateHeadline(m.rate)}</Text>
+                <Text style={{ color: colors.text, fontFamily: f.regular }}>
+                  {rateHeadline(m.rate)}
+                </Text>
                 <Text style={muted}>
-                  {[m.rate.source_title, m.rate.effective_from, m.reasons.join(' · ')]
+                  {[
+                    m.rate.source_title,
+                    m.rate.effective_from,
+                    m.reasons.join(' · '),
+                  ]
                     .filter(Boolean)
                     .join(' · ')}
                 </Text>
@@ -323,7 +434,9 @@ export function GuidanceValueScreen({
         </View>
       ) : null}
 
-      {saved.error ? <Banner kind="error" text={friendlyError(errorText(saved.error))} /> : null}
+      {saved.error ? (
+        <Banner kind="error" text={friendlyError(errorText(saved.error))} />
+      ) : null}
       <AppDialog {...dialogProps} />
     </ScrollView>
   );
@@ -331,7 +444,12 @@ export function GuidanceValueScreen({
 
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.lg, paddingBottom: 120 },
-  card: { borderWidth: 1, borderRadius: radius.md, padding: spacing.md, gap: spacing.xs },
+  card: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });

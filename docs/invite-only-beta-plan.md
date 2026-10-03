@@ -9,11 +9,11 @@ Target: **100 accounts in 30 days**, invite-only, **5 invites per account**, wit
 
 The three open choices were resolved to the recommended defaults. Change any of them and the affected section is called out.
 
-| Decision | Chosen | Affects |
-|---|---|---|
-| Seeding shape | 17 founder seeds × (1 + 5) = **102** | §2, §7 |
-| Bug reports | **In-app widget → `bug_reports` table**, admin triage in `/admin` | §6 |
-| Deliverable | Plan + invitation creative now; implementation on approval | all |
+| Decision      | Chosen                                                            | Affects |
+| ------------- | ----------------------------------------------------------------- | ------- |
+| Seeding shape | 17 founder seeds × (1 + 5) = **102**                              | §2, §7  |
+| Bug reports   | **In-app widget → `bug_reports` table**, admin triage in `/admin` | §6      |
+| Deliverable   | Plan + invitation creative now; implementation on approval        | all     |
 
 ---
 
@@ -21,10 +21,10 @@ The three open choices were resolved to the recommended defaults. Change any of 
 
 ConvoReal already has **two** invite-shaped systems, and neither one does what this program needs.
 
-| Existing | What it actually does | Why it isn't this |
-|---|---|---|
-| `account_invitations` + `/join/[token]` (migrations 017, 019) | Invites a person **into an existing account** as `admin`/`coordinator`/`agent`/`viewer`. `redeem_invitation()` *deletes* the invitee's personal account and moves their profile across. | It grows a team inside one tenant. It never creates a tenant. |
-| `credit_wallets.referral_code` + `?ref=CODE` (migrations 086, 088) | Attribution + credit rewards on an **open** signup. | It rewards signups; it does not gate them. Unlimited, not 5. |
+| Existing                                                           | What it actually does                                                                                                                                                                   | Why it isn't this                                             |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `account_invitations` + `/join/[token]` (migrations 017, 019)      | Invites a person **into an existing account** as `admin`/`coordinator`/`agent`/`viewer`. `redeem_invitation()` _deletes_ the invitee's personal account and moves their profile across. | It grows a team inside one tenant. It never creates a tenant. |
+| `credit_wallets.referral_code` + `?ref=CODE` (migrations 086, 088) | Attribution + credit rewards on an **open** signup.                                                                                                                                     | It rewards signups; it does not gate them. Unlimited, not 5.  |
 
 What the beta needs is a third thing: an invite that **authorizes the creation of a new account**. Call it a **beta invite**. It is deliberately a separate table and a separate URL space so that nothing about team invites or referral credits has to change.
 
@@ -57,7 +57,7 @@ What the beta needs is a third thing: an invite that **authorizes the creation o
 
 1. Account creation requires a valid, unexpired, unredeemed beta invite. No exceptions in the product; founders mint seeds through an admin route.
 2. Every account that completes signup gets a quota of **5** invites (`accounts.invite_quota`, per-account overridable).
-3. Global cap of **100** accounts is enforced at *redemption*, not at issuance — see §4.3 for why.
+3. Global cap of **100** accounts is enforced at _redemption_, not at issuance — see §4.3 for why.
 4. Invite links expire in **14 days** (longer than the 7-day team-invite default: a broker who gets this on WhatsApp on a Friday should still be able to act on it after a site visit week).
 5. The program has an end date. After it, `beta_invites` issuance is switched off by flipping one settings row; nothing needs a deploy.
 
@@ -95,7 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_beta_invites_issuer
 
 **Token handling mirrors `src/lib/auth/invitations.ts` exactly** — 32 random bytes, base64url, SHA-256 at rest, plaintext returned once. That file's `generateInviteToken()` / `hashInviteToken()` are reused verbatim; only `inviteUrl()` needs a sibling that builds `/i/<token>`.
 
-> **§2.6 exception, stated deliberately.** `beta_invites` has **no `NOT NULL account_id`**. It cannot: at issuance time for a seed there is no account, and the whole point of the row is to authorize the creation of one. It sits with `accounts` and `profiles` as a *platform* table, not an operational one. `issued_by_account_id` is nullable-by-design and is the column every tenant-facing query filters on. RLS is still enabled (§3.4).
+> **§2.6 exception, stated deliberately.** `beta_invites` has **no `NOT NULL account_id`**. It cannot: at issuance time for a seed there is no account, and the whole point of the row is to authorize the creation of one. It sits with `accounts` and `profiles` as a _platform_ table, not an operational one. `issued_by_account_id` is nullable-by-design and is the column every tenant-facing query filters on. RLS is still enabled (§3.4).
 
 ### 3.2 `accounts` additions
 
@@ -156,13 +156,13 @@ A gate that raises inside that block is a gate that does nothing. The migration 
 
 This is the detail most likely to break production if missed. `handle_new_user()` currently serves three distinct cases:
 
-| Path | Trigger behaviour today | Under invite-only |
-|---|---|---|
-| **New tenant** — no phone match, no team invite | Creates a fresh `accounts` row, role `owner` | **GATED.** Requires a valid beta invite. |
+| Path                                                                | Trigger behaviour today                                                                           | Under invite-only                                                                                                                                          |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **New tenant** — no phone match, no team invite                     | Creates a fresh `accounts` row, role `owner`                                                      | **GATED.** Requires a valid beta invite.                                                                                                                   |
 | **Teammate joining** — signed up from `/signup?invite=<team-token>` | Creates a throwaway personal account, then `redeem_invitation()` deletes it and moves the profile | **NOT gated.** Must accept a valid `account_invitations` token as authorization instead. Otherwise every existing customer loses the ability to add staff. |
-| **Phone match** (migration 067) | Attaches the new user to an existing account by last-10-digit phone match | **NOT gated.** No new tenant is created. |
+| **Phone match** (migration 067)                                     | Attaches the new user to an existing account by last-10-digit phone match                         | **NOT gated.** No new tenant is created.                                                                                                                   |
 
-So the gate condition is precisely: *"we are about to `INSERT INTO accounts`, and the caller presented neither a valid beta invite nor a valid team invite."*
+So the gate condition is precisely: _"we are about to `INSERT INTO accounts`, and the caller presented neither a valid beta invite nor a valid team invite."_
 
 The client passes the plaintext token in signup metadata; the trigger hashes it in-database with `encode(digest(token,'sha256'),'hex')` (pgcrypto, already available — `uuid-ossp`/`pgcrypto` are in use from migration 001) and looks up both tables:
 
@@ -171,11 +171,11 @@ raw_user_meta_data->>'beta_invite'  → beta_invites.token_hash
 raw_user_meta_data->>'team_invite'  → account_invitations.token_hash
 ```
 
-The trigger only *validates* the beta invite; it does **not** mark it accepted, because at that instant the account row doesn't exist yet and email verification hasn't happened. Redemption is finalized in `redeem_beta_invite()` (§4.5).
+The trigger only _validates_ the beta invite; it does **not** mark it accepted, because at that instant the account row doesn't exist yet and email verification hasn't happened. Redemption is finalized in `redeem_beta_invite()` (§4.5).
 
 ### 4.4 The global cap is checked at redemption
 
-Checking the cap at *issuance* would mean minting 102 links and then telling the 101st person "sorry" at the door anyway — the failure just moves. Checking at *redemption*, inside the same locked transaction that stamps `accepted_at`, is the only place the count is actually authoritative:
+Checking the cap at _issuance_ would mean minting 102 links and then telling the 101st person "sorry" at the door anyway — the failure just moves. Checking at _redemption_, inside the same locked transaction that stamps `accepted_at`, is the only place the count is actually authoritative:
 
 ```sql
 SELECT COUNT(*) FROM accounts WHERE beta_invite_id IS NOT NULL
@@ -186,14 +186,14 @@ When the cap lands, a nightly cron flips remaining `pending` invites to `expired
 
 ### 4.5 Server surface
 
-| Route | Auth | Purpose |
-|---|---|---|
-| `GET /api/beta-invites/[token]/peek` | anon, rate-limited | Renders the invite page: inviter's name, expiry, seats left. Mirrors `peek_invitation` — uniform `{ok, reason?}` JSON, per-IP limit reusing `RATE_LIMITS.invitationPeek`. |
-| `POST /api/beta-invites/[token]/redeem` | authed | Stamps `accepted_at`, links `accounts.beta_invite_id`, sets `invite_quota`, enforces the cap. Reuses `RATE_LIMITS.invitationRedeem`. |
-| `GET /api/beta-invites` | authed, `admin`+ | The account's own 5 invites and their status. |
-| `POST /api/beta-invites` | authed, `admin`+ | `issue_beta_invite()` — quota-checked, returns plaintext token once. `RATE_LIMITS.adminAction`. |
-| `DELETE /api/beta-invites/[id]` | authed, `admin`+ | Revoke an unredeemed invite; frees a seat. |
-| `POST /api/admin/beta-invites/seed` | service-role + `CONVOREAL_MASTER_ACCOUNT_ID` | Mint generation-0 seeds. |
+| Route                                   | Auth                                         | Purpose                                                                                                                                                                   |
+| --------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/beta-invites/[token]/peek`    | anon, rate-limited                           | Renders the invite page: inviter's name, expiry, seats left. Mirrors `peek_invitation` — uniform `{ok, reason?}` JSON, per-IP limit reusing `RATE_LIMITS.invitationPeek`. |
+| `POST /api/beta-invites/[token]/redeem` | authed                                       | Stamps `accepted_at`, links `accounts.beta_invite_id`, sets `invite_quota`, enforces the cap. Reuses `RATE_LIMITS.invitationRedeem`.                                      |
+| `GET /api/beta-invites`                 | authed, `admin`+                             | The account's own 5 invites and their status.                                                                                                                             |
+| `POST /api/beta-invites`                | authed, `admin`+                             | `issue_beta_invite()` — quota-checked, returns plaintext token once. `RATE_LIMITS.adminAction`.                                                                           |
+| `DELETE /api/beta-invites/[id]`         | authed, `admin`+                             | Revoke an unredeemed invite; frees a seat.                                                                                                                                |
+| `POST /api/admin/beta-invites/seed`     | service-role + `CONVOREAL_MASTER_ACCOUNT_ID` | Mint generation-0 seeds.                                                                                                                                                  |
 
 New rate-limit entries are unnecessary — the four existing buckets fit exactly.
 
@@ -232,13 +232,13 @@ Same copy, rendered through `sendTransactionalEmail()` from `src/lib/email.ts` (
 
 Five states, driven by peek result × auth state:
 
-| State | Renders |
-|---|---|
-| `ok` | Inviter's name, seats remaining out of 100, expiry countdown, what the beta asks for, **Claim my seat** |
-| `expired` | "Ask *[inviter]* for a fresh link" — inviter named, so there's an action |
-| `used` | "This seat has been claimed" + waitlist form |
-| `revoked` / `not_found` | Generic, plus waitlist |
-| `program_full` | "All 100 seats are taken" + waitlist |
+| State                   | Renders                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `ok`                    | Inviter's name, seats remaining out of 100, expiry countdown, what the beta asks for, **Claim my seat** |
+| `expired`               | "Ask _[inviter]_ for a fresh link" — inviter named, so there's an action                                |
+| `used`                  | "This seat has been claimed" + waitlist form                                                            |
+| `revoked` / `not_found` | Generic, plus waitlist                                                                                  |
+| `program_full`          | "All 100 seats are taken" + waitlist                                                                    |
 
 Every dead-end state ends in a **waitlist capture**, not a wall. An invite-only launch generates forwarded links by design; the people who arrive at a spent link are the warmest leads the program produces, and dropping them is the single biggest avoidable loss in this plan.
 
@@ -289,7 +289,7 @@ Standard operational table: `account_id NOT NULL`, RLS on, `set_updated_at` trig
 
 ### 6.2 Capture
 
-A floating **Report a bug** pill in `DashboardShell`, present on every dashboard route, plus <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>. The sheet asks for two things — *what happened* and *how bad* — and silently attaches `page_url`, `build_id`, `user_agent`, and an optional screenshot. Two fields, because four fields halves the submission rate.
+A floating **Report a bug** pill in `DashboardShell`, present on every dashboard route, plus <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>. The sheet asks for two things — _what happened_ and _how bad_ — and silently attaches `page_url`, `build_id`, `user_agent`, and an optional screenshot. Two fields, because four fields halves the submission rate.
 
 Confirmation matters as much as capture: the tester sees a reference number and, on triage, an in-app `notifications` row when the status changes. A beta tester who reports three bugs into silence stops at three.
 
@@ -309,49 +309,49 @@ Replying `BUG <text>` to the ConvoReal number lands a `bug_reports` row via the 
 
 ### Infrastructure gate — clear this before the first invite is sent
 
-The seed wave is the first time real brokers put real data in. Everything below must be true *before* an invite goes out, not after the first one lands. Full reasoning, current tiers and the trigger thresholds live in [`docs/external-services-audit.md`](./external-services-audit.md) §4.
+The seed wave is the first time real brokers put real data in. Everything below must be true _before_ an invite goes out, not after the first one lands. Full reasoning, current tiers and the trigger thresholds live in [`docs/external-services-audit.md`](./external-services-audit.md) §4.
 
-| Gate | Why it blocks the invite |
-|---|---|
-| **Supabase on Pro, not Free** | Free has **no backups and no PITR**, plus a 500 MB DB / 1 GB storage / 5 GB egress ceiling and a 7-day idle pause. The moment a seed broker's inventory is in there, an un-backed-up database is the risk that ends the beta. $25/mo. |
-| **Billing attached to the Gemini API key** | The free tier caps at ~500 requests/day. It fails **silently** — digests and AI intake stop producing output rather than erroring, which during a beta reads as "the product doesn't work". |
-| **Railway on Hobby, and both containers confirmed up** | The Free plan's $1/mo credit will not keep `go-ingress` and `queue-worker` running. If the worker is down, WhatsApp webhooks queue and never drain. |
-| **The OTP-sending WhatsApp number verified healthy** | Login is `signInWithOtp` over WhatsApp (§4.6). If that number's `whatsapp_config` is broken, invited brokers cannot sign in at all — the invite lands and the door is locked. |
-| **Error monitoring wired** | There is none today. A beta whose whole purpose is bug discovery (§6) should not depend solely on brokers noticing and reporting. |
+| Gate                                                   | Why it blocks the invite                                                                                                                                                                                                              |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Supabase on Pro, not Free**                          | Free has **no backups and no PITR**, plus a 500 MB DB / 1 GB storage / 5 GB egress ceiling and a 7-day idle pause. The moment a seed broker's inventory is in there, an un-backed-up database is the risk that ends the beta. $25/mo. |
+| **Billing attached to the Gemini API key**             | The free tier caps at ~500 requests/day. It fails **silently** — digests and AI intake stop producing output rather than erroring, which during a beta reads as "the product doesn't work".                                           |
+| **Railway on Hobby, and both containers confirmed up** | The Free plan's $1/mo credit will not keep `go-ingress` and `queue-worker` running. If the worker is down, WhatsApp webhooks queue and never drain.                                                                                   |
+| **The OTP-sending WhatsApp number verified healthy**   | Login is `signInWithOtp` over WhatsApp (§4.6). If that number's `whatsapp_config` is broken, invited brokers cannot sign in at all — the invite lands and the door is locked.                                                         |
+| **Error monitoring wired**                             | There is none today. A beta whose whole purpose is bug discovery (§6) should not depend solely on brokers noticing and reporting.                                                                                                     |
 
 Re-verify these live rather than trusting the figures in the audit doc — it records state as of a fixed date and plans drift. The gate that has actually bitten this project is the fourth one: WhatsApp sits on the authentication path, so it is both the invite channel (§5.1) and the login channel, and a single broken config takes out both at once.
 
-| Week | Engineering | Program |
-|---|---|---|
-| **0** (pre-launch) | Migration 188 (`beta_invites`, `accounts` columns, `beta_program`), gated `handle_new_user()`, seed route. Verify **all three signup paths** in §4.3 on a Supabase branch before touching prod. | Draft the 17-broker seed list. |
-| **1** | `/i/[token]`, peek + redeem routes, Settings → Invites hub. | Mint + send 17 seeds. Founder onboards each personally — a 10-minute call per seed is what converts a claimed seat into an active account. |
-| **2** | Bug-report widget, table, `/admin` Bugs tab. | Wave-1 accounts get their 5 seats. Nudge the seeds who haven't invited. |
-| **3** | Triage and fix. GitHub promotion. | Issue reserve seeds against the actual shortfall. |
-| **4** | Stabilize. | Measure (§8). Decide: extend cap, or close and convert. |
+| Week               | Engineering                                                                                                                                                                                     | Program                                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **0** (pre-launch) | Migration 188 (`beta_invites`, `accounts` columns, `beta_program`), gated `handle_new_user()`, seed route. Verify **all three signup paths** in §4.3 on a Supabase branch before touching prod. | Draft the 17-broker seed list.                                                                                                             |
+| **1**              | `/i/[token]`, peek + redeem routes, Settings → Invites hub.                                                                                                                                     | Mint + send 17 seeds. Founder onboards each personally — a 10-minute call per seed is what converts a claimed seat into an active account. |
+| **2**              | Bug-report widget, table, `/admin` Bugs tab.                                                                                                                                                    | Wave-1 accounts get their 5 seats. Nudge the seeds who haven't invited.                                                                    |
+| **3**              | Triage and fix. GitHub promotion.                                                                                                                                                               | Issue reserve seeds against the actual shortfall.                                                                                          |
+| **4**              | Stabilize.                                                                                                                                                                                      | Measure (§8). Decide: extend cap, or close and convert.                                                                                    |
 
 ### Risk register
 
-| Risk | Mitigation |
-|---|---|
+| Risk                                                                                                                              | Mitigation                                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Gated trigger breaks signup entirely** — this trigger has silently broken signup twice before (see migrations 098, 099 headers) | Test all three paths of §4.3 on a Supabase branch. `beta_program.issuance_open = false` is not a rollback — keep a one-statement revert of the trigger ready. |
-| Team invites (`account_invitations`) collaterally blocked | §4.3 explicitly exempts them; needs a regression test, not just a code read. |
-| Seeds claim but never invite | Reserve seats; founder-led onboarding call; week-2 nudge. |
-| Cap reached, warm traffic wasted | Waitlist on every dead-end state (§5.3). |
-| Forwarded link claimed by the wrong person | Optional `invitee_phone` binding on high-value seeds — verified at redemption against the WhatsApp OTP the product already requires. |
-| Silence instead of bug reports | Status-change notifications; founder replies to the first report from every account. |
+| Team invites (`account_invitations`) collaterally blocked                                                                         | §4.3 explicitly exempts them; needs a regression test, not just a code read.                                                                                  |
+| Seeds claim but never invite                                                                                                      | Reserve seats; founder-led onboarding call; week-2 nudge.                                                                                                     |
+| Cap reached, warm traffic wasted                                                                                                  | Waitlist on every dead-end state (§5.3).                                                                                                                      |
+| Forwarded link claimed by the wrong person                                                                                        | Optional `invitee_phone` binding on high-value seeds — verified at redemption against the WhatsApp OTP the product already requires.                          |
+| Silence instead of bug reports                                                                                                    | Status-change notifications; founder replies to the first report from every account.                                                                          |
 
 ---
 
 ## 8. What "working" looks like
 
-| Metric | Target |
-|---|---|
-| Accounts created | 100 by day 30 |
-| Seed → account conversion | ≥ 70% (12 of 17) |
-| Accounts that issue ≥ 1 invite | ≥ 50% |
-| Accounts active in week 2 (any WhatsApp message sent) | ≥ 60% |
-| Accounts filing ≥ 1 bug report | ≥ 40% |
-| Median time from account creation to first real contact imported | < 48h |
+| Metric                                                           | Target           |
+| ---------------------------------------------------------------- | ---------------- |
+| Accounts created                                                 | 100 by day 30    |
+| Seed → account conversion                                        | ≥ 70% (12 of 17) |
+| Accounts that issue ≥ 1 invite                                   | ≥ 50%            |
+| Accounts active in week 2 (any WhatsApp message sent)            | ≥ 60%            |
+| Accounts filing ≥ 1 bug report                                   | ≥ 40%            |
+| Median time from account creation to first real contact imported | < 48h            |
 
 The second-to-last row is the one that actually matters. A beta that produces 100 accounts and 4 bug reports produced 100 signups, not 100 testers.
 
@@ -360,6 +360,7 @@ The second-to-last row is the one that actually matters. A beta that produces 10
 ## 9. Files this touches
 
 **New**
+
 ```
 supabase/migrations/188_beta_invites.sql
 supabase/migrations/189_bug_reports.sql
@@ -377,6 +378,7 @@ src/app/(dashboard)/admin/bugs-tab.tsx
 ```
 
 **Modified**
+
 ```
 src/app/(auth)/signup/page.tsx           # require ?invite=, pass token in metadata
 src/app/(dashboard)/settings/page.tsx    # Invites section
@@ -405,7 +407,7 @@ IF NEW.raw_user_meta_data->>'app_context' IN ('den','buyer') THEN
 END IF;
 ```
 
-Owners Den and buyer-portal users are `auth.users` rows with **no `profiles` row** — that absence *is* their isolation, because every Engine RLS policy gates through `profiles`. Rebuilding from 099 would have deleted that guard, started minting staff accounts for every property owner who logged in, and then — once the gate landed — rejected their WhatsApp OTP logins outright, locking both portals.
+Owners Den and buyer-portal users are `auth.users` rows with **no `profiles` row** — that absence _is_ their isolation, because every Engine RLS policy gates through `profiles`. Rebuilding from 099 would have deleted that guard, started minting staff accounts for every property owner who logged in, and then — once the gate landed — rejected their WhatsApp OTP logins outright, locking both portals.
 
 Migration 189 reproduces the guard **first**, before the gate. §4.3's three signup paths are really **four**, and the den/buyer path is the one that had to be checked before anything else.
 
@@ -423,7 +425,7 @@ No extension dependency, and byte-identical to Node's `createHash('sha256')` —
 
 ### 10.3 Redemption happens in the trigger, not in a later `redeem_beta_invite()`
 
-§4.3 said the trigger should only *validate*, with redemption finalized separately after email verification. That leaves a window in which **one token creates unlimited accounts**, because nothing has been marked used yet — which defeats the entire mechanism.
+§4.3 said the trigger should only _validate_, with redemption finalized separately after email verification. That leaves a window in which **one token creates unlimited accounts**, because nothing has been marked used yet — which defeats the entire mechanism.
 
 The invite is now stamped `accepted` in the same transaction that creates the account. `plpgsql`'s `BEGIN/EXCEPTION` opens a subtransaction, so a failed bootstrap rolls the stamping back with it — a seat is never burned by a half-done signup.
 
@@ -441,7 +443,7 @@ The cost the plan was trying to avoid is real but small: an abandoned, never-ver
 
 Numbers moved to **188** (`beta_invites`), **189** (the gate) and **190** (`bug_reports`) — 187 was taken by the CRM→Engine comment rename.
 
-`beta_program` also gained `gate_enabled`, which §3.3 didn't have. `issuance_open` only stops *new* invites being minted; it does nothing about a gate that is misbehaving. `UPDATE beta_program SET gate_enabled = FALSE` restores open signup instantly with no deploy — the rollback §7's risk register asked for.
+`beta_program` also gained `gate_enabled`, which §3.3 didn't have. `issuance_open` only stops _new_ invites being minted; it does nothing about a gate that is misbehaving. `UPDATE beta_program SET gate_enabled = FALSE` restores open signup instantly with no deploy — the rollback §7's risk register asked for.
 
 ### Verification
 

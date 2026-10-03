@@ -3,19 +3,19 @@ name: property-detail
 ---
 - launchApp
 - tapOn:
-    id: "tab-properties"
+    id: 'tab-properties'
 - extendedWaitUntil:
     visible:
-      id: "properties-search"
+      id: 'properties-search'
     timeout: 20000
 - tapOn:
-    id: "property-card"
+    id: 'property-card'
     index: 0
 - extendedWaitUntil:
     visible:
-      id: "property-detail-screen"
+      id: 'property-detail-screen'
     timeout: 20000
 - takeScreenshot: .maestro/shots/11-property-detail
 - back
 - assertVisible:
-    id: "properties-search"
+    id: 'properties-search'

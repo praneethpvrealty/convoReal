@@ -34,7 +34,11 @@ export function OptionSheet({
   function pick(opt: string) {
     haptic.tap();
     if (multi) {
-      onChange(selected.includes(opt) ? selected.filter((x) => x !== opt) : [...selected, opt]);
+      onChange(
+        selected.includes(opt)
+          ? selected.filter((x) => x !== opt)
+          : [...selected, opt]
+      );
     } else {
       onChange([opt]);
       onClose();
@@ -45,7 +49,10 @@ export function OptionSheet({
     <BottomSheet visible={visible} onClose={onClose} title={title}>
       <ScrollView
         style={[sheetScrollArea, { maxHeight: 440 }]}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}
+        contentContainerStyle={{
+          paddingHorizontal: spacing.lg,
+          paddingBottom: spacing.sm,
+        }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
@@ -77,7 +84,9 @@ export function OptionSheet({
                     styles.row,
                     {
                       borderColor: active ? colors.primary : colors.glassBorder,
-                      backgroundColor: active ? colors.primarySoft : colors.glass,
+                      backgroundColor: active
+                        ? colors.primarySoft
+                        : colors.glass,
                     },
                   ]}
                 >
@@ -92,9 +101,17 @@ export function OptionSheet({
                     {opt}
                   </Text>
                   {active ? (
-                    <Ionicons name="checkmark" size={18} color={colors.primary} />
+                    <Ionicons
+                      name="checkmark"
+                      size={18}
+                      color={colors.primary}
+                    />
                   ) : multi ? (
-                    <Ionicons name="ellipse-outline" size={16} color={colors.textFaint} />
+                    <Ionicons
+                      name="ellipse-outline"
+                      size={16}
+                      color={colors.textFaint}
+                    />
                   ) : null}
                 </Pressable>
               );

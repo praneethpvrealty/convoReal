@@ -9,10 +9,16 @@ import * as Haptics from 'expo-haptics';
  * Fire-and-forget; failures (simulator, disabled) are swallowed.
  */
 export const haptic = {
-  tap: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}),
-  send: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}),
+  tap: () =>
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}),
+  send: () =>
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}),
   success: () =>
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}),
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
+      () => {}
+    ),
   warn: () =>
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {}),
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(
+      () => {}
+    ),
 };

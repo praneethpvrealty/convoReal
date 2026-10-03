@@ -18,18 +18,18 @@
 // partner events by provider_ref.
 // ============================================================
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type EscrowStatus =
-  | "proposed"
-  | "accepted"
-  | "funded"
-  | "released"
-  | "refunded"
-  | "disputed"
-  | "cancelled";
+  | 'proposed'
+  | 'accepted'
+  | 'funded'
+  | 'released'
+  | 'refunded'
+  | 'disputed'
+  | 'cancelled';
 
-export type EscrowParty = "owner" | "bidder";
+export type EscrowParty = 'owner' | 'bidder';
 
 export interface DealRoomRow {
   id: string;
@@ -38,7 +38,7 @@ export interface DealRoomRow {
   owner_account_id: string;
   bidder_account_id: string;
   agreed_amount: number;
-  status: "open" | "token_secured" | "closed" | "cancelled";
+  status: 'open' | 'token_secured' | 'closed' | 'cancelled';
   meeting_at: string | null;
   notes: string | null;
   created_at: string;
@@ -86,10 +86,10 @@ export async function openDealRoom(
     owner_account_id: string;
     bidder_account_id: string;
     amount: number;
-  },
+  }
 ): Promise<DealRoomRow | null> {
   const { data: created, error } = await db
-    .from("deal_rooms")
+    .from('deal_rooms')
     .insert({
       bid_id: bid.id,
       property_id: bid.property_id,
@@ -97,31 +97,38 @@ export async function openDealRoom(
       bidder_account_id: bid.bidder_account_id,
       agreed_amount: bid.amount,
     })
-    .select("*")
+    .select('*')
     .maybeSingle();
   if (created) return created as DealRoomRow;
-  if (error && error.code !== "23505") {
-    console.error("[token-safe] deal room insert failed:", error.message);
+  if (error && error.code !== '23505') {
+    console.error('[token-safe] deal room insert failed:', error.message);
     return null;
   }
   const { data: existing } = await db
-    .from("deal_rooms")
-    .select("*")
-    .eq("bid_id", bid.id)
+    .from('deal_rooms')
+    .select('*')
+    .eq('bid_id', bid.id)
     .maybeSingle();
   return (existing as DealRoomRow) ?? null;
 }
 
 export async function loadRoomEscrow(
   db: SupabaseClient,
-  dealRoomId: string,
+  dealRoomId: string
 ): Promise<TokenEscrowRow | null> {
   const { data } = await db
-    .from("token_escrows")
-    .select("*")
-    .eq("deal_room_id", dealRoomId)
-    .in("status", ["proposed", "accepted", "funded", "disputed", "released", "refunded"])
-    .order("created_at", { ascending: false })
+    .from('token_escrows')
+    .select('*')
+    .eq('deal_room_id', dealRoomId)
+    .in('status', [
+      'proposed',
+      'accepted',
+      'funded',
+      'disputed',
+      'released',
+      'refunded',
+    ])
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   return (data as TokenEscrowRow) ?? null;
@@ -138,23 +145,23 @@ async function transitionEscrow(
   escrowId: string,
   from: EscrowStatus[],
   to: EscrowStatus,
-  extra: Record<string, unknown> = {},
+  extra: Record<string, unknown> = {}
 ): Promise<TokenEscrowRow | null> {
-  const terminal = ["released", "refunded", "cancelled"].includes(to);
+  const terminal = ['released', 'refunded', 'cancelled'].includes(to);
   const { data, error } = await db
-    .from("token_escrows")
+    .from('token_escrows')
     .update({
       status: to,
       updated_at: new Date().toISOString(),
       ...(terminal ? { resolved_at: new Date().toISOString() } : {}),
       ...extra,
     })
-    .eq("id", escrowId)
-    .in("status", from)
-    .select("*")
+    .eq('id', escrowId)
+    .in('status', from)
+    .select('*')
     .maybeSingle();
   if (error) {
-    console.error("[token-safe] escrow transition failed:", error.message);
+    console.error('[token-safe] escrow transition failed:', error.message);
     return null;
   }
   return (data as TokenEscrowRow) ?? null;
@@ -174,113 +181,169 @@ export async function applyEscrowAction(
     refund_conditions?: string;
     provider?: string;
     provider_ref?: string;
-  },
+  }
 ): Promise<EscrowActionResult> {
   const active = await loadRoomEscrow(db, room.id);
-  const live = active && ["proposed", "accepted", "funded", "disputed"].includes(active.status)
-    ? active
-    : null;
+  const live =
+    active &&
+    ['proposed', 'accepted', 'funded', 'disputed'].includes(active.status)
+      ? active
+      : null;
 
   switch (action) {
-    case "propose": {
-      if (live) return { ok: false, error: "There's already an active Token Safe on this deal." };
+    case 'propose': {
+      if (live)
+        return {
+          ok: false,
+          error: "There's already an active Token Safe on this deal.",
+        };
       const amount = Number(args.amount);
       if (!Number.isFinite(amount) || amount <= 0) {
-        return { ok: false, error: "Enter a valid token amount" };
+        return { ok: false, error: 'Enter a valid token amount' };
       }
-      const provider = ["manual_escrow", "direct"].includes(args.provider || "")
+      const provider = ['manual_escrow', 'direct'].includes(args.provider || '')
         ? (args.provider as string)
-        : "manual_escrow";
+        : 'manual_escrow';
       const { data, error } = await db
-        .from("token_escrows")
+        .from('token_escrows')
         .insert({
           deal_room_id: room.id,
           amount_minor: Math.round(amount * 100),
           refund_conditions:
-            typeof args.refund_conditions === "string"
+            typeof args.refund_conditions === 'string'
               ? args.refund_conditions.slice(0, 2000)
               : null,
           provider,
           proposed_by: party,
         })
-        .select("*")
+        .select('*')
         .single();
       if (error || !data) {
         return {
           ok: false,
           error:
-            error?.code === "23505"
+            error?.code === '23505'
               ? "There's already an active Token Safe on this deal."
-              : "Could not propose Token Safe",
+              : 'Could not propose Token Safe',
         };
       }
       return { ok: true, escrow: data as TokenEscrowRow };
     }
 
-    case "accept": {
-      if (!live) return { ok: false, error: "Nothing to accept" };
+    case 'accept': {
+      if (!live) return { ok: false, error: 'Nothing to accept' };
       if (live.proposed_by === party) {
-        return { ok: false, error: "Waiting for the other party to accept your proposal." };
+        return {
+          ok: false,
+          error: 'Waiting for the other party to accept your proposal.',
+        };
       }
-      const updated = await transitionEscrow(db, live.id, ["proposed"], "accepted");
-      return updated ? { ok: true, escrow: updated } : { ok: false, error: "Already resolved" };
+      const updated = await transitionEscrow(
+        db,
+        live.id,
+        ['proposed'],
+        'accepted'
+      );
+      return updated
+        ? { ok: true, escrow: updated }
+        : { ok: false, error: 'Already resolved' };
     }
 
-    case "decline":
-    case "cancel": {
-      if (!live) return { ok: false, error: "Nothing to cancel" };
+    case 'decline':
+    case 'cancel': {
+      if (!live) return { ok: false, error: 'Nothing to cancel' };
       // Funded money can't be cancelled in-app — release or refund only.
-      const updated = await transitionEscrow(db, live.id, ["proposed", "accepted"], "cancelled");
+      const updated = await transitionEscrow(
+        db,
+        live.id,
+        ['proposed', 'accepted'],
+        'cancelled'
+      );
       return updated
         ? { ok: true, escrow: updated }
-        : { ok: false, error: "A funded token can only be released or refunded." };
+        : {
+            ok: false,
+            error: 'A funded token can only be released or refunded.',
+          };
     }
 
-    case "mark-funded": {
-      if (!live) return { ok: false, error: "No active Token Safe" };
-      if (party !== "bidder") return { ok: false, error: "Only the buyer side records the payment." };
-      const ref = typeof args.provider_ref === "string" ? args.provider_ref.trim().slice(0, 200) : "";
-      if (!ref) return { ok: false, error: "Enter the payment reference (escrow ID / UTR / cheque no.)" };
-      const updated = await transitionEscrow(db, live.id, ["accepted"], "funded", {
-        provider_ref: ref,
-        funded_at: new Date().toISOString(),
-      });
+    case 'mark-funded': {
+      if (!live) return { ok: false, error: 'No active Token Safe' };
+      if (party !== 'bidder')
+        return { ok: false, error: 'Only the buyer side records the payment.' };
+      const ref =
+        typeof args.provider_ref === 'string'
+          ? args.provider_ref.trim().slice(0, 200)
+          : '';
+      if (!ref)
+        return {
+          ok: false,
+          error: 'Enter the payment reference (escrow ID / UTR / cheque no.)',
+        };
+      const updated = await transitionEscrow(
+        db,
+        live.id,
+        ['accepted'],
+        'funded',
+        {
+          provider_ref: ref,
+          funded_at: new Date().toISOString(),
+        }
+      );
       return updated
         ? { ok: true, escrow: updated }
-        : { ok: false, error: "Token Safe must be accepted by both parties first." };
+        : {
+            ok: false,
+            error: 'Token Safe must be accepted by both parties first.',
+          };
     }
 
-    case "confirm-release": {
-      if (!live) return { ok: false, error: "No active Token Safe" };
-      if (live.status !== "funded") {
-        return { ok: false, error: "The token must be funded before release." };
+    case 'confirm-release': {
+      if (!live) return { ok: false, error: 'No active Token Safe' };
+      if (live.status !== 'funded') {
+        return { ok: false, error: 'The token must be funded before release.' };
       }
-      const field = party === "owner" ? "owner_confirmed_at" : "bidder_confirmed_at";
+      const field =
+        party === 'owner' ? 'owner_confirmed_at' : 'bidder_confirmed_at';
       if (live[field]) return { ok: true, escrow: live }; // idempotent
-      const otherConfirmed = party === "owner" ? live.bidder_confirmed_at : live.owner_confirmed_at;
+      const otherConfirmed =
+        party === 'owner' ? live.bidder_confirmed_at : live.owner_confirmed_at;
 
       if (otherConfirmed) {
         // Second confirmation → release, and the room is token_secured.
-        const updated = await transitionEscrow(db, live.id, ["funded"], "released", {
-          [field]: new Date().toISOString(),
-        });
-        if (!updated) return { ok: false, error: "Already resolved" };
+        const updated = await transitionEscrow(
+          db,
+          live.id,
+          ['funded'],
+          'released',
+          {
+            [field]: new Date().toISOString(),
+          }
+        );
+        if (!updated) return { ok: false, error: 'Already resolved' };
         await db
-          .from("deal_rooms")
-          .update({ status: "token_secured", updated_at: new Date().toISOString() })
-          .eq("id", room.id)
-          .eq("status", "open");
+          .from('deal_rooms')
+          .update({
+            status: 'token_secured',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', room.id)
+          .eq('status', 'open');
         return { ok: true, escrow: updated };
       }
 
       const { data, error } = await db
-        .from("token_escrows")
-        .update({ [field]: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq("id", live.id)
-        .eq("status", "funded")
-        .select("*")
+        .from('token_escrows')
+        .update({
+          [field]: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', live.id)
+        .eq('status', 'funded')
+        .select('*')
         .maybeSingle();
-      if (error || !data) return { ok: false, error: "Could not record your confirmation" };
+      if (error || !data)
+        return { ok: false, error: 'Could not record your confirmation' };
       return { ok: true, escrow: data as TokenEscrowRow };
     }
 

@@ -33,7 +33,10 @@ export function pairsWithin(ids: string[]): ContactPair[] {
 }
 
 /** Whether every pairing in this group has already been ruled out. */
-export function isGroupDismissed(ids: string[], dismissed: Set<string>): boolean {
+export function isGroupDismissed(
+  ids: string[],
+  dismissed: Set<string>
+): boolean {
   const pairs = pairsWithin(ids);
   if (pairs.length === 0) return false;
   return pairs.every(([a, b]) => dismissed.has(pairKey(a, b)));

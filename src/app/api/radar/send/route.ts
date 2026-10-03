@@ -1,7 +1,12 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import {
@@ -42,13 +47,6 @@ import type { MatchEvent, MessageTemplate, Property } from '@/types';
 // approved yet does a recipient come back unsent (`templateMissing`),
 // and the UI offers the one-click template setup.
 
-function adminClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
-
 const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // Same local helper as the broadcast route / broadcasts sender — renders
@@ -62,29 +60,40 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
 
 function formatPriceINR(amount: number): string {
   if (!amount || isNaN(amount)) return '';
-  if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (amount >= 100000) return `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
+  if (amount >= 10000000)
+    return `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+  if (amount >= 100000)
+    return `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
   return `₹${amount.toLocaleString('en-IN')}`;
 }
 
-function propertyMessage(p: Property, baseUrl: string, visitorContactId: string): string {
+function propertyMessage(
+  p: Property,
+  baseUrl: string,
+  visitorContactId: string
+): string {
   const lines = [`🏠 *${p.title}*`];
   const price = formatPriceINR(Number(p.price));
   if (price) lines.push(`💰 *Price:* ${price}`);
   const loc = [p.sublocality, p.city].filter(Boolean).join(', ') || p.location;
   if (loc) lines.push(`📍 *Location:* ${loc}`);
   if (p.bedrooms) lines.push(`🛏️ *BHK:* ${p.bedrooms} BHK`);
-  if (p.area_sqft) lines.push(`📐 *Area:* ${p.area_sqft} ${p.area_unit || 'Sq.Ft.'}`);
+  if (p.area_sqft)
+    lines.push(`📐 *Area:* ${p.area_sqft} ${p.area_unit || 'Sq.Ft.'}`);
   // v= attributes Showcase Pulse engagement to this contact (never filters)
-  lines.push('', `👇 *Click the link below to view photos, location map, and full details:*`, `${baseUrl}/?property_id=${p.id}&v=${visitorContactId}`);
+  lines.push(
+    '',
+    `👇 *Click the link below to view photos, location map, and full details:*`,
+    `${baseUrl}/?property_id=${p.id}&v=${visitorContactId}`
+  );
   return lines.join('\n');
 }
 
 /** True when the contact messaged us within the 24h service window. */
 async function sessionState(
-  db: ReturnType<typeof adminClient>,
+  db: SupabaseClient,
   accountId: string,
-  contactId: string,
+  contactId: string
 ): Promise<{ conversationId: string | null; open: boolean }> {
   const { data: conv } = await db
     .from('conversations')
@@ -108,16 +117,17 @@ export async function POST(request: NextRequest) {
   try {
     const ctx = await requireRole('agent');
 
-    const limit = await checkRateLimit(`radar:send:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const limit = await checkRateLimit(
+      `radar:send:${ctx.userId}`,
+      RATE_LIMITS.adminAction
+    );
     if (!limit.success) return rateLimitResponse(limit);
 
-    const body = (await request.json().catch(() => null)) as
-      | {
-          eventId?: string;
-          targetIds?: string[];
-          manualContactIds?: string[];
-        }
-      | null;
+    const body = (await request.json().catch(() => null)) as {
+      eventId?: string;
+      targetIds?: string[];
+      manualContactIds?: string[];
+    } | null;
     const eventId = body?.eventId;
     const targetIds = Array.isArray(body?.targetIds)
       ? [...new Set(body.targetIds.filter((t) => typeof t === 'string'))]
@@ -127,16 +137,22 @@ export async function POST(request: NextRequest) {
       : [];
 
     if (!eventId || targetIds.length === 0) {
-      return NextResponse.json({ error: 'eventId and targetIds are required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'eventId and targetIds are required' },
+        { status: 400 }
+      );
     }
     if (targetIds.length > 20 || manualContactIds.length > 20) {
-      return NextResponse.json({ error: 'A maximum of 20 contacts can be sent at once' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'A maximum of 20 contacts can be sent at once' },
+        { status: 400 }
+      );
     }
     const selectedIds = new Set(targetIds);
     if (manualContactIds.some((id) => !selectedIds.has(id))) {
       return NextResponse.json(
         { error: 'Every manually added contact must be selected' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -157,23 +173,29 @@ export async function POST(request: NextRequest) {
     const computedIds = new Set(typedEvent.matches.map((match) => match.id));
     const manualIds = manualContactIds.filter((id) => !computedIds.has(id));
     if (manualIds.length > 0) {
-      if (typedEvent.kind !== 'new_property' || typedEvent.source === 'deal_mode') {
+      if (
+        typedEvent.kind !== 'new_property' ||
+        typedEvent.source === 'deal_mode'
+      ) {
         return NextResponse.json(
           { error: 'Contacts can only be added to new listing alerts' },
-          { status: 400 },
+          { status: 400 }
         );
       }
       const eligible = await loadEligibleRadarContacts(
         ctx.supabase,
         ctx.accountId,
-        { ids: manualIds, limit: manualIds.length },
+        { ids: manualIds, limit: manualIds.length }
       );
       const eligibleIds = new Set(eligible.map((contact) => contact.id));
       const invalidManual = manualIds.filter((id) => !eligibleIds.has(id));
       if (invalidManual.length > 0) {
         return NextResponse.json(
-          { error: 'One or more added contacts are no longer eligible for alerts' },
-          { status: 400 },
+          {
+            error:
+              'One or more added contacts are no longer eligible for alerts',
+          },
+          { status: 400 }
         );
       }
     }
@@ -183,12 +205,12 @@ export async function POST(request: NextRequest) {
     if (invalidTargets.length > 0) {
       return NextResponse.json(
         { error: 'One or more selected targets are not part of this alert' },
-        { status: 400 },
+        { status: 400 }
       );
     }
     const targets = targetIds;
 
-    const db = adminClient();
+    const db = supabaseAdmin();
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     const results: Array<{
       id: string;
@@ -217,20 +239,27 @@ export async function POST(request: NextRequest) {
     /** Whether ANY of these alerts can go out at all, for the
      *  "templateMissing" report — the per-property choice happens at
      *  send time, once the header image is known. */
-    const anyApproved = pickPropertyShareTemplate(candidates, { hasImage: true })
-      ?? pickPropertyShareTemplate(candidates, { hasImage: false });
+    const anyApproved =
+      pickPropertyShareTemplate(candidates, { hasImage: true }) ??
+      pickPropertyShareTemplate(candidates, { hasImage: false });
 
     /** One alert to one contact: free-form when the window is open,
      *  template otherwise. */
     const sendAlert = async (
       contactId: string,
       contactName: string | null,
-      property: Property,
-    ): Promise<{ status: 'sent' | 'templateMissing' | 'failed'; channel?: 'freeform' | 'template'; error?: string }> => {
+      property: Property
+    ): Promise<{
+      status: 'sent' | 'templateMissing' | 'failed';
+      channel?: 'freeform' | 'template';
+      error?: string;
+    }> => {
       const session = await sessionState(db, ctx.accountId, contactId);
 
       if (session.open) {
-        const firstImage = (property.images || []).find((img) => img && img.trim());
+        const firstImage = (property.images || []).find(
+          (img) => img && img.trim()
+        );
         if (firstImage) {
           await sendWhatsAppMessageAndPersist({
             accountId: ctx.accountId,
@@ -258,7 +287,7 @@ export async function POST(request: NextRequest) {
           ctx.accountId,
           ctx.userId,
           property.id,
-          contactId,
+          contactId
         );
         if (session.conversationId) {
           await sendListingFeedbackPrompt({
@@ -282,11 +311,14 @@ export async function POST(request: NextRequest) {
       // Radar alert used to go out as text even for a listing with
       // photos sitting right there, because this path only ever asked
       // for the text template's names.
-      const headerImage = shareHeaderImage({ images: property.images, brandImage });
+      const headerImage = shareHeaderImage({
+        images: property.images,
+        brandImage,
+      });
       const language = await resolveSendLanguage(
         ctx.supabase,
         ctx.accountId,
-        contactId,
+        contactId
       );
       const alertTemplate = pickPropertyShareTemplate(candidates, {
         hasImage: Boolean(headerImage),
@@ -294,7 +326,12 @@ export async function POST(request: NextRequest) {
       });
       if (!alertTemplate) return { status: 'templateMissing' };
       if (isLanguageFallback(alertTemplate, language)) {
-        warnLanguageFallback('radar-send', ctx.accountId, language, alertTemplate);
+        warnLanguageFallback(
+          'radar-send',
+          ctx.accountId,
+          language,
+          alertTemplate
+        );
       }
 
       // Param count follows the template's name — the signed revisions
@@ -303,9 +340,11 @@ export async function POST(request: NextRequest) {
         alertTemplate.name,
         contactName,
         property,
-        brandName,
+        brandName
       );
-      const bodyParams = truncateParametersToBudget(alertTemplate.body_text, [...params]);
+      const bodyParams = truncateParametersToBudget(alertTemplate.body_text, [
+        ...params,
+      ]);
       const buttonParams: Record<number, string> = {};
       (alertTemplate.buttons ?? []).forEach((btn, idx) => {
         if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
@@ -336,14 +375,17 @@ export async function POST(request: NextRequest) {
         ctx.accountId,
         ctx.userId,
         property.id,
-        contactId,
+        contactId
       );
       return { status: 'sent', channel: 'template' };
     };
 
     if (typedEvent.kind === 'new_property') {
       if (!typedEvent.property_id) {
-        return NextResponse.json({ error: 'Event has no property' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Event has no property' },
+          { status: 400 }
+        );
       }
       const { data: property } = await db
         .from('properties')
@@ -352,7 +394,10 @@ export async function POST(request: NextRequest) {
         .eq('account_id', ctx.accountId)
         .maybeSingle();
       if (!property) {
-        return NextResponse.json({ error: 'Property no longer exists' }, { status: 410 });
+        return NextResponse.json(
+          { error: 'Property no longer exists' },
+          { status: 410 }
+        );
       }
       const typedProperty = property as Property;
 
@@ -362,16 +407,28 @@ export async function POST(request: NextRequest) {
         .select('id, name')
         .eq('account_id', ctx.accountId)
         .in('id', targets);
-      const nameById = new Map((contactRows || []).map((c) => [c.id as string, c.name as string | null]));
+      const nameById = new Map(
+        (contactRows || []).map((c) => [
+          c.id as string,
+          c.name as string | null,
+        ])
+      );
 
       for (const contactId of targets) {
-        const outcome = await sendAlert(contactId, nameById.get(contactId) ?? null, typedProperty);
+        const outcome = await sendAlert(
+          contactId,
+          nameById.get(contactId) ?? null,
+          typedProperty
+        );
         results.push({ id: contactId, ...outcome });
       }
     } else {
       // buyer_updated: send each selected property to the event's contact
       if (!typedEvent.contact_id) {
-        return NextResponse.json({ error: 'Event has no contact' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Event has no contact' },
+          { status: 400 }
+        );
       }
 
       const [{ data: contactRow }, { data: properties }] = await Promise.all([
@@ -381,22 +438,30 @@ export async function POST(request: NextRequest) {
           .eq('account_id', ctx.accountId)
           .eq('id', typedEvent.contact_id)
           .maybeSingle(),
-        db.from('properties').select('*').eq('account_id', ctx.accountId).in('id', targets),
+        db
+          .from('properties')
+          .select('*')
+          .eq('account_id', ctx.accountId)
+          .in('id', targets),
       ]);
 
       for (const property of (properties || []) as Property[]) {
         const outcome = await sendAlert(
           typedEvent.contact_id,
           (contactRow?.name as string | null) ?? null,
-          property,
+          property
         );
         results.push({ id: property.id, ...outcome });
       }
     }
 
     const sent = results.filter((r) => r.status === 'sent').length;
-    const sentViaTemplate = results.filter((r) => r.channel === 'template').length;
-    const templateMissing = results.filter((r) => r.status === 'templateMissing').length;
+    const sentViaTemplate = results.filter(
+      (r) => r.channel === 'template'
+    ).length;
+    const templateMissing = results.filter(
+      (r) => r.status === 'templateMissing'
+    ).length;
     const failed = results.filter((r) => r.status === 'failed').length;
 
     if (sent > 0) {

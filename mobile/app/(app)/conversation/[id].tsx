@@ -26,7 +26,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
-import { AttachmentSheet, type AttachmentChoice } from '@/components/attachment-sheet';
+import {
+  AttachmentSheet,
+  type AttachmentChoice,
+} from '@/components/attachment-sheet';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { ContextMenu } from '@/components/context-menu';
 import { ConversationMenu } from '@/components/conversation-menu';
@@ -90,7 +93,11 @@ import {
 } from '@/lib/types';
 import { dayLabel } from '@/lib/format';
 import { restoreFailedDraft, settlePending } from '@/lib/pending-messages';
-import { clearPendingShare, shareOutcomeNotice, usePendingShares } from '@/lib/pending-share';
+import {
+  clearPendingShare,
+  shareOutcomeNotice,
+  usePendingShares,
+} from '@/lib/pending-share';
 import { queryClient } from '@/lib/query';
 import { useCallLog } from '@/lib/use-call-log';
 import { supabase, uniqueChannel } from '@/lib/supabase';
@@ -133,7 +140,9 @@ async function fetchMessages(conversationId: string): Promise<Message[]> {
 
 /** Every reaction in the thread — one bounded read, split per bubble in
  *  memory rather than a query per message. */
-async function fetchReactions(conversationId: string): Promise<MessageReaction[]> {
+async function fetchReactions(
+  conversationId: string
+): Promise<MessageReaction[]> {
   const { data, error } = await supabase
     .from('message_reactions')
     .select('*')
@@ -145,7 +154,9 @@ async function fetchReactions(conversationId: string): Promise<MessageReaction[]
 async function fetchConversation(id: string): Promise<Conversation | null> {
   const { data, error } = await supabase
     .from('conversations')
-    .select('*, contact:contacts(*), group:whatsapp_groups(id, subject, status)')
+    .select(
+      '*, contact:contacts(*), group:whatsapp_groups(id, subject, status)'
+    )
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
@@ -167,9 +178,11 @@ export default function ConversationScreen() {
   const headerHeight = useHeaderHeight();
   const [menuOpen, setMenuOpen] = useState(false);
   // Long-press target, with the press point the floating menu anchors to.
-  const [actionsFor, setActionsFor] = useState<{ message: Message; x: number; y: number } | null>(
-    null
-  );
+  const [actionsFor, setActionsFor] = useState<{
+    message: Message;
+    x: number;
+    y: number;
+  } | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [resend, setResend] = useState<Message | null>(null);
   const [forwardFor, setForwardFor] = useState<Message | null>(null);
@@ -200,7 +213,8 @@ export default function ConversationScreen() {
     enabled: Boolean(draftPropertyId),
     queryFn: () => buildInquiryDraft(draftPropertyId!),
   });
-  const seedDraft = draftInquiry?.message ?? (draftText?.trim() ? draftText : undefined);
+  const seedDraft =
+    draftInquiry?.message ?? (draftText?.trim() ? draftText : undefined);
   const { data: messages, isLoading } = useQuery({
     queryKey: ['messages', id],
     queryFn: () => fetchMessages(id),
@@ -221,7 +235,12 @@ export default function ConversationScreen() {
       .channel(uniqueChannel(`messages:${id}`))
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${id}`,
+        },
         () => {
           queryClient.invalidateQueries({ queryKey: ['messages', id] });
           queryClient.invalidateQueries({ queryKey: ['conversations'] });
@@ -235,7 +254,8 @@ export default function ConversationScreen() {
           table: 'message_reactions',
           filter: `conversation_id=eq.${id}`,
         },
-        () => queryClient.invalidateQueries({ queryKey: ['message-reactions', id] })
+        () =>
+          queryClient.invalidateQueries({ queryKey: ['message-reactions', id] })
       )
       .subscribe();
     return () => {
@@ -254,7 +274,9 @@ export default function ConversationScreen() {
       // eslint-disable-next-line convoreal/supabase-write-guard
       .update({ unread_count: 0 })
       .eq('id', id)
-      .then(() => queryClient.invalidateQueries({ queryKey: ['conversations'] }));
+      .then(() =>
+        queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      );
   }, [id, messages?.length]);
 
   // A pending bubble is dropped the moment the thread contains the real
@@ -309,7 +331,9 @@ export default function ConversationScreen() {
   const stagedShares = usePendingShares(id);
   const seededShares = useRef(new Set<string>());
   useEffect(() => {
-    const fresh = stagedShares.filter((share) => !seededShares.current.has(share.id));
+    const fresh = stagedShares.filter(
+      (share) => !seededShares.current.has(share.id)
+    );
     if (fresh.length === 0) return;
     for (const share of fresh) seededShares.current.add(share.id);
     const bubbles = fresh.flatMap((share) => share.bubbles);
@@ -319,18 +343,24 @@ export default function ConversationScreen() {
     for (const share of stagedShares) {
       if (!share.outcome) continue;
       const staged = new Set(share.bubbles.map((m) => m.id));
-      const drop = () => setPending((prev) => prev.filter((m) => !staged.has(m.id)));
+      const drop = () =>
+        setPending((prev) => prev.filter((m) => !staged.has(m.id)));
       clearPendingShare(share.id);
       if (share.outcome.sent) {
         haptic.success();
         // Fetched before the bubbles go, so the message never blinks out
         // between the API answering and the thread catching up.
-        queryClient.invalidateQueries({ queryKey: ['messages', id] }).then(drop, drop);
+        queryClient
+          .invalidateQueries({ queryKey: ['messages', id] })
+          .then(drop, drop);
         continue;
       }
       drop();
       haptic.warn();
-      const notice = shareOutcomeNotice(share.outcome, contactName ?? 'This contact');
+      const notice = shareOutcomeNotice(
+        share.outcome,
+        contactName ?? 'This contact'
+      );
       if (notice) show(notice);
     }
   }, [stagedShares, id, contactName, show]);
@@ -352,7 +382,11 @@ export default function ConversationScreen() {
       );
       if (index < 0) return;
       haptic.tap();
-      listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+      listRef.current?.scrollToIndex({
+        index,
+        viewPosition: 0.5,
+        animated: true,
+      });
       setHighlightId(messageId);
     },
     [items]
@@ -372,7 +406,11 @@ export default function ConversationScreen() {
   const applyReaction = useCallback(
     async (message: Message, emoji: string) => {
       if (!canReact(message)) return;
-      const next = toggleEmoji(reactionsByMessageId.get(message.id) ?? [], userId, emoji);
+      const next = toggleEmoji(
+        reactionsByMessageId.get(message.id) ?? [],
+        userId,
+        emoji
+      );
       haptic.tap();
       try {
         await reactToMessage(message.id, next);
@@ -381,7 +419,10 @@ export default function ConversationScreen() {
         haptic.warn();
         show({
           title: 'Could not react',
-          message: err instanceof ApiError ? err.message : 'Something went wrong — try again.',
+          message:
+            err instanceof ApiError
+              ? err.message
+              : 'Something went wrong — try again.',
         });
       }
     },
@@ -407,7 +448,10 @@ export default function ConversationScreen() {
       haptic.warn();
       show({
         title: 'Could not update the message',
-        message: err instanceof ApiError ? err.message : 'Something went wrong — try again.',
+        message:
+          err instanceof ApiError
+            ? err.message
+            : 'Something went wrong — try again.',
       });
     }
   }
@@ -454,7 +498,10 @@ export default function ConversationScreen() {
       setForwardFor(null);
       show({
         title: 'Could not forward',
-        message: err instanceof ApiError ? err.message : 'Something went wrong — try again.',
+        message:
+          err instanceof ApiError
+            ? err.message
+            : 'Something went wrong — try again.',
       });
     } finally {
       setForwarding(false);
@@ -482,7 +529,8 @@ export default function ConversationScreen() {
               silence={conversation ? unanswered(conversation) : null}
               onOpenContact={
                 conversation?.contact?.id
-                  ? () => router.push(`/(app)/contact/${conversation.contact!.id}`)
+                  ? () =>
+                      router.push(`/(app)/contact/${conversation.contact!.id}`)
                   : undefined
               }
               onCall={
@@ -505,14 +553,20 @@ export default function ConversationScreen() {
               accessibilityLabel="Manage chat"
               style={{ paddingHorizontal: 4 }}
             >
-              <Ionicons name="ellipsis-vertical" size={20} color={colors.text} />
+              <Ionicons
+                name="ellipsis-vertical"
+                size={20}
+                color={colors.text}
+              />
             </Pressable>
           ),
         }}
       />
 
       {isLoading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+        >
           <ConvoRealLoader />
         </View>
       ) : (
@@ -522,7 +576,10 @@ export default function ConversationScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.pinnedRow}
-              style={[styles.pinnedBar, { borderBottomColor: colors.glassBorder }]}
+              style={[
+                styles.pinnedBar,
+                { borderBottomColor: colors.glassBorder },
+              ]}
             >
               {pinned.map((message) => (
                 <Pressable
@@ -534,12 +591,19 @@ export default function ConversationScreen() {
                   accessibilityHint="Tap to jump to it, hold to unpin"
                   style={[
                     styles.pinnedChip,
-                    { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+                    {
+                      backgroundColor: colors.glass,
+                      borderColor: colors.glassBorder,
+                    },
                   ]}
                 >
                   <Ionicons name="pin" size={13} color={colors.primary} />
                   <Text
-                    style={{ flexShrink: 1, fontSize: 12.5, color: colors.text }}
+                    style={{
+                      flexShrink: 1,
+                      fontSize: 12.5,
+                      color: colors.text,
+                    }}
                     numberOfLines={1}
                   >
                     {messagePreview(message, 60)}
@@ -552,11 +616,15 @@ export default function ConversationScreen() {
             ref={listRef}
             style={{ flex: 1 }}
             data={items}
-            keyExtractor={(item) => (item.kind === 'message' ? item.message.id : item.id)}
+            keyExtractor={(item) =>
+              item.kind === 'message' ? item.message.id : item.id
+            }
             inverted
             contentContainerStyle={{ padding: spacing.md, gap: 4 }}
             onScroll={(e) =>
-              setScrolledUp(e.nativeEvent.contentOffset.y > SCROLL_TO_END_THRESHOLD)
+              setScrolledUp(
+                e.nativeEvent.contentOffset.y > SCROLL_TO_END_THRESHOLD
+              )
             }
             scrollEventThrottle={64}
             // A quoted message far up the page may not be measured yet:
@@ -568,7 +636,12 @@ export default function ConversationScreen() {
                 animated: true,
               });
               setTimeout(
-                () => listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true }),
+                () =>
+                  listRef.current?.scrollToIndex({
+                    index,
+                    viewPosition: 0.5,
+                    animated: true,
+                  }),
                 180
               );
             }}
@@ -584,7 +657,9 @@ export default function ConversationScreen() {
                       : undefined
                   }
                   contactName={contactName}
-                  reactions={reactionsByMessageId.get(item.message.id) ?? EMPTY_REACTIONS}
+                  reactions={
+                    reactionsByMessageId.get(item.message.id) ?? EMPTY_REACTIONS
+                  }
                   currentUserId={userId}
                   highlighted={highlightId === item.message.id}
                   onLongPress={(message, x, y) => {
@@ -608,7 +683,10 @@ export default function ConversationScreen() {
               accessibilityLabel="Jump to the latest message"
               style={[
                 styles.jumpToEnd,
-                { backgroundColor: colors.surfaceWell, borderColor: colors.glassBorder },
+                {
+                  backgroundColor: colors.surfaceWell,
+                  borderColor: colors.glassBorder,
+                },
               ]}
             >
               <Ionicons name="chevron-down" size={20} color={colors.primary} />
@@ -650,7 +728,8 @@ export default function ConversationScreen() {
             ? {
                 emojis: QUICK_EMOJIS,
                 selected: myReaction(
-                  reactionsByMessageId.get(actionsFor.message.id) ?? EMPTY_REACTIONS,
+                  reactionsByMessageId.get(actionsFor.message.id) ??
+                    EMPTY_REACTIONS,
                   userId
                 ),
                 onPick: (emoji) => applyReaction(actionsFor.message, emoji),
@@ -680,7 +759,10 @@ export default function ConversationScreen() {
                     : ('pin-outline' as const),
                   label: actionsFor.message.pinned_at ? 'Unpin' : 'Pin',
                   onPress: () =>
-                    void changeState(actionsFor.message, pinAction(actionsFor.message)),
+                    void changeState(
+                      actionsFor.message,
+                      pinAction(actionsFor.message)
+                    ),
                 },
                 ...(canResend(actionsFor.message)
                   ? [
@@ -775,7 +857,12 @@ function ThreadHeader({
       <View style={{ flexShrink: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Text
-            style={{ fontSize: 16, fontFamily: f.bold, color: colors.text, flexShrink: 1 }}
+            style={{
+              fontSize: 16,
+              fontFamily: f.bold,
+              color: colors.text,
+              flexShrink: 1,
+            }}
             numberOfLines={1}
           >
             {title}
@@ -786,7 +873,10 @@ function ThreadHeader({
               onPress={onCall}
               accessibilityRole="button"
               accessibilityLabel={`Call ${title}`}
-              style={[styles.headerCall, { backgroundColor: colors.primarySoft }]}
+              style={[
+                styles.headerCall,
+                { backgroundColor: colors.primarySoft },
+              ]}
             >
               <Ionicons name="call" size={13} color={colors.primary} />
             </Pressable>
@@ -922,7 +1012,9 @@ function Composer({
       setSuggestions(next);
     } catch (err) {
       haptic.warn();
-      setError(err instanceof ApiError ? err.message : 'Could not load suggestions.');
+      setError(
+        err instanceof ApiError ? err.message : 'Could not load suggestions.'
+      );
     } finally {
       setSuggesting(false);
     }
@@ -937,7 +1029,10 @@ function Composer({
   // Shared send path for the composer draft, the property shortlist
   // sheet and a resend. Returns whether it went out so callers can
   // clear/close.
-  async function sendText(text: string, replyToMessageId?: string): Promise<boolean> {
+  async function sendText(
+    text: string,
+    replyToMessageId?: string
+  ): Promise<boolean> {
     const trimmed = text.trim();
     if (!trimmed || sending) return false;
     setSending(true);
@@ -982,7 +1077,9 @@ function Composer({
       haptic.warn();
       // Outside WhatsApp's 24h service window the API rejects free-form
       // text — surface its message rather than silently retrying.
-      const closed = isReengagementError(err instanceof ApiError ? err.message : err);
+      const closed = isReengagementError(
+        err instanceof ApiError ? err.message : err
+      );
       // Hold the exact text that was refused: this path also carries the
       // property shortlist sheet's message, which never reaches `draft`.
       setBlockedText(closed && contactPhone ? trimmed : null);
@@ -1030,7 +1127,11 @@ function Composer({
    *  the 24-hour window does not cost the agent the upload as well —
    *  but from here they read as one action, so a failure at either step
    *  surfaces on the same error bar. */
-  async function sendAttachment(file: { uri: string; name: string; mimeType: string }) {
+  async function sendAttachment(file: {
+    uri: string;
+    name: string;
+    mimeType: string;
+  }) {
     setAttaching('Uploading…');
     setError(null);
     setBlockedText(null);
@@ -1082,7 +1183,9 @@ function Composer({
     } catch (err) {
       onPendingSettled(pendingId, null);
       haptic.warn();
-      const closed = isReengagementError(err instanceof ApiError ? err.message : err);
+      const closed = isReengagementError(
+        err instanceof ApiError ? err.message : err
+      );
       setError(
         closed
           ? 'Past the 24-hour window — an attachment needs the contact to write first, or pick a template.'
@@ -1099,7 +1202,9 @@ function Composer({
     try {
       if (choice === 'document') {
         const DocumentPicker = await import('expo-document-picker');
-        const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+        const result = await DocumentPicker.getDocumentAsync({
+          copyToCacheDirectory: true,
+        });
         if (result.canceled || !result.assets?.[0]) return;
         const asset = result.assets[0];
         const mimeType = attachmentMimeType(asset.mimeType, asset.name);
@@ -1137,7 +1242,10 @@ function Composer({
             });
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
-      const mimeType = attachmentMimeType(asset.mimeType, asset.fileName ?? asset.uri);
+      const mimeType = attachmentMimeType(
+        asset.mimeType,
+        asset.fileName ?? asset.uri
+      );
       if (!mimeType) {
         setError('WhatsApp does not accept that kind of file.');
         return;
@@ -1149,7 +1257,9 @@ function Composer({
       });
     } catch {
       // A missing native module means this build predates the picker.
-      setError('Attachments need the latest ConvoReal build — update the app and try again.');
+      setError(
+        'Attachments need the latest ConvoReal build — update the app and try again.'
+      );
     }
   }
 
@@ -1160,13 +1270,18 @@ function Composer({
         setError('Microphone access is needed to record a voice note.');
         return;
       }
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
       await recorder.prepareToRecordAsync();
       recorder.record();
       haptic.tap();
       setRecording(true);
     } catch {
-      setError("Couldn't start the microphone — it may be in use by another app.");
+      setError(
+        "Couldn't start the microphone — it may be in use by another app."
+      );
     }
   }
 
@@ -1247,7 +1362,9 @@ function Composer({
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
     } catch (err) {
       onPendingSettled(pendingId, null);
-      setError(err instanceof ApiError ? err.message : 'Failed to send template.');
+      setError(
+        err instanceof ApiError ? err.message : 'Failed to send template.'
+      );
       setTemplatesOpen(false);
     } finally {
       setSending(false);
@@ -1288,13 +1405,22 @@ function Composer({
             {suggestions.map((s, i) => (
               <Pressable
                 key={`${i}-${s.slice(0, 12)}`}
-                style={[styles.suggestionChip, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+                style={[
+                  styles.suggestionChip,
+                  {
+                    backgroundColor: colors.glass,
+                    borderColor: colors.glassBorder,
+                  },
+                ]}
                 onPress={() => applySuggestion(s)}
                 accessibilityRole="button"
                 accessibilityLabel={`Use suggested reply: ${s}`}
               >
                 <Ionicons name="sparkles" size={12} color={colors.primary} />
-                <Text style={{ flexShrink: 1, fontSize: 13, color: colors.text }} numberOfLines={2}>
+                <Text
+                  style={{ flexShrink: 1, fontSize: 13, color: colors.text }}
+                  numberOfLines={2}
+                >
                   {s}
                 </Text>
               </Pressable>
@@ -1312,10 +1438,14 @@ function Composer({
         </View>
       ) : null}
       {error ? (
-        <View style={[styles.errorBlock, { backgroundColor: colors.dangerSoft }]}>
+        <View
+          style={[styles.errorBlock, { backgroundColor: colors.dangerSoft }]}
+        >
           <View style={styles.errorBar}>
             <Ionicons name="warning-outline" size={14} color={colors.danger} />
-            <Text style={{ flex: 1, fontSize: 12.5, color: colors.danger }}>{error}</Text>
+            <Text style={{ flex: 1, fontSize: 12.5, color: colors.danger }}>
+              {error}
+            </Text>
             <Pressable
               onPress={() => {
                 setError(null);
@@ -1347,8 +1477,18 @@ function Composer({
                 accessibilityRole="button"
                 accessibilityLabel="Send an approved template instead"
               >
-                <Ionicons name="document-text-outline" size={13} color={colors.primary} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>
+                <Ionicons
+                  name="document-text-outline"
+                  size={13}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: '600',
+                    color: colors.primary,
+                  }}
+                >
                   Template
                 </Text>
               </Pressable>
@@ -1360,8 +1500,18 @@ function Composer({
                   accessibilityRole="button"
                   accessibilityLabel="Send this message from your own WhatsApp"
                 >
-                  <Ionicons name="logo-whatsapp" size={13} color={colors.success} />
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.success }}>
+                  <Ionicons
+                    name="logo-whatsapp"
+                    size={13}
+                    color={colors.success}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: '600',
+                      color: colors.success,
+                    }}
+                  >
                     My WhatsApp
                   </Text>
                 </Pressable>
@@ -1373,12 +1523,25 @@ function Composer({
                     setInviteOpen(true);
                   }}
                   hitSlop={8}
-                  style={[styles.errorAction, { borderColor: colors.textMuted }]}
+                  style={[
+                    styles.errorAction,
+                    { borderColor: colors.textMuted },
+                  ]}
                   accessibilityRole="button"
                   accessibilityLabel="Invite them to message the Engine number"
                 >
-                  <Ionicons name="arrow-forward-circle-outline" size={13} color={colors.textMuted} />
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textMuted }}>
+                  <Ionicons
+                    name="arrow-forward-circle-outline"
+                    size={13}
+                    color={colors.textMuted}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: '600',
+                      color: colors.textMuted,
+                    }}
+                  >
                     Invite to Engine
                   </Text>
                 </Pressable>
@@ -1388,14 +1551,22 @@ function Composer({
         </View>
       ) : null}
       {attaching ? (
-        <View style={[styles.statusBar, { backgroundColor: colors.primarySoft }]}>
+        <View
+          style={[styles.statusBar, { backgroundColor: colors.primarySoft }]}
+        >
           <ActivityIndicator size="small" color={colors.primary} />
-          <Text style={{ flex: 1, fontSize: 12.5, color: colors.primary }}>{attaching}</Text>
+          <Text style={{ flex: 1, fontSize: 12.5, color: colors.primary }}>
+            {attaching}
+          </Text>
         </View>
       ) : null}
       {replyTo ? (
         <View style={styles.replyBar}>
-          <QuotedMessage message={replyTo} contactName={contactName} onDismiss={onClearReply} />
+          <QuotedMessage
+            message={replyTo}
+            contactName={contactName}
+            onDismiss={onClearReply}
+          />
         </View>
       ) : null}
       <AttachmentSheet
@@ -1425,12 +1596,17 @@ function Composer({
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Discard voice note"
-            style={[styles.templateButton, { backgroundColor: colors.dangerSoft }]}
+            style={[
+              styles.templateButton,
+              { backgroundColor: colors.dangerSoft },
+            ]}
           >
             <Ionicons name="trash-outline" size={19} color={colors.danger} />
           </Pressable>
           <View style={styles.recordingBar}>
-            <View style={[styles.recordDot, { backgroundColor: colors.danger }]} />
+            <View
+              style={[styles.recordDot, { backgroundColor: colors.danger }]}
+            />
             <Text style={{ fontSize: 14, color: colors.text }}>
               Recording {formatDuration(recorderState.durationMillis)}
             </Text>
@@ -1507,7 +1683,10 @@ function Composer({
           <Ionicons name="home-outline" size={19} color={colors.primary} />
         </Pressable>
         <Pressable
-          style={[styles.templateButton, { backgroundColor: colors.surface, opacity: suggesting ? 0.6 : 1 }]}
+          style={[
+            styles.templateButton,
+            { backgroundColor: colors.surface, opacity: suggesting ? 0.6 : 1 },
+          ]}
           onPress={loadSuggestions}
           disabled={suggesting}
           hitSlop={8}
@@ -1518,13 +1697,21 @@ function Composer({
           {suggesting ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
+            <Ionicons
+              name="sparkles-outline"
+              size={18}
+              color={colors.primary}
+            />
           )}
         </Pressable>
         <TextInput
           style={[
             styles.input,
-            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              color: colors.text,
+            },
           ]}
           placeholder="Type a message"
           placeholderTextColor={colors.textFaint}
@@ -1547,7 +1734,9 @@ function Composer({
           disabled={sending || attaching !== null}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={draft.trim() ? 'Send message' : 'Record a voice note'}
+          accessibilityLabel={
+            draft.trim() ? 'Send message' : 'Record a voice note'
+          }
           accessibilityState={{ disabled: sending || attaching !== null }}
         >
           {sending || attaching !== null ? (

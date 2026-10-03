@@ -4,7 +4,7 @@ import { haversineKm, boundingBox } from './geo';
 // Reference localities in Bengaluru
 const HSR = { lat: 12.9121, lng: 77.6446 };
 const KORAMANGALA = { lat: 12.9352, lng: 77.6245 };
-const WHITEFIELD = { lat: 12.9698, lng: 77.7500 };
+const WHITEFIELD = { lat: 12.9698, lng: 77.75 };
 
 describe('haversineKm', () => {
   it('returns 0 for identical points', () => {

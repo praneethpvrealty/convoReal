@@ -19,7 +19,14 @@ import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { onGradient, radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import {
+  onGradient,
+  radius,
+  spacing,
+  useBrandGradient,
+  useTheme,
+  fonts,
+} from '@/lib/theme';
 
 type Mode = 'whatsapp' | 'email';
 
@@ -57,14 +64,26 @@ export default function LoginScreen() {
             >
               <Ionicons name="chatbubbles" size={34} color={onGradient.text} />
             </LinearGradient>
-            <Text style={[styles.wordmark, { color: colors.primary, fontFamily: f.extrabold }]}>ConvoReal</Text>
+            <Text
+              style={[
+                styles.wordmark,
+                { color: colors.primary, fontFamily: f.extrabold },
+              ]}
+            >
+              ConvoReal
+            </Text>
             <Text style={[styles.tagline, { color: colors.textMuted }]}>
               WhatsApp Engine for real estate
             </Text>
           </View>
 
           <GlassCard style={styles.formCard}>
-            <View style={[styles.segment, { backgroundColor: colors.surfaceSunken }]}>
+            <View
+              style={[
+                styles.segment,
+                { backgroundColor: colors.surfaceSunken },
+              ]}
+            >
               <SegmentButton
                 label="WhatsApp"
                 icon="logo-whatsapp"
@@ -85,7 +104,8 @@ export default function LoginScreen() {
           </GlassCard>
 
           <Text style={[styles.footer, { color: colors.textFaint }]}>
-            Use the same account as the web app.{'\n'}New team members sign up on the web.
+            Use the same account as the web app.{'\n'}New team members sign up
+            on the web.
           </Text>
 
           <Pressable
@@ -95,7 +115,13 @@ export default function LoginScreen() {
             style={styles.denLink}
           >
             <Ionicons name="home-outline" size={15} color={colors.primary} />
-            <Text style={{ color: colors.primary, fontSize: 13.5, fontFamily: f.semibold }}>
+            <Text
+              style={{
+                color: colors.primary,
+                fontSize: 13.5,
+                fontFamily: f.semibold,
+              }}
+            >
               Property owner? Open your Portfolio
             </Text>
           </Pressable>
@@ -125,7 +151,10 @@ function SegmentButton({
       onPress={onPress}
       style={[
         styles.segmentButton,
-        active && { backgroundColor: colors.surfaceRaised, ...styles.segmentActive },
+        active && {
+          backgroundColor: colors.surfaceRaised,
+          ...styles.segmentActive,
+        },
       ]}
     >
       <Ionicons
@@ -167,7 +196,9 @@ function WhatsappLogin() {
     setInfo(null);
     const cleanPhone = cleanPhoneInput(phone);
     if (!cleanPhone) {
-      setError('Enter a valid WhatsApp number (e.g. 9900277111 or +919900277111)');
+      setError(
+        'Enter a valid WhatsApp number (e.g. 9900277111 or +919900277111)'
+      );
       return;
     }
     setBusy(true);
@@ -233,13 +264,25 @@ function WhatsappLogin() {
             disabled={!phone.trim()}
             onPress={sendCode}
           />
-          <Text style={{ fontSize: 12.5, color: colors.textFaint, textAlign: 'center' }}>
+          <Text
+            style={{
+              fontSize: 12.5,
+              color: colors.textFaint,
+              textAlign: 'center',
+            }}
+          >
             We&apos;ll message a 6-digit code to your verified WhatsApp number.
           </Text>
         </>
       ) : (
         <>
-          <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>
+          <Text
+            style={{
+              fontSize: 14,
+              color: colors.textMuted,
+              textAlign: 'center',
+            }}
+          >
             Enter the code sent to{' '}
             <Text style={{ fontFamily: f.bold, color: colors.text }}>
               {cleanPhoneInput(phone) ?? phone}
@@ -252,14 +295,26 @@ function WhatsappLogin() {
             disabled={otp.length < 6}
             onPress={() => verify(otp)}
           />
-          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xl }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: spacing.xl,
+            }}
+          >
             <Pressable
               onPress={() => setStage('phone')}
               hitSlop={10}
               accessibilityRole="button"
               style={{ paddingVertical: 10 }}
             >
-              <Text style={{ color: colors.textMuted, fontSize: 13.5, fontFamily: f.semibold }}>
+              <Text
+                style={{
+                  color: colors.textMuted,
+                  fontSize: 13.5,
+                  fontFamily: f.semibold,
+                }}
+              >
                 Change number
               </Text>
             </Pressable>
@@ -346,7 +401,12 @@ function EmailLogin() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl, gap: spacing.xl },
+  scroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: spacing.xl,
+    gap: spacing.xl,
+  },
   hero: { alignItems: 'center', gap: spacing.sm },
   logoBadge: {
     width: 68,
@@ -359,7 +419,12 @@ const styles = StyleSheet.create({
   wordmark: { fontSize: 34, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   tagline: { fontSize: 15 },
   formCard: { padding: spacing.lg, gap: spacing.lg },
-  segment: { flexDirection: 'row', borderRadius: radius.lg, padding: 4, gap: 4 },
+  segment: {
+    flexDirection: 'row',
+    borderRadius: radius.lg,
+    padding: 4,
+    gap: 4,
+  },
   segmentButton: {
     flex: 1,
     flexDirection: 'row',

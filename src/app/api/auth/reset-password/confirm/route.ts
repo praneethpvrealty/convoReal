@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
@@ -6,10 +6,7 @@ import crypto from 'crypto';
  * Verifies the HMAC-signed reset token.
  * Returns the userId if valid, or null if invalid/expired.
  */
-function verifyResetToken(
-  token: string,
-  secret: string
-): string | null {
+function verifyResetToken(token: string, secret: string): string | null {
   try {
     const decoded = Buffer.from(token, 'base64url').toString('utf-8');
     const parts = decoded.split('.');
@@ -62,10 +59,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    // eslint-disable-next-line convoreal/no-inline-service-role-client -- verifies the reset token, not a client
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseServiceKey) {
       return NextResponse.json(
         { error: 'Server configuration error' },
         { status: 500 }
@@ -76,19 +73,17 @@ export async function POST(request: Request) {
 
     if (!userId) {
       return NextResponse.json(
-        { error: 'This password reset link is invalid or has expired. Please request a new one.' },
+        {
+          error:
+            'This password reset link is invalid or has expired. Please request a new one.',
+        },
         { status: 400 }
       );
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    const admin = supabaseAdmin();
 
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    const { error } = await admin.auth.admin.updateUserById(userId, {
       password,
     });
 

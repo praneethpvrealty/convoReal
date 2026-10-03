@@ -1,13 +1,13 @@
-import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowRight, BookOpen, FileText, PlayCircle } from "lucide-react";
-import { BRANDING } from "@/config/branding";
-import { HELP_GUIDES } from "./guides";
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { ArrowRight, BookOpen, FileText, PlayCircle } from 'lucide-react';
+import { BRANDING } from '@/config/branding';
+import { HELP_GUIDES } from './guides';
 
 export const metadata: Metadata = {
-  title: "Help Centre",
+  title: 'Help Centre',
   description:
-    "Short, feature-focused ConvoReal guides for property consultants and agency teams.",
+    'Short, feature-focused ConvoReal guides for property consultants and agency teams.',
   alternates: { canonical: `${BRANDING.websiteUrl}/help` },
   robots: { index: true, follow: true },
 };
@@ -53,7 +53,7 @@ export default function HelpPage() {
             >
               <div className="mb-5 flex items-center justify-between">
                 <span className="rounded-full border border-indigo-500/25 bg-indigo-500/10 px-3 py-1 text-xs font-black text-indigo-300">
-                  GUIDE {String(index + 1).padStart(2, "0")}
+                  GUIDE {String(index + 1).padStart(2, '0')}
                 </span>
                 <span className="text-xs font-semibold text-slate-500">
                   {guide.readTime} read

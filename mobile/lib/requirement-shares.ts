@@ -2,10 +2,7 @@ import { apiFetch } from '@/lib/api';
 
 export type RequirementShareBox = 'received' | 'sent';
 export type RequirementShareStatus =
-  | 'sent'
-  | 'viewed'
-  | 'responded'
-  | 'declined';
+  'sent' | 'viewed' | 'responded' | 'declined';
 
 export interface RequirementBrief {
   reference: string;

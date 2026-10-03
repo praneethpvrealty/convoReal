@@ -36,7 +36,7 @@ export interface GroupConversationRef {
 
 /** Whether this conversation is a group rather than one contact. */
 export function isGroupConversation(
-  conversation: GroupConversationRef | null | undefined,
+  conversation: GroupConversationRef | null | undefined
 ): boolean {
   return Boolean(conversation?.group_id);
 }
@@ -70,7 +70,7 @@ export function refuseGroupSend(kind: string): string | null {
  * fallbacks at up to eight people at once. It stays out.
  */
 export function botMayReply(
-  conversation: GroupConversationRef | null | undefined,
+  conversation: GroupConversationRef | null | undefined
 ): boolean {
   return !isGroupConversation(conversation);
 }

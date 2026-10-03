@@ -1,4 +1,5 @@
 # Meta Onboarding & Onboarding Video Script
+
 ## Step-by-Step Guide: Meta Developer App, WhatsApp API, Commerce Catalog, and App Review
 
 This guide outlines the end-to-end steps required to set up a new WhatsApp Business API connection with Meta Catalog integration. You can use this document as a reference script or checklist to record your educational walkthrough videos for your application users.
@@ -8,6 +9,7 @@ This guide outlines the end-to-end steps required to set up a new WhatsApp Busin
 ## Overview of the Meta Ecosystem
 
 To send interactive **WhatsApp Product Cards**, four distinct assets must be connected:
+
 ```mermaid
 graph TD
     BA[Meta Business Portfolio] --> WA[WhatsApp Business Account]
@@ -76,7 +78,7 @@ By default, developer console tokens expire in 24 hours. Production deployments 
    - Check the following scopes:
      - `whatsapp_business_messaging` ✅
      - `whatsapp_business_management` ✅
-     - `catalog_management` ✅ *(Note: If this scope is missing, see Phase 6 below first)*.
+     - `catalog_management` ✅ _(Note: If this scope is missing, see Phase 6 below first)_.
    - Click **Generate Token** and copy the token. **Save it securely.**
 
 ---
@@ -86,6 +88,7 @@ By default, developer console tokens expire in 24 hours. Production deployments 
 To send Product Cards, your inventory must exist in a Meta Catalog.
 
 ### Step 1: Create the Catalog
+
 1. Open [Meta Commerce Manager](https://business.facebook.com/commerce).
 2. Click **Add Catalog**.
 3. Choose **Ecommerce** (suitable for product, real estate, and generic inventories).
@@ -94,11 +97,13 @@ To send Product Cards, your inventory must exist in a Meta Catalog.
 6. Go to **Settings** (gear icon) and copy the **Catalog ID** (e.g., `1547752690053122`).
 
 ### Step 2: Assign System User Access to the Catalog
+
 1. Go to [Meta Business Settings](https://business.facebook.com/settings) → **Data Sources** → **Catalogs**.
 2. Select your catalog.
 3. Click **Add People**, select your **System User**, toggle **Manage Catalog** to **On**, and click **Save**.
 
 ### Step 3: Link Catalog to WhatsApp Account
+
 1. Go to **Accounts** → **WhatsApp Accounts** in Business Settings.
 2. Select your account and click the **Settings** tab.
 3. Scroll to **Connected Assets** and click **Add Assets**.
@@ -113,11 +118,13 @@ To send Product Cards, your inventory must exist in a Meta Catalog.
 To go live for public clients, your Meta App must be approved for `catalog_management`.
 
 ### Step 1: Request Permission
+
 1. Go to the [Meta Developer Portal](https://developers.facebook.com/apps) and open your app.
 2. Go to **Review** → **Permissions and Features** in the sidebar.
 3. Search for `catalog_management` and click **Get Standard Access** / **Request**.
 
 ### Step 2: Complete App Settings
+
 1. Go to **App settings** → **Basic** in the sidebar.
 2. Enter the following mandatory information:
    - **App Domains:** Your Engine domain (e.g., `convoreal.com`).
@@ -129,6 +136,7 @@ To go live for public clients, your Meta App must be approved for `catalog_manag
 3. Click **Save changes**.
 
 ### Step 3: Complete Reviewer Instructions
+
 1. Go to **Review** → **App Review** in the sidebar.
 2. Click **Next** on the draft submission page.
 3. Click **Reviewer instructions** to expand it:
@@ -148,11 +156,11 @@ To go live for public clients, your Meta App must be approved for `catalog_manag
 
 ## Summary Checklist for End-Users
 
-| Phase | Task | Completed? |
-|---|---|---|
-| **Phase 1** | Meta Business Suite Account created | [ ] |
-| **Phase 2** | Developer App configured | [ ] |
-| **Phase 3** | WhatsApp Account & Phone Number verified | [ ] |
-| **Phase 4** | System User created and permanent token generated | [ ] |
-| **Phase 5** | Catalog created, linked to WABA, and assigned to System User | [ ] |
-| **Phase 6** | Basic App settings completed and submitted for review | [ ] |
+| Phase       | Task                                                         | Completed? |
+| ----------- | ------------------------------------------------------------ | ---------- |
+| **Phase 1** | Meta Business Suite Account created                          | [ ]        |
+| **Phase 2** | Developer App configured                                     | [ ]        |
+| **Phase 3** | WhatsApp Account & Phone Number verified                     | [ ]        |
+| **Phase 4** | System User created and permanent token generated            | [ ]        |
+| **Phase 5** | Catalog created, linked to WABA, and assigned to System User | [ ]        |
+| **Phase 6** | Basic App settings completed and submitted for review        | [ ]        |

@@ -1,9 +1,5 @@
 export type TodoCheckInKind =
-  | 'site_visit'
-  | 'call'
-  | 'meeting'
-  | 'document'
-  | 'follow_up';
+  'site_visit' | 'call' | 'meeting' | 'document' | 'follow_up';
 
 export function inferTodoCheckInKind(
   title: string,
@@ -15,7 +11,11 @@ export function inferTodoCheckInKind(
   }
   if (/\b(call|phone|spoke|speak)\b/.test(text)) return 'call';
   if (/\b(meet|meeting|appointment)\b/.test(text)) return 'meeting';
-  if (/\b(document|documents|doc|agreement|email|advocate|lawyer|legal)\b/.test(text)) {
+  if (
+    /\b(document|documents|doc|agreement|email|advocate|lawyer|legal)\b/.test(
+      text
+    )
+  ) {
     return 'document';
   }
   return 'follow_up';

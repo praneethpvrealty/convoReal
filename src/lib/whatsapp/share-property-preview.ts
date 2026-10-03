@@ -28,7 +28,10 @@ export function renderShareTemplateBody(
 ): string {
   return bodyText
     .replace(/\\n/g, '\n')
-    .replace(/\{\{(\d+)\}\}/g, (match, n: string) => params[Number(n) - 1] ?? match);
+    .replace(
+      /\{\{(\d+)\}\}/g,
+      (match, n: string) => params[Number(n) - 1] ?? match
+    );
 }
 
 export function buildSharePropertyPreview(opts: {

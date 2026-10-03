@@ -68,7 +68,10 @@ export function canRetryDeliveryFailure(
   message: Message,
   now: Date = new Date()
 ): boolean {
-  if (message.status !== 'failed' || !isMarketingBlockCode(errorCode(message))) {
+  if (
+    message.status !== 'failed' ||
+    !isMarketingBlockCode(errorCode(message))
+  ) {
     return true;
   }
   const at = retryAfter(message);

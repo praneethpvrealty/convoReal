@@ -43,7 +43,9 @@ function Probe() {
       <span data-testid="set">{languages.join(',')}</span>
       <button onClick={() => setLanguage('kn')}>use-kn</button>
       <button onClick={() => setLanguages(['en', 'kn'])}>set-en-kn</button>
-      <button onClick={() => setLanguages(['en', 'kn', 'ta'])}>set-three</button>
+      <button onClick={() => setLanguages(['en', 'kn', 'ta'])}>
+        set-three
+      </button>
     </div>
   );
 }
@@ -52,7 +54,7 @@ function renderProbe() {
   return render(
     <LocaleProvider>
       <Probe />
-    </LocaleProvider>,
+    </LocaleProvider>
   );
 }
 

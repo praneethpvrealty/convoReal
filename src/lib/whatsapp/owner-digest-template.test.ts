@@ -22,8 +22,12 @@ describe('buildOwnerDigestTemplatePayload', () => {
     const payload = buildOwnerDigestTemplatePayload();
     expect(payload.category).toBe('Utility');
     expect(payload.body_text).not.toMatch(/\bbuyer\b/i);
-    const quickReplies = (payload.buttons ?? []).filter((b) => b.type === 'QUICK_REPLY');
-    expect(quickReplies.map((b) => ('text' in b ? b.text : ''))).toContain('Pause updates');
+    const quickReplies = (payload.buttons ?? []).filter(
+      (b) => b.type === 'QUICK_REPLY'
+    );
+    expect(quickReplies.map((b) => ('text' in b ? b.text : ''))).toContain(
+      'Pause updates'
+    );
   });
 
   it('provides a sample value for every body param', () => {
@@ -49,18 +53,33 @@ describe('buildOwnerDigestParams', () => {
   });
 
   it('names the single property and falls back on the name', () => {
-    const params = buildOwnerDigestParams(null, ['Vacant Plot, JP Nagar'], 'today', '1 showcase view');
+    const params = buildOwnerDigestParams(
+      null,
+      ['Vacant Plot, JP Nagar'],
+      'today',
+      '1 showcase view'
+    );
     expect(params[0]).toBe('there');
     expect(params[1]).toBe('your listing "Vacant Plot, JP Nagar" (today)');
   });
 
   it('uses a count phrase for more than two properties', () => {
-    const params = buildOwnerDigestParams('Gopi', ['A', 'B', 'C'], 'this week', 'x');
+    const params = buildOwnerDigestParams(
+      'Gopi',
+      ['A', 'B', 'C'],
+      'this week',
+      'x'
+    );
     expect(params[1]).toBe('your 3 listings ("A" and more) (this week)');
   });
 
   it('never produces empty or multi-line params', () => {
-    const params = buildOwnerDigestParams('  ', ['', '  ', ''], 'this week', '');
+    const params = buildOwnerDigestParams(
+      '  ',
+      ['', '  ', ''],
+      'this week',
+      ''
+    );
     for (const p of params) {
       expect(p.length).toBeGreaterThan(0);
       expect(p).not.toMatch(/\n/);
@@ -79,7 +98,9 @@ describe('buildOwnerDigestConsentTemplatePayload', () => {
 
   it('offers exactly the Yes/No quick replies the webhook parser understands', () => {
     const payload = buildOwnerDigestConsentTemplatePayload();
-    const texts = (payload.buttons ?? []).map((b) => ('text' in b ? b.text : ''));
+    const texts = (payload.buttons ?? []).map((b) =>
+      'text' in b ? b.text : ''
+    );
     expect(texts).toEqual([CONSENT_YES_TEXT, CONSENT_NO_TEXT]);
   });
 
@@ -93,12 +114,20 @@ describe('buildOwnerDigestConsentTemplatePayload', () => {
 describe('buildOwnerDigestConsentParams', () => {
   it('builds first name and a listings phrase that names the properties', () => {
     expect(
-      buildOwnerDigestConsentParams('Gopi Krishnan', ['Premium Plot, Hoodi', 'Vacant Plot, JP Nagar'])
-    ).toEqual(['Gopi', 'your listings "Premium Plot, Hoodi" and "Vacant Plot, JP Nagar"']);
-    expect(buildOwnerDigestConsentParams(null, ['Premium Plot, Hoodi'])).toEqual([
-      'there',
-      'your listing "Premium Plot, Hoodi"',
+      buildOwnerDigestConsentParams('Gopi Krishnan', [
+        'Premium Plot, Hoodi',
+        'Vacant Plot, JP Nagar',
+      ])
+    ).toEqual([
+      'Gopi',
+      'your listings "Premium Plot, Hoodi" and "Vacant Plot, JP Nagar"',
     ]);
-    expect(buildOwnerDigestConsentParams(null, [''])).toEqual(['there', 'your listing']);
+    expect(
+      buildOwnerDigestConsentParams(null, ['Premium Plot, Hoodi'])
+    ).toEqual(['there', 'your listing "Premium Plot, Hoodi"']);
+    expect(buildOwnerDigestConsentParams(null, [''])).toEqual([
+      'there',
+      'your listing',
+    ]);
   });
 });

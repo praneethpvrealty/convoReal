@@ -28,7 +28,11 @@ describe('ask property chat', () => {
     );
 
     render(
-      <AskPropertyChat accountId="acct-1" propertyId="prop-1" propertyTitle="Test Villa" />
+      <AskPropertyChat
+        accountId="acct-1"
+        propertyId="prop-1"
+        propertyTitle="Test Villa"
+      />
     );
 
     fireEvent.click(

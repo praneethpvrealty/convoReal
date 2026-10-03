@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export async function POST(req: Request) {
   try {
@@ -21,7 +21,10 @@ export async function POST(req: Request) {
     const emailVal = email?.trim().toLowerCase();
 
     if (!nameVal || !emailVal) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
     }
 
     // Use admin client (bypasses RLS) to query profiles & create account securely
@@ -36,7 +39,9 @@ export async function POST(req: Request) {
     let resolvedAccountId = existingProfile?.account_id;
 
     if (!resolvedAccountId) {
-      console.log('[SETUP API] No account linked. Bootstrapping account via Admin Client...');
+      console.log(
+        '[SETUP API] No account linked. Bootstrapping account via Admin Client...'
+      );
       // 1. Insert new account (no RLS constraints since it's service role!)
       const { data: newAccount, error: accError } = await admin
         .from('accounts')
@@ -49,7 +54,12 @@ export async function POST(req: Request) {
 
       if (accError || !newAccount) {
         console.error('[SETUP API] Account insertion failed:', accError);
-        return NextResponse.json({ error: `Failed to bootstrap account: ${accError?.message || 'Unknown error'}` }, { status: 500 });
+        return NextResponse.json(
+          {
+            error: `Failed to bootstrap account: ${accError?.message || 'Unknown error'}`,
+          },
+          { status: 500 }
+        );
       }
 
       resolvedAccountId = newAccount.id;
@@ -79,7 +89,10 @@ export async function POST(req: Request) {
 
     if (profileError) {
       console.error('[SETUP API] Profile upsert failed:', profileError);
-      return NextResponse.json({ error: `Failed to save profile: ${profileError.message}` }, { status: 500 });
+      return NextResponse.json(
+        { error: `Failed to save profile: ${profileError.message}` },
+        { status: 500 }
+      );
     }
 
     // 3. Attempt to link/update the email address in Supabase Auth user metadata

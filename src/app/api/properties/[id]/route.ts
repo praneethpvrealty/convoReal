@@ -1,26 +1,30 @@
-import { NextResponse } from "next/server";
-import { requireRole, toErrorResponse } from "@/lib/auth/account";
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
-import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-helper";
-import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
-import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
-import { STARRED_PROPERTY_CAP } from "@/lib/starred-properties";
-import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
-import { sanitizeFloorPlans } from "@/lib/inventory/floor-plans";
+import { NextResponse } from 'next/server';
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
+import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
+import { geocodeAddress, hasGoogleMapsKey } from '@/lib/maps/google-places';
+import { resolveCoordinatesFromMapLink } from '@/lib/maps/resolve-location';
+import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
+import { sanitizeFloorTenancies } from '@/lib/inventory/floor-tenancies';
+import { sanitizeFloorPlans } from '@/lib/inventory/floor-plans';
 import {
   notifyBuyersOfPropertyStatus,
   shouldNotifyBuyersOfPropertyStatus,
-} from "@/lib/whatsapp/sold-notification";
-import { isoDateOrNull } from "@/lib/inventory/iso-date";
+} from '@/lib/whatsapp/sold-notification';
+import { isoDateOrNull } from '@/lib/inventory/iso-date';
 import {
   canViewExactLocation,
   maskPropertyForViewer,
-} from "@/lib/inventory/location-guard";
-import { applyGatingCustody } from "@/lib/inventory/gated-photos";
-import { rentalYieldPercent } from "@/lib/inventory/rental-yield";
-import { khataColumns } from "@/lib/inventory/e-khata-fields";
-import { supabaseAdmin } from "@/lib/supabase/admin";
-import type { Property } from "@/types";
+} from '@/lib/inventory/location-guard';
+import { applyGatingCustody } from '@/lib/inventory/gated-photos';
+import { rentalYieldPercent } from '@/lib/inventory/rental-yield';
+import { khataColumns } from '@/lib/inventory/e-khata-fields';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import type { Property } from '@/types';
 
 // GET /api/properties/[id]
 // Returns a single property with full relations (owner + interested_contacts)
@@ -29,34 +33,36 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ctx = await requireRole("viewer");
+    const ctx = await requireRole('viewer');
     const { id } = await params;
 
     if (!id) {
       return NextResponse.json(
-        { error: "Property ID is required" },
+        { error: 'Property ID is required' },
         { status: 400 }
       );
     }
 
     const { data, error } = await ctx.supabase
-      .from("properties")
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)")
-      .eq("id", id)
-      .eq("account_id", ctx.accountId)
+      .from('properties')
+      .select(
+        '*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)'
+      )
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
       .maybeSingle();
 
     if (error) {
-      console.error("[GET /api/properties/[id]] Select error:", error);
+      console.error('[GET /api/properties/[id]] Select error:', error);
       return NextResponse.json(
-        { error: "Failed to fetch property" },
+        { error: 'Failed to fetch property' },
         { status: 500 }
       );
     }
 
     if (!data) {
       return NextResponse.json(
-        { error: "Property not found" },
+        { error: 'Property not found' },
         { status: 404 }
       );
     }
@@ -79,7 +85,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ctx = await requireRole("agent");
+    const ctx = await requireRole('agent');
 
     // Rate limiting to prevent abuse
     const limit = await checkRateLimit(
@@ -91,7 +97,7 @@ export async function PUT(
     const { id } = await params;
     if (!id) {
       return NextResponse.json(
-        { error: "Property ID is required" },
+        { error: 'Property ID is required' },
         { status: 400 }
       );
     }
@@ -99,7 +105,7 @@ export async function PUT(
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json(
-        { error: "Invalid request body" },
+        { error: 'Invalid request body' },
         { status: 400 }
       );
     }
@@ -188,23 +194,31 @@ export async function PUT(
 
     if (latitude !== undefined) {
       updateData.latitude =
-        typeof latitude === "number" && Number.isFinite(latitude) ? latitude : null;
+        typeof latitude === 'number' && Number.isFinite(latitude)
+          ? latitude
+          : null;
     }
     if (longitude !== undefined) {
       updateData.longitude =
-        typeof longitude === "number" && Number.isFinite(longitude) ? longitude : null;
+        typeof longitude === 'number' && Number.isFinite(longitude)
+          ? longitude
+          : null;
     }
     if (locality_place_id !== undefined) {
       updateData.locality_place_id =
-        typeof locality_place_id === "string" ? locality_place_id.trim() || null : null;
+        typeof locality_place_id === 'string'
+          ? locality_place_id.trim() || null
+          : null;
     }
     if (locality_canonical !== undefined) {
       updateData.locality_canonical =
-        typeof locality_canonical === "string" ? locality_canonical.trim() || null : null;
+        typeof locality_canonical === 'string'
+          ? locality_canonical.trim() || null
+          : null;
     }
 
     if (title !== undefined) {
-      if (typeof title !== "string" || title.trim().length === 0) {
+      if (typeof title !== 'string' || title.trim().length === 0) {
         return NextResponse.json(
           { error: "'title' cannot be empty" },
           { status: 400 }
@@ -214,7 +228,7 @@ export async function PUT(
     }
 
     if (price !== undefined) {
-      if (typeof price !== "number" || price < 0) {
+      if (typeof price !== 'number' || price < 0) {
         return NextResponse.json(
           { error: "'price' must be a non-negative number" },
           { status: 400 }
@@ -229,13 +243,13 @@ export async function PUT(
     // they typed from one a bot proposal wrote.
     const sellerPriceEdits = (
       [
-        ["seller_final_price", seller_final_price],
-        ["seller_final_price_per_sqft", seller_final_price_per_sqft],
+        ['seller_final_price', seller_final_price],
+        ['seller_final_price_per_sqft', seller_final_price_per_sqft],
       ] as const
     ).filter(([, value]) => value !== undefined);
 
     for (const [key, value] of sellerPriceEdits) {
-      if (value !== null && (typeof value !== "number" || value < 0)) {
+      if (value !== null && (typeof value !== 'number' || value < 0)) {
         return NextResponse.json(
           { error: `'${key}' must be a non-negative number or null` },
           { status: 400 }
@@ -248,13 +262,18 @@ export async function PUT(
     // while setting a rate is still a manual decision made just now.
     if (sellerPriceEdits.length > 0) {
       const anySet = sellerPriceEdits.some(([, value]) => value !== null);
-      updateData.seller_final_price_at = anySet ? new Date().toISOString() : null;
-      updateData.seller_final_price_source = anySet ? "manual" : null;
+      updateData.seller_final_price_at = anySet
+        ? new Date().toISOString()
+        : null;
+      updateData.seller_final_price_source = anySet ? 'manual' : null;
     }
 
     if (sold_price !== undefined) {
       // Optional final sale price (set while Sold; null clears it).
-      if (sold_price !== null && (typeof sold_price !== "number" || sold_price < 0)) {
+      if (
+        sold_price !== null &&
+        (typeof sold_price !== 'number' || sold_price < 0)
+      ) {
         return NextResponse.json(
           { error: "'sold_price' must be a non-negative number or null" },
           { status: 400 }
@@ -264,7 +283,7 @@ export async function PUT(
     }
 
     if (location !== undefined) {
-      if (typeof location !== "string" || location.trim().length === 0) {
+      if (typeof location !== 'string' || location.trim().length === 0) {
         return NextResponse.json(
           { error: "'location' cannot be empty" },
           { status: 400 }
@@ -274,7 +293,7 @@ export async function PUT(
     }
 
     if (type !== undefined) {
-      if (typeof type !== "string" || type.trim().length === 0) {
+      if (typeof type !== 'string' || type.trim().length === 0) {
         return NextResponse.json(
           { error: "'type' cannot be empty" },
           { status: 400 }
@@ -284,7 +303,7 @@ export async function PUT(
     }
 
     if (status !== undefined) {
-      if (typeof status !== "string" || status.trim().length === 0) {
+      if (typeof status !== 'string' || status.trim().length === 0) {
         return NextResponse.json(
           { error: "'status' cannot be empty" },
           { status: 400 }
@@ -294,55 +313,61 @@ export async function PUT(
     }
 
     if (description !== undefined) {
-      updateData.description = typeof description === "string" ? description.trim() : null;
+      updateData.description =
+        typeof description === 'string' ? description.trim() : null;
     }
 
     if (bedrooms !== undefined) {
-      updateData.bedrooms = typeof bedrooms === "number" ? bedrooms : null;
+      updateData.bedrooms = typeof bedrooms === 'number' ? bedrooms : null;
     }
 
     if (bathrooms !== undefined) {
-      updateData.bathrooms = typeof bathrooms === "number" ? bathrooms : null;
+      updateData.bathrooms = typeof bathrooms === 'number' ? bathrooms : null;
     }
 
     if (area_sqft !== undefined) {
-      updateData.area_sqft = typeof area_sqft === "number" ? area_sqft : null;
+      updateData.area_sqft = typeof area_sqft === 'number' ? area_sqft : null;
     }
 
     if (area_unit !== undefined) {
-      updateData.area_unit = typeof area_unit === "string" ? area_unit.trim() : "Sq.Ft.";
+      updateData.area_unit =
+        typeof area_unit === 'string' ? area_unit.trim() : 'Sq.Ft.';
     }
 
     if (land_area !== undefined) {
-      updateData.land_area = typeof land_area === "number" ? land_area : null;
+      updateData.land_area = typeof land_area === 'number' ? land_area : null;
     }
 
     if (land_area_unit !== undefined) {
-      updateData.land_area_unit = typeof land_area_unit === "string" ? land_area_unit.trim() : "Sq.Ft.";
+      updateData.land_area_unit =
+        typeof land_area_unit === 'string' ? land_area_unit.trim() : 'Sq.Ft.';
     }
 
     if (super_built_area !== undefined) {
-      updateData.super_built_area = typeof super_built_area === "number" ? super_built_area : null;
+      updateData.super_built_area =
+        typeof super_built_area === 'number' ? super_built_area : null;
     }
 
     if (sublocality !== undefined) {
-      updateData.sublocality = typeof sublocality === "string" ? sublocality.trim() : null;
+      updateData.sublocality =
+        typeof sublocality === 'string' ? sublocality.trim() : null;
     }
 
     if (city !== undefined) {
-      updateData.city = typeof city === "string" ? city.trim() : null;
+      updateData.city = typeof city === 'string' ? city.trim() : null;
     }
 
     if (state !== undefined) {
-      updateData.state = typeof state === "string" ? state.trim() : null;
+      updateData.state = typeof state === 'string' ? state.trim() : null;
     }
 
     if (project !== undefined) {
-      updateData.project = typeof project === "string" ? project.trim() : null;
+      updateData.project = typeof project === 'string' ? project.trim() : null;
     }
 
     if (is_published !== undefined) {
-      updateData.is_published = typeof is_published === "boolean" ? is_published : false;
+      updateData.is_published =
+        typeof is_published === 'boolean' ? is_published : false;
     }
 
     if (is_starred !== undefined) {
@@ -350,14 +375,16 @@ export async function PUT(
       if (nextStarred) {
         // Cap enforced server-side so racing clients can't exceed it.
         const { count } = await ctx.supabase
-          .from("properties")
-          .select("id", { count: "exact", head: true })
-          .eq("account_id", ctx.accountId)
-          .eq("is_starred", true)
-          .neq("id", id);
+          .from('properties')
+          .select('id', { count: 'exact', head: true })
+          .eq('account_id', ctx.accountId)
+          .eq('is_starred', true)
+          .neq('id', id);
         if ((count ?? 0) >= STARRED_PROPERTY_CAP) {
           return NextResponse.json(
-            { error: `You can star up to ${STARRED_PROPERTY_CAP} properties. Unstar one first.` },
+            {
+              error: `You can star up to ${STARRED_PROPERTY_CAP} properties. Unstar one first.`,
+            },
             { status: 400 }
           );
         }
@@ -366,65 +393,89 @@ export async function PUT(
     }
 
     if (features !== undefined) {
-      updateData.features = Array.isArray(features) ? features.filter(f => typeof f === "string") : [];
+      updateData.features = Array.isArray(features)
+        ? features.filter((f) => typeof f === 'string')
+        : [];
     }
 
     if (images !== undefined) {
-      updateData.images = Array.isArray(images) ? images.filter(img => typeof img === "string") : [];
+      updateData.images = Array.isArray(images)
+        ? images.filter((img) => typeof img === 'string')
+        : [];
     }
 
     if (documents !== undefined) {
-      updateData.documents = Array.isArray(documents) ? documents.filter(d => typeof d === "string") : [];
+      updateData.documents = Array.isArray(documents)
+        ? documents.filter((d) => typeof d === 'string')
+        : [];
     }
 
     if (land_zone !== undefined) {
-      updateData.land_zone = typeof land_zone === "string" ? land_zone.trim() : null;
+      updateData.land_zone =
+        typeof land_zone === 'string' ? land_zone.trim() : null;
     }
 
     if (ideal_for !== undefined) {
-      updateData.ideal_for = typeof ideal_for === "string" ? ideal_for.trim() : null;
+      updateData.ideal_for =
+        typeof ideal_for === 'string' ? ideal_for.trim() : null;
     }
 
     if (ownership_status !== undefined) {
-      updateData.ownership_status = typeof ownership_status === "string" ? ownership_status.trim() || null : null;
+      updateData.ownership_status =
+        typeof ownership_status === 'string'
+          ? ownership_status.trim() || null
+          : null;
     }
 
     if (land_use_zoning !== undefined) {
-      updateData.land_use_zoning = typeof land_use_zoning === "string" ? land_use_zoning.trim() || null : null;
+      updateData.land_use_zoning =
+        typeof land_use_zoning === 'string'
+          ? land_use_zoning.trim() || null
+          : null;
     }
 
     if (legal_status !== undefined) {
-      updateData.legal_status = typeof legal_status === "string" ? legal_status.trim() || null : null;
+      updateData.legal_status =
+        typeof legal_status === 'string' ? legal_status.trim() || null : null;
     }
 
     if (conversion_type !== undefined) {
-      updateData.conversion_type = typeof conversion_type === "string" ? conversion_type.trim() || null : null;
+      updateData.conversion_type =
+        typeof conversion_type === 'string'
+          ? conversion_type.trim() || null
+          : null;
     }
 
     if (deal_remarks !== undefined) {
-      updateData.deal_remarks = typeof deal_remarks === "string" ? deal_remarks.trim() || null : null;
+      updateData.deal_remarks =
+        typeof deal_remarks === 'string' ? deal_remarks.trim() || null : null;
     }
 
     if (dimensions !== undefined) {
-      updateData.dimensions = typeof dimensions === "string" ? dimensions.trim() : null;
+      updateData.dimensions =
+        typeof dimensions === 'string' ? dimensions.trim() : null;
     }
 
     if (road_width !== undefined) {
-      updateData.road_width = typeof road_width === "number" ? road_width : null;
+      updateData.road_width =
+        typeof road_width === 'number' ? road_width : null;
     }
 
     if (road_width_unit !== undefined) {
-      updateData.road_width_unit = typeof road_width_unit === "string" ? road_width_unit.trim() : "Feet";
+      updateData.road_width_unit =
+        typeof road_width_unit === 'string' ? road_width_unit.trim() : 'Feet';
     }
 
     if (facing_direction !== undefined) {
-      updateData.facing_direction = typeof facing_direction === "string" ? facing_direction.trim() : null;
+      updateData.facing_direction =
+        typeof facing_direction === 'string' ? facing_direction.trim() : null;
     }
 
     Object.assign(updateData, khataColumns(body));
 
     if (furnishing !== undefined) {
-      updateData.furnishing = typeof furnishing === "string" ? furnishing.trim() || null : null;
+      updateData.furnishing =
+        typeof furnishing === 'string' ? furnishing.trim() || null : null;
     }
 
     if (possession_date !== undefined) {
@@ -432,55 +483,71 @@ export async function PUT(
     }
 
     if (floor_number !== undefined) {
-      updateData.floor_number = typeof floor_number === "number" ? floor_number : null;
+      updateData.floor_number =
+        typeof floor_number === 'number' ? floor_number : null;
     }
 
     if (total_floors !== undefined) {
-      updateData.total_floors = typeof total_floors === "number" ? total_floors : null;
+      updateData.total_floors =
+        typeof total_floors === 'number' ? total_floors : null;
     }
 
     if (balconies !== undefined) {
-      updateData.balconies = typeof balconies === "number" ? balconies : null;
+      updateData.balconies = typeof balconies === 'number' ? balconies : null;
     }
 
     if (flooring !== undefined) {
-      updateData.flooring = typeof flooring === "string" ? flooring.trim() || null : null;
+      updateData.flooring =
+        typeof flooring === 'string' ? flooring.trim() || null : null;
     }
 
     if (power_backup !== undefined) {
-      updateData.power_backup = typeof power_backup === "string" ? power_backup.trim() || null : null;
+      updateData.power_backup =
+        typeof power_backup === 'string' ? power_backup.trim() || null : null;
     }
 
     if (nearby_highlights !== undefined) {
-      updateData.nearby_highlights = Array.isArray(nearby_highlights) ? nearby_highlights.filter(h => typeof h === "string") : [];
+      updateData.nearby_highlights = Array.isArray(nearby_highlights)
+        ? nearby_highlights.filter((h) => typeof h === 'string')
+        : [];
     }
 
     if (tags !== undefined) {
       updateData.tags = Array.isArray(tags)
-        ? tags.filter((t) => typeof t === "string" && t.trim().length > 0).map((t) => t.trim())
+        ? tags
+            .filter((t) => typeof t === 'string' && t.trim().length > 0)
+            .map((t) => t.trim())
         : [];
     }
 
     if (owner_contact_id !== undefined) {
-      updateData.owner_contact_id = typeof owner_contact_id === "string" && owner_contact_id.trim().length > 0 ? owner_contact_id.trim() : null;
+      updateData.owner_contact_id =
+        typeof owner_contact_id === 'string' &&
+        owner_contact_id.trim().length > 0
+          ? owner_contact_id.trim()
+          : null;
     }
 
     if (google_map_link !== undefined) {
-      updateData.google_map_link = typeof google_map_link === "string" ? google_map_link.trim() : null;
+      updateData.google_map_link =
+        typeof google_map_link === 'string' ? google_map_link.trim() : null;
     }
     if (location_privacy !== undefined) {
       updateData.location_privacy =
-        location_privacy === "exact" || location_privacy === "locality" ? location_privacy : null;
+        location_privacy === 'exact' || location_privacy === 'locality'
+          ? location_privacy
+          : null;
     }
     if (showcase_visibility !== undefined) {
       updateData.showcase_visibility =
-        showcase_visibility === "teaser" || showcase_visibility === "open"
+        showcase_visibility === 'teaser' || showcase_visibility === 'open'
           ? showcase_visibility
           : null;
     }
 
     if (rental_income !== undefined) {
-      updateData.rental_income = typeof rental_income === "number" ? rental_income : null;
+      updateData.rental_income =
+        typeof rental_income === 'number' ? rental_income : null;
     }
 
     if (floor_plans !== undefined) {
@@ -491,81 +558,105 @@ export async function PUT(
     }
 
     if (listing_source !== undefined) {
-      updateData.listing_source = listing_source === "agent" ? "agent" : "owner";
+      updateData.listing_source =
+        listing_source === 'agent' ? 'agent' : 'owner';
     }
 
-    const VALID_LISTING_TYPES = ["Sale", "Rent", "JV/JD", "Built to Suit"];
+    const VALID_LISTING_TYPES = ['Sale', 'Rent', 'JV/JD', 'Built to Suit'];
     if (listing_type !== undefined) {
-      updateData.listing_type = VALID_LISTING_TYPES.includes(listing_type) ? listing_type : "Sale";
+      updateData.listing_type = VALID_LISTING_TYPES.includes(listing_type)
+        ? listing_type
+        : 'Sale';
     }
 
     if (rent_per_month !== undefined) {
-      updateData.rent_per_month = typeof rent_per_month === "number" ? rent_per_month : null;
+      updateData.rent_per_month =
+        typeof rent_per_month === 'number' ? rent_per_month : null;
     }
 
     if (maintenance !== undefined) {
-      updateData.maintenance = typeof maintenance === "number" ? maintenance : null;
+      updateData.maintenance =
+        typeof maintenance === 'number' ? maintenance : null;
     }
 
     if (advance !== undefined) {
-      updateData.advance = typeof advance === "number" ? advance : null;
+      updateData.advance = typeof advance === 'number' ? advance : null;
     }
 
     if (gst !== undefined) {
-      updateData.gst = typeof gst === "number" ? gst : null;
+      updateData.gst = typeof gst === 'number' ? gst : null;
     }
 
     if (jv_structure !== undefined) {
-      updateData.jv_structure = ["Revenue Share", "Area Share", "Hybrid"].includes(jv_structure) ? jv_structure : null;
+      updateData.jv_structure = [
+        'Revenue Share',
+        'Area Share',
+        'Hybrid',
+      ].includes(jv_structure)
+        ? jv_structure
+        : null;
     }
 
     if (owner_share_percent !== undefined) {
-      updateData.owner_share_percent = typeof owner_share_percent === "number" ? owner_share_percent : null;
+      updateData.owner_share_percent =
+        typeof owner_share_percent === 'number' ? owner_share_percent : null;
     }
 
     if (builder_share_percent !== undefined) {
-      updateData.builder_share_percent = typeof builder_share_percent === "number" ? builder_share_percent : null;
+      updateData.builder_share_percent =
+        typeof builder_share_percent === 'number'
+          ? builder_share_percent
+          : null;
     }
 
     if (goodwill_amount !== undefined) {
-      updateData.goodwill_amount = typeof goodwill_amount === "number" ? goodwill_amount : null;
+      updateData.goodwill_amount =
+        typeof goodwill_amount === 'number' ? goodwill_amount : null;
     }
 
     if (bts_lease_years !== undefined) {
-      updateData.bts_lease_years = typeof bts_lease_years === "number" ? bts_lease_years : null;
+      updateData.bts_lease_years =
+        typeof bts_lease_years === 'number' ? bts_lease_years : null;
     }
 
     if (bts_lock_in_years !== undefined) {
-      updateData.bts_lock_in_years = typeof bts_lock_in_years === "number" ? bts_lock_in_years : null;
+      updateData.bts_lock_in_years =
+        typeof bts_lock_in_years === 'number' ? bts_lock_in_years : null;
     }
 
     if (bts_escalation_percent !== undefined) {
-      updateData.bts_escalation_percent = typeof bts_escalation_percent === "number" ? bts_escalation_percent : null;
+      updateData.bts_escalation_percent =
+        typeof bts_escalation_percent === 'number'
+          ? bts_escalation_percent
+          : null;
     }
 
     if (notes !== undefined) {
-      updateData.notes = typeof notes === "string" ? notes.trim() || null : null;
+      updateData.notes =
+        typeof notes === 'string' ? notes.trim() || null : null;
     }
 
     // Verify it exists in this account before updating (defensive check)
     const { data: existing, error: findError } = await ctx.supabase
-      .from("properties")
-      .select("id, type, user_id, location_privacy, status, showcase_visibility, images, private_images, gated_locked_images, listing_type, price, rental_income")
-      .eq("id", id)
-      .eq("account_id", ctx.accountId)
+      .from('properties')
+      .select(
+        'id, type, user_id, location_privacy, status, showcase_visibility, images, private_images, gated_locked_images, listing_type, price, rental_income'
+      )
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
       .maybeSingle();
 
     if (findError) {
-      console.error("[PUT /api/properties/[id]] Find error:", findError);
+      console.error('[PUT /api/properties/[id]] Find error:', findError);
       return NextResponse.json(
-        { error: "Error checking property existence" },
+        { error: 'Error checking property existence' },
         { status: 500 }
       );
     }
 
     if (!existing) {
       return NextResponse.json(
-        { error: "Property not found or access denied" },
+        { error: 'Property not found or access denied' },
         { status: 404 }
       );
     }
@@ -598,7 +689,11 @@ export async function PUT(
     if (
       !canViewExactLocation(
         { role: ctx.role, userId: ctx.userId },
-        existing as { type: string; user_id: string | null; location_privacy?: string | null }
+        existing as {
+          type: string;
+          user_id: string | null;
+          location_privacy?: string | null;
+        }
       )
     ) {
       delete updateData.location;
@@ -626,8 +721,8 @@ export async function PUT(
     if (updateData.showcase_visibility !== undefined) {
       const wasGated =
         (existing as { showcase_visibility?: string | null })
-          .showcase_visibility === "teaser";
-      const willGate = updateData.showcase_visibility === "teaser";
+          .showcase_visibility === 'teaser';
+      const willGate = updateData.showcase_visibility === 'teaser';
       if (wasGated !== willGate) {
         try {
           const custodyUpdate = await applyGatingCustody(
@@ -637,12 +732,12 @@ export async function PUT(
               private_images?: string[] | null;
               gated_locked_images?: string[] | null;
             },
-            willGate ? "lock" : "unlock"
+            willGate ? 'lock' : 'unlock'
           );
           if (custodyUpdate) Object.assign(updateData, custodyUpdate);
         } catch (custodyErr) {
           console.error(
-            "[PUT /api/properties/[id]] Photo custody failed:",
+            '[PUT /api/properties/[id]] Photo custody failed:',
             custodyErr
           );
           return NextResponse.json(
@@ -659,22 +754,34 @@ export async function PUT(
     // The pin wins over address-derived coordinates (see POST) whenever
     // this update sets a map link — including when it only re-saves the
     // link the property already had.
-    if (typeof updateData.google_map_link === "string" && updateData.google_map_link) {
+    if (
+      typeof updateData.google_map_link === 'string' &&
+      updateData.google_map_link
+    ) {
       try {
-        const pinned = await resolveCoordinatesFromMapLink(updateData.google_map_link);
+        const pinned = await resolveCoordinatesFromMapLink(
+          updateData.google_map_link
+        );
         if (pinned) {
           updateData.latitude = pinned.latitude;
           updateData.longitude = pinned.longitude;
         }
       } catch (pinErr) {
-        console.warn("[PUT /api/properties/[id]] Map-pin coordinates failed:", pinErr);
+        console.warn(
+          '[PUT /api/properties/[id]] Map-pin coordinates failed:',
+          pinErr
+        );
       }
     }
 
     // An edited address is a new address: lift the self-heal cooldown so a
     // corrected city or state gets another geocode. The fallback below
     // re-stamps it when the full address is a definitive miss.
-    if ("location" in updateData || "city" in updateData || "state" in updateData) {
+    if (
+      'location' in updateData ||
+      'city' in updateData ||
+      'state' in updateData
+    ) {
       updateData.geocode_attempted_at = null;
     }
 
@@ -682,7 +789,7 @@ export async function PUT(
     // carries no coordinates (typed edit, WhatsApp-intake correction, etc.)
     // so radius search keeps covering the property. Never blocks the save.
     if (
-      typeof updateData.location === "string" &&
+      typeof updateData.location === 'string' &&
       updateData.latitude == null &&
       updateData.longitude == null &&
       hasGoogleMapsKey()
@@ -690,8 +797,8 @@ export async function PUT(
       try {
         const geo = await geocodeAddress(
           [updateData.location, updateData.city, updateData.state]
-            .filter((v): v is string => typeof v === "string" && v.length > 0)
-            .join(", ")
+            .filter((v): v is string => typeof v === 'string' && v.length > 0)
+            .join(', ')
         );
         if (geo) {
           updateData.latitude = geo.latitude;
@@ -703,68 +810,75 @@ export async function PUT(
           updateData.geocode_attempted_at = new Date().toISOString();
         }
       } catch (geoErr) {
-        console.warn("[PUT /api/properties/[id]] Geocode fallback failed:", geoErr);
+        console.warn(
+          '[PUT /api/properties/[id]] Geocode fallback failed:',
+          geoErr
+        );
       }
     }
 
     const { data: updated, error: updateError } = await ctx.supabase
-      .from("properties")
+      .from('properties')
       .update(updateData)
-      .eq("id", id)
-      .eq("account_id", ctx.accountId)
-      .select("id");
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
+      .select('id');
 
     if (!updateError && !updated?.length) {
       return NextResponse.json(
-        { error: "Property not found" },
+        { error: 'Property not found' },
         { status: 404 }
       );
     }
 
     if (updateError) {
-      console.error("[PUT /api/properties/[id]] Update error:", updateError);
+      console.error('[PUT /api/properties/[id]] Update error:', updateError);
       return NextResponse.json(
-        { error: "Failed to update property" },
+        { error: 'Failed to update property' },
         { status: 500 }
       );
     }
 
     if (interested_contact_ids !== undefined) {
-      const interestedContactIds = Array.isArray(interested_contact_ids) ? interested_contact_ids : [];
+      const interestedContactIds = Array.isArray(interested_contact_ids)
+        ? interested_contact_ids
+        : [];
 
       // Clear contacts that were pointing to this property but are not in the new checked list
       const { data: previouslyLinked } = await ctx.supabase
-        .from("contacts")
-        .select("id")
-        .eq("last_inquired_property_id", id);
+        .from('contacts')
+        .select('id')
+        .eq('last_inquired_property_id', id);
 
       if (previouslyLinked) {
         const previouslyLinkedIds = previouslyLinked.map((c) => c.id);
-        const toRemove = previouslyLinkedIds.filter((id) => !interestedContactIds.includes(id));
+        const toRemove = previouslyLinkedIds.filter(
+          (id) => !interestedContactIds.includes(id)
+        );
 
         if (toRemove.length > 0) {
           await ctx.supabase
-            .from("contacts")
+            .from('contacts')
             // Detaching contacts whose interest was removed; the listing
             // is already saved and a contact that has since gone needs no
             // detaching.
             // eslint-disable-next-line convoreal/supabase-write-guard
             .update({ last_inquired_property_id: null })
-            .in("id", toRemove);
+            .in('id', toRemove);
         }
       }
 
       // Link the new ones
       if (interestedContactIds.length > 0) {
         const { data: linkedContacts } = await ctx.supabase
-          .from("contacts")
+          .from('contacts')
           .update({ last_inquired_property_id: id })
-          .in("id", interestedContactIds)
-          .select("id");
+          .in('id', interestedContactIds)
+          .select('id');
         if (linkedContacts?.length !== interestedContactIds.length) {
           console.warn(
-            "[PUT /api/properties/[id]] Interested contacts not all linked:",
-            `${linkedContacts?.length ?? 0} of ${interestedContactIds.length}`,
+            '[PUT /api/properties/[id]] Interested contacts not all linked:',
+            `${linkedContacts?.length ?? 0} of ${interestedContactIds.length}`
           );
         }
       }
@@ -772,31 +886,47 @@ export async function PUT(
 
     // Fetch the updated property with relations
     const { data: finalData, error: fetchErr } = await ctx.supabase
-      .from("properties")
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)")
-      .eq("id", id)
-      .eq("account_id", ctx.accountId)
+      .from('properties')
+      .select(
+        '*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)'
+      )
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
       .single();
 
     if (fetchErr || !finalData) {
-      console.error("[PUT /api/properties/[id]] Fetch final error:", fetchErr);
+      console.error('[PUT /api/properties/[id]] Fetch final error:', fetchErr);
       return NextResponse.json(
-        { error: "Failed to retrieve updated property" },
+        { error: 'Failed to retrieve updated property' },
         { status: 500 }
       );
     }
 
-    autoSyncPropertyCatalogIfNeeded(ctx.supabase, finalData.id, ctx.accountId).catch((err) => {
-      console.error("[PUT /api/properties/[id]] Auto-sync background error:", err);
+    autoSyncPropertyCatalogIfNeeded(
+      ctx.supabase,
+      finalData.id,
+      ctx.accountId
+    ).catch((err) => {
+      console.error(
+        '[PUT /api/properties/[id]] Auto-sync background error:',
+        err
+      );
     });
 
     // Tell everyone who showed interest or received the listing when its
     // buyer-visible lifecycle status changes. Internal moderation states
     // deliberately stay private.
-    if (shouldNotifyBuyersOfPropertyStatus(existing.status, updateData.status)) {
-      notifyBuyersOfPropertyStatus(ctx.accountId, id, updateData.status).catch((err) => {
-        console.error("[PUT /api/properties/[id]] Property status notification background error:", err);
-      });
+    if (
+      shouldNotifyBuyersOfPropertyStatus(existing.status, updateData.status)
+    ) {
+      notifyBuyersOfPropertyStatus(ctx.accountId, id, updateData.status).catch(
+        (err) => {
+          console.error(
+            '[PUT /api/properties/[id]] Property status notification background error:',
+            err
+          );
+        }
+      );
     }
 
     return NextResponse.json(finalData);
@@ -812,7 +942,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ctx = await requireRole("agent");
+    const ctx = await requireRole('agent');
 
     // Rate limiting to prevent abuse
     const limit = await checkRateLimit(
@@ -824,52 +954,52 @@ export async function DELETE(
     const { id } = await params;
     if (!id) {
       return NextResponse.json(
-        { error: "Property ID is required" },
+        { error: 'Property ID is required' },
         { status: 400 }
       );
     }
 
     // Verify it exists in this account before deleting (defensive check)
     const { data: existing, error: findError } = await ctx.supabase
-      .from("properties")
-      .select("id")
-      .eq("id", id)
-      .eq("account_id", ctx.accountId)
+      .from('properties')
+      .select('id')
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
       .maybeSingle();
 
     if (findError) {
-      console.error("[DELETE /api/properties/[id]] Find error:", findError);
+      console.error('[DELETE /api/properties/[id]] Find error:', findError);
       return NextResponse.json(
-        { error: "Error checking property existence" },
+        { error: 'Error checking property existence' },
         { status: 500 }
       );
     }
 
     if (!existing) {
       return NextResponse.json(
-        { error: "Property not found or access denied" },
+        { error: 'Property not found or access denied' },
         { status: 404 }
       );
     }
 
     const { data, error } = await ctx.supabase
-      .from("properties")
+      .from('properties')
       .delete()
-      .eq("id", id)
-      .eq("account_id", ctx.accountId)
-      .select("id");
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
+      .select('id');
 
     if (error) {
-      console.error("[DELETE /api/properties/[id]] Delete error:", error);
+      console.error('[DELETE /api/properties/[id]] Delete error:', error);
       return NextResponse.json(
-        { error: "Failed to delete property" },
+        { error: 'Failed to delete property' },
         { status: 500 }
       );
     }
 
     if (!data?.length) {
       return NextResponse.json(
-        { error: "Property not found" },
+        { error: 'Property not found' },
         { status: 404 }
       );
     }

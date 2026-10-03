@@ -19,7 +19,7 @@ function creds() {
       .map((l) => {
         const i = l.indexOf('=');
         return [l.slice(0, i), l.slice(i + 1)];
-      }),
+      })
   );
   if (!env.E2E_EMAIL) throw new Error('Run `npx tsx e2e/provision.ts` first.');
   return env;
@@ -28,9 +28,12 @@ function creds() {
 async function settle(page: Page) {
   await page
     .waitForFunction(
-      () => ((document.querySelector('main') ?? document.body) as HTMLElement).innerText.trim().length > 40,
+      () =>
+        (
+          (document.querySelector('main') ?? document.body) as HTMLElement
+        ).innerText.trim().length > 40,
       undefined,
-      { timeout: 60_000, polling: 250 },
+      { timeout: 60_000, polling: 250 }
     )
     .catch(() => {});
   await page.waitForTimeout(2500);
@@ -56,7 +59,7 @@ async function main() {
           localStorage.setItem('convoreal.theme', theme);
           localStorage.setItem('convoreal.mode', m);
         },
-        [env.E2E_ACCOUNT_ID, THEME, mode] as const,
+        [env.E2E_ACCOUNT_ID, THEME, mode] as const
       );
 
       await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
@@ -70,7 +73,9 @@ async function main() {
         await page.waitForTimeout(500);
       }
       await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-      await page.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 30_000 });
+      await page.waitForURL((u) => !u.pathname.includes('/login'), {
+        timeout: 30_000,
+      });
 
       for (const [name, path] of [
         ['dashboard', '/dashboard'],
@@ -80,7 +85,10 @@ async function main() {
       ] as const) {
         await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
         await settle(page);
-        await page.screenshot({ path: `${SHOTS}/${THEME}-${mode}-${name}.png`, fullPage: false });
+        await page.screenshot({
+          path: `${SHOTS}/${THEME}-${mode}-${name}.png`,
+          fullPage: false,
+        });
         console.log(`  ▸ ${SHOTS}/${THEME}-${mode}-${name}.png`);
       }
       await page.close();
@@ -91,4 +99,7 @@ async function main() {
   console.log('done');
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

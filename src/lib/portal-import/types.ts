@@ -37,7 +37,8 @@ export interface HarvestPayload {
   accountStats?: HarvestedAccountStats;
 }
 
-export type ParsedPortalStatus = 'active' | 'expired' | 'under_review' | 'inactive';
+export type ParsedPortalStatus =
+  'active' | 'expired' | 'under_review' | 'inactive';
 
 /** Server-side parse of one HarvestedListing. */
 export interface ParsedListing {

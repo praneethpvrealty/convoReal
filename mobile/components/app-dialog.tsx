@@ -1,5 +1,12 @@
 import { useCallback, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -66,9 +73,18 @@ export function AppDialog({
     : [{ label: 'OK', variant: 'primary', onPress: onClose }];
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
       <Pressable
-        style={[styles.backdrop, { backgroundColor: colors.backdrop, paddingBottom: insets.bottom }]}
+        style={[
+          styles.backdrop,
+          { backgroundColor: colors.backdrop, paddingBottom: insets.bottom },
+        ]}
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel="Dismiss"
@@ -78,17 +94,30 @@ export function AppDialog({
           accessibilityViewIsModal
           style={[
             styles.card,
-            { backgroundColor: colors.surfaceWell, borderColor: colors.glassBorder },
+            {
+              backgroundColor: colors.surfaceWell,
+              borderColor: colors.glassBorder,
+            },
           ]}
         >
-          <Text style={{ fontSize: 17, fontFamily: f.bold, color: colors.text }}>{title}</Text>
+          <Text
+            style={{ fontSize: 17, fontFamily: f.bold, color: colors.text }}
+          >
+            {title}
+          </Text>
           {message ? (
             // Scrolls rather than growing: a long message on a short
             // screen — landscape, or an unfolded device — would otherwise
             // push the actions past the bottom of the card, leaving a
             // confirmation with no reachable way to confirm.
             <ScrollView style={{ flexGrow: 0, flexShrink: 1 }}>
-              <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.textMuted }}>
+              <Text
+                style={{
+                  fontSize: 13.5,
+                  lineHeight: 20,
+                  color: colors.textMuted,
+                }}
+              >
                 {message}
               </Text>
             </ScrollView>
@@ -108,8 +137,16 @@ export function AppDialog({
                     isPrimary
                       ? { backgroundColor: colors.primary }
                       : isDestructive
-                        ? { backgroundColor: colors.dangerSoft, borderColor: colors.danger, borderWidth: 1 }
-                        : { backgroundColor: colors.glass, borderColor: colors.glassBorder, borderWidth: 1 },
+                        ? {
+                            backgroundColor: colors.dangerSoft,
+                            borderColor: colors.danger,
+                            borderWidth: 1,
+                          }
+                        : {
+                            backgroundColor: colors.glass,
+                            borderColor: colors.glassBorder,
+                            borderWidth: 1,
+                          },
                   ]}
                 >
                   <Text

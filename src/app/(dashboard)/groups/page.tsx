@@ -1,7 +1,7 @@
-import GroupsContent from "./groups-content";
+import GroupsContent from './groups-content';
 
 export const metadata = {
-  title: "WhatsApp Groups",
+  title: 'WhatsApp Groups',
 };
 
 export default function GroupsPage() {

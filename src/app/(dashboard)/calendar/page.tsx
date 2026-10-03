@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { cn } from "@/lib/utils";
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import { cn } from '@/lib/utils';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -32,24 +32,27 @@ import {
   RefreshCcw,
   Archive,
   Loader2,
-} from "lucide-react";
-import { toast } from "sonner";
-import { CalendarLoader } from "@/components/ui/calendar-loader";
-import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
-import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { SearchableContactMultiSelect } from "@/components/ui/searchable-contact-multi-select";
-import { SearchablePropertySelect } from "@/components/ui/searchable-property-select";
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { CalendarLoader } from '@/components/ui/calendar-loader';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
+import { SearchableContactMultiSelect } from '@/components/ui/searchable-contact-multi-select';
+import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import {
   linkedContactForProperty,
   linkedPropertyForContacts,
-} from "@/lib/calendar/auto-link";
-import { InfoHint } from "@/components/ui/info-hint";
-import { FavoriteButton } from "@/components/layout/favorite-button";
-import { SmartAddBar, ConfirmedEventDraft } from "@/components/calendar/smart-add-bar";
-import { TeamView } from "@/components/calendar/team-view";
-import { WeekView } from "@/components/calendar/week-view";
-import { AgendaView } from "@/components/calendar/agenda-view";
-import { TasksList } from "@/components/calendar/tasks-list";
+} from '@/lib/calendar/auto-link';
+import { InfoHint } from '@/components/ui/info-hint';
+import { FavoriteButton } from '@/components/layout/favorite-button';
+import {
+  SmartAddBar,
+  ConfirmedEventDraft,
+} from '@/components/calendar/smart-add-bar';
+import { TeamView } from '@/components/calendar/team-view';
+import { WeekView } from '@/components/calendar/week-view';
+import { AgendaView } from '@/components/calendar/agenda-view';
+import { TasksList } from '@/components/calendar/tasks-list';
 import {
   CalendarEvent,
   TeamMember,
@@ -62,9 +65,14 @@ import {
   eventTypeFields,
   eventTypeMeta,
   memberInitials,
-} from "@/components/calendar/event-types";
-import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from "@/lib/copilot/actions";
-import { deadlineLabel, loadDealDeadlines, todayDateKey, type DealDeadline } from "@/lib/deals/deadlines";
+} from '@/components/calendar/event-types';
+import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from '@/lib/copilot/actions';
+import {
+  deadlineLabel,
+  loadDealDeadlines,
+  todayDateKey,
+  type DealDeadline,
+} from '@/lib/deals/deadlines';
 import {
   DEAL_DATE_HORIZON_DAYS,
   DEAL_DATE_KIND_LABELS,
@@ -74,7 +82,7 @@ import {
   dealDateLocalDay,
   dealDatesInRange,
   localDateKey,
-} from "@/lib/calendar/deal-dates";
+} from '@/lib/calendar/deal-dates';
 import {
   ARCHIVED_VIEW_LABELS,
   ARCHIVED_VIEWS,
@@ -92,12 +100,16 @@ import {
   toArchivedView,
   type ArchivedView,
   type TaskSortMode,
-} from "@/lib/calendar/tasks-view";
+} from '@/lib/calendar/tasks-view';
 
-const EMPTY_EXTRAS: Record<EventFieldKey, string> = { agenda: "", minutes: "", outcome: "" };
+const EMPTY_EXTRAS: Record<EventFieldKey, string> = {
+  agenda: '',
+  minutes: '',
+  outcome: '',
+};
 
 function formatDateTimeLocal(d: Date) {
-  const pad = (n: number) => String(n).padStart(2, "0");
+  const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
@@ -109,7 +121,7 @@ interface Todo {
   title: string;
   description: string | null;
   due_date: string | null;
-  priority: "low" | "medium" | "high";
+  priority: 'low' | 'medium' | 'high';
   completed: boolean;
   contact_id?: string | null;
   property_id?: string | null;
@@ -150,10 +162,10 @@ interface SimpleProperty {
   images?: string[] | null;
 }
 
-type ViewMode = "month" | "week" | "team" | "agenda";
+type ViewMode = 'month' | 'week' | 'team' | 'agenda';
 
 /** The event types plus the deal dates pinned alongside them (CAL-008). */
-type CalendarTypeFilter = EventTypeKey | "all" | "deal";
+type CalendarTypeFilter = EventTypeKey | 'all' | 'deal';
 
 export default function CalendarPage() {
   const router = useRouter();
@@ -163,7 +175,7 @@ export default function CalendarPage() {
   const canEdit = !isViewer && !isReadOnly;
 
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [view, setView] = useState<ViewMode>("month");
+  const [view, setView] = useState<ViewMode>('month');
   const [appointments, setAppointments] = useState<CalendarEvent[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [contacts, setContacts] = useState<SimpleContact[]>([]);
@@ -172,19 +184,19 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [typeFilter, setTypeFilter] = useState<CalendarTypeFilter>("all");
-  const [memberFilter, setMemberFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<CalendarTypeFilter>('all');
+  const [memberFilter, setMemberFilter] = useState<string>('all');
 
   const searchParams = useSearchParams();
-  const requestedEventId = searchParams.get("eventId");
+  const requestedEventId = searchParams.get('eventId');
   const openedEventIdRef = useRef<string | null>(null);
-  const [todoFilter, setTodoFilter] = useState<"all" | "priority">("all");
+  const [todoFilter, setTodoFilter] = useState<'all' | 'priority'>('all');
 
   useEffect(() => {
-    if (searchParams.get("filter") === "priority") {
-      setTodoFilter("priority");
+    if (searchParams.get('filter') === 'priority') {
+      setTodoFilter('priority');
     } else {
-      setTodoFilter("all");
+      setTodoFilter('all');
     }
   }, [searchParams]);
 
@@ -193,54 +205,64 @@ export default function CalendarPage() {
   const [selectedAppt, setSelectedAppt] = useState<CalendarEvent | null>(null);
 
   // Appointment Form state
-  const [apptTitle, setApptTitle] = useState("");
-  const [apptDesc, setApptDesc] = useState("");
+  const [apptTitle, setApptTitle] = useState('');
+  const [apptDesc, setApptDesc] = useState('');
   const [apptContactIds, setApptContactIds] = useState<string[]>([]);
-  const [apptPropertyId, setApptPropertyId] = useState("");
-  const [apptStartTime, setApptStartTime] = useState("");
-  const [apptEndTime, setApptEndTime] = useState("");
-  const [apptLocation, setApptLocation] = useState("");
-  const [apptStatus, setApptStatus] = useState<"scheduled" | "completed" | "cancelled">("scheduled");
-  const [apptEventType, setApptEventType] = useState<EventTypeKey>("meeting");
-  const [apptAssignedTo, setApptAssignedTo] = useState("");
-  const [apptNotificationScope, setApptNotificationScope] = useState<"none" | "new" | "all">("new");
+  const [apptPropertyId, setApptPropertyId] = useState('');
+  const [apptStartTime, setApptStartTime] = useState('');
+  const [apptEndTime, setApptEndTime] = useState('');
+  const [apptLocation, setApptLocation] = useState('');
+  const [apptStatus, setApptStatus] = useState<
+    'scheduled' | 'completed' | 'cancelled'
+  >('scheduled');
+  const [apptEventType, setApptEventType] = useState<EventTypeKey>('meeting');
+  const [apptAssignedTo, setApptAssignedTo] = useState('');
+  const [apptNotificationScope, setApptNotificationScope] = useState<
+    'none' | 'new' | 'all'
+  >('new');
   // Type-specific structured notes (agenda / minutes / outcome).
-  const [apptExtras, setApptExtras] = useState<Record<EventFieldKey, string>>({ ...EMPTY_EXTRAS });
+  const [apptExtras, setApptExtras] = useState<Record<EventFieldKey, string>>({
+    ...EMPTY_EXTRAS,
+  });
 
   // Todo Form state
-  const [todoTitle, setTodoTitle] = useState("");
-  const [todoDesc, setTodoDesc] = useState("");
-  const [todoDueDate, setTodoDueDate] = useState("");
-  const [todoPriority, setTodoPriority] = useState<"low" | "medium" | "high">("medium");
+  const [todoTitle, setTodoTitle] = useState('');
+  const [todoDesc, setTodoDesc] = useState('');
+  const [todoDueDate, setTodoDueDate] = useState('');
+  const [todoPriority, setTodoPriority] = useState<'low' | 'medium' | 'high'>(
+    'medium'
+  );
 
   // Tasks list under the calendar (CAL-010)
   const [tasksOpen, setTasksOpen] = useState(true);
   const archivedViewWrites = useRef<Promise<void>>(Promise.resolve());
   const archivedViewLatest = useRef(0);
   const archivedViewQuery = useQuery({
-    queryKey: ["calendar-archived-view", user?.id],
+    queryKey: ['calendar-archived-view', user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("profiles")
-        .select("calendar_archived_view")
-        .eq("user_id", user!.id)
+        .from('profiles')
+        .select('calendar_archived_view')
+        .eq('user_id', user!.id)
         .maybeSingle();
       if (error) throw error;
       return toArchivedView(data?.calendar_archived_view);
     },
   });
-  const archivedView = archivedViewQuery.data ?? "greyed";
-  const [taskSort, setTaskSort] = useState<TaskSortMode>("upcoming");
+  const archivedView = archivedViewQuery.data ?? 'greyed';
+  const [taskSort, setTaskSort] = useState<TaskSortMode>('upcoming');
   const [taskBusyKey, setTaskBusyKey] = useState<string | null>(null);
 
   // Todo Modal/Edit state
   const [isTodoModalOpen, setIsTodoModalOpen] = useState(false);
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null);
-  const [editTodoTitle, setEditTodoTitle] = useState("");
-  const [editTodoDesc, setEditTodoDesc] = useState("");
-  const [editTodoDueDate, setEditTodoDueDate] = useState("");
-  const [editTodoPriority, setEditTodoPriority] = useState<"low" | "medium" | "high">("medium");
+  const [editTodoTitle, setEditTodoTitle] = useState('');
+  const [editTodoDesc, setEditTodoDesc] = useState('');
+  const [editTodoDueDate, setEditTodoDueDate] = useState('');
+  const [editTodoPriority, setEditTodoPriority] = useState<
+    'low' | 'medium' | 'high'
+  >('medium');
   const [editTodoCompleted, setEditTodoCompleted] = useState(false);
 
   // Fetch appointments and todos
@@ -249,40 +271,46 @@ export default function CalendarPage() {
       setLoading(true);
 
       const { data: appts, error: apptError } = await supabase
-        .from("appointments")
-        .select("*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)")
-        .eq("account_id", accountId)
-        .order("start_time", { ascending: true });
+        .from('appointments')
+        .select(
+          '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
+        )
+        .eq('account_id', accountId)
+        .order('start_time', { ascending: true });
 
       if (apptError) throw apptError;
       setAppointments((appts || []) as CalendarEvent[]);
 
       const { data: todoList, error: todoError } = await supabase
-        .from("todos")
-        .select("*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)")
-        .eq("account_id", accountId)
-        .order("created_at", { ascending: true });
+        .from('todos')
+        .select(
+          '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
+        )
+        .eq('account_id', accountId)
+        .order('created_at', { ascending: true });
 
       if (todoError) throw todoError;
       setTodos(todoList || []);
 
       const { data: contactsList } = await supabase
-        .from("contacts")
-        .select("id, name, phone, last_inquired_property_id, name_tag")
-        .eq("account_id", accountId)
-        .order("name");
+        .from('contacts')
+        .select('id, name, phone, last_inquired_property_id, name_tag')
+        .eq('account_id', accountId)
+        .order('name');
       setContacts(contactsList || []);
 
       const { data: propsList } = await supabase
-        .from("properties")
-        .select("id, title, property_code, location, sublocality, tags, price, type, bedrooms, area_sqft, area_unit, images")
-        .eq("account_id", accountId)
-        .order("title");
+        .from('properties')
+        .select(
+          'id, title, property_code, location, sublocality, tags, price, type, bedrooms, area_sqft, area_unit, images'
+        )
+        .eq('account_id', accountId)
+        .order('title');
       setProperties(propsList || []);
     } catch (err) {
-      console.error("[CALENDAR PAGE] loadData caught error:", err);
+      console.error('[CALENDAR PAGE] loadData caught error:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || "Failed to load calendar data");
+      toast.error(errorMessage || 'Failed to load calendar data');
     } finally {
       setLoading(false);
     }
@@ -302,17 +330,17 @@ export default function CalendarPage() {
       setAppointments((current) =>
         current.map((appointment) =>
           appointment.id === appointmentId
-            ? { ...appointment, status: "completed" }
+            ? { ...appointment, status: 'completed' }
             : appointment
         )
       );
       setSelectedAppt((current) =>
         current?.id === appointmentId
-          ? { ...current, status: "completed" }
+          ? { ...current, status: 'completed' }
           : current
       );
       setApptStatus((current) =>
-        selectedAppt?.id === appointmentId ? "completed" : current
+        selectedAppt?.id === appointmentId ? 'completed' : current
       );
     };
     window.addEventListener(
@@ -329,7 +357,7 @@ export default function CalendarPage() {
   // Team roster for lanes, assignee select, and initials badges.
   useEffect(() => {
     if (!accountId) return;
-    fetch("/api/account/members")
+    fetch('/api/account/members')
       .then((res) => (res.ok ? res.json() : { members: [] }))
       .then((json) => {
         const rows = (json.members || []) as Array<{
@@ -340,7 +368,9 @@ export default function CalendarPage() {
           org_role?: string;
           team_id: string | null;
         }>;
-        setMembers(rows.map((r) => ({ ...r, full_name: r.full_name || "Member" })));
+        setMembers(
+          rows.map((r) => ({ ...r, full_name: r.full_name || 'Member' }))
+        );
       })
       .catch(() => setMembers([]));
   }, [accountId]);
@@ -350,8 +380,18 @@ export default function CalendarPage() {
   const month = currentDate.getMonth();
 
   const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
 
   const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sunday
@@ -365,7 +405,7 @@ export default function CalendarPage() {
       cells.push({
         day: prevDaysInMonth - i,
         isCurrentMonth: false,
-        date: new Date(year, month - 1, prevDaysInMonth - i)
+        date: new Date(year, month - 1, prevDaysInMonth - i),
       });
     }
 
@@ -373,7 +413,7 @@ export default function CalendarPage() {
       cells.push({
         day: i,
         isCurrentMonth: true,
-        date: new Date(year, month, i)
+        date: new Date(year, month, i),
       });
     }
 
@@ -382,7 +422,7 @@ export default function CalendarPage() {
       cells.push({
         day: i,
         isCurrentMonth: false,
-        date: new Date(year, month + 1, i)
+        date: new Date(year, month + 1, i),
       });
     }
 
@@ -393,12 +433,20 @@ export default function CalendarPage() {
   // has no lane for a deal date, so the Deal dates filter does not apply
   // there and its chip is hidden rather than emptying every lane.
   const effectiveTypeFilter: CalendarTypeFilter =
-    view === "team" && typeFilter === "deal" ? "all" : typeFilter;
+    view === 'team' && typeFilter === 'deal' ? 'all' : typeFilter;
   const filteredAppointments = useMemo(() => {
     return appointments.filter((appt) => {
-      if (effectiveTypeFilter === "deal") return false;
-      if (effectiveTypeFilter !== "all" && (appt.event_type || "other") !== effectiveTypeFilter) return false;
-      if (memberFilter !== "all" && (appt.assigned_to || appt.user_id) !== memberFilter) return false;
+      if (effectiveTypeFilter === 'deal') return false;
+      if (
+        effectiveTypeFilter !== 'all' &&
+        (appt.event_type || 'other') !== effectiveTypeFilter
+      )
+        return false;
+      if (
+        memberFilter !== 'all' &&
+        (appt.assigned_to || appt.user_id) !== memberFilter
+      )
+        return false;
       return true;
     });
   }, [appointments, effectiveTypeFilter, memberFilter]);
@@ -406,9 +454,10 @@ export default function CalendarPage() {
   // The To-Do list holds to-dos alone (CAL-009); appointments and deal
   // dates are pinned on the calendar and listed in Tasks beneath it.
   const visibleTodos = useMemo(() => {
-    const filtered = todoFilter === "priority"
-      ? todos.filter((t) => t.priority === "high" || t.priority === "medium")
-      : todos;
+    const filtered =
+      todoFilter === 'priority'
+        ? todos.filter((t) => t.priority === 'high' || t.priority === 'medium')
+        : todos;
 
     return [...filtered].sort((a, b) => {
       if (a.completed !== b.completed) {
@@ -421,11 +470,19 @@ export default function CalendarPage() {
   }, [todos, todoFilter]);
 
   const calendarAppointments = useMemo(
-    () => withoutArchivedAppointments(filteredAppointments, archivedOnCalendar(archivedView)),
+    () =>
+      withoutArchivedAppointments(
+        filteredAppointments,
+        archivedOnCalendar(archivedView)
+      ),
     [filteredAppointments, archivedView]
   );
   const listedAppointments = useMemo(
-    () => withoutArchivedAppointments(filteredAppointments, archivedInLists(archivedView)),
+    () =>
+      withoutArchivedAppointments(
+        filteredAppointments,
+        archivedInLists(archivedView)
+      ),
     [filteredAppointments, archivedView]
   );
 
@@ -454,24 +511,24 @@ export default function CalendarPage() {
     };
     const timer = setInterval(rollDay, 60_000);
     const onVisible = () => {
-      if (document.visibilityState === "visible") rollDay();
+      if (document.visibilityState === 'visible') rollDay();
     };
-    document.addEventListener("visibilitychange", onVisible);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [todayKey, currentDate]);
   const visibleRange = useMemo(() => {
-    if (view === "week") {
+    if (view === 'week') {
       const start = new Date(currentDate);
       start.setDate(start.getDate() - start.getDay());
       const end = new Date(start);
       end.setDate(start.getDate() + 6);
       return { from: localDateKey(start), to: localDateKey(end) };
     }
-    if (view === "agenda") {
-      return { from: "1900-01-01", to: "9999-12-31" };
+    if (view === 'agenda') {
+      return { from: '1900-01-01', to: '9999-12-31' };
     }
     return {
       from: localDateKey(calendarCells[0].date),
@@ -479,15 +536,21 @@ export default function CalendarPage() {
     };
   }, [view, currentDate, calendarCells]);
   const dealDatesQuery = useQuery({
-    queryKey: ["calendar-deal-dates", accountId, todayKey],
-    queryFn: () => loadDealDeadlines(supabase, accountId!, todayKey, DEAL_DATE_HORIZON_DAYS),
+    queryKey: ['calendar-deal-dates', accountId, todayKey],
+    queryFn: () =>
+      loadDealDeadlines(supabase, accountId!, todayKey, DEAL_DATE_HORIZON_DAYS),
     enabled: !!accountId,
   });
-  const showDealDates = view !== "team" && (typeFilter === "all" || typeFilter === "deal");
+  const showDealDates =
+    view !== 'team' && (typeFilter === 'all' || typeFilter === 'deal');
   const visibleDealDates = useMemo(() => {
     if (!showDealDates) return [];
-    const inRange = dealDatesInRange(dealDatesQuery.data ?? [], visibleRange.from, visibleRange.to);
-    if (memberFilter === "all") return inRange;
+    const inRange = dealDatesInRange(
+      dealDatesQuery.data ?? [],
+      visibleRange.from,
+      visibleRange.to
+    );
+    if (memberFilter === 'all') return inRange;
     const member = members.find((m) => m.user_id === memberFilter);
     return dealDatesForMember(inRange, {
       profileId: member?.profile_id ?? null,
@@ -509,13 +572,21 @@ export default function CalendarPage() {
   // no second list beneath it.
   const allTaskRows = useMemo(
     () =>
-      view === "month" || view === "week"
-        ? buildCalendarTaskRows(filteredAppointments, visibleDealDates, visibleRange.from, visibleRange.to)
+      view === 'month' || view === 'week'
+        ? buildCalendarTaskRows(
+            filteredAppointments,
+            visibleDealDates,
+            visibleRange.from,
+            visibleRange.to
+          )
         : [],
     [view, filteredAppointments, visibleDealDates, visibleRange]
   );
   const taskAppointmentsInView = useMemo(
-    () => allTaskRows.flatMap((row) => (row.kind === "appointment" ? [row.appointment] : [])),
+    () =>
+      allTaskRows.flatMap((row) =>
+        row.kind === 'appointment' ? [row.appointment] : []
+      ),
     [allTaskRows]
   );
   const archivableTaskIds = useMemo(
@@ -527,44 +598,58 @@ export default function CalendarPage() {
       sortTasksByTime(
         archivedInLists(archivedView)
           ? allTaskRows
-          : allTaskRows.filter((row) => row.kind !== "appointment" || !isArchivedAppointment(row.appointment)),
+          : allTaskRows.filter(
+              (row) =>
+                row.kind !== 'appointment' ||
+                !isArchivedAppointment(row.appointment)
+            ),
         (row) => row.at,
         taskSort,
         new Date(),
-        (row) => row.kind === "deal"
+        (row) => row.kind === 'deal'
       ),
     [allTaskRows, archivedView, taskSort]
   );
 
-  const archiveAppointments = async (ids: string[], archived: boolean, busyKey: string) => {
+  const archiveAppointments = async (
+    ids: string[],
+    archived: boolean,
+    busyKey: string
+  ) => {
     if (ids.length === 0) return;
     setTaskBusyKey(busyKey);
     const changed = new Map<string, string | null>();
     try {
       for (const chunk of chunkIds(ids)) {
-        const response = await fetch("/api/appointments/archive", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const response = await fetch('/api/appointments/archive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: chunk, archived }),
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.error || "Failed to update the events");
-        for (const id of (result.data?.ids ?? []) as string[]) changed.set(id, result.data?.archived_at ?? null);
+        if (!response.ok)
+          throw new Error(result.error || 'Failed to update the events');
+        for (const id of (result.data?.ids ?? []) as string[])
+          changed.set(id, result.data?.archived_at ?? null);
       }
       toast.success(
         archived
           ? changed.size === 1
-            ? "Archived"
+            ? 'Archived'
             : `${changed.size} archived`
-          : "Unarchived — back in Tasks"
+          : 'Unarchived — back in Tasks'
       );
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || "Failed to update the events");
+      toast.error(errorMessage || 'Failed to update the events');
     } finally {
       if (changed.size > 0) {
         setAppointments((current) =>
-          current.map((item) => (changed.has(item.id) ? { ...item, archived_at: changed.get(item.id) ?? null } : item))
+          current.map((item) =>
+            changed.has(item.id)
+              ? { ...item, archived_at: changed.get(item.id) ?? null }
+              : item
+          )
         );
       }
       setTaskBusyKey(null);
@@ -572,50 +657,60 @@ export default function CalendarPage() {
   };
   const changeArchivedView = (view: ArchivedView) => {
     if (!user?.id) return;
-    const key = ["calendar-archived-view", user.id];
+    const key = ['calendar-archived-view', user.id];
     void queryClient.cancelQueries({ queryKey: key });
     queryClient.setQueryData(key, view);
     const write = ++archivedViewLatest.current;
     archivedViewWrites.current = archivedViewWrites.current.then(async () => {
       const { data, error } = await supabase
-        .from("profiles")
+        .from('profiles')
         .update({ calendar_archived_view: view })
-        .eq("user_id", key[1])
-        .select("id");
-      if (error || !data?.length) toast.error("Could not save the archived setting");
-      if (write === archivedViewLatest.current) await queryClient.invalidateQueries({ queryKey: key });
+        .eq('user_id', key[1])
+        .select('id');
+      if (error || !data?.length)
+        toast.error('Could not save the archived setting');
+      if (write === archivedViewLatest.current)
+        await queryClient.invalidateQueries({ queryKey: key });
     });
   };
   const archiveAppointment = (appt: CalendarEvent, archived: boolean) =>
     archiveAppointments([appt.id], archived, appt.id);
 
-  const setAppointmentStatus = async (appt: CalendarEvent, status: AppointmentStatus) => {
+  const setAppointmentStatus = async (
+    appt: CalendarEvent,
+    status: AppointmentStatus
+  ) => {
     setTaskBusyKey(appt.id);
     try {
       const response = await fetch(`/api/appointments/${appt.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "Failed to update the event");
+      if (!response.ok)
+        throw new Error(result.error || 'Failed to update the event');
       setAppointments((current) =>
         current.map((item) =>
           item.id === appt.id
-            ? { ...item, status, ...(status === "scheduled" ? { archived_at: null } : {}) }
+            ? {
+                ...item,
+                status,
+                ...(status === 'scheduled' ? { archived_at: null } : {}),
+              }
             : item
         )
       );
       toast.success(
-        status === "completed"
-          ? "Marked done"
-          : status === "cancelled"
-            ? "Cancelled — it stays on its day, struck through"
-            : "Reopened"
+        status === 'completed'
+          ? 'Marked done'
+          : status === 'cancelled'
+            ? 'Cancelled — it stays on its day, struck through'
+            : 'Reopened'
       );
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || "Failed to update the event");
+      toast.error(errorMessage || 'Failed to update the event');
     } finally {
       setTaskBusyKey(null);
     }
@@ -626,18 +721,24 @@ export default function CalendarPage() {
     const key = dealDateKey(d);
     setTaskBusyKey(key);
     try {
-      const response = await fetch(`/api/deals/${d.dealId}/milestones/${d.milestoneId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "completed", source: "web" }),
-      });
+      const response = await fetch(
+        `/api/deals/${d.dealId}/milestones/${d.milestoneId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'completed', source: 'web' }),
+        }
+      );
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "Failed to update the milestone");
-      await queryClient.invalidateQueries({ queryKey: ["calendar-deal-dates"] });
+      if (!response.ok)
+        throw new Error(result.error || 'Failed to update the milestone');
+      await queryClient.invalidateQueries({
+        queryKey: ['calendar-deal-dates'],
+      });
       toast.success(`${d.title} marked done on the deal`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || "Failed to update the milestone");
+      toast.error(errorMessage || 'Failed to update the milestone');
     } finally {
       setTaskBusyKey(null);
     }
@@ -645,7 +746,7 @@ export default function CalendarPage() {
 
   // Date Nav handlers
   const handlePrev = () => {
-    if (view === "month") {
+    if (view === 'month') {
       setCurrentDate(new Date(year, month - 1, 1));
     } else {
       const d = new Date(currentDate);
@@ -655,7 +756,7 @@ export default function CalendarPage() {
   };
 
   const handleNext = () => {
-    if (view === "month") {
+    if (view === 'month') {
       setCurrentDate(new Date(year, month + 1, 1));
     } else {
       const d = new Date(currentDate);
@@ -671,15 +772,15 @@ export default function CalendarPage() {
   // Appointment modal edit/create
   const openNewApptModal = (date?: Date, assignedTo?: string) => {
     setSelectedAppt(null);
-    setApptTitle("");
-    setApptDesc("");
+    setApptTitle('');
+    setApptDesc('');
     setApptContactIds([]);
-    setApptPropertyId("");
-    setApptLocation("");
-    setApptStatus("scheduled");
-    setApptEventType("meeting");
-    setApptAssignedTo(assignedTo || user?.id || "");
-    setApptNotificationScope("none");
+    setApptPropertyId('');
+    setApptLocation('');
+    setApptStatus('scheduled');
+    setApptEventType('meeting');
+    setApptAssignedTo(assignedTo || user?.id || '');
+    setApptNotificationScope('none');
     setApptExtras({ ...EMPTY_EXTRAS });
 
     const start = date ? new Date(date) : new Date();
@@ -695,7 +796,7 @@ export default function CalendarPage() {
   const openEditApptModal = useCallback((appt: CalendarEvent) => {
     setSelectedAppt(appt);
     setApptTitle(appt.title);
-    setApptDesc(appt.description || "");
+    setApptDesc(appt.description || '');
     setApptContactIds(
       appt.contact_ids && appt.contact_ids.length > 0
         ? appt.contact_ids
@@ -703,16 +804,16 @@ export default function CalendarPage() {
           ? [appt.contact_id]
           : []
     );
-    setApptPropertyId(appt.property_id || "");
-    setApptLocation(appt.location || "");
+    setApptPropertyId(appt.property_id || '');
+    setApptLocation(appt.location || '');
     setApptStatus(appt.status);
-    setApptEventType(appt.event_type || "meeting");
-    setApptAssignedTo(appt.assigned_to || appt.user_id || "");
-    setApptNotificationScope("new");
+    setApptEventType(appt.event_type || 'meeting');
+    setApptAssignedTo(appt.assigned_to || appt.user_id || '');
+    setApptNotificationScope('new');
     setApptExtras({
-      agenda: appt.agenda || "",
-      minutes: appt.minutes || "",
-      outcome: appt.outcome || "",
+      agenda: appt.agenda || '',
+      minutes: appt.minutes || '',
+      outcome: appt.outcome || '',
     });
     setApptStartTime(formatDateTimeLocal(new Date(appt.start_time)));
     setApptEndTime(formatDateTimeLocal(new Date(appt.end_time)));
@@ -720,8 +821,11 @@ export default function CalendarPage() {
   }, []);
 
   useEffect(() => {
-    if (!requestedEventId || openedEventIdRef.current === requestedEventId) return;
-    const appointment = appointments.find((item) => item.id === requestedEventId);
+    if (!requestedEventId || openedEventIdRef.current === requestedEventId)
+      return;
+    const appointment = appointments.find(
+      (item) => item.id === requestedEventId
+    );
     if (!appointment) return;
     openedEventIdRef.current = requestedEventId;
     setCurrentDate(new Date(appointment.start_time));
@@ -731,7 +835,7 @@ export default function CalendarPage() {
   const saveAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!apptTitle.trim()) {
-      toast.error("Please enter a title");
+      toast.error('Please enter a title');
       return;
     }
 
@@ -753,7 +857,7 @@ export default function CalendarPage() {
       const endDate = parseDateTimeString(apptEndTime);
 
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        throw new Error("Invalid start or end date selection.");
+        throw new Error('Invalid start or end date selection.');
       }
 
       // Only persist the note fields that apply to the chosen event
@@ -766,9 +870,9 @@ export default function CalendarPage() {
       const payload = {
         title: apptTitle,
         description: apptDesc || null,
-        agenda: extraOrNull("agenda"),
-        minutes: extraOrNull("minutes"),
-        outcome: extraOrNull("outcome"),
+        agenda: extraOrNull('agenda'),
+        minutes: extraOrNull('minutes'),
+        outcome: extraOrNull('outcome'),
         start_time: startDate.toISOString(),
         end_time: endDate.toISOString(),
         location: apptLocation || null,
@@ -790,90 +894,102 @@ export default function CalendarPage() {
         // reminder_1h_sent (src/lib/appointments/reminder.ts) only
         // ever get set to true and nothing else resets them.
         const rescheduled =
-          new Date(payload.start_time).getTime() !== new Date(selectedAppt.start_time).getTime();
+          new Date(payload.start_time).getTime() !==
+          new Date(selectedAppt.start_time).getTime();
         // A reschedule also resolves any pending "Requesting reschedule"
         // flag (src/lib/whatsapp/webhook-handler.ts) — the client's ask
         // is addressed by definition once the time actually changes.
         const updatePayload = rescheduled
-          ? { ...payload, reminder_morning_sent: false, reminder_1h_sent: false, reschedule_requested_at: null, client_confirmed_at: null }
+          ? {
+              ...payload,
+              reminder_morning_sent: false,
+              reminder_1h_sent: false,
+              reschedule_requested_at: null,
+              client_confirmed_at: null,
+            }
           : payload;
 
         const response = await fetch(`/api/appointments/${selectedAppt.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...updatePayload,
-            notify_participants: apptNotificationScope !== "none",
-            notification_scope: apptNotificationScope === "all" ? "all" : "new",
+            notify_participants: apptNotificationScope !== 'none',
+            notification_scope: apptNotificationScope === 'all' ? 'all' : 'new',
           }),
         });
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Failed to update appointment");
-        const delivery = result.notifications as
-          | { sent: number; failed: number; recipients: number }
-          | null;
+        if (!response.ok)
+          throw new Error(result.error || 'Failed to update appointment');
+        const delivery = result.notifications as {
+          sent: number;
+          failed: number;
+          recipients: number;
+        } | null;
         if (delivery?.failed) {
           toast.warning(
-            `Appointment updated. ${delivery.sent} message${delivery.sent === 1 ? "" : "s"} sent; ${delivery.failed} could not be delivered.`,
+            `Appointment updated. ${delivery.sent} message${delivery.sent === 1 ? '' : 's'} sent; ${delivery.failed} could not be delivered.`
           );
         } else if (delivery?.sent) {
           toast.success(
-            `Appointment updated and ${delivery.sent} participant${delivery.sent === 1 ? "" : "s"} notified.`,
+            `Appointment updated and ${delivery.sent} participant${delivery.sent === 1 ? '' : 's'} notified.`
           );
         } else {
-          toast.success("Appointment updated successfully");
+          toast.success('Appointment updated successfully');
         }
       } else {
         const userRes = await supabase.auth.getUser();
         const userId = userRes.data.user?.id;
 
         if (!userId) {
-          throw new Error("User session not found. Please re-login.");
+          throw new Error('User session not found. Please re-login.');
         }
 
-        const { error } = await supabase
-          .from("appointments")
-          .insert({
-            ...payload,
-            account_id: accountId,
-            user_id: userId,
-            source: "web",
-          });
+        const { error } = await supabase.from('appointments').insert({
+          ...payload,
+          account_id: accountId,
+          user_id: userId,
+          source: 'web',
+        });
 
         if (error) throw error;
-        toast.success("Appointment scheduled successfully");
+        toast.success('Appointment scheduled successfully');
       }
 
       setIsApptModalOpen(false);
       loadData();
     } catch (err) {
-      console.error("[CALENDAR SAVE] caught error:", err);
+      console.error('[CALENDAR SAVE] caught error:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || "Failed to save appointment");
+      toast.error(errorMessage || 'Failed to save appointment');
     }
   };
 
   const deleteAppointment = async (apptToDelete?: CalendarEvent) => {
     const target = apptToDelete || selectedAppt;
     if (!target) return;
-    if (!confirm(`Are you sure you want to cancel and delete "${target.title}"?`)) return;
+    if (
+      !confirm(`Are you sure you want to cancel and delete "${target.title}"?`)
+    )
+      return;
 
     try {
       const { data, error } = await supabase
-        .from("appointments")
+        .from('appointments')
         .delete()
-        .eq("id", target.id)
-        .eq("account_id", accountId)
-        .select("id");
+        .eq('id', target.id)
+        .eq('account_id', accountId)
+        .select('id');
 
       if (error) throw error;
-      if (!data?.length) throw new Error("That appointment is no longer there.");
-      toast.success("Appointment deleted successfully");
+      if (!data?.length)
+        throw new Error('That appointment is no longer there.');
+      toast.success('Appointment deleted successfully');
       setIsApptModalOpen(false);
       loadData();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || "Failed to delete appointment");
+      toast.error(errorMessage || 'Failed to delete appointment');
     }
   };
 
@@ -881,10 +997,10 @@ export default function CalendarPage() {
   const handleSmartConfirm = async (draft: ConfirmedEventDraft) => {
     try {
       const userId = user?.id || (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) throw new Error("User session not found. Please re-login.");
+      if (!userId) throw new Error('User session not found. Please re-login.');
 
-      if (draft.kind === "appointment" && draft.start_time) {
-        const { error } = await supabase.from("appointments").insert({
+      if (draft.kind === 'appointment' && draft.start_time) {
+        const { error } = await supabase.from('appointments').insert({
           account_id: accountId,
           user_id: userId,
           assigned_to: draft.assigned_to || userId,
@@ -894,7 +1010,7 @@ export default function CalendarPage() {
           start_time: draft.start_time,
           end_time: draft.end_time || draft.start_time,
           location: draft.location,
-          status: "scheduled",
+          status: 'scheduled',
           contact_id: draft.contact_id,
           contact_ids: draft.contact_id ? [draft.contact_id] : [],
           property_id: draft.property_id,
@@ -902,10 +1018,10 @@ export default function CalendarPage() {
           transcript: draft.transcript,
         });
         if (error) throw error;
-        toast.success("Event added to the calendar");
+        toast.success('Event added to the calendar');
         setCurrentDate(new Date(draft.start_time));
       } else {
-        const { error } = await supabase.from("todos").insert({
+        const { error } = await supabase.from('todos').insert({
           account_id: accountId,
           user_id: userId,
           assigned_to: draft.assigned_to || userId,
@@ -919,12 +1035,12 @@ export default function CalendarPage() {
           source: draft.source,
         });
         if (error) throw error;
-        toast.success("Task added");
+        toast.success('Task added');
       }
       loadData();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || "Failed to save");
+      toast.error(errorMessage || 'Failed to save');
       throw err;
     }
   };
@@ -938,13 +1054,15 @@ export default function CalendarPage() {
       const hit = linkedPropertyForContacts(ids, contacts, properties);
       if (hit) {
         setApptPropertyId(hit.property.id);
-        toast.info(`Linked property "${hit.property.title}" from ${hit.contact.name}'s inquiry`);
+        toast.info(
+          `Linked property "${hit.property.title}" from ${hit.contact.name}'s inquiry`
+        );
       }
     }
   };
 
   const handleApptPropertyChange = (val: string | null) => {
-    setApptPropertyId(val || "");
+    setApptPropertyId(val || '');
     if (val && apptContactIds.length === 0) {
       const linked = linkedContactForProperty(val, contacts);
       if (linked) {
@@ -958,12 +1076,12 @@ export default function CalendarPage() {
   const saveTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!todoTitle.trim()) {
-      toast.error("Please enter a task name");
+      toast.error('Please enter a task name');
       return;
     }
 
     try {
-      const { error } = await supabase.from("todos").insert({
+      const { error } = await supabase.from('todos').insert({
         title: todoTitle,
         description: todoDesc || null,
         due_date: todoDueDate ? new Date(todoDueDate).toISOString() : null,
@@ -974,26 +1092,28 @@ export default function CalendarPage() {
       });
 
       if (error) throw error;
-      toast.success("Task added successfully");
-      setTodoTitle("");
-      setTodoDesc("");
-      setTodoDueDate("");
-      setTodoPriority("medium");
+      toast.success('Task added successfully');
+      setTodoTitle('');
+      setTodoDesc('');
+      setTodoDueDate('');
+      setTodoPriority('medium');
       loadData();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || "Failed to add task");
+      toast.error(errorMessage || 'Failed to add task');
     }
   };
 
   const openEditTodoModal = (todo: Todo) => {
     setSelectedTodo(todo);
     setEditTodoTitle(todo.title);
-    setEditTodoDesc(todo.description || "");
+    setEditTodoDesc(todo.description || '');
     // Slicing the stored ISO string took the UTC date, so a task due late
     // in the evening opened on the wrong day. Read it back in local time,
     // the same way the appointment modal does.
-    setEditTodoDueDate(todo.due_date ? formatDateTimeLocal(new Date(todo.due_date)) : "");
+    setEditTodoDueDate(
+      todo.due_date ? formatDateTimeLocal(new Date(todo.due_date)) : ''
+    );
     setEditTodoPriority(todo.priority);
     setEditTodoCompleted(todo.completed);
     setIsTodoModalOpen(true);
@@ -1003,43 +1123,45 @@ export default function CalendarPage() {
     e.preventDefault();
     if (!selectedTodo) return;
     if (!editTodoTitle.trim()) {
-      toast.error("Please enter a task name");
+      toast.error('Please enter a task name');
       return;
     }
 
     try {
       const { data, error } = await supabase
-        .from("todos")
+        .from('todos')
         .update({
           title: editTodoTitle,
           description: editTodoDesc || null,
-          due_date: editTodoDueDate ? new Date(editTodoDueDate).toISOString() : null,
+          due_date: editTodoDueDate
+            ? new Date(editTodoDueDate).toISOString()
+            : null,
           priority: editTodoPriority,
           completed: editTodoCompleted,
         })
-        .eq("id", selectedTodo.id)
-        .eq("account_id", accountId)
-        .select("id");
+        .eq('id', selectedTodo.id)
+        .eq('account_id', accountId)
+        .select('id');
 
       if (error) throw error;
-      if (!data?.length) throw new Error("That task is no longer there.");
-      toast.success("Task updated successfully");
+      if (!data?.length) throw new Error('That task is no longer there.');
+      toast.success('Task updated successfully');
       setIsTodoModalOpen(false);
       setSelectedTodo(null);
       loadData();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || "Failed to update task");
+      toast.error(errorMessage || 'Failed to update task');
     }
   };
 
   const openContactChat = async (contactId: string) => {
     try {
       const { data: existing, error } = await supabase
-        .from("conversations")
-        .select("id")
-        .eq("account_id", accountId)
-        .eq("contact_id", contactId)
+        .from('conversations')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
         .maybeSingle();
       if (error) throw error;
       if (existing) {
@@ -1047,55 +1169,55 @@ export default function CalendarPage() {
         return;
       }
       const { data: created, error: createError } = await supabase
-        .from("conversations")
+        .from('conversations')
         .insert({
           account_id: accountId,
           user_id: (await supabase.auth.getUser()).data.user?.id,
           contact_id: contactId,
         })
-        .select("id")
+        .select('id')
         .single();
       if (createError) throw createError;
       router.push(`/inbox?c=${created.id}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || "Failed to open conversation");
+      toast.error(errorMessage || 'Failed to open conversation');
     }
   };
 
   const toggleTodo = async (todo: Todo) => {
     try {
       const { data, error } = await supabase
-        .from("todos")
+        .from('todos')
         .update({ completed: !todo.completed })
-        .eq("id", todo.id)
-        .eq("account_id", accountId)
-        .select("id");
+        .eq('id', todo.id)
+        .eq('account_id', accountId)
+        .select('id');
 
       if (error) throw error;
-      if (!data?.length) throw new Error("That task is no longer there.");
+      if (!data?.length) throw new Error('That task is no longer there.');
       loadData();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || "Failed to toggle task");
+      toast.error(errorMessage || 'Failed to toggle task');
     }
   };
 
   const deleteTodo = async (id: string) => {
     try {
       const { data, error } = await supabase
-        .from("todos")
+        .from('todos')
         .delete()
-        .eq("id", id)
-        .eq("account_id", accountId)
-        .select("id");
+        .eq('id', id)
+        .eq('account_id', accountId)
+        .select('id');
 
       if (error) throw error;
-      if (!data?.length) throw new Error("That task is no longer there.");
+      if (!data?.length) throw new Error('That task is no longer there.');
       loadData();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || "Failed to delete task");
+      toast.error(errorMessage || 'Failed to delete task');
     }
   };
 
@@ -1106,22 +1228,27 @@ export default function CalendarPage() {
   }, [members]);
 
   const headerLabel =
-    view === "agenda"
-      ? "All Scheduled Events"
-      : view === "month"
+    view === 'agenda'
+      ? 'All Scheduled Events'
+      : view === 'month'
         ? `${monthNames[month]} ${year}`
-        : currentDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+        : currentDate.toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          });
 
   return (
-    <div className="space-y-6 relative overflow-hidden h-full flex flex-col">
+    <div className="relative flex h-full flex-col space-y-6 overflow-hidden">
       {/* Header */}
       <div className="relative z-10 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+          <h1 className="bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent text-white">
             Calendar
           </h1>
-          <p className="mt-1.5 text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
-            Log site visits, calls, and follow-ups by typing or speaking — and see the whole team&apos;s day at a glance.
+          <p className="mt-1.5 text-xs leading-relaxed font-medium text-slate-400 sm:text-sm">
+            Log site visits, calls, and follow-ups by typing or speaking — and
+            see the whole team&apos;s day at a glance.
           </p>
         </div>
         <FavoriteButton label="Calendar" href="/calendar" icon="Calendar" />
@@ -1132,17 +1259,17 @@ export default function CalendarPage() {
         <SmartAddBar onConfirm={handleSmartConfirm} />
       </div>
 
-      <div className="flex flex-col gap-6 lg:h-full lg:flex-row overflow-hidden flex-1">
+      <div className="flex flex-1 flex-col gap-6 overflow-hidden lg:h-full lg:flex-row">
         {/* ── Left Side: Calendar views ────────────────── */}
         {/* `min-w-0`: this is a flex-row item on lg+, and without it the
             pane is only kept from bleeding by the ancestor's
             overflow-hidden — self-cap it so inner truncate engages. */}
-        <div className="flex flex-1 flex-col min-w-0 rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur min-h-[560px] lg:min-h-0 lg:overflow-y-auto">
+        <div className="flex min-h-[560px] min-w-0 flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur lg:min-h-0 lg:overflow-y-auto">
           {/* Calendar Header Nav */}
           <div className="mb-4 flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
             <div className="flex items-center gap-3">
-              <CalendarIcon className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold text-white sm:text-2xl flex items-center">
+              <CalendarIcon className="text-primary h-6 w-6" />
+              <h1 className="flex items-center text-xl font-bold text-white sm:text-2xl">
                 {headerLabel}
                 <InfoHint text="Navigate and schedule site visits, client appointments, or phone calls. Deal dates — registration, payments and expected close — are pinned from the deal record and open it. Use the Team view to see every member's lane for the day." />
               </h1>
@@ -1150,18 +1277,22 @@ export default function CalendarPage() {
             <div className="flex flex-wrap items-center gap-2">
               {/* View switcher */}
               <div className="flex items-center rounded-lg border border-slate-800 bg-slate-950 p-0.5">
-                {([
-                  { key: "month", label: "Month", icon: LayoutGrid },
-                  { key: "week", label: "Week", icon: Columns3 },
-                  { key: "team", label: "Team", icon: Users },
-                  { key: "agenda", label: "Agenda", icon: List },
-                ] as { key: ViewMode; label: string; icon: typeof Users }[]).map((v) => (
+                {(
+                  [
+                    { key: 'month', label: 'Month', icon: LayoutGrid },
+                    { key: 'week', label: 'Week', icon: Columns3 },
+                    { key: 'team', label: 'Team', icon: Users },
+                    { key: 'agenda', label: 'Agenda', icon: List },
+                  ] as { key: ViewMode; label: string; icon: typeof Users }[]
+                ).map((v) => (
                   <button
                     key={v.key}
                     onClick={() => setView(v.key)}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
-                      view === v.key ? "bg-primary/15 text-primary" : "text-slate-400 hover:text-white"
+                      'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors',
+                      view === v.key
+                        ? 'bg-primary/15 text-primary'
+                        : 'text-slate-400 hover:text-white'
                     )}
                   >
                     <v.icon className="h-3.5 w-3.5" />
@@ -1170,11 +1301,11 @@ export default function CalendarPage() {
                 ))}
               </div>
 
-              {view !== "agenda" && (
+              {view !== 'agenda' && (
                 <>
                   <button
                     onClick={handleToday}
-                    className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-850 hover:text-white"
+                    className="hover:bg-slate-850 rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white"
                   >
                     Today
                   </button>
@@ -1182,14 +1313,14 @@ export default function CalendarPage() {
                     <button
                       onClick={handlePrev}
                       aria-label="Previous"
-                      className="rounded p-1 text-slate-400 hover:bg-slate-850 hover:text-white"
+                      className="hover:bg-slate-850 rounded p-1 text-slate-400 hover:text-white"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
                     <button
                       onClick={handleNext}
                       aria-label="Next"
-                      className="rounded p-1 text-slate-400 hover:bg-slate-850 hover:text-white"
+                      className="hover:bg-slate-850 rounded p-1 text-slate-400 hover:text-white"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
@@ -1198,7 +1329,7 @@ export default function CalendarPage() {
               )}
               <button
                 onClick={() => openNewApptModal()}
-                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                className="bg-primary text-primary-foreground flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold hover:opacity-90"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Schedule
@@ -1209,12 +1340,12 @@ export default function CalendarPage() {
           {/* Type legend + member filter */}
           <div className="mb-4 flex flex-wrap items-center gap-1.5">
             <button
-              onClick={() => setTypeFilter("all")}
+              onClick={() => setTypeFilter('all')}
               className={cn(
-                "rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
-                effectiveTypeFilter === "all"
-                  ? "border-primary/50 bg-primary/15 text-primary"
-                  : "border-slate-800 text-slate-400 hover:text-white"
+                'rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
+                effectiveTypeFilter === 'all'
+                  ? 'border-primary/50 bg-primary/15 text-primary'
+                  : 'border-slate-800 text-slate-400 hover:text-white'
               )}
             >
               All
@@ -1224,26 +1355,36 @@ export default function CalendarPage() {
               return (
                 <button
                   key={key}
-                  onClick={() => setTypeFilter(typeFilter === key ? "all" : key)}
+                  onClick={() =>
+                    setTypeFilter(typeFilter === key ? 'all' : key)
+                  }
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
-                    typeFilter === key ? meta.chip : "border-slate-800 text-slate-500 hover:text-white"
+                    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
+                    typeFilter === key
+                      ? meta.chip
+                      : 'border-slate-800 text-slate-500 hover:text-white'
                   )}
                 >
-                  <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot)} />
+                  <span className={cn('h-1.5 w-1.5 rounded-full', meta.dot)} />
                   {meta.label}
                 </button>
               );
             })}
-            {view !== "team" && (
+            {view !== 'team' && (
               <button
-                onClick={() => setTypeFilter(typeFilter === "deal" ? "all" : "deal")}
+                onClick={() =>
+                  setTypeFilter(typeFilter === 'deal' ? 'all' : 'deal')
+                }
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
-                  typeFilter === "deal" ? DEAL_DATE_META.chip : "border-slate-800 text-slate-500 hover:text-white"
+                  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
+                  typeFilter === 'deal'
+                    ? DEAL_DATE_META.chip
+                    : 'border-slate-800 text-slate-500 hover:text-white'
                 )}
               >
-                <span className={cn("h-1.5 w-1.5 rounded-full", DEAL_DATE_META.dot)} />
+                <span
+                  className={cn('h-1.5 w-1.5 rounded-full', DEAL_DATE_META.dot)}
+                />
                 {DEAL_DATE_META.label}
               </button>
             )}
@@ -1252,10 +1393,12 @@ export default function CalendarPage() {
                 <Archive className="h-2.5 w-2.5" />
                 <select
                   value={archivedView}
-                  onChange={(e) => changeArchivedView(toArchivedView(e.target.value))}
+                  onChange={(e) =>
+                    changeArchivedView(toArchivedView(e.target.value))
+                  }
                   aria-label={`Archived events (${calendarAppointments.archivedCount})`}
                   title="Grey out keeps archived events on the calendar, dimmed; Hide removes them; List also shows them in Tasks and the Agenda"
-                  className="bg-transparent text-[10px] font-semibold text-slate-300 focus:outline-none cursor-pointer"
+                  className="cursor-pointer bg-transparent text-[10px] font-semibold text-slate-300 focus:outline-none"
                 >
                   {ARCHIVED_VIEWS.map((mode) => (
                     <option key={mode} value={mode} className="bg-slate-950">
@@ -1269,7 +1412,7 @@ export default function CalendarPage() {
               <select
                 value={memberFilter}
                 onChange={(e) => setMemberFilter(e.target.value)}
-                className="ml-auto rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-bold text-slate-400 focus:outline-none cursor-pointer"
+                className="ml-auto cursor-pointer rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-bold text-slate-400 focus:outline-none"
               >
                 <option value="all">Everyone</option>
                 {members.map((m) => (
@@ -1283,20 +1426,30 @@ export default function CalendarPage() {
 
           {loading ? (
             <div className="flex flex-1 flex-col items-center justify-center text-slate-400">
-              <CalendarLoader size={104} label="Loading calendar" className="mb-3" />
+              <CalendarLoader
+                size={104}
+                label="Loading calendar"
+                className="mb-3"
+              />
               <ConvoRealLoader size={20} className="mb-2" />
               <p className="text-sm">Loading calendar...</p>
             </div>
-          ) : view === "team" ? (
+          ) : view === 'team' ? (
             <TeamView
               events={calendarAppointments.visible}
-              members={memberFilter === "all" ? members : members.filter((m) => m.user_id === memberFilter)}
+              members={
+                memberFilter === 'all'
+                  ? members
+                  : members.filter((m) => m.user_id === memberFilter)
+              }
               selectedDate={currentDate}
               onSelectDate={setCurrentDate}
               onEventClick={openEditApptModal}
-              onSlotClick={(date, assignedTo) => openNewApptModal(date, assignedTo)}
+              onSlotClick={(date, assignedTo) =>
+                openNewApptModal(date, assignedTo)
+              }
             />
-          ) : view === "week" ? (
+          ) : view === 'week' ? (
             <WeekView
               events={calendarAppointments.visible}
               dealDates={visibleDealDates}
@@ -1305,7 +1458,7 @@ export default function CalendarPage() {
               onEventClick={openEditApptModal}
               onSlotClick={(date) => openNewApptModal(date)}
             />
-          ) : view === "agenda" ? (
+          ) : view === 'agenda' ? (
             <AgendaView
               events={listedAppointments.visible}
               dealDates={visibleDealDates}
@@ -1320,7 +1473,7 @@ export default function CalendarPage() {
           ) : (
             <>
               {/* Days of the Week headings */}
-              <div className="grid grid-cols-7 border-b border-slate-800 pb-2 text-center text-xs font-bold uppercase tracking-wider text-slate-400">
+              <div className="grid grid-cols-7 border-b border-slate-800 pb-2 text-center text-xs font-bold tracking-wider text-slate-400 uppercase">
                 <div>Sun</div>
                 <div>Mon</div>
                 <div>Tue</div>
@@ -1331,7 +1484,7 @@ export default function CalendarPage() {
               </div>
 
               {/* Calendar Day Grid */}
-              <div className="grid flex-1 grid-cols-7 grid-rows-6 gap-px bg-slate-800/40 mt-1 min-h-[420px]">
+              <div className="mt-1 grid min-h-[420px] flex-1 grid-cols-7 grid-rows-6 gap-px bg-slate-800/40">
                 {calendarCells.map((cell, idx) => {
                   const dateStr = cell.date.toDateString();
                   const cellAppts = appointmentsByDate[dateStr] || [];
@@ -1343,27 +1496,28 @@ export default function CalendarPage() {
                       key={idx}
                       onClick={() => openNewApptModal(cell.date)}
                       className={cn(
-                        "group relative flex flex-col min-h-[70px] bg-slate-950 p-2 transition-colors hover:bg-slate-900/60 cursor-pointer overflow-hidden",
-                        !cell.isCurrentMonth && "opacity-45"
+                        'group relative flex min-h-[70px] cursor-pointer flex-col overflow-hidden bg-slate-950 p-2 transition-colors hover:bg-slate-900/60',
+                        !cell.isCurrentMonth && 'opacity-45'
                       )}
                     >
                       {/* Day Number Label */}
                       <span
                         className={cn(
-                          "text-xs font-bold inline-flex items-center justify-center h-5 w-5 rounded-full mb-1",
+                          'mb-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold',
                           isToday
-                            ? "bg-primary text-primary-foreground font-black"
-                            : "text-slate-400 group-hover:text-white"
+                            ? 'bg-primary text-primary-foreground font-black'
+                            : 'text-slate-400 group-hover:text-white'
                         )}
                       >
                         {cell.day}
                       </span>
 
                       {/* Appointments indicators inside cell */}
-                      <div className="flex flex-col gap-1 overflow-y-auto max-h-[80px]">
+                      <div className="flex max-h-[80px] flex-col gap-1 overflow-y-auto">
                         {cellAppts.map((appt) => {
                           const meta = eventTypeMeta(appt.event_type);
-                          const assignee = memberByUserId[appt.assigned_to || appt.user_id];
+                          const assignee =
+                            memberByUserId[appt.assigned_to || appt.user_id];
                           return (
                             <div
                               key={appt.id}
@@ -1372,30 +1526,35 @@ export default function CalendarPage() {
                                 openEditApptModal(appt);
                               }}
                               className={cn(
-                                "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border leading-snug cursor-pointer transition-colors",
+                                'flex cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] leading-snug transition-colors',
                                 meta.chip,
-                                appt.status === "completed" && "opacity-60",
-                                appt.status === "cancelled" && "line-through opacity-50",
-                                isArchivedAppointment(appt) && ARCHIVED_EVENT_CHIP
+                                appt.status === 'completed' && 'opacity-60',
+                                appt.status === 'cancelled' &&
+                                  'line-through opacity-50',
+                                isArchivedAppointment(appt) &&
+                                  ARCHIVED_EVENT_CHIP
                               )}
                             >
                               <meta.icon className="h-2.5 w-2.5 shrink-0" />
-                              <span className="truncate flex-1">{appt.title}</span>
+                              <span className="flex-1 truncate">
+                                {appt.title}
+                              </span>
                               {appt.reschedule_requested_at && (
                                 <RefreshCcw
                                   className="h-2.5 w-2.5 shrink-0 text-amber-400"
                                   aria-label="Reschedule requested"
                                 />
                               )}
-                              {!appt.reschedule_requested_at && appt.client_confirmed_at && (
-                                <CheckCircle
-                                  className="h-2.5 w-2.5 shrink-0 text-emerald-400"
-                                  aria-label="Client confirmed"
-                                />
-                              )}
+                              {!appt.reschedule_requested_at &&
+                                appt.client_confirmed_at && (
+                                  <CheckCircle
+                                    className="h-2.5 w-2.5 shrink-0 text-emerald-400"
+                                    aria-label="Client confirmed"
+                                  />
+                                )}
                               {members.length > 1 && assignee && (
                                 <span
-                                  className="rounded bg-slate-900/70 px-1 text-[8px] font-bold shrink-0"
+                                  className="shrink-0 rounded bg-slate-900/70 px-1 text-[8px] font-bold"
                                   title={assignee.full_name}
                                 >
                                   {memberInitials(assignee.full_name)}
@@ -1411,13 +1570,13 @@ export default function CalendarPage() {
                             onClick={(e) => e.stopPropagation()}
                             title={`${DEAL_DATE_KIND_LABELS[d.kind]} · ${d.subject} · ${deadlineLabel(d.daysLeft)}`}
                             className={cn(
-                              "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border leading-snug transition-colors",
+                              'flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] leading-snug transition-colors',
                               DEAL_DATE_META.chip,
-                              d.urgency === "overdue" && "border-rose-500/50"
+                              d.urgency === 'overdue' && 'border-rose-500/50'
                             )}
                           >
                             <DEAL_DATE_META.icon className="h-2.5 w-2.5 shrink-0" />
-                            <span className="truncate flex-1">{d.title}</span>
+                            <span className="flex-1 truncate">{d.title}</span>
                           </Link>
                         ))}
                       </div>
@@ -1429,46 +1588,64 @@ export default function CalendarPage() {
           )}
 
           {/* Tasks pinned on the visible days (CAL-010) */}
-          {!loading && (view === "month" || view === "week") && (
+          {!loading && (view === 'month' || view === 'week') && (
             <div className="mt-4 shrink-0 border-t border-slate-800 pt-3">
               <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setTasksOpen((open) => !open)}
-                aria-expanded={tasksOpen}
-                className="flex flex-1 items-center gap-2 text-left"
-              >
-                <ChevronDown className={cn("h-3.5 w-3.5 text-slate-500 transition-transform", !tasksOpen && "-rotate-90")} />
-                <h2 className="text-sm font-bold text-white flex items-center">
-                  Tasks
-                  <InfoHint text="Everything pinned on the days you are looking at: appointments with their status, and deal dates. Upcoming first puts today at the top, then the days ahead, then past days; Earliest first and Latest first sort strictly by date and time. Mark an event done or cancelled here — a cancelled event stays on its day, struck through. Archive a done or cancelled event to take it off this list; on the calendar it is greyed out, or hidden if you choose Hide archived in the filter row, and List archived brings it back here. A milestone date can be ticked done; it completes the milestone on the deal without moving its stage." />
-                </h2>
-                <span className="text-[10px] font-semibold text-slate-500">
-                  {taskRows.length} on {view === "week" ? "this week" : "this month"}
-                </span>
-              </button>
-              <select
-                value={taskSort}
-                onChange={(e) => setTaskSort(e.target.value as TaskSortMode)}
-                aria-label="Sort tasks by date and time"
-                className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300"
-              >
-                {TASK_SORT_MODES.map((mode) => (
-                  <option key={mode} value={mode}>{TASK_SORT_LABELS[mode]}</option>
-                ))}
-              </select>
-              {canEdit && archivableTaskIds.length > 0 && (
                 <button
                   type="button"
-                  disabled={taskBusyKey !== null}
-                  onClick={() => archiveAppointments(archivableTaskIds, true, "archive-done")}
-                  title="Archive every done or cancelled event on these days"
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
+                  onClick={() => setTasksOpen((open) => !open)}
+                  aria-expanded={tasksOpen}
+                  className="flex flex-1 items-center gap-2 text-left"
                 >
-                  {taskBusyKey === "archive-done" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
-                  Archive done ({archivableTaskIds.length})
+                  <ChevronDown
+                    className={cn(
+                      'h-3.5 w-3.5 text-slate-500 transition-transform',
+                      !tasksOpen && '-rotate-90'
+                    )}
+                  />
+                  <h2 className="flex items-center text-sm font-bold text-white">
+                    Tasks
+                    <InfoHint text="Everything pinned on the days you are looking at: appointments with their status, and deal dates. Upcoming first puts today at the top, then the days ahead, then past days; Earliest first and Latest first sort strictly by date and time. Mark an event done or cancelled here — a cancelled event stays on its day, struck through. Archive a done or cancelled event to take it off this list; on the calendar it is greyed out, or hidden if you choose Hide archived in the filter row, and List archived brings it back here. A milestone date can be ticked done; it completes the milestone on the deal without moving its stage." />
+                  </h2>
+                  <span className="text-[10px] font-semibold text-slate-500">
+                    {taskRows.length} on{' '}
+                    {view === 'week' ? 'this week' : 'this month'}
+                  </span>
                 </button>
-              )}
+                <select
+                  value={taskSort}
+                  onChange={(e) => setTaskSort(e.target.value as TaskSortMode)}
+                  aria-label="Sort tasks by date and time"
+                  className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300"
+                >
+                  {TASK_SORT_MODES.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {TASK_SORT_LABELS[mode]}
+                    </option>
+                  ))}
+                </select>
+                {canEdit && archivableTaskIds.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={taskBusyKey !== null}
+                    onClick={() =>
+                      archiveAppointments(
+                        archivableTaskIds,
+                        true,
+                        'archive-done'
+                      )
+                    }
+                    title="Archive every done or cancelled event on these days"
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {taskBusyKey === 'archive-done' ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Archive className="h-3 w-3" />
+                    )}
+                    Archive done ({archivableTaskIds.length})
+                  </button>
+                )}
               </div>
               {tasksOpen && (
                 <div className="mt-3 max-h-80 overflow-y-auto pr-1">
@@ -1489,21 +1666,23 @@ export default function CalendarPage() {
         </div>
 
         {/* ── Right Side: Interactive To-Do Checklist Panel ────────────────── */}
-        <div className="flex w-full flex-col gap-6 lg:w-80 shrink-0">
+        <div className="flex w-full shrink-0 flex-col gap-6 lg:w-80">
           {/* To-Do panel */}
-          <div className="flex flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur overflow-hidden">
+          <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur">
             <div className="mb-4 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <ListTodo className="h-5 w-5 text-primary" />
-                <h2 className="text-sm font-bold text-white flex items-center">
+                <ListTodo className="text-primary h-5 w-5" />
+                <h2 className="flex items-center text-sm font-bold text-white">
                   To-Do Task List
                   <InfoHint text="A lightweight checklist: a title, an optional due date and a priority. Appointments and deal dates live on the calendar and in Tasks beneath it, not here. A task added from a deal's Tasks tab links back to that deal." />
                 </h2>
               </div>
               <select
                 value={todoFilter}
-                onChange={(e) => setTodoFilter(e.target.value as "all" | "priority")}
-                className="rounded border border-slate-800 bg-slate-950 px-2 py-0.5 text-[10px] font-bold text-slate-400 focus:outline-none cursor-pointer"
+                onChange={(e) =>
+                  setTodoFilter(e.target.value as 'all' | 'priority')
+                }
+                className="cursor-pointer rounded border border-slate-800 bg-slate-950 px-2 py-0.5 text-[10px] font-bold text-slate-400 focus:outline-none"
               >
                 <option value="all">All Tasks</option>
                 <option value="priority">Priority Only</option>
@@ -1511,13 +1690,16 @@ export default function CalendarPage() {
             </div>
 
             {/* Quick task add form */}
-            <form onSubmit={saveTodo} className="mb-4 flex flex-col gap-2 border-b border-slate-800 pb-4">
+            <form
+              onSubmit={saveTodo}
+              className="mb-4 flex flex-col gap-2 border-b border-slate-800 pb-4"
+            >
               <input
                 type="text"
                 placeholder="Add new task..."
                 value={todoTitle}
                 onChange={(e) => setTodoTitle(e.target.value)}
-                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                className="focus:border-primary w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none"
               />
               <DateTimePicker
                 value={todoDueDate}
@@ -1527,8 +1709,10 @@ export default function CalendarPage() {
               <div className="flex gap-2">
                 <select
                   value={todoPriority}
-                  onChange={(e) => setTodoPriority(e.target.value as "low" | "medium" | "high")}
-                  className="flex-1 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-300 focus:border-primary focus:outline-none"
+                  onChange={(e) =>
+                    setTodoPriority(e.target.value as 'low' | 'medium' | 'high')
+                  }
+                  className="focus:border-primary flex-1 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none"
                 >
                   <option value="low">Low Priority</option>
                   <option value="medium">Medium Priority</option>
@@ -1536,7 +1720,7 @@ export default function CalendarPage() {
                 </select>
                 <button
                   type="submit"
-                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                  className="bg-primary text-primary-foreground rounded-lg px-3 py-1.5 text-xs font-semibold hover:opacity-90"
                 >
                   Add
                 </button>
@@ -1544,7 +1728,7 @@ export default function CalendarPage() {
             </form>
 
             {/* Task checklist */}
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+            <div className="flex-1 space-y-2 overflow-y-auto pr-1">
               {visibleTodos.length === 0 ? (
                 <div className="flex h-32 flex-col items-center justify-center text-center text-slate-500">
                   <p className="text-xs">No pending tasks!</p>
@@ -1554,8 +1738,10 @@ export default function CalendarPage() {
                   <div
                     key={todo.id}
                     className={cn(
-                      "group flex items-start justify-between gap-3 p-2.5 rounded-lg border bg-slate-950/40 transition-colors hover:bg-slate-950/80",
-                      todo.completed ? "border-slate-800 opacity-60" : "border-slate-800/80"
+                      'group flex items-start justify-between gap-3 rounded-lg border bg-slate-950/40 p-2.5 transition-colors hover:bg-slate-950/80',
+                      todo.completed
+                        ? 'border-slate-800 opacity-60'
+                        : 'border-slate-800/80'
                     )}
                   >
                     <button
@@ -1569,24 +1755,27 @@ export default function CalendarPage() {
                       )}
                     </button>
 
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p
                         className={cn(
-                          "text-xs font-semibold text-white leading-normal break-words",
-                          todo.completed && "line-through text-slate-500 font-normal"
+                          'text-xs leading-normal font-semibold break-words text-white',
+                          todo.completed &&
+                            'font-normal text-slate-500 line-through'
                         )}
                       >
                         {todo.title}
                       </p>
-                      {(todo.due_date || todo.contact?.name || todo.property?.title) && (
+                      {(todo.due_date ||
+                        todo.contact?.name ||
+                        todo.property?.title) && (
                         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500">
                           {todo.due_date && (
                             <span>
-                              {new Date(todo.due_date).toLocaleString("en-IN", {
-                                day: "numeric",
-                                month: "short",
-                                hour: "numeric",
-                                minute: "2-digit",
+                              {new Date(todo.due_date).toLocaleString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: 'numeric',
+                                minute: '2-digit',
                                 hour12: true,
                               })}
                             </span>
@@ -1616,8 +1805,8 @@ export default function CalendarPage() {
                       {todo.description && (
                         <p
                           className={cn(
-                            "text-[10px] text-slate-400 mt-1 break-words line-clamp-2 leading-relaxed group-hover:line-clamp-none transition-all duration-300",
-                            todo.completed && "line-through text-slate-650"
+                            'mt-1 line-clamp-2 text-[10px] leading-relaxed break-words text-slate-400 transition-all duration-300 group-hover:line-clamp-none',
+                            todo.completed && 'text-slate-650 line-through'
                           )}
                         >
                           {todo.description}
@@ -1627,12 +1816,12 @@ export default function CalendarPage() {
                         {todo.priority && !todo.completed && (
                           <span
                             className={cn(
-                              "inline-block rounded px-1.5 py-0.5 text-[8px] font-bold uppercase",
-                              todo.priority === "high"
-                                ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                                : todo.priority === "medium"
-                                  ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                                  : "bg-slate-800 text-slate-400"
+                              'inline-block rounded px-1.5 py-0.5 text-[8px] font-bold uppercase',
+                              todo.priority === 'high'
+                                ? 'border border-rose-500/20 bg-rose-500/10 text-rose-400'
+                                : todo.priority === 'medium'
+                                  ? 'border border-amber-500/20 bg-amber-500/10 text-amber-400'
+                                  : 'bg-slate-800 text-slate-400'
                             )}
                           >
                             {todo.priority}
@@ -1642,7 +1831,7 @@ export default function CalendarPage() {
                           <Link
                             href={dealDateHref(todo.deal_id)}
                             className={cn(
-                              "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[8px] font-bold uppercase",
+                              'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[8px] font-bold uppercase',
                               DEAL_DATE_META.chip
                             )}
                             title="Open the deal this task belongs to"
@@ -1654,12 +1843,12 @@ export default function CalendarPage() {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
                       {todo.contact_id && (
                         <button
                           onClick={() => openContactChat(todo.contact_id!)}
-                          className="text-slate-500 hover:text-emerald-400 transition-colors p-0.5"
-                          title={`Check with ${todo.contact?.name?.trim().split(/\s+/)[0] || "contact"} on WhatsApp`}
+                          className="p-0.5 text-slate-500 transition-colors hover:text-emerald-400"
+                          title={`Check with ${todo.contact?.name?.trim().split(/\s+/)[0] || 'contact'} on WhatsApp`}
                           aria-label="Open chat"
                         >
                           <MessageSquare className="h-3.5 w-3.5" />
@@ -1667,7 +1856,7 @@ export default function CalendarPage() {
                       )}
                       <button
                         onClick={() => openEditTodoModal(todo)}
-                        className="text-slate-500 hover:text-white transition-colors p-0.5"
+                        className="p-0.5 text-slate-500 transition-colors hover:text-white"
                         title="Edit task"
                         aria-label="Edit task"
                       >
@@ -1675,7 +1864,7 @@ export default function CalendarPage() {
                       </button>
                       <button
                         onClick={() => deleteTodo(todo.id)}
-                        className="text-slate-500 hover:text-rose-450 transition-colors p-0.5"
+                        className="hover:text-rose-450 p-0.5 text-slate-500 transition-colors"
                         title="Delete task"
                         aria-label="Delete task"
                       >
@@ -1691,13 +1880,13 @@ export default function CalendarPage() {
 
         {/* ── Appointment Edit/Create Dialog Modal Overlay ────────────────── */}
         {isApptModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm overflow-y-auto">
-            <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl my-auto max-h-[calc(100vh-2rem)] overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/80 p-4 backdrop-blur-sm">
+            <div className="my-auto max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
               {/* Modal Header */}
               <div className="mb-4 flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <CalendarDays className="h-5 w-5 text-primary" />
-                  {selectedAppt ? "Edit Schedule" : "Schedule Appointment"}
+                <h3 className="flex items-center gap-2 text-lg font-bold text-white">
+                  <CalendarDays className="text-primary h-5 w-5" />
+                  {selectedAppt ? 'Edit Schedule' : 'Schedule Appointment'}
                 </h3>
                 <button
                   onClick={() => setIsApptModalOpen(false)}
@@ -1708,32 +1897,37 @@ export default function CalendarPage() {
                 </button>
               </div>
 
-              {!selectedAppt?.reschedule_requested_at && selectedAppt?.client_confirmed_at && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-600/40 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-300">
-                  <CheckCircle className="h-3.5 w-3.5 shrink-0" />
-                  <span>
-                    Client confirmed on{" "}
-                    {new Date(selectedAppt.client_confirmed_at).toLocaleString("en-IN", {
-                      day: "2-digit",
-                      month: "short",
-                      hour: "numeric",
-                      minute: "2-digit",
-                      hour12: true,
-                    })}
-                    {" "}via the reminder&apos;s &ldquo;Fine&rdquo; button.
-                  </span>
-                </div>
-              )}
+              {!selectedAppt?.reschedule_requested_at &&
+                selectedAppt?.client_confirmed_at && (
+                  <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-600/40 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-300">
+                    <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      Client confirmed on{' '}
+                      {new Date(
+                        selectedAppt.client_confirmed_at
+                      ).toLocaleString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true,
+                      })}{' '}
+                      via the reminder&apos;s &ldquo;Fine&rdquo; button.
+                    </span>
+                  </div>
+                )}
               {selectedAppt?.reschedule_requested_at && (
                 <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-600/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
                   <RefreshCcw className="h-3.5 w-3.5 shrink-0" />
                   <span>
-                    Client requested a reschedule on{" "}
-                    {new Date(selectedAppt.reschedule_requested_at).toLocaleString("en-IN", {
-                      day: "2-digit",
-                      month: "short",
-                      hour: "numeric",
-                      minute: "2-digit",
+                    Client requested a reschedule on{' '}
+                    {new Date(
+                      selectedAppt.reschedule_requested_at
+                    ).toLocaleString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: 'numeric',
+                      minute: '2-digit',
                       hour12: true,
                     })}
                     . Changing the time below will clear this notice.
@@ -1744,7 +1938,7 @@ export default function CalendarPage() {
               {/* Modal Form */}
               <form onSubmit={saveAppointment} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                     Visit / Title *
                   </label>
                   <input
@@ -1753,13 +1947,13 @@ export default function CalendarPage() {
                     placeholder="e.g. Site Visit - JP Nagar Plot"
                     value={apptTitle}
                     onChange={(e) => setApptTitle(e.target.value)}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                    className="focus:border-primary w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none"
                   />
                 </div>
 
                 {/* Event type chips */}
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                  <label className="mb-1.5 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                     Activity Type
                   </label>
                   <div className="flex flex-wrap gap-1.5">
@@ -1771,8 +1965,10 @@ export default function CalendarPage() {
                           type="button"
                           onClick={() => setApptEventType(key)}
                           className={cn(
-                            "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors",
-                            apptEventType === key ? meta.chip : "border-slate-800 text-slate-500 hover:text-white"
+                            'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors',
+                            apptEventType === key
+                              ? meta.chip
+                              : 'border-slate-800 text-slate-500 hover:text-white'
                           )}
                         >
                           <meta.icon className="h-3 w-3" />
@@ -1785,18 +1981,18 @@ export default function CalendarPage() {
 
                 {members.length > 1 && (
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                       Assign To
                     </label>
                     <select
                       value={apptAssignedTo}
                       onChange={(e) => setApptAssignedTo(e.target.value)}
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                      className="focus:border-primary w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none"
                     >
                       {members.map((m) => (
                         <option key={m.user_id} value={m.user_id}>
                           {m.full_name}
-                          {m.user_id === user?.id ? " (me)" : ""}
+                          {m.user_id === user?.id ? ' (me)' : ''}
                         </option>
                       ))}
                     </select>
@@ -1805,7 +2001,7 @@ export default function CalendarPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                       Link Contacts (buyer, agent…)
                     </label>
                     <SearchableContactMultiSelect
@@ -1814,23 +2010,31 @@ export default function CalendarPage() {
                       onChange={handleApptContactsChange}
                       placeholder="Search contacts..."
                     />
-                    <p className="mt-1 text-[10px] text-slate-500 font-medium">
-                      {apptEventType === "call"
-                        ? "Calls stay internal — only you get the reminder, linked contacts are not messaged."
-                        : "Reminders go to every linked contact — 7 AM on the day & 1 hour before."}
+                    <p className="mt-1 text-[10px] font-medium text-slate-500">
+                      {apptEventType === 'call'
+                        ? 'Calls stay internal — only you get the reminder, linked contacts are not messaged.'
+                        : 'Reminders go to every linked contact — 7 AM on the day & 1 hour before.'}
                     </p>
                     {selectedAppt && apptContactIds.length > 0 && (
                       <div className="mt-2">
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                        <label className="mb-1 block text-[10px] font-bold tracking-wider text-slate-500 uppercase">
                           WhatsApp after saving
                         </label>
                         <select
                           value={apptNotificationScope}
-                          onChange={(e) => setApptNotificationScope(e.target.value as "none" | "new" | "all")}
-                          className="w-full rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-2 text-xs text-white focus:border-primary focus:outline-none"
+                          onChange={(e) =>
+                            setApptNotificationScope(
+                              e.target.value as 'none' | 'new' | 'all'
+                            )
+                          }
+                          className="focus:border-primary w-full rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-2 text-xs text-white focus:outline-none"
                         >
-                          <option value="new">Inform newly added participants</option>
-                          <option value="all">Send updated details to everyone</option>
+                          <option value="new">
+                            Inform newly added participants
+                          </option>
+                          <option value="all">
+                            Send updated details to everyone
+                          </option>
                           <option value="none">Do not send a message</option>
                         </select>
                       </div>
@@ -1838,7 +2042,7 @@ export default function CalendarPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                       Link Property Listing
                     </label>
                     <SearchablePropertySelect
@@ -1852,7 +2056,7 @@ export default function CalendarPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                       Start Time *
                     </label>
                     <DateTimePicker
@@ -1863,7 +2067,7 @@ export default function CalendarPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                       End Time *
                     </label>
                     <DateTimePicker
@@ -1875,7 +2079,7 @@ export default function CalendarPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                     Location / Meeting Link
                   </label>
                   <input
@@ -1883,12 +2087,12 @@ export default function CalendarPage() {
                     placeholder="e.g. JP Nagar 5th Phase, or Google Meet URL"
                     value={apptLocation}
                     onChange={(e) => setApptLocation(e.target.value)}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                    className="focus:border-primary w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                     Notes / Description
                   </label>
                   <textarea
@@ -1896,7 +2100,7 @@ export default function CalendarPage() {
                     value={apptDesc}
                     onChange={(e) => setApptDesc(e.target.value)}
                     rows={3}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                    className="focus:border-primary w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none"
                   />
                 </div>
 
@@ -1904,17 +2108,17 @@ export default function CalendarPage() {
                     outcome once it exists. Post fields only show when
                     editing — there's nothing to log before it happens. */}
                 {eventTypeFields(apptEventType)
-                  .filter((f) => f.phase === "pre" || !!selectedAppt)
+                  .filter((f) => f.phase === 'pre' || !!selectedAppt)
                   .map((f) => (
                     <div key={f.key}>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                         {f.label}
-                        {f.phase === "pre" ? (
-                          <span className="ml-1.5 normal-case font-semibold text-slate-500">
+                        {f.phase === 'pre' ? (
+                          <span className="ml-1.5 font-semibold text-slate-500 normal-case">
                             — sent in the pre-event reminder
                           </span>
                         ) : (
-                          <span className="ml-1.5 normal-case font-semibold text-slate-500">
+                          <span className="ml-1.5 font-semibold text-slate-500 normal-case">
                             — fill in after the event
                           </span>
                         )}
@@ -1923,25 +2127,33 @@ export default function CalendarPage() {
                         placeholder={f.placeholder}
                         value={apptExtras[f.key]}
                         onChange={(e) =>
-                          setApptExtras((prev) => ({ ...prev, [f.key]: e.target.value }))
+                          setApptExtras((prev) => ({
+                            ...prev,
+                            [f.key]: e.target.value,
+                          }))
                         }
                         rows={2}
-                        className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                        className="focus:border-primary w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none"
                       />
                     </div>
                   ))}
 
                 {selectedAppt?.transcript && (
                   <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                    <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    <p className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
                       <AudioLines className="h-3 w-3" />
-                      Logged {selectedAppt.source === "voice" ? "by voice" : "via WhatsApp"}
+                      Logged{' '}
+                      {selectedAppt.source === 'voice'
+                        ? 'by voice'
+                        : 'via WhatsApp'}
                     </p>
-                    <p className="mt-1 text-[11px] italic text-slate-400">&ldquo;{selectedAppt.transcript}&rdquo;</p>
+                    <p className="mt-1 text-[11px] text-slate-400 italic">
+                      &ldquo;{selectedAppt.transcript}&rdquo;
+                    </p>
                   </div>
                 )}
 
-                <div className="flex items-center justify-between border-t border-slate-800 pt-4 mt-2">
+                <div className="mt-2 flex items-center justify-between border-t border-slate-800 pt-4">
                   <div>
                     {selectedAppt && (
                       <button
@@ -1958,8 +2170,13 @@ export default function CalendarPage() {
                     {selectedAppt && (
                       <select
                         value={apptStatus}
-                        onChange={(e) => setApptStatus(e.target.value as "scheduled" | "completed" | "cancelled")}
-                        className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                        onChange={(e) =>
+                          setApptStatus(
+                            e.target.value as
+                              'scheduled' | 'completed' | 'cancelled'
+                          )
+                        }
+                        className="focus:border-primary rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none"
                       >
                         <option value="scheduled">Scheduled</option>
                         <option value="completed">Completed</option>
@@ -1968,7 +2185,7 @@ export default function CalendarPage() {
                     )}
                     <button
                       type="submit"
-                      className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                      className="bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90"
                     >
                       Save Changes
                     </button>
@@ -1981,12 +2198,12 @@ export default function CalendarPage() {
 
         {/* ── Todo Edit Dialog Modal Overlay ────────────────── */}
         {isTodoModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm overflow-y-auto">
-            <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl my-auto max-h-[calc(100vh-2rem)] overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/80 p-4 backdrop-blur-sm">
+            <div className="my-auto max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
               {/* Modal Header */}
               <div className="mb-4 flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <ListTodo className="h-5 w-5 text-primary" />
+                <h3 className="flex items-center gap-2 text-lg font-bold text-white">
+                  <ListTodo className="text-primary h-5 w-5" />
                   Edit Task
                 </h3>
                 <button
@@ -2001,7 +2218,7 @@ export default function CalendarPage() {
               {/* Modal Form */}
               <form onSubmit={updateTodo} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                     Task Name *
                   </label>
                   <input
@@ -2010,12 +2227,12 @@ export default function CalendarPage() {
                     placeholder="e.g. Send the EC copy to the advocate"
                     value={editTodoTitle}
                     onChange={(e) => setEditTodoTitle(e.target.value)}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                    className="focus:border-primary w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                     Description / Notes
                   </label>
                   <textarea
@@ -2023,13 +2240,13 @@ export default function CalendarPage() {
                     value={editTodoDesc}
                     onChange={(e) => setEditTodoDesc(e.target.value)}
                     rows={3}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                    className="focus:border-primary w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                       Due Date
                     </label>
                     <DateTimePicker
@@ -2040,13 +2257,17 @@ export default function CalendarPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    <label className="mb-1 block text-xs font-bold tracking-wider text-slate-400 uppercase">
                       Priority
                     </label>
                     <select
                       value={editTodoPriority}
-                      onChange={(e) => setEditTodoPriority(e.target.value as "low" | "medium" | "high")}
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                      onChange={(e) =>
+                        setEditTodoPriority(
+                          e.target.value as 'low' | 'medium' | 'high'
+                        )
+                      }
+                      className="focus:border-primary w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:outline-none"
                     >
                       <option value="low">Low Priority</option>
                       <option value="medium">Medium Priority</option>
@@ -2061,19 +2282,24 @@ export default function CalendarPage() {
                     id="edit-todo-completed"
                     checked={editTodoCompleted}
                     onChange={(e) => setEditTodoCompleted(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-950 text-primary focus:ring-0 focus:ring-offset-0 h-4 w-4 cursor-pointer"
+                    className="text-primary h-4 w-4 cursor-pointer rounded border-slate-700 bg-slate-950 focus:ring-0 focus:ring-offset-0"
                   />
-                  <label htmlFor="edit-todo-completed" className="text-sm font-semibold text-slate-350 cursor-pointer select-none">
+                  <label
+                    htmlFor="edit-todo-completed"
+                    className="text-slate-350 cursor-pointer text-sm font-semibold select-none"
+                  >
                     Mark as Completed
                   </label>
                 </div>
 
-                <div className="flex items-center justify-between border-t border-slate-800 pt-4 mt-2">
+                <div className="mt-2 flex items-center justify-between border-t border-slate-800 pt-4">
                   <div>
                     <button
                       type="button"
                       onClick={() => {
-                        if (confirm("Are you sure you want to delete this task?")) {
+                        if (
+                          confirm('Are you sure you want to delete this task?')
+                        ) {
                           deleteTodo(selectedTodo!.id);
                           setIsTodoModalOpen(false);
                         }
@@ -2088,13 +2314,13 @@ export default function CalendarPage() {
                     <button
                       type="button"
                       onClick={() => setIsTodoModalOpen(false)}
-                      className="rounded-lg border border-slate-800 bg-slate-950 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-850 hover:text-white"
+                      className="hover:bg-slate-850 rounded-lg border border-slate-800 bg-slate-950 px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                      className="bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90"
                     >
                       Save Changes
                     </button>

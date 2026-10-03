@@ -242,9 +242,7 @@ describe('POST /api/contacts/[id]/portal-link', () => {
     queues['properties'] = [
       { data: { id: 'p-1', title: 'Koramangala 4 BHK' } },
     ];
-    queues['property_portal_listings'] = [
-      { data: { property_id: 'p-1' } },
-    ];
+    queues['property_portal_listings'] = [{ data: { property_id: 'p-1' } }];
     queues['property_portal_listing_aliases'] = [{ data: null }];
     queues['contact_property_inquiries'] = [{ data: null }];
 

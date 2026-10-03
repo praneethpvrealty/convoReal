@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notifications/create';
 
 const MAX_LATE_MS = 24 * 60 * 60 * 1000;

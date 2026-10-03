@@ -39,7 +39,7 @@ export interface GroupsAuth {
 async function groupsFetch<T>(
   path: string,
   accessToken: string,
-  init?: { method?: string; body?: unknown },
+  init?: { method?: string; body?: unknown }
 ): Promise<T> {
   const response = await fetch(`${META_GROUPS_API_BASE}${path}`, {
     method: init?.method ?? 'GET',
@@ -83,7 +83,7 @@ export async function createGroup(
     subject: string;
     description?: string;
     joinApprovalMode?: 'off' | 'admin_approval';
-  },
+  }
 ): Promise<CreateGroupResult> {
   const payload = await groupsFetch<{
     invite_link?: string;
@@ -132,21 +132,21 @@ const GROUP_FIELDS = [
 
 export function getGroup(
   accessToken: string,
-  waGroupId: string,
+  waGroupId: string
 ): Promise<GroupInfo> {
   return groupsFetch<GroupInfo>(
     `/${waGroupId}?fields=${GROUP_FIELDS}`,
-    accessToken,
+    accessToken
   );
 }
 
 export function listGroups(
   auth: GroupsAuth,
-  limit = 100,
+  limit = 100
 ): Promise<{ data?: GroupInfo[]; paging?: { cursors?: { after?: string } } }> {
   return groupsFetch(
     `/${auth.phoneNumberId}/groups?limit=${limit}`,
-    auth.accessToken,
+    auth.accessToken
   );
 }
 
@@ -155,7 +155,7 @@ export function listGroups(
 export function updateGroup(
   accessToken: string,
   waGroupId: string,
-  args: { subject?: string; description?: string },
+  args: { subject?: string; description?: string }
 ): Promise<unknown> {
   return groupsFetch(`/${waGroupId}`, accessToken, {
     method: 'POST',
@@ -171,18 +171,18 @@ export function updateGroup(
 
 export function deleteGroup(
   accessToken: string,
-  waGroupId: string,
+  waGroupId: string
 ): Promise<unknown> {
   return groupsFetch(`/${waGroupId}`, accessToken, { method: 'DELETE' });
 }
 
 export async function getInviteLink(
   accessToken: string,
-  waGroupId: string,
+  waGroupId: string
 ): Promise<string> {
   const payload = await groupsFetch<{ invite_link?: string }>(
     `/${waGroupId}/invite_link`,
-    accessToken,
+    accessToken
   );
   return payload.invite_link ?? '';
 }
@@ -190,12 +190,12 @@ export async function getInviteLink(
 /** Rotates the link — anyone holding the old one can no longer join. */
 export async function resetInviteLink(
   accessToken: string,
-  waGroupId: string,
+  waGroupId: string
 ): Promise<string> {
   const payload = await groupsFetch<{ invite_link?: string }>(
     `/${waGroupId}/invite_link`,
     accessToken,
-    { method: 'POST', body: { messaging_product: 'whatsapp' } },
+    { method: 'POST', body: { messaging_product: 'whatsapp' } }
   );
   return payload.invite_link ?? '';
 }
@@ -205,7 +205,7 @@ export async function resetInviteLink(
 export function removeParticipants(
   accessToken: string,
   waGroupId: string,
-  waIds: string[],
+  waIds: string[]
 ): Promise<unknown> {
   return groupsFetch(`/${waGroupId}/participants`, accessToken, {
     method: 'DELETE',
@@ -229,11 +229,11 @@ export async function setGroupPin(
     messageId: string;
     pin: boolean;
     expirationDays?: number;
-  },
+  }
 ): Promise<{ messageId: string | null }> {
   const days = Math.min(
     MAX_PIN_DAYS,
-    Math.max(MIN_PIN_DAYS, args.expirationDays ?? 7),
+    Math.max(MIN_PIN_DAYS, args.expirationDays ?? 7)
   );
 
   const payload = await groupsFetch<{ messages?: { id: string }[] }>(
@@ -254,7 +254,7 @@ export async function setGroupPin(
             }
           : { type: 'unpin', message_id: args.messageId },
       },
-    },
+    }
   );
   return { messageId: payload.messages?.[0]?.id ?? null };
 }

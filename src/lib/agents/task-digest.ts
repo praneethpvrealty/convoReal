@@ -70,7 +70,9 @@ export function normalizeSendTimes(raw: unknown): string[] {
     .map((v) => String(v ?? '').trim())
     .filter((v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v));
   const unique = [...new Set(valid)].sort();
-  return unique.length ? unique.slice(0, MAX_SEND_TIMES) : [...DEFAULT_SEND_TIMES];
+  return unique.length
+    ? unique.slice(0, MAX_SEND_TIMES)
+    : [...DEFAULT_SEND_TIMES];
 }
 
 /** The IST calendar day and clock time of an instant. */
@@ -177,13 +179,15 @@ export function formatTaskDigest(input: {
   if (overdue.length) {
     lines.push(`⚠️ *Overdue (${overdue.length})*`);
     lines.push(...overdue.slice(0, MAX_LISTED).map((t) => `• ${t.title}`));
-    if (overdue.length > MAX_LISTED) lines.push(`_+${overdue.length - MAX_LISTED} more_`);
+    if (overdue.length > MAX_LISTED)
+      lines.push(`_+${overdue.length - MAX_LISTED} more_`);
     lines.push('');
   }
   if (dueToday.length) {
     lines.push(`📝 *Due today (${dueToday.length})*`);
     lines.push(...dueToday.slice(0, MAX_LISTED).map((t) => `• ${t.title}`));
-    if (dueToday.length > MAX_LISTED) lines.push(`_+${dueToday.length - MAX_LISTED} more_`);
+    if (dueToday.length > MAX_LISTED)
+      lines.push(`_+${dueToday.length - MAX_LISTED} more_`);
     lines.push('');
   }
   if (appointments.length) {
@@ -200,12 +204,15 @@ export function formatTaskDigest(input: {
     lines.push(
       ...deadlines
         .slice(0, MAX_LISTED)
-        .map((d) => `• ${d.title} — ${d.subject} · ${deadlineLabel(d.daysLeft)}`)
+        .map(
+          (d) => `• ${d.title} — ${d.subject} · ${deadlineLabel(d.daysLeft)}`
+        )
     );
-    if (deadlines.length > MAX_LISTED) lines.push(`_+${deadlines.length - MAX_LISTED} more_`);
+    if (deadlines.length > MAX_LISTED)
+      lines.push(`_+${deadlines.length - MAX_LISTED} more_`);
     lines.push('');
   }
-  lines.push('_Reply *today* anytime to see your day\'s schedule._');
+  lines.push("_Reply *today* anytime to see your day's schedule._");
 
   return {
     title: first ? `${heading}, ${first}` : heading,
@@ -230,10 +237,12 @@ export interface DigestSchedule {
  * joiner would have started silent. Opting out is a saved row with
  * enabled false, which is the only state this reads as off.
  */
-export function resolveSchedule(row?: {
-  enabled?: boolean | null;
-  send_times?: unknown;
-} | null): DigestSchedule {
+export function resolveSchedule(
+  row?: {
+    enabled?: boolean | null;
+    send_times?: unknown;
+  } | null
+): DigestSchedule {
   return {
     enabled: row?.enabled !== false,
     times: normalizeSendTimes(row?.send_times),
@@ -341,13 +350,17 @@ export async function sendAgentTaskDigests(
 
     // Claim before sending. A crash after this point costs one digest;
     // a crash before it would send two.
-    const claims = [slot, ...supersededSlots(times, slot, alreadySent)].map((s) => ({
-      account_id: accountId,
-      user_id: userId,
-      digest_date: istDate,
-      slot: s,
-    }));
-    const { error: claimErr } = await db.from('agent_task_digest_log').insert(claims);
+    const claims = [slot, ...supersededSlots(times, slot, alreadySent)].map(
+      (s) => ({
+        account_id: accountId,
+        user_id: userId,
+        digest_date: istDate,
+        slot: s,
+      })
+    );
+    const { error: claimErr } = await db
+      .from('agent_task_digest_log')
+      .insert(claims);
     if (claimErr) {
       // 23505 — another runner took this slot. Not an error worth
       // raising: the digest is going out, just not from here.
@@ -360,14 +373,18 @@ export async function sendAgentTaskDigests(
         .select('title, due_date, priority')
         .eq('account_id', accountId)
         .eq('completed', false)
-        .or(`assigned_to.eq.${userId},and(assigned_to.is.null,user_id.eq.${userId})`)
+        .or(
+          `assigned_to.eq.${userId},and(assigned_to.is.null,user_id.eq.${userId})`
+        )
         .lt('due_date', dayEnd.toISOString())
         .order('due_date', { ascending: true }),
       db
         .from('appointments')
         .select('title, start_time')
         .eq('account_id', accountId)
-        .or(`assigned_to.eq.${userId},and(assigned_to.is.null,user_id.eq.${userId})`)
+        .or(
+          `assigned_to.eq.${userId},and(assigned_to.is.null,user_id.eq.${userId})`
+        )
         .neq('status', 'cancelled')
         .gte('start_time', dayStart.toISOString())
         .lt('start_time', dayEnd.toISOString())
@@ -380,7 +397,11 @@ export async function sendAgentTaskDigests(
         profileId: row.id as string,
         userId,
       }).map((r) => toDealDeadline(r, istDate))
-    ).map((d) => ({ title: d.title, subject: d.subject, daysLeft: d.daysLeft }));
+    ).map((d) => ({
+      title: d.title,
+      subject: d.subject,
+      daysLeft: d.daysLeft,
+    }));
 
     const open = (todos || []) as DigestTask[];
     const overdue = open.filter(
@@ -416,7 +437,9 @@ export async function sendAgentTaskDigests(
 
     await db
       .from('agent_task_digest_log')
-      .update({ task_count: overdue.length + dueToday.length + deadlines.length })
+      .update({
+        task_count: overdue.length + dueToday.length + deadlines.length,
+      })
       .eq('account_id', accountId)
       .eq('user_id', userId)
       .eq('digest_date', istDate)

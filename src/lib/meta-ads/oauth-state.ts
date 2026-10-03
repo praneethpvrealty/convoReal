@@ -30,7 +30,10 @@ function hmac(secret: string, data: string): string {
 }
 
 /** Encodes + signs a state payload into the opaque string sent to Meta. */
-export function signOAuthState(payload: OAuthStatePayload, secret: string): string {
+export function signOAuthState(
+  payload: OAuthStatePayload,
+  secret: string
+): string {
   const json = JSON.stringify(payload);
   const encoded = Buffer.from(json, 'utf8').toString('base64url');
   const signature = hmac(secret, encoded);
@@ -49,7 +52,7 @@ export type VerifyOAuthStateResult =
 export function verifyOAuthState(
   state: string | null | undefined,
   secret: string,
-  expectedNonce?: string | null,
+  expectedNonce?: string | null
 ): VerifyOAuthStateResult {
   if (!state) return { valid: false, reason: 'malformed' };
   const dotIdx = state.lastIndexOf('.');
@@ -61,7 +64,10 @@ export function verifyOAuthState(
 
   const sigBuf = Buffer.from(signature, 'hex');
   const expectedBuf = Buffer.from(expectedSignature, 'hex');
-  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+  if (
+    sigBuf.length !== expectedBuf.length ||
+    !crypto.timingSafeEqual(sigBuf, expectedBuf)
+  ) {
     return { valid: false, reason: 'bad_signature' };
   }
 
@@ -83,7 +89,11 @@ export function verifyOAuthState(
     return { valid: false, reason: 'expired' };
   }
 
-  if (expectedNonce !== undefined && expectedNonce !== null && payload.nonce !== expectedNonce) {
+  if (
+    expectedNonce !== undefined &&
+    expectedNonce !== null &&
+    payload.nonce !== expectedNonce
+  ) {
     return { valid: false, reason: 'bad_signature' };
   }
 

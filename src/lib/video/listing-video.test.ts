@@ -36,13 +36,21 @@ describe('buildNarrationScript', () => {
   });
 
   it('uses monthly rent for rental listings', () => {
-    const s = buildNarrationScript({ ...devanahalli, listing_type: 'Rent', rent_per_month: 80000 });
+    const s = buildNarrationScript({
+      ...devanahalli,
+      listing_type: 'Rent',
+      rent_per_month: 80000,
+    });
     expect(s).toContain('Monthly rent 80,000 rupees');
     expect(s).not.toContain('crore');
   });
 
   it('never mentions a price it does not have', () => {
-    const s = buildNarrationScript({ title: 'Plot', type: 'Plot', price: null });
+    const s = buildNarrationScript({
+      title: 'Plot',
+      type: 'Plot',
+      price: null,
+    });
     expect(s).not.toMatch(/rupees/);
   });
 });

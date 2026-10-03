@@ -13,7 +13,10 @@ export async function POST(request: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
     console.error('[stripe-topup-webhook] STRIPE_WEBHOOK_SECRET not set');
-    return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Webhook secret not configured' },
+      { status: 500 }
+    );
   }
 
   const rawBody = await request.text();
@@ -39,7 +42,9 @@ export async function POST(request: NextRequest) {
       const accountId = session.metadata.account_id;
       const packageKey = session.metadata.package_key;
       const paymentIntentId =
-        typeof session.payment_intent === 'string' ? session.payment_intent : (session.payment_intent?.id ?? '');
+        typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : (session.payment_intent?.id ?? '');
 
       if (accountId && packageKey) {
         try {
@@ -51,12 +56,20 @@ export async function POST(request: NextRequest) {
             gatewayPaymentId: paymentIntentId,
             currency: (session.currency ?? 'usd').toUpperCase(),
           });
-          console.log('[stripe-topup-webhook] credit top-up:', { sessionId: session.id, ...result });
+          console.log('[stripe-topup-webhook] credit top-up:', {
+            sessionId: session.id,
+            ...result,
+          });
         } catch (err) {
-          console.error('[stripe-topup-webhook] credit top-up processing failed:', err);
+          console.error(
+            '[stripe-topup-webhook] credit top-up processing failed:',
+            err
+          );
         }
       } else {
-        console.warn('[stripe-topup-webhook] Credit top-up session missing required metadata');
+        console.warn(
+          '[stripe-topup-webhook] Credit top-up session missing required metadata'
+        );
       }
     }
   }

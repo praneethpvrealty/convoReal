@@ -34,7 +34,10 @@ export function buildSoldUpdateTemplatePayload(): TemplatePayload {
       { type: 'QUICK_REPLY', text: 'Find similar' },
     ],
     sample_values: {
-      body: ['Gopi', 'Premium Commercial Property for Sale in Hoodi, Bangalore'],
+      body: [
+        'Gopi',
+        'Premium Commercial Property for Sale in Hoodi, Bangalore',
+      ],
     },
   };
 }

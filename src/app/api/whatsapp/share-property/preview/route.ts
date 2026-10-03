@@ -54,18 +54,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const [{ data: templateRows, error: templateErr }, brandImage, brandName, language] =
-      await Promise.all([
-        ctx.supabase
-          .from('message_templates')
-          .select('*')
-          .eq('account_id', ctx.accountId)
-          .in('name', PROPERTY_SHARE_TEMPLATE_NAMES)
-          .order('last_submitted_at', { ascending: false, nullsFirst: false }),
-        accountBrandImage(ctx.supabase, ctx.accountId),
-        accountBrandName(ctx.supabase, ctx.accountId),
-        resolveSendLanguage(ctx.supabase, ctx.accountId, contactId || null),
-      ]);
+    const [
+      { data: templateRows, error: templateErr },
+      brandImage,
+      brandName,
+      language,
+    ] = await Promise.all([
+      ctx.supabase
+        .from('message_templates')
+        .select('*')
+        .eq('account_id', ctx.accountId)
+        .in('name', PROPERTY_SHARE_TEMPLATE_NAMES)
+        .order('last_submitted_at', { ascending: false, nullsFirst: false }),
+      accountBrandImage(ctx.supabase, ctx.accountId),
+      accountBrandName(ctx.supabase, ctx.accountId),
+      resolveSendLanguage(ctx.supabase, ctx.accountId, contactId || null),
+    ]);
     if (templateErr) throw templateErr;
 
     return NextResponse.json({

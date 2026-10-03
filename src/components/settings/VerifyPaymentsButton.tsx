@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { RefreshCw, CheckCircle2, XCircle, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { useState } from 'react';
+import { RefreshCw, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface RazorpayOrder {
   id: string;
@@ -23,21 +23,22 @@ export function VerifyPaymentsButton() {
   async function fetchPendingOrders() {
     setLoading(true);
     try {
-      const res = await fetch("/api/billing/credits/pending-razorpay");
+      const res = await fetch('/api/billing/credits/pending-razorpay');
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error ?? "Failed to fetch pending orders");
+        throw new Error(data.error ?? 'Failed to fetch pending orders');
       }
 
       setOrders(data.orders ?? []);
       setShowDialog(true);
 
       if ((data.orders ?? []).length === 0) {
-        toast.info("No pending payments found in the last 24 hours");
+        toast.info('No pending payments found in the last 24 hours');
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to fetch pending orders";
+      const msg =
+        err instanceof Error ? err.message : 'Failed to fetch pending orders';
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -47,16 +48,16 @@ export function VerifyPaymentsButton() {
   async function verifyPayment(orderId: string) {
     setVerifying(orderId);
     try {
-      const res = await fetch("/api/billing/credits/verify-razorpay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/billing/credits/verify-razorpay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error ?? data.message ?? "Verification failed");
+        throw new Error(data.error ?? data.message ?? 'Verification failed');
       }
 
       if (data.success) {
@@ -67,7 +68,7 @@ export function VerifyPaymentsButton() {
         toast.warning(data.message);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Verification failed";
+      const msg = err instanceof Error ? err.message : 'Verification failed';
       toast.error(msg);
     } finally {
       setVerifying(null);
@@ -80,16 +81,20 @@ export function VerifyPaymentsButton() {
         type="button"
         onClick={fetchPendingOrders}
         disabled={loading}
-        className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-50"
+        className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-700 disabled:opacity-50"
       >
-        {loading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+        {loading ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <RefreshCw className="size-4" />
+        )}
         Verify Payments
       </button>
 
       {showDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
+            <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">Pending Payments</h3>
               <button
                 type="button"
@@ -101,11 +106,11 @@ export function VerifyPaymentsButton() {
             </div>
 
             {orders.length === 0 ? (
-              <p className="text-sm text-slate-400 py-8 text-center">
+              <p className="py-8 text-center text-sm text-slate-400">
                 No pending payments found in the last 24 hours.
               </p>
             ) : (
-              <div className="space-y-3 max-h-96 overflow-y-auto">
+              <div className="max-h-96 space-y-3 overflow-y-auto">
                 {orders.map((order) => (
                   <div
                     key={order.id}
@@ -113,17 +118,17 @@ export function VerifyPaymentsButton() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-mono text-slate-300 truncate">
+                        <p className="truncate font-mono text-xs text-slate-300">
                           {order.order_id}
                         </p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
+                        <p className="mt-0.5 text-[10px] text-slate-500">
                           {new Date(order.created_at).toLocaleString()}
                         </p>
-                        <div className="flex items-center gap-2 mt-1.5">
+                        <div className="mt-1.5 flex items-center gap-2">
                           <span className="text-xs font-bold text-yellow-400">
                             ₹{(order.amount / 100).toFixed(2)}
                           </span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">
+                          <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300">
                             {order.package_key}
                           </span>
                         </div>
@@ -132,7 +137,7 @@ export function VerifyPaymentsButton() {
                         type="button"
                         onClick={() => verifyPayment(order.order_id)}
                         disabled={verifying === order.order_id}
-                        className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
                       >
                         {verifying === order.order_id ? (
                           <Loader2 className="size-3 animate-spin" />
@@ -147,11 +152,11 @@ export function VerifyPaymentsButton() {
               </div>
             )}
 
-            <div className="flex justify-end mt-4 pt-4 border-t border-slate-800">
+            <div className="mt-4 flex justify-end border-t border-slate-800 pt-4">
               <button
                 type="button"
                 onClick={() => setShowDialog(false)}
-                className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800 transition-colors"
+                className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 transition-colors hover:bg-slate-800"
               >
                 Close
               </button>

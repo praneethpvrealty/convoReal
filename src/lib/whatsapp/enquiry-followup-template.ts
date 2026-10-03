@@ -8,8 +8,15 @@
 // unit-testable.
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
-import { DEFAULT_LANGUAGE, metaLanguageCode, type LanguageCode } from '@/lib/languages';
-import { templateBody, templateButtonLabel } from '@/lib/whatsapp/template-copy';
+import {
+  DEFAULT_LANGUAGE,
+  metaLanguageCode,
+  type LanguageCode,
+} from '@/lib/languages';
+import {
+  templateBody,
+  templateButtonLabel,
+} from '@/lib/whatsapp/template-copy';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { BRANDING } from '@/config/branding';
@@ -68,9 +75,9 @@ export function enquiryFollowupParamCount(templateName: string): 1 | 2 {
   return templateName === ENQUIRY_FOLLOWUP_TEMPLATE_NAME ? 2 : 1;
 }
 
-export function pickEnquiryFollowupTemplate<T extends ApprovedTemplateCandidate>(
-  rows: T[],
-): T | null {
+export function pickEnquiryFollowupTemplate<
+  T extends ApprovedTemplateCandidate,
+>(rows: T[]): T | null {
   return pickApprovedTemplate(rows, ENQUIRY_FOLLOWUP_TEMPLATE_NAMES);
 }
 
@@ -83,7 +90,7 @@ export const ENQUIRY_FOLLOWUP_UPDATE_BUTTON = 'Update my preferences';
 export const ENQUIRY_FOLLOWUP_CLOSE_BUTTON = 'Close my enquiry';
 
 export function buildEnquiryFollowupTemplatePayload(
-  language: LanguageCode = DEFAULT_LANGUAGE,
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): TemplatePayload {
   return {
     name: ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
@@ -99,8 +106,14 @@ export function buildEnquiryFollowupTemplatePayload(
     // value — the greeting name always resolves (placeholder-safe).
     body_text: templateBody('enquiry_followup', language),
     buttons: [
-      { type: 'QUICK_REPLY', text: templateButtonLabel('update_preferences', language) },
-      { type: 'QUICK_REPLY', text: templateButtonLabel('close_enquiry', language) },
+      {
+        type: 'QUICK_REPLY',
+        text: templateButtonLabel('update_preferences', language),
+      },
+      {
+        type: 'QUICK_REPLY',
+        text: templateButtonLabel('close_enquiry', language),
+      },
     ],
     sample_values: {
       body: ['Praneeth', 'Aryavarta Ventures'],

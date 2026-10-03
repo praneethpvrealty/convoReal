@@ -51,7 +51,9 @@ export const DEFAULT_LANGUAGE: LanguageCode = 'en';
  */
 export const MAX_UI_LANGUAGES = 2;
 
-export const LANGUAGE_CODES = Object.keys(SUPPORTED_LANGUAGES) as LanguageCode[];
+export const LANGUAGE_CODES = Object.keys(
+  SUPPORTED_LANGUAGES
+) as LanguageCode[];
 
 export function isLanguageCode(v: unknown): v is LanguageCode {
   return typeof v === 'string' && v in SUPPORTED_LANGUAGES;
@@ -93,7 +95,9 @@ export function metaLanguageCode(code: LanguageCode): string {
 export function languageForMetaCode(meta: string): LanguageCode | null {
   const wanted = meta.trim();
   if (wanted === 'en_GB' || wanted === 'en') return 'en';
-  const found = LANGUAGE_CODES.find((c) => SUPPORTED_LANGUAGES[c].meta === wanted);
+  const found = LANGUAGE_CODES.find(
+    (c) => SUPPORTED_LANGUAGES[c].meta === wanted
+  );
   return found ?? null;
 }
 
@@ -108,7 +112,7 @@ export function languageForMetaCode(meta: string): LanguageCode | null {
 // ------------------------------------------------------------
 
 const INDIAN_LANGUAGE_LABELS = LANGUAGE_CODES.filter((c) => c !== 'en').map(
-  (c) => SUPPORTED_LANGUAGES[c].label,
+  (c) => SUPPORTED_LANGUAGES[c].label
 );
 
 /** For prompts describing what a user may speak or type AT us. */

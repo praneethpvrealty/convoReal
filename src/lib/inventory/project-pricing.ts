@@ -77,7 +77,7 @@ export function projectAvailabilityLine(stats: ProjectUnitStats): string {
  */
 export function unitPremiumPercent(
   unitRatePerSqft: number | null | undefined,
-  stats: ProjectUnitStats,
+  stats: ProjectUnitStats
 ): number | null {
   const rate = Number(unitRatePerSqft);
   const floor = Number(stats.min_rate_per_sqft);
@@ -90,7 +90,7 @@ export function unitPremiumPercent(
 /** A unit's own rate, for the card that sits inside a project. */
 export function unitRatePerSqft(
   price: number | null | undefined,
-  areaSqft: number | null | undefined,
+  areaSqft: number | null | undefined
 ): number | null {
   const p = Number(price);
   const a = Number(areaSqft);
@@ -119,7 +119,7 @@ export function unitStatsFromProperties(
     area_sqft?: number | null;
     bedrooms?: number | null;
     status?: string | null;
-  }>,
+  }>
 ): ProjectUnitStats {
   const available = units.filter((u) => u.status === 'Available');
   const priced = available
@@ -137,7 +137,7 @@ export function unitStatsFromProperties(
     units: units.length,
     available: available.length,
     sold_or_contract: units.filter(
-      (u) => u.status === 'Sold' || u.status === 'Under Contract',
+      (u) => u.status === 'Sold' || u.status === 'Under Contract'
     ).length,
     min_price: priced.length ? Math.min(...priced) : null,
     max_price: priced.length ? Math.max(...priced) : null,

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const maybeSingle = vi.fn();
-vi.mock('@/lib/automations/admin-client', () => ({
+vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
     from: () => ({
       select: () => ({
@@ -31,7 +31,9 @@ describe('resolveChannels', () => {
   });
 
   it('applies a saved override', async () => {
-    maybeSingle.mockResolvedValue({ data: { app_enabled: false, whatsapp_enabled: true } });
+    maybeSingle.mockResolvedValue({
+      data: { app_enabled: false, whatsapp_enabled: true },
+    });
     expect(await resolveChannels('acc', 'first_inbound_message')).toEqual({
       inApp: false,
       push: false,

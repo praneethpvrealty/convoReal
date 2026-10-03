@@ -31,7 +31,9 @@ export function useNotifications() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('notifications')
-        .select('id, type, title, body, entity_type, entity_id, link, read_at, created_at')
+        .select(
+          'id, type, title, body, entity_type, entity_id, link, read_at, created_at'
+        )
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -53,7 +55,9 @@ export function useNotifications() {
           filter: `user_id=eq.${userId}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
+          queryClient.invalidateQueries({
+            queryKey: ['notifications', userId],
+          });
         }
       )
       .subscribe();

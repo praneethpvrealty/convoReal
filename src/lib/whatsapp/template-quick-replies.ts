@@ -36,9 +36,7 @@ export const INVENTORY_FULL_LIST_BUTTON = 'Send full list';
 export const INVENTORY_SITE_VISIT_BUTTON = 'Book a site visit';
 
 export type TemplateQuickReply =
-  | 'property_details'
-  | 'inventory_full_list'
-  | 'site_visit';
+  'property_details' | 'inventory_full_list' | 'site_visit';
 
 /**
  * Which of our template buttons this inbound message is, if any.

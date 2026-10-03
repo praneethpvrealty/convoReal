@@ -63,14 +63,14 @@ export function WaitlistForm({ inviteState, cta }: WaitlistFormProps) {
         setSaving(false);
       }
     },
-    [name, phone, inviteState, saving],
+    [name, phone, inviteState, saving]
   );
 
   if (done) {
     return (
-      <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3.5 text-sm text-slate-200">
-        You&apos;re on the list. We&apos;ll message you on WhatsApp the moment
-        a seat opens.
+      <div className="border-primary/30 bg-primary/5 rounded-lg border px-4 py-3.5 text-sm text-slate-200">
+        You&apos;re on the list. We&apos;ll message you on WhatsApp the moment a
+        seat opens.
       </div>
     );
   }

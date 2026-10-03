@@ -10,8 +10,8 @@ export function PropertyHouseGlyph({
   size = 72,
   className,
 }: {
-  size?: number
-  className?: string
+  size?: number;
+  className?: string;
 }) {
   return (
     <svg
@@ -30,5 +30,5 @@ export function PropertyHouseGlyph({
       <path d="M26 54 L26 37 L38 37 L38 54" />
       <path d="M42 30 L50 30 L50 38 L42 38 Z" />
     </svg>
-  )
+  );
 }

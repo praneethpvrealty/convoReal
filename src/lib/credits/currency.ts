@@ -9,7 +9,7 @@
 // contradict migration 073's "no backfill required" design.
 // ============================================================
 
-import { billingAdmin } from '@/lib/billing/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { CreditCurrency, PaymentGateway } from './types';
 
 interface CountryBilling {
@@ -43,7 +43,10 @@ const COUNTRY_CODE_BILLING: [prefix: string, billing: CountryBilling][] = [
 // currency requires a *confirmed* non-Indian country code match
 // below; ambiguity should never silently push a domestic user onto
 // the wrong gateway and currency.
-const DEFAULT_BILLING: CountryBilling = { currency: 'INR', gateway: 'razorpay' };
+const DEFAULT_BILLING: CountryBilling = {
+  currency: 'INR',
+  gateway: 'razorpay',
+};
 
 /**
  * Detects billing currency + gateway from a phone number's country
@@ -51,11 +54,17 @@ const DEFAULT_BILLING: CountryBilling = { currency: 'INR', gateway: 'razorpay' }
  * Engine and the fallback default — everything else routes to Stripe
  * only on a confirmed non-Indian country code match.
  */
-export function resolveBillingFromPhone(phone: string | null | undefined): CountryBilling {
+export function resolveBillingFromPhone(
+  phone: string | null | undefined
+): CountryBilling {
   if (!phone) return DEFAULT_BILLING;
-  const normalized = phone.trim().startsWith('+') ? phone.trim() : `+${phone.trim().replace(/\D/g, '')}`;
+  const normalized = phone.trim().startsWith('+')
+    ? phone.trim()
+    : `+${phone.trim().replace(/\D/g, '')}`;
 
-  const sorted = [...COUNTRY_CODE_BILLING].sort((a, b) => b[0].length - a[0].length);
+  const sorted = [...COUNTRY_CODE_BILLING].sort(
+    (a, b) => b[0].length - a[0].length
+  );
   for (const [prefix, billing] of sorted) {
     if (normalized.startsWith(prefix)) return billing;
   }
@@ -76,8 +85,10 @@ export function resolveBillingFromPhone(phone: string | null | undefined): Count
  * trigger a top-up purchase, so this detection must not depend on
  * the caller's own role.
  */
-export async function getOrDetectBillingGateway(accountId: string): Promise<CountryBilling> {
-  const supabase = billingAdmin();
+export async function getOrDetectBillingGateway(
+  accountId: string
+): Promise<CountryBilling> {
+  const supabase = supabaseAdmin();
   const { data: sub } = await supabase
     .from('subscriptions')
     .select('billing_currency, billing_gateway')
@@ -85,7 +96,10 @@ export async function getOrDetectBillingGateway(accountId: string): Promise<Coun
     .maybeSingle();
 
   if (sub?.billing_currency && sub?.billing_gateway) {
-    return { currency: sub.billing_currency as CreditCurrency, gateway: sub.billing_gateway as PaymentGateway };
+    return {
+      currency: sub.billing_currency as CreditCurrency,
+      gateway: sub.billing_gateway as PaymentGateway,
+    };
   }
 
   const { data: managerProfile } = await supabase
@@ -100,12 +114,18 @@ export async function getOrDetectBillingGateway(accountId: string): Promise<Coun
   if (sub) {
     await supabase
       .from('subscriptions')
-      .update({ billing_currency: detected.currency, billing_gateway: detected.gateway })
+      .update({
+        billing_currency: detected.currency,
+        billing_gateway: detected.gateway,
+      })
       .eq('account_id', accountId);
   } else {
-    await supabase
-      .from('subscriptions')
-      .insert({ account_id: accountId, plan: 'starter', billing_currency: detected.currency, billing_gateway: detected.gateway });
+    await supabase.from('subscriptions').insert({
+      account_id: accountId,
+      plan: 'starter',
+      billing_currency: detected.currency,
+      billing_gateway: detected.gateway,
+    });
   }
 
   return detected;

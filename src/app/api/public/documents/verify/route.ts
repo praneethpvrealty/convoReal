@@ -1,16 +1,16 @@
-import crypto from "node:crypto";
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/automations/admin-client";
-import { parsePropertyDocuments } from "@/lib/inventory/documents";
-import { trackDocumentView } from "@/lib/documents/track-view";
-import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import crypto from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { parsePropertyDocuments } from '@/lib/inventory/documents';
+import { trackDocumentView } from '@/lib/documents/track-view';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 function getClientIp(request: Request): string {
-  const xff = request.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0].trim();
-  const xri = request.headers.get("x-real-ip");
+  const xff = request.headers.get('x-forwarded-for');
+  if (xff) return xff.split(',')[0].trim();
+  const xri = request.headers.get('x-real-ip');
   if (xri) return xri.trim();
-  return "unknown";
+  return 'unknown';
 }
 
 function passwordMatches(stored: string, supplied: string): boolean {
@@ -25,32 +25,44 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null);
     if (!body) {
-      return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
     }
 
     const { token, password } = body;
 
     if (!token || !password) {
-      return NextResponse.json({ error: "Token and password are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Token and password are required' },
+        { status: 400 }
+      );
     }
 
-    const rate = await checkRateLimit(`doc-verify:${token}:${getClientIp(request)}`, DOC_VERIFY_LIMIT);
+    const rate = await checkRateLimit(
+      `doc-verify:${token}:${getClientIp(request)}`,
+      DOC_VERIFY_LIMIT
+    );
     if (!rate.success) return rateLimitResponse(rate);
 
     const admin = supabaseAdmin();
     // Look up doc request by share token
     const { data: docRequest, error } = await admin
-      .from("property_document_requests")
-      .select("*, property:properties(id, title, property_code, documents)")
-      .eq("share_token", token)
+      .from('property_document_requests')
+      .select('*, property:properties(id, title, property_code, documents)')
+      .eq('share_token', token)
       .maybeSingle();
 
     if (error || !docRequest) {
-      return NextResponse.json({ error: "Invalid share link" }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Invalid share link' },
+        { status: 404 }
+      );
     }
 
-    if (docRequest.status !== "approved") {
-      return NextResponse.json({ error: "This link is not approved" }, { status: 403 });
+    if (docRequest.status !== 'approved') {
+      return NextResponse.json(
+        { error: 'This link is not approved' },
+        { status: 403 }
+      );
     }
 
     // Check expiry
@@ -59,13 +71,19 @@ export async function POST(request: Request) {
       : null;
     const isExpired = expiresAt ? new Date() > expiresAt : false;
     if (isExpired) {
-      return NextResponse.json({ error: "This link has expired" }, { status: 410 });
+      return NextResponse.json(
+        { error: 'This link has expired' },
+        { status: 410 }
+      );
     }
 
     // Verify password
     const storedPassword = docRequest.access_password?.trim();
     if (!storedPassword || !passwordMatches(storedPassword, password.trim())) {
-      return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Incorrect password' },
+        { status: 401 }
+      );
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,7 +105,10 @@ export async function POST(request: Request) {
       documents: parsedDocuments,
     });
   } catch (err) {
-    console.error("[POST /api/public/documents/verify] Error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error('[POST /api/public/documents/verify] Error:', err);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

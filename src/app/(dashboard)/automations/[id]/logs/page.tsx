@@ -1,88 +1,82 @@
-"use client"
+'use client';
 
-import { use, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import {
-  ArrowLeft,
-  Check,
-  X,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react"
+import { use, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, Check, X, ChevronDown, ChevronRight } from 'lucide-react';
 
-import { createClient } from "@/lib/supabase/client"
-import { FlowNodeLoader } from "@/components/ui/flow-node-loader"
-import { ConvoRealLoader } from "@/components/ui/convoreal-loader"
+import { createClient } from '@/lib/supabase/client';
+import { FlowNodeLoader } from '@/components/ui/flow-node-loader';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import type {
   Automation,
   AutomationLog,
   AutomationLogStepResult,
-} from "@/types"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
-import { formatRelative } from "@/lib/automations/trigger-meta"
-import { NameTagBadge } from "@/components/contacts/name-tag-badge"
+} from '@/types';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { formatRelative } from '@/lib/automations/trigger-meta';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 
 export default function AutomationLogsPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>;
 }) {
-  const { id } = use(params)
-  const router = useRouter()
+  const { id } = use(params);
+  const router = useRouter();
 
-  const [automation, setAutomation] = useState<Automation | null>(null)
-  const [logs, setLogs] = useState<AutomationLog[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [openLogId, setOpenLogId] = useState<string | null>(null)
+  const [automation, setAutomation] = useState<Automation | null>(null);
+  const [logs, setLogs] = useState<AutomationLog[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [openLogId, setOpenLogId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
-        const supabase = createClient()
+        const supabase = createClient();
         const [autRes, logRes] = await Promise.all([
+          supabase.from('automations').select('*').eq('id', id).maybeSingle(),
           supabase
-            .from("automations")
-            .select("*")
-            .eq("id", id)
-            .maybeSingle(),
-          supabase
-            .from("automation_logs")
-            .select("*, contact:contacts(id, name, phone, name_tag)")
-            .eq("automation_id", id)
-            .order("created_at", { ascending: false })
+            .from('automation_logs')
+            .select('*, contact:contacts(id, name, phone, name_tag)')
+            .eq('automation_id', id)
+            .order('created_at', { ascending: false })
             .limit(100),
-        ])
-        if (autRes.error) throw autRes.error
-        if (logRes.error) throw logRes.error
-        setAutomation(autRes.data as Automation | null)
-        setLogs((logRes.data ?? []) as AutomationLog[])
+        ]);
+        if (autRes.error) throw autRes.error;
+        if (logRes.error) throw logRes.error;
+        setAutomation(autRes.data as Automation | null);
+        setLogs((logRes.data ?? []) as AutomationLog[]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load logs")
+        setError(err instanceof Error ? err.message : 'Failed to load logs');
       }
     }
-    load()
-  }, [id])
+    load();
+  }, [id]);
 
   if (error) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3">
         <p className="text-sm text-red-400">{error}</p>
-        <Button variant="outline" onClick={() => router.push("/automations")}>
+        <Button variant="outline" onClick={() => router.push('/automations')}>
           Back
         </Button>
       </div>
-    )
+    );
   }
 
   if (!automation || logs === null) {
     return (
       <div className="flex h-64 flex-col items-center justify-center text-slate-400">
-        <FlowNodeLoader size={104} label="Loading automation logs" className="mb-3" />
+        <FlowNodeLoader
+          size={104}
+          label="Loading automation logs"
+          className="mb-3"
+        />
         <ConvoRealLoader size={20} className="mb-2" />
         <p className="text-sm">Loading automation logs...</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -90,7 +84,7 @@ export default function AutomationLogsPage({
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => router.push("/automations")}
+          onClick={() => router.push('/automations')}
           className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
           aria-label="Back"
         >
@@ -112,7 +106,7 @@ export default function AutomationLogsPage({
       ) : (
         <ul className="space-y-2">
           {logs.map((log) => {
-            const isOpen = openLogId === log.id
+            const isOpen = openLogId === log.id;
             return (
               <li
                 key={log.id}
@@ -132,13 +126,16 @@ export default function AutomationLogsPage({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 text-sm font-medium text-white">
                       <span className="truncate">
-                        {log.contact?.name ?? log.contact?.phone ?? "Unknown contact"}
+                        {log.contact?.name ??
+                          log.contact?.phone ??
+                          'Unknown contact'}
                       </span>
                       <NameTagBadge tag={log.contact?.name_tag} />
                     </div>
                     <div className="truncate text-xs text-slate-500">
-                      {log.trigger_event} · {log.steps_executed?.length ?? 0} step
-                      {log.steps_executed?.length === 1 ? "" : "s"}
+                      {log.trigger_event} · {log.steps_executed?.length ?? 0}{' '}
+                      step
+                      {log.steps_executed?.length === 1 ? '' : 's'}
                     </div>
                   </div>
                   <div className="text-xs text-slate-500">
@@ -157,47 +154,49 @@ export default function AutomationLogsPage({
                         <StepRow key={i} result={r} />
                       ))}
                       {(log.steps_executed ?? []).length === 0 && (
-                        <li className="text-xs text-slate-500">No steps recorded.</li>
+                        <li className="text-xs text-slate-500">
+                          No steps recorded.
+                        </li>
                       )}
                     </ul>
                   </div>
                 )}
               </li>
-            )
+            );
           })}
         </ul>
       )}
     </div>
-  )
+  );
 }
 
-function StatusBadge({ status }: { status: AutomationLog["status"] }) {
+function StatusBadge({ status }: { status: AutomationLog['status'] }) {
   const classes =
-    status === "success"
-      ? "border-primary/30 bg-primary/10 text-primary"
-      : status === "partial"
-      ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-      : "border-red-500/30 bg-red-500/10 text-red-300"
+    status === 'success'
+      ? 'border-primary/30 bg-primary/10 text-primary'
+      : status === 'partial'
+        ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+        : 'border-red-500/30 bg-red-500/10 text-red-300';
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
-        classes,
+        'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium',
+        classes
       )}
     >
       {status}
     </span>
-  )
+  );
 }
 
 function StepRow({ result }: { result: AutomationLogStepResult }) {
-  const ok = result.status === "success"
+  const ok = result.status === 'success';
   return (
     <li className="flex items-start gap-2 text-xs">
       <span
         className={cn(
-          "mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full",
-          ok ? "bg-primary/20 text-primary" : "bg-red-500/20 text-red-400",
+          'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full',
+          ok ? 'bg-primary/20 text-primary' : 'bg-red-500/20 text-red-400'
         )}
         aria-hidden
       >
@@ -208,5 +207,5 @@ function StepRow({ result }: { result: AutomationLogStepResult }) {
         <span className="truncate text-slate-500">— {result.detail}</span>
       )}
     </li>
-  )
+  );
 }

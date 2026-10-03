@@ -27,12 +27,19 @@ interface LocationApprovalRow {
 
 export const LOCATION_APPROVALS_QUERY_KEY = 'location-approvals';
 
-function statusLine(row: LocationApprovalRow): { text: string; tone: 'warn' | 'wait' | 'ok' | 'muted' } {
+function statusLine(row: LocationApprovalRow): {
+  text: string;
+  tone: 'warn' | 'wait' | 'ok' | 'muted';
+} {
   if (row.status === 'pending' && row.pending_consent_contact_name) {
-    return { text: `Awaiting ${row.pending_consent_contact_name}`, tone: 'wait' };
+    return {
+      text: `Awaiting ${row.pending_consent_contact_name}`,
+      tone: 'wait',
+    };
   }
   if (row.status === 'pending') return { text: 'Your decision', tone: 'warn' };
-  if (row.status === 'approved') return { text: 'Approved · link sent', tone: 'ok' };
+  if (row.status === 'approved')
+    return { text: 'Approved · link sent', tone: 'ok' };
   if (row.status === 'rejected') return { text: 'Rejected', tone: 'muted' };
   return { text: 'Timed out', tone: 'muted' };
 }
@@ -49,12 +56,17 @@ export function LocationApprovals() {
     queryKey: [LOCATION_APPROVALS_QUERY_KEY],
     staleTime: 30_000,
     queryFn: () =>
-      apiFetch<{ data: LocationApprovalRow[] }>('/api/location-requests?limit=10'),
+      apiFetch<{ data: LocationApprovalRow[] }>(
+        '/api/location-requests?limit=10'
+      ),
   });
   const rows = data?.data ?? [];
   if (rows.length === 0) return null;
 
-  const act = async (row: LocationApprovalRow, action: 'approve' | 'reject') => {
+  const act = async (
+    row: LocationApprovalRow,
+    action: 'approve' | 'reject'
+  ) => {
     haptic.tap();
     setProcessingId(row.id);
     try {
@@ -63,7 +75,9 @@ export function LocationApprovals() {
         body: JSON.stringify({ request_id: row.id, action }),
       });
       haptic.success();
-      await queryClient.invalidateQueries({ queryKey: [LOCATION_APPROVALS_QUERY_KEY] });
+      await queryClient.invalidateQueries({
+        queryKey: [LOCATION_APPROVALS_QUERY_KEY],
+      });
     } catch (err) {
       haptic.warn();
       show({
@@ -75,23 +89,44 @@ export function LocationApprovals() {
     }
   };
 
-  const toneColor = { warn: colors.danger, wait: colors.primary, ok: colors.primary, muted: colors.textMuted };
+  const toneColor = {
+    warn: colors.danger,
+    wait: colors.primary,
+    ok: colors.primary,
+    muted: colors.textMuted,
+  };
 
   return (
     <View style={{ gap: spacing.sm }}>
       <SectionLabel text="Location approvals" />
       {rows.map((row) => {
         const s = statusLine(row);
-        const actionable = row.status === 'pending' && !row.pending_consent_contact_name;
+        const actionable =
+          row.status === 'pending' && !row.pending_consent_contact_name;
         return (
           <View
             key={row.id}
-            style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.glass,
+                borderColor: colors.glassBorder,
+              },
+            ]}
           >
             <View style={styles.head}>
-              <Ionicons name="location-outline" size={17} color={colors.primary} />
+              <Ionicons
+                name="location-outline"
+                size={17}
+                color={colors.primary}
+              />
               <Text
-                style={{ flex: 1, fontSize: 14, fontFamily: f.bold, color: colors.text }}
+                style={{
+                  flex: 1,
+                  fontSize: 14,
+                  fontFamily: f.bold,
+                  color: colors.text,
+                }}
                 numberOfLines={1}
               >
                 {row.property_title}
@@ -102,13 +137,26 @@ export function LocationApprovals() {
               </Text>
             </View>
             <View style={styles.head}>
-              <Ionicons name="person-outline" size={13} color={colors.textMuted} />
-              <Text style={{ flex: 1, fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
+              <Ionicons
+                name="person-outline"
+                size={13}
+                color={colors.textMuted}
+              />
+              <Text
+                style={{ flex: 1, fontSize: 12.5, color: colors.textMuted }}
+                numberOfLines={1}
+              >
                 {row.requester_name} · {row.requester_phone}
                 {row.identity_protected ? '  🔒' : ''}
               </Text>
             </View>
-            <Text style={{ fontSize: 12, fontFamily: f.bold, color: toneColor[s.tone] }}>
+            <Text
+              style={{
+                fontSize: 12,
+                fontFamily: f.bold,
+                color: toneColor[s.tone],
+              }}
+            >
               {s.text}
               {row.via_contact_name ? `  ·  via ${row.via_contact_name}` : ''}
             </Text>
@@ -121,12 +169,23 @@ export function LocationApprovals() {
                   accessibilityLabel={`Approve location request for ${row.property_title}`}
                   style={({ pressed }) => [
                     styles.button,
-                    { backgroundColor: colors.primary, opacity: processingId === row.id ? 0.5 : pressed ? 0.8 : 1 },
+                    {
+                      backgroundColor: colors.primary,
+                      opacity:
+                        processingId === row.id ? 0.5 : pressed ? 0.8 : 1,
+                    },
                   ]}
                 >
-                  <Ionicons name="checkmark" size={15} color={colors.onPrimary} />
+                  <Ionicons
+                    name="checkmark"
+                    size={15}
+                    color={colors.onPrimary}
+                  />
                   <Text
-                    style={[styles.buttonText, { fontFamily: f.bold, color: colors.onPrimary }]}
+                    style={[
+                      styles.buttonText,
+                      { fontFamily: f.bold, color: colors.onPrimary },
+                    ]}
                   >
                     Approve
                   </Text>
@@ -139,11 +198,20 @@ export function LocationApprovals() {
                   style={({ pressed }) => [
                     styles.button,
                     styles.rejectButton,
-                    { borderColor: colors.danger, opacity: processingId === row.id ? 0.5 : pressed ? 0.8 : 1 },
+                    {
+                      borderColor: colors.danger,
+                      opacity:
+                        processingId === row.id ? 0.5 : pressed ? 0.8 : 1,
+                    },
                   ]}
                 >
                   <Ionicons name="close" size={15} color={colors.danger} />
-                  <Text style={[styles.buttonText, { color: colors.danger, fontFamily: f.bold }]}>
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      { color: colors.danger, fontFamily: f.bold },
+                    ]}
+                  >
                     Reject
                   </Text>
                 </Pressable>

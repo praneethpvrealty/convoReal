@@ -22,7 +22,8 @@ const steps = [
 
 export default function NewBroadcastPage() {
   const router = useRouter();
-  const { createAndSendBroadcast, isProcessing, progress } = useBroadcastSending();
+  const { createAndSendBroadcast, isProcessing, progress } =
+    useBroadcastSending();
   const { user, accountId } = useAuth();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -128,7 +129,10 @@ export default function NewBroadcastPage() {
       </div>
 
       {/* Step Indicator */}
-      <div className="flex items-center justify-between" data-tour="broadcast-steps">
+      <div
+        className="flex items-center justify-between"
+        data-tour="broadcast-steps"
+      >
         {steps.map((step, index) => {
           const isActive = index === currentStep;
           const isCompleted = index < currentStep;
@@ -141,7 +145,7 @@ export default function NewBroadcastPage() {
                     isCompleted
                       ? 'bg-primary text-primary-foreground'
                       : isActive
-                        ? 'border-2 border-primary bg-primary/10 text-primary'
+                        ? 'border-primary bg-primary/10 text-primary border-2'
                         : 'border border-slate-700 bg-slate-800 text-slate-500'
                   }`}
                 >
@@ -149,7 +153,11 @@ export default function NewBroadcastPage() {
                 </div>
                 <span
                   className={`hidden text-sm font-medium sm:block ${
-                    isActive ? 'text-white' : isCompleted ? 'text-primary' : 'text-slate-500'
+                    isActive
+                      ? 'text-white'
+                      : isCompleted
+                        ? 'text-primary'
+                        : 'text-slate-500'
                   }`}
                 >
                   {step.label}

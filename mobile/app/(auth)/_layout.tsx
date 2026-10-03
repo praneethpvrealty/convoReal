@@ -8,7 +8,9 @@ export default function AuthLayout() {
   const surface = useSurface((s) => s.surface);
 
   if (session) {
-    return <Redirect href={surface === 'den' ? '/(den)/den' : '/(app)/(tabs)'} />;
+    return (
+      <Redirect href={surface === 'den' ? '/(den)/den' : '/(app)/(tabs)'} />
+    );
   }
 
   return (

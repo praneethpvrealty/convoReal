@@ -61,7 +61,10 @@ export const WIDGET_DEFS: Record<WidgetId, HomeWidgetDef> = {
 export const DEFAULT_WIDGETS: WidgetId[] = ['inbox', 'calendar'];
 
 export function isWidgetId(value: unknown): value is WidgetId {
-  return typeof value === 'string' && (WIDGET_IDS as readonly string[]).includes(value);
+  return (
+    typeof value === 'string' &&
+    (WIDGET_IDS as readonly string[]).includes(value)
+  );
 }
 
 /** Sanitize a persisted selection: drop unknown ids (older/newer app

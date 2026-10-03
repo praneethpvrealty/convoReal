@@ -2,12 +2,7 @@
 
 import { useDeferredValue } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Building2,
-  CalendarDays,
-  Search,
-  UserRound,
-} from 'lucide-react';
+import { Building2, CalendarDays, Search, UserRound } from 'lucide-react';
 import type {
   ActiveEntityQuery,
   EntitySuggestion,

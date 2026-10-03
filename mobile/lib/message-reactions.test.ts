@@ -40,11 +40,14 @@ function message(over: Partial<Message> = {}): Message {
 
 describe('groupReactions', () => {
   it('counts each emoji once', () => {
-    const groups = groupReactions([
-      reaction({ emoji: '👍', actor_type: 'customer', actor_id: null }),
-      reaction({ emoji: '👍', actor_id: ME }),
-      reaction({ emoji: '😂', actor_type: 'customer', actor_id: null }),
-    ], ME);
+    const groups = groupReactions(
+      [
+        reaction({ emoji: '👍', actor_type: 'customer', actor_id: null }),
+        reaction({ emoji: '👍', actor_id: ME }),
+        reaction({ emoji: '😂', actor_type: 'customer', actor_id: null }),
+      ],
+      ME
+    );
     expect(groups).toEqual([
       { emoji: '👍', count: 2, mine: true },
       { emoji: '😂', count: 1, mine: false },
@@ -110,7 +113,11 @@ describe('toggleEmoji', () => {
   });
 
   it('does not withdraw the contact’s reaction', () => {
-    const theirs = reaction({ actor_type: 'customer', actor_id: null, emoji: '❤️' });
+    const theirs = reaction({
+      actor_type: 'customer',
+      actor_id: null,
+      emoji: '❤️',
+    });
     expect(toggleEmoji([theirs], ME, '❤️')).toBe('❤️');
   });
 });
@@ -121,7 +128,11 @@ describe('canReact', () => {
   });
 
   it('refuses one still queued or failed', () => {
-    expect(canReact(message({ message_id: null, status: 'sending' }))).toBe(false);
-    expect(canReact(message({ message_id: undefined, status: 'failed' }))).toBe(false);
+    expect(canReact(message({ message_id: null, status: 'sending' }))).toBe(
+      false
+    );
+    expect(canReact(message({ message_id: undefined, status: 'failed' }))).toBe(
+      false
+    );
   });
 });

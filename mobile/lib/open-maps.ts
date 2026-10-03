@@ -15,18 +15,27 @@ export async function openInMaps(opts: {
   fallbackUrl?: string | null;
 }): Promise<void> {
   const { latitude, longitude, label, fallbackUrl } = opts;
-  const hasCoords = typeof latitude === 'number' && typeof longitude === 'number';
+  const hasCoords =
+    typeof latitude === 'number' && typeof longitude === 'number';
   const coords = hasCoords ? `${latitude},${longitude}` : '';
   const query = encodeURIComponent(label?.trim() || coords);
   const webUrl = `https://www.google.com/maps/search/?api=1&query=${hasCoords ? coords : query}`;
 
   const candidates: string[] = [];
   if (Platform.OS === 'ios') {
-    candidates.push(hasCoords ? `comgooglemaps://?q=${query}&center=${coords}` : `comgooglemaps://?q=${query}`);
-    candidates.push(hasCoords ? `maps://?ll=${coords}&q=${query}` : `maps://?q=${query}`);
+    candidates.push(
+      hasCoords
+        ? `comgooglemaps://?q=${query}&center=${coords}`
+        : `comgooglemaps://?q=${query}`
+    );
+    candidates.push(
+      hasCoords ? `maps://?ll=${coords}&q=${query}` : `maps://?q=${query}`
+    );
   } else {
     // Android: `geo:` opens the default maps app (Google Maps) directly.
-    candidates.push(hasCoords ? `geo:${coords}?q=${coords}(${query})` : `geo:0,0?q=${query}`);
+    candidates.push(
+      hasCoords ? `geo:${coords}?q=${coords}(${query})` : `geo:0,0?q=${query}`
+    );
   }
   if (fallbackUrl) candidates.push(fallbackUrl);
   candidates.push(webUrl);

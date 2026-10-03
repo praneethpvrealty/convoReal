@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Copy,
   Link2,
@@ -11,14 +11,14 @@ import {
   TriangleAlert,
   UserMinus,
   Users,
-} from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
+} from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { MAX_GROUP_PARTICIPANTS } from "@/lib/whatsapp/groups";
-import { cn } from "@/lib/utils";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { MAX_GROUP_PARTICIPANTS } from '@/lib/whatsapp/groups';
+import { cn } from '@/lib/utils';
 
 interface GroupRow {
   id: string;
@@ -26,7 +26,7 @@ interface GroupRow {
   subject: string;
   description: string | null;
   invite_link: string | null;
-  status: "pending" | "active" | "suspended" | "deleted" | "failed";
+  status: 'pending' | 'active' | 'suspended' | 'deleted' | 'failed';
   participant_count: number;
   error_message: string | null;
   created_at: string;
@@ -40,83 +40,97 @@ interface Participant {
   contact?: { id: string; name: string | null; phone: string } | null;
 }
 
-const STATUS_COPY: Record<GroupRow["status"], { label: string; hint: string; tone: string }> = {
+const STATUS_COPY: Record<
+  GroupRow['status'],
+  { label: string; hint: string; tone: string }
+> = {
   pending: {
-    label: "Creating",
+    label: 'Creating',
     // Creation is asynchronous — the invite link works before the group
     // can be messaged, and agents need to know that is normal.
-    hint: "WhatsApp is still confirming this group. The invite link already works; sending becomes available once it does.",
-    tone: "bg-amber-500/10 text-amber-300 border-amber-500/30",
+    hint: 'WhatsApp is still confirming this group. The invite link already works; sending becomes available once it does.',
+    tone: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
   },
   active: {
-    label: "Active",
-    hint: "",
-    tone: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
+    label: 'Active',
+    hint: '',
+    tone: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
   },
   suspended: {
-    label: "Suspended",
-    hint: "WhatsApp has suspended this group. Nothing can be sent to it until the suspension lifts.",
-    tone: "bg-rose-500/10 text-rose-300 border-rose-500/30",
+    label: 'Suspended',
+    hint: 'WhatsApp has suspended this group. Nothing can be sent to it until the suspension lifts.',
+    tone: 'bg-rose-500/10 text-rose-300 border-rose-500/30',
   },
   failed: {
-    label: "Failed",
-    hint: "WhatsApp refused to create this group.",
-    tone: "bg-rose-500/10 text-rose-300 border-rose-500/30",
+    label: 'Failed',
+    hint: 'WhatsApp refused to create this group.',
+    tone: 'bg-rose-500/10 text-rose-300 border-rose-500/30',
   },
-  deleted: { label: "Deleted", hint: "", tone: "bg-slate-700/40 text-slate-400 border-slate-700" },
+  deleted: {
+    label: 'Deleted',
+    hint: '',
+    tone: 'bg-slate-700/40 text-slate-400 border-slate-700',
+  },
 };
 
 async function fetchGroups(): Promise<GroupRow[]> {
-  const response = await fetch("/api/whatsapp/groups");
+  const response = await fetch('/api/whatsapp/groups');
   const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || "Could not load groups");
+  if (!response.ok) throw new Error(payload.error || 'Could not load groups');
   return payload.data ?? [];
 }
 
 export default function GroupsContent() {
   const queryClient = useQueryClient();
-  const [subject, setSubject] = useState("");
+  const [subject, setSubject] = useState('');
   const [creating, setCreating] = useState(false);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
 
-  const { data: groups, isLoading, error } = useQuery({
-    queryKey: ["whatsapp-groups"],
+  const {
+    data: groups,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['whatsapp-groups'],
     queryFn: fetchGroups,
   });
 
   const create = useMutation({
     mutationFn: async (nextSubject: string) => {
-      const response = await fetch("/api/whatsapp/groups", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/whatsapp/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subject: nextSubject }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not create the group");
+      if (!response.ok)
+        throw new Error(payload.error || 'Could not create the group');
       return payload.data;
     },
     onSuccess: () => {
-      setSubject("");
+      setSubject('');
       setCreating(false);
-      toast.success("Group created — WhatsApp is confirming it now");
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-groups"] });
+      toast.success('Group created — WhatsApp is confirming it now');
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
 
   // The OBA gate is the single most likely reason nothing here works, so
   // it gets its own explanation rather than a generic failure.
-  const notEnabled = error?.message?.includes("Official Business Account");
+  const notEnabled = error?.message?.includes('Official Business Account');
 
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-100">WhatsApp Groups</h1>
+          <h1 className="text-2xl font-semibold text-slate-100">
+            WhatsApp Groups
+          </h1>
           <p className="mt-1 text-sm text-slate-400">
-            Up to {MAX_GROUP_PARTICIPANTS} people per group, joining by invite link. Groups
-            take text, media and approved templates — not buttons or lists, so the bot stays
-            out of them.
+            Up to {MAX_GROUP_PARTICIPANTS} people per group, joining by invite
+            link. Groups take text, media and approved templates — not buttons
+            or lists, so the bot stays out of them.
           </p>
         </div>
         <Button onClick={() => setCreating((v) => !v)} className="gap-2">
@@ -141,9 +155,17 @@ export default function GroupsContent() {
             className="min-w-64 flex-1"
           />
           <Button type="submit" disabled={!subject.trim() || create.isPending}>
-            {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}
+            {create.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              'Create'
+            )}
           </Button>
-          <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setCreating(false)}
+          >
             Cancel
           </Button>
         </form>
@@ -161,8 +183,8 @@ export default function GroupsContent() {
             <p>{error.message}</p>
             {notEnabled ? (
               <p className="mt-1 text-amber-200/70">
-                The Groups API is open only to numbers on an Official Business Account.
-                Everything else in the inbox keeps working without it.
+                The Groups API is open only to numbers on an Official Business
+                Account. Everything else in the inbox keeps working without it.
               </p>
             ) : null}
           </div>
@@ -172,8 +194,8 @@ export default function GroupsContent() {
           <Users className="mx-auto h-8 w-8 text-slate-600" />
           <p className="mt-3 text-sm text-slate-300">No groups yet</p>
           <p className="mt-1 text-xs text-slate-500">
-            A group is useful when a deal has more than two sides — buyer, owner and a
-            liaison in one thread.
+            A group is useful when a deal has more than two sides — buyer, owner
+            and a liaison in one thread.
           </p>
         </div>
       ) : (
@@ -183,7 +205,9 @@ export default function GroupsContent() {
               key={group.id}
               group={group}
               expanded={openGroupId === group.id}
-              onToggle={() => setOpenGroupId(openGroupId === group.id ? null : group.id)}
+              onToggle={() =>
+                setOpenGroupId(openGroupId === group.id ? null : group.id)
+              }
             />
           ))}
         </div>
@@ -205,12 +229,13 @@ function GroupCard({
   const status = STATUS_COPY[group.status];
 
   const { data: detail } = useQuery({
-    queryKey: ["whatsapp-group", group.id],
+    queryKey: ['whatsapp-group', group.id],
     enabled: expanded,
     queryFn: async () => {
       const response = await fetch(`/api/whatsapp/groups/${group.id}`);
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not load the group");
+      if (!response.ok)
+        throw new Error(payload.error || 'Could not load the group');
       return payload.data as { participants: Participant[] };
     },
   });
@@ -218,17 +243,17 @@ function GroupCard({
   const act = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
       const response = await fetch(`/api/whatsapp/groups/${group.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "That did not work");
+      if (!response.ok) throw new Error(payload.error || 'That did not work');
       return payload.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-groups"] });
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-group", group.id] });
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-group', group.id] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -236,7 +261,7 @@ function GroupCard({
   function copyLink() {
     if (!group.invite_link) return;
     void navigator.clipboard.writeText(group.invite_link);
-    toast.success("Invite link copied");
+    toast.success('Invite link copied');
   }
 
   return (
@@ -255,7 +280,9 @@ function GroupCard({
             {group.participant_count} of {MAX_GROUP_PARTICIPANTS} joined
           </p>
         </div>
-        <span className={cn("rounded-full border px-2 py-0.5 text-xs", status.tone)}>
+        <span
+          className={cn('rounded-full border px-2 py-0.5 text-xs', status.tone)}
+        >
           {status.label}
         </span>
       </button>
@@ -263,7 +290,7 @@ function GroupCard({
       {status.hint ? (
         <p className="px-4 pb-3 text-xs text-slate-400">
           {status.hint}
-          {group.error_message ? ` — ${group.error_message}` : ""}
+          {group.error_message ? ` — ${group.error_message}` : ''}
         </p>
       ) : null}
 
@@ -275,7 +302,12 @@ function GroupCard({
               <code className="min-w-0 flex-1 truncate rounded bg-slate-950/60 px-2 py-1 text-xs text-slate-300">
                 {group.invite_link}
               </code>
-              <Button size="sm" variant="secondary" onClick={copyLink} className="gap-1.5">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={copyLink}
+                className="gap-1.5"
+              >
                 <Copy className="h-3.5 w-3.5" />
                 Copy
               </Button>
@@ -283,7 +315,7 @@ function GroupCard({
                 size="sm"
                 variant="ghost"
                 disabled={act.isPending}
-                onClick={() => act.mutate({ action: "reset_invite_link" })}
+                onClick={() => act.mutate({ action: 'reset_invite_link' })}
                 className="gap-1.5"
                 // Rotating invalidates the old link for everyone holding it.
                 title="Generate a new link — anyone holding the old one can no longer join"
@@ -295,7 +327,7 @@ function GroupCard({
           ) : null}
 
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+            <p className="mb-2 text-xs font-medium tracking-wide text-slate-500 uppercase">
               Participants
             </p>
             {detail?.participants.length ? (
@@ -311,7 +343,9 @@ function GroupCard({
                     {!participant.contact ? (
                       // Deliberately not auto-created as a lead: joining
                       // a group by link is not consent to be one.
-                      <span className="text-xs text-slate-500">Not a contact</span>
+                      <span className="text-xs text-slate-500">
+                        Not a contact
+                      </span>
                     ) : null}
                     <Button
                       size="sm"
@@ -319,7 +353,7 @@ function GroupCard({
                       disabled={act.isPending}
                       onClick={() =>
                         act.mutate({
-                          action: "remove_participants",
+                          action: 'remove_participants',
                           wa_ids: [participant.wa_id],
                         })
                       }
@@ -344,16 +378,21 @@ function GroupCard({
               variant="ghost"
               className="gap-1.5 text-rose-300 hover:text-rose-200"
               onClick={async () => {
-                const response = await fetch(`/api/whatsapp/groups/${group.id}`, {
-                  method: "DELETE",
-                });
+                const response = await fetch(
+                  `/api/whatsapp/groups/${group.id}`,
+                  {
+                    method: 'DELETE',
+                  }
+                );
                 const payload = await response.json();
                 if (!response.ok) {
-                  toast.error(payload.error || "Could not delete the group");
+                  toast.error(payload.error || 'Could not delete the group');
                   return;
                 }
-                toast.success("Group deleted");
-                queryClient.invalidateQueries({ queryKey: ["whatsapp-groups"] });
+                toast.success('Group deleted');
+                queryClient.invalidateQueries({
+                  queryKey: ['whatsapp-groups'],
+                });
               }}
             >
               <Trash2 className="h-3.5 w-3.5" />

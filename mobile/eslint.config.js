@@ -10,7 +10,9 @@ module.exports = defineConfig([
     ignores: ['.expo/*', 'dist/*', 'node_modules/*', 'scripts/*'],
   },
   {
-    plugins: { convoreal: { rules: { 'supabase-write-guard': supabaseWriteGuard } } },
+    plugins: {
+      convoreal: { rules: { 'supabase-write-guard': supabaseWriteGuard } },
+    },
     // 'error' now that the backlog is clear — unlike the React Compiler
     // rules below, this one has nothing left to grandfather.
     rules: { 'convoreal/supabase-write-guard': 'error' },

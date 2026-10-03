@@ -37,24 +37,38 @@ export function usePlan() {
   function isAllowed(feature: string): boolean {
     if (!limits) return true; // optimistic while loading
     switch (feature) {
-      case 'ai': return limits.has_ai;
-      case 'teams': return limits.has_teams;
-      case 'multi_number': return limits.has_multi_number;
-      case 'api_access': return limits.has_api_access;
-      case 'branded_showcase': return limits.has_branded_showcase;
-      case 'custom_subdomain': return limits.has_custom_subdomain;
-      case 'broadcasts': return limits.max_broadcasts_per_month > 0;
-      default: return true;
+      case 'ai':
+        return limits.has_ai;
+      case 'teams':
+        return limits.has_teams;
+      case 'multi_number':
+        return limits.has_multi_number;
+      case 'api_access':
+        return limits.has_api_access;
+      case 'branded_showcase':
+        return limits.has_branded_showcase;
+      case 'custom_subdomain':
+        return limits.has_custom_subdomain;
+      case 'broadcasts':
+        return limits.max_broadcasts_per_month > 0;
+      default:
+        return true;
     }
   }
 
-  function limitOf(resource: 'contacts' | 'properties' | 'users' | 'broadcasts'): number {
+  function limitOf(
+    resource: 'contacts' | 'properties' | 'users' | 'broadcasts'
+  ): number {
     if (!limits) return 999999;
     switch (resource) {
-      case 'contacts': return limits.max_contacts;
-      case 'properties': return limits.max_properties;
-      case 'users': return limits.max_users;
-      case 'broadcasts': return limits.max_broadcasts_per_month;
+      case 'contacts':
+        return limits.max_contacts;
+      case 'properties':
+        return limits.max_properties;
+      case 'users':
+        return limits.max_users;
+      case 'broadcasts':
+        return limits.max_broadcasts_per_month;
     }
   }
 

@@ -36,12 +36,17 @@ function one<T>(v: T | T[] | null | undefined): T | null {
   return Array.isArray(v) ? (v[0] ?? null) : v;
 }
 
-type TodoCheckInContext = Pick<Todo, 'id' | 'title' | 'description' | 'completed'> & {
+type TodoCheckInContext = Pick<
+  Todo,
+  'id' | 'title' | 'description' | 'completed'
+> & {
   contact: Todo['contact'] | Todo['contact'][] | null;
   property: Todo['property'] | Todo['property'][] | null;
 };
 
-async function fetchTodoCheckInContext(id: string): Promise<TodoCheckInContext | null> {
+async function fetchTodoCheckInContext(
+  id: string
+): Promise<TodoCheckInContext | null> {
   const { data, error } = await supabase
     .from('todos')
     .select(
@@ -193,7 +198,9 @@ export async function updateTodo(
     completed: boolean;
   }
 ): Promise<void> {
-  const checkInContext = updates.completed ? await fetchTodoCheckInContext(id) : null;
+  const checkInContext = updates.completed
+    ? await fetchTodoCheckInContext(id)
+    : null;
   const completingFromOpen =
     updates.completed && checkInContext && !checkInContext.completed;
   const shouldComplete = completingFromOpen

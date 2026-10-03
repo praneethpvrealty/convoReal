@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
 
 const PAGE_SIZE = 20;
-const REFERRAL_TYPES = ['referral_signup', 'referral_upgrade', 'referral_passive'];
+const REFERRAL_TYPES = [
+  'referral_signup',
+  'referral_upgrade',
+  'referral_passive',
+];
 
 // GET /api/billing/credits/history — paginated transaction ledger.
 // Query params: page (1-indexed, default 1), filter (all|earned|spent|purchased|referral), from, to (ISO dates)
@@ -41,7 +45,10 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error('[GET /api/billing/credits/history] query error:', error);
-      return NextResponse.json({ error: 'Failed to load transaction history' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to load transaction history' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({

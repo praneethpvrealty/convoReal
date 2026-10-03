@@ -4,17 +4,17 @@ name: favourites-bar
 - launchApp
 - extendedWaitUntil:
     visible:
-      id: "inbox-search"
+      id: 'inbox-search'
     timeout: 20000
 # The favourites tab intercepts its own press: it opens a shortcut strip
 # over the current screen instead of navigating, so the inbox must still
 # be behind it afterwards.
 - tapOn:
-    id: "tab-favourites"
+    id: 'tab-favourites'
 - takeScreenshot: .maestro/shots/14-favourites-bar
 - assertVisible:
-    id: "inbox-search"
+    id: 'inbox-search'
 - tapOn:
-    id: "tab-favourites"
+    id: 'tab-favourites'
 - assertVisible:
-    id: "inbox-search"
+    id: 'inbox-search'

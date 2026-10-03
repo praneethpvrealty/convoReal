@@ -19,11 +19,12 @@
 // fails open by design, same as the staff surface).
 // ============================================================
 
-import { NextResponse, type NextRequest } from "next/server";
-import { createClient as createAdminClient, type SupabaseClient } from "@supabase/supabase-js";
+import { NextResponse, type NextRequest } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
-import { createClient } from "@/lib/supabase/server";
-import { UnauthorizedError, toErrorResponse } from "@/lib/auth/account";
+import { createClient } from '@/lib/supabase/server';
+import { UnauthorizedError, toErrorResponse } from '@/lib/auth/account';
 
 /**
  * Thrown when the caller has a valid Supabase session but is not a
@@ -34,31 +35,27 @@ import { UnauthorizedError, toErrorResponse } from "@/lib/auth/account";
  */
 export class PhoneUnverifiedError extends Error {
   readonly status = 403 as const;
-  readonly code = "phone_unverified" as const;
-  constructor(message = "WhatsApp phone verification required") {
+  readonly code = 'phone_unverified' as const;
+  constructor(message = 'WhatsApp phone verification required') {
     super(message);
-    this.name = "PhoneUnverifiedError";
+    this.name = 'PhoneUnverifiedError';
   }
 }
 
 export function toDenErrorResponse(err: unknown): NextResponse {
   if (err instanceof PhoneUnverifiedError) {
-    return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    return NextResponse.json(
+      { error: err.message, code: err.code },
+      { status: err.status }
+    );
   }
   return toErrorResponse(err);
 }
 
-let _admin: SupabaseClient | null = null;
 /** Service-role client for Den routes. Bypasses RLS — every query
  *  built on it MUST be scoped through the caller's DenContext. */
 export function denAdmin(): SupabaseClient {
-  if (!_admin) {
-    _admin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    );
-  }
-  return _admin;
+  return supabaseAdmin();
 }
 
 export interface DenContactLink {
@@ -79,7 +76,7 @@ export interface DenContext {
   displayName: string | null;
   notifyMatches: boolean;
   notifyBids: boolean;
-  digestFrequency: "off" | "daily" | "weekly";
+  digestFrequency: 'off' | 'daily' | 'weekly';
   /** Active links to tenant-scoped owner contacts. May be empty for a
    *  brand-new owner with no listings yet. */
   links: DenContactLink[];
@@ -102,24 +99,26 @@ export async function getDenContext(): Promise<DenContext> {
 
   const db = denAdmin();
   const { data: denUser, error } = await db
-    .from("den_users")
-    .select("id, phone, display_name, notify_matches, notify_bids, digest_frequency")
-    .eq("auth_user_id", user.id)
+    .from('den_users')
+    .select(
+      'id, phone, display_name, notify_matches, notify_bids, digest_frequency'
+    )
+    .eq('auth_user_id', user.id)
     .maybeSingle();
 
   if (error) {
-    console.error("[getDenContext] den_users fetch error:", error);
-    throw new UnauthorizedError("Could not load your Portfolio context");
+    console.error('[getDenContext] den_users fetch error:', error);
+    throw new UnauthorizedError('Could not load your Portfolio context');
   }
   if (!denUser) {
     throw new PhoneUnverifiedError();
   }
 
   const { data: linkRows } = await db
-    .from("den_contact_links")
-    .select("id, account_id, contact_id, account:accounts(id, name)")
-    .eq("den_user_id", denUser.id)
-    .eq("status", "active");
+    .from('den_contact_links')
+    .select('id, account_id, contact_id, account:accounts(id, name)')
+    .eq('den_user_id', denUser.id)
+    .eq('status', 'active');
 
   const links: DenContactLink[] = (linkRows || []).map((row) => {
     const account = Array.isArray(row.account) ? row.account[0] : row.account;
@@ -138,7 +137,8 @@ export async function getDenContext(): Promise<DenContext> {
     displayName: (denUser.display_name as string | null) ?? null,
     notifyMatches: Boolean(denUser.notify_matches),
     notifyBids: Boolean(denUser.notify_bids),
-    digestFrequency: (denUser.digest_frequency as "off" | "daily" | "weekly") ?? "weekly",
+    digestFrequency:
+      (denUser.digest_frequency as 'off' | 'daily' | 'weekly') ?? 'weekly',
     links,
   };
 }
@@ -148,32 +148,44 @@ export async function getDenContext(): Promise<DenContext> {
  * linked accounts. Every /api/den property route funnels through this
  * — it is the Den's row-level scoping.
  */
-export async function resolveOwnerPropertyIds(ctx: DenContext): Promise<string[]> {
+export async function resolveOwnerPropertyIds(
+  ctx: DenContext
+): Promise<string[]> {
   if (ctx.links.length === 0) return [];
   const db = denAdmin();
   const { data, error } = await db
-    .from("properties")
-    .select("id")
-    .in("owner_contact_id", ctx.links.map((l) => l.contactId))
+    .from('properties')
+    .select('id')
+    .in(
+      'owner_contact_id',
+      ctx.links.map((l) => l.contactId)
+    )
     // owner_contact_id holds the REFERRING AGENT for agent-referred
     // listings (migration 191) — those are the Engine's to manage,
     // never the Portfolio's.
-    .neq("listing_source", "agent");
+    .neq('listing_source', 'agent');
   if (error) {
-    console.error("[resolveOwnerPropertyIds] query error:", error);
+    console.error('[resolveOwnerPropertyIds] query error:', error);
     return [];
   }
   return (data || []).map((row) => row.id as string);
 }
 
-type DenHandler = (ctx: DenContext, req: NextRequest, routeCtx: { params: Promise<Record<string, string>> }) => Promise<NextResponse>;
+type DenHandler = (
+  ctx: DenContext,
+  req: NextRequest,
+  routeCtx: { params: Promise<Record<string, string>> }
+) => Promise<NextResponse>;
 
 /**
  * Wrapper every /api/den route uses so none can forget the auth
  * check. Mirrors the requireRole/try-catch convention of staff routes.
  */
 export function withDenAuth(handler: DenHandler) {
-  return async (req: NextRequest, routeCtx: { params: Promise<Record<string, string>> }): Promise<NextResponse> => {
+  return async (
+    req: NextRequest,
+    routeCtx: { params: Promise<Record<string, string>> }
+  ): Promise<NextResponse> => {
     try {
       const ctx = await getDenContext();
       return await handler(ctx, req, routeCtx);

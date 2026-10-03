@@ -22,11 +22,11 @@ It is not a seller website, not a microsite and not a second showcase. It is the
 
 `src/app/page.tsx:369-378` resolves `?ref=<contact id>` through `cachedResolveShowcaseRef` and, at lines 427-431, filters the catalogue to `owner_contact_id === contactId`. Nothing links to that path today. It cannot be reused directly for a seller page, for three reasons:
 
-| Problem | Where | Consequence if reused |
-| --- | --- | --- |
-| The referrer's phone replaces the agency CTA | `cachedResolveReferrerPhone` (`page.tsx:230-298`), `displayPhone = referrerPhone \|\| settings.contact_phone` (`showcase-view.tsx:924`) | Buyers would WhatsApp the **seller**, bypassing the brokerage |
-| `owner_contact_id` is overloaded | migration `191_portfolio_excludes_agent_referred.sql` | On `listing_source = 'agent'` rows the column holds the **referring agent**, so a co-broker's stock would appear on a seller's page |
-| The URL carries the contact UUID | `?ref=<uuid>` | Leaks an internal id, cannot be rotated, unreadable in a WhatsApp message |
+| Problem                                      | Where                                                                                                                                   | Consequence if reused                                                                                                               |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| The referrer's phone replaces the agency CTA | `cachedResolveReferrerPhone` (`page.tsx:230-298`), `displayPhone = referrerPhone \|\| settings.contact_phone` (`showcase-view.tsx:924`) | Buyers would WhatsApp the **seller**, bypassing the brokerage                                                                       |
+| `owner_contact_id` is overloaded             | migration `191_portfolio_excludes_agent_referred.sql`                                                                                   | On `listing_source = 'agent'` rows the column holds the **referring agent**, so a co-broker's stock would appear on a seller's page |
+| The URL carries the contact UUID             | `?ref=<uuid>`                                                                                                                           | Leaks an internal id, cannot be rotated, unreadable in a WhatsApp message                                                           |
 
 The `ref` path stays exactly as it is: it serves referral partners and agent profiles, and its CTA-phone behaviour is correct for them. The seller page is a **separate resolution mode** that shares the render.
 
@@ -34,19 +34,19 @@ The `ref` path stays exactly as it is: it serves referral partners and agent pro
 
 ## 2. Product decisions
 
-| Decision | Choice | Why |
-| --- | --- | --- |
-| Who turns it on | The **agency**, per contact, from the contact record (agent role or higher) | The page carries the agency's brand; a private individual may not want "all my listings" public. Default off. |
-| Who shares it | The **seller**, from Portfolio (web `/den`, mobile den tab); the agency can also copy it from the contact record | |
-| What it shows | Listings where `owner_contact_id = seller` **and** `listing_source <> 'agent'` **and** published; teaser visibility and location privacy apply as on the main catalogue | Identical to the Den's ownership rule (`resolveOwnerPropertyIds`, `src/lib/den/auth.ts:151-172`), so the seller's page and the seller's portal always agree |
-| Who the buyer contacts | The agency (`showcase_settings.contact_phone`), never the seller | Core of the value proposition |
-| Seller identity on the page | Not shown. Header reads "A curated collection · <Agency>" | The seller shares it themselves, so recipients already know whose it is; the page never publishes a private person's name or phone |
-| URL shape | `https://<agency>.convoreal.com/seller/<slug>` (or `https://convoreal.com/seller/<slug>` without a subdomain) | Slug alone identifies the account, so the link works with or without the tenant label |
-| Slug | 10 random characters from `bcdfghjkmnpqrstvwxyz23456789` (no vowels, no `0 1 l`), globally unique | ≈ 48 bits, unguessable, readable aloud, cannot spell a word, no name leakage. Regenerating it is the revoke |
-| Empty page | Renders the agency-branded empty state, never the full catalogue | A seller with nothing live must not become an unfiltered mirror of the agency |
-| Search engines | `noindex, nofollow` | It is a share surface, not an SEO page; `/property/[slug]` remains the indexable listing page |
-| Multi-agency sellers | One page per (agency, contact); Portfolio lists each with its agency name | `den_contact_links` already spans agencies |
-| Custom domains, seller-editable copy, microsite templates | Out of scope | Support cost with no lead upside; forking the showcase is forbidden by the constitution |
+| Decision                                                  | Choice                                                                                                                                                                  | Why                                                                                                                                                         |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Who turns it on                                           | The **agency**, per contact, from the contact record (agent role or higher)                                                                                             | The page carries the agency's brand; a private individual may not want "all my listings" public. Default off.                                               |
+| Who shares it                                             | The **seller**, from Portfolio (web `/den`, mobile den tab); the agency can also copy it from the contact record                                                        |                                                                                                                                                             |
+| What it shows                                             | Listings where `owner_contact_id = seller` **and** `listing_source <> 'agent'` **and** published; teaser visibility and location privacy apply as on the main catalogue | Identical to the Den's ownership rule (`resolveOwnerPropertyIds`, `src/lib/den/auth.ts:151-172`), so the seller's page and the seller's portal always agree |
+| Who the buyer contacts                                    | The agency (`showcase_settings.contact_phone`), never the seller                                                                                                        | Core of the value proposition                                                                                                                               |
+| Seller identity on the page                               | Not shown. Header reads "A curated collection · <Agency>"                                                                                                               | The seller shares it themselves, so recipients already know whose it is; the page never publishes a private person's name or phone                          |
+| URL shape                                                 | `https://<agency>.convoreal.com/seller/<slug>` (or `https://convoreal.com/seller/<slug>` without a subdomain)                                                           | Slug alone identifies the account, so the link works with or without the tenant label                                                                       |
+| Slug                                                      | 10 random characters from `bcdfghjkmnpqrstvwxyz23456789` (no vowels, no `0 1 l`), globally unique                                                                       | ≈ 48 bits, unguessable, readable aloud, cannot spell a word, no name leakage. Regenerating it is the revoke                                                 |
+| Empty page                                                | Renders the agency-branded empty state, never the full catalogue                                                                                                        | A seller with nothing live must not become an unfiltered mirror of the agency                                                                               |
+| Search engines                                            | `noindex, nofollow`                                                                                                                                                     | It is a share surface, not an SEO page; `/property/[slug]` remains the indexable listing page                                                               |
+| Multi-agency sellers                                      | One page per (agency, contact); Portfolio lists each with its agency name                                                                                               | `den_contact_links` already spans agencies                                                                                                                  |
+| Custom domains, seller-editable copy, microsite templates | Out of scope                                                                                                                                                            | Support cost with no lead upside; forking the showcase is forbidden by the constitution                                                                     |
 
 ---
 
@@ -102,11 +102,11 @@ The `__seller` param is handled **before** `ref` and takes precedence over it:
 
 ### 3.4 Attribution and analytics
 
-| Signal | Field | Effect |
-| --- | --- | --- |
-| Enquiry from the page | `contacts.referrer_contact_id = seller` via the existing `referrerContactId` body field on `/api/public/inquiry` | The lead shows "referred by <seller>" in the CRM; the agency sees which seller's page is producing |
-| Showcase events | `showcase_events.via_contact_id = seller`, `contact_id` null unless a `?v=` visitor is present | Pulse renders "guest via <seller>'s page" using the PLS-003 guest semantics; the owner dashboard's per-property showcase-view counts include them with no change |
-| Page opens | `showcase_events.event_type = 'open'` with `metadata.seller_page = true` | Lets Portfolio show "N opens of your page this week" later without a new table |
+| Signal                | Field                                                                                                            | Effect                                                                                                                                                           |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enquiry from the page | `contacts.referrer_contact_id = seller` via the existing `referrerContactId` body field on `/api/public/inquiry` | The lead shows "referred by <seller>" in the CRM; the agency sees which seller's page is producing                                                               |
+| Showcase events       | `showcase_events.via_contact_id = seller`, `contact_id` null unless a `?v=` visitor is present                   | Pulse renders "guest via <seller>'s page" using the PLS-003 guest semantics; the owner dashboard's per-property showcase-view counts include them with no change |
+| Page opens            | `showcase_events.event_type = 'open'` with `metadata.seller_page = true`                                         | Lets Portfolio show "N opens of your page this week" later without a new table                                                                                   |
 
 `/api/public/showcase-events`, `/api/public/inquiry` and `/api/public/requirements` accept the page slug (`seller_page` / `sellerPage`) and resolve it within the posted account; an unknown or foreign slug is dropped, never rejected.
 
@@ -171,11 +171,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_seller_page_slug
 
 `src/app/api/contacts/[id]/seller-page/route.ts` (new route; CI Build will run on the PR, which is expected).
 
-| Method | Body | Behaviour | Response |
-| --- | --- | --- | --- |
-| `GET` | — | Status | `{ data: { enabled, url, listing_count } }` |
-| `POST` | `{ rotate?: boolean }` | Enable (mint slug) or, with `rotate`, replace it | `{ data: { enabled: true, url } }` |
-| `DELETE` | — | Set slug to `NULL` | `{ data: { enabled: false } }` |
+| Method   | Body                   | Behaviour                                        | Response                                    |
+| -------- | ---------------------- | ------------------------------------------------ | ------------------------------------------- |
+| `GET`    | —                      | Status                                           | `{ data: { enabled, url, listing_count } }` |
+| `POST`   | `{ rotate?: boolean }` | Enable (mint slug) or, with `rotate`, replace it | `{ data: { enabled: true, url } }`          |
+| `DELETE` | —                      | Set slug to `NULL`                               | `{ data: { enabled: false } }`              |
 
 Rules: `requireRole('agent')`, contact must belong to `ctx.accountId`, rate-limited. The URL is built with `accountShowcaseOrigin(db, accountId)` from `src/lib/showcase/account-showcase-url.ts` plus `/seller/<slug>`, so a subdomain account gets its branded host. Minting retries once on a unique-index collision.
 
@@ -199,12 +199,12 @@ No new public API route. `RootPage` reads `__seller`; the events, inquiry and re
 
 ## 7. Shared logic (`src/lib/`)
 
-| File | Exports | Used by |
-| --- | --- | --- |
+| File                              | Exports                                                                                                                   | Used by                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | `src/lib/showcase/seller-page.ts` | `generateSellerPageSlug()`, `SELLER_PAGE_SLUG_RE`, `sellerPageUrl(origin, slug)`, `filterSellerListings(properties, ids)` | route, den `me`, `page.tsx`, tests |
-| `src/lib/showcase/public-data.ts` | `cachedResolveSellerPage(slug)` (React `cache`) | `page.tsx` |
-| `src/lib/contacts/seller-page.ts` | `getSellerPageStatus`, `enableSellerPage`, `disableSellerPage`, `sellerPageShareMessage` | agency route |
-| `src/lib/den/seller-pages.ts` | `denSellerPages`, `sellerPageForwardMessage` | `/api/den/me` |
+| `src/lib/showcase/public-data.ts` | `cachedResolveSellerPage(slug)` (React `cache`)                                                                           | `page.tsx`                         |
+| `src/lib/contacts/seller-page.ts` | `getSellerPageStatus`, `enableSellerPage`, `disableSellerPage`, `sellerPageShareMessage`                                  | agency route                       |
+| `src/lib/den/seller-pages.ts`     | `denSellerPages`, `sellerPageForwardMessage`                                                                              | `/api/den/me`                      |
 
 `mobile/lib/den-api.ts` and `mobile/lib/types.ts` gain the `seller_pages` shape and a `fetchContactSellerPage` / `setContactSellerPage` pair; no rule lives on mobile.
 
@@ -212,17 +212,17 @@ No new public API route. `RootPage` reads `__seller`; the events, inquiry and re
 
 ## 8. Files touched
 
-| Area | Files |
-| --- | --- |
-| Migration | `supabase/migrations/<ts>_contact_seller_page_slug.sql`, `DATABASE_SCHEMA.md` |
-| Routing | `src/app/seller/[slug]/page.tsx`, `src/app/(showcase)/page.tsx` (`__seller` param, resolution branch, metadata `robots: noindex`) |
-| Showcase | `src/lib/showcase/seller-page.ts`, `src/lib/showcase/public-data.ts`, `src/components/showcase/showcase-view.tsx` (header label, tracker field) |
-| Tracking | `src/app/api/public/showcase-events/route.ts`, `src/lib/pulse/*` (guest-via label), `src/lib/pulse/tracker.ts` |
-| Agency web | `src/app/api/contacts/[id]/seller-page/route.ts`, `src/components/contacts/seller-page-card.tsx`, contact detail mount point |
-| Agency mobile | `mobile/lib/den-api.ts` or `mobile/lib/contacts-api.ts`, `mobile/app/(app)/contact/[id].tsx` |
-| Seller web | `src/app/api/den/me/route.ts`, `src/lib/den/auth.ts`, `src/components/den/dashboard-content.tsx` |
-| Seller mobile | `mobile/lib/den-api.ts`, `mobile/app/(den)/den/index.tsx` |
-| Records | `FEATURE_MANIFEST.json` (new `seller-page` feature), `CHANGELOG.md`, `README.md` feature list, `docs/property-intake-consolidation.md` cross-reference |
+| Area          | Files                                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Migration     | `supabase/migrations/<ts>_contact_seller_page_slug.sql`, `DATABASE_SCHEMA.md`                                                                          |
+| Routing       | `src/app/seller/[slug]/page.tsx`, `src/app/(showcase)/page.tsx` (`__seller` param, resolution branch, metadata `robots: noindex`)                      |
+| Showcase      | `src/lib/showcase/seller-page.ts`, `src/lib/showcase/public-data.ts`, `src/components/showcase/showcase-view.tsx` (header label, tracker field)        |
+| Tracking      | `src/app/api/public/showcase-events/route.ts`, `src/lib/pulse/*` (guest-via label), `src/lib/pulse/tracker.ts`                                         |
+| Agency web    | `src/app/api/contacts/[id]/seller-page/route.ts`, `src/components/contacts/seller-page-card.tsx`, contact detail mount point                           |
+| Agency mobile | `mobile/lib/den-api.ts` or `mobile/lib/contacts-api.ts`, `mobile/app/(app)/contact/[id].tsx`                                                           |
+| Seller web    | `src/app/api/den/me/route.ts`, `src/lib/den/auth.ts`, `src/components/den/dashboard-content.tsx`                                                       |
+| Seller mobile | `mobile/lib/den-api.ts`, `mobile/app/(den)/den/index.tsx`                                                                                              |
+| Records       | `FEATURE_MANIFEST.json` (new `seller-page` feature), `CHANGELOG.md`, `README.md` feature list, `docs/property-intake-consolidation.md` cross-reference |
 
 Optional, outside this PR: the Cloudflare Worker may also pin `__tenant` for `/seller/*` so a mismatched host can be 404'd on the wildcard path too. Not required for correctness, because the slug is authoritative.
 

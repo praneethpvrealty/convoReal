@@ -74,12 +74,18 @@ export function LogCallPrompt({
     }
   }
 
-  const outcomes: { outcome: CallOutcome; label: string; icon: typeof PhoneCall; className: string }[] = [
+  const outcomes: {
+    outcome: CallOutcome;
+    label: string;
+    icon: typeof PhoneCall;
+    className: string;
+  }[] = [
     {
       outcome: 'connected',
       label: 'Connected',
       icon: PhoneCall,
-      className: 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10',
+      className:
+        'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10',
     },
     {
       outcome: 'no_answer',
@@ -97,10 +103,12 @@ export function LogCallPrompt({
 
   return (
     <Dialog open={dial !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-800 max-w-sm">
+      <DialogContent className="max-w-sm border-slate-800 bg-slate-900">
         <DialogHeader>
-          <DialogTitle className="text-white text-base">Log this call?</DialogTitle>
-          <DialogDescription className="text-slate-400 text-xs">
+          <DialogTitle className="text-base text-white">
+            Log this call?
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-400">
             {dial?.name || dial?.phone} · How did the call go?
           </DialogDescription>
         </DialogHeader>
@@ -113,7 +121,7 @@ export function LogCallPrompt({
                 type="button"
                 disabled={saving !== null}
                 onClick={() => save(outcome)}
-                className={`flex flex-col items-center gap-1.5 rounded-xl border bg-slate-900/50 px-2 py-3 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 ${className}`}
+                className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border bg-slate-900/50 px-2 py-3 text-xs font-semibold transition-all disabled:opacity-50 ${className}`}
               >
                 {saving === outcome ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -132,14 +140,14 @@ export function LogCallPrompt({
               placeholder="Duration (mins, optional)"
               value={durationMins}
               onChange={(e) => setDurationMins(e.target.value)}
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-sm"
+              className="h-8 border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500"
             />
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => onOpenChange(false)}
-              className="text-slate-400 hover:text-white shrink-0"
+              className="shrink-0 text-slate-400 hover:text-white"
             >
               Skip
             </Button>

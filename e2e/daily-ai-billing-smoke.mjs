@@ -7,9 +7,11 @@ import { chromium } from 'playwright';
 const baseUrl = required('E2E_BASE_URL').replace(/\/$/, '');
 const supabaseUrl = required('NEXT_PUBLIC_SUPABASE_URL');
 const serviceRoleKey = required('SUPABASE_SERVICE_ROLE_KEY');
-const smokeEmail = process.env.AI_SMOKE_EMAIL || 'daily-ai-smoke@convoreal.test';
+const smokeEmail =
+  process.env.AI_SMOKE_EMAIL || 'daily-ai-smoke@convoreal.test';
 const smokePhone = process.env.AI_SMOKE_PHONE || '+919000000099';
-const evidenceDir = process.env.AI_SMOKE_ARTIFACT_DIR || 'test-results/ai-billing-smoke';
+const evidenceDir =
+  process.env.AI_SMOKE_ARTIFACT_DIR || 'test-results/ai-billing-smoke';
 
 const admin = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -31,9 +33,14 @@ function randomPassword() {
 
 async function findUserByEmail(email) {
   for (let page = 1; page <= 100; page += 1) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    const { data, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    });
     if (error) throw new Error(`Could not list smoke users: ${error.message}`);
-    const found = data.users.find((user) => user.email?.toLowerCase() === email.toLowerCase());
+    const found = data.users.find(
+      (user) => user.email?.toLowerCase() === email.toLowerCase()
+    );
     if (found) return found;
     if (data.users.length < 1000) return null;
   }
@@ -42,8 +49,13 @@ async function findUserByEmail(email) {
 
 async function createSmokeUser(password) {
   const invite = `daily-ai-smoke-${randomBytes(18).toString('base64url')}`;
-  const { data: hash, error: hashError } = await admin.rpc('hash_beta_token', { p_token: invite });
-  if (hashError || !hash) throw new Error(`Could not create smoke invite: ${hashError?.message ?? 'empty hash'}`);
+  const { data: hash, error: hashError } = await admin.rpc('hash_beta_token', {
+    p_token: invite,
+  });
+  if (hashError || !hash)
+    throw new Error(
+      `Could not create smoke invite: ${hashError?.message ?? 'empty hash'}`
+    );
 
   const { error: inviteError } = await admin.from('beta_invites').insert({
     code: invite,
@@ -51,7 +63,8 @@ async function createSmokeUser(password) {
     label: 'Daily production AI billing smoke',
     expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
   });
-  if (inviteError) throw new Error(`Could not insert smoke invite: ${inviteError.message}`);
+  if (inviteError)
+    throw new Error(`Could not insert smoke invite: ${inviteError.message}`);
 
   const { data, error } = await admin.auth.admin.createUser({
     email: smokeEmail,
@@ -64,7 +77,10 @@ async function createSmokeUser(password) {
       full_name: 'Daily AI Billing Smoke',
     },
   });
-  if (error || !data.user) throw new Error(`Could not create smoke user: ${error?.message ?? 'no user returned'}`);
+  if (error || !data.user)
+    throw new Error(
+      `Could not create smoke user: ${error?.message ?? 'no user returned'}`
+    );
   return data.user;
 }
 
@@ -75,7 +91,10 @@ async function ensureSmokeContext() {
     const { data, error } = await admin.auth.admin.updateUserById(user.id, {
       password,
     });
-    if (error || !data.user) throw new Error(`Could not rotate smoke password: ${error?.message ?? 'no user returned'}`);
+    if (error || !data.user)
+      throw new Error(
+        `Could not rotate smoke password: ${error?.message ?? 'no user returned'}`
+      );
     user = data.user;
   } else {
     user = await createSmokeUser(password);
@@ -87,22 +106,32 @@ async function ensureSmokeContext() {
     .eq('user_id', user.id)
     .maybeSingle();
   if (profileError || !profile?.account_id) {
-    throw new Error(`Smoke user has no account profile: ${profileError?.message ?? 'missing account_id'}`);
+    throw new Error(
+      `Smoke user has no account profile: ${profileError?.message ?? 'missing account_id'}`
+    );
   }
 
   const accountId = profile.account_id;
   const now = new Date();
-  const { error: subscriptionError } = await admin.from('subscriptions').upsert({
-    account_id: accountId,
-    plan: 'solo_pro',
-    status: 'active',
-    billing_cycle: 'monthly',
-    current_period_start: now.toISOString(),
-    current_period_end: new Date(now.getTime() + 32 * 86_400_000).toISOString(),
-    billing_currency: 'INR',
-    billing_gateway: 'razorpay',
-  }, { onConflict: 'account_id' });
-  if (subscriptionError) throw new Error(`Could not configure smoke subscription: ${subscriptionError.message}`);
+  const { error: subscriptionError } = await admin.from('subscriptions').upsert(
+    {
+      account_id: accountId,
+      plan: 'solo_pro',
+      status: 'active',
+      billing_cycle: 'monthly',
+      current_period_start: now.toISOString(),
+      current_period_end: new Date(
+        now.getTime() + 32 * 86_400_000
+      ).toISOString(),
+      billing_currency: 'INR',
+      billing_gateway: 'razorpay',
+    },
+    { onConflict: 'account_id' }
+  );
+  if (subscriptionError)
+    throw new Error(
+      `Could not configure smoke subscription: ${subscriptionError.message}`
+    );
 
   return { accountId, password };
 }
@@ -112,7 +141,10 @@ async function resetWallet(accountId, credits) {
     .from('credit_transactions')
     .delete()
     .eq('account_id', accountId);
-  if (clearLedgerError) throw new Error(`Could not clear smoke ledger: ${clearLedgerError.message}`);
+  if (clearLedgerError)
+    throw new Error(
+      `Could not clear smoke ledger: ${clearLedgerError.message}`
+    );
 
   const { error: walletError } = await admin
     .from('credit_wallets')
@@ -127,7 +159,8 @@ async function resetWallet(accountId, credits) {
       monthly_reset_at: new Date(Date.now() + 32 * 86_400_000).toISOString(),
     })
     .eq('account_id', accountId);
-  if (walletError) throw new Error(`Could not reset smoke wallet: ${walletError.message}`);
+  if (walletError)
+    throw new Error(`Could not reset smoke wallet: ${walletError.message}`);
 }
 
 async function wallet(accountId) {
@@ -136,7 +169,10 @@ async function wallet(accountId) {
     .select('total_credits')
     .eq('account_id', accountId)
     .single();
-  if (error || !data) throw new Error(`Could not read smoke wallet: ${error?.message ?? 'no wallet'}`);
+  if (error || !data)
+    throw new Error(
+      `Could not read smoke wallet: ${error?.message ?? 'no wallet'}`
+    );
   return data.total_credits;
 }
 
@@ -158,50 +194,81 @@ async function login(password) {
   await page.getByLabel(/email/i).first().fill(smokeEmail);
   await page.locator('input[type="password"]').first().fill(password);
   await page.locator('button[type="submit"]').first().click();
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 60_000 });
+  await page.waitForURL((url) => !url.pathname.includes('/login'), {
+    timeout: 60_000,
+  });
   return { chromiumBrowser, page };
 }
 
 async function post(page, path, body) {
-  return page.evaluate(async ({ path, body }) => {
-    const response = await fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return { status: response.status, body: await response.json().catch(() => null) };
-  }, { path, body });
+  return page.evaluate(
+    async ({ path, body }) => {
+      const response = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return {
+        status: response.status,
+        body: await response.json().catch(() => null),
+      };
+    },
+    { path, body }
+  );
 }
 
 async function verifyRefundRpc(accountId) {
   const before = await wallet(accountId);
-  const { data: burned, error: burnError } = await admin.rpc('burn_credits_tx', {
-    p_account_id: accountId,
-    p_feature: 'event_parse',
-    p_cost: 3,
-    p_hard_block: true,
-  });
+  const { data: burned, error: burnError } = await admin.rpc(
+    'burn_credits_tx',
+    {
+      p_account_id: accountId,
+      p_feature: 'event_parse',
+      p_cost: 3,
+      p_hard_block: true,
+    }
+  );
   if (burnError || !(Array.isArray(burned) ? burned[0] : burned)?.success) {
-    throw new Error(`Refund probe burn failed: ${burnError?.message ?? 'not successful'}`);
+    throw new Error(
+      `Refund probe burn failed: ${burnError?.message ?? 'not successful'}`
+    );
   }
-  const { data: refunded, error: refundError } = await admin.rpc('refund_credits_tx', {
-    p_account_id: accountId,
-    p_feature: 'event_parse',
-    p_cost: 3,
-    p_description: 'daily production AI billing smoke refund probe',
-  });
+  const { data: refunded, error: refundError } = await admin.rpc(
+    'refund_credits_tx',
+    {
+      p_account_id: accountId,
+      p_feature: 'event_parse',
+      p_cost: 3,
+      p_description: 'daily production AI billing smoke refund probe',
+    }
+  );
   if (refundError || !(Array.isArray(refunded) ? refunded[0] : refunded)) {
-    throw new Error(`Refund probe failed: ${refundError?.message ?? 'no response'}`);
+    throw new Error(
+      `Refund probe failed: ${refundError?.message ?? 'no response'}`
+    );
   }
-  expect(await wallet(accountId) === before, 'Refund probe did not restore the starting balance');
+  expect(
+    (await wallet(accountId)) === before,
+    'Refund probe did not restore the starting balance'
+  );
   const transactions = await ledger(accountId);
   expect(
-    transactions.filter((transaction) => transaction.type === 'ai_burn' && transaction.ai_feature === 'event_parse' && transaction.amount === -3).length >= 2,
-    'Refund probe did not write its matching burn ledger row',
+    transactions.filter(
+      (transaction) =>
+        transaction.type === 'ai_burn' &&
+        transaction.ai_feature === 'event_parse' &&
+        transaction.amount === -3
+    ).length >= 2,
+    'Refund probe did not write its matching burn ledger row'
   );
   expect(
-    transactions.filter((transaction) => transaction.type === 'refund' && transaction.ai_feature === 'event_parse' && transaction.amount === 3).length === 1,
-    'Refund probe did not write exactly one refund ledger row',
+    transactions.filter(
+      (transaction) =>
+        transaction.type === 'refund' &&
+        transaction.ai_feature === 'event_parse' &&
+        transaction.amount === 3
+    ).length === 1,
+    'Refund probe did not write exactly one refund ledger row'
   );
 }
 
@@ -219,58 +286,112 @@ async function main() {
     await resetWallet(accountId, 16);
     browser = await login(password);
 
-    const description = await post(browser.page, '/api/ai/generate-description', {
-      title: 'Daily smoke-test apartment in Koramangala',
-      type: 'Apartment',
-      location: 'Koramangala, Bengaluru',
-      bedrooms: 2,
-      area: 1200,
-      areaUnit: 'Sq.Ft.',
-      features: ['Test-only request'],
-    });
-    expect(description.status === 200 && typeof description.body?.description === 'string', `Description failed: ${JSON.stringify(description)}`);
-    expect(await wallet(accountId) === 6, `Description should burn 10 credits; balance is ${await wallet(accountId)}`);
+    const description = await post(
+      browser.page,
+      '/api/ai/generate-description',
+      {
+        title: 'Daily smoke-test apartment in Koramangala',
+        type: 'Apartment',
+        location: 'Koramangala, Bengaluru',
+        bedrooms: 2,
+        area: 1200,
+        areaUnit: 'Sq.Ft.',
+        features: ['Test-only request'],
+      }
+    );
     expect(
-      (await ledger(accountId)).filter((transaction) => transaction.type === 'ai_burn' && transaction.ai_feature === 'property_description' && transaction.amount === -10).length === 1,
-      'Description did not write exactly one matching burn ledger row',
+      description.status === 200 &&
+        typeof description.body?.description === 'string',
+      `Description failed: ${JSON.stringify(description)}`
+    );
+    expect(
+      (await wallet(accountId)) === 6,
+      `Description should burn 10 credits; balance is ${await wallet(accountId)}`
+    );
+    expect(
+      (await ledger(accountId)).filter(
+        (transaction) =>
+          transaction.type === 'ai_burn' &&
+          transaction.ai_feature === 'property_description' &&
+          transaction.amount === -10
+      ).length === 1,
+      'Description did not write exactly one matching burn ledger row'
     );
     record('description burn', '200 response and exactly 10 credits burned');
 
     const event = await post(browser.page, '/api/ai/parse-event', {
       text: 'Schedule a smoke-test site visit tomorrow at 11 AM.',
     });
-    expect(event.status === 200 && event.body?.data?.draft, `Event parsing failed: ${JSON.stringify(event)}`);
-    expect(await wallet(accountId) === 3, `Event parsing should burn 3 credits; balance is ${await wallet(accountId)}`);
     expect(
-      (await ledger(accountId)).filter((transaction) => transaction.type === 'ai_burn' && transaction.ai_feature === 'event_parse' && transaction.amount === -3).length === 1,
-      'Event parsing did not write exactly one matching burn ledger row',
+      event.status === 200 && event.body?.data?.draft,
+      `Event parsing failed: ${JSON.stringify(event)}`
+    );
+    expect(
+      (await wallet(accountId)) === 3,
+      `Event parsing should burn 3 credits; balance is ${await wallet(accountId)}`
+    );
+    expect(
+      (await ledger(accountId)).filter(
+        (transaction) =>
+          transaction.type === 'ai_burn' &&
+          transaction.ai_feature === 'event_parse' &&
+          transaction.amount === -3
+      ).length === 1,
+      'Event parsing did not write exactly one matching burn ledger row'
     );
     record('event-parse burn', '200 response and exactly 3 credits burned');
 
     await verifyRefundRpc(accountId);
-    record('refund RPC', 'burn/refund pair returned wallet to the starting balance');
+    record(
+      'refund RPC',
+      'burn/refund pair returned wallet to the starting balance'
+    );
 
     await resetWallet(accountId, 0);
-    const insufficient = await post(browser.page, '/api/ai/generate-description', {
-      title: 'Insufficient-credit smoke-test apartment',
-      type: 'Apartment',
-    });
-    expect(
-      insufficient.status === 402 && /Insufficient credits/i.test(insufficient.body?.error ?? ''),
-      `Insufficient-credit response was not user-facing: ${JSON.stringify(insufficient)}`,
+    const insufficient = await post(
+      browser.page,
+      '/api/ai/generate-description',
+      {
+        title: 'Insufficient-credit smoke-test apartment',
+        type: 'Apartment',
+      }
     );
-    expect(await wallet(accountId) === 0, 'Insufficient-credit request changed the wallet');
-    record('insufficient-credit error', '402 response exposes a retry-safe user error and burns nothing');
+    expect(
+      insufficient.status === 402 &&
+        /Insufficient credits/i.test(insufficient.body?.error ?? ''),
+      `Insufficient-credit response was not user-facing: ${JSON.stringify(insufficient)}`
+    );
+    expect(
+      (await wallet(accountId)) === 0,
+      'Insufficient-credit request changed the wallet'
+    );
+    record(
+      'insufficient-credit error',
+      '402 response exposes a retry-safe user error and burns nothing'
+    );
 
     const tx = await ledger(accountId);
-    expect(tx.length === 0, 'The zero-credit test should not write a ledger row after reset');
-    await browser.page.screenshot({ path: `${evidenceDir}/logged-in.png`, fullPage: true });
+    expect(
+      tx.length === 0,
+      'The zero-credit test should not write a ledger row after reset'
+    );
+    await browser.page.screenshot({
+      path: `${evidenceDir}/logged-in.png`,
+      fullPage: true,
+    });
   } catch (error) {
-    checks.push({ name: 'smoke run', pass: false, detail: error instanceof Error ? error.message : String(error) });
+    checks.push({
+      name: 'smoke run',
+      pass: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
     console.error(error);
   } finally {
     if (browser) await browser.chromiumBrowser.close();
-    writeFileSync(`${evidenceDir}/summary.json`, `${JSON.stringify({ checks, at: new Date().toISOString() }, null, 2)}\n`);
+    writeFileSync(
+      `${evidenceDir}/summary.json`,
+      `${JSON.stringify({ checks, at: new Date().toISOString() }, null, 2)}\n`
+    );
   }
 
   if (checks.some((check) => !check.pass)) process.exit(1);

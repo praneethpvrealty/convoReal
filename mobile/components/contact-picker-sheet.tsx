@@ -1,7 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { BottomSheet } from '@/components/sheet';
 import { Avatar, SearchBar, Tag, nameTagCap } from '@/components/ui';
@@ -54,7 +61,11 @@ export function ContactPickerSheet({
   hint?: string;
   /** Secondary suggestion under the hint — e.g. pointing a one-at-a-time
    *  channel at Broadcasts. Tappable when `onPress` is given. */
-  nudge?: { icon?: React.ComponentProps<typeof Ionicons>['name']; text: string; onPress?: () => void };
+  nudge?: {
+    icon?: React.ComponentProps<typeof Ionicons>['name'];
+    text: string;
+    onPress?: () => void;
+  };
   skipLabel?: string;
   onSkip?: () => void;
   busy?: boolean;
@@ -123,7 +134,7 @@ export function ContactPickerSheet({
       const contacts = rankContactSearchResults(
         [...(exactResult.data ?? []), ...(broadResult.data ?? [])] as Contact[],
         debounced,
-        8,
+        8
       );
 
       // Tag chips for the handful of rows on screen — the same
@@ -154,16 +165,32 @@ export function ContactPickerSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title={title}>
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md, flexShrink: 1 }}>
+      <View
+        style={{
+          paddingHorizontal: spacing.lg,
+          gap: spacing.md,
+          flexShrink: 1,
+        }}
+      >
         {busy ? (
-          <View style={{ paddingVertical: spacing.xl, alignItems: 'center', gap: spacing.md }}>
+          <View
+            style={{
+              paddingVertical: spacing.xl,
+              alignItems: 'center',
+              gap: spacing.md,
+            }}
+          >
             <ActivityIndicator color={colors.primary} />
-            <Text style={{ fontSize: 13, color: colors.textMuted }}>{busyLabel ?? 'Sending…'}</Text>
+            <Text style={{ fontSize: 13, color: colors.textMuted }}>
+              {busyLabel ?? 'Sending…'}
+            </Text>
           </View>
         ) : (
           <>
             {hint ? (
-              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>{hint}</Text>
+              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+                {hint}
+              </Text>
             ) : null}
 
             {nudge ? (
@@ -179,11 +206,22 @@ export function ContactPickerSheet({
                   size={15}
                   color={colors.primary}
                 />
-                <Text style={{ flex: 1, fontSize: 12, lineHeight: 17, color: colors.primary }}>
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 12,
+                    lineHeight: 17,
+                    color: colors.primary,
+                  }}
+                >
                   {nudge.text}
                 </Text>
                 {nudge.onPress ? (
-                  <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                  <Ionicons
+                    name="chevron-forward"
+                    size={14}
+                    color={colors.primary}
+                  />
                 ) : null}
               </Pressable>
             ) : null}
@@ -193,13 +231,34 @@ export function ContactPickerSheet({
                 onPress={onSkip}
                 accessibilityRole="button"
                 accessibilityLabel={skipLabel ?? 'Continue without a contact'}
-                style={[styles.skip, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+                style={[
+                  styles.skip,
+                  {
+                    backgroundColor: colors.glass,
+                    borderColor: colors.glassBorder,
+                  },
+                ]}
               >
-                <Ionicons name="logo-whatsapp" size={17} color={colors.success} />
-                <Text style={{ flex: 1, fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
+                <Ionicons
+                  name="logo-whatsapp"
+                  size={17}
+                  color={colors.success}
+                />
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 13.5,
+                    fontFamily: f.semibold,
+                    color: colors.text,
+                  }}
+                >
                   {skipLabel ?? 'Continue without a contact'}
                 </Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={colors.textFaint}
+                />
               </Pressable>
             ) : null}
 
@@ -216,7 +275,9 @@ export function ContactPickerSheet({
                   Type at least 2 characters to search your contacts.
                 </Text>
               ) : isFetching ? (
-                <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
+                <View
+                  style={{ paddingVertical: spacing.xl, alignItems: 'center' }}
+                >
                   <ActivityIndicator color={colors.primary} />
                 </View>
               ) : results.length === 0 ? (
@@ -224,75 +285,108 @@ export function ContactPickerSheet({
                   No contacts match “{debounced}”.
                 </Text>
               ) : (
-                <ScrollView keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+                <ScrollView
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  showsVerticalScrollIndicator={false}
+                >
                   <View style={{ gap: spacing.sm }}>
                     {results.map((c) => {
                       const isPicked = picked.some((p) => p.id === c.id);
                       return (
-                      <Pressable
-                        key={c.id}
-                        disabled={multiSelect && !isPicked && picked.length >= maxSelections}
-                        onPress={() => {
-                          if (multiSelect) {
-                            togglePicked(c);
-                            return;
+                        <Pressable
+                          key={c.id}
+                          disabled={
+                            multiSelect &&
+                            !isPicked &&
+                            picked.length >= maxSelections
                           }
-                          haptic.tap();
-                          onSelect?.(c);
-                        }}
-                        accessibilityRole={multiSelect ? 'checkbox' : 'button'}
-                        accessibilityState={multiSelect ? { checked: isPicked } : undefined}
-                        accessibilityLabel={c.name || contactHandle(c)}
-                        style={[
-                          styles.row,
-                          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-                          isPicked && { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-                          multiSelect && !isPicked && picked.length >= maxSelections && { opacity: 0.45 },
-                        ]}
-                      >
-                        {multiSelect ? (
-                          <Ionicons
-                            name={isPicked ? 'checkbox' : 'square-outline'}
-                            size={20}
-                            color={isPicked ? colors.primary : colors.textFaint}
-                          />
-                        ) : null}
-                        <Avatar name={c.name || contactHandle(c)} size={34} />
-                        <View style={{ flex: 1, gap: 2 }}>
-                          <View style={styles.nameRow}>
-                            <Text
-                              style={{
-                                flexShrink: 1,
-                                fontSize: 14.5,
-                                fontFamily: f.semibold,
-                                color: colors.text,
-                              }}
-                              numberOfLines={1}
-                            >
-                              {c.name || c.phone}
-                            </Text>
-                            {c.name_tag ? (
-                              <View style={nameTagCap}>
-                                <Tag label={c.name_tag} />
-                              </View>
-                            ) : null}
-                          </View>
-                          <View style={styles.metaRow}>
-                            {c.name ? (
-                              <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
-                                {c.phone}
+                          onPress={() => {
+                            if (multiSelect) {
+                              togglePicked(c);
+                              return;
+                            }
+                            haptic.tap();
+                            onSelect?.(c);
+                          }}
+                          accessibilityRole={
+                            multiSelect ? 'checkbox' : 'button'
+                          }
+                          accessibilityState={
+                            multiSelect ? { checked: isPicked } : undefined
+                          }
+                          accessibilityLabel={c.name || contactHandle(c)}
+                          style={[
+                            styles.row,
+                            {
+                              backgroundColor: colors.glass,
+                              borderColor: colors.glassBorder,
+                            },
+                            isPicked && {
+                              borderColor: colors.primary,
+                              backgroundColor: colors.primarySoft,
+                            },
+                            multiSelect &&
+                              !isPicked &&
+                              picked.length >= maxSelections && {
+                                opacity: 0.45,
+                              },
+                          ]}
+                        >
+                          {multiSelect ? (
+                            <Ionicons
+                              name={isPicked ? 'checkbox' : 'square-outline'}
+                              size={20}
+                              color={
+                                isPicked ? colors.primary : colors.textFaint
+                              }
+                            />
+                          ) : null}
+                          <Avatar name={c.name || contactHandle(c)} size={34} />
+                          <View style={{ flex: 1, gap: 2 }}>
+                            <View style={styles.nameRow}>
+                              <Text
+                                style={{
+                                  flexShrink: 1,
+                                  fontSize: 14.5,
+                                  fontFamily: f.semibold,
+                                  color: colors.text,
+                                }}
+                                numberOfLines={1}
+                              >
+                                {c.name || c.phone}
                               </Text>
-                            ) : null}
-                            {(tagsById[c.id] ?? []).slice(0, 2).map((t) => (
-                              <Tag key={t} label={t} />
-                            ))}
+                              {c.name_tag ? (
+                                <View style={nameTagCap}>
+                                  <Tag label={c.name_tag} />
+                                </View>
+                              ) : null}
+                            </View>
+                            <View style={styles.metaRow}>
+                              {c.name ? (
+                                <Text
+                                  style={{
+                                    fontSize: 12,
+                                    color: colors.textMuted,
+                                  }}
+                                  numberOfLines={1}
+                                >
+                                  {c.phone}
+                                </Text>
+                              ) : null}
+                              {(tagsById[c.id] ?? []).slice(0, 2).map((t) => (
+                                <Tag key={t} label={t} />
+                              ))}
+                            </View>
                           </View>
-                        </View>
-                        {multiSelect ? null : (
-                          <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-                        )}
-                      </Pressable>
+                          {multiSelect ? null : (
+                            <Ionicons
+                              name="chevron-forward"
+                              size={16}
+                              color={colors.textFaint}
+                            />
+                          )}
+                        </Pressable>
                       );
                     })}
                   </View>
@@ -319,7 +413,10 @@ export function ContactPickerSheet({
                 style={[
                   styles.confirm,
                   {
-                    backgroundColor: picked.length === 0 ? colors.surfaceSunken : colors.primary,
+                    backgroundColor:
+                      picked.length === 0
+                        ? colors.surfaceSunken
+                        : colors.primary,
                   },
                 ]}
               >
@@ -327,7 +424,8 @@ export function ContactPickerSheet({
                   style={{
                     fontSize: 14.5,
                     fontFamily: f.bold,
-                    color: picked.length === 0 ? colors.textFaint : colors.onPrimary,
+                    color:
+                      picked.length === 0 ? colors.textFaint : colors.onPrimary,
                   }}
                 >
                   {picked.length === 0
@@ -376,7 +474,12 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
   hint: {
     fontSize: 12.5,
     textAlign: 'center',

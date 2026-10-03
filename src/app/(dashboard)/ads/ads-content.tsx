@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Megaphone, Pause, Play, Archive, AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react';
+import {
+  Megaphone,
+  Pause,
+  Play,
+  Archive,
+  AlertTriangle,
+  ExternalLink,
+  RefreshCw,
+} from 'lucide-react';
 import { SignalWaveLoader } from '@/components/ui/signal-wave-loader';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { Button } from '@/components/ui/button';
@@ -39,7 +47,9 @@ function formatINR(n: number): string {
   return `₹${n.toLocaleString('en-IN')}`;
 }
 
-function statusVariant(status: CampaignRow['status']): 'default' | 'secondary' | 'destructive' | 'outline' {
+function statusVariant(
+  status: CampaignRow['status']
+): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (status === 'ACTIVE') return 'default';
   if (status === 'PAUSED') return 'secondary';
   if (status === 'ERROR') return 'destructive';
@@ -88,7 +98,11 @@ export default function AdsPage() {
     void load();
   }, [load]);
 
-  async function runAction(campaign: CampaignRow, action: 'pause' | 'resume' | 'archive', confirmMsg?: string) {
+  async function runAction(
+    campaign: CampaignRow,
+    action: 'pause' | 'resume' | 'archive',
+    confirmMsg?: string
+  ) {
     if (confirmMsg && !window.confirm(confirmMsg)) return;
     setBusyId(campaign.id);
     try {
@@ -102,7 +116,13 @@ export default function AdsPage() {
         toast.error(data.error || 'Could not update the campaign.');
         return;
       }
-      toast.success(action === 'pause' ? 'Campaign paused.' : action === 'resume' ? 'Campaign resumed.' : 'Campaign archived.');
+      toast.success(
+        action === 'pause'
+          ? 'Campaign paused.'
+          : action === 'resume'
+            ? 'Campaign resumed.'
+            : 'Campaign archived.'
+      );
       await load();
     } catch {
       toast.error('Could not update the campaign.');
@@ -140,19 +160,27 @@ export default function AdsPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Megaphone className="h-5 w-5 text-primary" />
+          <h1 className="flex items-center gap-2 text-xl font-bold">
+            <Megaphone className="text-primary h-5 w-5" />
             Ads
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Click-to-WhatsApp campaigns running on Instagram &amp; Facebook, and the leads they&apos;ve produced.
+          <p className="text-muted-foreground mt-1 text-sm">
+            Click-to-WhatsApp campaigns running on Instagram &amp; Facebook, and
+            the leads they&apos;ve produced.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing}>
-          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => load(true)}
+          disabled={refreshing}
+        >
+          <RefreshCw
+            className={`mr-1.5 h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`}
+          />
           Refresh
         </Button>
       </div>
@@ -161,29 +189,42 @@ export default function AdsPage() {
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between gap-4">
-            <span>Your Meta connection expired — spend and lead numbers may be out of date.</span>
-            <a href="/settings?tab=ads" className="text-sm font-medium underline whitespace-nowrap">Reconnect</a>
+            <span>
+              Your Meta connection expired — spend and lead numbers may be out
+              of date.
+            </span>
+            <a
+              href="/settings?tab=ads"
+              className="text-sm font-medium whitespace-nowrap underline"
+            >
+              Reconnect
+            </a>
           </AlertDescription>
         </Alert>
       )}
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <SignalWaveLoader size={104} label="Loading ad campaigns" className="mb-3" />
+        <div className="text-muted-foreground flex flex-col items-center justify-center py-16">
+          <SignalWaveLoader
+            size={104}
+            label="Loading ad campaigns"
+            className="mb-3"
+          />
           <ConvoRealLoader size={20} className="mb-2" />
           <p className="text-sm">Loading ad campaigns...</p>
         </div>
       ) : !campaigns || campaigns.length === 0 ? (
-        <div className="rounded-lg border py-16 text-center space-y-3">
-          <Megaphone className="h-10 w-10 text-muted-foreground mx-auto" />
+        <div className="space-y-3 rounded-lg border py-16 text-center">
+          <Megaphone className="text-muted-foreground mx-auto h-10 w-10" />
           <h3 className="font-semibold">No campaigns yet</h3>
-          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-            Promote a property from your Inventory to run its first Instagram &amp; Facebook ad — buyers who tap it
-            message you directly on WhatsApp.
+          <p className="text-muted-foreground mx-auto max-w-sm text-sm">
+            Promote a property from your Inventory to run its first Instagram
+            &amp; Facebook ad — buyers who tap it message you directly on
+            WhatsApp.
           </p>
           <a
             href="/inventory"
-            className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground text-sm font-medium h-9 px-4 hover:bg-primary/90"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-medium"
           >
             Go to Inventory
           </a>
@@ -192,7 +233,7 @@ export default function AdsPage() {
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+              <tr className="bg-muted/40 text-muted-foreground border-b text-left text-xs">
                 <th className="p-3 font-medium">Property</th>
                 <th className="p-3 font-medium">Status</th>
                 <th className="p-3 font-medium">Daily budget</th>
@@ -212,18 +253,28 @@ export default function AdsPage() {
                       {c.propertyImage ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={showcaseImageUrl(c.propertyImage, SHOWCASE_IMAGE_WIDTHS.thumb)}
+                          src={showcaseImageUrl(
+                            c.propertyImage,
+                            SHOWCASE_IMAGE_WIDTHS.thumb
+                          )}
                           alt=""
-                          className="h-9 w-9 rounded object-cover shrink-0"
+                          className="h-9 w-9 shrink-0 rounded object-cover"
                         />
                       ) : (
-                        <div className="h-9 w-9 rounded bg-muted shrink-0" />
+                        <div className="bg-muted h-9 w-9 shrink-0 rounded" />
                       )}
                       <div className="min-w-0">
-                        <a href={`/inventory?propertyId=${c.propertyId}`} className="font-medium hover:underline truncate block max-w-[180px]">
+                        <a
+                          href={`/inventory?propertyId=${c.propertyId}`}
+                          className="block max-w-[180px] truncate font-medium hover:underline"
+                        >
                           {c.propertyTitle}
                         </a>
-                        {c.propertyCode && <p className="text-xs text-muted-foreground">{c.propertyCode}</p>}
+                        {c.propertyCode && (
+                          <p className="text-muted-foreground text-xs">
+                            {c.propertyCode}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -250,8 +301,10 @@ export default function AdsPage() {
                           setEditingBudgetId(c.id);
                           setBudgetDraft(String(c.dailyBudgetInr));
                         }}
-                        disabled={c.status === 'ARCHIVED' || c.status === 'ERROR'}
-                        className="hover:underline disabled:no-underline disabled:cursor-not-allowed"
+                        disabled={
+                          c.status === 'ARCHIVED' || c.status === 'ERROR'
+                        }
+                        className="hover:underline disabled:cursor-not-allowed disabled:no-underline"
                       >
                         {formatINR(c.dailyBudgetInr)}/day
                       </button>
@@ -259,27 +312,51 @@ export default function AdsPage() {
                   </td>
                   <td className="p-3">
                     {c.insights ? (
-                      <span className={c.insights.stale ? 'text-muted-foreground' : ''}>
+                      <span
+                        className={
+                          c.insights.stale ? 'text-muted-foreground' : ''
+                        }
+                      >
                         {formatINR(Math.round(c.insights.spend))}
-                        {c.insights.stale && <span className="text-[10px] ml-1">(stale)</span>}
+                        {c.insights.stale && (
+                          <span className="ml-1 text-[10px]">(stale)</span>
+                        )}
                       </span>
                     ) : (
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
                   </td>
-                  <td className="p-3">{c.insights?.reach.toLocaleString('en-IN') ?? '—'}</td>
-                  <td className="p-3">{c.insights?.conversationsStarted ?? '—'}</td>
+                  <td className="p-3">
+                    {c.insights?.reach.toLocaleString('en-IN') ?? '—'}
+                  </td>
+                  <td className="p-3">
+                    {c.insights?.conversationsStarted ?? '—'}
+                  </td>
                   <td className="p-3 font-medium">{c.leadsInEngine}</td>
-                  <td className="p-3">{c.costPerLeadInr !== null ? formatINR(c.costPerLeadInr) : '—'}</td>
+                  <td className="p-3">
+                    {c.costPerLeadInr !== null
+                      ? formatINR(c.costPerLeadInr)
+                      : '—'}
+                  </td>
                   <td className="p-3">
                     <div className="flex items-center justify-end gap-1">
                       {c.status === 'ACTIVE' && (
-                        <Button size="sm" variant="ghost" onClick={() => runAction(c, 'pause')} disabled={busyId === c.id}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => runAction(c, 'pause')}
+                          disabled={busyId === c.id}
+                        >
                           <Pause className="h-3.5 w-3.5" />
                         </Button>
                       )}
                       {c.status === 'PAUSED' && (
-                        <Button size="sm" variant="ghost" onClick={() => runAction(c, 'resume')} disabled={busyId === c.id}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => runAction(c, 'resume')}
+                          disabled={busyId === c.id}
+                        >
                           <Play className="h-3.5 w-3.5" />
                         </Button>
                       )}
@@ -287,13 +364,22 @@ export default function AdsPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => runAction(c, 'archive', 'Stop and archive this ad? This can\'t be undone.')}
+                          onClick={() =>
+                            runAction(
+                              c,
+                              'archive',
+                              "Stop and archive this ad? This can't be undone."
+                            )
+                          }
                           disabled={busyId === c.id}
                         >
                           <Archive className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      <a href={`/inventory?propertyId=${c.propertyId}`} className="p-1.5 text-muted-foreground hover:text-foreground">
+                      <a
+                        href={`/inventory?propertyId=${c.propertyId}`}
+                        className="text-muted-foreground hover:text-foreground p-1.5"
+                      >
                         <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     </div>

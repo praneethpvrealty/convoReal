@@ -3,11 +3,11 @@ name: calendar
 ---
 - launchApp
 - tapOn:
-    id: "tab-calendar"
+    id: 'tab-calendar'
 - extendedWaitUntil:
     visible:
-      id: "calendar-screen"
+      id: 'calendar-screen'
     timeout: 20000
 # Match the Pressable accessibility label; iOS does not expose its child text separately.
-- assertVisible: "Jump to today"
+- assertVisible: 'Jump to today'
 - takeScreenshot: .maestro/shots/06-calendar

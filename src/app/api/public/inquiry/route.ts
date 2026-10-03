@@ -1,11 +1,14 @@
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/automations/admin-client";
-import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
-import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
-import { findOrCreateContact } from "@/lib/contacts/find-or-create";
-import { attachIdentifiedSession } from "@/lib/pulse/visitor-identity";
-import { MAX_SHORTLIST_PROPERTIES, parseInquiryPropertyIds } from "@/lib/showcase/shortlist";
-import { resolveSellerPage } from "@/lib/showcase/seller-page";
+import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
+import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { findOrCreateContact } from '@/lib/contacts/find-or-create';
+import { attachIdentifiedSession } from '@/lib/pulse/visitor-identity';
+import {
+  MAX_SHORTLIST_PROPERTIES,
+  parseInquiryPropertyIds,
+} from '@/lib/showcase/shortlist';
+import { resolveSellerPage } from '@/lib/showcase/seller-page';
 
 const INQUIRY_SESSION_LIMIT = { limit: 5, windowMs: 60_000 };
 const INQUIRY_ACCOUNT_LIMIT = { limit: 60, windowMs: 60_000 };
@@ -18,17 +21,40 @@ export async function POST(request: Request) {
     const { phone, email, accountId, referrerContactId, sessionKey } = body;
     let { propertyId, propertyTitle, propertyCode } = body;
     const isShortlist = body.propertyIds !== undefined;
-    const propertyIds = isShortlist ? parseInquiryPropertyIds(body.propertyIds) : null;
+    const propertyIds = isShortlist
+      ? parseInquiryPropertyIds(body.propertyIds)
+      : null;
     if (isShortlist && (!propertyIds || body.propertyId !== undefined)) {
-      return NextResponse.json({ error: `Select between 1 and ${MAX_SHORTLIST_PROPERTIES} properties for your enquiry.` }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: `Select between 1 and ${MAX_SHORTLIST_PROPERTIES} properties for your enquiry.`,
+        },
+        { status: 400 }
+      );
     }
-    if (isShortlist && (typeof body.name !== 'string' || !body.name.trim() || typeof phone !== 'string' || (email !== undefined && typeof email !== 'string') || (body.message !== undefined && typeof body.message !== 'string'))) {
-      return NextResponse.json({ error: 'Enter your name and a valid mobile number.' }, { status: 400 });
+    if (
+      isShortlist &&
+      (typeof body.name !== 'string' ||
+        !body.name.trim() ||
+        typeof phone !== 'string' ||
+        (email !== undefined && typeof email !== 'string') ||
+        (body.message !== undefined && typeof body.message !== 'string'))
+    ) {
+      return NextResponse.json(
+        { error: 'Enter your name and a valid mobile number.' },
+        { status: 400 }
+      );
     }
-    const isAiAgent = body.source === "ai_agent";
-    const channelLabel = isAiAgent ? "AI Agent" : "Website";
-    const name = typeof body.name === "string" ? body.name.slice(0, MAX_NAME_LEN) : body.name;
-    const message = typeof body.message === "string" ? body.message.slice(0, MAX_MESSAGE_LEN) : body.message;
+    const isAiAgent = body.source === 'ai_agent';
+    const channelLabel = isAiAgent ? 'AI Agent' : 'Website';
+    const name =
+      typeof body.name === 'string'
+        ? body.name.slice(0, MAX_NAME_LEN)
+        : body.name;
+    const message =
+      typeof body.message === 'string'
+        ? body.message.slice(0, MAX_MESSAGE_LEN)
+        : body.message;
 
     if (!accountId) {
       return NextResponse.json(
@@ -41,20 +67,29 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Explicit consent is required before an AI agent can create an enquiry.",
+            'Explicit consent is required before an AI agent can create an enquiry.',
         },
         { status: 400 }
       );
     }
 
     const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
-    const sessionId = typeof sessionKey === "string" && sessionKey.trim() ? sessionKey.trim().slice(0, 64) : ip;
-    const sessionLimit = await checkRateLimit(`inquiry:session:${sessionId}`, INQUIRY_SESSION_LIMIT);
+      request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      request.headers.get('x-real-ip') ||
+      'unknown';
+    const sessionId =
+      typeof sessionKey === 'string' && sessionKey.trim()
+        ? sessionKey.trim().slice(0, 64)
+        : ip;
+    const sessionLimit = await checkRateLimit(
+      `inquiry:session:${sessionId}`,
+      INQUIRY_SESSION_LIMIT
+    );
     if (!sessionLimit.success) return rateLimitResponse(sessionLimit);
-    const accountLimit = await checkRateLimit(`inquiry:account:${accountId}`, INQUIRY_ACCOUNT_LIMIT);
+    const accountLimit = await checkRateLimit(
+      `inquiry:account:${accountId}`,
+      INQUIRY_ACCOUNT_LIMIT
+    );
     if (!accountLimit.success) return rateLimitResponse(accountLimit);
 
     if (!phone) {
@@ -67,7 +102,7 @@ export async function POST(request: Request) {
     const normalizedPhone = normalizePhoneWithCountryCode(phone);
     if (!normalizedPhone) {
       return NextResponse.json(
-        { error: "Invalid phone number format" },
+        { error: 'Invalid phone number format' },
         { status: 400 }
       );
     }
@@ -76,15 +111,18 @@ export async function POST(request: Request) {
 
     // 1. Fetch account owner_user_id to use as user_id for contact notes & default tasks
     const { data: account, error: accountError } = await admin
-      .from("accounts")
-      .select("owner_user_id, status")
-      .eq("id", accountId)
+      .from('accounts')
+      .select('owner_user_id, status')
+      .eq('id', accountId)
       .maybeSingle();
 
     if (accountError || !account) {
-      console.error("[POST /api/public/inquiry] Account lookup failed:", accountError);
+      console.error(
+        '[POST /api/public/inquiry] Account lookup failed:',
+        accountError
+      );
       return NextResponse.json(
-        { error: "Invalid account ID" },
+        { error: 'Invalid account ID' },
         { status: 400 }
       );
     }
@@ -93,9 +131,18 @@ export async function POST(request: Request) {
     const sellerPage = body.sellerPage
       ? await resolveSellerPage(admin, body.sellerPage, accountId)
       : null;
-    let shortlistProperties: Array<{ id: string; title: string; property_code: string | null; user_id: string }> = [];
+    let shortlistProperties: Array<{
+      id: string;
+      title: string;
+      property_code: string | null;
+      user_id: string;
+    }> = [];
     if (propertyIds) {
-      if (account.status === 'archived') return NextResponse.json({ error: 'This showcase is unavailable.' }, { status: 400 });
+      if (account.status === 'archived')
+        return NextResponse.json(
+          { error: 'This showcase is unavailable.' },
+          { status: 400 }
+        );
       const { data: listed, error: listedError } = await admin
         .from('properties')
         .select('id, title, property_code, user_id')
@@ -105,33 +152,61 @@ export async function POST(request: Request) {
         .in('id', propertyIds);
       if (listedError) throw listedError;
       if (!listed || listed.length !== propertyIds.length) {
-        return NextResponse.json({ error: 'Some selected properties are no longer available. Refresh the showcase and review your shortlist before trying again.' }, { status: 409 });
+        return NextResponse.json(
+          {
+            error:
+              'Some selected properties are no longer available. Refresh the showcase and review your shortlist before trying again.',
+          },
+          { status: 409 }
+        );
       }
-      shortlistProperties = propertyIds.map((id) => listed.find((property) => property.id === id)!);
+      shortlistProperties = propertyIds.map((id) =>
+        listed.find((property) => property.id === id)!
+      );
       propertyId = shortlistProperties[0].id;
       propertyTitle = `${shortlistProperties.length} shortlisted ${shortlistProperties.length === 1 ? 'property' : 'properties'}`;
       propertyCode = undefined;
       if (referrerContactId) {
-        const { data: referrer, error: referrerError } = await admin.from('contacts').select('id').eq('account_id', accountId).eq('id', referrerContactId).maybeSingle();
+        const { data: referrer, error: referrerError } = await admin
+          .from('contacts')
+          .select('id')
+          .eq('account_id', accountId)
+          .eq('id', referrerContactId)
+          .maybeSingle();
         if (referrerError) throw referrerError;
-        if (!referrer) return NextResponse.json({ error: 'Invalid enquiry referral.' }, { status: 400 });
+        if (!referrer)
+          return NextResponse.json(
+            { error: 'Invalid enquiry referral.' },
+            { status: 400 }
+          );
       }
     }
-    const shortlistSummary = shortlistProperties.map((property, index) => `${index + 1}. ${property.title}${property.property_code ? ` (${property.property_code})` : ''} [${property.id}]`).join('\n');
+    const shortlistSummary = shortlistProperties
+      .map(
+        (property, index) =>
+          `${index + 1}. ${property.title}${property.property_code ? ` (${property.property_code})` : ''} [${property.id}]`
+      )
+      .join('\n');
 
     // Resolve the managing agent of the property if propertyId is provided
     let targetAgentUserId = systemUserId;
-    if (shortlistProperties.length && shortlistProperties.every((property) => property.user_id === shortlistProperties[0].user_id)) {
+    if (
+      shortlistProperties.length &&
+      shortlistProperties.every(
+        (property) => property.user_id === shortlistProperties[0].user_id
+      )
+    ) {
       targetAgentUserId = shortlistProperties[0].user_id || systemUserId;
     }
-    let resolvedReferrerContactId = sellerPage?.contactId || referrerContactId || null;
+    let resolvedReferrerContactId =
+      sellerPage?.contactId || referrerContactId || null;
 
     if (propertyId && !isShortlist) {
       const { data: propData } = await admin
-        .from("properties")
-        .select("user_id")
-        .eq("id", propertyId)
-        .eq("account_id", accountId)
+        .from('properties')
+        .select('user_id')
+        .eq('id', propertyId)
+        .eq('account_id', accountId)
         .maybeSingle();
 
       if (propData?.user_id) {
@@ -139,21 +214,22 @@ export async function POST(request: Request) {
 
         // Try resolving the agent's contact ID using their profile email
         const { data: agentProfile } = await admin
-          .from("profiles")
-          .select("email")
-          .eq("user_id", targetAgentUserId)
+          .from('profiles')
+          .select('email')
+          .eq('user_id', targetAgentUserId)
           .maybeSingle();
 
         if (agentProfile?.email) {
           const { data: agentContact } = await admin
-            .from("contacts")
-            .select("id")
-            .eq("account_id", accountId)
-            .eq("email", agentProfile.email)
+            .from('contacts')
+            .select('id')
+            .eq('account_id', accountId)
+            .eq('email', agentProfile.email)
             .maybeSingle();
 
           if (agentContact) {
-            resolvedReferrerContactId = resolvedReferrerContactId || agentContact.id;
+            resolvedReferrerContactId =
+              resolvedReferrerContactId || agentContact.id;
           }
         }
       }
@@ -168,29 +244,45 @@ export async function POST(request: Request) {
         phone: normalizedPhone,
         name: name || `${channelLabel} Lead`,
         email: email || null,
-        classification: "Buyer",
-        referrer: isAiAgent ? "AI Agent" : "Website Showcase",
+        classification: 'Buyer',
+        referrer: isAiAgent ? 'AI Agent' : 'Website Showcase',
         referrerContactId: resolvedReferrerContactId,
         lastInquiredPropertyId: propertyId || null,
       });
       contactId = result.contactId;
     } catch (err) {
-      console.error("[POST /api/public/inquiry] Contact find-or-create failed:", err);
-      return NextResponse.json({ error: "Failed to process inquiry" }, { status: 500 });
+      console.error(
+        '[POST /api/public/inquiry] Contact find-or-create failed:',
+        err
+      );
+      return NextResponse.json(
+        { error: 'Failed to process inquiry' },
+        { status: 500 }
+      );
     }
 
     if (shortlistProperties.length) {
-      const { error: inquiryError } = await admin.from('contact_property_inquiries').upsert(
-        shortlistProperties.map((property) => ({ account_id: accountId, contact_id: contactId, property_id: property.id, inquiry_source: 'Website Shortlist' })),
-        { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
-      );
+      const { error: inquiryError } = await admin
+        .from('contact_property_inquiries')
+        .upsert(
+          shortlistProperties.map((property) => ({
+            account_id: accountId,
+            contact_id: contactId,
+            property_id: property.id,
+            inquiry_source: 'Website Shortlist',
+          })),
+          { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
+        );
       if (inquiryError) throw inquiryError;
       const { error: markerError } = await admin
         .from('contact_property_inquiries')
         .update({ via_portal_link: false })
         .eq('account_id', accountId)
         .eq('contact_id', contactId)
-        .in('property_id', shortlistProperties.map((property) => property.id))
+        .in(
+          'property_id',
+          shortlistProperties.map((property) => property.id)
+        )
         .eq('via_portal_link', true);
       if (markerError) throw markerError;
     }
@@ -200,13 +292,18 @@ export async function POST(request: Request) {
     // session (tracked via the same showcase_session_key in localStorage)
     // can now show up under their name, and this browser becomes one of
     // their known devices for later visits.
-    if (typeof sessionKey === "string" && sessionKey.trim()) {
-      await attachIdentifiedSession(admin, { accountId, contactId, sessionKey }, "[POST /api/public/inquiry]");
+    if (typeof sessionKey === 'string' && sessionKey.trim()) {
+      await attachIdentifiedSession(
+        admin,
+        { accountId, contactId, sessionKey },
+        '[POST /api/public/inquiry]'
+      );
     }
 
     // 3. Add inquiry details as a contact note
     let noteText = `${channelLabel} Inquiry received:\n`;
-    if (shortlistSummary) noteText += `• Selected properties:\n${shortlistSummary}\n`;
+    if (shortlistSummary)
+      noteText += `• Selected properties:\n${shortlistSummary}\n`;
     if (propertyTitle) {
       noteText += `• Interested in Property: ${propertyTitle}\n`;
     }
@@ -222,52 +319,54 @@ export async function POST(request: Request) {
       noteText += `• Message: (No message provided)\n`;
     }
 
-    const { error: noteError } = await admin
-      .from("contact_notes")
-      .insert([
-        {
-          account_id: accountId,
-          contact_id: contactId,
-          user_id: targetAgentUserId,
-          note_text: noteText,
-        },
-      ]);
+    const { error: noteError } = await admin.from('contact_notes').insert([
+      {
+        account_id: accountId,
+        contact_id: contactId,
+        user_id: targetAgentUserId,
+        note_text: noteText,
+      },
+    ]);
 
     if (noteError) {
       if (isShortlist) throw noteError;
-      console.error("[POST /api/public/inquiry] Contact note creation failed:", noteError);
+      console.error(
+        '[POST /api/public/inquiry] Contact note creation failed:',
+        noteError
+      );
       // Don't fail the whole request if note fails, but log it
     }
 
     // 4. Create a Todo task for the team
-    const { error: todoError } = await admin
-      .from("todos")
-      .insert([
-        {
-          account_id: accountId,
-          user_id: targetAgentUserId,
-          title: `New ${channelLabel} Inquiry - @${name || phone}`,
-          description: `Visitor ${name || ""} (${phone}) inquired about property: "${propertyTitle || "Unknown"}"${propertyCode ? ` (${propertyCode})` : ""}.${shortlistSummary ? `\n${shortlistSummary}\n` : ' '}Review contact and follow up.`,
-          due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // due in 1 day
-          priority: "high",
-          completed: false,
-          contact_id: contactId,
-          property_id: propertyId || null,
-        },
-      ]);
+    const { error: todoError } = await admin.from('todos').insert([
+      {
+        account_id: accountId,
+        user_id: targetAgentUserId,
+        title: `New ${channelLabel} Inquiry - @${name || phone}`,
+        description: `Visitor ${name || ''} (${phone}) inquired about property: "${propertyTitle || 'Unknown'}"${propertyCode ? ` (${propertyCode})` : ''}.${shortlistSummary ? `\n${shortlistSummary}\n` : ' '}Review contact and follow up.`,
+        due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // due in 1 day
+        priority: 'high',
+        completed: false,
+        contact_id: contactId,
+        property_id: propertyId || null,
+      },
+    ]);
 
     if (todoError) {
-      console.error("[POST /api/public/inquiry] Todo creation failed:", todoError);
+      console.error(
+        '[POST /api/public/inquiry] Todo creation failed:',
+        todoError
+      );
     }
 
     // 5. Route the inquiry as an inbox message
     try {
       // Find or create conversation for the contact to show in the Inbox
       const { data: existingConv, error: findConvError } = await admin
-        .from("conversations")
-        .select("*")
-        .eq("account_id", accountId)
-        .eq("contact_id", contactId)
+        .from('conversations')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
         .maybeSingle();
 
       let conversationId: string | undefined;
@@ -278,7 +377,7 @@ export async function POST(request: Request) {
         currentUnreadCount = existingConv.unread_count || 0;
       } else {
         const { data: newConv, error: createConvError } = await admin
-          .from("conversations")
+          .from('conversations')
           .insert({
             account_id: accountId,
             user_id: targetAgentUserId,
@@ -289,7 +388,10 @@ export async function POST(request: Request) {
           .single();
 
         if (createConvError) {
-          console.error("[POST /api/public/inquiry] Conversation creation failed:", createConvError);
+          console.error(
+            '[POST /api/public/inquiry] Conversation creation failed:',
+            createConvError
+          );
         }
         conversationId = newConv?.id;
       }
@@ -297,9 +399,10 @@ export async function POST(request: Request) {
       if (conversationId) {
         // Formulate inbox message text
         let inboxText = `📩 *${channelLabel} Inquiry Received*\n\n`;
-        if (shortlistSummary) inboxText += `🏘️ *Selected properties*:\n${shortlistSummary}\n\n`;
+        if (shortlistSummary)
+          inboxText += `🏘️ *Selected properties*:\n${shortlistSummary}\n\n`;
         if (propertyTitle) {
-          inboxText += `🏡 *Property*: ${propertyTitle}${propertyCode ? ` (${propertyCode})` : ""}\n`;
+          inboxText += `🏡 *Property*: ${propertyTitle}${propertyCode ? ` (${propertyCode})` : ''}\n`;
         }
         if (message) {
           inboxText += `💬 *Message*: ${message.trim()}\n`;
@@ -310,22 +413,25 @@ export async function POST(request: Request) {
         inboxText += `👤 *Name*: ${name || `${channelLabel} Lead`}\n📞 *Phone*: ${normalizedPhone}`;
 
         // Insert message in messages table
-        const { error: msgInsertError } = await admin.from("messages").insert({
+        const { error: msgInsertError } = await admin.from('messages').insert({
           conversation_id: conversationId,
-          sender_type: "customer",
-          content_type: "text",
+          sender_type: 'customer',
+          content_type: 'text',
           content_text: inboxText,
-          message_id: `${isAiAgent ? "ai-agent" : "web"}-inquiry-${Date.now()}`,
-          status: "delivered",
+          message_id: `${isAiAgent ? 'ai-agent' : 'web'}-inquiry-${Date.now()}`,
+          status: 'delivered',
           created_at: new Date().toISOString(),
         });
 
         if (msgInsertError) {
-          console.error("[POST /api/public/inquiry] Inbox message insertion failed:", msgInsertError);
+          console.error(
+            '[POST /api/public/inquiry] Inbox message insertion failed:',
+            msgInsertError
+          );
         } else {
           // Update conversation last_message_text, last_message_at, unread_count
           await admin
-            .from("conversations")
+            .from('conversations')
             .update({
               last_message_text: inboxText,
               last_message_at: new Date().toISOString(),
@@ -338,18 +444,21 @@ export async function POST(request: Request) {
               // one who had. The thread still needs a reply either way.
               updated_at: new Date().toISOString(),
             })
-            .eq("id", conversationId);
+            .eq('id', conversationId);
         }
       }
     } catch (inboxErr) {
-      console.error("[POST /api/public/inquiry] Failed to route inquiry to inbox:", inboxErr);
+      console.error(
+        '[POST /api/public/inquiry] Failed to route inquiry to inbox:',
+        inboxErr
+      );
     }
 
     return NextResponse.json({ success: true, contactId });
   } catch (err) {
-    console.error("[POST /api/public/inquiry] Unexpected error:", err);
+    console.error('[POST /api/public/inquiry] Unexpected error:', err);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

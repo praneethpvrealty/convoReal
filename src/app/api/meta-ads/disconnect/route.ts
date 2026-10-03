@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { graphRequest } from '@/lib/meta-ads/client';
 
@@ -27,7 +27,10 @@ export async function POST() {
       } catch (err) {
         // Best-effort — an already-expired/revoked token, or a
         // transient Meta error, must not block local disconnect.
-        console.error('[POST /api/meta-ads/disconnect] Meta revoke failed (non-fatal):', err);
+        console.error(
+          '[POST /api/meta-ads/disconnect] Meta revoke failed (non-fatal):',
+          err
+        );
       }
     }
 

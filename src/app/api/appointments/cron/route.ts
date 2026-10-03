@@ -1,16 +1,16 @@
-import { timingSafeEqual } from 'node:crypto'
-import { NextResponse } from 'next/server'
-import { checkAndSendAppointmentReminders } from '@/lib/appointments/reminder'
+import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { checkAndSendAppointmentReminders } from '@/lib/appointments/reminder';
 import {
   sendAgentEventReminders,
   sendDailyScheduleDigests,
   sendOverdueNudges,
-} from '@/lib/calendar/agent-reminders'
-import { sendPortalExpiryReminders } from '@/lib/portals/expiry-reminders'
-import { sendDueTodoReminders } from '@/lib/calendar/todo-reminders'
-import { deliverDeferredNotifications } from '@/lib/notifications/create'
-import { deliverRealtimeBuyerAlertsForConnectedAccounts } from '@/lib/buyer/realtime-alerts'
-import { supabaseAdmin } from '@/lib/supabase/admin'
+} from '@/lib/calendar/agent-reminders';
+import { sendPortalExpiryReminders } from '@/lib/portals/expiry-reminders';
+import { sendDueTodoReminders } from '@/lib/calendar/todo-reminders';
+import { deliverDeferredNotifications } from '@/lib/notifications/create';
+import { deliverRealtimeBuyerAlertsForConnectedAccounts } from '@/lib/buyer/realtime-alerts';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
  * Auth: constant-time check of the shared cron secret, supplied via the
@@ -20,21 +20,22 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
  * CLOSED (503) when no secret is configured.
  */
 export async function GET(request: Request) {
-  const expected = process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET
+  const expected =
+    process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET;
   if (!expected) {
-    return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
+    return NextResponse.json({ error: 'cron not configured' }, { status: 503 });
   }
   const supplied =
     request.headers.get('x-cron-secret') ||
     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
-    ''
-  const suppliedBuf = Buffer.from(supplied)
-  const expectedBuf = Buffer.from(expected)
+    '';
+  const suppliedBuf = Buffer.from(supplied);
+  const expectedBuf = Buffer.from(expected);
   if (
     suppliedBuf.length !== expectedBuf.length ||
     !timingSafeEqual(suppliedBuf, expectedBuf)
   ) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
@@ -53,16 +54,19 @@ export async function GET(request: Request) {
       deliverDeferredNotifications(),
       deliverRealtimeBuyerAlertsForConnectedAccounts(supabaseAdmin()),
       sendPortalExpiryReminders(),
-    ])
+    ]);
     const failed = results.find(
       (r): r is PromiseRejectedResult => r.status === 'rejected'
-    )
-    if (failed) throw failed.reason
-    return NextResponse.json({ success: true })
+    );
+    if (failed) throw failed.reason;
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Appointments Cron] Check failed:', error)
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    }, { status: 500 })
+    console.error('[Appointments Cron] Check failed:', error);
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
   }
 }

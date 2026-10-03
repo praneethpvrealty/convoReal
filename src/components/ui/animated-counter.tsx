@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from 'react';
 
 interface AnimatedCounterProps {
   value: number;
@@ -35,7 +35,9 @@ export function AnimatedCounter({
         const progress = elapsedTime / duration;
         // Ease out cubic for a smoother finish
         const easeProgress = 1 - Math.pow(1 - progress, 3);
-        const nextValue = Math.round(startValue + (targetValue - startValue) * easeProgress);
+        const nextValue = Math.round(
+          startValue + (targetValue - startValue) * easeProgress
+        );
         setDisplayValue(nextValue);
         animationFrameId = requestAnimationFrame(updateCounter);
       }

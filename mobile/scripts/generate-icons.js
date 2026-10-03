@@ -25,7 +25,11 @@ const BRAND = {
 const SS = 4; // supersampling factor — the edges are all diagonals
 
 const lerp = (a, b, t) => a + (b - a) * t;
-const mix = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+const mix = (a, b, t) => [
+  lerp(a[0], b[0], t),
+  lerp(a[1], b[1], t),
+  lerp(a[2], b[2], t),
+];
 
 // ---------------------------------------------------------------- geometry
 // All shapes are expressed in the mark's own 64x64 space.
@@ -69,7 +73,9 @@ function markAt(x, y) {
   if (inPill(x, y, 19.5, 38.5, 31.5, 3)) return 'bar-in';
   if (inPill(x, y, 28.5, 44.5, 42, 3)) return 'bar-out';
   const solid =
-    inBody(x, y, 7, 24, 57, 52, 9) || inTriangle(x, y, ...ROOF) || inTriangle(x, y, ...TAIL);
+    inBody(x, y, 7, 24, 57, 52, 9) ||
+    inTriangle(x, y, ...ROOF) ||
+    inTriangle(x, y, ...TAIL);
   return solid ? 'mark' : null;
 }
 
@@ -122,14 +128,22 @@ function render(size, opts) {
             if (inside) {
               rgba =
                 tile === 'gradient'
-                  ? [...mix(BRAND.violetLight, BRAND.violetDeep, (px + py) / (2 * size)), 255]
+                  ? [
+                      ...mix(
+                        BRAND.violetLight,
+                        BRAND.violetDeep,
+                        (px + py) / (2 * size)
+                      ),
+                      255,
+                    ]
                   : [...flatColor, 255];
             }
           }
 
           const hit = markAt(toMark(px, ox), toMark(py, oy));
           if (hit === 'mark') rgba = [...markColor, 255];
-          else if (hit === 'bar-in') rgba = barInColor ? [...barInColor, 255] : rgba;
+          else if (hit === 'bar-in')
+            rgba = barInColor ? [...barInColor, 255] : rgba;
           else if (hit === 'bar-out') rgba = [...barOutColor, 255];
 
           if (rgba) {
@@ -180,7 +194,10 @@ const write = (name, buf) => {
 };
 
 // Store icon — full bleed, no rounding (the platform masks it).
-write('icon.png', render(1024, { tile: 'gradient', scale: 0.72, barInColor: BRAND.violetDeep }));
+write(
+  'icon.png',
+  render(1024, { tile: 'gradient', scale: 0.72, barInColor: BRAND.violetDeep })
+);
 
 // Android adaptive foreground — the launcher crops to the inner 66%, and
 // app.json paints Violet Deep behind, so the enquiry bar is a hole.
@@ -190,7 +207,15 @@ write('adaptive-icon.png', render(1024, { scale: 0.46, barInColor: null }));
 write('splash-icon.png', render(512, { scale: 0.82, barInColor: BRAND.ink }));
 
 // Web favicon for the Expo web build.
-write('favicon.png', render(48, { tile: 'flat', radius: 10, scale: 0.66, barInColor: BRAND.violet }));
+write(
+  'favicon.png',
+  render(48, {
+    tile: 'flat',
+    radius: 10,
+    scale: 0.66,
+    barInColor: BRAND.violet,
+  })
+);
 
 write(
   'aurora-light.png',

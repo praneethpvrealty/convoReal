@@ -1,40 +1,17 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { toErrorResponse } from '@/lib/auth/account';
+import { requirePlatformAdmin } from '@/lib/auth/platform-admin';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
 import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
-async function checkAdminAuth(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return { authorized: false, status: 401, error: 'Unauthorized' };
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (profile?.role !== 'super_admin') {
-    return { authorized: false, status: 403, error: 'Forbidden' };
-  }
-
-  return { authorized: true, userId: user.id };
-}
-
 export async function GET() {
   try {
-    const supabase = await createClient();
-    const auth = await checkAdminAuth(supabase);
-    if (!auth.authorized) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
-
+    await requirePlatformAdmin();
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+  try {
     // Load sandbox config
     const { data: setting } = await supabaseAdmin()
       .from('system_settings')
@@ -42,7 +19,8 @@ export async function GET() {
       .eq('key', 'sandbox_config')
       .maybeSingle();
 
-    const config = ((setting as unknown as { value?: Record<string, unknown> })?.value) || {};
+    const config =
+      (setting as unknown as { value?: Record<string, unknown> })?.value || {};
 
     // If no credentials, return not configured
     if (!config.access_token || !config.phone_number_id) {
@@ -67,7 +45,8 @@ export async function GET() {
         enabled: config.enabled,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Meta API verification failed';
+      const message =
+        err instanceof Error ? err.message : 'Meta API verification failed';
       return NextResponse.json({
         connected: false,
         message,
@@ -75,18 +54,20 @@ export async function GET() {
     }
   } catch (error) {
     console.error('Error in GET sandbox-config:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const auth = await checkAdminAuth(supabase);
-    if (!auth.authorized) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
-
+    await requirePlatformAdmin();
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+  try {
     const body = await request.json();
     const {
       phone_number_id,
@@ -104,16 +85,25 @@ export async function POST(request: Request) {
       .eq('key', 'sandbox_config')
       .maybeSingle();
 
-    const existingConfig = ((existing as unknown as { value?: Record<string, unknown> })?.value) || {};
+    const existingConfig =
+      (existing as unknown as { value?: Record<string, unknown> })?.value || {};
 
     // Build new config
     const newConfig: Record<string, unknown> = {
       ...existingConfig,
-      phone_number_id: phone_number_id || existingConfig.phone_number_id || null,
+      phone_number_id:
+        phone_number_id || existingConfig.phone_number_id || null,
       waba_id: waba_id !== undefined ? waba_id : existingConfig.waba_id || null,
-      verify_token: verify_token !== undefined ? verify_token : existingConfig.verify_token || null,
-      display_name: display_name || existingConfig.display_name || 'ConvoReal Sandbox',
-      enabled: typeof enabled === 'boolean' ? enabled : existingConfig.enabled || false,
+      verify_token:
+        verify_token !== undefined
+          ? verify_token
+          : existingConfig.verify_token || null,
+      display_name:
+        display_name || existingConfig.display_name || 'ConvoReal Sandbox',
+      enabled:
+        typeof enabled === 'boolean'
+          ? enabled
+          : existingConfig.enabled || false,
     };
 
     // Encrypt and store token if provided
@@ -127,14 +117,19 @@ export async function POST(request: Request) {
     }
 
     // Verify with Meta if credentials changed
-    if (access_token && access_token !== '••••••••••••••••' && phone_number_id) {
+    if (
+      access_token &&
+      access_token !== '••••••••••••••••' &&
+      phone_number_id
+    ) {
       try {
         await verifyPhoneNumber({
           phoneNumberId: phone_number_id,
           accessToken: access_token,
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Meta API verification failed';
+        const message =
+          err instanceof Error ? err.message : 'Meta API verification failed';
         return NextResponse.json(
           { error: `Invalid credentials: ${message}` },
           { status: 400 }
@@ -155,12 +150,18 @@ export async function POST(request: Request) {
 
     if (upsertError) {
       console.error('Error saving sandbox config:', upsertError);
-      return NextResponse.json({ error: 'Failed to save configuration' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to save configuration' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true, config: newConfig });
   } catch (error) {
     console.error('Error in POST sandbox-config:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

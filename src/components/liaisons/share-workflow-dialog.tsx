@@ -26,7 +26,11 @@ interface ShareWorkflowDialogProps {
   workflow: LiaisonWorkflow | null;
 }
 
-export function ShareWorkflowDialog({ open, onOpenChange, workflow }: ShareWorkflowDialogProps) {
+export function ShareWorkflowDialog({
+  open,
+  onOpenChange,
+  workflow,
+}: ShareWorkflowDialogProps) {
   const supabase = createClient();
 
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -48,7 +52,7 @@ export function ShareWorkflowDialog({ open, onOpenChange, workflow }: ShareWorkf
 
   const selectedContact = useMemo(
     () => contacts.find((c) => c.id === contactId) ?? null,
-    [contacts, contactId],
+    [contacts, contactId]
   );
 
   const handleCopy = async () => {
@@ -69,7 +73,7 @@ export function ShareWorkflowDialog({ open, onOpenChange, workflow }: ShareWorkf
     window.open(
       `https://wa.me/${digits}?text=${encodeURIComponent(message)}`,
       '_blank',
-      'noopener,noreferrer',
+      'noopener,noreferrer'
     );
   };
 
@@ -103,7 +107,7 @@ export function ShareWorkflowDialog({ open, onOpenChange, workflow }: ShareWorkf
       toast.error(
         err instanceof Error
           ? err.message
-          : 'Failed to send — try "Open in WhatsApp" instead',
+          : 'Failed to send — try "Open in WhatsApp" instead'
       );
     } finally {
       setSending(false);
@@ -114,12 +118,12 @@ export function ShareWorkflowDialog({ open, onOpenChange, workflow }: ShareWorkf
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-slate-700 bg-slate-900 text-slate-200 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-white">Share Process</DialogTitle>
           <DialogDescription className="text-slate-400">
-            Send &ldquo;{workflow.service_name}&rdquo; to a client so they know exactly
-            what happens, who approves it, and how long it takes.
+            Send &ldquo;{workflow.service_name}&rdquo; to a client so they know
+            exactly what happens, who approves it, and how long it takes.
           </DialogDescription>
         </DialogHeader>
 
@@ -147,7 +151,7 @@ export function ShareWorkflowDialog({ open, onOpenChange, workflow }: ShareWorkf
               <button
                 type="button"
                 onClick={handleCopy}
-                className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="flex cursor-pointer items-center gap-1 text-[11px] font-semibold text-slate-400 transition-colors hover:text-white"
               >
                 <Copy className="size-3" />
                 Copy
@@ -157,7 +161,7 @@ export function ShareWorkflowDialog({ open, onOpenChange, workflow }: ShareWorkf
               id="share-message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-64 text-xs font-mono leading-relaxed"
+              className="h-64 border-slate-700 bg-slate-800 font-mono text-xs leading-relaxed text-white placeholder:text-slate-500"
             />
             <p className="text-[10px] text-slate-500">
               *text* renders bold and _text_ italic on WhatsApp.
@@ -165,11 +169,11 @@ export function ShareWorkflowDialog({ open, onOpenChange, workflow }: ShareWorkf
           </div>
         </div>
 
-        <DialogFooter className="bg-slate-900 border-slate-700 flex-wrap gap-2">
+        <DialogFooter className="flex-wrap gap-2 border-slate-700 bg-slate-900">
           <Button
             variant="outline"
             onClick={handleOpenWhatsApp}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800 gap-1.5"
+            className="gap-1.5 border-slate-700 text-slate-300 hover:bg-slate-800"
           >
             <ExternalLink className="size-3.5" />
             Open in WhatsApp
@@ -177,7 +181,7 @@ export function ShareWorkflowDialog({ open, onOpenChange, workflow }: ShareWorkf
           <Button
             onClick={handleSend}
             disabled={sending}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold gap-1.5"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 font-bold"
           >
             {sending ? (
               <Loader2 className="size-4 animate-spin" />

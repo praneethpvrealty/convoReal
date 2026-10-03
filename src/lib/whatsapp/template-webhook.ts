@@ -28,56 +28,59 @@
  * warning so operators can investigate.
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { normalizeCategory, normalizeStatus } from './template-status-normalize'
+import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  normalizeCategory,
+  normalizeStatus,
+} from './template-status-normalize';
 
 const TEMPLATE_WEBHOOK_FIELDS = new Set([
   'message_template_status_update',
   'message_template_quality_update',
   'message_template_components_update',
   'template_category_update',
-])
+]);
 
 export function isTemplateWebhookField(field: string): boolean {
-  return TEMPLATE_WEBHOOK_FIELDS.has(field)
+  return TEMPLATE_WEBHOOK_FIELDS.has(field);
 }
 
 interface TemplateStatusUpdateValue {
-  event?: string
-  message_template_id?: string | number
-  message_template_name?: string
-  message_template_language?: string
-  reason?: string
+  event?: string;
+  message_template_id?: string | number;
+  message_template_name?: string;
+  message_template_language?: string;
+  reason?: string;
 }
 
 interface TemplateQualityUpdateValue {
-  message_template_id?: string | number
-  message_template_name?: string
-  message_template_language?: string
-  previous_quality_score?: string
-  new_quality_score?: string
+  message_template_id?: string | number;
+  message_template_name?: string;
+  message_template_language?: string;
+  previous_quality_score?: string;
+  new_quality_score?: string;
 }
 
 interface TemplateComponentsUpdateValue {
-  message_template_id?: string | number
-  message_template_name?: string
-  message_template_language?: string
+  message_template_id?: string | number;
+  message_template_name?: string;
+  message_template_language?: string;
 }
 
 interface TemplateCategoryUpdateValue {
-  message_template_id?: string | number
-  message_template_name?: string
-  message_template_language?: string
-  previous_category?: string
-  new_category?: string
+  message_template_id?: string | number;
+  message_template_name?: string;
+  message_template_language?: string;
+  previous_category?: string;
+  new_category?: string;
   /** Advance-notice variant: the category Meta has determined is
    *  correct but has not applied yet. */
-  correct_category?: string
+  correct_category?: string;
 }
 
 export interface TemplateWebhookChange {
-  field: string
-  value: unknown
+  field: string;
+  value: unknown;
 }
 
 /**
@@ -91,52 +94,50 @@ export async function handleTemplateWebhookChange(
   // SupabaseClient typed loosely — the webhook route lazy-initialises
   // the admin client and exposes it as `any`. Type as the generic
   // SupabaseClient here so this module is testable in isolation.
-  supabase: SupabaseClient,
+  supabase: SupabaseClient
 ): Promise<void> {
   switch (change.field) {
     case 'message_template_status_update':
       await handleStatusUpdate(
         change.value as TemplateStatusUpdateValue,
-        supabase,
-      )
-      return
+        supabase
+      );
+      return;
     case 'message_template_quality_update':
       await handleQualityUpdate(
         change.value as TemplateQualityUpdateValue,
-        supabase,
-      )
-      return
+        supabase
+      );
+      return;
     case 'message_template_components_update':
-      handleComponentsUpdate(
-        change.value as TemplateComponentsUpdateValue,
-      )
-      return
+      handleComponentsUpdate(change.value as TemplateComponentsUpdateValue);
+      return;
     case 'template_category_update':
       await handleCategoryUpdate(
         change.value as TemplateCategoryUpdateValue,
-        supabase,
-      )
-      return
+        supabase
+      );
+      return;
   }
 }
 
 async function handleStatusUpdate(
   value: TemplateStatusUpdateValue,
-  supabase: SupabaseClient,
+  supabase: SupabaseClient
 ): Promise<void> {
   const metaTemplateId =
     value.message_template_id !== undefined
       ? String(value.message_template_id)
-      : null
+      : null;
   if (!metaTemplateId || !value.event) {
     console.warn(
       '[template-webhook] status update missing message_template_id or event:',
-      value,
-    )
-    return
+      value
+    );
+    return;
   }
 
-  const status = normalizeStatus(value.event)
+  const status = normalizeStatus(value.event);
 
   // Persist the rejection reason on REJECTED — that's the only event
   // where Meta sends a human-readable explanation. Clear it on any
@@ -145,60 +146,60 @@ async function handleStatusUpdate(
   const update: Record<string, unknown> = {
     status,
     rejection_reason:
-      status === 'REJECTED' ? value.reason ?? 'Rejected by Meta' : null,
+      status === 'REJECTED' ? (value.reason ?? 'Rejected by Meta') : null,
     submission_error: null,
-  }
+  };
 
   const { data, error } = await supabase
     .from('message_templates')
     .update(update)
     .eq('meta_template_id', metaTemplateId)
-    .select('id')
+    .select('id');
 
   if (error) {
     console.error(
       '[template-webhook] status update failed for meta_template_id',
       metaTemplateId,
-      error.message,
-    )
-    return
+      error.message
+    );
+    return;
   }
   if (!data || data.length === 0) {
     console.warn(
       '[template-webhook] status update received for unknown template:',
       metaTemplateId,
-      value.message_template_name,
-    )
-    return
+      value.message_template_name
+    );
+    return;
   }
   if (data.length > 1) {
     console.warn(
-      `[template-webhook] status update matched ${data.length} rows for meta_template_id ${metaTemplateId} — investigate.`,
-    )
+      `[template-webhook] status update matched ${data.length} rows for meta_template_id ${metaTemplateId} — investigate.`
+    );
   }
 }
 
 async function handleQualityUpdate(
   value: TemplateQualityUpdateValue,
-  supabase: SupabaseClient,
+  supabase: SupabaseClient
 ): Promise<void> {
   const metaTemplateId =
     value.message_template_id !== undefined
       ? String(value.message_template_id)
-      : null
+      : null;
   if (!metaTemplateId) {
     console.warn(
       '[template-webhook] quality update missing message_template_id:',
-      value,
-    )
-    return
+      value
+    );
+    return;
   }
 
-  const raw = value.new_quality_score
+  const raw = value.new_quality_score;
   const score =
     raw && ['GREEN', 'YELLOW', 'RED'].includes(raw.toUpperCase())
       ? (raw.toUpperCase() as 'GREEN' | 'YELLOW' | 'RED')
-      : null
+      : null;
 
   // Keyed on Meta's id, so zero rows means the webhook is about a
   // template this account does not hold — expected, not a refusal.
@@ -206,14 +207,14 @@ async function handleQualityUpdate(
     .from('message_templates')
     // eslint-disable-next-line convoreal/supabase-write-guard
     .update({ quality_score: score })
-    .eq('meta_template_id', metaTemplateId)
+    .eq('meta_template_id', metaTemplateId);
 
   if (error) {
     console.error(
       '[template-webhook] quality update failed for meta_template_id',
       metaTemplateId,
-      error.message,
-    )
+      error.message
+    );
   }
 }
 
@@ -228,52 +229,52 @@ async function handleQualityUpdate(
  */
 async function handleCategoryUpdate(
   value: TemplateCategoryUpdateValue,
-  supabase: SupabaseClient,
+  supabase: SupabaseClient
 ): Promise<void> {
   const metaTemplateId =
     value.message_template_id !== undefined
       ? String(value.message_template_id)
-      : null
-  const raw = value.new_category ?? value.correct_category
+      : null;
+  const raw = value.new_category ?? value.correct_category;
   if (!metaTemplateId || !raw) {
     console.warn(
       '[template-webhook] category update missing message_template_id or category:',
-      value,
-    )
-    return
+      value
+    );
+    return;
   }
 
-  const category = normalizeCategory(raw)
+  const category = normalizeCategory(raw);
 
   const { data, error } = await supabase
     .from('message_templates')
     .update({ category })
     .eq('meta_template_id', metaTemplateId)
-    .select('id')
+    .select('id');
 
   if (error) {
     console.error(
       '[template-webhook] category update failed for meta_template_id',
       metaTemplateId,
-      error.message,
-    )
-    return
+      error.message
+    );
+    return;
   }
   if (!data || data.length === 0) {
     console.warn(
       '[template-webhook] category update received for unknown template:',
       metaTemplateId,
-      value.message_template_name,
-    )
-    return
+      value.message_template_name
+    );
+    return;
   }
   console.warn(
     `[template-webhook] Meta re-categorised template ${value.message_template_name ?? metaTemplateId} ` +
       `${value.previous_category ? `from ${value.previous_category} ` : ''}to ${category}.` +
       (category === 'Marketing'
         ? ' Sends are now subject to per-user marketing frequency caps (error 131049).'
-        : ''),
-  )
+        : '')
+  );
 }
 
 /**
@@ -291,6 +292,6 @@ function handleComponentsUpdate(value: TemplateComponentsUpdateValue): void {
     '[template-webhook] components updated by Meta for template',
     value.message_template_id,
     value.message_template_name,
-    '— run "Sync from Meta" in Settings to pull the new components.',
-  )
+    '— run "Sync from Meta" in Settings to pull the new components.'
+  );
 }

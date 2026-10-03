@@ -33,7 +33,7 @@ type TemplateButton = NonNullable<TemplatePayload['buttons']>[number];
 export function withShowcaseOrigin(
   url: string,
   showcaseOrigin: string,
-  appOrigins: string[],
+  appOrigins: string[]
 ): string {
   const placeholder = /\{\{\d+\}\}/.exec(url)?.[0] ?? '';
   const withoutPlaceholder = placeholder ? url.replace(placeholder, '') : url;
@@ -72,7 +72,7 @@ export function withShowcaseOrigin(
 export async function withAccountShowcaseButtons(
   db: SupabaseClient,
   accountId: string,
-  payload: TemplatePayload,
+  payload: TemplatePayload
 ): Promise<TemplatePayload> {
   const buttons = payload.buttons;
   if (!buttons?.length) return payload;
@@ -91,8 +91,11 @@ export async function withAccountShowcaseButtons(
       ...payload,
       buttons: buttons.map((button: TemplateButton) =>
         button.type === 'URL' && typeof button.url === 'string'
-          ? { ...button, url: withShowcaseOrigin(button.url, showcaseOrigin, appOrigins) }
-          : button,
+          ? {
+              ...button,
+              url: withShowcaseOrigin(button.url, showcaseOrigin, appOrigins),
+            }
+          : button
       ),
     };
   } catch (err) {

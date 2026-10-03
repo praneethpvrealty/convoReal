@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api';
 import { getSandboxSystemConfig } from '@/lib/system-settings';
@@ -10,9 +10,9 @@ export async function POST(request: Request) {
     const rawSecret = process.env.SUPABASE_SMS_HOOK_SECRET;
     let secretStr = rawSecret?.replace(/^"|"$/g, '') || '';
     secretStr = secretStr.replace(/^(v\d+,)?whsec_/, ''); // Strip version/Svix prefix if present
-    const signatureHeader = 
-      request.headers.get('x-supabase-signature') || 
-      request.headers.get('webhook-signature') || 
+    const signatureHeader =
+      request.headers.get('x-supabase-signature') ||
+      request.headers.get('webhook-signature') ||
       request.headers.get('x-webhook-signature');
 
     console.log('[SMS Hook] Received webhook request');
@@ -29,21 +29,28 @@ export async function POST(request: Request) {
     let timestamp: string | null = null;
     let signature: string | null = null;
     let isSvixFormat = false;
-    const webhookId = request.headers.get('webhook-id') || request.headers.get('svix-id') || request.headers.get('x-webhook-id') || '';
+    const webhookId =
+      request.headers.get('webhook-id') ||
+      request.headers.get('svix-id') ||
+      request.headers.get('x-webhook-id') ||
+      '';
 
     // Check if the header contains v1,SIGNATURE (comma-separated, typical Svix/standardwebhooks)
     // Supports multiple space-separated signatures
     const signatureParts = signatureHeader.split(/\s+/);
-    const svixPart = signatureParts.find(p => /^v\d+,/.test(p));
+    const svixPart = signatureParts.find((p) => /^v\d+,/.test(p));
     if (svixPart) {
       isSvixFormat = true;
       signature = svixPart.replace(/^v\d+,/, '');
-      timestamp = request.headers.get('webhook-timestamp') || request.headers.get('svix-timestamp') || request.headers.get('x-webhook-timestamp');
+      timestamp =
+        request.headers.get('webhook-timestamp') ||
+        request.headers.get('svix-timestamp') ||
+        request.headers.get('x-webhook-timestamp');
     } else {
       // Parse the header (format: t=TIMESTAMP,v1=SIGNATURE)
       const parts = signatureHeader.split(',');
-      const timestampPart = parts.find(p => p.startsWith('t='));
-      const signaturePart = parts.find(p => p.startsWith('v1='));
+      const timestampPart = parts.find((p) => p.startsWith('t='));
+      const signaturePart = parts.find((p) => p.startsWith('v1='));
 
       if (timestampPart && signaturePart) {
         timestamp = timestampPart.split('=')[1];
@@ -52,15 +59,21 @@ export async function POST(request: Request) {
     }
 
     if (!timestamp || !signature) {
-      console.error('[SMS Hook] Invalid signature header format or missing timestamp/signature');
-      return NextResponse.json({ error: 'Invalid signature format' }, { status: 401 });
+      console.error(
+        '[SMS Hook] Invalid signature header format or missing timestamp/signature'
+      );
+      return NextResponse.json(
+        { error: 'Invalid signature format' },
+        { status: 401 }
+      );
     }
 
     // Recreate the expected signature
-    const message = isSvixFormat && webhookId
-      ? `${webhookId}.${timestamp}.${bodyText}`
-      : `${timestamp}.${bodyText}`;
-    
+    const message =
+      isSvixFormat && webhookId
+        ? `${webhookId}.${timestamp}.${bodyText}`
+        : `${timestamp}.${bodyText}`;
+
     // We support verification with both:
     // A) The base64-decoded buffer of the secret (Svix/standardwebhooks specification)
     // B) The raw secret string (UTF-8)
@@ -87,8 +100,6 @@ export async function POST(request: Request) {
         .update(message)
         .digest('base64');
 
-
-
       // Secure comparison for hex
       try {
         const sigBuf = Buffer.from(signature, 'hex');
@@ -114,9 +125,12 @@ export async function POST(request: Request) {
           break;
         }
       } catch {}
-      
+
       // Fallback plain comparison
-      if (signature === expectedSignatureHex || signature === expectedSignatureBase64) {
+      if (
+        signature === expectedSignatureHex ||
+        signature === expectedSignatureBase64
+      ) {
         isMatch = true;
         break;
       }
@@ -124,7 +138,10 @@ export async function POST(request: Request) {
 
     if (!isMatch) {
       console.error('[SMS Hook] Webhook signature mismatch');
-      return NextResponse.json({ error: 'Signature mismatch' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Signature mismatch' },
+        { status: 401 }
+      );
     }
 
     // Parse the JSON payload
@@ -137,7 +154,10 @@ export async function POST(request: Request) {
 
     if (!phone) {
       console.error('[SMS Hook] Missing phone parameter in payload');
-      return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Missing parameters' },
+        { status: 400 }
+      );
     }
 
     // Extract the 6-digit verification code
@@ -149,14 +169,13 @@ export async function POST(request: Request) {
 
     if (!otpCode) {
       console.error('[SMS Hook] Verification code not found in payload');
-      return NextResponse.json({ error: 'Verification code not found' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Verification code not found' },
+        { status: 400 }
+      );
     }
 
-    // Initialize Supabase Admin client
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const supabase = supabaseAdmin();
 
     // ─────────────────────────────────────────────────────────────
     // OTP Sender Resolution: Always use the admin/super_admin
@@ -186,7 +205,7 @@ export async function POST(request: Request) {
       // Fetch all configs to locate match in-memory
       supabase
         .from('whatsapp_config')
-        .select('account_id, phone_number_id, access_token, integration_type')
+        .select('account_id, phone_number_id, access_token, integration_type'),
     ]);
 
     if (adminProfilesRes.error || settingsRes.error || configsRes.error) {
@@ -195,41 +214,62 @@ export async function POST(request: Request) {
         settingsError: settingsRes.error,
         configsError: configsRes.error,
       });
-      return NextResponse.json({ error: 'Failed to load sender credentials' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to load sender credentials' },
+        { status: 500 }
+      );
     }
 
     const configs = configsRes.data || [];
-    
+
     // 1. Check super_admin profile
     let otpSenderAccountId: string | null = null;
     if (adminProfilesRes.data && adminProfilesRes.data.length > 0) {
-      otpSenderAccountId = (adminProfilesRes.data[0] as { account_id: string }).account_id;
+      otpSenderAccountId = (adminProfilesRes.data[0] as { account_id: string })
+        .account_id;
     }
 
     // 2. Check fallback setting
     let fallbackAccountId: string | null = null;
     if (settingsRes.data) {
-      const fallbackId = (settingsRes.data as unknown as { value?: string | null })?.value;
+      const fallbackId = (
+        settingsRes.data as unknown as { value?: string | null }
+      )?.value;
       if (fallbackId && typeof fallbackId === 'string') {
         fallbackAccountId = fallbackId;
       }
     }
 
     // 3. Resolve the config in-memory
-    let senderConfig = configs.find(c => c.account_id === otpSenderAccountId);
+    let senderConfig = configs.find((c) => c.account_id === otpSenderAccountId);
     if (!senderConfig && fallbackAccountId) {
-      senderConfig = configs.find(c => c.account_id === fallbackAccountId);
+      senderConfig = configs.find((c) => c.account_id === fallbackAccountId);
     }
     if (!senderConfig) {
-      senderConfig = configs.find(c => c.integration_type === 'official_api' && c.phone_number_id && c.access_token);
+      senderConfig = configs.find(
+        (c) =>
+          c.integration_type === 'official_api' &&
+          c.phone_number_id &&
+          c.access_token
+      );
     }
     if (!senderConfig) {
-      senderConfig = configs.find(c => c.integration_type === 'sandbox' && c.phone_number_id && c.access_token);
+      senderConfig = configs.find(
+        (c) =>
+          c.integration_type === 'sandbox' &&
+          c.phone_number_id &&
+          c.access_token
+      );
     }
 
     if (!senderConfig) {
-      console.error('[SMS Hook] No valid admin or fallback WhatsApp config found. Cannot send OTP.');
-      return NextResponse.json({ error: 'No OTP sender configured' }, { status: 500 });
+      console.error(
+        '[SMS Hook] No valid admin or fallback WhatsApp config found. Cannot send OTP.'
+      );
+      return NextResponse.json(
+        { error: 'No OTP sender configured' },
+        { status: 500 }
+      );
     }
 
     let phoneNumberId: string;
@@ -238,17 +278,31 @@ export async function POST(request: Request) {
     if (senderConfig?.integration_type === 'sandbox') {
       // Even the "admin" account is in sandbox — try the system-wide fallback
       const sandboxSystem = await getSandboxSystemConfig();
-      if (!sandboxSystem.enabled || !sandboxSystem.access_token || !sandboxSystem.phone_number_id) {
-        console.error('[SMS Hook] Admin account is sandbox but system sandbox is not configured');
-        return NextResponse.json({ error: 'Sandbox system not configured' }, { status: 500 });
+      if (
+        !sandboxSystem.enabled ||
+        !sandboxSystem.access_token ||
+        !sandboxSystem.phone_number_id
+      ) {
+        console.error(
+          '[SMS Hook] Admin account is sandbox but system sandbox is not configured'
+        );
+        return NextResponse.json(
+          { error: 'Sandbox system not configured' },
+          { status: 500 }
+        );
       }
       phoneNumberId = sandboxSystem.phone_number_id;
       decryptedToken = decrypt(sandboxSystem.access_token);
     } else {
       // Official API sender
       if (!senderConfig?.phone_number_id || !senderConfig?.access_token) {
-        console.error('[SMS Hook] Admin Official API config missing phone_number_id or access_token');
-        return NextResponse.json({ error: 'Admin sender credentials incomplete' }, { status: 500 });
+        console.error(
+          '[SMS Hook] Admin Official API config missing phone_number_id or access_token'
+        );
+        return NextResponse.json(
+          { error: 'Admin sender credentials incomplete' },
+          { status: 500 }
+        );
       }
       phoneNumberId = senderConfig.phone_number_id;
       decryptedToken = decrypt(senderConfig.access_token);
@@ -260,7 +314,9 @@ export async function POST(request: Request) {
     const cleanPhone = phone.replace('+', ''); // WhatsApp API prefers numbers without prefix symbol
     const sendPromise = (async () => {
       try {
-        console.log(`[SMS Hook] Attempting to send OTP template 'whatsapp_otp' with copy-code button parameter to: ${cleanPhone}`);
+        console.log(
+          `[SMS Hook] Attempting to send OTP template 'whatsapp_otp' with copy-code button parameter to: ${cleanPhone}`
+        );
         await sendTemplateMessage({
           phoneNumberId,
           accessToken: decryptedToken,
@@ -275,7 +331,10 @@ export async function POST(request: Request) {
           },
         });
       } catch (buttonError) {
-        console.warn('[SMS Hook] Failed to send template with button parameter, retrying with body-only layout:', buttonError);
+        console.warn(
+          '[SMS Hook] Failed to send template with button parameter, retrying with body-only layout:',
+          buttonError
+        );
         await sendTemplateMessage({
           phoneNumberId,
           accessToken: decryptedToken,
@@ -285,9 +344,14 @@ export async function POST(request: Request) {
           params: [otpCode],
         });
       }
-      console.log(`[SMS Hook] Verification code sent via template (success=true) to: ****${cleanPhone.slice(-4)}`);
+      console.log(
+        `[SMS Hook] Verification code sent via template (success=true) to: ****${cleanPhone.slice(-4)}`
+      );
     })().catch(async (templateError) => {
-      console.warn('[SMS Hook] Template sending failed, falling back to free-form text message:', templateError);
+      console.warn(
+        '[SMS Hook] Template sending failed, falling back to free-form text message:',
+        templateError
+      );
       try {
         await sendTextMessage({
           phoneNumberId,
@@ -295,25 +359,40 @@ export async function POST(request: Request) {
           to: cleanPhone,
           text: `Your ConvoReal verification code is: *${otpCode}*\n\nIt is valid for 5 minutes.`,
         });
-        console.log(`[SMS Hook] Verification code sent via fallback text message (success=true) to: ****${cleanPhone.slice(-4)}`);
+        console.log(
+          `[SMS Hook] Verification code sent via fallback text message (success=true) to: ****${cleanPhone.slice(-4)}`
+        );
       } catch (fallbackError) {
-        console.error('[SMS Hook] Fallback text sending failed:', fallbackError);
+        console.error(
+          '[SMS Hook] Fallback text sending failed:',
+          fallbackError
+        );
       }
     });
 
     // Wait up to 1.8 seconds for the send operation to finish.
     // If it takes longer, return success immediately and let it finish in the background
     // to prevent exceeding Supabase's strict 5-second SMS hook timeout limit.
-    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 1800, 'timeout'));
+    const timeoutPromise = new Promise((resolve) =>
+      setTimeout(resolve, 1800, 'timeout')
+    );
 
     const result = await Promise.race([sendPromise, timeoutPromise]);
     if (result === 'timeout') {
-      console.warn('[SMS Hook] Request is taking longer than 1.8s. Returning success to Supabase and completing delivery in the background.');
+      console.warn(
+        '[SMS Hook] Request is taking longer than 1.8s. Returning success to Supabase and completing delivery in the background.'
+      );
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('[SMS Hook] Unexpected error executing webhook handler:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error(
+      '[SMS Hook] Unexpected error executing webhook handler:',
+      err
+    );
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

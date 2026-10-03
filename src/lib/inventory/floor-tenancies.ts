@@ -51,7 +51,6 @@ function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
 }
 
-
 /**
  * Normalizes an untrusted floor_tenancies payload into a bounded,
  * well-typed array. Rows with no data at all are dropped; anything
@@ -95,7 +94,7 @@ export function sanitizeFloorTenancies(raw: unknown): FloorTenancy[] {
 
 function sumField(
   tenancies: FloorTenancy[] | null | undefined,
-  key: 'monthly_rent' | 'advance',
+  key: 'monthly_rent' | 'advance'
 ): number | null {
   if (!tenancies || tenancies.length === 0) return null;
   let total = 0;
@@ -115,11 +114,15 @@ function sumField(
 
 /** Sum of all floors' monthly rent (excluding GST); null when no
  *  floor carries a rent figure. */
-export function totalMonthlyRent(tenancies: FloorTenancy[] | null | undefined): number | null {
+export function totalMonthlyRent(
+  tenancies: FloorTenancy[] | null | undefined
+): number | null {
   return sumField(tenancies, 'monthly_rent');
 }
 
 /** Sum of all floors' security deposit; null when no floor carries one. */
-export function totalAdvance(tenancies: FloorTenancy[] | null | undefined): number | null {
+export function totalAdvance(
+  tenancies: FloorTenancy[] | null | undefined
+): number | null {
   return sumField(tenancies, 'advance');
 }

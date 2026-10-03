@@ -19,7 +19,7 @@ function creds() {
       .map((l) => {
         const i = l.indexOf('=');
         return [l.slice(0, i), l.slice(i + 1)];
-      }),
+      })
   );
   if (!env.E2E_EMAIL) throw new Error('Run `npx tsx e2e/provision.ts` first.');
   return env;
@@ -37,9 +37,12 @@ async function shot(page: Page, name: string) {
 async function settle(page: Page) {
   await page
     .waitForFunction(
-      () => ((document.querySelector('main') ?? document.body) as HTMLElement).innerText.trim().length > 40,
+      () =>
+        (
+          (document.querySelector('main') ?? document.body) as HTMLElement
+        ).innerText.trim().length > 40,
       undefined,
-      { timeout: 60_000, polling: 250 },
+      { timeout: 60_000, polling: 250 }
     )
     .catch(() => {});
   // Content existing is not the same as content being final: the pipelines
@@ -53,7 +56,13 @@ async function settle(page: Page) {
 // sensible threshold, so measuring the whole document passes a page whose
 // content area never rendered — which is exactly the case being caught.
 async function assertRendered(page: Page, label: string, problems: string[]) {
-  const text = (await page.locator('main').first().innerText().catch(() => '')).trim();
+  const text = (
+    await page
+      .locator('main')
+      .first()
+      .innerText()
+      .catch(() => '')
+  ).trim();
   if (text.length < 40) {
     problems.push(`${label} rendered blank (${text.length} chars in <main>)`);
   }
@@ -62,7 +71,13 @@ async function assertRendered(page: Page, label: string, problems: string[]) {
 // The top bar read "Dashboard" on half the screens and nothing noticed,
 // because a screenshot only fails a review someone actually looks at.
 async function assertHeader(page: Page, expected: string, problems: string[]) {
-  const actual = (await page.locator('header h1').first().innerText().catch(() => '')).trim();
+  const actual = (
+    await page
+      .locator('header h1')
+      .first()
+      .innerText()
+      .catch(() => '')
+  ).trim();
   if (actual !== expected) {
     problems.push(`top bar reads "${actual}" on ${expected} screen`);
   }
@@ -119,11 +134,17 @@ async function main() {
     // Capture whatever the page says before giving up — a silent
     // timeout here tells you nothing about why the login stalled.
     try {
-      await page.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 30_000 });
+      await page.waitForURL((u) => !u.pathname.includes('/login'), {
+        timeout: 30_000,
+      });
     } catch {
       await shot(page, '01-login-stuck');
-      const err = await page.locator('[role="alert"], .text-red-400, .text-destructive').allInnerTexts();
-      throw new Error(`login did not navigate. on-page messages: ${JSON.stringify(err)}`);
+      const err = await page
+        .locator('[role="alert"], .text-red-400, .text-destructive')
+        .allInnerTexts();
+      throw new Error(
+        `login did not navigate. on-page messages: ${JSON.stringify(err)}`
+      );
     }
     console.log(`  landed on ${new URL(page.url()).pathname}`);
     // waitForURL fires the moment the route changes, which is before the
@@ -134,7 +155,9 @@ async function main() {
     await shot(page, '01-after-login');
 
     console.log('settings → whatsapp templates');
-    await page.goto(`${BASE}/settings?tab=whatsapp&sub=templates`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}/settings?tab=whatsapp&sub=templates`, {
+      waitUntil: 'domcontentloaded',
+    });
     await settle(page);
     await assertRendered(page, '/settings templates', problems);
     await shot(page, '02-templates');
@@ -176,8 +199,18 @@ async function main() {
       ['12-shim-today', '/today', '/dashboard?tab=today', 'Dashboard'],
       ['13-shim-pulse', '/pulse', '/dashboard?tab=pulse', 'Dashboard'],
       ['14-shim-agents', '/agents', '/contacts?tab=agents', 'Contacts'],
-      ['15-shim-requirements', '/requirements', '/contacts?tab=requirements', 'Contacts'],
-      ['16-shim-pipelines', '/pipelines', '/automations?tab=pipelines', 'Automations'],
+      [
+        '15-shim-requirements',
+        '/requirements',
+        '/contacts?tab=requirements',
+        'Contacts',
+      ],
+      [
+        '16-shim-pipelines',
+        '/pipelines',
+        '/automations?tab=pipelines',
+        'Automations',
+      ],
       ['17-shim-flows', '/flows', '/automations?tab=flows', 'Automations'],
       // Only the redirect is covered here: the Ads Campaigns tab is gated on
       // NEXT_PUBLIC_META_ADS_APP_ID, which this environment does not set, so
@@ -207,4 +240,7 @@ async function main() {
   console.log('\nall checks passed');
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

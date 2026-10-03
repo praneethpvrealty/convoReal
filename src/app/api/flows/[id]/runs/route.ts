@@ -1,5 +1,9 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server';
+import {
+  toErrorResponse,
+  getCurrentAccount,
+  type AccountContext,
+} from '@/lib/auth/account';
 
 /**
  * GET /api/flows/[id]/runs
@@ -18,17 +22,17 @@ import { createClient } from '@/lib/supabase/server'
  */
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ id: string }> },
+  context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params
+  const { id } = await context.params;
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  let ctx: AccountContext;
+  try {
+    ctx = await getCurrentAccount();
+  } catch (err) {
+    return toErrorResponse(err);
   }
+  const supabase = ctx.supabase;
 
   // Confirm flow exists + caller owns it (RLS does this) before doing
   // the run query — gives us a clean 404 instead of empty array.
@@ -36,9 +40,9 @@ export async function GET(
     .from('flows')
     .select('id, name')
     .eq('id', id)
-    .maybeSingle()
+    .maybeSingle();
   if (!flow) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
   // Pull runs + each run's contact name + each run's events. Two
@@ -47,34 +51,34 @@ export async function GET(
   const { data: runs, error: runsErr } = await supabase
     .from('flow_runs')
     .select(
-      'id, status, current_node_key, started_at, last_advanced_at, ended_at, end_reason, vars, reprompt_count, contact:contacts(id, name, phone, name_tag)',
+      'id, status, current_node_key, started_at, last_advanced_at, ended_at, end_reason, vars, reprompt_count, contact:contacts(id, name, phone, name_tag)'
     )
     .eq('flow_id', id)
     .order('started_at', { ascending: false })
-    .limit(50)
+    .limit(50);
   if (runsErr) {
-    return NextResponse.json({ error: runsErr.message }, { status: 500 })
+    return NextResponse.json({ error: runsErr.message }, { status: 500 });
   }
 
-  const runIds = (runs ?? []).map((r) => (r as { id: string }).id)
+  const runIds = (runs ?? []).map((r) => (r as { id: string }).id);
   let events: Array<{
-    flow_run_id: string
-    event_type: string
-    node_key: string | null
-    payload: Record<string, unknown>
-    created_at: string
-  }> = []
+    flow_run_id: string;
+    event_type: string;
+    node_key: string | null;
+    payload: Record<string, unknown>;
+    created_at: string;
+  }> = [];
   if (runIds.length > 0) {
     const { data: evs, error: evsErr } = await supabase
       .from('flow_run_events')
       .select('flow_run_id, event_type, node_key, payload, created_at')
       .in('flow_run_id', runIds)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: true });
     if (evsErr) {
       // Non-fatal — the page can still show runs without timelines.
-      console.error('[flows-runs] events fetch failed:', evsErr.message)
+      console.error('[flows-runs] events fetch failed:', evsErr.message);
     } else if (evs) {
-      events = evs as typeof events
+      events = evs as typeof events;
     }
   }
 
@@ -82,5 +86,5 @@ export async function GET(
     flow,
     runs: runs ?? [],
     events,
-  })
+  });
 }

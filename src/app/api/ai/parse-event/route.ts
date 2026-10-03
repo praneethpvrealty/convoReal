@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
-import { parseEventFromInput, resolveByName, istLocalToUtcIso } from '@/lib/calendar/event-parse';
+import {
+  parseEventFromInput,
+  resolveByName,
+  istLocalToUtcIso,
+} from '@/lib/calendar/event-parse';
 import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
 import { hasGeminiKey } from '@/lib/ai/gemini-keys';
 
@@ -21,7 +25,10 @@ export async function POST(request: NextRequest) {
     const ctx = await requireRole('agent');
 
     if (!(await hasGeminiKey())) {
-      return NextResponse.json({ error: 'AI is not configured on this server.' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'AI is not configured on this server.' },
+        { status: 500 }
+      );
     }
 
     const body = (await request.json().catch(() => null)) as {
@@ -34,10 +41,16 @@ export async function POST(request: NextRequest) {
     const audioMime = body?.audio?.mimeType;
 
     if (!text && !audioBase64) {
-      return NextResponse.json({ error: 'Provide text or audio to parse.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Provide text or audio to parse.' },
+        { status: 400 }
+      );
     }
     if (audioBase64 && audioBase64.length * 0.75 > MAX_AUDIO_BYTES) {
-      return NextResponse.json({ error: 'Voice note is too large (max 8MB).' }, { status: 413 });
+      return NextResponse.json(
+        { error: 'Voice note is too large (max 8MB).' },
+        { status: 413 }
+      );
     }
 
     const feature = audioBase64 ? 'voice_event_parse' : 'event_parse';
@@ -45,8 +58,12 @@ export async function POST(request: NextRequest) {
     const burn = await burnCredits(ctx.accountId, feature, cost);
     if (!burn.success) {
       return NextResponse.json(
-        { error: 'Insufficient credits to parse this event.', creditsNeeded: cost, upgradeRequired: true },
-        { status: 402 },
+        {
+          error: 'Insufficient credits to parse this event.',
+          creditsNeeded: cost,
+          upgradeRequired: true,
+        },
+        { status: 402 }
       );
     }
 
@@ -59,13 +76,20 @@ export async function POST(request: NextRequest) {
     try {
       draft = await parseEventFromInput({
         text: text || undefined,
-        audio: audioBase64 ? { base64: audioBase64, mimeType: audioMime || 'audio/webm' } : undefined,
-        memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
+        audio: audioBase64
+          ? { base64: audioBase64, mimeType: audioMime || 'audio/webm' }
+          : undefined,
+        memberNames: (members || [])
+          .map((m) => m.full_name)
+          .filter(Boolean) as string[],
       });
     } catch (apiErr) {
       await refundCredits(ctx.accountId, feature, cost);
       console.error('[parse-event] Gemini call failed:', apiErr);
-      return NextResponse.json({ error: 'Could not understand that. Please try again.' }, { status: 502 });
+      return NextResponse.json(
+        { error: 'Could not understand that. Please try again.' },
+        { status: 502 }
+      );
     }
 
     if (draft.intent === 'none') {
@@ -98,22 +122,28 @@ export async function POST(request: NextRequest) {
       resolveByName(
         draft.property_hint,
         properties || [],
-        (p) => `${p.property_code || ''} ${p.title || ''} ${p.location || ''} ${p.sublocality || ''}`,
+        (p) =>
+          `${p.property_code || ''} ${p.title || ''} ${p.location || ''} ${p.sublocality || ''}`
       ),
       contacts || [],
-      properties || [],
+      properties || []
     );
     const assignee = resolveByName(
       draft.assignee_name,
-      (members || []).map((m) => ({ id: m.user_id as string, full_name: m.full_name as string | null })),
-      (m) => m.full_name || '',
+      (members || []).map((m) => ({
+        id: m.user_id as string,
+        full_name: m.full_name as string | null,
+      })),
+      (m) => m.full_name || ''
     );
 
     const startIso = istLocalToUtcIso(draft.start_time);
     let endIso = istLocalToUtcIso(draft.end_time);
     if (startIso && !endIso) {
       const mins = draft.duration_minutes || 60;
-      endIso = new Date(new Date(startIso).getTime() + mins * 60 * 1000).toISOString();
+      endIso = new Date(
+        new Date(startIso).getTime() + mins * 60 * 1000
+      ).toISOString();
     }
 
     return NextResponse.json({
@@ -122,9 +152,20 @@ export async function POST(request: NextRequest) {
         resolved: {
           start_time: startIso,
           end_time: endIso,
-          contact: contact ? { id: contact.id, name: contact.name, phone: contact.phone, name_tag: contact.name_tag } : null,
-          property: property ? { id: property.id, title: property.title } : null,
-          assignee: assignee ? { user_id: assignee.id, full_name: assignee.full_name } : null,
+          contact: contact
+            ? {
+                id: contact.id,
+                name: contact.name,
+                phone: contact.phone,
+                name_tag: contact.name_tag,
+              }
+            : null,
+          property: property
+            ? { id: property.id, title: property.title }
+            : null,
+          assignee: assignee
+            ? { user_id: assignee.id, full_name: assignee.full_name }
+            : null,
         },
       },
     });

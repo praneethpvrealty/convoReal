@@ -24,7 +24,9 @@ describe('phoneMatchKey', () => {
   });
 
   it('keeps genuinely different subscribers apart', () => {
-    expect(phoneMatchKey('+919876543210')).not.toBe(phoneMatchKey('+919876543211'));
+    expect(phoneMatchKey('+919876543210')).not.toBe(
+      phoneMatchKey('+919876543211')
+    );
   });
 
   it('does not truncate a number shorter than a subscriber number', () => {
@@ -40,7 +42,9 @@ describe('phoneMatchKey', () => {
 
 describe('emailMatchKey', () => {
   it('pairs across case and surrounding whitespace', () => {
-    expect(emailMatchKey('  Sneha@Example.com ')).toBe(emailMatchKey('sneha@example.com'));
+    expect(emailMatchKey('  Sneha@Example.com ')).toBe(
+      emailMatchKey('sneha@example.com')
+    );
   });
 
   it('ignores a missing or blank address', () => {
@@ -61,7 +65,9 @@ describe('nameMatchKey', () => {
   });
 
   it('strips the source annotation an import leaves behind', () => {
-    expect(nameMatchKey('Priya Menon (MagicBricks)')).toBe(nameMatchKey('Priya Menon'));
+    expect(nameMatchKey('Priya Menon (MagicBricks)')).toBe(
+      nameMatchKey('Priya Menon')
+    );
   });
 
   it('refuses a single name, which is too common to be evidence', () => {

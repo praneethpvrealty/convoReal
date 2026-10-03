@@ -43,11 +43,7 @@ export interface RoutingContext {
 }
 
 export type RoutingRuleUsed =
-  | 'explicit'
-  | 'locality'
-  | 'source'
-  | 'round_robin'
-  | 'leader_queue';
+  'explicit' | 'locality' | 'source' | 'round_robin' | 'leader_queue';
 
 export interface RoutingResult {
   agentId: string | null;
@@ -58,7 +54,12 @@ export interface RoutingResult {
 
 interface RoutingRuleRow {
   id: string;
-  rule_type: 'locality_match' | 'source_match' | 'keyword_match' | 'round_robin' | 'fallback';
+  rule_type:
+    | 'locality_match'
+    | 'source_match'
+    | 'keyword_match'
+    | 'round_robin'
+    | 'fallback';
   match_value: string | null;
   target_team_id: string | null;
   target_agent_id: string | null;
@@ -81,31 +82,45 @@ const UNASSIGNED_QUEUE: RoutingResult = {
 async function resolveTeamForAgent(
   db: SupabaseClient,
   accountId: string,
-  agentId: string,
+  agentId: string
 ): Promise<{ valid: boolean; teamId: string | null }> {
   const { data } = await db
     .from('profiles')
     .select('account_id, team_id')
     .eq('user_id', agentId)
     .maybeSingle();
-  if (!data || data.account_id !== accountId) return { valid: false, teamId: null };
+  if (!data || data.account_id !== accountId)
+    return { valid: false, teamId: null };
   return { valid: true, teamId: (data.team_id as string | null) ?? null };
 }
 
-export async function resolveRouting(ctx: RoutingContext): Promise<RoutingResult> {
+export async function resolveRouting(
+  ctx: RoutingContext
+): Promise<RoutingResult> {
   const db = supabaseAdmin();
 
   // Rule 2: contact already has an explicit assignment.
   if (ctx.contactAssignedAgentId) {
-    const { valid, teamId } = await resolveTeamForAgent(db, ctx.accountId, ctx.contactAssignedAgentId);
+    const { valid, teamId } = await resolveTeamForAgent(
+      db,
+      ctx.accountId,
+      ctx.contactAssignedAgentId
+    );
     if (valid) {
-      return { agentId: ctx.contactAssignedAgentId, teamId, ruleUsed: 'explicit', requiresManualAssignment: false };
+      return {
+        agentId: ctx.contactAssignedAgentId,
+        teamId,
+        ruleUsed: 'explicit',
+        requiresManualAssignment: false,
+      };
     }
   }
 
   const { data: rules } = await db
     .from('routing_rules')
-    .select('id, rule_type, match_value, target_team_id, target_agent_id, priority')
+    .select(
+      'id, rule_type, match_value, target_team_id, target_agent_id, priority'
+    )
     .eq('account_id', ctx.accountId)
     .eq('is_active', true)
     .order('priority', { ascending: true });
@@ -116,17 +131,33 @@ export async function resolveRouting(ctx: RoutingContext): Promise<RoutingResult
   // profiles.coverage_areas for any agent in the account.
   const lowerText = (ctx.messageText || '').toLowerCase();
   if (lowerText) {
-    const localityRules = activeRules.filter((r) => r.rule_type === 'locality_match' && r.match_value);
+    const localityRules = activeRules.filter(
+      (r) => r.rule_type === 'locality_match' && r.match_value
+    );
     for (const rule of localityRules) {
       const keyword = rule.match_value!.toLowerCase().trim();
       if (!keyword || !lowerText.includes(keyword)) continue;
       if (rule.target_agent_id) {
-        const { valid, teamId } = await resolveTeamForAgent(db, ctx.accountId, rule.target_agent_id);
+        const { valid, teamId } = await resolveTeamForAgent(
+          db,
+          ctx.accountId,
+          rule.target_agent_id
+        );
         if (valid) {
-          return { agentId: rule.target_agent_id, teamId, ruleUsed: 'locality', requiresManualAssignment: false };
+          return {
+            agentId: rule.target_agent_id,
+            teamId,
+            ruleUsed: 'locality',
+            requiresManualAssignment: false,
+          };
         }
       } else if (rule.target_team_id) {
-        return { agentId: null, teamId: rule.target_team_id, ruleUsed: 'locality', requiresManualAssignment: false };
+        return {
+          agentId: null,
+          teamId: rule.target_team_id,
+          ruleUsed: 'locality',
+          requiresManualAssignment: false,
+        };
       }
     }
 
@@ -139,7 +170,9 @@ export async function resolveRouting(ctx: RoutingContext): Promise<RoutingResult
       .not('coverage_areas', 'is', null);
     for (const agent of coveredAgents ?? []) {
       const areas = (agent.coverage_areas as string[] | null) ?? [];
-      const hit = areas.some((a) => a.trim() && lowerText.includes(a.toLowerCase().trim()));
+      const hit = areas.some(
+        (a) => a.trim() && lowerText.includes(a.toLowerCase().trim())
+      );
       if (hit) {
         return {
           agentId: agent.user_id as string,
@@ -154,23 +187,41 @@ export async function resolveRouting(ctx: RoutingContext): Promise<RoutingResult
   // Rule 4: lead source match.
   if (ctx.source) {
     const sourceRule = activeRules.find(
-      (r) => r.rule_type === 'source_match' && r.match_value?.toLowerCase() === ctx.source!.toLowerCase(),
+      (r) =>
+        r.rule_type === 'source_match' &&
+        r.match_value?.toLowerCase() === ctx.source!.toLowerCase()
     );
     if (sourceRule) {
       if (sourceRule.target_agent_id) {
-        const { valid, teamId } = await resolveTeamForAgent(db, ctx.accountId, sourceRule.target_agent_id);
+        const { valid, teamId } = await resolveTeamForAgent(
+          db,
+          ctx.accountId,
+          sourceRule.target_agent_id
+        );
         if (valid) {
-          return { agentId: sourceRule.target_agent_id, teamId, ruleUsed: 'source', requiresManualAssignment: false };
+          return {
+            agentId: sourceRule.target_agent_id,
+            teamId,
+            ruleUsed: 'source',
+            requiresManualAssignment: false,
+          };
         }
       } else if (sourceRule.target_team_id) {
-        return { agentId: null, teamId: sourceRule.target_team_id, ruleUsed: 'source', requiresManualAssignment: false };
+        return {
+          agentId: null,
+          teamId: sourceRule.target_team_id,
+          ruleUsed: 'source',
+          requiresManualAssignment: false,
+        };
       }
     }
   }
 
   // Rule 5: round-robin within the fallback team — least-loaded
   // available agent (fewest currently-open conversations).
-  const fallbackRule = activeRules.find((r) => r.rule_type === 'fallback' && r.target_team_id);
+  const fallbackRule = activeRules.find(
+    (r) => r.rule_type === 'fallback' && r.target_team_id
+  );
   if (fallbackRule?.target_team_id) {
     const { data: teamAgents } = await db
       .from('profiles')
@@ -189,7 +240,7 @@ export async function resolveRouting(ctx: RoutingContext): Promise<RoutingResult
             .eq('assigned_agent_id', a.user_id)
             .eq('status', 'open');
           return { agentId: a.user_id as string, load: count ?? 0 };
-        }),
+        })
       );
       loads.sort((a, b) => a.load - b.load);
       return {
@@ -201,7 +252,12 @@ export async function resolveRouting(ctx: RoutingContext): Promise<RoutingResult
     }
     // Team has no available agents — fall through to the queue,
     // scoped to that team so its leader sees it.
-    return { agentId: null, teamId: fallbackRule.target_team_id, ruleUsed: 'leader_queue', requiresManualAssignment: true };
+    return {
+      agentId: null,
+      teamId: fallbackRule.target_team_id,
+      ruleUsed: 'leader_queue',
+      requiresManualAssignment: true,
+    };
   }
 
   // Rule 6: nothing matched — unassigned leader/manager queue.

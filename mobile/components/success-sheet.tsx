@@ -1,7 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+} from 'react-native-reanimated';
 
 import { Confetti } from '@/components/motion';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
@@ -22,11 +27,16 @@ function SuccessBadge() {
 
   useEffect(() => {
     circle.value = withSpring(1, { damping: 12, stiffness: 180 });
-    check.value = withDelay(140, withSpring(1, { damping: 11, stiffness: 260 }));
+    check.value = withDelay(
+      140,
+      withSpring(1, { damping: 11, stiffness: 260 })
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const circleStyle = useAnimatedStyle(() => ({ transform: [{ scale: circle.value }] }));
+  const circleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: circle.value }],
+  }));
   const checkStyle = useAnimatedStyle(() => ({
     opacity: check.value,
     transform: [{ scale: check.value }],
@@ -81,10 +91,17 @@ export function SuccessSheet({
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      contentStyle={{ paddingHorizontal: spacing.xl, gap: spacing.md, alignItems: 'center' }}
+      contentStyle={{
+        paddingHorizontal: spacing.xl,
+        gap: spacing.md,
+        alignItems: 'center',
+      }}
     >
       {burst ? (
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
+        <View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}
+        >
           <Confetti onDone={() => setBurst(false)} />
         </View>
       ) : null}
@@ -96,10 +113,21 @@ export function SuccessSheet({
         contentContainerStyle={{ alignItems: 'center', gap: spacing.md }}
       >
         <SuccessBadge />
-        <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>{title}</Text>
-        <Text style={[styles.message, { color: colors.textMuted }]}>{message}</Text>
+        <Text
+          style={[
+            styles.title,
+            { color: colors.text, fontFamily: f.extrabold },
+          ]}
+        >
+          {title}
+        </Text>
+        <Text style={[styles.message, { color: colors.textMuted }]}>
+          {message}
+        </Text>
       </ScrollView>
-      <View style={{ alignSelf: 'stretch', gap: spacing.sm, marginTop: spacing.sm }}>
+      <View
+        style={{ alignSelf: 'stretch', gap: spacing.sm, marginTop: spacing.sm }}
+      >
         {actions.map((action, i) => {
           const primary = i === 0;
           return (

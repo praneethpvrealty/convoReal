@@ -15,51 +15,54 @@
 // business exposing.
 // ============================================================
 
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
-import { withApiKeyAuth } from "@/lib/auth/api-keys";
-import { page, parsePageParams } from "@/lib/v1/pagination";
-import { asRows, type Row } from "@/lib/v1/projections";
-import { enumParam } from "@/lib/v1/query";
+import { withApiKeyAuth } from '@/lib/auth/api-keys';
+import { page, parsePageParams } from '@/lib/v1/pagination';
+import { asRows, type Row } from '@/lib/v1/projections';
+import { enumParam } from '@/lib/v1/query';
 
-const STATUSES = ["new", "sent", "dismissed"] as const;
-const KINDS = ["new_property", "buyer_updated"] as const;
+const STATUSES = ['new', 'sent', 'dismissed'] as const;
+const KINDS = ['new_property', 'buyer_updated'] as const;
 
 const SELECT =
-  "id, kind, status, matches, sent_count, sent_at, created_at, " +
-  "property:properties(id, title, location, sublocality, city, price, type, listing_type), " +
-  "contact:contacts(id, name, phone, classification, min_budget, max_budget)";
+  'id, kind, status, matches, sent_count, sent_at, created_at, ' +
+  'property:properties(id, title, location, sublocality, city, price, type, listing_type), ' +
+  'contact:contacts(id, name, phone, classification, min_budget, max_budget)';
 
 function one<T>(v: T | T[] | null | undefined): T | null {
   if (v === null || v === undefined) return null;
   return Array.isArray(v) ? (v[0] ?? null) : v;
 }
 
-export const GET = withApiKeyAuth("read", async (ctx, req) => {
+export const GET = withApiKeyAuth('read', async (ctx, req) => {
   const url = new URL(req.url);
   const params = parsePageParams(url);
 
   // Unresolved events are the useful default — the feed exists to
   // surface what nobody has acted on yet.
-  const status = enumParam(url, "status", STATUSES) ?? "new";
-  const kind = enumParam(url, "kind", KINDS);
+  const status = enumParam(url, 'status', STATUSES) ?? 'new';
+  const kind = enumParam(url, 'kind', KINDS);
 
   let query = ctx.db
-    .from("match_events")
-    .select(SELECT, { count: "exact" })
-    .eq("account_id", ctx.accountId)
-    .neq("source", "deal_mode")
-    .eq("status", status);
+    .from('match_events')
+    .select(SELECT, { count: 'exact' })
+    .eq('account_id', ctx.accountId)
+    .neq('source', 'deal_mode')
+    .eq('status', status);
 
-  if (kind) query = query.eq("kind", kind);
+  if (kind) query = query.eq('kind', kind);
 
   const { data, error, count } = await query
-    .order("created_at", { ascending: false })
+    .order('created_at', { ascending: false })
     .range(params.offset, params.offset + params.limit - 1);
 
   if (error) {
-    console.error("[GET /api/v1/radar] query error:", error);
-    return NextResponse.json({ error: "Failed to load radar events" }, { status: 500 });
+    console.error('[GET /api/v1/radar] query error:', error);
+    return NextResponse.json(
+      { error: 'Failed to load radar events' },
+      { status: 500 }
+    );
   }
 
   const items = asRows(data).map((r) => {
@@ -73,9 +76,9 @@ export const GET = withApiKeyAuth("read", async (ctx, req) => {
       sent_count: r.sent_count,
       sent_at: r.sent_at,
       subject:
-        r.kind === "new_property"
-          ? { type: "property", ...(property ?? {}) }
-          : { type: "contact", ...(contact ?? {}) },
+        r.kind === 'new_property'
+          ? { type: 'property', ...(property ?? {}) }
+          : { type: 'contact', ...(contact ?? {}) },
       matches: Array.isArray(r.matches) ? r.matches : [],
     };
   });

@@ -12,20 +12,20 @@ landed on.
 
 ### Ready
 
-| Item | State |
-|------|-------|
-| Bundle identifier | `com.convoreal.app` (`app.json` → `ios.bundleIdentifier`) |
-| EAS project | linked, `projectId` `35ac40bb-…` under owner `praneethpvrealtys-team` |
-| Build profiles | `development` / `preview` / `production` in `eas.json`; production is store distribution with `autoIncrement` and `appVersionSource: "remote"`, so EAS owns the build number |
-| App icon | `assets/images/icon.png`, 1024×1024, fully opaque — passes the App Store icon check |
-| Splash / launch screen | `expo-splash-screen` plugin configured |
-| Permission strings | location (when-in-use), contacts, photos, camera, Face ID all have purpose strings via config plugins — a missing `NS*UsageDescription` is the most common first rejection and none are missing |
-| Export compliance | `ITSAppUsesNonExemptEncryption: false` in `infoPlist`, so no per-build compliance questionnaire |
-| Universal Links | `associatedDomains` declared; the site serves `/.well-known/apple-app-site-association` from `src/app/.well-known/apple-app-site-association/route.ts` |
-| OTA updates | `expo-updates` with `runtimeVersion.policy: "fingerprint"` and an `updates.url` |
-| Maps | `react-native-maps` with no `PROVIDER_GOOGLE`, so iOS uses Apple Maps — no extra key needed (the Google key is Android-only) |
-| Typecheck | `npm run typecheck` passes clean |
-| expo-doctor | 18/20 checks pass; the 2 failures are network reachability in this sandbox, not project problems |
+| Item                   | State                                                                                                                                                                                           |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bundle identifier      | `com.convoreal.app` (`app.json` → `ios.bundleIdentifier`)                                                                                                                                       |
+| EAS project            | linked, `projectId` `35ac40bb-…` under owner `praneethpvrealtys-team`                                                                                                                           |
+| Build profiles         | `development` / `preview` / `production` in `eas.json`; production is store distribution with `autoIncrement` and `appVersionSource: "remote"`, so EAS owns the build number                    |
+| App icon               | `assets/images/icon.png`, 1024×1024, fully opaque — passes the App Store icon check                                                                                                             |
+| Splash / launch screen | `expo-splash-screen` plugin configured                                                                                                                                                          |
+| Permission strings     | location (when-in-use), contacts, photos, camera, Face ID all have purpose strings via config plugins — a missing `NS*UsageDescription` is the most common first rejection and none are missing |
+| Export compliance      | `ITSAppUsesNonExemptEncryption: false` in `infoPlist`, so no per-build compliance questionnaire                                                                                                 |
+| Universal Links        | `associatedDomains` declared; the site serves `/.well-known/apple-app-site-association` from `src/app/.well-known/apple-app-site-association/route.ts`                                          |
+| OTA updates            | `expo-updates` with `runtimeVersion.policy: "fingerprint"` and an `updates.url`                                                                                                                 |
+| Maps                   | `react-native-maps` with no `PROVIDER_GOOGLE`, so iOS uses Apple Maps — no extra key needed (the Google key is Android-only)                                                                    |
+| Typecheck              | `npm run typecheck` passes clean                                                                                                                                                                |
+| expo-doctor            | 18/20 checks pass; the 2 failures are network reachability in this sandbox, not project problems                                                                                                |
 
 ### Blockers — fixed, but they need the migration deployed
 

@@ -180,7 +180,9 @@ function makeDb(
             data: {
               name: 'Asha',
               preferred_language:
-                opts.contactLanguage === undefined ? 'en' : opts.contactLanguage,
+                opts.contactLanguage === undefined
+                  ? 'en'
+                  : opts.contactLanguage,
             },
             error: null,
           };
@@ -226,7 +228,10 @@ function makeDb(
 
 beforeEach(() => {
   h.send.mockReset();
-  h.send.mockResolvedValue({ success: true, whatsappMessageId: 'wamid.prompt' });
+  h.send.mockResolvedValue({
+    success: true,
+    whatsappMessageId: 'wamid.prompt',
+  });
   h.lease = 'run';
   h.beforeRun = null;
   h.leased = [];
@@ -271,14 +276,22 @@ describe('processShareFeedbackFollowups', () => {
 
   it('[INB-022] names the shared property and asks with tappable buttons while the window is open', async () => {
     const db = makeDb({
-      lastCustomerMessageAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      property: { id: PROPERTY_ID, title: '35x80 Commercial Corner Plot on Kolar Main Road' },
+      lastCustomerMessageAt: new Date(
+        Date.now() - 2 * 60 * 60 * 1000
+      ).toISOString(),
+      property: {
+        id: PROPERTY_ID,
+        title: '35x80 Commercial Corner Plot on Kolar Main Road',
+      },
     });
 
     expect(await processShareFeedbackFollowups(db as never)).toBe(1);
 
     const sent = h.send.mock.calls[0][0];
-    expect(sent).toMatchObject({ kind: 'interactive', interactiveType: 'buttons' });
+    expect(sent).toMatchObject({
+      kind: 'interactive',
+      interactiveType: 'buttons',
+    });
     expect(sent.interactiveBody).toBe(
       'Hi Asha, following up on *35x80 Commercial Corner Plot on Kolar Main Road*, which I shared earlier.\n\nDid it match what you are looking for?'
     );
@@ -292,7 +305,9 @@ describe('processShareFeedbackFollowups', () => {
 
   it('[INB-022] retries rather than sending the generic template when the property lookup fails', async () => {
     const db = makeDb({
-      lastCustomerMessageAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      lastCustomerMessageAt: new Date(
+        Date.now() - 2 * 60 * 60 * 1000
+      ).toISOString(),
       propertyError: true,
     });
 
@@ -307,7 +322,9 @@ describe('processShareFeedbackFollowups', () => {
 
   it('[INB-022] sends the localized template to a buyer who inherits a non-English account language', async () => {
     const db = makeDb({
-      lastCustomerMessageAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      lastCustomerMessageAt: new Date(
+        Date.now() - 2 * 60 * 60 * 1000
+      ).toISOString(),
       property: { id: PROPERTY_ID, title: '35x80 Commercial Corner Plot' },
       contactLanguage: null,
       accountLanguage: 'kn',
@@ -320,7 +337,9 @@ describe('processShareFeedbackFollowups', () => {
 
   it('[INB-022] falls back to the template once the 24-hour window has closed', async () => {
     const db = makeDb({
-      lastCustomerMessageAt: new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString(),
+      lastCustomerMessageAt: new Date(
+        Date.now() - 30 * 60 * 60 * 1000
+      ).toISOString(),
       property: { id: PROPERTY_ID, title: '35x80 Commercial Corner Plot' },
     });
 
@@ -489,7 +508,9 @@ describe('findFeedbackSharePropertyId', () => {
           if (failOr && ors.length > 0) {
             return { data: null, error: { message: 'timeout' } };
           }
-          const hit = rows.filter((row) => ors.every((expr) => matchesOr(row, expr)));
+          const hit = rows.filter((row) =>
+            ors.every((expr) => matchesOr(row, expr))
+          );
           return { data: hit[0] ?? null, error: null };
         };
         return b;
@@ -501,7 +522,12 @@ describe('findFeedbackSharePropertyId', () => {
     const db = lookupDb([{ property_id: PROPERTY_ID }]);
 
     expect(
-      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
+      await findFeedbackSharePropertyId(
+        db as never,
+        ACCOUNT_ID,
+        CONTACT_ID,
+        'wamid.prompt'
+      )
     ).toBe(PROPERTY_ID);
     expect(db.calls).toEqual(
       expect.arrayContaining([
@@ -518,31 +544,57 @@ describe('findFeedbackSharePropertyId', () => {
       { property_id: '99999999-2222-4333-8444-555555555555' },
     ]);
     expect(
-      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
+      await findFeedbackSharePropertyId(
+        db as never,
+        ACCOUNT_ID,
+        CONTACT_ID,
+        'wamid.prompt'
+      )
     ).toBeNull();
   });
 
   it('[INB-022] resolves nothing when the ambiguity check fails', async () => {
     const db = lookupDb(
-      [{ property_id: PROPERTY_ID }, { property_id: '99999999-2222-4333-8444-555555555555' }],
+      [
+        { property_id: PROPERTY_ID },
+        { property_id: '99999999-2222-4333-8444-555555555555' },
+      ],
       true
     );
     expect(
-      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
+      await findFeedbackSharePropertyId(
+        db as never,
+        ACCOUNT_ID,
+        CONTACT_ID,
+        'wamid.prompt'
+      )
     ).toBeNull();
   });
 
   it('[INB-022] still resolves when every share on the prompt is the same property', async () => {
-    const db = lookupDb([{ property_id: PROPERTY_ID }, { property_id: PROPERTY_ID }]);
+    const db = lookupDb([
+      { property_id: PROPERTY_ID },
+      { property_id: PROPERTY_ID },
+    ]);
     expect(
-      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, 'wamid.prompt')
+      await findFeedbackSharePropertyId(
+        db as never,
+        ACCOUNT_ID,
+        CONTACT_ID,
+        'wamid.prompt'
+      )
     ).toBe(PROPERTY_ID);
   });
 
   it('[INB-022] never guesses a property when the tap carries no prompt id', async () => {
     const db = lookupDb([{ property_id: PROPERTY_ID }]);
     expect(
-      await findFeedbackSharePropertyId(db as never, ACCOUNT_ID, CONTACT_ID, null)
+      await findFeedbackSharePropertyId(
+        db as never,
+        ACCOUNT_ID,
+        CONTACT_ID,
+        null
+      )
     ).toBeNull();
     expect(db.tables).toEqual([]);
   });

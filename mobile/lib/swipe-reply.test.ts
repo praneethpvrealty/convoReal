@@ -15,7 +15,9 @@ describe('replyDragOffset', () => {
 
   it('tracks the finger up to the trigger point', () => {
     expect(replyDragOffset(20)).toBe(20);
-    expect(replyDragOffset(REPLY_TRIGGER_DISTANCE)).toBe(REPLY_TRIGGER_DISTANCE);
+    expect(replyDragOffset(REPLY_TRIGGER_DISTANCE)).toBe(
+      REPLY_TRIGGER_DISTANCE
+    );
   });
 
   it('resists past the trigger point instead of following the finger', () => {

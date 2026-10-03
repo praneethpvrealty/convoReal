@@ -32,12 +32,17 @@ function makeAdmin() {
         },
         maybeSingle: () => resolve(),
         single: () => resolve(),
-        then: (res: (v: unknown) => unknown) => Promise.resolve({ data: insertRow, error: null }).then(res),
+        then: (res: (v: unknown) => unknown) =>
+          Promise.resolve({ data: insertRow, error: null }).then(res),
       };
       function resolve() {
-        if (mode === 'insert') return Promise.resolve({ data: insertRow, error: null });
+        if (mode === 'insert')
+          return Promise.resolve({ data: insertRow, error: null });
         const rows = fixtures[table] || [];
-        const found = rows.find((r) => Object.entries(filters).every(([k, v]) => r[k] === v)) || null;
+        const found =
+          rows.find((r) =>
+            Object.entries(filters).every(([k, v]) => r[k] === v)
+          ) || null;
         return Promise.resolve({ data: found, error: null });
       }
       return b;
@@ -45,7 +50,7 @@ function makeAdmin() {
   };
 }
 
-vi.mock('@/lib/automations/admin-client', () => ({ supabaseAdmin: () => makeAdmin() }));
+vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: () => makeAdmin() }));
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: () => ({ success: true }),
   rateLimitResponse: () => new Response(null, { status: 429 }),
@@ -75,7 +80,11 @@ beforeEach(() => {
   fixtures = {
     accounts: [{ id: VICTIM, owner_user_id: OWNER_USER }],
     contacts: [
-      { id: 'foreign-contact', account_id: 'acc-other', email: 'agent@other.com' },
+      {
+        id: 'foreign-contact',
+        account_id: 'acc-other',
+        email: 'agent@other.com',
+      },
       { id: 'own-contact', account_id: VICTIM, email: 'agent@victim.com' },
     ],
     profiles: [{ email: 'agent@victim.com', user_id: 'user-victim-agent' }],
@@ -86,7 +95,11 @@ beforeEach(() => {
 
 describe('POST /api/public/requirements — cross-tenant user_id scoping', () => {
   it('ignores a foreign referrer contact; new contact is owned by the account owner', async () => {
-    const res = await post({ accountId: VICTIM, phone: '9900277111', referrerContactId: 'foreign-contact' });
+    const res = await post({
+      accountId: VICTIM,
+      phone: '9900277111',
+      referrerContactId: 'foreign-contact',
+    });
     expect(res.status).toBe(200);
 
     expect(inserts.contacts?.[0].user_id).toBe(OWNER_USER);
@@ -95,7 +108,11 @@ describe('POST /api/public/requirements — cross-tenant user_id scoping', () =>
   });
 
   it('resolves the agent from a referrer contact in the same account', async () => {
-    await post({ accountId: VICTIM, phone: '9900277111', referrerContactId: 'own-contact' });
+    await post({
+      accountId: VICTIM,
+      phone: '9900277111',
+      referrerContactId: 'own-contact',
+    });
 
     expect(inserts.contacts?.[0].user_id).toBe('user-victim-agent');
   });
@@ -104,13 +121,23 @@ describe('POST /api/public/requirements — cross-tenant user_id scoping', () =>
 describe('POST /api/public/requirements — budget magnitude inference', () => {
   it('expands small budget values by Crore/Lakh magnitude', async () => {
     // 2 -> 2 Cr (2e7), 5 -> 5 Cr (5e7); values are < 100 so treated as Crores.
-    await post({ accountId: VICTIM, phone: '9900277111', minBudget: 2, maxBudget: 5 });
+    await post({
+      accountId: VICTIM,
+      phone: '9900277111',
+      minBudget: 2,
+      maxBudget: 5,
+    });
     expect(inserts.contacts?.[0].min_budget).toBe(20_000_000);
     expect(inserts.contacts?.[0].max_budget).toBe(50_000_000);
   });
 
   it('passes already-large budget values through unchanged', async () => {
-    await post({ accountId: VICTIM, phone: '9900277111', minBudget: 5_000_000, maxBudget: 25_000_000 });
+    await post({
+      accountId: VICTIM,
+      phone: '9900277111',
+      minBudget: 5_000_000,
+      maxBudget: 25_000_000,
+    });
     expect(inserts.contacts?.[0].min_budget).toBe(5_000_000);
     expect(inserts.contacts?.[0].max_budget).toBe(25_000_000);
   });
@@ -118,7 +145,11 @@ describe('POST /api/public/requirements — budget magnitude inference', () => {
 
 describe('POST /api/public/requirements — tapped listing intent', () => {
   it('stores the intent the visitor tapped in the assistant', async () => {
-    await post({ accountId: VICTIM, phone: '9900277111', listingTypes: ['Rent'] });
+    await post({
+      accountId: VICTIM,
+      phone: '9900277111',
+      listingTypes: ['Rent'],
+    });
     expect(inserts.contacts?.[0].pref_listing_types).toEqual(['Rent']);
   });
 
@@ -128,7 +159,11 @@ describe('POST /api/public/requirements — tapped listing intent', () => {
   });
 
   it('drops a value outside the listing-type vocabulary', async () => {
-    await post({ accountId: VICTIM, phone: '9900277111', listingTypes: ['Renting', 42] });
+    await post({
+      accountId: VICTIM,
+      phone: '9900277111',
+      listingTypes: ['Renting', 42],
+    });
     expect(inserts.contacts?.[0].pref_listing_types).toBeUndefined();
   });
 });
@@ -138,7 +173,13 @@ describe('POST /api/public/requirements — bounded locations', () => {
     const res = await post({
       accountId: VICTIM,
       phone: '9900277111',
-      locations: [...Array.from({ length: 1000 }, (_, i) => `Area ${i} ${'x'.repeat(500)}`), 42],
+      locations: [
+        ...Array.from(
+          { length: 1000 },
+          (_, i) => `Area ${i} ${'x'.repeat(500)}`
+        ),
+        42,
+      ],
     });
     expect(res.status).toBe(200);
     const areas = inserts.contacts?.[0].areas_of_interest as string[];
@@ -148,8 +189,15 @@ describe('POST /api/public/requirements — bounded locations', () => {
   });
 
   it('keeps an ordinary locations list as posted', async () => {
-    await post({ accountId: VICTIM, phone: '9900277111', locations: ['HSR Layout', ' Whitefield '] });
-    expect(inserts.contacts?.[0].areas_of_interest).toEqual(['HSR Layout', 'Whitefield']);
+    await post({
+      accountId: VICTIM,
+      phone: '9900277111',
+      locations: ['HSR Layout', ' Whitefield '],
+    });
+    expect(inserts.contacts?.[0].areas_of_interest).toEqual([
+      'HSR Layout',
+      'Whitefield',
+    ]);
   });
 });
 
@@ -157,18 +205,30 @@ describe('POST /api/public/requirements — seller page attribution', () => {
   beforeEach(() => {
     fixtures.contacts.push(
       { id: 'seller-1', account_id: VICTIM, seller_page_slug: 'bcdfghjkmn' },
-      { id: 'seller-foreign', account_id: 'acc-other', seller_page_slug: 'pqrstvwxyz' }
+      {
+        id: 'seller-foreign',
+        account_id: 'acc-other',
+        seller_page_slug: 'pqrstvwxyz',
+      }
     );
   });
 
   it('[SLP-005] records the seller whose page the requirement came from', async () => {
-    const res = await post({ accountId: VICTIM, phone: '9900277111', sellerPage: 'bcdfghjkmn' });
+    const res = await post({
+      accountId: VICTIM,
+      phone: '9900277111',
+      sellerPage: 'bcdfghjkmn',
+    });
     expect(res.status).toBe(200);
     expect(inserts.contacts?.[0].referrer_contact_id).toBe('seller-1');
   });
 
   it("ignores another account's seller slug", async () => {
-    await post({ accountId: VICTIM, phone: '9900277111', sellerPage: 'pqrstvwxyz' });
+    await post({
+      accountId: VICTIM,
+      phone: '9900277111',
+      sellerPage: 'pqrstvwxyz',
+    });
     expect(inserts.contacts?.[0].referrer_contact_id).toBeNull();
   });
 });

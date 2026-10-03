@@ -11,7 +11,7 @@
 // with the day's schedule — no AI, no credits.
 // ============================================================
 
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   sendTextMessage,
   getMediaUrl,

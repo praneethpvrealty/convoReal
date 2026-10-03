@@ -3,8 +3,7 @@ import type { AudienceConfig } from '@/lib/broadcasts/sender';
 const MAX_SELECTED_CONTACTS = 1000;
 
 export type GreetingAudienceResult =
-  | { audience: AudienceConfig }
-  | { error: string };
+  { audience: AudienceConfig } | { error: string };
 
 function stringIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -44,8 +43,7 @@ export function parseGreetingAudience(input: unknown): GreetingAudienceResult {
           audience: {
             type: 'tags',
             tagIds,
-            excludeTagIds:
-              excludeTagIds.length > 0 ? excludeTagIds : undefined,
+            excludeTagIds: excludeTagIds.length > 0 ? excludeTagIds : undefined,
           },
         }
       : { error: 'Pick at least one tag for a tag audience' };

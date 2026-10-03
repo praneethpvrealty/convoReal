@@ -11,12 +11,32 @@ import { storagePublicUrl } from '@/lib/storage/url';
 
 export type ShareEmailProperty = Pick<
   Property,
-  | 'id' | 'is_published'
-  | 'title' | 'type' | 'listing_type' | 'price' | 'rent_per_month' | 'maintenance'
-  | 'location' | 'sublocality' | 'city' | 'google_map_link' | 'nearby_highlights'
-  | 'land_area' | 'land_area_unit' | 'land_zone' | 'land_use_zoning' | 'ownership_status'
-  | 'deal_remarks' | 'jv_structure' | 'owner_share_percent' | 'builder_share_percent'
-  | 'goodwill_amount' | 'documents' | 'property_code' | 'images'
+  | 'id'
+  | 'is_published'
+  | 'title'
+  | 'type'
+  | 'listing_type'
+  | 'price'
+  | 'rent_per_month'
+  | 'maintenance'
+  | 'location'
+  | 'sublocality'
+  | 'city'
+  | 'google_map_link'
+  | 'nearby_highlights'
+  | 'land_area'
+  | 'land_area_unit'
+  | 'land_zone'
+  | 'land_use_zoning'
+  | 'ownership_status'
+  | 'deal_remarks'
+  | 'jv_structure'
+  | 'owner_share_percent'
+  | 'builder_share_percent'
+  | 'goodwill_amount'
+  | 'documents'
+  | 'property_code'
+  | 'images'
 >;
 
 /** A wall of storage URLs reads terribly and mailto: links choke on very
@@ -27,10 +47,16 @@ const IMAGE_LINK_CAP = 3;
 const DOCUMENT_LINK_CAP = 5;
 
 /** Property.documents entries are JSON strings of {url, title}. */
-function parseDocument(raw: string, index: number): { title: string; url: string | null } {
+function parseDocument(
+  raw: string,
+  index: number
+): { title: string; url: string | null } {
   try {
     const parsed = JSON.parse(raw) as { url?: string; title?: string };
-    return { title: parsed.title?.trim() || `Document ${index + 1}`, url: parsed.url?.trim() || null };
+    return {
+      title: parsed.title?.trim() || `Document ${index + 1}`,
+      url: parsed.url?.trim() || null,
+    };
   } catch {
     return { title: `Document ${index + 1}`, url: null };
   }
@@ -80,7 +106,10 @@ export function buildPropertyShareEmailContent(
 ): PropertyShareEmailContent {
   const listingType = property.listing_type || 'Sale';
   const extent = formatLandExtent(property);
-  const locationLabel = [property.sublocality, property.city].filter(Boolean).join(', ') || property.location || '';
+  const locationLabel =
+    [property.sublocality, property.city].filter(Boolean).join(', ') ||
+    property.location ||
+    '';
 
   const subjectParts = [dealTypeLabel(listingType)];
   if (extent) subjectParts.push(extent);
@@ -88,19 +117,30 @@ export function buildPropertyShareEmailContent(
   const subject = subjectParts.join(' || ');
 
   const greetingNames = (opts.recipientNames || []).filter(Boolean);
-  const greeting = greetingNames.length > 0 ? `Hi ${greetingNames.join(' and ')},` : 'Hi,';
+  const greeting =
+    greetingNames.length > 0 ? `Hi ${greetingNames.join(' and ')},` : 'Hi,';
 
-  const lines: string[] = [greeting, '', 'Greetings of the day!', '', 'Please find the details below :', ''];
+  const lines: string[] = [
+    greeting,
+    '',
+    'Greetings of the day!',
+    '',
+    'Please find the details below :',
+    '',
+  ];
 
   if (extent) lines.push(`Land extension - ${extent}`);
 
   const landUse = property.land_use_zoning || property.land_zone || null;
   if (landUse) lines.push(`Land use - ${landUse}`);
 
-  if (property.ownership_status) lines.push(`Ownership - ${property.ownership_status}`);
+  if (property.ownership_status)
+    lines.push(`Ownership - ${property.ownership_status}`);
 
   if (listingType === 'JV/JD') {
-    const hasShare = !!(property.owner_share_percent && property.builder_share_percent);
+    const hasShare = !!(
+      property.owner_share_percent && property.builder_share_percent
+    );
     const proposal = hasShare
       ? `${property.owner_share_percent}:${property.builder_share_percent} share (owner:builder)${property.jv_structure ? `, ${property.jv_structure}` : ''}${property.goodwill_amount ? `, Goodwill ${inr(property.goodwill_amount)}` : ''}`
       : 'To be discussed.';
@@ -133,7 +173,9 @@ export function buildPropertyShareEmailContent(
   const images = (property.images || []).filter(Boolean);
   if (images.length > 0) {
     lines.push('', 'Photos:');
-    images.slice(0, IMAGE_LINK_CAP).forEach((url, i) => lines.push(`${i + 1}. ${storagePublicUrl(url)}`));
+    images
+      .slice(0, IMAGE_LINK_CAP)
+      .forEach((url, i) => lines.push(`${i + 1}. ${storagePublicUrl(url)}`));
     if (images.length > IMAGE_LINK_CAP) {
       lines.push(
         showcaseUrl
@@ -148,15 +190,26 @@ export function buildPropertyShareEmailContent(
     .filter((d): d is { title: string; url: string } => !!d.url);
   if (documents.length > 0) {
     lines.push('', documents.length === 1 ? 'Sketch:' : 'Documents:');
-    documents.slice(0, DOCUMENT_LINK_CAP).forEach((d, i) => lines.push(`${i + 1}. ${d.title} - ${storagePublicUrl(d.url)}`));
+    documents
+      .slice(0, DOCUMENT_LINK_CAP)
+      .forEach((d, i) =>
+        lines.push(`${i + 1}. ${d.title} - ${storagePublicUrl(d.url)}`)
+      );
     if (documents.length > DOCUMENT_LINK_CAP) {
-      lines.push(`...plus ${documents.length - DOCUMENT_LINK_CAP} more document(s) available on request.`);
+      lines.push(
+        `...plus ${documents.length - DOCUMENT_LINK_CAP} more document(s) available on request.`
+      );
     }
   }
 
   if (property.deal_remarks) lines.push(`Remarks: ${property.deal_remarks}`);
 
-  lines.push('', 'Please let me know if you have any questions.', '', 'Regards,');
+  lines.push(
+    '',
+    'Please let me know if you have any questions.',
+    '',
+    'Regards,'
+  );
   if (opts.agentName) lines.push(opts.agentName);
   if (opts.agentPhone) lines.push(opts.agentPhone);
 
@@ -172,7 +225,7 @@ export const SHARE_EMAIL_SYSTEM_PROMPT =
   'Rules:\n' +
   '1. PLAIN TEXT only — no markdown, no HTML, no bullets other than simple hyphens.\n' +
   '2. Keep every fact and every URL from the baseline EXACTLY as given. Never invent, estimate, or embellish facts (no invented approvals, dimensions, or prices).\n' +
-  '3. Keep the structured key-facts block (Land extension / Land use / Ownership / proposal / Location / Photos / Sketch / Remarks) — polish the prose around it, don\'t bury the facts in paragraphs.\n' +
+  "3. Keep the structured key-facts block (Land extension / Land use / Ownership / proposal / Location / Photos / Sketch / Remarks) — polish the prose around it, don't bury the facts in paragraphs.\n" +
   '4. Keep the greeting names and the sign-off name/phone from the baseline.\n' +
   '5. Business-appropriate tone for high-value Indian real estate deals: courteous, direct, no hype words, no emojis.\n' +
   '6. Return STRICT JSON only — no code fences — with exactly these keys: "subject" (string, keep the "X || Y || Z" convention), "body" (string with \\n line breaks).';
@@ -193,13 +246,19 @@ export function buildShareEmailAiPrompt(
 /** Parses the model's JSON response. Tolerates code fences and stray
  *  prose by extracting the first {...} block. Returns null when no
  *  usable subject/body could be recovered — callers refund credits. */
-export function parseAiShareEmail(raw: string): PropertyShareEmailContent | null {
+export function parseAiShareEmail(
+  raw: string
+): PropertyShareEmailContent | null {
   if (!raw) return null;
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
-    const parsed = JSON.parse(match[0]) as { subject?: unknown; body?: unknown };
-    const subject = typeof parsed.subject === 'string' ? parsed.subject.trim() : '';
+    const parsed = JSON.parse(match[0]) as {
+      subject?: unknown;
+      body?: unknown;
+    };
+    const subject =
+      typeof parsed.subject === 'string' ? parsed.subject.trim() : '';
     const body = typeof parsed.body === 'string' ? parsed.body.trim() : '';
     if (!subject || !body) return null;
     return { subject, body };

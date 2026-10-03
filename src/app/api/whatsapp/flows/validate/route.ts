@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
-import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
-import { validatePreferenceFlowJson } from '@/lib/whatsapp/meta-flow-service'
+import { NextResponse } from 'next/server';
+import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
+import { validatePreferenceFlowJson } from '@/lib/whatsapp/meta-flow-service';
 
 /**
  * POST /api/whatsapp/flows/validate
@@ -14,19 +14,20 @@ export async function POST() {
   // Outside the main try, whose catch reports every failure as a Meta
   // validation error. This route never publishes, so it carries no
   // role gate beyond a live account.
-  let accountId: string
+  let accountId: string;
   try {
-    ;({ accountId } = await getCurrentAccount())
+    ({ accountId } = await getCurrentAccount());
   } catch (error) {
-    return toErrorResponse(error)
+    return toErrorResponse(error);
   }
 
   try {
-    const result = await validatePreferenceFlowJson({ accountId })
-    return NextResponse.json(result)
+    const result = await validatePreferenceFlowJson({ accountId });
+    return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Flow validation failed'
-    console.error('[flows/validate] error:', message)
-    return NextResponse.json({ error: message }, { status: 400 })
+    const message =
+      error instanceof Error ? error.message : 'Flow validation failed';
+    console.error('[flows/validate] error:', message);
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

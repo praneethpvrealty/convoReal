@@ -33,16 +33,22 @@ import {
 
 function formatFee(fee: number | null | undefined): string {
   if (fee === null || fee === undefined) return 'Fee varies';
-  if (fee >= 10000000) return `₹${(fee / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (fee >= 100000) return `₹${(fee / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
+  if (fee >= 10000000)
+    return `₹${(fee / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+  if (fee >= 100000)
+    return `₹${(fee / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
   return `₹${fee.toLocaleString('en-IN')}`;
 }
 
-function computeMargin(fee: number | null | undefined, clientCharge: number | null | undefined) {
+function computeMargin(
+  fee: number | null | undefined,
+  clientCharge: number | null | undefined
+) {
   if (fee === null || fee === undefined) return null;
   if (clientCharge === null || clientCharge === undefined) return null;
   const margin = clientCharge - fee;
-  const pct = clientCharge > 0 ? Math.round((margin / clientCharge) * 100) : null;
+  const pct =
+    clientCharge > 0 ? Math.round((margin / clientCharge) * 100) : null;
   return { margin, pct };
 }
 
@@ -123,7 +129,7 @@ export default function LiaisonsContent() {
     if (serviceFilter) {
       const f = serviceFilter.toLowerCase();
       list = list.filter((l) =>
-        (l.services ?? []).some((s) => s.name.trim().toLowerCase() === f),
+        (l.services ?? []).some((s) => s.name.trim().toLowerCase() === f)
       );
     }
     if (searchQuery.trim()) {
@@ -135,7 +141,7 @@ export default function LiaisonsContent() {
           (l.alt_phone && l.alt_phone.includes(q)) ||
           (l.office_area && l.office_area.toLowerCase().includes(q)) ||
           (l.notes && l.notes.toLowerCase().includes(q)) ||
-          (l.services ?? []).some((s) => s.name.toLowerCase().includes(q)),
+          (l.services ?? []).some((s) => s.name.toLowerCase().includes(q))
       );
     }
     return list;
@@ -186,19 +192,19 @@ export default function LiaisonsContent() {
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by name, service, area, phone..."
-            className="pl-9 bg-slate-900/60 border-slate-800 text-sm text-white placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
+            className="focus-visible:ring-primary border-slate-800 bg-slate-900/60 pl-9 text-sm text-white placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-offset-0"
           />
         </div>
         <Button
           onClick={openAdd}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-9 gap-1.5 cursor-pointer px-4 sm:ml-auto"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground h-9 cursor-pointer gap-1.5 px-4 text-xs font-bold sm:ml-auto"
         >
           <Plus className="size-3.5" />
           Add Liaison
@@ -211,10 +217,10 @@ export default function LiaisonsContent() {
           <button
             type="button"
             onClick={() => setServiceFilter(null)}
-            className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
+            className={`cursor-pointer rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors ${
               serviceFilter === null
                 ? 'border-primary/40 bg-primary/10 text-white'
-                : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:text-white hover:border-slate-700'
+                : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:border-slate-700 hover:text-white'
             }`}
           >
             All services
@@ -224,10 +230,10 @@ export default function LiaisonsContent() {
               key={s}
               type="button"
               onClick={() => setServiceFilter(serviceFilter === s ? null : s)}
-              className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
+              className={`cursor-pointer rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors ${
                 serviceFilter === s
                   ? 'border-primary/40 bg-primary/10 text-white'
-                  : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:text-white hover:border-slate-700'
+                  : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:border-slate-700 hover:text-white'
               }`}
             >
               {s}
@@ -242,12 +248,12 @@ export default function LiaisonsContent() {
           <ConvoRealLoader size={24} label="Loading liaisons" />
         </div>
       ) : filteredLiaisons.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-slate-800 rounded-xl bg-slate-900/20 max-w-lg mx-auto mt-4">
-          <Landmark className="size-12 mx-auto text-slate-700 mb-4 opacity-45" />
-          <h4 className="text-sm font-semibold text-white mb-1">
+        <div className="mx-auto mt-4 max-w-lg rounded-xl border border-dashed border-slate-800 bg-slate-900/20 py-16 text-center">
+          <Landmark className="mx-auto mb-4 size-12 text-slate-700 opacity-45" />
+          <h4 className="mb-1 text-sm font-semibold text-white">
             {liaisons.length === 0 ? 'No liaisons yet' : 'No matches'}
           </h4>
-          <p className="text-xs text-slate-400 max-w-xs mx-auto mb-4">
+          <p className="mx-auto mb-4 max-w-xs text-xs text-slate-400">
             {liaisons.length === 0
               ? 'Add the people who handle khata, EC, registration and other government work, with the fees they quoted.'
               : 'Try a different search or clear the service filter.'}
@@ -255,7 +261,7 @@ export default function LiaisonsContent() {
           {liaisons.length === 0 && (
             <Button
               onClick={openAdd}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-8 gap-1.5 cursor-pointer px-4"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 cursor-pointer gap-1.5 px-4 text-xs font-bold"
             >
               <Plus className="size-3.5" />
               Add your first liaison
@@ -263,11 +269,11 @@ export default function LiaisonsContent() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredLiaisons.map((liaison) => (
             <div
               key={liaison.id}
-              className={`flex flex-col rounded-xl border bg-slate-900/40 overflow-hidden transition-all duration-300 ${
+              className={`flex flex-col overflow-hidden rounded-xl border bg-slate-900/40 transition-all duration-300 ${
                 liaison.is_active
                   ? 'border-slate-800/80 hover:border-slate-700/80'
                   : 'border-slate-800/50 opacity-60'
@@ -275,34 +281,34 @@ export default function LiaisonsContent() {
             >
               {/* Identity */}
               <div className="flex items-start gap-3 p-4 pb-3">
-                <Avatar className="size-10 border border-slate-800 shrink-0">
+                <Avatar className="size-10 shrink-0 border border-slate-800">
                   <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                     {getInitials(liaison.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-white truncate">
+                    <h3 className="truncate text-sm font-semibold text-white">
                       {liaison.name}
                     </h3>
                     {!liaison.is_active && (
-                      <span className="inline-flex items-center rounded-full border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-[9px] uppercase tracking-wider font-semibold text-slate-400 shrink-0">
+                      <span className="inline-flex shrink-0 items-center rounded-full border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-[9px] font-semibold tracking-wider text-slate-400 uppercase">
                         Inactive
                       </span>
                     )}
                   </div>
                   {liaison.office_area && (
-                    <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5 truncate">
+                    <div className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-slate-400">
                       <Landmark className="size-3 shrink-0" />
                       <span className="truncate">{liaison.office_area}</span>
                     </div>
                   )}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px]">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
                     {liaison.phone && (
                       <>
                         <a
                           href={`tel:${liaison.phone}`}
-                          className="flex items-center gap-1 text-slate-300 hover:text-primary transition-colors"
+                          className="hover:text-primary flex items-center gap-1 text-slate-300 transition-colors"
                         >
                           <Phone className="size-3" />
                           {liaison.phone}
@@ -312,7 +318,7 @@ export default function LiaisonsContent() {
                           target="_blank"
                           rel="noopener noreferrer"
                           aria-label={`WhatsApp ${liaison.name}`}
-                          className="flex items-center gap-1 text-emerald-400/80 hover:text-emerald-300 transition-colors"
+                          className="flex items-center gap-1 text-emerald-400/80 transition-colors hover:text-emerald-300"
                         >
                           <MessageSquare className="size-3" />
                           WhatsApp
@@ -322,7 +328,7 @@ export default function LiaisonsContent() {
                     {liaison.alt_phone && (
                       <a
                         href={`tel:${liaison.alt_phone}`}
-                        className="flex items-center gap-1 text-slate-400 hover:text-primary transition-colors"
+                        className="hover:text-primary flex items-center gap-1 text-slate-400 transition-colors"
                       >
                         <Phone className="size-3" />
                         {liaison.alt_phone}
@@ -331,7 +337,7 @@ export default function LiaisonsContent() {
                     {liaison.email && (
                       <a
                         href={`mailto:${liaison.email}`}
-                        className="flex items-center gap-1 text-slate-400 hover:text-primary transition-colors truncate"
+                        className="hover:text-primary flex items-center gap-1 truncate text-slate-400 transition-colors"
                       >
                         <Mail className="size-3 shrink-0" />
                         <span className="truncate">{liaison.email}</span>
@@ -344,46 +350,61 @@ export default function LiaisonsContent() {
               {/* Services & fees */}
               <div className="flex-1 px-4">
                 {(liaison.services ?? []).length === 0 ? (
-                  <p className="text-[11px] text-slate-500 border-t border-slate-800/80 pt-3">
+                  <p className="border-t border-slate-800/80 pt-3 text-[11px] text-slate-500">
                     No services recorded.
                   </p>
                 ) : (
-                  <ul className="border-t border-slate-800/80 pt-2 divide-y divide-slate-800/50">
+                  <ul className="divide-y divide-slate-800/50 border-t border-slate-800/80 pt-2">
                     {liaison.services.map((service, i) => {
                       const hasCharge =
-                        service.client_charge !== null && service.client_charge !== undefined;
-                      const m = computeMargin(service.fee, service.client_charge);
+                        service.client_charge !== null &&
+                        service.client_charge !== undefined;
+                      const m = computeMargin(
+                        service.fee,
+                        service.client_charge
+                      );
                       return (
-                        <li key={i} className="flex items-start justify-between gap-3 py-1.5">
-                          <span className="text-xs text-slate-300 min-w-0">
+                        <li
+                          key={i}
+                          className="flex items-start justify-between gap-3 py-1.5"
+                        >
+                          <span className="min-w-0 text-xs text-slate-300">
                             {service.name}
                             {service.fee_note && (
-                              <span className="block text-[10px] text-slate-500 mt-0.5">
+                              <span className="mt-0.5 block text-[10px] text-slate-500">
                                 {service.fee_note}
                               </span>
                             )}
                           </span>
-                          <span className="text-right shrink-0">
+                          <span className="shrink-0 text-right">
                             {/* Client-facing charge leads; the liaison's cut and
                                 margin sit under it so quoting stays one glance. */}
                             <span
                               className={`block text-xs font-bold ${
-                                hasCharge || (service.fee !== null && service.fee !== undefined)
+                                hasCharge ||
+                                (service.fee !== null &&
+                                  service.fee !== undefined)
                                   ? 'text-primary'
-                                  : 'text-slate-500 font-medium'
+                                  : 'font-medium text-slate-500'
                               }`}
                             >
-                              {hasCharge ? formatFee(service.client_charge) : formatFee(service.fee)}
+                              {hasCharge
+                                ? formatFee(service.client_charge)
+                                : formatFee(service.fee)}
                             </span>
-                            {hasCharge && service.fee !== null && service.fee !== undefined && (
-                              <span className="block text-[10px] text-slate-500 mt-0.5">
-                                Pay {formatFee(service.fee)}
-                              </span>
-                            )}
+                            {hasCharge &&
+                              service.fee !== null &&
+                              service.fee !== undefined && (
+                                <span className="mt-0.5 block text-[10px] text-slate-500">
+                                  Pay {formatFee(service.fee)}
+                                </span>
+                              )}
                             {m && (
                               <span
-                                className={`block text-[10px] font-semibold mt-0.5 ${
-                                  m.margin < 0 ? 'text-red-400' : 'text-emerald-400'
+                                className={`mt-0.5 block text-[10px] font-semibold ${
+                                  m.margin < 0
+                                    ? 'text-red-400'
+                                    : 'text-emerald-400'
                                 }`}
                               >
                                 {formatMargin(m.margin, m.pct)}
@@ -399,18 +420,18 @@ export default function LiaisonsContent() {
 
               {/* Notes */}
               {liaison.notes && (
-                <p className="px-4 pt-2 text-[11px] text-slate-500 line-clamp-2 whitespace-pre-wrap">
+                <p className="line-clamp-2 px-4 pt-2 text-[11px] whitespace-pre-wrap text-slate-500">
                   {liaison.notes}
                 </p>
               )}
 
               {/* Actions */}
-              <div className="flex justify-end gap-2 border-t border-slate-800/80 p-3 mt-3">
+              <div className="mt-3 flex justify-end gap-2 border-t border-slate-800/80 p-3">
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => openLogJob(liaison)}
-                  className="h-7 px-2 text-[10px] text-slate-400 hover:text-white hover:bg-slate-800 gap-1 cursor-pointer mr-auto"
+                  className="mr-auto h-7 cursor-pointer gap-1 px-2 text-[10px] text-slate-400 hover:bg-slate-800 hover:text-white"
                 >
                   <Briefcase className="size-3" />
                   Log job
@@ -419,7 +440,7 @@ export default function LiaisonsContent() {
                   size="sm"
                   variant="ghost"
                   onClick={() => openEdit(liaison)}
-                  className="h-7 px-2 text-[10px] text-slate-400 hover:text-white hover:bg-slate-800 gap-1 cursor-pointer"
+                  className="h-7 cursor-pointer gap-1 px-2 text-[10px] text-slate-400 hover:bg-slate-800 hover:text-white"
                 >
                   <Edit className="size-3" />
                   Edit
@@ -428,7 +449,7 @@ export default function LiaisonsContent() {
                   size="sm"
                   variant="ghost"
                   onClick={() => confirmDelete(liaison)}
-                  className="h-7 px-2 text-[10px] text-slate-400 hover:text-red-400 hover:bg-slate-800 gap-1 cursor-pointer"
+                  className="h-7 cursor-pointer gap-1 px-2 text-[10px] text-slate-400 hover:bg-slate-800 hover:text-red-400"
                 >
                   <Trash2 className="size-3" />
                   Delete
@@ -459,17 +480,19 @@ export default function LiaisonsContent() {
 
       {/* Delete Confirmation */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-sm">
+        <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-white">Delete Liaison</DialogTitle>
             <DialogDescription className="text-slate-400">
               Are you sure you want to delete{' '}
-              <span className="text-slate-200 font-medium">{deleteTarget?.name}</span>? Their
-              services, fee details, and job &amp; payment history will be removed. This
-              action cannot be undone.
+              <span className="font-medium text-slate-200">
+                {deleteTarget?.name}
+              </span>
+              ? Their services, fee details, and job &amp; payment history will
+              be removed. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="bg-slate-900 border-slate-700">
+          <DialogFooter className="border-slate-700 bg-slate-900">
             <Button
               variant="outline"
               onClick={() => setDeleteConfirmOpen(false)}
@@ -477,7 +500,11 @@ export default function LiaisonsContent() {
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
               {deleting && <Loader2 className="size-4 animate-spin" />}
               Delete
             </Button>

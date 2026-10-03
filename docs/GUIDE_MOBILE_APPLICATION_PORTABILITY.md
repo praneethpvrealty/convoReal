@@ -7,10 +7,10 @@ app (see [`mobile-app-implementation-plan.md`](./mobile-app-implementation-plan.
 ## TL;DR
 
 The helper is deliberately split into a **platform-neutral brain** and a **thin
-web renderer**. Everything intelligent — the knowledge base, tour *content*,
+web renderer**. Everything intelligent — the knowledge base, tour _content_,
 intent matching, proactive-nudge rules, and the self-learning answer cache — is
 either server-side or pure TypeScript and **ports to mobile with zero or near-zero
-change**. Only the tour *spotlight rendering and element targeting* is built on
+change**. Only the tour _spotlight rendering and element targeting_ is built on
 browser DOM APIs and must be reimplemented natively. That's ~2 files' worth of
 logic, and the concepts map one-to-one to React Native primitives.
 
@@ -19,20 +19,20 @@ parts are shared automatically across web and mobile.
 
 ## The portability boundary
 
-| Layer | File(s) | Mobile status |
-|---|---|---|
-| Chat + tour-routing API | `src/app/api/copilot/route.ts` | ✅ Reuse as-is (HTTP JSON) |
-| Nudges API | `src/app/api/copilot/nudges/route.ts` | ✅ Reuse as-is |
-| Feedback API | `src/app/api/copilot/feedback/route.ts` | ✅ Reuse as-is |
-| Self-learning cache + pgvector | `src/lib/copilot/qa-cache.ts`, migration 109 | ✅ Server-side; web + mobile share one learning store |
-| Knowledge base | `src/lib/copilot/knowledge.ts` | ✅ Server-side; single source of truth |
-| Intent matcher | `src/lib/copilot/intent.ts` | ✅ Runs server-side inside the API |
-| Nudge rules | `src/lib/copilot/nudges.ts` | ✅ Server-side |
-| Tour **registry** (steps, copy, order) | `src/lib/copilot/tours.ts` | ✅ Reuse as a shared contract (read fields abstractly — see below) |
-| Tour **engine** (state machine) | `src/components/copilot/copilot-context.tsx` | ♻️ Reimplement natively |
-| Spotlight **overlay** (cutout + tooltip) | `src/components/copilot/tour-overlay.tsx` | ♻️ Reimplement natively |
-| `data-tour` attributes on components | sidebar, contacts, inventory, etc. | ♻️ Re-attach as component refs |
-| Floating button, chat panel, nudge bubble UI | `copilot-widget.tsx`, `copilot-panel.tsx` | ♻️ Rebuild (standard web→native UI work) |
+| Layer                                        | File(s)                                      | Mobile status                                                      |
+| -------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------ |
+| Chat + tour-routing API                      | `src/app/api/copilot/route.ts`               | ✅ Reuse as-is (HTTP JSON)                                         |
+| Nudges API                                   | `src/app/api/copilot/nudges/route.ts`        | ✅ Reuse as-is                                                     |
+| Feedback API                                 | `src/app/api/copilot/feedback/route.ts`      | ✅ Reuse as-is                                                     |
+| Self-learning cache + pgvector               | `src/lib/copilot/qa-cache.ts`, migration 109 | ✅ Server-side; web + mobile share one learning store              |
+| Knowledge base                               | `src/lib/copilot/knowledge.ts`               | ✅ Server-side; single source of truth                             |
+| Intent matcher                               | `src/lib/copilot/intent.ts`                  | ✅ Runs server-side inside the API                                 |
+| Nudge rules                                  | `src/lib/copilot/nudges.ts`                  | ✅ Server-side                                                     |
+| Tour **registry** (steps, copy, order)       | `src/lib/copilot/tours.ts`                   | ✅ Reuse as a shared contract (read fields abstractly — see below) |
+| Tour **engine** (state machine)              | `src/components/copilot/copilot-context.tsx` | ♻️ Reimplement natively                                            |
+| Spotlight **overlay** (cutout + tooltip)     | `src/components/copilot/tour-overlay.tsx`    | ♻️ Reimplement natively                                            |
+| `data-tour` attributes on components         | sidebar, contacts, inventory, etc.           | ♻️ Re-attach as component refs                                     |
+| Floating button, chat panel, nudge bubble UI | `copilot-widget.tsx`, `copilot-panel.tsx`    | ♻️ Rebuild (standard web→native UI work)                           |
 
 "Reimplement/rebuild" here is the same work any web→native port requires for UI —
 it is **not** rework of business logic.
@@ -53,8 +53,8 @@ Everything else in the helper avoids the DOM entirely, which is why it travels.
 
 ## Native reimplementation blueprint (Expo / React Native)
 
-The concepts map directly. A mobile engineer rebuilds the *mechanism*, not the
-*design*:
+The concepts map directly. A mobile engineer rebuilds the _mechanism_, not the
+_design_:
 
 **1. Target registry instead of `data-tour` attributes.**
 Web resolves a step's `target` string (e.g. `"add-contact"`) to a DOM node. Native
@@ -116,7 +116,7 @@ native client unchanged — no copilot-specific auth work.
 
 - **Don't** reimplement the knowledge base, intent matcher, or nudge rules on the
   device — they run inside the API. The mobile app sends `{ message, pathname,
-  history }` and renders `{ reply, tourId?, navigateTo?, cached?, cacheId? }`.
+history }` and renders `{ reply, tourId?, navigateTo?, cached?, cacheId? }`.
   (`pathname` can be the current screen id.)
 - **Don't** stand up a separate answer cache. The self-learning store is global
   and server-side, so mobile questions warm the same cache web users benefit from,

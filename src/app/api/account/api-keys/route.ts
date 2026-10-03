@@ -17,17 +17,21 @@
 // which stay on Supabase sessions.
 // ============================================================
 
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from "@/lib/auth/account";
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import {
   API_KEY_SCOPES,
   type ApiKeyScope,
   generateApiKey,
   isApiKeyScope,
-} from "@/lib/auth/api-keys";
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
-import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
+} from '@/lib/auth/api-keys';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
+import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 
 const MAX_NAME_LEN = 80;
 const MAX_LIVE_KEYS = 20;
@@ -37,21 +41,24 @@ const MAX_EXPIRY_DAYS = 3650;
  *  never useful to a client and there is no reason to put it on the
  *  wire. */
 const KEY_COLUMNS =
-  "id, name, key_prefix, scopes, last_used_at, expires_at, revoked_at, created_at, created_by_user_id";
+  'id, name, key_prefix, scopes, last_used_at, expires_at, revoked_at, created_at, created_by_user_id';
 
 export async function GET() {
   try {
-    const ctx = await requireRole("admin");
+    const ctx = await requireRole('admin');
 
     const { data, error } = await ctx.supabase
-      .from("account_api_keys")
+      .from('account_api_keys')
       .select(KEY_COLUMNS)
-      .eq("account_id", ctx.accountId)
-      .order("created_at", { ascending: false });
+      .eq('account_id', ctx.accountId)
+      .order('created_at', { ascending: false });
 
     if (error) {
-      console.error("[GET /api/account/api-keys] fetch error:", error);
-      return NextResponse.json({ error: "Failed to load API keys" }, { status: 500 });
+      console.error('[GET /api/account/api-keys] fetch error:', error);
+      return NextResponse.json(
+        { error: 'Failed to load API keys' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ keys: data ?? [] });
@@ -62,16 +69,19 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const ctx = await requireRole("admin");
+    const ctx = await requireRole('admin');
 
-    const limit = await checkRateLimit(`admin:apiKeyCreate:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const limit = await checkRateLimit(
+      `admin:apiKeyCreate:${ctx.userId}`,
+      RATE_LIMITS.adminAction
+    );
     if (!limit.success) return rateLimitResponse(limit);
 
     // "API access & outbound webhooks" is an Agency-plan feature (see
     // PLAN_CONFIG). Gating creation as well as use means an admin on a
     // lower plan finds out here, rather than after wiring up a client
     // that then 402s on every call.
-    const gate = await checkPlanLimit(ctx, "api_access");
+    const gate = await checkPlanLimit(ctx, 'api_access');
     if (!gate.allowed) return gateResponse(gate);
 
     const body = (await request.json().catch(() => null)) as {
@@ -80,46 +90,47 @@ export async function POST(request: Request) {
       expiresInDays?: unknown;
     } | null;
 
-    const rawName = typeof body?.name === "string" ? body.name.trim() : "";
+    const rawName = typeof body?.name === 'string' ? body.name.trim() : '';
     if (!rawName) {
       return NextResponse.json(
         {
-          error: "'name' is required — label the key with where it will be used",
+          error:
+            "'name' is required — label the key with where it will be used",
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
     if (rawName.length > MAX_NAME_LEN) {
       return NextResponse.json(
         { error: `Name must be ${MAX_NAME_LEN} characters or fewer` },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     // Default to read-only. A key that can write has to say so.
-    let scopes: ApiKeyScope[] = ["read"];
+    let scopes: ApiKeyScope[] = ['read'];
     if (body?.scopes !== undefined) {
       if (!Array.isArray(body.scopes) || body.scopes.length === 0) {
         return NextResponse.json(
           {
-            error: `'scopes' must be a non-empty array of ${API_KEY_SCOPES.join(", ")}`,
+            error: `'scopes' must be a non-empty array of ${API_KEY_SCOPES.join(', ')}`,
           },
-          { status: 400 },
+          { status: 400 }
         );
       }
       const invalid = body.scopes.filter((s) => !isApiKeyScope(s));
       if (invalid.length > 0) {
         return NextResponse.json(
           {
-            error: `Unknown scope(s): ${invalid.join(", ")}. Valid scopes: ${API_KEY_SCOPES.join(", ")}`,
+            error: `Unknown scope(s): ${invalid.join(', ')}. Valid scopes: ${API_KEY_SCOPES.join(', ')}`,
           },
-          { status: 400 },
+          { status: 400 }
         );
       }
       // A write key implies read; storing both keeps the scope check
       // in withApiKeyAuth a plain membership test.
       const requested = new Set(body.scopes as ApiKeyScope[]);
-      requested.add("read");
+      requested.add('read');
       scopes = API_KEY_SCOPES.filter((s) => requested.has(s));
     }
 
@@ -129,35 +140,38 @@ export async function POST(request: Request) {
       if (!Number.isFinite(days) || days <= 0 || days > MAX_EXPIRY_DAYS) {
         return NextResponse.json(
           { error: `'expiresInDays' must be between 1 and ${MAX_EXPIRY_DAYS}` },
-          { status: 400 },
+          { status: 400 }
         );
       }
       expiresAt = new Date(Date.now() + days * 86_400_000).toISOString();
     }
 
     const { count, error: countErr } = await ctx.supabase
-      .from("account_api_keys")
-      .select("id", { count: "exact", head: true })
-      .eq("account_id", ctx.accountId)
-      .is("revoked_at", null);
+      .from('account_api_keys')
+      .select('id', { count: 'exact', head: true })
+      .eq('account_id', ctx.accountId)
+      .is('revoked_at', null);
 
     if (countErr) {
-      console.error("[POST /api/account/api-keys] count error:", countErr);
-      return NextResponse.json({ error: "Failed to create API key" }, { status: 500 });
+      console.error('[POST /api/account/api-keys] count error:', countErr);
+      return NextResponse.json(
+        { error: 'Failed to create API key' },
+        { status: 500 }
+      );
     }
     if ((count ?? 0) >= MAX_LIVE_KEYS) {
       return NextResponse.json(
         {
           error: `This workspace already has ${MAX_LIVE_KEYS} active API keys. Revoke one before creating another.`,
         },
-        { status: 409 },
+        { status: 409 }
       );
     }
 
     const key = generateApiKey();
 
     const { data, error } = await ctx.supabase
-      .from("account_api_keys")
+      .from('account_api_keys')
       .insert({
         account_id: ctx.accountId,
         created_by_user_id: ctx.userId,
@@ -171,8 +185,11 @@ export async function POST(request: Request) {
       .single();
 
     if (error || !data) {
-      console.error("[POST /api/account/api-keys] insert error:", error);
-      return NextResponse.json({ error: "Failed to create API key" }, { status: 500 });
+      console.error('[POST /api/account/api-keys] insert error:', error);
+      return NextResponse.json(
+        { error: 'Failed to create API key' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(
@@ -181,7 +198,7 @@ export async function POST(request: Request) {
         // Plaintext payload — visible to the admin exactly once.
         secret: key.secret,
       },
-      { status: 201 },
+      { status: 201 }
     );
   } catch (err) {
     return toErrorResponse(err);

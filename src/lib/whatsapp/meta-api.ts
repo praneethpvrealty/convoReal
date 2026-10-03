@@ -9,59 +9,62 @@
  * instead of a runtime rejection from Meta.
  */
 
-const META_API_VERSION = 'v21.0'
-export const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`
+const META_API_VERSION = 'v21.0';
+export const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 
 export interface MetaSendResult {
-  messageId: string
+  messageId: string;
 }
 
 export interface MetaPhoneInfo {
-  id: string
+  id: string;
   /** Not available on Meta test/sandbox numbers — falls back to the phone_number_id. */
-  display_phone_number: string
-  verified_name?: string
-  quality_rating?: string
+  display_phone_number: string;
+  verified_name?: string;
+  quality_rating?: string;
 }
 
 interface MetaErrorResponse {
   error?: {
-    message?: string
-    code?: number
-    type?: string
-    error_user_title?: string
-    error_user_msg?: string
+    message?: string;
+    code?: number;
+    type?: string;
+    error_user_title?: string;
+    error_user_msg?: string;
     error_data?: {
-      details?: string
-    }
-  }
+      details?: string;
+    };
+  };
 }
 
-async function throwMetaError(response: Response, fallback: string): Promise<never> {
-  let message = fallback
+async function throwMetaError(
+  response: Response,
+  fallback: string
+): Promise<never> {
+  let message = fallback;
   try {
-    const data = (await response.json()) as MetaErrorResponse
+    const data = (await response.json()) as MetaErrorResponse;
     if (data.error?.message) {
       message = data.error.code
         ? `[Error ${data.error.code}] ${data.error.message}`
-        : data.error.message
-      const userMsg = data.error.error_user_msg
-      const userTitle = data.error.error_user_title
+        : data.error.message;
+      const userMsg = data.error.error_user_msg;
+      const userTitle = data.error.error_user_title;
 
       if (userMsg) {
-        message += `: ${userMsg}`
+        message += `: ${userMsg}`;
       }
       if (userTitle) {
-        message += ` (${userTitle})`
+        message += ` (${userTitle})`;
       }
       if (data.error.error_data?.details) {
-        message += ` (Details: ${data.error.error_data.details})`
+        message += ` (Details: ${data.error.error_data.details})`;
       }
     }
   } catch {
     // response body wasn't JSON — keep the fallback
   }
-  throw new Error(message)
+  throw new Error(message);
 }
 
 // ============================================================
@@ -69,12 +72,12 @@ async function throwMetaError(response: Response, fallback: string): Promise<nev
 // ============================================================
 
 export interface MetaErrorInfo {
-  code: number
-  title: string
-  message: string
-  userMessage: string
-  suggestedActions: string[]
-  isRetryable: boolean
+  code: number;
+  title: string;
+  message: string;
+  userMessage: string;
+  suggestedActions: string[];
+  isRetryable: boolean;
 }
 
 /**
@@ -83,11 +86,11 @@ export interface MetaErrorInfo {
  */
 export function parseMetaErrorInfo(error: unknown): MetaErrorInfo {
   const errorMsg = error instanceof Error ? error.message : String(error);
-  
+
   // Extract error code from message (e.g., "[Error 131026]" or "(#131026)")
   const codeMatch = errorMsg.match(/(?:Error|error|#)\s*(\d{5,6})/);
   const code = codeMatch ? parseInt(codeMatch[1]) : 0;
-  
+
   // Default error info
   const defaultInfo: MetaErrorInfo = {
     code,
@@ -97,101 +100,108 @@ export function parseMetaErrorInfo(error: unknown): MetaErrorInfo {
     suggestedActions: [
       'Check if the recipient is available on WhatsApp',
       'Verify the phone number is correct',
-      'Try again in a few minutes'
+      'Try again in a few minutes',
     ],
-    isRetryable: true
+    isRetryable: true,
   };
-  
+
   // Map specific error codes to user-friendly messages
   const errorMap: Record<number, Partial<MetaErrorInfo>> = {
     // Message Undeliverable - broad bucket error
     131026: {
       title: 'Message Undeliverable',
-      userMessage: 'This message could not be delivered. This can happen if the recipient is not on WhatsApp, has blocked your number, or is using an outdated WhatsApp version. If the contact has another number, make that one the primary and try again.',
+      userMessage:
+        'This message could not be delivered. This can happen if the recipient is not on WhatsApp, has blocked your number, or is using an outdated WhatsApp version. If the contact has another number, make that one the primary and try again.',
       suggestedActions: [
         'Verify the recipient has WhatsApp installed and is online',
         'Check if the phone number is correct and includes country code',
         'Ask the recipient to update WhatsApp to the latest version',
         'Ensure the recipient has accepted WhatsApp Terms of Service',
         'Try sending a simple text message to test connectivity',
-        'If issue persists, contact the recipient via another channel'
+        'If issue persists, contact the recipient via another channel',
       ],
-      isRetryable: false
+      isRetryable: false,
     },
-    
+
     // Marketing frequency cap
     131049: {
       title: 'WhatsApp Marketing Limit',
-      userMessage: 'WhatsApp temporarily limited marketing messages to this contact. Utility messages are unaffected.',
+      userMessage:
+        'WhatsApp temporarily limited marketing messages to this contact. Utility messages are unaffected.',
       suggestedActions: [
         'Wait at least 24 hours before trying this marketing message once',
         'A reply from the contact will reopen messaging sooner',
-        'Keep property alerts grouped into the daily digest'
+        'Keep property alerts grouped into the daily digest',
       ],
-      isRetryable: false
+      isRetryable: false,
     },
-    
+
     // Template not found
     132001: {
       title: 'Template Not Found',
-      userMessage: 'The message template does not exist on Meta or has been disabled.',
+      userMessage:
+        'The message template does not exist on Meta or has been disabled.',
       suggestedActions: [
         'Go to Settings > WhatsApp > Templates and click "Sync from Meta"',
         'Verify the template name is spelled correctly',
         'Check if the template was recently edited and needs re-sync',
-        'Create a new template if the old one was deleted'
+        'Create a new template if the old one was deleted',
       ],
-      isRetryable: false
+      isRetryable: false,
     },
-    
+
     // Template parameters mismatch
     132000: {
       title: 'Template Parameters Error',
-      userMessage: 'The template parameters do not match the template structure.',
+      userMessage:
+        'The template parameters do not match the template structure.',
       suggestedActions: [
         'Check that all required parameters are provided',
         'Verify parameter count matches template placeholders',
-        'Ensure parameter values are within character limits'
+        'Ensure parameter values are within character limits',
       ],
-      isRetryable: false
+      isRetryable: false,
     },
-    
+
     // Recipient not allowed (business-initiated message to non-opted-in user)
     131025: {
       title: 'Recipient Not Opted In',
-      userMessage: 'The recipient has not opted in to receive messages from your business.',
+      userMessage:
+        'The recipient has not opted in to receive messages from your business.',
       suggestedActions: [
         'Ensure the recipient has given explicit consent',
         'The recipient should message your business first',
-        'Use an opt-in form or process before sending messages'
+        'Use an opt-in form or process before sending messages',
       ],
-      isRetryable: false
+      isRetryable: false,
     },
-    
+
     // Message failed to send
     131047: {
       title: 'Session Expired',
-      userMessage: 'The 24-hour customer service window has expired. You need to use a template message.',
+      userMessage:
+        'The 24-hour customer service window has expired. You need to use a template message.',
       suggestedActions: [
         'Send a Utility or Marketing template message',
         'Wait for the customer to send a message first',
-        'Use the Templates feature in the composer'
+        'Use the Templates feature in the composer',
       ],
-      isRetryable: false
+      isRetryable: false,
     },
-    
+
     // Authentication template to India
     131021: {
       title: 'Authentication Not Supported in India',
-      userMessage: 'Authentication templates cannot be sent to Indian (+91) phone numbers.',
+      userMessage:
+        'Authentication templates cannot be sent to Indian (+91) phone numbers.',
       suggestedActions: [
         'Use SMS or email for OTP/verification in India',
         'Use a Utility template for non-authentication messages',
-        'Contact Meta support for India-specific guidance'
+        'Contact Meta support for India-specific guidance',
       ],
-      isRetryable: false
+      isRetryable: false,
     },
-    
+
     // Rate limit hit
     130429: {
       title: 'Rate Limit Exceeded',
@@ -199,25 +209,26 @@ export function parseMetaErrorInfo(error: unknown): MetaErrorInfo {
       suggestedActions: [
         'Wait a few minutes before trying again',
         'Reduce the frequency of messages',
-        'Implement exponential backoff for retries'
+        'Implement exponential backoff for retries',
       ],
-      isRetryable: true
+      isRetryable: true,
     },
-    
+
     // Temporary ban
     368: {
       title: 'Account Temporarily Restricted',
-      userMessage: 'Your WhatsApp Business account has been temporarily restricted due to policy violations.',
+      userMessage:
+        'Your WhatsApp Business account has been temporarily restricted due to policy violations.',
       suggestedActions: [
         'Check your email for details from Meta',
         'Review WhatsApp Business Policy',
         'Wait for the restriction to be lifted',
-        'Contact Meta Business Support if needed'
+        'Contact Meta Business Support if needed',
       ],
-      isRetryable: false
-    }
+      isRetryable: false,
+    },
   };
-  
+
   // Look up error code in map
   const mappedError = errorMap[code];
   if (mappedError) {
@@ -225,29 +236,32 @@ export function parseMetaErrorInfo(error: unknown): MetaErrorInfo {
       ...defaultInfo,
       ...mappedError,
       code,
-      message: errorMsg
+      message: errorMsg,
     };
   }
-  
+
   // Check for common error patterns in the message
-  if (errorMsg.includes('undeliverable') || errorMsg.includes('Undeliverable')) {
+  if (
+    errorMsg.includes('undeliverable') ||
+    errorMsg.includes('Undeliverable')
+  ) {
     return {
       ...defaultInfo,
       ...errorMap[131026],
       code: code || 131026,
-      message: errorMsg
+      message: errorMsg,
     };
   }
-  
+
   if (errorMsg.includes('rate limit') || errorMsg.includes('too many')) {
     return {
       ...defaultInfo,
       ...errorMap[130429],
       code: code || 130429,
-      message: errorMsg
+      message: errorMsg,
     };
   }
-  
+
   return defaultInfo;
 }
 
@@ -256,8 +270,8 @@ export function parseMetaErrorInfo(error: unknown): MetaErrorInfo {
 // ============================================================
 
 export interface VerifyPhoneNumberArgs {
-  phoneNumberId: string
-  accessToken: string
+  phoneNumberId: string;
+  accessToken: string;
 }
 
 /**
@@ -267,8 +281,8 @@ export interface VerifyPhoneNumberArgs {
 export async function verifyPhoneNumber(
   args: VerifyPhoneNumberArgs
 ): Promise<MetaPhoneInfo> {
-  const { phoneNumberId, accessToken } = args
-  const headers = { Authorization: `Bearer ${accessToken}` }
+  const { phoneNumberId, accessToken } = args;
+  const headers = { Authorization: `Bearer ${accessToken}` };
 
   // Step 1: fetch only `id` — this field always exists on both real and
   // test/sandbox numbers and proves the token + phone_number_id are valid.
@@ -276,37 +290,38 @@ export async function verifyPhoneNumber(
   // quality_rating) in the same call causes Meta to return #100
   // "Tried accessing nonexisting field" for test numbers, which would
   // block the entire config save.
-  const idUrl = `${META_API_BASE}/${phoneNumberId}?fields=id`
-  const idRes = await fetch(idUrl, { headers })
+  const idUrl = `${META_API_BASE}/${phoneNumberId}?fields=id`;
+  const idRes = await fetch(idUrl, { headers });
   if (!idRes.ok) {
-    await throwMetaError(idRes, `Meta API error: ${idRes.status}`)
+    await throwMetaError(idRes, `Meta API error: ${idRes.status}`);
   }
-  const { id } = (await idRes.json()) as { id: string }
+  const { id } = (await idRes.json()) as { id: string };
 
   // Step 2: best-effort — fetch all optional display fields in one call.
   // Test numbers don't expose these fields and Meta returns #100; we
   // swallow the error and fall back to safe defaults so saving still works.
-  let display_phone_number: string = phoneNumberId
-  let verified_name: string | undefined
-  let quality_rating: string | undefined
+  let display_phone_number: string = phoneNumberId;
+  let verified_name: string | undefined;
+  let quality_rating: string | undefined;
   try {
-    const extUrl = `${META_API_BASE}/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`
-    const extRes = await fetch(extUrl, { headers })
+    const extUrl = `${META_API_BASE}/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`;
+    const extRes = await fetch(extUrl, { headers });
     if (extRes.ok) {
       const ext = (await extRes.json()) as {
-        display_phone_number?: string
-        verified_name?: string
-        quality_rating?: string
-      }
-      if (ext.display_phone_number) display_phone_number = ext.display_phone_number
-      verified_name = ext.verified_name
-      quality_rating = ext.quality_rating
+        display_phone_number?: string;
+        verified_name?: string;
+        quality_rating?: string;
+      };
+      if (ext.display_phone_number)
+        display_phone_number = ext.display_phone_number;
+      verified_name = ext.verified_name;
+      quality_rating = ext.quality_rating;
     }
   } catch {
     // Swallow — test/sandbox numbers don't support these fields
   }
 
-  return { id, display_phone_number, verified_name, quality_rating }
+  return { id, display_phone_number, verified_name, quality_rating };
 }
 
 // ============================================================
@@ -335,32 +350,32 @@ export async function verifyPhoneNumber(
 // the helpers below treat that as success.
 
 export interface RegisterPhoneNumberArgs {
-  phoneNumberId: string
-  accessToken: string
+  phoneNumberId: string;
+  accessToken: string;
   /**
    * 6-digit PIN the user set in Meta WhatsApp Manager →
    * Two-step verification. If 2FA is not enabled on the number,
    * Meta rejects /register with a clear error and the user is
    * pointed at the right setting in the UI.
    */
-  pin: string
+  pin: string;
 }
 
 export interface RegisterPhoneNumberResult {
-  success: boolean
+  success: boolean;
   /**
    * True when Meta indicated the number was already registered to
    * THIS app — same outcome as a fresh registration from the
    * caller's POV, surfaced separately for logging clarity.
    */
-  alreadyRegistered: boolean
+  alreadyRegistered: boolean;
   /**
    * True when Meta rejected /register with "Unsupported post request" —
    * this is the expected response for test/sandbox phone numbers which
    * are pre-registered by Meta and don't support the /register endpoint.
    * Treat this as a successful save, not a user-actionable error.
    */
-  testNumberSkipped?: boolean
+  testNumberSkipped?: boolean;
 }
 
 /**
@@ -380,8 +395,8 @@ export interface RegisterPhoneNumberResult {
 export async function registerPhoneNumber(
   args: RegisterPhoneNumberArgs
 ): Promise<RegisterPhoneNumberResult> {
-  const { phoneNumberId, accessToken, pin } = args
-  const url = `${META_API_BASE}/${phoneNumberId}/register`
+  const { phoneNumberId, accessToken, pin } = args;
+  const url = `${META_API_BASE}/${phoneNumberId}/register`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -389,26 +404,28 @@ export async function registerPhoneNumber(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify({ messaging_product: 'whatsapp', pin }),
-  })
+  });
 
   if (response.ok) {
-    return { success: true, alreadyRegistered: false }
+    return { success: true, alreadyRegistered: false };
   }
 
   // Meta returns an error envelope with a code. Code 133005 + the
   // text "already registered" appears when the number is already
   // subscribed to this app — that's success from the caller's
   // perspective, surface it as such.
-  let data: { error?: { message?: string; code?: number; error_subcode?: number } } = {}
+  let data: {
+    error?: { message?: string; code?: number; error_subcode?: number };
+  } = {};
   try {
-    data = await response.json()
+    data = await response.json();
   } catch {
     /* keep empty */
   }
-  const message = data.error?.message ?? `Meta API error: ${response.status}`
+  const message = data.error?.message ?? `Meta API error: ${response.status}`;
 
   if (/already.*registered/i.test(message)) {
-    return { success: true, alreadyRegistered: true }
+    return { success: true, alreadyRegistered: true };
   }
 
   // Test/sandbox numbers return "Unsupported post request. Object with ID
@@ -416,24 +433,30 @@ export async function registerPhoneNumber(
   // does not support this operation." — /register is simply not available
   // for these numbers. Treat as a silent skip so the UI doesn't demand a
   // PIN retry for something that will never work.
-  if (/unsupported post request/i.test(message) || /does not support this operation/i.test(message)) {
-    return { success: true, alreadyRegistered: false, testNumberSkipped: true }
+  if (
+    /unsupported post request/i.test(message) ||
+    /does not support this operation/i.test(message)
+  ) {
+    return { success: true, alreadyRegistered: false, testNumberSkipped: true };
   }
 
   // 2-step verification is disabled on this number. The /register endpoint
   // requires 2FA to be enabled, but for test numbers and numbers already
   // subscribed via Embedded Signup this doesn't affect message flow at all.
   // Skip gracefully rather than blocking the save with an error.
-  if (/two.?factor authentication is not on/i.test(message) || /two.?step verification.*not.*enabled/i.test(message)) {
-    return { success: true, alreadyRegistered: false, testNumberSkipped: true }
+  if (
+    /two.?factor authentication is not on/i.test(message) ||
+    /two.?step verification.*not.*enabled/i.test(message)
+  ) {
+    return { success: true, alreadyRegistered: false, testNumberSkipped: true };
   }
 
-  throw new Error(message)
+  throw new Error(message);
 }
 
 export interface SubscribeWabaToAppArgs {
-  wabaId: string
-  accessToken: string
+  wabaId: string;
+  accessToken: string;
 }
 
 /**
@@ -443,28 +466,28 @@ export interface SubscribeWabaToAppArgs {
 export async function subscribeWabaToApp(
   args: SubscribeWabaToAppArgs
 ): Promise<void> {
-  const { wabaId, accessToken } = args
-  const url = `${META_API_BASE}/${wabaId}/subscribed_apps`
+  const { wabaId, accessToken } = args;
+  const url = `${META_API_BASE}/${wabaId}/subscribed_apps`;
   const response = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
-  })
+  });
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
 }
 
 export interface GetSubscribedAppsArgs {
-  wabaId: string
-  accessToken: string
+  wabaId: string;
+  accessToken: string;
 }
 
 export interface SubscribedApp {
   whatsapp_business_api_data?: {
-    id?: string
-    name?: string
-    link?: string
-  }
+    id?: string;
+    name?: string;
+    link?: string;
+  };
 }
 
 /**
@@ -475,16 +498,16 @@ export interface SubscribedApp {
 export async function getSubscribedApps(
   args: GetSubscribedAppsArgs
 ): Promise<SubscribedApp[]> {
-  const { wabaId, accessToken } = args
-  const url = `${META_API_BASE}/${wabaId}/subscribed_apps`
+  const { wabaId, accessToken } = args;
+  const url = `${META_API_BASE}/${wabaId}/subscribed_apps`;
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
-  })
+  });
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
-  const data = (await response.json()) as { data?: SubscribedApp[] }
-  return data.data ?? []
+  const data = (await response.json()) as { data?: SubscribedApp[] };
+  return data.data ?? [];
 }
 
 // ============================================================
@@ -492,29 +515,29 @@ export async function getSubscribedApps(
 // ============================================================
 
 export interface SendTextMessageArgs {
-  phoneNumberId: string
-  accessToken: string
-  to: string
-  text: string
+  phoneNumberId: string;
+  accessToken: string;
+  to: string;
+  text: string;
   /** Meta's message_id of the message being replied to. Adds a `context` field
    *  so WhatsApp renders the new message as a reply with a quote preview. */
-  contextMessageId?: string
+  contextMessageId?: string;
   /** 'group' addresses `to` as a group id rather than a phone number.
    *  Groups live on a newer Graph version — see groups-api.ts — so a
    *  group send is routed through that base. */
-  recipientType?: RecipientType
+  recipientType?: RecipientType;
 }
 
 /** Who a message is addressed to. Groups arrived with the 2026 Groups
  *  API; everything before it is 'individual'. */
-export type RecipientType = 'individual' | 'group'
+export type RecipientType = 'individual' | 'group';
 
 /** Groups do not exist on the version the rest of the client pins, so a
  *  group send has to go out on the newer one. */
-const META_GROUPS_API_BASE = 'https://graph.facebook.com/v23.0'
+const META_GROUPS_API_BASE = 'https://graph.facebook.com/v23.0';
 
 function sendBase(recipientType: RecipientType | undefined): string {
-  return recipientType === 'group' ? META_GROUPS_API_BASE : META_API_BASE
+  return recipientType === 'group' ? META_GROUPS_API_BASE : META_API_BASE;
 }
 
 /**
@@ -524,17 +547,24 @@ function sendBase(recipientType: RecipientType | undefined): string {
 export async function sendTextMessage(
   args: SendTextMessageArgs
 ): Promise<MetaSendResult> {
-  const { phoneNumberId, accessToken, to, text, contextMessageId, recipientType } = args
-  const url = `${sendBase(recipientType)}/${phoneNumberId}/messages`
+  const {
+    phoneNumberId,
+    accessToken,
+    to,
+    text,
+    contextMessageId,
+    recipientType,
+  } = args;
+  const url = `${sendBase(recipientType)}/${phoneNumberId}/messages`;
   const body: Record<string, unknown> = {
     messaging_product: 'whatsapp',
     recipient_type: recipientType ?? 'individual',
     to,
     type: 'text',
     text: { body: text },
-  }
+  };
   if (contextMessageId) {
-    body.context = { message_id: contextMessageId }
+    body.context = { message_id: contextMessageId };
   }
   const response = await fetch(url, {
     method: 'POST',
@@ -543,33 +573,33 @@ export async function sendTextMessage(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(body),
-  })
+  });
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
-  const data = await response.json()
-  return { messageId: data.messages[0].id }
+  const data = await response.json();
+  return { messageId: data.messages[0].id };
 }
 
 /** Audio is what a voice note goes out as — Meta renders an
  *  `audio` message as a playable clip, and as a push-to-talk bubble
  *  when the file is ogg/opus. It takes no caption. */
-export type MediaKind = 'image' | 'video' | 'document' | 'audio'
+export type MediaKind = 'image' | 'video' | 'document' | 'audio';
 
 export interface SendMediaMessageArgs {
-  phoneNumberId: string
-  accessToken: string
-  to: string
-  kind: MediaKind
+  phoneNumberId: string;
+  accessToken: string;
+  to: string;
+  kind: MediaKind;
   /** Public URL Meta fetches at send time. */
-  link: string
+  link: string;
   /** Optional caption — Meta caps at 1024 chars. Documents + images + videos all accept it. */
-  caption?: string
+  caption?: string;
   /** Document-only. Shown in the recipient's chat as the file name. Ignored for image/video. */
-  filename?: string
-  contextMessageId?: string
+  filename?: string;
+  contextMessageId?: string;
   /** Groups accept media; see sendTextMessage's note on the base URL. */
-  recipientType?: RecipientType
+  recipientType?: RecipientType;
 }
 
 /**
@@ -580,7 +610,7 @@ export interface SendMediaMessageArgs {
  * message id.
  */
 export async function sendMediaMessage(
-  args: SendMediaMessageArgs,
+  args: SendMediaMessageArgs
 ): Promise<MetaSendResult> {
   const {
     phoneNumberId,
@@ -592,15 +622,15 @@ export async function sendMediaMessage(
     filename,
     contextMessageId,
     recipientType,
-  } = args
-  if (!link) throw new Error('sendMediaMessage requires a link.')
-  const url = `${sendBase(recipientType)}/${phoneNumberId}/messages`
+  } = args;
+  if (!link) throw new Error('sendMediaMessage requires a link.');
+  const url = `${sendBase(recipientType)}/${phoneNumberId}/messages`;
 
-  const media: Record<string, unknown> = { link }
+  const media: Record<string, unknown> = { link };
   // Audio rejects a caption outright (Meta returns 100), so it is only
   // ever attached to the kinds that render one.
-  if (caption && kind !== 'audio') media.caption = caption
-  if (kind === 'document' && filename) media.filename = filename
+  if (caption && kind !== 'audio') media.caption = caption;
+  if (kind === 'document' && filename) media.filename = filename;
 
   const body: Record<string, unknown> = {
     messaging_product: 'whatsapp',
@@ -608,8 +638,8 @@ export async function sendMediaMessage(
     to,
     type: kind,
     [kind]: media,
-  }
-  if (contextMessageId) body.context = { message_id: contextMessageId }
+  };
+  if (contextMessageId) body.context = { message_id: contextMessageId };
 
   const response = await fetch(url, {
     method: 'POST',
@@ -618,52 +648,55 @@ export async function sendMediaMessage(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(body),
-  })
+  });
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
-  const data = await response.json()
-  return { messageId: data.messages[0].id }
+  const data = await response.json();
+  return { messageId: data.messages[0].id };
 }
 
-import type { MessageTemplate } from '@/types'
-import { storagePublicUrl } from '@/lib/storage/url'
-import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard'
+import type { MessageTemplate } from '@/types';
+import { storagePublicUrl } from '@/lib/storage/url';
+import {
+  isLocationGuarded,
+  localityLabel,
+} from '@/lib/inventory/location-guard';
 import {
   buildSendComponents,
   sanitizeParamText,
   type SendTimeParams,
-} from './template-send-builder'
+} from './template-send-builder';
 
 export interface SendTemplateMessageArgs {
-  phoneNumberId: string
-  accessToken: string
-  to: string
-  templateName: string
-  language?: string
+  phoneNumberId: string;
+  accessToken: string;
+  to: string;
+  templateName: string;
+  language?: string;
   /**
    * Legacy body-only params. Kept for backward compat with callers
    * that haven't migrated to the structured `template` + `messageParams`
    * pair below. New callers should pass `template` so media headers
    * and URL buttons land on the send.
    */
-  params?: string[]
+  params?: string[];
   /**
    * The template row from message_templates. When provided, the helper
    * builds the full components array (header + body + buttons) via
    * buildSendComponents — that's the only way image/video/document
    * headers and URL-with-variable buttons actually reach the recipient.
    */
-  template?: MessageTemplate
+  template?: MessageTemplate;
   /**
    * Structured per-send values. Body variables go in `body`; header
    * text variables in `headerText`; media overrides in
    * `headerMediaUrl` / `headerMediaId`; URL/COPY_CODE button values
    * in `buttonParams` keyed by index.
    */
-  messageParams?: SendTimeParams
+  messageParams?: SendTimeParams;
   /** Meta's message_id of the message being replied to. */
-  contextMessageId?: string
+  contextMessageId?: string;
 }
 
 /**
@@ -690,13 +723,13 @@ export async function sendTemplateMessage(
     template,
     messageParams,
     contextMessageId,
-  } = args
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  } = args;
+  const url = `${META_API_BASE}/${phoneNumberId}/messages`;
 
   const templatePayload: Record<string, unknown> = {
     name: templateName,
     language: { code: language },
-  }
+  };
 
   if (template) {
     const components = buildSendComponents(template, {
@@ -707,36 +740,41 @@ export async function sendTemplateMessage(
       headerMediaUrl: messageParams?.headerMediaUrl,
       headerMediaId: messageParams?.headerMediaId,
       buttonParams: messageParams?.buttonParams,
-    })
+    });
     if (components.length > 0) {
-      templatePayload.components = components
+      templatePayload.components = components;
     }
   } else if (messageParams || (params && params.length > 0)) {
-    const components: Record<string, unknown>[] = []
-    const bodyParams = messageParams?.body ?? params
+    const components: Record<string, unknown>[] = [];
+    const bodyParams = messageParams?.body ?? params;
     if (bodyParams && bodyParams.length > 0) {
       components.push({
         type: 'body',
-        parameters: bodyParams.map((p) => ({ type: 'text', text: sanitizeParamText(String(p)) })),
-      })
+        parameters: bodyParams.map((p) => ({
+          type: 'text',
+          text: sanitizeParamText(String(p)),
+        })),
+      });
     }
     if (messageParams?.buttonParams) {
-      Object.entries(messageParams.buttonParams).forEach(([idxStr, btnText]) => {
-        components.push({
-          type: 'button',
-          sub_type: 'url',
-          index: idxStr,
-          parameters: [
-            {
-              type: 'text',
-              text: btnText,
-            },
-          ],
-        })
-      })
+      Object.entries(messageParams.buttonParams).forEach(
+        ([idxStr, btnText]) => {
+          components.push({
+            type: 'button',
+            sub_type: 'url',
+            index: idxStr,
+            parameters: [
+              {
+                type: 'text',
+                text: btnText,
+              },
+            ],
+          });
+        }
+      );
     }
     if (components.length > 0) {
-      templatePayload.components = components
+      templatePayload.components = components;
     }
   }
 
@@ -746,9 +784,9 @@ export async function sendTemplateMessage(
     to,
     type: 'template',
     template: templatePayload,
-  }
+  };
   if (contextMessageId) {
-    body.context = { message_id: contextMessageId }
+    body.context = { message_id: contextMessageId };
   }
 
   let response = await fetch(url, {
@@ -758,17 +796,18 @@ export async function sendTemplateMessage(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(body),
-  })
+  });
 
   if (!response.ok) {
-    let nextLanguages: string[] = []
+    let nextLanguages: string[] = [];
     try {
-      const errorJson = await response.clone().json() as MetaErrorResponse
+      const errorJson = (await response.clone().json()) as MetaErrorResponse;
       if (errorJson.error?.code === 132001) {
-        const currentLang = (templatePayload.language as { code?: string })?.code || language
-        const englishLocales = ['en_US', 'en', 'en_GB']
+        const currentLang =
+          (templatePayload.language as { code?: string })?.code || language;
+        const englishLocales = ['en_US', 'en', 'en_GB'];
         if (englishLocales.includes(currentLang)) {
-          nextLanguages = englishLocales.filter(l => l !== currentLang)
+          nextLanguages = englishLocales.filter((l) => l !== currentLang);
         }
       }
     } catch {
@@ -776,11 +815,13 @@ export async function sendTemplateMessage(
     }
 
     for (const nextLang of nextLanguages) {
-      if (response.ok) break
+      if (response.ok) break;
 
-      console.warn(`[Meta API] sendTemplateMessage failed with 132001 (Template not found) for language "${(templatePayload.language as { code?: string })?.code || language}". Retrying with "${nextLang}"...`)
-      templatePayload.language = { code: nextLang }
-      body.template = templatePayload
+      console.warn(
+        `[Meta API] sendTemplateMessage failed with 132001 (Template not found) for language "${(templatePayload.language as { code?: string })?.code || language}". Retrying with "${nextLang}"...`
+      );
+      templatePayload.language = { code: nextLang };
+      body.template = templatePayload;
       response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -788,34 +829,34 @@ export async function sendTemplateMessage(
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(body),
-      })
+      });
     }
   }
 
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
-  const data = await response.json()
-  return { messageId: data.messages[0].id }
+  const data = await response.json();
+  return { messageId: data.messages[0].id };
 }
 
 // ============================================================
 // Template submission (Business Management API)
 // ============================================================
 
-import type { MetaTemplateSubmitPayload } from './template-components'
-import type { MetaTemplate } from './meta-template-row'
+import type { MetaTemplateSubmitPayload } from './template-components';
+import type { MetaTemplate } from './meta-template-row';
 
 export interface SubmitMessageTemplateArgs {
-  wabaId: string
-  accessToken: string
-  payload: MetaTemplateSubmitPayload
+  wabaId: string;
+  accessToken: string;
+  payload: MetaTemplateSubmitPayload;
 }
 
 export interface SubmitMessageTemplateResult {
-  id: string
-  status: string
-  category?: string
+  id: string;
+  status: string;
+  category?: string;
 }
 
 /**
@@ -834,8 +875,8 @@ export interface SubmitMessageTemplateResult {
 export async function submitMessageTemplate(
   args: SubmitMessageTemplateArgs
 ): Promise<SubmitMessageTemplateResult> {
-  const { wabaId, accessToken, payload } = args
-  const url = `${META_API_BASE}/${wabaId}/message_templates`
+  const { wabaId, accessToken, payload } = args;
+  const url = `${META_API_BASE}/${wabaId}/message_templates`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -843,26 +884,26 @@ export async function submitMessageTemplate(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(payload),
-  })
+  });
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
-  const data = await response.json()
+  const data = await response.json();
   if (!data?.id) {
-    throw new Error('Meta accepted the template but returned no id.')
+    throw new Error('Meta accepted the template but returned no id.');
   }
   return {
     id: String(data.id),
     status: typeof data.status === 'string' ? data.status : 'PENDING',
     category: typeof data.category === 'string' ? data.category : undefined,
-  }
+  };
 }
 
 export interface FindMessageTemplateArgs {
-  wabaId: string
-  accessToken: string
-  name: string
-  language: string
+  wabaId: string;
+  accessToken: string;
+  name: string;
+  language: string;
 }
 
 /**
@@ -875,32 +916,32 @@ export interface FindMessageTemplateArgs {
 export async function findMessageTemplate(
   args: FindMessageTemplateArgs
 ): Promise<MetaTemplate | null> {
-  const { wabaId, accessToken, name, language } = args
+  const { wabaId, accessToken, name, language } = args;
   const params = new URLSearchParams({
     name,
     fields: 'id,name,language,status,category,components,quality_score',
     limit: '50',
-  })
+  });
   const response = await fetch(
     `${META_API_BASE}/${wabaId}/message_templates?${params.toString()}`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
-  )
+  );
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
-  const data = (await response.json()) as { data?: MetaTemplate[] }
+  const data = (await response.json()) as { data?: MetaTemplate[] };
   const match = (data.data ?? []).find(
     (t) => t.name === name && t.language === language
-  )
-  return match ? { ...match, id: String(match.id) } : null
+  );
+  return match ? { ...match, id: String(match.id) } : null;
 }
 
 export interface UploadSampleMediaArgs {
-  accessToken: string
+  accessToken: string;
   /** Raw bytes of the sample file. */
-  data: ArrayBuffer
+  data: ArrayBuffer;
   /** MIME type, e.g. image/png. */
-  fileType: string
+  fileType: string;
 }
 
 /**
@@ -915,20 +956,20 @@ export interface UploadSampleMediaArgs {
 export async function uploadSampleMedia(
   args: UploadSampleMediaArgs
 ): Promise<string> {
-  const { accessToken, data, fileType } = args
+  const { accessToken, data, fileType } = args;
   const sessionRes = await fetch(
     `${META_API_BASE}/app/uploads?file_length=${data.byteLength}&file_type=${encodeURIComponent(fileType)}`,
     {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}` },
     }
-  )
+  );
   if (!sessionRes.ok) {
-    await throwMetaError(sessionRes, `Meta API error: ${sessionRes.status}`)
+    await throwMetaError(sessionRes, `Meta API error: ${sessionRes.status}`);
   }
-  const session = await sessionRes.json()
+  const session = await sessionRes.json();
   if (!session?.id) {
-    throw new Error('Meta did not return an upload session id.')
+    throw new Error('Meta did not return an upload session id.');
   }
   const uploadRes = await fetch(`${META_API_BASE}/${session.id}`, {
     method: 'POST',
@@ -938,29 +979,29 @@ export async function uploadSampleMedia(
       file_offset: '0',
     },
     body: data,
-  })
+  });
   if (!uploadRes.ok) {
-    await throwMetaError(uploadRes, `Meta API error: ${uploadRes.status}`)
+    await throwMetaError(uploadRes, `Meta API error: ${uploadRes.status}`);
   }
-  const uploaded = await uploadRes.json()
+  const uploaded = await uploadRes.json();
   if (!uploaded?.h) {
-    throw new Error('Meta upload finished but returned no handle.')
+    throw new Error('Meta upload finished but returned no handle.');
   }
-  return uploaded.h
+  return uploaded.h;
 }
 
 export interface EditMessageTemplateArgs {
   /** Meta's template id (stored locally as `meta_template_id`). */
-  metaTemplateId: string
-  accessToken: string
+  metaTemplateId: string;
+  accessToken: string;
   /** Send the full components array — Meta replaces, not patches. */
-  components: MetaTemplateSubmitPayload['components']
+  components: MetaTemplateSubmitPayload['components'];
   /** Optional — only certain category transitions are allowed by Meta. */
-  category?: MetaTemplateSubmitPayload['category']
+  category?: MetaTemplateSubmitPayload['category'];
 }
 
 export interface EditMessageTemplateResult {
-  success: boolean
+  success: boolean;
 }
 
 /**
@@ -976,9 +1017,9 @@ export interface EditMessageTemplateResult {
 export async function editMessageTemplate(
   args: EditMessageTemplateArgs
 ): Promise<EditMessageTemplateResult> {
-  const { metaTemplateId, accessToken, components, category } = args
-  const body: Record<string, unknown> = { components }
-  if (category) body.category = category
+  const { metaTemplateId, accessToken, components, category } = args;
+  const body: Record<string, unknown> = { components };
+  if (category) body.category = category;
   const response = await fetch(`${META_API_BASE}/${metaTemplateId}`, {
     method: 'POST',
     headers: {
@@ -986,24 +1027,24 @@ export async function editMessageTemplate(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(body),
-  })
+  });
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
-  const data = await response.json().catch(() => ({}))
-  return { success: data?.success !== false }
+  const data = await response.json().catch(() => ({}));
+  return { success: data?.success !== false };
 }
 
 export interface DeleteMessageTemplateArgs {
-  wabaId: string
-  accessToken: string
-  name: string
+  wabaId: string;
+  accessToken: string;
+  name: string;
   /**
    * Without `hsm_id`, Meta deletes EVERY language variant of the
    * template with this `name`. Pass the row's `meta_template_id`
    * to scope to a single variant.
    */
-  metaTemplateId?: string
+  metaTemplateId?: string;
 }
 
 /**
@@ -1014,19 +1055,19 @@ export interface DeleteMessageTemplateArgs {
 export async function deleteMessageTemplate(
   args: DeleteMessageTemplateArgs
 ): Promise<void> {
-  const { wabaId, accessToken, name, metaTemplateId } = args
-  const params = new URLSearchParams({ name })
-  if (metaTemplateId) params.set('hsm_id', metaTemplateId)
-  const url = `${META_API_BASE}/${wabaId}/message_templates?${params.toString()}`
+  const { wabaId, accessToken, name, metaTemplateId } = args;
+  const params = new URLSearchParams({ name });
+  if (metaTemplateId) params.set('hsm_id', metaTemplateId);
+  const url = `${META_API_BASE}/${wabaId}/message_templates?${params.toString()}`;
   const response = await fetch(url, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${accessToken}` },
-  })
+  });
   // Treat a 404 as a no-op — the template is already gone on Meta's
   // side, and we still want the local row removed.
-  if (response.status === 404) return
+  if (response.status === 404) return;
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
 }
 
@@ -1035,13 +1076,13 @@ export async function deleteMessageTemplate(
 // ============================================================
 
 export interface SendReactionMessageArgs {
-  phoneNumberId: string
-  accessToken: string
-  to: string
+  phoneNumberId: string;
+  accessToken: string;
+  to: string;
   /** Meta's message_id of the message being reacted to. */
-  targetMessageId: string
+  targetMessageId: string;
   /** Single emoji, or empty string to remove an existing reaction. */
-  emoji: string
+  emoji: string;
 }
 
 /**
@@ -1051,8 +1092,8 @@ export interface SendReactionMessageArgs {
 export async function sendReactionMessage(
   args: SendReactionMessageArgs
 ): Promise<MetaSendResult> {
-  const { phoneNumberId, accessToken, to, targetMessageId, emoji } = args
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const { phoneNumberId, accessToken, to, targetMessageId, emoji } = args;
+  const url = `${META_API_BASE}/${phoneNumberId}/messages`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -1066,12 +1107,12 @@ export async function sendReactionMessage(
       type: 'reaction',
       reaction: { message_id: targetMessageId, emoji },
     }),
-  })
+  });
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
-  const data = await response.json()
-  return { messageId: data.messages[0].id }
+  const data = await response.json();
+  return { messageId: data.messages[0].id };
 }
 
 // ============================================================
@@ -1101,29 +1142,29 @@ export const INTERACTIVE_LIMITS = {
   bodyMaxLength: 1024,
   footerMaxLength: 60,
   headerTextMaxLength: 60,
-} as const
+} as const;
 
 export interface InteractiveButton {
   /** Stable id sent back in the webhook when tapped (≤ 256 chars). */
-  id: string
+  id: string;
   /** Visible label (≤ 20 chars per Meta). */
-  title: string
+  title: string;
 }
 
 export interface SendInteractiveButtonsArgs {
-  phoneNumberId: string
-  accessToken: string
-  to: string
+  phoneNumberId: string;
+  accessToken: string;
+  to: string;
   /** The body text — what the customer reads above the buttons. */
-  bodyText: string
+  bodyText: string;
   /** Optional plain-text header (≤ 60 chars). */
-  headerText?: string
+  headerText?: string;
   /** Optional grey footer line under the buttons (≤ 60 chars). */
-  footerText?: string
+  footerText?: string;
   /** 1–3 buttons. Validated against Meta's limits before sending. */
-  buttons: InteractiveButton[]
+  buttons: InteractiveButton[];
   /** Meta's message_id of the message being replied to (quote preview). */
-  contextMessageId?: string
+  contextMessageId?: string;
 }
 
 /**
@@ -1138,28 +1179,36 @@ export async function sendInteractiveButtons(
   args: SendInteractiveButtonsArgs
 ): Promise<MetaSendResult> {
   const {
-    phoneNumberId, accessToken, to,
-    bodyText: rawBodyText, headerText, footerText, buttons, contextMessageId,
-  } = args
-  
-  const bodyText = rawBodyText && rawBodyText.length > INTERACTIVE_LIMITS.bodyMaxLength
-    ? rawBodyText.substring(0, INTERACTIVE_LIMITS.bodyMaxLength - 4) + '...'
-    : rawBodyText;
+    phoneNumberId,
+    accessToken,
+    to,
+    bodyText: rawBodyText,
+    headerText,
+    footerText,
+    buttons,
+    contextMessageId,
+  } = args;
 
-  validateInteractiveBody(bodyText)
-  validateInteractiveHeaderFooter(headerText, footerText)
+  const bodyText =
+    rawBodyText && rawBodyText.length > INTERACTIVE_LIMITS.bodyMaxLength
+      ? rawBodyText.substring(0, INTERACTIVE_LIMITS.bodyMaxLength - 4) + '...'
+      : rawBodyText;
+
+  validateInteractiveBody(bodyText);
+  validateInteractiveHeaderFooter(headerText, footerText);
   if (buttons.length < 1 || buttons.length > INTERACTIVE_LIMITS.maxButtons) {
     throw new Error(
       `Interactive button message requires 1-${INTERACTIVE_LIMITS.maxButtons} buttons (got ${buttons.length}).`
-    )
+    );
   }
   for (const btn of buttons) {
-    if (!btn.id) throw new Error('Interactive button missing id.')
-    if (!btn.title) throw new Error(`Interactive button "${btn.id}" missing title.`)
+    if (!btn.id) throw new Error('Interactive button missing id.');
+    if (!btn.title)
+      throw new Error(`Interactive button "${btn.id}" missing title.`);
     if (btn.title.length > INTERACTIVE_LIMITS.buttonTitleMaxLength) {
       throw new Error(
         `Interactive button title "${btn.title}" exceeds ${INTERACTIVE_LIMITS.buttonTitleMaxLength} chars.`
-      )
+      );
     }
   }
 
@@ -1172,9 +1221,9 @@ export async function sendInteractiveButtons(
         reply: { id: b.id, title: b.title },
       })),
     },
-  }
-  if (headerText) interactive.header = { type: 'text', text: headerText }
-  if (footerText) interactive.footer = { text: footerText }
+  };
+  if (headerText) interactive.header = { type: 'text', text: headerText };
+  if (footerText) interactive.footer = { text: footerText };
 
   const body: Record<string, unknown> = {
     messaging_product: 'whatsapp',
@@ -1182,10 +1231,10 @@ export async function sendInteractiveButtons(
     to,
     type: 'interactive',
     interactive,
-  }
-  if (contextMessageId) body.context = { message_id: contextMessageId }
+  };
+  if (contextMessageId) body.context = { message_id: contextMessageId };
 
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = `${META_API_BASE}/${phoneNumberId}/messages`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -1193,44 +1242,44 @@ export async function sendInteractiveButtons(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(body),
-  })
+  });
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
-  const data = await response.json()
-  return { messageId: data.messages[0].id }
+  const data = await response.json();
+  return { messageId: data.messages[0].id };
 }
 
 export interface InteractiveListRow {
   /** Stable id sent back in the webhook when tapped (≤ 200 chars). */
-  id: string
+  id: string;
   /** Visible row title (≤ 24 chars per Meta). */
-  title: string
+  title: string;
   /** Optional secondary line shown under the title (≤ 72 chars). */
-  description?: string
+  description?: string;
 }
 
 export interface InteractiveListSection {
   /** Optional section header shown above its rows. */
-  title?: string
-  rows: InteractiveListRow[]
+  title?: string;
+  rows: InteractiveListRow[];
 }
 
 export interface SendInteractiveListArgs {
-  phoneNumberId: string
-  accessToken: string
-  to: string
-  bodyText: string
+  phoneNumberId: string;
+  accessToken: string;
+  to: string;
+  bodyText: string;
   /** Label of the tap-to-expand button on the message bubble. */
-  buttonLabel: string
-  headerText?: string
-  footerText?: string
+  buttonLabel: string;
+  headerText?: string;
+  footerText?: string;
   /**
    * 1–10 rows TOTAL across all sections. Meta caps the *total*, not
    * per-section. Validation enforces this before send.
    */
-  sections: InteractiveListSection[]
-  contextMessageId?: string
+  sections: InteractiveListSection[];
+  contextMessageId?: string;
 }
 
 /**
@@ -1243,46 +1292,58 @@ export async function sendInteractiveList(
   args: SendInteractiveListArgs
 ): Promise<MetaSendResult> {
   const {
-    phoneNumberId, accessToken, to,
-    bodyText: rawBodyText, buttonLabel, headerText, footerText, sections, contextMessageId,
-  } = args
-  
-  const bodyText = rawBodyText && rawBodyText.length > INTERACTIVE_LIMITS.bodyMaxLength
-    ? rawBodyText.substring(0, INTERACTIVE_LIMITS.bodyMaxLength - 4) + '...'
-    : rawBodyText;
+    phoneNumberId,
+    accessToken,
+    to,
+    bodyText: rawBodyText,
+    buttonLabel,
+    headerText,
+    footerText,
+    sections,
+    contextMessageId,
+  } = args;
 
-  validateInteractiveBody(bodyText)
-  validateInteractiveHeaderFooter(headerText, footerText)
-  if (!buttonLabel) throw new Error('Interactive list requires a buttonLabel.')
+  const bodyText =
+    rawBodyText && rawBodyText.length > INTERACTIVE_LIMITS.bodyMaxLength
+      ? rawBodyText.substring(0, INTERACTIVE_LIMITS.bodyMaxLength - 4) + '...'
+      : rawBodyText;
+
+  validateInteractiveBody(bodyText);
+  validateInteractiveHeaderFooter(headerText, footerText);
+  if (!buttonLabel) throw new Error('Interactive list requires a buttonLabel.');
   if (buttonLabel.length > INTERACTIVE_LIMITS.buttonTitleMaxLength) {
     throw new Error(
       `Interactive list buttonLabel "${buttonLabel}" exceeds ${INTERACTIVE_LIMITS.buttonTitleMaxLength} chars.`
-    )
+    );
   }
-  if (sections.length < 1 || sections.length > INTERACTIVE_LIMITS.maxListSections) {
+  if (
+    sections.length < 1 ||
+    sections.length > INTERACTIVE_LIMITS.maxListSections
+  ) {
     throw new Error(
       `Interactive list requires 1-${INTERACTIVE_LIMITS.maxListSections} sections (got ${sections.length}).`
-    )
+    );
   }
-  const totalRows = sections.reduce((sum, s) => sum + s.rows.length, 0)
+  const totalRows = sections.reduce((sum, s) => sum + s.rows.length, 0);
   if (totalRows < 1 || totalRows > INTERACTIVE_LIMITS.maxListRowsTotal) {
     throw new Error(
       `Interactive list requires 1-${INTERACTIVE_LIMITS.maxListRowsTotal} rows total across all sections (got ${totalRows}).`
-    )
+    );
   }
-  const seenIds = new Set<string>()
+  const seenIds = new Set<string>();
   for (const section of sections) {
     for (const row of section.rows) {
-      if (!row.id) throw new Error('Interactive list row missing id.')
+      if (!row.id) throw new Error('Interactive list row missing id.');
       if (seenIds.has(row.id)) {
-        throw new Error(`Interactive list has duplicate row id "${row.id}".`)
+        throw new Error(`Interactive list has duplicate row id "${row.id}".`);
       }
-      seenIds.add(row.id)
-      if (!row.title) throw new Error(`Interactive list row "${row.id}" missing title.`)
+      seenIds.add(row.id);
+      if (!row.title)
+        throw new Error(`Interactive list row "${row.id}" missing title.`);
       if (row.title.length > INTERACTIVE_LIMITS.listRowTitleMaxLength) {
         throw new Error(
           `Interactive list row title "${row.title}" exceeds ${INTERACTIVE_LIMITS.listRowTitleMaxLength} chars.`
-        )
+        );
       }
       if (
         row.description &&
@@ -1290,7 +1351,7 @@ export async function sendInteractiveList(
       ) {
         throw new Error(
           `Interactive list row description for "${row.id}" exceeds ${INTERACTIVE_LIMITS.listRowDescriptionMaxLength} chars.`
-        )
+        );
       }
     }
   }
@@ -1309,9 +1370,9 @@ export async function sendInteractiveList(
         })),
       })),
     },
-  }
-  if (headerText) interactive.header = { type: 'text', text: headerText }
-  if (footerText) interactive.footer = { text: footerText }
+  };
+  if (headerText) interactive.header = { type: 'text', text: headerText };
+  if (footerText) interactive.footer = { text: footerText };
 
   const body: Record<string, unknown> = {
     messaging_product: 'whatsapp',
@@ -1319,10 +1380,10 @@ export async function sendInteractiveList(
     to,
     type: 'interactive',
     interactive,
-  }
-  if (contextMessageId) body.context = { message_id: contextMessageId }
+  };
+  if (contextMessageId) body.context = { message_id: contextMessageId };
 
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = `${META_API_BASE}/${phoneNumberId}/messages`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -1330,36 +1391,39 @@ export async function sendInteractiveList(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(body),
-  })
+  });
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
-  const data = await response.json()
-  return { messageId: data.messages[0].id }
+  const data = await response.json();
+  return { messageId: data.messages[0].id };
 }
 
 function validateInteractiveBody(bodyText: string): void {
-  if (!bodyText) throw new Error('Interactive message requires bodyText.')
+  if (!bodyText) throw new Error('Interactive message requires bodyText.');
   if (bodyText.length > INTERACTIVE_LIMITS.bodyMaxLength) {
     throw new Error(
       `Interactive bodyText exceeds ${INTERACTIVE_LIMITS.bodyMaxLength} chars.`
-    )
+    );
   }
 }
 
 function validateInteractiveHeaderFooter(
   headerText: string | undefined,
-  footerText: string | undefined,
+  footerText: string | undefined
 ): void {
-  if (headerText && headerText.length > INTERACTIVE_LIMITS.headerTextMaxLength) {
+  if (
+    headerText &&
+    headerText.length > INTERACTIVE_LIMITS.headerTextMaxLength
+  ) {
     throw new Error(
       `Interactive headerText exceeds ${INTERACTIVE_LIMITS.headerTextMaxLength} chars.`
-    )
+    );
   }
   if (footerText && footerText.length > INTERACTIVE_LIMITS.footerMaxLength) {
     throw new Error(
       `Interactive footerText exceeds ${INTERACTIVE_LIMITS.footerMaxLength} chars.`
-    )
+    );
   }
 }
 
@@ -1369,40 +1433,40 @@ function validateInteractiveHeaderFooter(
 
 export interface FlowActionPayload {
   /** Screen id to open first (navigate mode only). */
-  screen: string
+  screen: string;
   /** Prefill data matching the screen's data schema. */
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>;
 }
 
 export interface SendFlowMessageArgs {
-  phoneNumberId: string
-  accessToken: string
-  to: string
-  bodyText: string
-  headerText?: string
-  footerText?: string
+  phoneNumberId: string;
+  accessToken: string;
+  to: string;
+  bodyText: string;
+  headerText?: string;
+  footerText?: string;
   /** Meta's flow id (whatsapp_meta_flows.meta_flow_id). */
-  flowId: string
+  flowId: string;
   /**
    * Opaque per-send token. Echoed back on every data-exchange endpoint
    * call and in the final nfm_reply webhook — must map to a
    * whatsapp_meta_flow_sessions row.
    */
-  flowToken: string
+  flowToken: string;
   /** Label of the button that opens the flow (≤ 30 chars). */
-  flowCta: string
+  flowCta: string;
   /** 'draft' lets you test an unpublished flow. Defaults to published. */
-  mode?: 'published' | 'draft'
+  mode?: 'published' | 'draft';
   /**
    * 'data_exchange' (default): the endpoint's INIT response provides the
    * first screen. 'navigate': flowActionPayload provides screen + data.
    */
-  flowAction?: 'navigate' | 'data_exchange'
-  flowActionPayload?: FlowActionPayload
-  contextMessageId?: string
+  flowAction?: 'navigate' | 'data_exchange';
+  flowActionPayload?: FlowActionPayload;
+  contextMessageId?: string;
 }
 
-const FLOW_CTA_MAX_LENGTH = 30
+const FLOW_CTA_MAX_LENGTH = 30;
 
 /**
  * Send an interactive Flow message — the bubble shows a CTA button that
@@ -1413,26 +1477,41 @@ export async function sendFlowMessage(
   args: SendFlowMessageArgs
 ): Promise<MetaSendResult> {
   const {
-    phoneNumberId, accessToken, to,
-    bodyText, headerText, footerText,
-    flowId, flowToken, flowCta,
-    mode, flowAction, flowActionPayload, contextMessageId,
-  } = args
+    phoneNumberId,
+    accessToken,
+    to,
+    bodyText,
+    headerText,
+    footerText,
+    flowId,
+    flowToken,
+    flowCta,
+    mode,
+    flowAction,
+    flowActionPayload,
+    contextMessageId,
+  } = args;
 
-  validateInteractiveBody(bodyText)
-  validateInteractiveHeaderFooter(headerText, footerText)
-  if (!flowId) throw new Error('Flow message requires flowId.')
-  if (!flowToken) throw new Error('Flow message requires flowToken.')
-  if (!flowCta) throw new Error('Flow message requires flowCta.')
+  validateInteractiveBody(bodyText);
+  validateInteractiveHeaderFooter(headerText, footerText);
+  if (!flowId) throw new Error('Flow message requires flowId.');
+  if (!flowToken) throw new Error('Flow message requires flowToken.');
+  if (!flowCta) throw new Error('Flow message requires flowCta.');
   if (flowCta.length > FLOW_CTA_MAX_LENGTH) {
-    throw new Error(`Flow CTA "${flowCta}" exceeds ${FLOW_CTA_MAX_LENGTH} chars.`)
+    throw new Error(
+      `Flow CTA "${flowCta}" exceeds ${FLOW_CTA_MAX_LENGTH} chars.`
+    );
   }
-  const resolvedAction = flowAction ?? 'data_exchange'
+  const resolvedAction = flowAction ?? 'data_exchange';
   if (resolvedAction === 'navigate' && !flowActionPayload?.screen) {
-    throw new Error('Flow message with flow_action "navigate" requires flowActionPayload.screen.')
+    throw new Error(
+      'Flow message with flow_action "navigate" requires flowActionPayload.screen.'
+    );
   }
   if (resolvedAction === 'data_exchange' && flowActionPayload) {
-    throw new Error('flowActionPayload is only valid with flow_action "navigate".')
+    throw new Error(
+      'flowActionPayload is only valid with flow_action "navigate".'
+    );
   }
 
   const parameters: Record<string, unknown> = {
@@ -1442,16 +1521,16 @@ export async function sendFlowMessage(
     flow_cta: flowCta,
     mode: mode ?? 'published',
     flow_action: resolvedAction,
-  }
-  if (flowActionPayload) parameters.flow_action_payload = flowActionPayload
+  };
+  if (flowActionPayload) parameters.flow_action_payload = flowActionPayload;
 
   const interactive: Record<string, unknown> = {
     type: 'flow',
     body: { text: bodyText },
     action: { name: 'flow', parameters },
-  }
-  if (headerText) interactive.header = { type: 'text', text: headerText }
-  if (footerText) interactive.footer = { text: footerText }
+  };
+  if (headerText) interactive.header = { type: 'text', text: headerText };
+  if (footerText) interactive.footer = { text: footerText };
 
   const body: Record<string, unknown> = {
     messaging_product: 'whatsapp',
@@ -1459,10 +1538,10 @@ export async function sendFlowMessage(
     to,
     type: 'interactive',
     interactive,
-  }
-  if (contextMessageId) body.context = { message_id: contextMessageId }
+  };
+  if (contextMessageId) body.context = { message_id: contextMessageId };
 
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = `${META_API_BASE}/${phoneNumberId}/messages`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -1470,12 +1549,12 @@ export async function sendFlowMessage(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(body),
-  })
+  });
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Meta API error: ${response.status}`);
   }
-  const data = await response.json()
-  return { messageId: data.messages[0].id }
+  const data = await response.json();
+  return { messageId: data.messages[0].id };
 }
 
 // ============================================================
@@ -1483,8 +1562,8 @@ export async function sendFlowMessage(
 // ============================================================
 
 export interface GetMediaUrlArgs {
-  mediaId: string
-  accessToken: string
+  mediaId: string;
+  accessToken: string;
 }
 
 /**
@@ -1495,31 +1574,38 @@ export async function checkWhatsAppPermissions(
   accessToken: string,
   wabaId?: string | null
 ): Promise<{ hasIssues: boolean; issues: string[] }> {
-  const issues: string[] = []
+  const issues: string[] = [];
 
   // Test 1: Check if token can access phone numbers (basic permission)
   try {
     const response = await fetch(`${META_API_BASE}/me/phone_numbers?limit=1`, {
       headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    });
     if (!response.ok) {
-      issues.push('Token cannot access phone numbers - missing whatsapp_business_messaging permission')
+      issues.push(
+        'Token cannot access phone numbers - missing whatsapp_business_messaging permission'
+      );
     }
   } catch {
-    issues.push('Failed to verify phone number access')
+    issues.push('Failed to verify phone number access');
   }
 
   // Test 2: Check if token can access WABA (if provided)
   if (wabaId) {
     try {
-      const response = await fetch(`${META_API_BASE}/${wabaId}?fields=id,name`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
+      const response = await fetch(
+        `${META_API_BASE}/${wabaId}?fields=id,name`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
       if (!response.ok) {
-        issues.push('Token cannot access WhatsApp Business Account - missing whatsapp_business_management permission')
+        issues.push(
+          'Token cannot access WhatsApp Business Account - missing whatsapp_business_management permission'
+        );
       }
     } catch {
-      issues.push('Failed to verify WABA access')
+      issues.push('Failed to verify WABA access');
     }
   }
 
@@ -1528,17 +1614,19 @@ export async function checkWhatsAppPermissions(
   try {
     const response = await fetch(`${META_API_BASE}/me/media?limit=1`, {
       headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    });
     // Even a 404 means the endpoint exists and we have some access
     // A 403 or 401 would indicate missing permissions
     if (response.status === 401 || response.status === 403) {
-      issues.push('Token lacks media access permissions - ensure whatsapp_business_messaging scope is enabled')
+      issues.push(
+        'Token lacks media access permissions - ensure whatsapp_business_messaging scope is enabled'
+      );
     }
   } catch {
     // Network errors are not permission issues
   }
 
-  return { hasIssues: issues.length > 0, issues }
+  return { hasIssues: issues.length > 0, issues };
 }
 
 /**
@@ -1548,49 +1636,52 @@ export async function checkWhatsAppPermissions(
 export async function getMediaUrl(
   args: GetMediaUrlArgs
 ): Promise<{ url: string; mimeType: string }> {
-  const { mediaId, accessToken } = args
-  
+  const { mediaId, accessToken } = args;
+
   const response = await fetch(`${META_API_BASE}/${mediaId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  
+  });
+
   if (!response.ok) {
     // Read the body once — it can only be consumed once
-    const errorBody = await response.text()
-    let metaMessage = `Media fetch failed: ${response.status}`
+    const errorBody = await response.text();
+    let metaMessage = `Media fetch failed: ${response.status}`;
     try {
-      const parsed = JSON.parse(errorBody)
+      const parsed = JSON.parse(errorBody);
       if (parsed?.error?.message) {
-        metaMessage = parsed.error.message
+        metaMessage = parsed.error.message;
       }
     } catch {
       // not JSON, use raw body if short enough
-      if (errorBody && errorBody.length < 300) metaMessage = errorBody
+      if (errorBody && errorBody.length < 300) metaMessage = errorBody;
     }
     // Only log as error for unexpected failures; for known "does not exist" cases
     // the proxy route will handle it gracefully and log a warn
     const isKnownUnavailable =
       metaMessage.includes('does not exist') ||
       metaMessage.includes('missing permissions') ||
-      metaMessage.includes('GraphMethodException')
+      metaMessage.includes('GraphMethodException');
     if (!isKnownUnavailable) {
       console.error(`[meta-api] Media ${mediaId} fetch failed:`, {
         status: response.status,
         body: errorBody,
-      })
+      });
     }
-    throw new Error(metaMessage)
+    throw new Error(metaMessage);
   }
-  
-  const data = await response.json()
-  if (!data.url) throw new Error('Media URL not found in Meta response')
-  
-  return { url: data.url, mimeType: data.mime_type || 'application/octet-stream' }
+
+  const data = await response.json();
+  if (!data.url) throw new Error('Media URL not found in Meta response');
+
+  return {
+    url: data.url,
+    mimeType: data.mime_type || 'application/octet-stream',
+  };
 }
 
 export interface DownloadMediaArgs {
-  downloadUrl: string
-  accessToken: string
+  downloadUrl: string;
+  accessToken: string;
 }
 
 /**
@@ -1600,17 +1691,17 @@ export interface DownloadMediaArgs {
 export async function downloadMedia(
   args: DownloadMediaArgs
 ): Promise<{ buffer: Buffer; contentType: string }> {
-  const { downloadUrl, accessToken } = args
+  const { downloadUrl, accessToken } = args;
   const response = await fetch(downloadUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
-  })
+  });
   if (!response.ok) {
-    throw new Error(`Media download failed: ${response.status}`)
+    throw new Error(`Media download failed: ${response.status}`);
   }
   const contentType =
-    response.headers.get('content-type') || 'application/octet-stream'
-  const buffer = Buffer.from(await response.arrayBuffer())
-  return { buffer, contentType }
+    response.headers.get('content-type') || 'application/octet-stream';
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return { buffer, contentType };
 }
 
 // ============================================================
@@ -1618,10 +1709,10 @@ export async function downloadMedia(
 // ============================================================
 
 export interface SyncProductToCatalogArgs {
-  catalogId: string
-  accessToken: string
+  catalogId: string;
+  accessToken: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  property: any
+  property: any;
 }
 
 /**
@@ -1631,29 +1722,33 @@ export interface SyncProductToCatalogArgs {
 export async function syncProductToCatalog(
   args: SyncProductToCatalogArgs
 ): Promise<void> {
-  const { catalogId, accessToken, property } = args
-  const url = `${META_API_BASE}/${catalogId}/batch`
+  const { catalogId, accessToken, property } = args;
+  const url = `${META_API_BASE}/${catalogId}/batch`;
 
-  const price = Number(property.price) || 0
-  const title = property.title || 'Property Listing'
+  const price = Number(property.price) || 0;
+  const title = property.title || 'Property Listing';
 
-  const descriptionParts: string[] = []
-  if (property.property_code) descriptionParts.push(`Code: ${property.property_code}`)
+  const descriptionParts: string[] = [];
+  if (property.property_code)
+    descriptionParts.push(`Code: ${property.property_code}`);
   const catalogLocation = isLocationGuarded(property)
     ? localityLabel(property)
-    : property.location
-  if (catalogLocation) descriptionParts.push(`Location: ${catalogLocation}`)
-  if (property.description) descriptionParts.push(property.description)
-  const description = descriptionParts.join('\n').substring(0, 900) || 'Property details'
+    : property.location;
+  if (catalogLocation) descriptionParts.push(`Location: ${catalogLocation}`);
+  if (property.description) descriptionParts.push(property.description);
+  const description =
+    descriptionParts.join('\n').substring(0, 900) || 'Property details';
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://convoreal.com'
-  const productUrl = `${siteUrl}/?property_id=${property.id}`
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://convoreal.com';
+  const productUrl = `${siteUrl}/?property_id=${property.id}`;
   const heroImageRef = (Array.isArray(property.images) ? property.images : [])
     .map((img: string) => img.trim())
-    .find((img: string) => img.length > 0)
-  const heroImage = heroImageRef ? storagePublicUrl(heroImageRef) : `${siteUrl}/placeholder.png`
+    .find((img: string) => img.length > 0);
+  const heroImage = heroImageRef
+    ? storagePublicUrl(heroImageRef)
+    : `${siteUrl}/placeholder.png`;
 
-  const retailerId = property.property_code || property.id
+  const retailerId = property.property_code || property.id;
 
   const body = {
     allow_upsert: true,
@@ -1674,7 +1769,7 @@ export async function syncProductToCatalog(
         },
       },
     ],
-  }
+  };
 
   const response = await fetch(url, {
     method: 'POST',
@@ -1683,36 +1778,44 @@ export async function syncProductToCatalog(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(body),
-  })
+  });
 
   if (!response.ok) {
-    await throwMetaError(response, `Meta Catalog sync failed: ${response.status}`)
+    await throwMetaError(
+      response,
+      `Meta Catalog sync failed: ${response.status}`
+    );
   }
 
   const resJson = await response.json().catch(() => ({}));
-  console.log('[syncProductToCatalog] Meta API Response:', JSON.stringify(resJson, null, 2));
+  console.log(
+    '[syncProductToCatalog] Meta API Response:',
+    JSON.stringify(resJson, null, 2)
+  );
 
   if (Array.isArray(resJson.validation_status)) {
-    const errorMessages: string[] = []
+    const errorMessages: string[] = [];
     for (const status of resJson.validation_status) {
       if (Array.isArray(status.errors) && status.errors.length > 0) {
         for (const err of status.errors) {
           if (err.message) {
-            errorMessages.push(`${status.retailer_id ? status.retailer_id + ': ' : ''}${err.message}`)
+            errorMessages.push(
+              `${status.retailer_id ? status.retailer_id + ': ' : ''}${err.message}`
+            );
           }
         }
       }
     }
     if (errorMessages.length > 0) {
-      throw new Error(`Meta validation error: ${errorMessages.join('; ')}`)
+      throw new Error(`Meta validation error: ${errorMessages.join('; ')}`);
     }
   }
 }
 
 export interface DeleteProductFromCatalogArgs {
-  catalogId: string
-  accessToken: string
-  retailerId: string
+  catalogId: string;
+  accessToken: string;
+  retailerId: string;
 }
 
 /**
@@ -1721,8 +1824,8 @@ export interface DeleteProductFromCatalogArgs {
 export async function deleteProductFromCatalog(
   args: DeleteProductFromCatalogArgs
 ): Promise<void> {
-  const { catalogId, accessToken, retailerId } = args
-  const url = `${META_API_BASE}/${catalogId}/batch`
+  const { catalogId, accessToken, retailerId } = args;
+  const url = `${META_API_BASE}/${catalogId}/batch`;
 
   const body = {
     requests: [
@@ -1731,7 +1834,7 @@ export async function deleteProductFromCatalog(
         retailer_id: retailerId,
       },
     ],
-  }
+  };
 
   const response = await fetch(url, {
     method: 'POST',
@@ -1740,22 +1843,25 @@ export async function deleteProductFromCatalog(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(body),
-  })
+  });
 
   if (!response.ok) {
-    await throwMetaError(response, `Meta Catalog delete failed: ${response.status}`)
+    await throwMetaError(
+      response,
+      `Meta Catalog delete failed: ${response.status}`
+    );
   }
 }
 
 export interface SendProductMessageArgs {
-  phoneNumberId: string
-  accessToken: string
-  to: string
-  catalogId: string
-  productRetailerId: string
-  bodyText?: string
-  footerText?: string
-  contextMessageId?: string
+  phoneNumberId: string;
+  accessToken: string;
+  to: string;
+  catalogId: string;
+  productRetailerId: string;
+  bodyText?: string;
+  footerText?: string;
+  contextMessageId?: string;
 }
 
 /**
@@ -1774,30 +1880,33 @@ export async function sendProductMessage(
     bodyText,
     footerText,
     contextMessageId,
-  } = args
+  } = args;
 
   const action = {
     catalog_id: catalogId,
     product_retailer_id: productRetailerId,
-  }
+  };
 
   const interactive: Record<string, unknown> = {
     type: 'product',
     action,
-  }
+  };
   if (bodyText) {
     interactive.body = {
-      text: bodyText.length > INTERACTIVE_LIMITS.bodyMaxLength
-        ? bodyText.substring(0, INTERACTIVE_LIMITS.bodyMaxLength - 4) + '...'
-        : bodyText,
-    }
+      text:
+        bodyText.length > INTERACTIVE_LIMITS.bodyMaxLength
+          ? bodyText.substring(0, INTERACTIVE_LIMITS.bodyMaxLength - 4) + '...'
+          : bodyText,
+    };
   }
   if (footerText) {
     interactive.footer = {
-      text: footerText.length > INTERACTIVE_LIMITS.footerMaxLength
-        ? footerText.substring(0, INTERACTIVE_LIMITS.footerMaxLength - 4) + '...'
-        : footerText,
-    }
+      text:
+        footerText.length > INTERACTIVE_LIMITS.footerMaxLength
+          ? footerText.substring(0, INTERACTIVE_LIMITS.footerMaxLength - 4) +
+            '...'
+          : footerText,
+    };
   }
 
   const body: Record<string, unknown> = {
@@ -1806,12 +1915,12 @@ export async function sendProductMessage(
     to,
     type: 'interactive',
     interactive,
-  }
+  };
   if (contextMessageId) {
-    body.context = { message_id: contextMessageId }
+    body.context = { message_id: contextMessageId };
   }
 
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = `${META_API_BASE}/${phoneNumberId}/messages`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -1819,11 +1928,14 @@ export async function sendProductMessage(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(body),
-  })
+  });
 
   if (!response.ok) {
-    await throwMetaError(response, `Meta API product message failed: ${response.status}`)
+    await throwMetaError(
+      response,
+      `Meta API product message failed: ${response.status}`
+    );
   }
-  const data = await response.json()
-  return { messageId: data.messages[0].id }
+  const data = await response.json();
+  return { messageId: data.messages[0].id };
 }

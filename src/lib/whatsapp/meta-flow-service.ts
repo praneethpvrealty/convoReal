@@ -1,10 +1,10 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import crypto from 'node:crypto'
-import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
-import { generateFlowKeyPair } from '@/lib/whatsapp/flow-crypto'
-import { isReengagementError } from '@/lib/whatsapp/customer-window'
-import { submitMessageTemplate } from '@/lib/whatsapp/meta-api'
-import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
+import type { SupabaseClient } from '@supabase/supabase-js';
+import crypto from 'node:crypto';
+import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
+import { generateFlowKeyPair } from '@/lib/whatsapp/flow-crypto';
+import { isReengagementError } from '@/lib/whatsapp/customer-window';
+import { submitMessageTemplate } from '@/lib/whatsapp/meta-api';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import {
   PREFERENCE_FLOW_KEY,
   PREFERENCE_FLOW_NAME,
@@ -15,51 +15,51 @@ import {
   parsePreferenceFormValues,
   type ContactPreferenceUpdate,
   type PreferenceFormValues,
-} from '@/lib/whatsapp/preference-flow'
+} from '@/lib/whatsapp/preference-flow';
 import {
   buildRequirementReviewParams,
   buildRequirementReviewTemplatePayload,
   REQUIREMENT_REVIEW_TEMPLATE_NAMES,
-} from '@/lib/whatsapp/requirement-review-template'
-import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components'
-import { loadTemplateForContact } from '@/lib/whatsapp/template-language'
+} from '@/lib/whatsapp/requirement-review-template';
+import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components';
+import { loadTemplateForContact } from '@/lib/whatsapp/template-language';
 import {
   normalizeCategory,
   normalizeStatus,
-} from '@/lib/whatsapp/template-status-normalize'
-import { supabaseAdmin } from '@/lib/supabase/admin'
-import type { MessageTemplate } from '@/types'
+} from '@/lib/whatsapp/template-status-normalize';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import type { MessageTemplate } from '@/types';
 
-const META_API_VERSION = 'v21.0'
-const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`
+const META_API_VERSION = 'v21.0';
+const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 
 /** Sessions older than this can no longer complete (kept generous —
  *  Meta itself expires undelivered flows well before this). */
-const FLOW_SESSION_TTL_HOURS = 24 * 7
+const FLOW_SESSION_TTL_HOURS = 24 * 7;
 
 function appBaseUrl(): string {
   return (
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
     'http://localhost:3000'
-  )
+  );
 }
 
 /** Public HTTPS URL Meta calls for this tenant's flow data exchanges. */
 export function flowsEndpointUri(accountId: string): string {
-  return `${appBaseUrl()}/api/whatsapp/flows/endpoint/${accountId}`
+  return `${appBaseUrl()}/api/whatsapp/flows/endpoint/${accountId}`;
 }
 
 interface WhatsappConfigRow {
-  account_id: string
-  user_id: string
-  phone_number_id: string | null
-  waba_id: string | null
-  access_token: string | null
-  integration_type: string
-  flows_private_key: string | null
-  flows_public_key: string | null
-  flows_key_registered_at: string | null
+  account_id: string;
+  user_id: string;
+  phone_number_id: string | null;
+  waba_id: string | null;
+  access_token: string | null;
+  integration_type: string;
+  flows_private_key: string | null;
+  flows_public_key: string | null;
+  flows_key_registered_at: string | null;
 }
 
 async function loadOfficialConfig(
@@ -70,25 +70,25 @@ async function loadOfficialConfig(
     .from('whatsapp_config')
     .select('*')
     .eq('account_id', accountId)
-    .single()
+    .single();
   if (error || !config) {
-    throw new Error('WhatsApp is not configured for this account.')
+    throw new Error('WhatsApp is not configured for this account.');
   }
-  const cfg = config as unknown as WhatsappConfigRow
+  const cfg = config as unknown as WhatsappConfigRow;
   if (cfg.integration_type !== 'official_api') {
     throw new Error(
       'WhatsApp Flows require the official Meta Cloud API integration (not sandbox/web).'
-    )
+    );
   }
   if (!cfg.phone_number_id || !cfg.access_token) {
-    throw new Error('WhatsApp credentials are incomplete for this account.')
+    throw new Error('WhatsApp credentials are incomplete for this account.');
   }
   if (!cfg.waba_id) {
     throw new Error(
       'A WhatsApp Business Account ID (WABA ID) is required to create flows. Add it in Settings → WhatsApp.'
-    )
+    );
   }
-  return cfg
+  return cfg;
 }
 
 // ── Encryption key management ─────────────────────────────────────
@@ -99,17 +99,17 @@ async function loadOfficialConfig(
  * receives traffic). Idempotent — re-registering the same key is safe.
  */
 export async function ensureFlowEncryptionKeys(args: {
-  accountId: string
-  db?: SupabaseClient
+  accountId: string;
+  db?: SupabaseClient;
 }): Promise<{ publicKeyPem: string; registered: boolean }> {
-  const db = args.db || supabaseAdmin()
-  const cfg = await loadOfficialConfig(db, args.accountId)
-  const accessToken = decrypt(cfg.access_token!)
+  const db = args.db || supabaseAdmin();
+  const cfg = await loadOfficialConfig(db, args.accountId);
+  const accessToken = decrypt(cfg.access_token!);
 
-  let publicKeyPem = cfg.flows_public_key
+  let publicKeyPem = cfg.flows_public_key;
   if (!publicKeyPem || !cfg.flows_private_key) {
-    const pair = generateFlowKeyPair()
-    publicKeyPem = pair.publicKeyPem
+    const pair = generateFlowKeyPair();
+    publicKeyPem = pair.publicKeyPem;
     const { error: updateErr } = await db
       .from('whatsapp_config')
       .update({
@@ -118,9 +118,11 @@ export async function ensureFlowEncryptionKeys(args: {
         flows_key_registered_at: null,
         updated_at: new Date().toISOString(),
       })
-      .eq('account_id', args.accountId)
+      .eq('account_id', args.accountId);
     if (updateErr) {
-      throw new Error(`Failed to store flow encryption keys: ${updateErr.message}`)
+      throw new Error(
+        `Failed to store flow encryption keys: ${updateErr.message}`
+      );
     }
   }
 
@@ -135,16 +137,16 @@ export async function ensureFlowEncryptionKeys(args: {
       },
       body: new URLSearchParams({ business_public_key: publicKeyPem }),
     }
-  )
+  );
   if (!response.ok) {
-    let detail = `${response.status}`
+    let detail = `${response.status}`;
     try {
-      const errJson = await response.json()
-      detail = errJson?.error?.message || detail
+      const errJson = await response.json();
+      detail = errJson?.error?.message || detail;
     } catch {
       // non-JSON error body — keep status code
     }
-    throw new Error(`Failed to register flows public key with Meta: ${detail}`)
+    throw new Error(`Failed to register flows public key with Meta: ${detail}`);
   }
 
   await db
@@ -153,23 +155,23 @@ export async function ensureFlowEncryptionKeys(args: {
       flows_key_registered_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq('account_id', args.accountId)
+    .eq('account_id', args.accountId);
 
-  return { publicKeyPem, registered: true }
+  return { publicKeyPem, registered: true };
 }
 
 // ── Flow lifecycle on Meta ────────────────────────────────────────
 
 export interface MetaFlowRow {
-  id: string
-  account_id: string
-  flow_key: string
-  meta_flow_id: string | null
-  name: string
-  status: 'draft' | 'published' | 'deprecated' | 'error'
-  flow_json_version: string | null
-  last_synced_at: string | null
-  last_error: string | null
+  id: string;
+  account_id: string;
+  flow_key: string;
+  meta_flow_id: string | null;
+  name: string;
+  status: 'draft' | 'published' | 'deprecated' | 'error';
+  flow_json_version: string | null;
+  last_synced_at: string | null;
+  last_error: string | null;
 }
 
 /**
@@ -181,15 +183,15 @@ export interface MetaFlowRow {
  * republishing an unchanged published flow is skipped by Meta.
  */
 export async function setupPreferenceFlow(args: {
-  accountId: string
-  db?: SupabaseClient
+  accountId: string;
+  db?: SupabaseClient;
 }): Promise<MetaFlowRow> {
-  const db = args.db || supabaseAdmin()
-  const { accountId } = args
-  const cfg = await loadOfficialConfig(db, accountId)
-  const accessToken = decrypt(cfg.access_token!)
+  const db = args.db || supabaseAdmin();
+  const { accountId } = args;
+  const cfg = await loadOfficialConfig(db, accountId);
+  const accessToken = decrypt(cfg.access_token!);
 
-  await ensureFlowEncryptionKeys({ accountId, db })
+  await ensureFlowEncryptionKeys({ accountId, db });
 
   // Load or create the registry row.
   const { data: existingRow } = await db
@@ -197,9 +199,9 @@ export async function setupPreferenceFlow(args: {
     .select('*')
     .eq('account_id', accountId)
     .eq('flow_key', PREFERENCE_FLOW_KEY)
-    .maybeSingle()
+    .maybeSingle();
 
-  let row = existingRow as MetaFlowRow | null
+  let row = existingRow as MetaFlowRow | null;
   if (!row) {
     const { data: inserted, error: insertErr } = await db
       .from('whatsapp_meta_flows')
@@ -211,40 +213,42 @@ export async function setupPreferenceFlow(args: {
         flow_json_version: PREFERENCE_FLOW_JSON_VERSION,
       })
       .select()
-      .single()
+      .single();
     if (insertErr || !inserted) {
-      throw new Error(`Failed to create flow registry row: ${insertErr?.message}`)
+      throw new Error(
+        `Failed to create flow registry row: ${insertErr?.message}`
+      );
     }
-    row = inserted as MetaFlowRow
+    row = inserted as MetaFlowRow;
   }
 
   const recordError = async (message: string): Promise<never> => {
     await db
       .from('whatsapp_meta_flows')
       .update({ status: 'error', last_error: message.slice(0, 2000) })
-      .eq('id', row!.id)
-    throw new Error(message)
-  }
+      .eq('id', row!.id);
+    throw new Error(message);
+  };
 
   const metaFetch = async (path: string, init: RequestInit, what: string) => {
-    const response = await fetch(`${META_API_BASE}/${path}`, init)
-    let json: Record<string, unknown> = {}
+    const response = await fetch(`${META_API_BASE}/${path}`, init);
+    let json: Record<string, unknown> = {};
     try {
-      json = await response.json()
+      json = await response.json();
     } catch {
       // fall through with empty body
     }
     if (!response.ok) {
-      const err = json as { error?: { message?: string } }
+      const err = json as { error?: { message?: string } };
       return recordError(
         `${what} failed: ${err.error?.message || `HTTP ${response.status}`}`
-      )
+      );
     }
-    return json
-  }
+    return json;
+  };
 
   // 1. Create the flow container on Meta if we don't have one yet.
-  let metaFlowId = row.meta_flow_id
+  let metaFlowId = row.meta_flow_id;
   if (!metaFlowId) {
     const created = await metaFetch(
       `${cfg.waba_id}/flows`,
@@ -261,15 +265,15 @@ export async function setupPreferenceFlow(args: {
         }),
       },
       'Creating flow on Meta'
-    )
-    metaFlowId = String((created as { id?: string }).id || '')
+    );
+    metaFlowId = String((created as { id?: string }).id || '');
     if (!metaFlowId) {
-      return recordError('Meta did not return a flow id on creation.')
+      return recordError('Meta did not return a flow id on creation.');
     }
     await db
       .from('whatsapp_meta_flows')
       .update({ meta_flow_id: metaFlowId })
-      .eq('id', row.id)
+      .eq('id', row.id);
   } else {
     // Keep the endpoint URI current (base URL may have changed).
     await metaFetch(
@@ -283,19 +287,19 @@ export async function setupPreferenceFlow(args: {
         body: JSON.stringify({ endpoint_uri: flowsEndpointUri(accountId) }),
       },
       'Updating flow endpoint URI'
-    )
+    );
   }
 
   // 2. Upload the Flow JSON asset.
-  const flowJson = JSON.stringify(buildPreferenceFlowJson())
-  const form = new FormData()
+  const flowJson = JSON.stringify(buildPreferenceFlowJson());
+  const form = new FormData();
   form.append(
     'file',
     new Blob([flowJson], { type: 'application/json' }),
     'flow.json'
-  )
-  form.append('name', 'flow.json')
-  form.append('asset_type', 'FLOW_JSON')
+  );
+  form.append('name', 'flow.json');
+  form.append('asset_type', 'FLOW_JSON');
 
   const uploadResult = (await metaFetch(
     `${metaFlowId}/assets`,
@@ -306,35 +310,44 @@ export async function setupPreferenceFlow(args: {
     },
     'Uploading flow JSON'
   )) as {
-    validation_errors?: Array<{ error?: string; message?: string; line_start?: number }>
-  }
+    validation_errors?: Array<{
+      error?: string;
+      message?: string;
+      line_start?: number;
+    }>;
+  };
 
-  const validationErrors = (uploadResult.validation_errors || []).filter(Boolean)
+  const validationErrors = (uploadResult.validation_errors || []).filter(
+    Boolean
+  );
   if (validationErrors.length > 0) {
     const details = validationErrors
       .map((e) => e.message || e.error)
       .filter(Boolean)
-      .join('; ')
-    return recordError(`Flow JSON failed Meta validation: ${details}`)
+      .join('; ');
+    return recordError(`Flow JSON failed Meta validation: ${details}`);
   }
 
   // 3. Publish. Meta rejects publishing an already-published flow with
   //    no changes — treat that specific case as success.
-  const publishResponse = await fetch(`${META_API_BASE}/${metaFlowId}/publish`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
+  const publishResponse = await fetch(
+    `${META_API_BASE}/${metaFlowId}/publish`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
   if (!publishResponse.ok) {
-    let message = `HTTP ${publishResponse.status}`
+    let message = `HTTP ${publishResponse.status}`;
     try {
-      const errJson = await publishResponse.json()
-      message = errJson?.error?.message || message
+      const errJson = await publishResponse.json();
+      message = errJson?.error?.message || message;
     } catch {
       // keep status fallback
     }
-    const alreadyPublished = /already published|no changes/i.test(message)
+    const alreadyPublished = /already published|no changes/i.test(message);
     if (!alreadyPublished) {
-      return recordError(`Publishing flow failed: ${message}`)
+      return recordError(`Publishing flow failed: ${message}`);
     }
   }
 
@@ -348,18 +361,20 @@ export async function setupPreferenceFlow(args: {
     })
     .eq('id', row.id)
     .select()
-    .single()
+    .single();
   if (finalErr || !finalRow) {
-    throw new Error(`Flow published but registry update failed: ${finalErr?.message}`)
+    throw new Error(
+      `Flow published but registry update failed: ${finalErr?.message}`
+    );
   }
-  return finalRow as MetaFlowRow
+  return finalRow as MetaFlowRow;
 }
 
 // ── Direct validation against Meta ────────────────────────────────
 
 export interface FlowValidationResult {
-  valid: boolean
-  errors: Array<{ message: string; line_start?: number }>
+  valid: boolean;
+  errors: Array<{ message: string; line_start?: number }>;
 }
 
 /**
@@ -376,36 +391,38 @@ export interface FlowValidationResult {
  * any time, including against a flow that's already live.
  */
 export async function validatePreferenceFlowJson(args: {
-  accountId: string
-  db?: SupabaseClient
+  accountId: string;
+  db?: SupabaseClient;
 }): Promise<FlowValidationResult> {
-  const db = args.db || supabaseAdmin()
-  const { accountId } = args
-  const cfg = await loadOfficialConfig(db, accountId)
-  const accessToken = decrypt(cfg.access_token!)
+  const db = args.db || supabaseAdmin();
+  const { accountId } = args;
+  const cfg = await loadOfficialConfig(db, accountId);
+  const accessToken = decrypt(cfg.access_token!);
 
   const { data: existingRow } = await db
     .from('whatsapp_meta_flows')
     .select('*')
     .eq('account_id', accountId)
     .eq('flow_key', PREFERENCE_FLOW_KEY)
-    .maybeSingle()
-  let metaFlowId = (existingRow as MetaFlowRow | null)?.meta_flow_id || null
+    .maybeSingle();
+  let metaFlowId = (existingRow as MetaFlowRow | null)?.meta_flow_id || null;
 
   const metaFetch = async (path: string, init: RequestInit, what: string) => {
-    const response = await fetch(`${META_API_BASE}/${path}`, init)
-    let json: Record<string, unknown> = {}
+    const response = await fetch(`${META_API_BASE}/${path}`, init);
+    let json: Record<string, unknown> = {};
     try {
-      json = await response.json()
+      json = await response.json();
     } catch {
       // fall through with empty body
     }
     if (!response.ok) {
-      const err = json as { error?: { message?: string } }
-      throw new Error(`${what} failed: ${err.error?.message || `HTTP ${response.status}`}`)
+      const err = json as { error?: { message?: string } };
+      throw new Error(
+        `${what} failed: ${err.error?.message || `HTTP ${response.status}`}`
+      );
     }
-    return json
-  }
+    return json;
+  };
 
   if (!metaFlowId) {
     const created = await metaFetch(
@@ -423,31 +440,33 @@ export async function validatePreferenceFlowJson(args: {
         }),
       },
       'Creating flow on Meta'
-    )
-    metaFlowId = String((created as { id?: string }).id || '')
+    );
+    metaFlowId = String((created as { id?: string }).id || '');
     if (!metaFlowId) {
-      throw new Error('Meta did not return a flow id on creation.')
+      throw new Error('Meta did not return a flow id on creation.');
     }
-    await db
-      .from('whatsapp_meta_flows')
-      .upsert(
-        {
-          account_id: accountId,
-          flow_key: PREFERENCE_FLOW_KEY,
-          name: PREFERENCE_FLOW_NAME,
-          status: 'draft',
-          meta_flow_id: metaFlowId,
-          flow_json_version: PREFERENCE_FLOW_JSON_VERSION,
-        },
-        { onConflict: 'account_id,flow_key' }
-      )
+    await db.from('whatsapp_meta_flows').upsert(
+      {
+        account_id: accountId,
+        flow_key: PREFERENCE_FLOW_KEY,
+        name: PREFERENCE_FLOW_NAME,
+        status: 'draft',
+        meta_flow_id: metaFlowId,
+        flow_json_version: PREFERENCE_FLOW_JSON_VERSION,
+      },
+      { onConflict: 'account_id,flow_key' }
+    );
   }
 
-  const flowJson = JSON.stringify(buildPreferenceFlowJson())
-  const form = new FormData()
-  form.append('file', new Blob([flowJson], { type: 'application/json' }), 'flow.json')
-  form.append('name', 'flow.json')
-  form.append('asset_type', 'FLOW_JSON')
+  const flowJson = JSON.stringify(buildPreferenceFlowJson());
+  const form = new FormData();
+  form.append(
+    'file',
+    new Blob([flowJson], { type: 'application/json' }),
+    'flow.json'
+  );
+  form.append('name', 'flow.json');
+  form.append('asset_type', 'FLOW_JSON');
 
   const uploadResult = (await metaFetch(
     `${metaFlowId}/assets`,
@@ -458,60 +477,64 @@ export async function validatePreferenceFlowJson(args: {
     },
     'Uploading flow JSON for validation'
   )) as {
-    validation_errors?: Array<{ error?: string; message?: string; line_start?: number }>
-  }
+    validation_errors?: Array<{
+      error?: string;
+      message?: string;
+      line_start?: number;
+    }>;
+  };
 
   const errors = (uploadResult.validation_errors || [])
     .filter(Boolean)
     .map((e) => ({
       message: e.message || e.error || 'Unknown validation error',
       line_start: e.line_start,
-    }))
+    }));
 
-  return { valid: errors.length === 0, errors }
+  return { valid: errors.length === 0, errors };
 }
 
 // ── Sessions & sending ────────────────────────────────────────────
 
 export interface FlowSessionRow {
-  id: string
-  account_id: string
-  contact_id: string
-  flow_key: string
-  flow_token: string
-  status: 'sent' | 'opened' | 'completed' | 'expired' | 'cancelled'
-  response: Record<string, unknown> | null
-  expires_at: string | null
-  completed_at: string | null
+  id: string;
+  account_id: string;
+  contact_id: string;
+  flow_key: string;
+  flow_token: string;
+  status: 'sent' | 'opened' | 'completed' | 'expired' | 'cancelled';
+  response: Record<string, unknown> | null;
+  expires_at: string | null;
+  completed_at: string | null;
 }
 
-export type PreferenceFlowDelivery = 'flow' | 'template'
+export type PreferenceFlowDelivery = 'flow' | 'template';
 
 function resolveTemplateBodyText(body: string, params: string[]): string {
   return body.replace(/\{\{(\d+)\}\}/g, (match, rawIndex) => {
-    const index = Number(rawIndex) - 1
-    return index >= 0 && index < params.length ? params[index] : match
-  })
+    const index = Number(rawIndex) - 1;
+    return index >= 0 && index < params.length ? params[index] : match;
+  });
 }
 
 async function loadOrSubmitRequirementReviewTemplate(args: {
-  accountId: string
-  contactId: string
-  db: SupabaseClient
+  accountId: string;
+  contactId: string;
+  db: SupabaseClient;
 }): Promise<{
-  template: MessageTemplate | null
-  state: 'approved' | 'pending' | 'unavailable'
+  template: MessageTemplate | null;
+  state: 'approved' | 'pending' | 'unavailable';
 }> {
   const loaded = await loadTemplateForContact<MessageTemplate>(args.db, {
     accountId: args.accountId,
     contactId: args.contactId,
     names: REQUIREMENT_REVIEW_TEMPLATE_NAMES,
-  })
+  });
   if (loaded.template?.status?.toUpperCase() === 'APPROVED') {
-    return { template: loaded.template, state: 'approved' }
+    return { template: loaded.template, state: 'approved' };
   }
   if (loaded.template) {
-    return { template: null, state: 'pending' }
+    return { template: null, state: 'pending' };
   }
 
   try {
@@ -521,24 +544,28 @@ async function loadOrSubmitRequirementReviewTemplate(args: {
         .select('waba_id, access_token, integration_type')
         .eq('account_id', args.accountId)
         .maybeSingle(),
-      args.db.from('accounts').select('owner_user_id').eq('id', args.accountId).maybeSingle(),
-    ])
+      args.db
+        .from('accounts')
+        .select('owner_user_id')
+        .eq('id', args.accountId)
+        .maybeSingle(),
+    ]);
     if (
       !config?.waba_id ||
       !config.access_token ||
       config.integration_type === 'sandbox' ||
       !account?.owner_user_id
     ) {
-      return { template: null, state: 'unavailable' }
+      return { template: null, state: 'unavailable' };
     }
 
-    const payload = buildRequirementReviewTemplatePayload()
+    const payload = buildRequirementReviewTemplatePayload();
     const meta = await submitMessageTemplate({
       wabaId: config.waba_id,
       accessToken: decrypt(config.access_token),
       payload: buildMetaTemplatePayload(payload),
-    })
-    const status = normalizeStatus(meta.status)
+    });
+    const status = normalizeStatus(meta.status);
     const { data: inserted } = await args.db
       .from('message_templates')
       .insert({
@@ -559,14 +586,17 @@ async function loadOrSubmitRequirementReviewTemplate(args: {
         last_submitted_at: new Date().toISOString(),
       })
       .select()
-      .single()
+      .single();
 
     return status === 'APPROVED' && inserted
       ? { template: inserted as MessageTemplate, state: 'approved' }
-      : { template: null, state: 'pending' }
+      : { template: null, state: 'pending' };
   } catch (error) {
-    console.error('[preference-flow] requirement template submit failed:', error)
-    return { template: null, state: 'unavailable' }
+    console.error(
+      '[preference-flow] requirement template submit failed:',
+      error
+    );
+    return { template: null, state: 'unavailable' };
   }
 }
 
@@ -578,15 +608,15 @@ export async function getPublishedPreferenceFlow(
   accountId: string,
   db?: SupabaseClient
 ): Promise<MetaFlowRow | null> {
-  const client = db || supabaseAdmin()
+  const client = db || supabaseAdmin();
   const { data } = await client
     .from('whatsapp_meta_flows')
     .select('*')
     .eq('account_id', accountId)
     .eq('flow_key', PREFERENCE_FLOW_KEY)
     .eq('status', 'published')
-    .maybeSingle()
-  return (data as MetaFlowRow) || null
+    .maybeSingle();
+  return (data as MetaFlowRow) || null;
 }
 
 /**
@@ -596,29 +626,29 @@ export async function getPublishedPreferenceFlow(
  * it shows up in the inbox thread.
  */
 export async function sendPreferenceFlowToContact(args: {
-  accountId: string
-  contactId: string
-  senderType?: 'user' | 'bot' | 'agent'
+  accountId: string;
+  contactId: string;
+  senderType?: 'user' | 'bot' | 'agent';
   /** Overrides the message body — used when a listings reply already
    *  carried the pitch and the form should read as an optional
    *  shortcut, not the whole turn. */
-  bodyText?: string
-  db?: SupabaseClient
+  bodyText?: string;
+  db?: SupabaseClient;
 }): Promise<{
-  success: boolean
-  delivery?: PreferenceFlowDelivery
-  error?: string
+  success: boolean;
+  delivery?: PreferenceFlowDelivery;
+  error?: string;
 }> {
-  const db = args.db || supabaseAdmin()
-  const { accountId, contactId } = args
+  const db = args.db || supabaseAdmin();
+  const { accountId, contactId } = args;
 
-  const flow = await getPublishedPreferenceFlow(accountId, db)
+  const flow = await getPublishedPreferenceFlow(accountId, db);
   if (!flow?.meta_flow_id) {
     return {
       success: false,
       error:
         'The preference flow is not set up for this account yet. Publish it from Settings → WhatsApp first.',
-    }
+    };
   }
 
   // One live session per contact — supersede older unanswered forms so
@@ -629,34 +659,39 @@ export async function sendPreferenceFlowToContact(args: {
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
     .eq('flow_key', PREFERENCE_FLOW_KEY)
-    .in('status', ['sent', 'opened'])
+    .in('status', ['sent', 'opened']);
 
   const { data: contact } = await db
     .from('contacts')
     .select('*')
     .eq('id', contactId)
     .eq('account_id', accountId)
-    .maybeSingle()
+    .maybeSingle();
   if (!contact) {
-    return { success: false, error: 'Contact not found for this account.' }
+    return { success: false, error: 'Contact not found for this account.' };
   }
 
-  const flowToken = crypto.randomBytes(24).toString('hex')
+  const flowToken = crypto.randomBytes(24).toString('hex');
   const expiresAt = new Date(
     Date.now() + FLOW_SESSION_TTL_HOURS * 3600 * 1000
-  ).toISOString()
+  ).toISOString();
 
-  const { error: sessionErr } = await db.from('whatsapp_meta_flow_sessions').insert({
-    account_id: accountId,
-    contact_id: contactId,
-    flow_key: PREFERENCE_FLOW_KEY,
-    flow_token: flowToken,
-    status: 'sent',
-    prefill: buildPreferencePrefillData(contact),
-    expires_at: expiresAt,
-  })
+  const { error: sessionErr } = await db
+    .from('whatsapp_meta_flow_sessions')
+    .insert({
+      account_id: accountId,
+      contact_id: contactId,
+      flow_key: PREFERENCE_FLOW_KEY,
+      flow_token: flowToken,
+      status: 'sent',
+      prefill: buildPreferencePrefillData(contact),
+      expires_at: expiresAt,
+    });
   if (sessionErr) {
-    return { success: false, error: `Failed to create flow session: ${sessionErr.message}` }
+    return {
+      success: false,
+      error: `Failed to create flow session: ${sessionErr.message}`,
+    };
   }
 
   const result = await sendWhatsAppMessageAndPersist({
@@ -672,23 +707,23 @@ export async function sendPreferenceFlowToContact(args: {
     flowId: flow.meta_flow_id,
     flowToken,
     flowCta: 'Update my preferences',
-  })
+  });
 
   if (!result.success) {
     // Don't leave an orphaned live session behind a failed send.
     await db
       .from('whatsapp_meta_flow_sessions')
       .update({ status: 'cancelled' })
-      .eq('flow_token', flowToken)
+      .eq('flow_token', flowToken);
     if (!isReengagementError(result.error)) {
-      return { success: false, error: result.error }
+      return { success: false, error: result.error };
     }
 
     const fallback = await loadOrSubmitRequirementReviewTemplate({
       accountId,
       contactId,
       db,
-    })
+    });
     if (!fallback.template) {
       return {
         success: false,
@@ -696,18 +731,18 @@ export async function sendPreferenceFlowToContact(args: {
           fallback.state === 'pending'
             ? 'The 24-hour WhatsApp window is closed. The Requirement review template is awaiting Meta approval; retry after it is approved.'
             : 'The 24-hour WhatsApp window is closed and the Requirement review template is not available. Open Settings → WhatsApp → Templates to submit it.',
-      }
+      };
     }
 
     const { data: account } = await db
       .from('accounts')
       .select('name')
       .eq('id', accountId)
-      .maybeSingle()
+      .maybeSingle();
     const params = buildRequirementReviewParams(
       contact.name as string | null | undefined,
       (account as { name?: string | null } | null)?.name
-    )
+    );
     const templateResult = await sendWhatsAppMessageAndPersist({
       accountId,
       contactId,
@@ -720,22 +755,22 @@ export async function sendPreferenceFlowToContact(args: {
       templateRow: fallback.template,
       text: resolveTemplateBodyText(fallback.template.body_text, [...params]),
       customDbClient: db,
-    })
+    });
     return templateResult.success
       ? { success: true, delivery: 'template' }
-      : { success: false, error: templateResult.error }
+      : { success: false, error: templateResult.error };
   }
-  return { success: true, delivery: 'flow' }
+  return { success: true, delivery: 'flow' };
 }
 
 // ── Applying responses ────────────────────────────────────────────
 
 export interface ApplyPreferenceResult {
-  applied: boolean
-  alreadyCompleted: boolean
-  update?: ContactPreferenceUpdate
-  session?: FlowSessionRow
-  error?: string
+  applied: boolean;
+  alreadyCompleted: boolean;
+  update?: ContactPreferenceUpdate;
+  session?: FlowSessionRow;
+  error?: string;
 }
 
 /**
@@ -746,34 +781,38 @@ export interface ApplyPreferenceResult {
  * reports alreadyCompleted so callers can skip re-writing.
  */
 export async function applyPreferenceFlowResponse(args: {
-  flowToken: string
-  values: PreferenceFormValues | Record<string, unknown>
+  flowToken: string;
+  values: PreferenceFormValues | Record<string, unknown>;
   /** When provided, the session must belong to this account (defense
    *  against cross-tenant token replay via the webhook path). */
-  expectedAccountId?: string
-  db?: SupabaseClient
+  expectedAccountId?: string;
+  db?: SupabaseClient;
 }): Promise<ApplyPreferenceResult> {
-  const db = args.db || supabaseAdmin()
+  const db = args.db || supabaseAdmin();
 
   const { data: session } = await db
     .from('whatsapp_meta_flow_sessions')
     .select('*')
     .eq('flow_token', args.flowToken)
-    .maybeSingle()
+    .maybeSingle();
 
   if (!session) {
-    return { applied: false, alreadyCompleted: false, error: 'Unknown flow token.' }
+    return {
+      applied: false,
+      alreadyCompleted: false,
+      error: 'Unknown flow token.',
+    };
   }
-  const sess = session as FlowSessionRow
+  const sess = session as FlowSessionRow;
   if (args.expectedAccountId && sess.account_id !== args.expectedAccountId) {
     return {
       applied: false,
       alreadyCompleted: false,
       error: 'Flow token does not belong to this account.',
-    }
+    };
   }
   if (sess.status === 'completed') {
-    return { applied: false, alreadyCompleted: true, session: sess }
+    return { applied: false, alreadyCompleted: true, session: sess };
   }
   if (sess.status === 'cancelled' || sess.status === 'expired') {
     return {
@@ -781,43 +820,49 @@ export async function applyPreferenceFlowResponse(args: {
       alreadyCompleted: false,
       session: sess,
       error: `Flow session is ${sess.status}.`,
-    }
+    };
   }
   if (sess.expires_at && new Date(sess.expires_at).getTime() < Date.now()) {
     await db
       .from('whatsapp_meta_flow_sessions')
       .update({ status: 'expired' })
-      .eq('id', sess.id)
-    return { applied: false, alreadyCompleted: false, error: 'Flow session expired.' }
+      .eq('id', sess.id);
+    return {
+      applied: false,
+      alreadyCompleted: false,
+      error: 'Flow session expired.',
+    };
   }
 
-  const values = parsePreferenceFormValues(args.values as Record<string, unknown>)
+  const values = parsePreferenceFormValues(
+    args.values as Record<string, unknown>
+  );
 
   const { data: currentPrefs } = await db
     .from('contacts')
     .select('property_interests')
     .eq('id', sess.contact_id)
     .eq('account_id', sess.account_id)
-    .maybeSingle()
+    .maybeSingle();
 
   const update = preferenceFormToContactUpdate(
     values,
     (currentPrefs?.property_interests as string[] | null) ?? []
-  )
+  );
 
   if (Object.keys(update).length > 0) {
     const { error: contactErr } = await db
       .from('contacts')
       .update({ ...update, updated_at: new Date().toISOString() })
       .eq('id', sess.contact_id)
-      .eq('account_id', sess.account_id)
+      .eq('account_id', sess.account_id);
     if (contactErr) {
       return {
         applied: false,
         alreadyCompleted: false,
         session: sess,
         error: `Failed to save preferences: ${contactErr.message}`,
-      }
+      };
     }
   }
 
@@ -828,9 +873,9 @@ export async function applyPreferenceFlowResponse(args: {
       response: values as unknown as Record<string, unknown>,
       completed_at: new Date().toISOString(),
     })
-    .eq('id', sess.id)
+    .eq('id', sess.id);
 
-  return { applied: true, alreadyCompleted: false, update, session: sess }
+  return { applied: true, alreadyCompleted: false, update, session: sess };
 }
 
 /** Mark a session opened (INIT received). Best-effort. */
@@ -838,12 +883,12 @@ export async function markFlowSessionOpened(
   flowToken: string,
   db?: SupabaseClient
 ): Promise<void> {
-  const client = db || supabaseAdmin()
+  const client = db || supabaseAdmin();
   await client
     .from('whatsapp_meta_flow_sessions')
     .update({ status: 'opened' })
     .eq('flow_token', flowToken)
-    .eq('status', 'sent')
+    .eq('status', 'sent');
 }
 
 /** Load the session + contact for an INIT prefill. */
@@ -851,23 +896,23 @@ export async function getFlowSessionWithContact(
   flowToken: string,
   db?: SupabaseClient
 ): Promise<{
-  session: FlowSessionRow
-  contact: Record<string, unknown>
+  session: FlowSessionRow;
+  contact: Record<string, unknown>;
 } | null> {
-  const client = db || supabaseAdmin()
+  const client = db || supabaseAdmin();
   const { data: session } = await client
     .from('whatsapp_meta_flow_sessions')
     .select('*')
     .eq('flow_token', flowToken)
-    .maybeSingle()
-  if (!session) return null
-  const sess = session as FlowSessionRow
+    .maybeSingle();
+  if (!session) return null;
+  const sess = session as FlowSessionRow;
   const { data: contact } = await client
     .from('contacts')
     .select('*')
     .eq('id', sess.contact_id)
     .eq('account_id', sess.account_id)
-    .maybeSingle()
-  if (!contact) return null
-  return { session: sess, contact: contact as Record<string, unknown> }
+    .maybeSingle();
+  if (!contact) return null;
+  return { session: sess, contact: contact as Record<string, unknown> };
 }

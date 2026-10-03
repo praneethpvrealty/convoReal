@@ -40,7 +40,7 @@ forked from. The repository still records the relationship:
 What follows from that:
 
 - **You cannot relicense the upstream code.** Only its copyright holder can.
-  Praneeth Kumar S can license *his own* contributions however he likes; he
+  Praneeth Kumar S can license _his own_ contributions however he likes; he
   cannot put Arnas Donauskas's code under a proprietary licence.
 - **The MIT notice has to stay.** MIT's one substantive condition is that the
   copyright notice and permission notice be retained in all copies and
@@ -54,7 +54,7 @@ What follows from that:
 
 1. **Dual-notice.** Keep the MIT notice for the upstream base, and apply a
    proprietary licence to your own additions. This is what most
-   open-source-fork-goes-commercial projects actually do. It does *not* stop
+   open-source-fork-goes-commercial projects actually do. It does _not_ stop
    someone forking the upstream `wacrm` project — but it does cover the
    substantial work built on top, which is where the value now is.
 2. **Copyright assignment.** Negotiate a written assignment or a commercial
@@ -93,12 +93,12 @@ protects future work. It does not retrieve the past.
 
 Worth being exact, because it is the most common misunderstanding:
 
-| Making the repo private… | Effect |
-|---|---|
-| Stops *new* people reading the code | Yes |
-| Revokes MIT rights already granted | **No** — see §2.2 |
-| Deletes or reclaims existing forks | **No.** GitHub detaches public forks into a new network; they stay public and stay forked |
-| Changes the licence | **No.** Visibility and licence are unrelated |
+| Making the repo private…            | Effect                                                                                    |
+| ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| Stops _new_ people reading the code | Yes                                                                                       |
+| Revokes MIT rights already granted  | **No** — see §2.2                                                                         |
+| Deletes or reclaims existing forks  | **No.** GitHub detaches public forks into a new network; they stay public and stay forked |
+| Changes the licence                 | **No.** Visibility and licence are unrelated                                              |
 
 Private + MIT means: fewer people can get a copy, and everyone who already has
 one may still fork, host and rebrand it.
@@ -117,16 +117,16 @@ Six places currently advertise the MIT/self-host/fork position. They must change
 **with** the licence, in one commit — never before it, or the repo contradicts
 itself in the other direction.
 
-| File | What it says now | Change to |
-|---|---|---|
-| `LICENSE` | MIT licence text | Contents of `LICENSE.proposed` |
-| `README.md:3` | "**Self-hostable** WhatsApp Engine…" | Drop "Self-hostable" |
-| `README.md:5` | `[![License: MIT]…]` badge | Proprietary badge, or remove |
-| `README.md` §License | `See [LICENSE](./LICENSE).` | Already neutral — no change needed |
-| `package.json:6` | `"license": "MIT"` | `"license": "UNLICENSED"` and add `"private": true` |
-| `package.json:25-26` | keywords `"self-hosted"`, `"template"` | Remove both |
-| `.github/pull_request_template.md:1-8` | "this is a template… most changes belong in **your fork**" | Rewrite for internal contributors |
-| `CONTRIBUTING.md:3` | "a **self-hostable** WhatsApp deal engine" | Drop "self-hostable"; rewrite the fork/PR guidance |
+| File                                   | What it says now                                           | Change to                                           |
+| -------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------- |
+| `LICENSE`                              | MIT licence text                                           | Contents of `LICENSE.proposed`                      |
+| `README.md:3`                          | "**Self-hostable** WhatsApp Engine…"                       | Drop "Self-hostable"                                |
+| `README.md:5`                          | `[![License: MIT]…]` badge                                 | Proprietary badge, or remove                        |
+| `README.md` §License                   | `See [LICENSE](./LICENSE).`                                | Already neutral — no change needed                  |
+| `package.json:6`                       | `"license": "MIT"`                                         | `"license": "UNLICENSED"` and add `"private": true` |
+| `package.json:25-26`                   | keywords `"self-hosted"`, `"template"`                     | Remove both                                         |
+| `.github/pull_request_template.md:1-8` | "this is a template… most changes belong in **your fork**" | Rewrite for internal contributors                   |
+| `CONTRIBUTING.md:3`                    | "a **self-hostable** WhatsApp deal engine"                 | Drop "self-hostable"; rewrite the fork/PR guidance  |
 
 `"license": "UNLICENSED"` with `"private": true` is the npm convention for a
 package that must never be published. `package.json` already has

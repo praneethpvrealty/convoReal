@@ -8,11 +8,15 @@ export function sanitizeStages(value: unknown): LiaisonWorkflowStage[] {
   const out: LiaisonWorkflowStage[] = [];
   for (const item of value) {
     if (!item || typeof item !== 'object') continue;
-    const { name, authority, duration_days, description } = item as Record<string, unknown>;
+    const { name, authority, duration_days, description } = item as Record<
+      string,
+      unknown
+    >;
     if (typeof name !== 'string' || name.trim().length === 0) continue;
     out.push({
       name: name.trim(),
-      authority: typeof authority === 'string' ? authority.trim() || null : null,
+      authority:
+        typeof authority === 'string' ? authority.trim() || null : null,
       duration_days:
         typeof duration_days === 'number' &&
         Number.isFinite(duration_days) &&
@@ -28,7 +32,9 @@ export function sanitizeStages(value: unknown): LiaisonWorkflowStage[] {
 }
 
 /** Sum of the stage timelines; null when no stage has one. */
-export function totalDurationDays(stages: LiaisonWorkflowStage[]): number | null {
+export function totalDurationDays(
+  stages: LiaisonWorkflowStage[]
+): number | null {
   let total = 0;
   let any = false;
   for (const s of stages) {
@@ -46,7 +52,7 @@ export function totalDurationDays(stages: LiaisonWorkflowStage[]): number | null
  * the reader is a client, not a case worker.
  */
 export function buildWorkflowMessage(
-  workflow: Pick<LiaisonWorkflow, 'service_name' | 'description' | 'stages'>,
+  workflow: Pick<LiaisonWorkflow, 'service_name' | 'description' | 'stages'>
 ): string {
   const lines: string[] = [];
 
@@ -62,7 +68,7 @@ export function buildWorkflowMessage(
     lines.push(`*Step ${i + 1}: ${stage.name}*${authority}`);
     if (stage.duration_days !== null && stage.duration_days !== undefined) {
       lines.push(
-        `Approx. ${stage.duration_days} day${stage.duration_days === 1 ? '' : 's'}`,
+        `Approx. ${stage.duration_days} day${stage.duration_days === 1 ? '' : 's'}`
       );
     }
     if (stage.description) {
@@ -78,7 +84,7 @@ export function buildWorkflowMessage(
 
   lines.push('');
   lines.push(
-    '_Timelines are indicative — government processing times can vary. We will keep you updated at every stage._',
+    '_Timelines are indicative — government processing times can vary. We will keep you updated at every stage._'
   );
 
   return lines.join('\n');

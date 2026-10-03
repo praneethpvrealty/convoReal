@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export async function verifyWebhookTrialStatus(accountId: string) {
   const supabase = supabaseAdmin();
-  
+
   const { data: config, error } = await supabase
     .from('whatsapp_config')
     .select('integration_type, trial_ends_at')
@@ -15,7 +15,10 @@ export async function verifyWebhookTrialStatus(accountId: string) {
     return { allowed: false, reason: 'Configuration not found' };
   }
 
-  const typedConfig = config as unknown as { integration_type: 'sandbox' | 'web_qr' | 'official_api'; trial_ends_at: string | null };
+  const typedConfig = config as unknown as {
+    integration_type: 'sandbox' | 'web_qr' | 'official_api';
+    trial_ends_at: string | null;
+  };
 
   // If Official API, access is always allowed
   if (typedConfig.integration_type === 'official_api') {
@@ -23,11 +26,14 @@ export async function verifyWebhookTrialStatus(accountId: string) {
   }
 
   // Check trial expiration
-  if (typedConfig.trial_ends_at && new Date() > new Date(typedConfig.trial_ends_at)) {
-    return { 
-      allowed: false, 
+  if (
+    typedConfig.trial_ends_at &&
+    new Date() > new Date(typedConfig.trial_ends_at)
+  ) {
+    return {
+      allowed: false,
       reason: 'trial_expired',
-      type: typedConfig.integration_type 
+      type: typedConfig.integration_type,
     };
   }
 

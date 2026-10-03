@@ -10,7 +10,7 @@ import { normalizeSuggestedTags } from './ai/preference-extraction';
 describe('effectiveMaxBudget', () => {
   it('prefers the explicit field over the AI extraction', () => {
     expect(
-      effectiveMaxBudget({ max_budget: 25000000, pref_budget_max: 30000000 }),
+      effectiveMaxBudget({ max_budget: 25000000, pref_budget_max: 30000000 })
     ).toEqual({ value: 25000000, source: 'explicit' });
   });
 
@@ -29,7 +29,9 @@ describe('effectiveMaxBudget', () => {
   });
 
   it('ignores zero / invalid values and returns null when nothing usable', () => {
-    expect(effectiveMaxBudget({ max_budget: 0, pref_budget_max: null })).toBeNull();
+    expect(
+      effectiveMaxBudget({ max_budget: 0, pref_budget_max: null })
+    ).toBeNull();
     expect(effectiveMaxBudget({})).toBeNull();
   });
 });
@@ -37,19 +39,26 @@ describe('effectiveMaxBudget', () => {
 describe('effectiveAreas', () => {
   it('prefers explicit areas', () => {
     expect(
-      effectiveAreas({ areas_of_interest: ['HSR Layout'], pref_areas: ['Devanahalli'] }),
+      effectiveAreas({
+        areas_of_interest: ['HSR Layout'],
+        pref_areas: ['Devanahalli'],
+      })
     ).toEqual({ value: ['HSR Layout'], source: 'explicit' });
   });
 
   it('falls back to AI-extracted areas', () => {
-    expect(effectiveAreas({ areas_of_interest: [], pref_areas: ['Devanahalli'] })).toEqual({
+    expect(
+      effectiveAreas({ areas_of_interest: [], pref_areas: ['Devanahalli'] })
+    ).toEqual({
       value: ['Devanahalli'],
       source: 'ai',
     });
   });
 
   it('treats whitespace-only entries as empty', () => {
-    expect(effectiveAreas({ areas_of_interest: ['  '], pref_areas: null })).toBeNull();
+    expect(
+      effectiveAreas({ areas_of_interest: ['  '], pref_areas: null })
+    ).toBeNull();
   });
 });
 
@@ -59,7 +68,7 @@ describe('effectiveCategories', () => {
       effectiveCategories({
         property_interests: ['Residential'],
         pref_property_categories: ['commercial'],
-      }),
+      })
     ).toEqual({ value: ['Residential'], source: 'explicit' });
   });
 
@@ -68,7 +77,7 @@ describe('effectiveCategories', () => {
       effectiveCategories({
         pref_property_categories: ['residential'],
         pref_property_types: ['Residential House', 'Flat/ Apartment'],
-      }),
+      })
     ).toEqual({
       value: ['Residential', 'Residential House', 'Flat/ Apartment'],
       source: 'ai',
@@ -83,7 +92,7 @@ describe('effectiveCategories', () => {
 describe('visibleTagSuggestions', () => {
   it('hides suggestions already attached as tags (case-insensitive)', () => {
     expect(
-      visibleTagSuggestions(['Investor', 'Rental Income'], ['investor', 'VIP']),
+      visibleTagSuggestions(['Investor', 'Rental Income'], ['investor', 'VIP'])
     ).toEqual(['Rental Income']);
   });
 
@@ -93,20 +102,28 @@ describe('visibleTagSuggestions', () => {
   });
 
   it('tolerates null tag names from a broken join', () => {
-    expect(visibleTagSuggestions(['NRI'], [null, undefined, 'nri '])).toEqual([]);
+    expect(visibleTagSuggestions(['NRI'], [null, undefined, 'nri '])).toEqual(
+      []
+    );
   });
 });
 
 describe('normalizeSuggestedTags', () => {
   it('title-cases, dedupes case-insensitively, caps at 3', () => {
     expect(
-      normalizeSuggestedTags(['investor', 'Investor', 'rental income', 'NRI', 'urgent']),
+      normalizeSuggestedTags([
+        'investor',
+        'Investor',
+        'rental income',
+        'NRI',
+        'urgent',
+      ])
     ).toEqual(['Investor', 'Rental Income', 'NRI']);
   });
 
   it('drops junk-length values and collapses whitespace', () => {
     expect(
-      normalizeSuggestedTags(['x', '  first-time   buyer ', 'a'.repeat(30)]),
+      normalizeSuggestedTags(['x', '  first-time   buyer ', 'a'.repeat(30)])
     ).toEqual(['First-time Buyer']);
   });
 });

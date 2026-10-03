@@ -10,7 +10,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const URL = process.env.E2E_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+const URL =
+  process.env.E2E_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 export const db = createClient(URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
@@ -23,7 +24,7 @@ export async function context() {
   if (cached) return cached;
   const { data: users } = await db.auth.admin.listUsers({ perPage: 1000 });
   const user = users.users.find(
-    (u) => u.email?.toLowerCase() === process.env.E2E_EMAIL.toLowerCase(),
+    (u) => u.email?.toLowerCase() === process.env.E2E_EMAIL.toLowerCase()
   );
   if (!user) throw new Error('E2E_EMAIL has no auth user');
   const { data: profile } = await db
@@ -36,7 +37,12 @@ export async function context() {
     .select('id, default_language')
     .eq('id', profile.account_id)
     .single();
-  cached = { userId: user.id, profileId: profile.id, accountId: account.id, account };
+  cached = {
+    userId: user.id,
+    profileId: profile.id,
+    accountId: account.id,
+    account,
+  };
   return cached;
 }
 
@@ -60,7 +66,12 @@ export async function resetLocale() {
 
 const META_CODES = {
   en: ['en_US', 'en_GB', 'en'],
-  hi: ['hi'], kn: ['kn'], ta: ['ta'], te: ['te'], ml: ['ml'], mr: ['mr'],
+  hi: ['hi'],
+  kn: ['kn'],
+  ta: ['ta'],
+  te: ['te'],
+  ml: ['ml'],
+  mr: ['mr'],
 };
 
 /**
@@ -90,26 +101,34 @@ export async function expectedLanguageUsage() {
 
   const rows = {};
   for (const code of Object.keys(META_CODES)) {
-    const inLang = (templates ?? []).filter((t) => META_CODES[code].includes(t.language));
+    const inLang = (templates ?? []).filter((t) =>
+      META_CODES[code].includes(t.language)
+    );
     rows[code] = {
-      agents: (profiles ?? []).filter((p) => (p.active_ui_language ?? 'en') === code).length,
+      agents: (profiles ?? []).filter(
+        (p) => (p.active_ui_language ?? 'en') === code
+      ).length,
       contacts: (contacts ?? []).filter(
         (c) =>
           c.is_merged === false &&
           (c.chain_only ?? false) === false &&
-          (c.preferred_language ?? fallback) === code,
+          (c.preferred_language ?? fallback) === code
       ).length,
       contactsExplicit: (contacts ?? []).filter(
         (c) =>
           c.is_merged === false &&
           (c.chain_only ?? false) === false &&
-          c.preferred_language === code,
+          c.preferred_language === code
       ).length,
-      approvedTemplates: inLang.filter((t) => (t.status ?? '').toUpperCase() === 'APPROVED').length,
+      approvedTemplates: inLang.filter(
+        (t) => (t.status ?? '').toUpperCase() === 'APPROVED'
+      ).length,
       // Counted over rows that exist. A language with no templates has
       // nothing awaiting review.
       awaitingReview: inLang.filter(
-        (t) => (t.status ?? '').toUpperCase() !== 'APPROVED' && t.translation_reviewed_at === null,
+        (t) =>
+          (t.status ?? '').toUpperCase() !== 'APPROVED' &&
+          t.translation_reviewed_at === null
       ).length,
     };
   }
@@ -120,7 +139,9 @@ export async function templatesInLanguage(metaCode) {
   const { accountId } = await context();
   const { data } = await db
     .from('message_templates')
-    .select('id, name, language, status, translation_reviewed_at, body_text, meta_template_id')
+    .select(
+      'id, name, language, status, translation_reviewed_at, body_text, meta_template_id'
+    )
     .eq('account_id', accountId)
     .eq('language', metaCode);
   return data ?? [];

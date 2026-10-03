@@ -28,7 +28,7 @@ vi.mock('@/lib/whatsapp/bot-message-target', () => ({
   recordBotTarget: (...a: unknown[]) => recordBotTarget(...a),
 }));
 
-vi.mock('@/lib/automations/admin-client', () => ({
+vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
       const builder: Record<string, unknown> = {};

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import {
@@ -43,7 +47,7 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; callId: string }> },
+  { params }: { params: Promise<{ id: string; callId: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -52,7 +56,9 @@ export async function POST(
     const limit = await checkRateLimit(`send:${ctx.userId}`, RATE_LIMITS.send);
     if (!limit.success) return rateLimitResponse(limit);
 
-    const body = (await request.json().catch(() => null)) as { message?: string } | null;
+    const body = (await request.json().catch(() => null)) as {
+      message?: string;
+    } | null;
 
     const [{ data: call }, { data: contact }] = await Promise.all([
       ctx.supabase
@@ -70,12 +76,18 @@ export async function POST(
         .maybeSingle(),
     ]);
     if (!call) {
-      return NextResponse.json({ error: 'Call log not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Call log not found' },
+        { status: 404 }
+      );
     }
 
     const message = (body?.message ?? call.update_draft ?? '').trim();
     if (!message) {
-      return NextResponse.json({ error: 'Nothing to send — the update draft is empty.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Nothing to send — the update draft is empty.' },
+        { status: 400 }
+      );
     }
 
     const [{ data: conversation }, templateRow] = await Promise.all([
@@ -101,7 +113,7 @@ export async function POST(
         'call-update',
         ctx.accountId,
         templateRow.language,
-        template,
+        template
       );
     }
 
@@ -126,10 +138,20 @@ export async function POST(
       });
       if (res.success) {
         return NextResponse.json({
-          data: await markSent(ctx, callId, contactId, message, conversation?.id, 'template'),
+          data: await markSent(
+            ctx,
+            callId,
+            contactId,
+            message,
+            conversation?.id,
+            'template'
+          ),
         });
       }
-      console.error('[send-update] call_update template send failed:', res.error);
+      console.error(
+        '[send-update] call_update template send failed:',
+        res.error
+      );
     }
 
     // 2. Fallback: free-form, which only Meta's open window allows.
@@ -153,7 +175,7 @@ export async function POST(
           code: 'CUSTOMER_WINDOW_EXPIRED',
           template_status: template?.status ?? null,
         },
-        { status: 409 },
+        { status: 409 }
       );
     }
 
@@ -174,14 +196,24 @@ export async function POST(
             code: 'CUSTOMER_WINDOW_EXPIRED',
             template_status: template?.status ?? null,
           },
-          { status: 409 },
+          { status: 409 }
         );
       }
-      return NextResponse.json({ error: res.error || 'Failed to send update' }, { status: 502 });
+      return NextResponse.json(
+        { error: res.error || 'Failed to send update' },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({
-      data: await markSent(ctx, callId, contactId, message, conversation?.id, 'freeform'),
+      data: await markSent(
+        ctx,
+        callId,
+        contactId,
+        message,
+        conversation?.id,
+        'freeform'
+      ),
     });
   } catch (err) {
     return toErrorResponse(err);
@@ -194,7 +226,7 @@ async function markSent(
   contactId: string,
   message: string,
   conversationId: string | undefined,
-  channel: 'template' | 'freeform',
+  channel: 'template' | 'freeform'
 ) {
   const { data: updated, error } = await ctx.supabase
     .from('contact_call_logs')
@@ -209,5 +241,10 @@ async function markSent(
     // as sent even if the bookkeeping write failed.
     console.error('[send-update] failed to mark call log sent:', error.message);
   }
-  return { sent: true, channel, conversation_id: conversationId ?? null, call: updated ?? null };
+  return {
+    sent: true,
+    channel,
+    conversation_id: conversationId ?? null,
+    call: updated ?? null,
+  };
 }

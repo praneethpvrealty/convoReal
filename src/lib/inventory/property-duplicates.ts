@@ -27,7 +27,11 @@ function normalized(value: string | null | undefined) {
   return value?.trim().toLocaleLowerCase() || null;
 }
 
-function nearlyEqual(left: number | null | undefined, right: number | null | undefined, tolerance: number) {
+function nearlyEqual(
+  left: number | null | undefined,
+  right: number | null | undefined,
+  tolerance: number
+) {
   if (left == null || right == null || left <= 0 || right <= 0) return false;
   return Math.abs(left - right) / Math.max(left, right) <= tolerance;
 }
@@ -37,7 +41,12 @@ export function assessPropertyDuplicate(
   candidate: PropertyDuplicateInput
 ): PropertyDuplicateAssessment | null {
   const distanceMeters = Math.round(
-    haversineKm(listing.latitude, listing.longitude, candidate.latitude, candidate.longitude) * 1000
+    haversineKm(
+      listing.latitude,
+      listing.longitude,
+      candidate.latitude,
+      candidate.longitude
+    ) * 1000
   );
   if (distanceMeters > PROPERTY_DUPLICATE_RADIUS_METERS) return null;
 
@@ -52,7 +61,10 @@ export function assessPropertyDuplicate(
     score += 10;
     signals.push('Same listing type');
   }
-  if (normalized(listing.project) && normalized(listing.project) === normalized(candidate.project)) {
+  if (
+    normalized(listing.project) &&
+    normalized(listing.project) === normalized(candidate.project)
+  ) {
     score += 15;
     signals.push('Same project or building');
   }
@@ -67,7 +79,10 @@ export function assessPropertyDuplicate(
     score += 10;
     signals.push('Price is within 5%');
   }
-  if (listing.floor_number != null && listing.floor_number === candidate.floor_number) {
+  if (
+    listing.floor_number != null &&
+    listing.floor_number === candidate.floor_number
+  ) {
     score += 10;
     signals.push('Same floor');
   }

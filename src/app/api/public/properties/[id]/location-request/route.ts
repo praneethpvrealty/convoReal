@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';

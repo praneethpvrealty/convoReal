@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
 import { normalizePhone } from '@/lib/whatsapp/phone-utils';
 import { digestPeriod } from '@/lib/owners/owner-digest';
@@ -47,18 +47,20 @@ export async function GET() {
       return NextResponse.json({ data: { accounts: [] } });
     }
 
-    const admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const admin = supabaseAdmin();
 
-    const { data: sourceContacts } = await admin.rpc('find_agent_source_contacts', {
-      p_phone_last10: last10,
-    });
-    const partnerRows = ((sourceContacts || []) as Array<{
-      contact_id: string;
-      account_id: string;
-    }>)
+    const { data: sourceContacts } = await admin.rpc(
+      'find_agent_source_contacts',
+      {
+        p_phone_last10: last10,
+      }
+    );
+    const partnerRows = (
+      (sourceContacts || []) as Array<{
+        contact_id: string;
+        account_id: string;
+      }>
+    )
       .filter((row) => row.account_id !== ctx.accountId)
       .slice(0, MAX_PARTNER_ACCOUNTS);
     if (partnerRows.length === 0) {
@@ -70,8 +72,14 @@ export async function GET() {
       await Promise.all(
         partnerRows.map(async (row): Promise<NetworkReachAccount | null> => {
           const [{ data: account }, digests] = await Promise.all([
-            admin.from('accounts').select('name').eq('id', row.account_id).maybeSingle(),
-            gatherAgentInventoryDigests(admin, row.account_id, period, [row.contact_id]),
+            admin
+              .from('accounts')
+              .select('name')
+              .eq('id', row.account_id)
+              .maybeSingle(),
+            gatherAgentInventoryDigests(admin, row.account_id, period, [
+              row.contact_id,
+            ]),
           ]);
           const properties = digests[0]?.properties ?? [];
           if (properties.length === 0) return null;

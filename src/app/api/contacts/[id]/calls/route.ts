@@ -7,12 +7,17 @@ import type { CallDirection, CallOutcome } from '@/types';
 
 const VALID_DIRECTIONS = new Set<CallDirection>(['outbound', 'inbound']);
 const VALID_OUTCOMES = new Set<CallOutcome>([
-  'connected', 'no_answer', 'busy', 'voicemail', 'wrong_number', 'callback_requested',
+  'connected',
+  'no_answer',
+  'busy',
+  'voicemail',
+  'wrong_number',
+  'callback_requested',
 ]);
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -34,13 +39,13 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
     const { id: contactId } = await params;
 
-    const body = await request.json() as {
+    const body = (await request.json()) as {
       called_at?: string;
       direction?: string;
       duration_seconds?: number | null;
@@ -93,7 +98,10 @@ export async function POST(
     // it moves Last Contacted. Only forward — back-logging an old call
     // must not rewind a fresher touch. Best-effort: the log is already
     // saved, so a failed bump doesn't fail the request.
-    if (!contact.last_contacted_at || new Date(calledAt) > new Date(contact.last_contacted_at)) {
+    if (
+      !contact.last_contacted_at ||
+      new Date(calledAt) > new Date(contact.last_contacted_at)
+    ) {
       await ctx.supabase
         .from('contacts')
         // Declared best-effort just above: the call log is already

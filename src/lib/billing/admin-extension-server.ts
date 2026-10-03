@@ -160,8 +160,7 @@ export async function issueExtensionChallenge(args: {
 }
 
 export type ConsumeResult =
-  | { ok: true }
-  | { ok: false; status: number; reason: ExtensionFailureReason };
+  { ok: true } | { ok: false; status: number; reason: ExtensionFailureReason };
 
 /**
  * Verifies a submitted code against its challenge and, on success,

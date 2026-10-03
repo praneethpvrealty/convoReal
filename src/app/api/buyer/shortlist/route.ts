@@ -12,7 +12,10 @@ import { NextResponse } from 'next/server';
 
 import { UserFacingError } from '@/lib/auth/account';
 import { withBuyerAuth, buyerAdmin } from '@/lib/buyer/auth';
-import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
+import {
+  isLocationGuarded,
+  localityLabel,
+} from '@/lib/inventory/location-guard';
 import { storagePublicUrl } from '@/lib/storage/url';
 
 const PROPERTY_CARD_COLUMNS =

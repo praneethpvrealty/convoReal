@@ -14,40 +14,53 @@
 // is dead immediately.
 // ============================================================
 
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from "@/lib/auth/account";
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const ctx = await requireRole("admin");
+    const ctx = await requireRole('admin');
 
-    const limit = await checkRateLimit(`admin:apiKeyRevoke:${ctx.userId}`, RATE_LIMITS.adminAction);
+    const limit = await checkRateLimit(
+      `admin:apiKeyRevoke:${ctx.userId}`,
+      RATE_LIMITS.adminAction
+    );
     if (!limit.success) return rateLimitResponse(limit);
 
     const { id } = await params;
 
     const { data, error } = await ctx.supabase
-      .from("account_api_keys")
+      .from('account_api_keys')
       .update({
         revoked_at: new Date().toISOString(),
         revoked_by_user_id: ctx.userId,
       })
-      .eq("id", id)
-      .is("revoked_at", null)
-      .select("id")
+      .eq('id', id)
+      .is('revoked_at', null)
+      .select('id')
       .maybeSingle();
 
     if (error) {
-      console.error("[DELETE /api/account/api-keys/[id]] error:", error);
-      return NextResponse.json({ error: "Failed to revoke API key" }, { status: 500 });
+      console.error('[DELETE /api/account/api-keys/[id]] error:', error);
+      return NextResponse.json(
+        { error: 'Failed to revoke API key' },
+        { status: 500 }
+      );
     }
 
     if (!data) {
       // Missing, already revoked, or hidden by RLS (another account).
       // 404 for all three — distinguishing them would leak existence.
-      return NextResponse.json({ error: "API key not found" }, { status: 404 });
+      return NextResponse.json({ error: 'API key not found' }, { status: 404 });
     }
 
     return NextResponse.json({ ok: true });

@@ -22,7 +22,9 @@ describe('shared property onboarding claim boundary', () => {
   it('only returns published listings shared to the matching contact phone', () => {
     expect(migration).toContain('JOIN contacts c');
     expect(migration).toContain('JOIN properties p');
-    expect(migration).toContain("regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g')");
+    expect(migration).toContain(
+      "regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g')"
+    );
     expect(migration).toContain('AND p.is_published = TRUE');
   });
 });

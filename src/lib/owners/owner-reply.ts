@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { generateText } from '@/lib/ai/gemini';
 import {
@@ -148,7 +148,7 @@ const INDIAN_SCRIPT = /[\u0900-\u097f\u0b80-\u0bff\u0c00-\u0cff\u0d00-\u0d7f]/;
 export function resolveOwnerReplyLanguage(
   message: string,
   contactPreferred?: string | null,
-  accountDefault?: string | null,
+  accountDefault?: string | null
 ): LanguageCode {
   if (/[\u0c80-\u0cff]/.test(message)) return 'kn';
   if (/[\u0b80-\u0bff]/.test(message)) return 'ta';
@@ -163,7 +163,7 @@ export function resolveOwnerReplyLanguage(
 
 export function replyUsesExpectedScript(
   reply: string,
-  language: LanguageCode,
+  language: LanguageCode
 ): boolean {
   if (language === 'en') {
     return OWNER_REPLY_SCRIPTS.en.test(reply) && !INDIAN_SCRIPT.test(reply);
@@ -178,15 +178,15 @@ function ownerReplySystem(language: LanguageCode): string {
       : `The owner wrote in ${languageDisplay(language)}. Reply ONLY in that language and its script.`;
 
   return [
-  'You are the WhatsApp assistant of a real-estate agency, replying to a PROPERTY OWNER who has listed property with the agency.',
-  'Reply in under 100 words, warm and professional.',
-  REPLY_LANGUAGE_RULE,
-  languageRule,
-  'WhatsApp formatting only: *bold* and "•" bullets — no markdown headers, no links unless given in the facts.',
-  'Use ONLY the facts provided. Never invent buyer names, counts, offers, prices or appointments.',
-  'If the owner asks which property this is about, name their listing(s).',
-  'If the question needs information not in the facts (negotiations, legal, documents, specific buyers), say their agent will follow up personally.',
-  'Never treat the owner as a buyer and never offer to find them a property.',
+    'You are the WhatsApp assistant of a real-estate agency, replying to a PROPERTY OWNER who has listed property with the agency.',
+    'Reply in under 100 words, warm and professional.',
+    REPLY_LANGUAGE_RULE,
+    languageRule,
+    'WhatsApp formatting only: *bold* and "•" bullets — no markdown headers, no links unless given in the facts.',
+    'Use ONLY the facts provided. Never invent buyer names, counts, offers, prices or appointments.',
+    'If the owner asks which property this is about, name their listing(s).',
+    'If the question needs information not in the facts (negotiations, legal, documents, specific buyers), say their agent will follow up personally.',
+    'Never treat the owner as a buyer and never offer to find them a property.',
   ].join(' ');
 }
 
@@ -292,7 +292,7 @@ export async function handleOwnerInboundMessage(args: {
       const replyLanguage = resolveOwnerReplyLanguage(
         text,
         args.preferredLanguage,
-        accountLanguage,
+        accountLanguage
       );
       const prompt = buildOwnerReplyPrompt(
         args.contactName,
@@ -302,11 +302,10 @@ export async function handleOwnerInboundMessage(args: {
         text
       );
       reply = (
-        await generateText(
-          prompt,
-          ownerReplySystem(replyLanguage),
-          { tier: 'lite', feature: 'owner_reply' }
-        )
+        await generateText(prompt, ownerReplySystem(replyLanguage), {
+          tier: 'lite',
+          feature: 'owner_reply',
+        })
       ).trim();
       if (!reply) throw new Error('empty AI reply');
       if (!replyUsesExpectedScript(reply, replyLanguage)) {

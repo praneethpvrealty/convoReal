@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
-import Link from "next/link";
+import type { Metadata } from 'next';
+import Link from 'next/link';
 import {
   ArrowLeft,
   ArrowRight,
@@ -7,10 +7,10 @@ import {
   Download,
   FileText,
   PlayCircle,
-} from "lucide-react";
-import { notFound } from "next/navigation";
-import { BRANDING } from "@/config/branding";
-import { HELP_GUIDES, findHelpGuide } from "../guides";
+} from 'lucide-react';
+import { notFound } from 'next/navigation';
+import { BRANDING } from '@/config/branding';
+import { HELP_GUIDES, findHelpGuide } from '../guides';
 
 interface HelpGuidePageProps {
   params: Promise<{ slug: string }>;
@@ -53,7 +53,7 @@ export default async function HelpGuidePage({ params }: HelpGuidePageProps) {
         </Link>
 
         <header className="mt-8 rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-indigo-950/30 p-7 shadow-2xl shadow-slate-950/40 sm:p-10">
-          <span className="text-xs font-black uppercase tracking-widest text-indigo-300">
+          <span className="text-xs font-black tracking-widest text-indigo-300 uppercase">
             ConvoReal self-help guide
           </span>
           <h1 className="mt-3 max-w-4xl text-3xl font-black tracking-tight text-white sm:text-5xl">

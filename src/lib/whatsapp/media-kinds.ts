@@ -62,7 +62,9 @@ export const MEDIA_CAPTION_LIMIT = 1024;
  * at all. `audio/ogg` is the voice-note codec and is the one type a
  * recorder produces that is not otherwise obvious.
  */
-export function mediaKindForMime(mimeType: string | null | undefined): MediaKind | null {
+export function mediaKindForMime(
+  mimeType: string | null | undefined
+): MediaKind | null {
   if (!mimeType) return null;
   // Browsers and recorders append parameters ("audio/ogg; codecs=opus").
   const bare = mimeType.split(';')[0].trim().toLowerCase();

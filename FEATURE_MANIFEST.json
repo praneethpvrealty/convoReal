@@ -758,9 +758,7 @@
               "case": "[CAL-008]"
             }
           ],
-          "guards": [
-            "supabase/migrations/20260924103000_deal_deadlines.sql"
-          ]
+          "guards": ["supabase/migrations/20260924103000_deal_deadlines.sql"]
         },
         {
           "id": "CAL-009",
@@ -2475,7 +2473,10 @@
           "id": "TXW-029",
           "rule": "A deal created on web or mobile (POST /api/deals) lands on the Board's default Focus view at once: the server puts its buyer's journey (or its listing's, when it has no buyer) in Focus, in the team split or the creating agent's own by the account's Focus scope, only for a buyer or listing in the caller's account, and a failed Focus move never fails the creation. The Focus move never reopens a journey, so a deal whose journey is paused, closed or archived stays under All as TXW-026 requires. After any deal save, stage move or delete, from the deal form, the Board or the deal record, both surfaces refresh the Focus board, the transaction records and the dashboard.",
           "tests": [
-            { "file": "src/lib/deals/new-deal-focus.test.ts", "case": "[TXW-029]" },
+            {
+              "file": "src/lib/deals/new-deal-focus.test.ts",
+              "case": "[TXW-029]"
+            },
             { "file": "src/app/api/deals/route.test.ts", "case": "[TXW-029]" },
             { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-029]" }
           ],

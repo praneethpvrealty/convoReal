@@ -24,7 +24,10 @@ export interface CallAnalysisResult {
 }
 
 export function coerceCallAnalysis(raw: unknown): CallAnalysisResult {
-  const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<
+    string,
+    unknown
+  >;
   const str = (v: unknown): string | null =>
     typeof v === 'string' && v.trim().length > 0 ? v.trim() : null;
   const strList = (v: unknown): string[] =>
@@ -44,7 +47,10 @@ export function coerceCallAnalysis(raw: unknown): CallAnalysisResult {
   };
 }
 
-function buildSystemPrompt(contactName: string | null, context: string | null): string {
+function buildSystemPrompt(
+  contactName: string | null,
+  context: string | null
+): string {
   return (
     'You are the assistant inside a sales platform used by Indian real-estate agents. ' +
     'The agent records or transcribes phone calls made on behalf of a client — often with a third party ' +
@@ -72,7 +78,9 @@ export interface CallAnalysisInput {
   context?: string | null;
 }
 
-export async function analyzeCall(input: CallAnalysisInput): Promise<CallAnalysisResult> {
+export async function analyzeCall(
+  input: CallAnalysisInput
+): Promise<CallAnalysisResult> {
   const parts: GeminiPart[] = [];
   if (input.audio) {
     const mimeType = input.audio.mimeType.split(';')[0].trim() || 'audio/mpeg';
@@ -80,7 +88,9 @@ export async function analyzeCall(input: CallAnalysisInput): Promise<CallAnalysi
     parts.push({ text: 'Analyze this call recording.' });
   }
   if (input.transcriptText) {
-    parts.push({ text: `Analyze this call transcript:\n\n${input.transcriptText}` });
+    parts.push({
+      text: `Analyze this call transcript:\n\n${input.transcriptText}`,
+    });
   }
   if (parts.length === 0) {
     throw new Error('analyzeCall requires a transcript or audio');

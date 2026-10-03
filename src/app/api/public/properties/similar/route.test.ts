@@ -19,7 +19,7 @@ const mockCandidates: Partial<Property>[] = [
     longitude: 77.64,
     is_published: true,
     status: 'Available',
-    created_at: new Date(Date.now() - 1000).toISOString()
+    created_at: new Date(Date.now() - 1000).toISOString(),
   },
   {
     id: 'prop-2',
@@ -36,7 +36,7 @@ const mockCandidates: Partial<Property>[] = [
     longitude: 77.75,
     is_published: true,
     status: 'Available',
-    created_at: new Date(Date.now() - 2000).toISOString()
+    created_at: new Date(Date.now() - 2000).toISOString(),
   },
   {
     id: 'prop-3',
@@ -53,12 +53,12 @@ const mockCandidates: Partial<Property>[] = [
     longitude: 77.642,
     is_published: true,
     status: 'Available',
-    created_at: new Date(Date.now() - 3000).toISOString()
-  }
+    created_at: new Date(Date.now() - 3000).toISOString(),
+  },
 ];
 
 // Mock the admin client
-vi.mock('@/lib/automations/admin-client', () => {
+vi.mock('@/lib/supabase/admin', () => {
   const mockSupabase = {
     from: vi.fn().mockImplementation(() => {
       const builder = {
@@ -68,13 +68,13 @@ vi.mock('@/lib/automations/admin-client', () => {
         order: vi.fn().mockImplementation(() => builder),
         limit: vi.fn().mockImplementation(() => {
           return Promise.resolve({ data: mockCandidates, error: null });
-        })
+        }),
       };
       return builder;
-    })
+    }),
   };
   return {
-    supabaseAdmin: () => mockSupabase
+    supabaseAdmin: () => mockSupabase,
   };
 });
 
@@ -84,7 +84,7 @@ describe('GET /api/public/properties/similar', () => {
     const res = await GET(req);
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toContain("Missing required");
+    expect(body.error).toContain('Missing required');
   });
 
   it('should correctly score and rank similar properties', async () => {
@@ -100,14 +100,21 @@ describe('GET /api/public/properties/similar', () => {
       location: 'HSR Layout Sector 1',
       city: 'bangalore',
       lat: '12.908',
-      lon: '77.638'
+      lon: '77.638',
     });
 
-    const req = new Request(`http://localhost/api/public/properties/similar?${params.toString()}`);
+    const req = new Request(
+      `http://localhost/api/public/properties/similar?${params.toString()}`
+    );
     const res = await GET(req);
     expect(res.status).toBe(200);
 
-    const { data } = (await res.json()) as { data: (Property & { _similarity_score: number; _match_reasons: string[] })[] };
+    const { data } = (await res.json()) as {
+      data: (Property & {
+        _similarity_score: number;
+        _match_reasons: string[];
+      })[];
+    };
     expect(data.length).toBe(3);
 
     // prop-1 should rank first: matching sublocality, listing_type, price band, type, bedrooms, geo proximity
@@ -119,7 +126,7 @@ describe('GET /api/public/properties/similar', () => {
     expect(first._match_reasons).toContain('similar_price');
 
     // prop-2 matches listing_type + type but price is far and location differs
-    const second = data.find(p => p.id === 'prop-2');
+    const second = data.find((p) => p.id === 'prop-2');
     expect(second).toBeDefined();
     expect(second?._similarity_score).toBeLessThan(first._similarity_score);
   });

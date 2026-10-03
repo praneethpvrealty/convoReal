@@ -9,6 +9,7 @@ This guide explains how to point your custom domain `convoreal.com` (currently r
 Before modifying DNS records, you must register the domain inside your web hosting control panel so it knows to accept traffic for `convoreal.com`.
 
 ### Option A: If using Hostinger (Recommended)
+
 1. Log in to your **Hostinger Control Panel** (hPanel).
 2. Go to **Websites** and click **Create or Migrate a Website**.
 3. Choose **Create a new website** -> Select **Node.js** (or use your existing Node.js application hosting).
@@ -16,6 +17,7 @@ Before modifying DNS records, you must register the domain inside your web hosti
 5. Hostinger will display the **IP Address** and **CNAME target** you need for your DNS records. Note down the IP Address (e.g., `185.185.185.185`).
 
 ### Option B: If using Vercel
+
 1. Log in to your **Vercel Dashboard** and open your Engine project.
 2. Go to **Settings** -> **Domains**.
 3. Type `convoreal.com` (and `www.convoreal.com`) and click **Add**.
@@ -26,6 +28,7 @@ Before modifying DNS records, you must register the domain inside your web hosti
 Since your domain is registered on GoDaddy, you will manage your DNS records in GoDaddy (unless you previously pointed your nameservers to Wix, in which case you will update them in Wix).
 
 ### Option A: If managing DNS in GoDaddy (Recommended)
+
 1. Log in to your **GoDaddy Control Center / Domain Portfolio**.
 2. Click **DNS** or **DNS Management** next to your domain `convoreal.com`.
 3. Locate the **A** record:
@@ -37,7 +40,9 @@ Since your domain is registered on GoDaddy, you will manage your DNS records in 
 5. Click **Save** or **Save Changes**.
 
 ### Option B: If managing DNS in Wix
-*(Only applicable if you connected your GoDaddy domain to Wix via Nameservers)*:
+
+_(Only applicable if you connected your GoDaddy domain to Wix via Nameservers)_:
+
 1. Log in to **Wix.com** and go to the **Domains** page.
 2. Click **Manage DNS Records** next to `convoreal.com`.
 3. Update the A record with Host `@` to point to your new hosting IP.
@@ -91,6 +96,7 @@ Cloudflare proxies wildcard records on every plan (since September 2022), and it
    ```
 
    Only `/` gets the `__tenant` param — it is the only route that resolves a tenant from it, and keeping it off `/_next/*` and `/api/*` keeps their cache keys clean. Everything else is proxied as-is, so assets and API calls made from a tenant page work unchanged.
+
 3. **Routes** — on the `convoreal.com` zone, Workers Routes:
    - `*.convoreal.com/*` → the Worker above.
    - `www.convoreal.com/*` → **None** (an exclusion route, so main-site traffic never spends Worker quota — the free tier is 100k requests/day).
@@ -106,9 +112,9 @@ Some labels never reach a tenant showcase no matter what DNS says: `www`, `app`,
 
 ## Step 4: Wait for DNS Propagation
 
-DNS changes are not instantaneous and can take anywhere from **5 minutes to 24 hours** to propagate across the internet. 
+DNS changes are not instantaneous and can take anywhere from **5 minutes to 24 hours** to propagate across the internet.
 
 - You can track the status using a public DNS lookup tool like [DNSChecker.org](https://dnschecker.org/#A/convoreal.com).
 - Once DNS propagates, your hosting provider (Vercel or Hostinger) will automatically issue a free **SSL Certificate (HTTPS)** for `convoreal.com`.
-- Now, when anyone goes to `https://www.convoreal.com`, they will see your breathtaking Next.js property listings showcase. 
+- Now, when anyone goes to `https://www.convoreal.com`, they will see your breathtaking Next.js property listings showcase.
 - You and your team can log in and manage properties by going to `https://www.convoreal.com/login` or `https://www.convoreal.com/dashboard`.

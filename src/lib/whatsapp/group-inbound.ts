@@ -33,7 +33,7 @@ export interface InboundGroupRef {
  */
 export function groupIdFromInbound(
   message: InboundGroupRef | null | undefined,
-  value?: InboundGroupRef | null,
+  value?: InboundGroupRef | null
 ): string | null {
   const fromMessage = message?.group_id;
   if (typeof fromMessage === 'string' && fromMessage.trim()) {
@@ -49,7 +49,7 @@ export function groupIdFromInbound(
 /** Whether this inbound belongs to a group thread. */
 export function isGroupInbound(
   message: InboundGroupRef | null | undefined,
-  value?: InboundGroupRef | null,
+  value?: InboundGroupRef | null
 ): boolean {
   return groupIdFromInbound(message, value) !== null;
 }
@@ -71,7 +71,7 @@ export interface ResolvedGroupThread {
  */
 export async function resolveGroupThread(
   accountId: string,
-  waGroupId: string,
+  waGroupId: string
 ): Promise<ResolvedGroupThread | null> {
   const db = supabaseAdmin();
 
@@ -116,7 +116,7 @@ export async function resolveGroupThread(
  */
 export async function openGroupConversation(
   accountId: string,
-  groupRowId: string,
+  groupRowId: string
 ): Promise<string | null> {
   const db = supabaseAdmin();
 
@@ -144,7 +144,10 @@ export async function openGroupConversation(
     .single();
 
   if (error || !created) {
-    console.error('[group-inbound] could not open conversation:', error?.message);
+    console.error(
+      '[group-inbound] could not open conversation:',
+      error?.message
+    );
     return null;
   }
   return created.id as string;
@@ -160,7 +163,7 @@ export async function openGroupConversation(
  */
 export async function resolveGroupSender(
   accountId: string,
-  waId: string,
+  waId: string
 ): Promise<string | null> {
   const { data } = await supabaseAdmin()
     .from('contacts')

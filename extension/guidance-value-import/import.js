@@ -106,7 +106,13 @@ function setRow(row, state, detail = '') {
   const tr = rowEls.get(row.url);
   if (!tr) return;
   const cls =
-    state === 'done' ? 'done' : state === 'failed' ? 'failed' : state === 'skipped' ? 'muted' : 'working';
+    state === 'done'
+      ? 'done'
+      : state === 'failed'
+        ? 'failed'
+        : state === 'skipped'
+          ? 'muted'
+          : 'working';
   tr.children[3].textContent = state;
   tr.children[3].className = cls;
   tr.children[4].textContent = detail;
@@ -121,7 +127,10 @@ async function api(settings, path, init = {}) {
       headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
     });
   } catch {
-    throw new ApiError(`Could not reach ConvoReal at ${settings.engineUrl}.`, 0);
+    throw new ApiError(
+      `Could not reach ConvoReal at ${settings.engineUrl}.`,
+      0
+    );
   }
   const body = await res.json().catch(() => null);
   if (!res.ok) {
@@ -218,7 +227,9 @@ async function readCapped(res, maxBytes) {
 
 function fileName(url) {
   try {
-    return decodeURIComponent(new URL(url).pathname.split('/').pop() || 'notification.pdf');
+    return decodeURIComponent(
+      new URL(url).pathname.split('/').pop() || 'notification.pdf'
+    );
   } catch {
     return 'notification.pdf';
   }
@@ -251,9 +262,13 @@ async function uploadRow(settings, row) {
     body: bytes,
   });
   if (!put.ok) {
-    await api(settings, `/api/admin/guidance-values/sources/${data.source.id}`, {
-      method: 'DELETE',
-    }).catch(() => {});
+    await api(
+      settings,
+      `/api/admin/guidance-values/sources/${data.source.id}`,
+      {
+        method: 'DELETE',
+      }
+    ).catch(() => {});
     throw new Error(`Storage upload failed (${put.status})`);
   }
   return data.source.id;
@@ -329,7 +344,11 @@ async function processRow(settings, row) {
     }
     totals.done += 1;
     totals.rates += result.row_count || 0;
-    setRow(row, 'done', `${result.row_count} rates from ${result.page_count} pages`);
+    setRow(
+      row,
+      'done',
+      `${result.row_count} rates from ${result.page_count} pages`
+    );
   } catch (err) {
     if (err.code === 'AI_UNAVAILABLE' || err.code === 'AI_RATE_LIMITED') {
       stopped = true;
@@ -380,7 +399,11 @@ async function reuploadSkipped(settings, rows, skipped) {
     const row = rows.find((r) => r.source_id === entry.source_id);
     if (!row) continue;
     if (entry.code !== 'SOURCE_NOT_STORED') {
-      setRow(row, entry.code === 'DOWNLOAD_FAILED' ? 'retry later' : 'failed', entry.error);
+      setRow(
+        row,
+        entry.code === 'DOWNLOAD_FAILED' ? 'retry later' : 'failed',
+        entry.error
+      );
       continue;
     }
     try {
@@ -441,10 +464,18 @@ async function run() {
     const page = await readIgrPage(settings.igrUrl);
 
     status('Matching the IGR table with ConvoReal…');
-    const { data: found } = await api(settings, '/api/admin/guidance-values/import', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'discover', url: page.url, html: page.html }),
-    });
+    const { data: found } = await api(
+      settings,
+      '/api/admin/guidance-values/import',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'discover',
+          url: page.url,
+          html: page.html,
+        }),
+      }
+    );
 
     const rows = found.filter(
       (row) => settings.includeCorrigenda || row.kind !== 'corrigendum'

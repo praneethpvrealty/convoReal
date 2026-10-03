@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { getAdminClient } from './admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 // Helper to find or create a tag and return its ID
 export async function findOrCreateTag(
@@ -119,7 +119,7 @@ export async function writeSyncLog(args: {
   match?: SyncLogMatchAudit;
 }) {
   try {
-    const supabase = getAdminClient();
+    const supabase = supabaseAdmin();
     await supabase.from('email_sync_logs').insert({
       account_id: args.accountId,
       sender: args.sender || null,

@@ -22,30 +22,30 @@ describe('lastMsgStatusInvalidationKey', () => {
   // stale status.
   it('matches a row whose cached key still holds the old timestamp', () => {
     const cached = lastMsgStatusKey('conv-1', '2026-08-07T09:07:00Z');
-    expect(matchesByPrefix(lastMsgStatusInvalidationKey('conv-1'), cached)).toBe(
-      true
-    );
+    expect(
+      matchesByPrefix(lastMsgStatusInvalidationKey('conv-1'), cached)
+    ).toBe(true);
   });
 
   it('still matches after the row refreshes and the timestamp moves on', () => {
     const cached = lastMsgStatusKey('conv-1', '2026-08-07T11:30:00Z');
-    expect(matchesByPrefix(lastMsgStatusInvalidationKey('conv-1'), cached)).toBe(
-      true
-    );
+    expect(
+      matchesByPrefix(lastMsgStatusInvalidationKey('conv-1'), cached)
+    ).toBe(true);
   });
 
   it('leaves other conversations alone', () => {
     const cached = lastMsgStatusKey('conv-2', '2026-08-07T09:07:00Z');
-    expect(matchesByPrefix(lastMsgStatusInvalidationKey('conv-1'), cached)).toBe(
-      false
-    );
+    expect(
+      matchesByPrefix(lastMsgStatusInvalidationKey('conv-1'), cached)
+    ).toBe(false);
   });
 
   it('falls back to every row when the payload carries no conversation', () => {
     const cached = lastMsgStatusKey('conv-9', null);
-    expect(matchesByPrefix(lastMsgStatusInvalidationKey(undefined), cached)).toBe(
-      true
-    );
+    expect(
+      matchesByPrefix(lastMsgStatusInvalidationKey(undefined), cached)
+    ).toBe(true);
   });
 });
 
@@ -54,9 +54,9 @@ describe('outgoingTickStatus', () => {
     expect(outgoingTickStatus({ sender_type: 'agent', status: 'read' })).toBe(
       'read'
     );
-    expect(outgoingTickStatus({ sender_type: 'bot', status: 'delivered' })).toBe(
-      'delivered'
-    );
+    expect(
+      outgoingTickStatus({ sender_type: 'bot', status: 'delivered' })
+    ).toBe('delivered');
   });
 
   it('shows nothing for an inbound message or an empty thread', () => {

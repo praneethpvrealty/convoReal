@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { radius, useTheme , fonts } from '@/lib/theme';
+import { radius, useTheme, fonts } from '@/lib/theme';
 
 const LENGTH = 6;
 

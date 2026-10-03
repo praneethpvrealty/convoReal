@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { findOrCreateContact } from '@/lib/contacts/find-or-create';
@@ -20,7 +20,8 @@ import { assignTagsToContact } from '@/app/api/leads/email-webhook/db-utils';
 //   CONVOREAL_MASTER_ACCOUNT_ID — account prospects land in.
 // The sales WhatsApp number is that account's showcase contact_phone.
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const SESSION_LIMIT = { limit: 5, windowMs: 60_000 };
 const GLOBAL_LIMIT = { limit: 60, windowMs: 60_000 };
@@ -66,22 +67,36 @@ export async function POST(request: NextRequest) {
     const fromWaitlist = body?.source === 'beta_waitlist';
     const inviteState = (body?.invite_state || '').trim().slice(0, 40);
     const sourceAccountId =
-      fromShowcase && body?.source_account_id && UUID_RE.test(body.source_account_id)
+      fromShowcase &&
+      body?.source_account_id &&
+      UUID_RE.test(body.source_account_id)
         ? body.source_account_id
         : null;
 
     if (!rawPhone) {
-      return NextResponse.json({ error: 'Please share your WhatsApp number.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Please share your WhatsApp number.' },
+        { status: 400 }
+      );
     }
     const phone = normalizePhoneWithCountryCode(rawPhone);
     if (!phone) {
-      return NextResponse.json({ error: 'That number looks off — please re-enter it with your area code.' }, { status: 400 });
+      return NextResponse.json(
+        {
+          error:
+            'That number looks off — please re-enter it with your area code.',
+        },
+        { status: 400 }
+      );
     }
 
     // Rate limits — per session, then global (this funnel targets one
     // account, so the global cap protects it from flooding).
     if (sessionKey) {
-      const s = await checkRateLimit(`enginelead:session:${sessionKey}`, SESSION_LIMIT);
+      const s = await checkRateLimit(
+        `enginelead:session:${sessionKey}`,
+        SESSION_LIMIT
+      );
       if (!s.success) return rateLimitResponse(s);
     }
     const g = await checkRateLimit('enginelead:global', GLOBAL_LIMIT);
@@ -90,8 +105,14 @@ export async function POST(request: NextRequest) {
     // If the funnel isn't configured yet, don't hard-fail the visitor —
     // return success so the UI still shows the WhatsApp handoff.
     if (!masterAccountId || !UUID_RE.test(masterAccountId)) {
-      console.warn('[POST /api/public/engine-lead] CONVOREAL_MASTER_ACCOUNT_ID not configured — skipping capture.');
-      return NextResponse.json({ success: true, captured: false, whatsappLink: null });
+      console.warn(
+        '[POST /api/public/engine-lead] CONVOREAL_MASTER_ACCOUNT_ID not configured — skipping capture.'
+      );
+      return NextResponse.json({
+        success: true,
+        captured: false,
+        whatsappLink: null,
+      });
     }
 
     const db = supabaseAdmin();
@@ -102,8 +123,14 @@ export async function POST(request: NextRequest) {
       .eq('id', masterAccountId)
       .maybeSingle();
     if (!account?.owner_user_id) {
-      console.error('[POST /api/public/engine-lead] master account not found or has no owner.');
-      return NextResponse.json({ success: true, captured: false, whatsappLink: null });
+      console.error(
+        '[POST /api/public/engine-lead] master account not found or has no owner.'
+      );
+      return NextResponse.json({
+        success: true,
+        captured: false,
+        whatsappLink: null,
+      });
     }
     const userId = account.owner_user_id as string;
 
@@ -124,8 +151,15 @@ export async function POST(request: NextRequest) {
       });
       contactId = result.contactId;
     } catch (err) {
-      console.error('[POST /api/public/engine-lead] contact create failed:', err);
-      return NextResponse.json({ success: true, captured: false, whatsappLink: null });
+      console.error(
+        '[POST /api/public/engine-lead] contact create failed:',
+        err
+      );
+      return NextResponse.json({
+        success: true,
+        captured: false,
+        whatsappLink: null,
+      });
     }
 
     // Tag for easy pipeline filtering.
@@ -137,7 +171,10 @@ export async function POST(request: NextRequest) {
     try {
       await assignTagsToContact(db, masterAccountId, userId, contactId, tags);
     } catch (err) {
-      console.error('[POST /api/public/engine-lead] tagging failed (non-fatal):', err);
+      console.error(
+        '[POST /api/public/engine-lead] tagging failed (non-fatal):',
+        err
+      );
     }
 
     // Qualification note. A showcase prospect is worth more with the
@@ -159,7 +196,9 @@ export async function POST(request: NextRequest) {
         : fromShowcase
           ? 'New ConvoReal prospect (via a customer showcase):'
           : 'New ConvoReal website prospect:',
-      fromWaitlist && inviteState ? `• Invite link state: ${inviteState}` : null,
+      fromWaitlist && inviteState
+        ? `• Invite link state: ${inviteState}`
+        : null,
       foundOn ? `• Found on: ${foundOn}'s showcase` : null,
       role ? `• Role: ${role}` : null,
       city ? `• City: ${city}` : null,
@@ -173,7 +212,10 @@ export async function POST(request: NextRequest) {
         note_text: noteLines.join('\n'),
       });
     } catch (err) {
-      console.error('[POST /api/public/engine-lead] note insert failed (non-fatal):', err);
+      console.error(
+        '[POST /api/public/engine-lead] note insert failed (non-fatal):',
+        err
+      );
     }
 
     // Resolve the sales WhatsApp number from the master account's
@@ -186,13 +228,16 @@ export async function POST(request: NextRequest) {
     const salesPhone = (settings?.contact_phone || '').replace(/\D/g, '');
     const whatsappLink = salesPhone
       ? `https://wa.me/${salesPhone}?text=${encodeURIComponent(
-          `Hi! I'm interested in ConvoReal${role ? ` (${role}${city ? `, ${city}` : ''})` : ''}.`,
+          `Hi! I'm interested in ConvoReal${role ? ` (${role}${city ? `, ${city}` : ''})` : ''}.`
         )}`
       : null;
 
     return NextResponse.json({ success: true, captured: true, whatsappLink });
   } catch (err) {
     console.error('[POST /api/public/engine-lead] Unexpected error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

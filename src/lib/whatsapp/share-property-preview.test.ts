@@ -60,7 +60,9 @@ describe('buildSharePropertyPreview', () => {
       label: 'Listing details with photo',
       header_type: 'image',
     });
-    expect(preview.preview).toContain('Hi Rajath, Acme Realty shares Commercial BDA Property in HSR Layout');
+    expect(preview.preview).toContain(
+      'Hi Rajath, Acme Realty shares Commercial BDA Property in HSR Layout'
+    );
     expect(preview.preview).toContain('HSR Layout Sector 2, Bangalore');
     expect(preview.unsent_reason).toBeNull();
     expect(preview.images).toEqual(['property-images/acc-1/front.jpg']);
@@ -88,7 +90,9 @@ describe('buildSharePropertyPreview', () => {
     });
     expect(none.template).toBeNull();
     expect(none.template_status).toBe('NONE');
-    expect(none.unsent_reason).toContain('no listing template has been submitted');
+    expect(none.unsent_reason).toContain(
+      'no listing template has been submitted'
+    );
 
     const pending = buildSharePropertyPreview({
       candidates: [{ ...textTemplate, status: 'PENDING' } as MessageTemplate],

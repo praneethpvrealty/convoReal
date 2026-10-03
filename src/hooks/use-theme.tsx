@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -7,7 +7,7 @@ import {
   useEffect,
   useState,
   type ReactNode,
-} from "react";
+} from 'react';
 
 import {
   DEFAULT_MODE,
@@ -18,7 +18,7 @@ import {
   isThemeMode,
   type ThemeId,
   type ThemeMode,
-} from "@/lib/themes";
+} from '@/lib/themes';
 
 /**
  * ThemeProvider — wraps the whole app, owns the active theme state.
@@ -50,7 +50,7 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function readInitialTheme(): ThemeId {
-  if (typeof window === "undefined") return DEFAULT_THEME;
+  if (typeof window === 'undefined') return DEFAULT_THEME;
   // Whatever the boot script applied is the truth. Fall back to
   // localStorage / default if for some reason the attribute is missing
   // (e.g. someone bypassed the boot script in a custom layout).
@@ -66,7 +66,7 @@ function readInitialTheme(): ThemeId {
 }
 
 function readInitialMode(): ThemeMode {
-  if (typeof window === "undefined") return DEFAULT_MODE;
+  if (typeof window === 'undefined') return DEFAULT_MODE;
   const fromAttr = document.documentElement.dataset.mode;
   if (isThemeMode(fromAttr)) return fromAttr;
   try {
@@ -84,7 +84,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((next: ThemeId) => {
     setThemeState(next);
-    if (typeof document !== "undefined") {
+    if (typeof document !== 'undefined') {
       document.documentElement.dataset.theme = next;
     }
     try {
@@ -97,7 +97,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setMode = useCallback((next: ThemeMode) => {
     setModeState(next);
-    if (typeof document !== "undefined") {
+    if (typeof document !== 'undefined') {
       document.documentElement.dataset.mode = next;
     }
     try {
@@ -111,17 +111,25 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // catches up without a refresh.
   useEffect(() => {
     function onStorage(e: StorageEvent) {
-      if (e.key === STORAGE_KEY && isThemeId(e.newValue) && e.newValue !== theme) {
+      if (
+        e.key === STORAGE_KEY &&
+        isThemeId(e.newValue) &&
+        e.newValue !== theme
+      ) {
         setThemeState(e.newValue);
         document.documentElement.dataset.theme = e.newValue;
       }
-      if (e.key === MODE_STORAGE_KEY && isThemeMode(e.newValue) && e.newValue !== mode) {
+      if (
+        e.key === MODE_STORAGE_KEY &&
+        isThemeMode(e.newValue) &&
+        e.newValue !== mode
+      ) {
         setModeState(e.newValue);
         document.documentElement.dataset.mode = e.newValue;
       }
     }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, [theme, mode]);
 
   return (

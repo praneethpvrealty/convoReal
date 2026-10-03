@@ -6,10 +6,7 @@ import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { PrimaryButton } from '@/components/ui';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme } from '@/lib/theme';
-import type {
-  EKhataChange,
-  EKhataChangeKey,
-} from '@/lib/e-khata-fields';
+import type { EKhataChange, EKhataChangeKey } from '@/lib/e-khata-fields';
 
 /**
  * Review what an e-Khata proposes before it touches the listing. Values
@@ -29,7 +26,11 @@ export function EKhataReviewSheet({
   onClose: () => void;
 }) {
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Read from the e-Khata">
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title="Read from the e-Khata"
+    >
       {visible ? (
         <ReviewBody changes={changes} notes={notes} onApply={onApply} />
       ) : null}
@@ -65,10 +66,19 @@ function ReviewBody({
     <>
       <ScrollView
         style={[sheetScrollArea, { maxHeight: 460 }]}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}
+        contentContainerStyle={{
+          paddingHorizontal: spacing.lg,
+          paddingBottom: spacing.sm,
+        }}
       >
         {changes.length === 0 ? (
-          <Text style={{ fontSize: 14, fontFamily: f.medium, color: colors.textMuted }}>
+          <Text
+            style={{
+              fontSize: 14,
+              fontFamily: f.medium,
+              color: colors.textMuted,
+            }}
+          >
             The listing already matches this e-Khata.
           </Text>
         ) : (
@@ -94,14 +104,32 @@ function ReviewBody({
                   color={active ? colors.primary : colors.textFaint}
                 />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, fontFamily: f.bold, color: colors.textFaint }}>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontFamily: f.bold,
+                      color: colors.textFaint,
+                    }}
+                  >
                     {change.label.toUpperCase()}
                   </Text>
-                  <Text style={{ fontSize: 14.5, fontFamily: f.medium, color: colors.text }}>
+                  <Text
+                    style={{
+                      fontSize: 14.5,
+                      fontFamily: f.medium,
+                      color: colors.text,
+                    }}
+                  >
                     {change.value}
                   </Text>
                   {change.replaces ? (
-                    <Text style={{ fontSize: 12, fontFamily: f.medium, color: colors.warning }}>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontFamily: f.medium,
+                        color: colors.warning,
+                      }}
+                    >
                       Replaces {change.current}
                     </Text>
                   ) : null}
@@ -114,16 +142,29 @@ function ReviewBody({
           <View
             style={[
               styles.notes,
-              { borderColor: colors.glassBorder, backgroundColor: colors.glass },
+              {
+                borderColor: colors.glassBorder,
+                backgroundColor: colors.glass,
+              },
             ]}
           >
-            <Text style={{ fontSize: 11, fontFamily: f.bold, color: colors.textFaint }}>
+            <Text
+              style={{
+                fontSize: 11,
+                fontFamily: f.bold,
+                color: colors.textFaint,
+              }}
+            >
               ALSO ON THE E-KHATA
             </Text>
             {notes.map((note) => (
               <Text
                 key={note}
-                style={{ fontSize: 12.5, fontFamily: f.medium, color: colors.textMuted }}
+                style={{
+                  fontSize: 12.5,
+                  fontFamily: f.medium,
+                  color: colors.textMuted,
+                }}
               >
                 {note}
               </Text>

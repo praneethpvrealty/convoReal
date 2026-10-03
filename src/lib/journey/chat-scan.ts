@@ -30,18 +30,17 @@ export interface ScannableProperty {
  */
 export function scanMessagesForProperties(
   messages: ScannableMessage[],
-  properties: ScannableProperty[],
+  properties: ScannableProperty[]
 ): Map<string, string> {
   const found = new Map<string, string>();
   for (const msg of messages) {
-    const text = msg.content_text || "";
+    const text = msg.content_text || '';
     if (!text) continue;
     const lower = text.toLowerCase();
     for (const prop of properties) {
       if (found.has(prop.id)) continue;
       const hasIdLink = text.includes(`property_id=${prop.id}`);
-      const hasCode =
-        !!prop.property_code && text.includes(prop.property_code);
+      const hasCode = !!prop.property_code && text.includes(prop.property_code);
       const cleanTitle = prop.title.trim();
       const hasTitle =
         cleanTitle.length > 8 && lower.includes(cleanTitle.toLowerCase());

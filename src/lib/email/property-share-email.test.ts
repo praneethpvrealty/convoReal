@@ -6,7 +6,9 @@ import {
   type ShareEmailProperty,
 } from './property-share-email';
 
-const baseProperty = (overrides: Partial<ShareEmailProperty>): ShareEmailProperty => ({
+const baseProperty = (
+  overrides: Partial<ShareEmailProperty>
+): ShareEmailProperty => ({
   id: 'p-1',
   is_published: false,
   title: 'Test Land',
@@ -54,14 +56,24 @@ describe('buildPropertyShareEmailContent', () => {
       agentPhone: '9900277111',
     });
 
-    expect(subject).toBe('JD Opportunity || 32 Acres || Bommenahalli, Bangalore');
+    expect(subject).toBe(
+      'JD Opportunity || 32 Acres || Bommenahalli, Bangalore'
+    );
     expect(body).toContain('Hi Nilanjan and Saurabh,');
     expect(body).toContain('Land extension - 32 Acres');
-    expect(body).toContain('Land use - Residential zone land 26A 13 G, Red Zone - 5A 29 G.');
-    expect(body).toContain('Ownership - Multiple owners, Aggregation in process.');
+    expect(body).toContain(
+      'Land use - Residential zone land 26A 13 G, Red Zone - 5A 29 G.'
+    );
+    expect(body).toContain(
+      'Ownership - Multiple owners, Aggregation in process.'
+    );
     expect(body).toContain('JD proposal - To be discussed.');
-    expect(body).toContain('Location: https://maps.app.goo.gl/ZoCRFNyHvhL3aXhi9');
-    expect(body).toContain('Remarks: Legal and land aggregation is in process.');
+    expect(body).toContain(
+      'Location: https://maps.app.goo.gl/ZoCRFNyHvhL3aXhi9'
+    );
+    expect(body).toContain(
+      'Remarks: Legal and land aggregation is in process.'
+    );
     expect(body).toContain('Regards,');
     expect(body).toContain('Praneeth');
     expect(body).toContain('9900277111');
@@ -77,7 +89,9 @@ describe('buildPropertyShareEmailContent', () => {
     });
 
     const { body } = buildPropertyShareEmailContent(property);
-    expect(body).toContain('JD proposal - 40:60 share (owner:builder), Revenue Share, Goodwill ₹20,00,000');
+    expect(body).toContain(
+      'JD proposal - 40:60 share (owner:builder), Revenue Share, Goodwill ₹20,00,000'
+    );
   });
 
   it('builds an outright sale opportunity with price as the proposal line', () => {
@@ -90,19 +104,29 @@ describe('buildPropertyShareEmailContent', () => {
     });
 
     const { subject, body } = buildPropertyShareEmailContent(property);
-    expect(subject).toBe('Outright Opportunity || 8.23 Acres || Bommenahalli, Bangalore');
+    expect(subject).toBe(
+      'Outright Opportunity || 8.23 Acres || Bommenahalli, Bangalore'
+    );
     expect(body).toContain('Ownership - Single owner');
     expect(body).toContain('Proposal - ₹5,00,00,000');
   });
 
   it('uses rent_per_month as the proposal line for Rent and Built to Suit listings', () => {
-    const rent = buildPropertyShareEmailContent(baseProperty({ listing_type: 'Rent', rent_per_month: 45000 }));
+    const rent = buildPropertyShareEmailContent(
+      baseProperty({ listing_type: 'Rent', rent_per_month: 45000 })
+    );
     expect(rent.body).toContain('Proposal - ₹45,000/month');
 
     const bts = buildPropertyShareEmailContent(
-      baseProperty({ listing_type: 'Built to Suit', rent_per_month: 250000, maintenance: 15000 })
+      baseProperty({
+        listing_type: 'Built to Suit',
+        rent_per_month: 250000,
+        maintenance: 15000,
+      })
     );
-    expect(bts.body).toContain('Proposal - ₹2,50,000/month + ₹15,000 maintenance');
+    expect(bts.body).toContain(
+      'Proposal - ₹2,50,000/month + ₹15,000 maintenance'
+    );
   });
 
   it('omits land/ownership/remarks lines entirely when the data is absent', () => {
@@ -121,7 +145,12 @@ describe('buildPropertyShareEmailContent', () => {
 
   it('links a single document under a Sketch heading', () => {
     const property = baseProperty({
-      documents: [JSON.stringify({ url: 'https://example.com/sketch.pdf', title: 'Sketch' })],
+      documents: [
+        JSON.stringify({
+          url: 'https://example.com/sketch.pdf',
+          title: 'Sketch',
+        }),
+      ],
     });
     const { body } = buildPropertyShareEmailContent(property);
     expect(body).toContain('Sketch:');
@@ -131,8 +160,14 @@ describe('buildPropertyShareEmailContent', () => {
   it('links multiple documents under a Documents heading', () => {
     const property = baseProperty({
       documents: [
-        JSON.stringify({ url: 'https://example.com/sketch.pdf', title: 'Sketch' }),
-        JSON.stringify({ url: 'https://example.com/khata.pdf', title: 'Khata Extract' }),
+        JSON.stringify({
+          url: 'https://example.com/sketch.pdf',
+          title: 'Sketch',
+        }),
+        JSON.stringify({
+          url: 'https://example.com/khata.pdf',
+          title: 'Khata Extract',
+        }),
       ],
     });
     const { body } = buildPropertyShareEmailContent(property);
@@ -143,7 +178,10 @@ describe('buildPropertyShareEmailContent', () => {
 
   it('caps inlined document links and notes the remainder', () => {
     const documents = Array.from({ length: 7 }, (_, i) =>
-      JSON.stringify({ url: `https://example.com/doc${i + 1}.pdf`, title: `Doc ${i + 1}` })
+      JSON.stringify({
+        url: `https://example.com/doc${i + 1}.pdf`,
+        title: `Doc ${i + 1}`,
+      })
     );
     const property = baseProperty({ documents });
     const { body } = buildPropertyShareEmailContent(property);
@@ -153,14 +191,20 @@ describe('buildPropertyShareEmailContent', () => {
   });
 
   it('skips documents whose JSON has no url', () => {
-    const property = baseProperty({ documents: [JSON.stringify({ title: 'Broken' })] });
+    const property = baseProperty({
+      documents: [JSON.stringify({ title: 'Broken' })],
+    });
     const { body } = buildPropertyShareEmailContent(property);
     expect(body).not.toContain('Sketch:');
     expect(body).not.toContain('Documents:');
   });
 
   it('falls back to the location string when no google_map_link is set', () => {
-    const property = baseProperty({ google_map_link: null, sublocality: 'Hosur Road', city: 'Bangalore' });
+    const property = baseProperty({
+      google_map_link: null,
+      sublocality: 'Hosur Road',
+      city: 'Bangalore',
+    });
     const { body } = buildPropertyShareEmailContent(property);
     expect(body).toContain('Location: Hosur Road, Bangalore');
   });
@@ -177,7 +221,10 @@ describe('buildPropertyShareEmailContent', () => {
     });
 
     it('caps inlined photo links and notes the remainder when the listing is unpublished', () => {
-      const images = Array.from({ length: 8 }, (_, i) => `https://example.com/${i + 1}.jpg`);
+      const images = Array.from(
+        { length: 8 },
+        (_, i) => `https://example.com/${i + 1}.jpg`
+      );
       const property = baseProperty({ images, is_published: false });
       const { body } = buildPropertyShareEmailContent(property);
       expect(body).toContain('3. https://example.com/3.jpg');
@@ -186,17 +233,29 @@ describe('buildPropertyShareEmailContent', () => {
     });
 
     it('points overflow photos at the public showcase link when published', () => {
-      const images = Array.from({ length: 8 }, (_, i) => `https://example.com/${i + 1}.jpg`);
-      const property = baseProperty({ images, is_published: true, id: 'prop-xyz' });
+      const images = Array.from(
+        { length: 8 },
+        (_, i) => `https://example.com/${i + 1}.jpg`
+      );
+      const property = baseProperty({
+        images,
+        is_published: true,
+        id: 'prop-xyz',
+      });
       const { body } = buildPropertyShareEmailContent(property, {
         showcaseBaseUrl: 'https://convoreal.com/',
       });
-      expect(body).toContain('All 8 photos & full details: https://convoreal.com/?property_id=prop-xyz');
+      expect(body).toContain(
+        'All 8 photos & full details: https://convoreal.com/?property_id=prop-xyz'
+      );
       expect(body).not.toContain('available on request');
     });
 
     it('does not leak a showcase link for unpublished listings even when a base URL is given', () => {
-      const images = Array.from({ length: 8 }, (_, i) => `https://example.com/${i + 1}.jpg`);
+      const images = Array.from(
+        { length: 8 },
+        (_, i) => `https://example.com/${i + 1}.jpg`
+      );
       const property = baseProperty({ images, is_published: false });
       const { body } = buildPropertyShareEmailContent(property, {
         showcaseBaseUrl: 'https://convoreal.com',
@@ -206,12 +265,16 @@ describe('buildPropertyShareEmailContent', () => {
     });
 
     it('omits the Photos section entirely when the listing has no images', () => {
-      const { body } = buildPropertyShareEmailContent(baseProperty({ images: [] }));
+      const { body } = buildPropertyShareEmailContent(
+        baseProperty({ images: [] })
+      );
       expect(body).not.toContain('Photos:');
     });
 
     it('filters out empty/falsy image entries', () => {
-      const property = baseProperty({ images: ['', 'https://example.com/1.jpg', ''] as string[] });
+      const property = baseProperty({
+        images: ['', 'https://example.com/1.jpg', ''] as string[],
+      });
       const { body } = buildPropertyShareEmailContent(property);
       expect(body).toContain('1. https://example.com/1.jpg');
       expect(body).not.toContain('2.');
@@ -239,7 +302,9 @@ describe('parseAiShareEmail', () => {
   });
 
   it('tolerates code fences and surrounding prose', () => {
-    const parsed = parseAiShareEmail('Sure!\n```json\n{"subject": "S", "body": "Line1\\nLine2"}\n```');
+    const parsed = parseAiShareEmail(
+      'Sure!\n```json\n{"subject": "S", "body": "Line1\\nLine2"}\n```'
+    );
     expect(parsed).toEqual({ subject: 'S', body: 'Line1\nLine2' });
   });
 

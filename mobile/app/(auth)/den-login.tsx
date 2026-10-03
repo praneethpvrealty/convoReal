@@ -57,7 +57,9 @@ export default function DenLoginScreen() {
     setInfo(null);
     const cleanPhone = cleanPhoneInput(phone);
     if (!cleanPhone) {
-      setError('Enter a valid WhatsApp number (e.g. 9900277111 or +919900277111)');
+      setError(
+        'Enter a valid WhatsApp number (e.g. 9900277111 or +919900277111)'
+      );
       return;
     }
     setBusy(true);
@@ -101,16 +103,36 @@ export default function DenLoginScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag">
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
           <View style={{ alignItems: 'center', gap: spacing.sm }}>
-            <View style={[styles.iconBadge, { backgroundColor: colors.successSoft }]}>
+            <View
+              style={[
+                styles.iconBadge,
+                { backgroundColor: colors.successSoft },
+              ]}
+            >
               <Ionicons name="home" size={32} color={colors.success} />
             </View>
-            <Text style={{ fontSize: 26, fontFamily: f.extrabold, color: colors.text }}>
+            <Text
+              style={{
+                fontSize: 26,
+                fontFamily: f.extrabold,
+                color: colors.text,
+              }}
+            >
               Portfolio
             </Text>
-            <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>
+            <Text
+              style={{
+                fontSize: 14,
+                color: colors.textMuted,
+                textAlign: 'center',
+              }}
+            >
               Track interest, offers and deals on your properties — across every
               agency that lists them.
             </Text>
@@ -138,13 +160,25 @@ export default function DenLoginScreen() {
                   disabled={!phone.trim()}
                   onPress={sendCode}
                 />
-                <Text style={{ fontSize: 12.5, color: colors.textFaint, textAlign: 'center' }}>
+                <Text
+                  style={{
+                    fontSize: 12.5,
+                    color: colors.textFaint,
+                    textAlign: 'center',
+                  }}
+                >
                   First time here? The same code signs you up.
                 </Text>
               </>
             ) : (
               <>
-                <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: colors.textMuted,
+                    textAlign: 'center',
+                  }}
+                >
                   Enter the code sent to{' '}
                   <Text style={{ fontFamily: f.bold, color: colors.text }}>
                     {cleanPhoneInput(phone) ?? phone}
@@ -157,14 +191,26 @@ export default function DenLoginScreen() {
                   disabled={otp.length < 6}
                   onPress={() => verify(otp)}
                 />
-                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xl }}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    gap: spacing.xl,
+                  }}
+                >
                   <Pressable
                     onPress={() => setStage('phone')}
                     hitSlop={10}
                     accessibilityRole="button"
                     style={{ paddingVertical: 10 }}
                   >
-                    <Text style={{ color: colors.textMuted, fontSize: 13.5, fontFamily: f.semibold }}>
+                    <Text
+                      style={{
+                        color: colors.textMuted,
+                        fontSize: 13.5,
+                        fontFamily: f.semibold,
+                      }}
+                    >
                       Change number
                     </Text>
                   </Pressable>
@@ -211,7 +257,12 @@ export default function DenLoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl, gap: spacing.lg },
+  scroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: spacing.xl,
+    gap: spacing.lg,
+  },
   iconBadge: {
     width: 64,
     height: 64,

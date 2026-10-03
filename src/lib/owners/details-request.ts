@@ -42,12 +42,7 @@
 import { isLandType } from '@/lib/inventory/property-options';
 
 export type OwnerDetailsSection =
-  | 'identity'
-  | 'construction'
-  | 'price'
-  | 'papers'
-  | 'possession'
-  | 'media';
+  'identity' | 'construction' | 'price' | 'papers' | 'possession' | 'media';
 
 /** Display order, and the order they are numbered in the message. */
 export const OWNER_DETAILS_SECTIONS: OwnerDetailsSection[] = [

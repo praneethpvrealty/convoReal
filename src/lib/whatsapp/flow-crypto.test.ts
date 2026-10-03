@@ -1,12 +1,12 @@
-import crypto from "node:crypto";
-import { describe, expect, it } from "vitest";
+import crypto from 'node:crypto';
+import { describe, expect, it } from 'vitest';
 import {
   decryptFlowRequest,
   encryptFlowResponse,
   generateFlowKeyPair,
   FlowDecryptionError,
   type EncryptedFlowRequestBody,
-} from "./flow-crypto";
+} from './flow-crypto';
 
 /**
  * Simulates the WhatsApp client side of the Flows encryption handshake:
@@ -25,27 +25,27 @@ function encryptLikeMeta(
     {
       key: publicKeyPem,
       padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-      oaepHash: "sha256",
+      oaepHash: 'sha256',
     },
     aesKey
   );
 
   const cipher = crypto.createCipheriv(
-    aesKey.length === 16 ? "aes-128-gcm" : "aes-256-gcm",
+    aesKey.length === 16 ? 'aes-128-gcm' : 'aes-256-gcm',
     aesKey,
     iv
   );
   const ciphertext = Buffer.concat([
-    cipher.update(JSON.stringify(payload), "utf8"),
+    cipher.update(JSON.stringify(payload), 'utf8'),
     cipher.final(),
   ]);
   const tag = cipher.getAuthTag();
 
   return {
     body: {
-      encrypted_flow_data: Buffer.concat([ciphertext, tag]).toString("base64"),
-      encrypted_aes_key: encryptedAesKey.toString("base64"),
-      initial_vector: iv.toString("base64"),
+      encrypted_flow_data: Buffer.concat([ciphertext, tag]).toString('base64'),
+      encrypted_aes_key: encryptedAesKey.toString('base64'),
+      initial_vector: iv.toString('base64'),
     },
     aesKey,
     iv,
@@ -59,34 +59,37 @@ function decryptResponseLikeMeta(
   requestIv: Buffer
 ): Record<string, unknown> {
   const flippedIv = Buffer.from(requestIv.map((b) => ~b & 0xff));
-  const raw = Buffer.from(base64Response, "base64");
+  const raw = Buffer.from(base64Response, 'base64');
   const ciphertext = raw.subarray(0, raw.length - 16);
   const tag = raw.subarray(raw.length - 16);
-  const decipher = crypto.createDecipheriv("aes-128-gcm", aesKey, flippedIv);
+  const decipher = crypto.createDecipheriv('aes-128-gcm', aesKey, flippedIv);
   decipher.setAuthTag(tag);
-  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-  return JSON.parse(decrypted.toString("utf8"));
+  const decrypted = Buffer.concat([
+    decipher.update(ciphertext),
+    decipher.final(),
+  ]);
+  return JSON.parse(decrypted.toString('utf8'));
 }
 
-describe("generateFlowKeyPair", () => {
-  it("produces a 2048-bit SPKI public and PKCS8 private PEM pair", () => {
+describe('generateFlowKeyPair', () => {
+  it('produces a 2048-bit SPKI public and PKCS8 private PEM pair', () => {
     const { publicKeyPem, privateKeyPem } = generateFlowKeyPair();
     expect(publicKeyPem).toMatch(/^-----BEGIN PUBLIC KEY-----/);
     expect(privateKeyPem).toMatch(/^-----BEGIN PRIVATE KEY-----/);
     const key = crypto.createPublicKey(publicKeyPem);
-    expect(key.asymmetricKeyType).toBe("rsa");
+    expect(key.asymmetricKeyType).toBe('rsa');
   });
 });
 
-describe("decryptFlowRequest", () => {
+describe('decryptFlowRequest', () => {
   const { publicKeyPem, privateKeyPem } = generateFlowKeyPair();
 
-  it("round-trips a Meta-encrypted request payload", () => {
+  it('round-trips a Meta-encrypted request payload', () => {
     const payload = {
-      version: "3.0",
-      action: "data_exchange",
-      flow_token: "tok-123",
-      data: { min_budget: "5000000", areas: "JP Nagar, Jayanagar" },
+      version: '3.0',
+      action: 'data_exchange',
+      flow_token: 'tok-123',
+      data: { min_budget: '5000000', areas: 'JP Nagar, Jayanagar' },
     };
     const { body } = encryptLikeMeta(payload, publicKeyPem);
 
@@ -96,52 +99,58 @@ describe("decryptFlowRequest", () => {
     expect(result.initialVector.length).toBe(16);
   });
 
-  it("also supports 256-bit AES keys", () => {
-    const payload = { action: "ping" };
+  it('also supports 256-bit AES keys', () => {
+    const payload = { action: 'ping' };
     const { body } = encryptLikeMeta(payload, publicKeyPem, {
       aesKey: crypto.randomBytes(32),
     });
     expect(decryptFlowRequest(body, privateKeyPem).payload).toEqual(payload);
   });
 
-  it("throws FlowDecryptionError when decrypted with the wrong private key", () => {
+  it('throws FlowDecryptionError when decrypted with the wrong private key', () => {
     const otherPair = generateFlowKeyPair();
-    const { body } = encryptLikeMeta({ action: "ping" }, publicKeyPem);
+    const { body } = encryptLikeMeta({ action: 'ping' }, publicKeyPem);
     expect(() => decryptFlowRequest(body, otherPair.privateKeyPem)).toThrow(
       FlowDecryptionError
     );
   });
 
-  it("throws FlowDecryptionError on tampered ciphertext (GCM tag mismatch)", () => {
-    const { body } = encryptLikeMeta({ action: "ping" }, publicKeyPem);
-    const raw = Buffer.from(body.encrypted_flow_data, "base64");
+  it('throws FlowDecryptionError on tampered ciphertext (GCM tag mismatch)', () => {
+    const { body } = encryptLikeMeta({ action: 'ping' }, publicKeyPem);
+    const raw = Buffer.from(body.encrypted_flow_data, 'base64');
     raw[0] = raw[0] ^ 0xff;
-    body.encrypted_flow_data = raw.toString("base64");
-    expect(() => decryptFlowRequest(body, privateKeyPem)).toThrow(FlowDecryptionError);
-  });
-
-  it("throws FlowDecryptionError on a body missing the encrypted fields", () => {
-    expect(() => decryptFlowRequest({ foo: "bar" }, privateKeyPem)).toThrow(
+    body.encrypted_flow_data = raw.toString('base64');
+    expect(() => decryptFlowRequest(body, privateKeyPem)).toThrow(
       FlowDecryptionError
     );
-    expect(() => decryptFlowRequest(null, privateKeyPem)).toThrow(FlowDecryptionError);
+  });
+
+  it('throws FlowDecryptionError on a body missing the encrypted fields', () => {
+    expect(() => decryptFlowRequest({ foo: 'bar' }, privateKeyPem)).toThrow(
+      FlowDecryptionError
+    );
+    expect(() => decryptFlowRequest(null, privateKeyPem)).toThrow(
+      FlowDecryptionError
+    );
   });
 });
 
-describe("encryptFlowResponse", () => {
+describe('encryptFlowResponse', () => {
   const { publicKeyPem, privateKeyPem } = generateFlowKeyPair();
 
-  it("encrypts so the client can decrypt with the flipped request IV", () => {
-    const { body } = encryptLikeMeta({ action: "ping" }, publicKeyPem);
+  it('encrypts so the client can decrypt with the flipped request IV', () => {
+    const { body } = encryptLikeMeta({ action: 'ping' }, publicKeyPem);
     const { aesKey, initialVector } = decryptFlowRequest(body, privateKeyPem);
 
-    const response = { data: { status: "active" } };
+    const response = { data: { status: 'active' } };
     const encrypted = encryptFlowResponse(response, aesKey, initialVector);
 
-    expect(decryptResponseLikeMeta(encrypted, aesKey, initialVector)).toEqual(response);
+    expect(decryptResponseLikeMeta(encrypted, aesKey, initialVector)).toEqual(
+      response
+    );
   });
 
-  it("does not mutate the request IV buffer", () => {
+  it('does not mutate the request IV buffer', () => {
     const iv = crypto.randomBytes(16);
     const original = Buffer.from(iv);
     encryptFlowResponse({ ok: true }, crypto.randomBytes(16), iv);

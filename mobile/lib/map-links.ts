@@ -9,7 +9,10 @@ export interface Coordinates {
   longitude: number;
 }
 
-function toCoordinates(lat: string | number, lng: string | number): Coordinates | null {
+function toCoordinates(
+  lat: string | number,
+  lng: string | number
+): Coordinates | null {
   const latitude = Number(lat);
   const longitude = Number(lng);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
@@ -23,25 +26,41 @@ function toCoordinates(lat: string | number, lng: string | number): Coordinates 
  * pin whose name/address the sender's app omitted arrives exactly like
  * this, with no link to go on.
  */
-export function parseCoordinatePair(text: string | null | undefined): Coordinates | null {
+export function parseCoordinatePair(
+  text: string | null | undefined
+): Coordinates | null {
   if (!text) return null;
   const match = text
     .trim()
-    .match(/^\(?\s*(-?\d{1,3}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*\)?$/);
+    .match(
+      /^\(?\s*(-?\d{1,3}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*\)?$/
+    );
   if (!match) return null;
   // Require a decimal part on at least one side so "30, 77" (a plot
   // dimension, a floor count) isn't mistaken for a pin.
-  if (!match[1].includes(".") && !match[2].includes(".")) return null;
+  if (!match[1].includes('.') && !match[2].includes('.')) return null;
   return toCoordinates(match[1], match[2]);
 }
 
 /** Builds the canonical Maps URL for a pin, matching the form the
  *  appointment reminders already send. */
-export function googleMapsUrlForCoordinates(latitude: number, longitude: number): string {
+export function googleMapsUrlForCoordinates(
+  latitude: number,
+  longitude: number
+): string {
   return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
 }
 
-const COORD_QUERY_PARAMS = ["query", "q", "ll", "center", "daddr", "destination", "sll", "mlat"];
+const COORD_QUERY_PARAMS = [
+  'query',
+  'q',
+  'll',
+  'center',
+  'daddr',
+  'destination',
+  'sll',
+  'mlat',
+];
 
 /**
  * Pulls coordinates out of a canonical Maps URL. Handles the pin-share
@@ -58,16 +77,16 @@ export function extractCoordinatesFromMapUrl(url: string): Coordinates | null {
   }
 
   if (parsed) {
-    if (parsed.searchParams.has("mlat") && parsed.searchParams.has("mlon")) {
+    if (parsed.searchParams.has('mlat') && parsed.searchParams.has('mlon')) {
       const coords = toCoordinates(
-        parsed.searchParams.get("mlat")!,
-        parsed.searchParams.get("mlon")!
+        parsed.searchParams.get('mlat')!,
+        parsed.searchParams.get('mlon')!
       );
       if (coords) return coords;
     }
     for (const param of COORD_QUERY_PARAMS) {
       const value = parsed.searchParams.get(param);
-      const coords = parseCoordinatePair(value?.replace(/\+/g, " "));
+      const coords = parseCoordinatePair(value?.replace(/\+/g, ' '));
       if (coords) return coords;
     }
   }
@@ -95,7 +114,7 @@ export function extractCoordinatesFromMapUrl(url: string): Coordinates | null {
     decodedPath = null;
   }
   const pathPair = decodedPath
-    ?.replace(/\+/g, " ")
+    ?.replace(/\+/g, ' ')
     .match(/\/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)(?:\/|$)/);
   if (pathPair) {
     const coords = toCoordinates(pathPair[1], pathPair[2]);
@@ -126,10 +145,10 @@ export interface PropertyMapPin {
 
 function addressQuery(source: PropertyMapPinSource): string {
   return [source.location, source.sublocality, source.city, source.state]
-    .map((v) => (v || "").trim())
+    .map((v) => (v || '').trim())
     .filter(Boolean)
     .filter((v, i, arr) => arr.indexOf(v) === i)
-    .join(", ");
+    .join(', ');
 }
 
 /**
@@ -143,11 +162,14 @@ function addressQuery(source: PropertyMapPinSource): string {
  * Order of truth: coordinates carried by the stored pin link, then the
  * reconciled `latitude`/`longitude` columns, then the address text.
  */
-export function propertyMapPin(source: PropertyMapPinSource): PropertyMapPin | null {
-  const link = (source.google_map_link || "").trim();
+export function propertyMapPin(
+  source: PropertyMapPinSource
+): PropertyMapPin | null {
+  const link = (source.google_map_link || '').trim();
   const linkCoordinates = link ? extractCoordinatesFromMapUrl(link) : null;
   const coordinates =
-    linkCoordinates ?? toCoordinates(source.latitude ?? NaN, source.longitude ?? NaN);
+    linkCoordinates ??
+    toCoordinates(source.latitude ?? NaN, source.longitude ?? NaN);
 
   if (coordinates) {
     const pair = `${coordinates.latitude},${coordinates.longitude}`;
@@ -160,7 +182,10 @@ export function propertyMapPin(source: PropertyMapPinSource): PropertyMapPin | n
       return { mapUrl: link, embedUrl, coordinates };
     }
     return {
-      mapUrl: googleMapsUrlForCoordinates(coordinates.latitude, coordinates.longitude),
+      mapUrl: googleMapsUrlForCoordinates(
+        coordinates.latitude,
+        coordinates.longitude
+      ),
       embedUrl,
       coordinates,
     };

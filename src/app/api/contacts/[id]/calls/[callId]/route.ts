@@ -7,7 +7,7 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; callId: string }> },
+  { params }: { params: Promise<{ id: string; callId: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -48,7 +48,10 @@ export async function PATCH(
 
     if (error) throw error;
     if (!data) {
-      return NextResponse.json({ error: 'Call log not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Call log not found' },
+        { status: 404 }
+      );
     }
     return NextResponse.json({ call: data });
   } catch (err) {
@@ -58,7 +61,7 @@ export async function PATCH(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string; callId: string }> },
+  { params }: { params: Promise<{ id: string; callId: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -77,7 +80,10 @@ export async function DELETE(
     if (!data?.length) {
       // Missing, or logged by a colleague — 404 either way rather than
       // reporting a delete that never happened.
-      return NextResponse.json({ error: 'Call log not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Call log not found' },
+        { status: 404 }
+      );
     }
     return NextResponse.json({ success: true });
   } catch (err) {

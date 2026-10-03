@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 import { findOrCreateContact } from '@/lib/contacts/find-or-create';
 import {
@@ -27,7 +31,8 @@ import {
  * re-importing the same source returns the existing copy.
  */
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function extractPropertyId(input: unknown): string | null {
   if (typeof input !== 'string') return null;
@@ -65,10 +70,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const admin = supabaseAdmin();
 
     const { data: sourceRow } = await admin
       .from('properties')
@@ -79,7 +81,10 @@ export async function POST(request: Request) {
     // Only published listings are reachable via share links — an
     // unpublished id would let arbitrary UUIDs probe private inventory.
     if (!source || !source.is_published) {
-      return NextResponse.json({ error: 'Shared property not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Shared property not found' },
+        { status: 404 }
+      );
     }
     if (source.account_id === ctx.accountId) {
       return NextResponse.json(
@@ -95,20 +100,27 @@ export async function POST(request: Request) {
       .eq('source_property_id', source.id)
       .maybeSingle();
     if (existing) {
-      return NextResponse.json({ data: { id: existing.id, alreadyImported: true } });
+      return NextResponse.json({
+        data: { id: existing.id, alreadyImported: true },
+      });
     }
 
     // The sharing brokerage becomes an Agent contact in the importer's
     // book — the same card a manual agent-referred listing would use.
-    const [{ data: sourceAccount }, { data: sharerProfiles }] = await Promise.all([
-      admin.from('accounts').select('name').eq('id', source.account_id).maybeSingle(),
-      admin
-        .from('profiles')
-        .select('full_name, phone, org_role')
-        .eq('account_id', source.account_id)
-        .not('phone', 'is', null)
-        .limit(10),
-    ]);
+    const [{ data: sourceAccount }, { data: sharerProfiles }] =
+      await Promise.all([
+        admin
+          .from('accounts')
+          .select('name')
+          .eq('id', source.account_id)
+          .maybeSingle(),
+        admin
+          .from('profiles')
+          .select('full_name, phone, org_role')
+          .eq('account_id', source.account_id)
+          .not('phone', 'is', null)
+          .limit(10),
+      ]);
     const sharer =
       (sharerProfiles || []).find((p) => p.org_role === 'org_manager') ||
       (sharerProfiles || [])[0] ||
@@ -130,17 +142,25 @@ export async function POST(request: Request) {
 
     const { data: created, error: insertError } = await ctx.supabase
       .from('properties')
-      .insert(buildSharedPropertyCopy(source, {
-        accountId: ctx.accountId,
-        userId: ctx.userId,
-        ownerContactId: sharerContactId,
-      }))
+      .insert(
+        buildSharedPropertyCopy(source, {
+          accountId: ctx.accountId,
+          userId: ctx.userId,
+          ownerContactId: sharerContactId,
+        })
+      )
       .select('id, title')
       .single();
 
     if (insertError || !created) {
-      console.error('[POST /api/inventory/import-shared] Insert error:', insertError);
-      return NextResponse.json({ error: 'Failed to import property' }, { status: 500 });
+      console.error(
+        '[POST /api/inventory/import-shared] Insert error:',
+        insertError
+      );
+      return NextResponse.json(
+        { error: 'Failed to import property' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ data: created }, { status: 201 });

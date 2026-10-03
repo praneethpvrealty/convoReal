@@ -374,9 +374,7 @@ export async function DELETE(
 
     const { data: contact, error: contactError } = await ctx.supabase
       .from('contacts')
-      .select(
-        'id, requirements, requirement_profiles, updated_at'
-      )
+      .select('id, requirements, requirement_profiles, updated_at')
       .eq('id', contactId)
       .eq('account_id', ctx.accountId)
       .maybeSingle();
@@ -473,4 +471,3 @@ export async function DELETE(
     return toErrorResponse(error);
   }
 }
-

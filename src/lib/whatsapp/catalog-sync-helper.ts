@@ -1,6 +1,6 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { syncProductToCatalog } from '@/lib/whatsapp/meta-api'
-import { decrypt } from '@/lib/whatsapp/encryption'
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { syncProductToCatalog } from '@/lib/whatsapp/meta-api';
+import { decrypt } from '@/lib/whatsapp/encryption';
 
 /**
  * Checks the active account's whatsapp_config for auto_sync_catalog,
@@ -17,16 +17,19 @@ export async function autoSyncPropertyCatalogIfNeeded(
       .from('whatsapp_config')
       .select('access_token, catalog_id, auto_sync_catalog')
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
 
     if (configErr) {
-      console.error(`[Auto-Sync] Error loading config for account ${accountId}:`, configErr.message)
-      return
+      console.error(
+        `[Auto-Sync] Error loading config for account ${accountId}:`,
+        configErr.message
+      );
+      return;
     }
 
     if (!config || !config.catalog_id || !config.auto_sync_catalog) {
       // Auto-sync is not configured or disabled
-      return
+      return;
     }
 
     // 2. Fetch the property details
@@ -35,45 +38,52 @@ export async function autoSyncPropertyCatalogIfNeeded(
       .select('*')
       .eq('id', propertyId)
       .eq('account_id', accountId)
-      .maybeSingle()
+      .maybeSingle();
 
     if (propErr || !property) {
-      console.warn(`[Auto-Sync] Property ${propertyId} not found or access denied.`)
-      return
+      console.warn(
+        `[Auto-Sync] Property ${propertyId} not found or access denied.`
+      );
+      return;
     }
 
     // JV/JD and Built to Suit deals don't have Meta-catalog-compatible sale/
     // rent pricing — never push them to the catalog, silently skip.
-    if (property.listing_type === 'JV/JD' || property.listing_type === 'Built to Suit') {
-      return
+    if (
+      property.listing_type === 'JV/JD' ||
+      property.listing_type === 'Built to Suit'
+    ) {
+      return;
     }
 
     // 3. Decrypt the access token
-    let accessToken: string
+    let accessToken: string;
     try {
-      accessToken = decrypt(config.access_token)
+      accessToken = decrypt(config.access_token);
     } catch (decErr) {
-      const errMsg = decErr instanceof Error ? decErr.message : String(decErr)
-      console.error('[Auto-Sync] Token decryption failed:', errMsg)
+      const errMsg = decErr instanceof Error ? decErr.message : String(decErr);
+      console.error('[Auto-Sync] Token decryption failed:', errMsg);
       // Audit breadcrumb on a path that has already failed; if the row
-       // is gone there is nothing left to annotate.
+      // is gone there is nothing left to annotate.
       await supabase
         .from('properties')
         // eslint-disable-next-line convoreal/supabase-write-guard
         .update({
           meta_catalog_error: `Token decryption failed: ${errMsg}`,
         })
-        .eq('id', propertyId)
-      return
+        .eq('id', propertyId);
+      return;
     }
 
     // 4. Trigger Meta Sync
-    console.log(`[Auto-Sync] Synchronizing property ${propertyId} to Meta Catalog ${config.catalog_id}...`)
+    console.log(
+      `[Auto-Sync] Synchronizing property ${propertyId} to Meta Catalog ${config.catalog_id}...`
+    );
     await syncProductToCatalog({
       catalogId: config.catalog_id,
       accessToken,
       property,
-    })
+    });
 
     // 5. Update success audit timestamp
     // Audit timestamp for a sync that already succeeded at Meta — not
@@ -85,13 +95,18 @@ export async function autoSyncPropertyCatalogIfNeeded(
         meta_catalog_synced_at: new Date().toISOString(),
         meta_catalog_error: null,
       })
-      .eq('id', propertyId)
+      .eq('id', propertyId);
 
-    console.log(`[Auto-Sync] Successfully synchronized property ${propertyId}.`)
+    console.log(
+      `[Auto-Sync] Successfully synchronized property ${propertyId}.`
+    );
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err)
-    console.error(`[Auto-Sync] Error synchronizing property ${propertyId}:`, errorMsg)
-    
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[Auto-Sync] Error synchronizing property ${propertyId}:`,
+      errorMsg
+    );
+
     // Log error back to property row so it is visible in the UI
     try {
       await supabase
@@ -100,9 +115,9 @@ export async function autoSyncPropertyCatalogIfNeeded(
         .update({
           meta_catalog_error: errorMsg,
         })
-        .eq('id', propertyId)
+        .eq('id', propertyId);
     } catch (dbErr) {
-      console.error(`[Auto-Sync] Failed to log error to database:`, dbErr)
+      console.error(`[Auto-Sync] Failed to log error to database:`, dbErr);
     }
   }
 }

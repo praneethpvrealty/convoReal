@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  existing: { id: 'appt-1', user_id: 'u1', start_time: '2999-10-01T04:30:00.000Z', status: 'scheduled', contact_id: null, contact_ids: [] } as Record<string, unknown>,
+  existing: {
+    id: 'appt-1',
+    user_id: 'u1',
+    start_time: '2999-10-01T04:30:00.000Z',
+    status: 'scheduled',
+    contact_id: null,
+    contact_ids: [],
+  } as Record<string, unknown>,
   updates: [] as Array<Record<string, unknown>>,
 }));
 
@@ -19,25 +26,36 @@ vi.mock('@/lib/auth/account', () => ({
             state.updates.push(payload);
             return builder;
           },
-          single: async () => ({ data: { ...state.existing, ...state.updates.at(-1) }, error: null }),
+          single: async () => ({
+            data: { ...state.existing, ...state.updates.at(-1) },
+            error: null,
+          }),
         };
         return builder;
       },
     },
   }),
-  toErrorResponse: (err: unknown) => Response.json({ error: String(err) }, { status: 403 }),
+  toErrorResponse: (err: unknown) =>
+    Response.json({ error: String(err) }, { status: 403 }),
 }));
 
-vi.mock('@/lib/automations/admin-client', () => ({ supabaseAdmin: () => ({}) }));
+vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: () => ({}) }));
 vi.mock('@/lib/appointments/update-notification', () => ({
-  sendAppointmentUpdateNotifications: async () => ({ sent: 0, failed: 0, recipients: 0 }),
+  sendAppointmentUpdateNotifications: async () => ({
+    sent: 0,
+    failed: 0,
+    recipients: 0,
+  }),
 }));
 
 import { PUT } from './route';
 
 function put(body: Record<string, unknown>) {
   return PUT(
-    new Request('http://test/api/appointments/appt-1', { method: 'PUT', body: JSON.stringify(body) }),
+    new Request('http://test/api/appointments/appt-1', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
     { params: Promise.resolve({ id: 'appt-1' }) }
   );
 }
@@ -49,7 +67,9 @@ describe('PUT /api/appointments/[id]', () => {
       reminder_1h_sent: false,
     });
     expect(typeof update.reminders_rearmed_at).toBe('string');
-    expect(Number.isNaN(Date.parse(String(update.reminders_rearmed_at)))).toBe(false);
+    expect(Number.isNaN(Date.parse(String(update.reminders_rearmed_at)))).toBe(
+      false
+    );
   };
   const untouched = (update: Record<string, unknown>) => {
     expect(update).not.toHaveProperty('reminder_morning_sent');
@@ -70,18 +90,29 @@ describe('PUT /api/appointments/[id]', () => {
   });
 
   it('[CAL-011] reopening an archived appointment lists it in Tasks again', async () => {
-    state.existing = { ...state.existing, status: 'completed', start_time: '2999-10-01T04:30:00.000Z' };
+    state.existing = {
+      ...state.existing,
+      status: 'completed',
+      start_time: '2999-10-01T04:30:00.000Z',
+    };
     state.updates = [];
     const res = await put({ status: 'scheduled' });
     expect(res.status).toBe(200);
-    expect(state.updates[0]).toMatchObject({ status: 'scheduled', archived_at: null });
+    expect(state.updates[0]).toMatchObject({
+      status: 'scheduled',
+      archived_at: null,
+    });
     state.updates = [];
     await put({ title: 'Renamed' });
     expect(state.updates[0]).not.toHaveProperty('archived_at');
   });
 
   it('[CAL-010] reopening an appointment that has already started marks its reminders covered instead', async () => {
-    state.existing = { ...state.existing, status: 'cancelled', start_time: '2026-09-28T04:30:00.000Z' };
+    state.existing = {
+      ...state.existing,
+      status: 'cancelled',
+      start_time: '2026-09-28T04:30:00.000Z',
+    };
     state.updates = [];
     const res = await put({ status: 'scheduled' });
     expect(res.status).toBe(200);
@@ -94,7 +125,11 @@ describe('PUT /api/appointments/[id]', () => {
   });
 
   it('moving an appointment to a time already past marks its reminders covered', async () => {
-    state.existing = { ...state.existing, status: 'scheduled', start_time: '2999-10-01T04:30:00.000Z' };
+    state.existing = {
+      ...state.existing,
+      status: 'scheduled',
+      start_time: '2999-10-01T04:30:00.000Z',
+    };
     state.updates = [];
     const res = await put({ start_time: '2026-09-28T04:30:00.000Z' });
     expect(res.status).toBe(200);
@@ -130,7 +165,11 @@ describe('PUT /api/appointments/[id]', () => {
   });
 
   it('moving an appointment to a new time re-arms its reminders the same way', async () => {
-    state.existing = { ...state.existing, status: 'scheduled', start_time: '2999-10-01T04:30:00.000Z' };
+    state.existing = {
+      ...state.existing,
+      status: 'scheduled',
+      start_time: '2999-10-01T04:30:00.000Z',
+    };
     state.updates = [];
     const res = await put({ start_time: '2999-10-02T04:30:00.000Z' });
     expect(res.status).toBe(200);

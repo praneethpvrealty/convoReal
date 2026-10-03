@@ -93,7 +93,7 @@ function unitFactor(unit: string | undefined): number | null {
  */
 export function parseBudgetText(
   text: string,
-  context?: BudgetContext,
+  context?: BudgetContext
 ): BudgetRange {
   const raw = (text || '').trim();
   if (!raw || OPEN_BUDGET.test(raw)) return { min: null, max: null };
@@ -199,7 +199,11 @@ const GENERIC_CATEGORY_WORDS = new Set([
 /** A word hits either by appearing in the listing's text, or by carrying
  *  the listing's type inside it — which is how "Villas" still matches a
  *  "Villa". Guarded on a non-empty type: every word contains ''. */
-function categoryWordHits(word: string, haystack: string, type: string): boolean {
+function categoryWordHits(
+  word: string,
+  haystack: string,
+  type: string
+): boolean {
   if (word === 'plot') {
     return (
       haystack.includes('plot') ||
@@ -230,10 +234,13 @@ function matchesCategory(property: Property, category: string): boolean {
   const type = normalize(property.type || '');
   if (type && type === wanted) return true;
 
-  const isAgriculturalIntent = /\bagricultur(?:al|e)\b|\bfarms?\b|\bfarming\b|\bfarmland\b|\bagri\b/.test(
+  const isAgriculturalIntent =
+    /\bagricultur(?:al|e)\b|\bfarms?\b|\bfarming\b|\bfarmland\b|\bagri\b/.test(
+      wanted
+    );
+  const isPlotIntent = /\bplots?\b|\bplotted\b|\bsite\b|\bvacant\b/.test(
     wanted
   );
-  const isPlotIntent = /\bplots?\b|\bplotted\b|\bsite\b|\bvacant\b/.test(wanted);
 
   const words = wanted
     .split(' ')
@@ -241,7 +248,11 @@ function matchesCategory(property: Property, category: string): boolean {
     .map((w) => {
       if (w === 'plot' || w === 'plots' || w === 'plotted') return 'plot';
       if (w === 'site') return 'plot';
-      if (/\bfarms?\b|\bfarming\b|\bfarmland\b|\bagri\b|\bagricultural\b|\bagriculture\b/.test(w))
+      if (
+        /\bfarms?\b|\bfarming\b|\bfarmland\b|\bagri\b|\bagricultural\b|\bagriculture\b/.test(
+          w
+        )
+      )
         return 'agricultural';
       return w;
     })

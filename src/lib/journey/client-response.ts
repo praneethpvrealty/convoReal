@@ -335,7 +335,10 @@ async function planFollowup(args: {
     ? await db.from('todos').update(todo).eq('id', existingTodo.id)
     : await db.from('todos').insert(todo);
   if (todoError)
-    console.error('[client-response] follow-up todo failed:', todoError.message);
+    console.error(
+      '[client-response] follow-up todo failed:',
+      todoError.message
+    );
 }
 
 /**
@@ -388,7 +391,10 @@ async function recordTypedCheckBack(args: {
       reason: `Client asked to be checked back on ${format(due, 'd MMM yyyy')}: "${args.text.trim().slice(0, RESPONSE_REASON_LIMIT)}"`,
     });
     if (evError)
-      console.error('[client-response] check-back event failed:', evError.message);
+      console.error(
+        '[client-response] check-back event failed:',
+        evError.message
+      );
   }
 
   const subjectName = contact.name || 'client';
@@ -552,11 +558,7 @@ export async function sendCheckBackConfirm(args: {
 }
 
 export type ClientAskOutcome =
-  | 'sent'
-  | 'sent_template'
-  | 'window_closed'
-  | 'no_phone'
-  | 'failed';
+  'sent' | 'sent_template' | 'window_closed' | 'no_phone' | 'failed';
 
 /** The line that says a stated requirement was filed, or nothing. */
 export function buildRequirementLine(
@@ -1622,7 +1624,10 @@ async function ensureDefaultFollowup(args: {
       source: 'system',
     });
     if (error)
-      console.error('[client-response] default follow-up failed:', error.message);
+      console.error(
+        '[client-response] default follow-up failed:',
+        error.message
+      );
   }
   return format(due, 'd MMM yyyy');
 }
@@ -1727,11 +1732,7 @@ async function linkClientResponseToProperty(
   let askOutcome: ClientAskOutcome = 'failed';
   let reminderDate: string | null = null;
   let ownerNotice:
-    | 'sent'
-    | 'not_found'
-    | 'no_phone'
-    | 'failed'
-    | 'same_contact' = 'not_found';
+    'sent' | 'not_found' | 'no_phone' | 'failed' | 'same_contact' = 'not_found';
   if (item) {
     stageName = stages.find((s) => s.id === item.stage_id)?.name ?? null;
     const { error: evError } = await db.from('journey_events').insert({

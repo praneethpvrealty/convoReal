@@ -16,7 +16,12 @@ const hooks: { beforeClaim?: () => void; onAppointmentRead?: () => void } = {};
 // The one unique key the code relies on: a recipient is claimed once
 // per reminder (migration 127 / 196).
 function claimKey(row: Row): string {
-  return [row.appointment_id, row.contact_id ?? '', row.liaison_id ?? '', row.reminder_type].join('|');
+  return [
+    row.appointment_id,
+    row.contact_id ?? '',
+    row.liaison_id ?? '',
+    row.reminder_type,
+  ].join('|');
 }
 
 function makeBuilder(table: string) {
@@ -26,7 +31,11 @@ function makeBuilder(table: string) {
   const builder: Record<string, unknown> = {};
   const chain = () => builder;
   const write = () => {
-    if (!pending) return { data: null as Row | null, error: null as { code: string } | null };
+    if (!pending)
+      return {
+        data: null as Row | null,
+        error: null as { code: string } | null,
+      };
     const rows = tables[table] || (tables[table] = []);
     if (pending.kind === 'insert') {
       if (table === 'appointment_reminder_log') hooks.beforeClaim?.();
@@ -36,7 +45,11 @@ function makeBuilder(table: string) {
       ) {
         return { data: null, error: { code: '23505' } };
       }
-      const row = { id: `claim-${++claimSeq}`, created_at: new Date().toISOString(), ...pending.row };
+      const row = {
+        id: `claim-${++claimSeq}`,
+        created_at: new Date().toISOString(),
+        ...pending.row,
+      };
       rows.push(row);
       return { data: { ...row }, error: null };
     }
@@ -106,8 +119,14 @@ function makeBuilder(table: string) {
       const hit = matching()[0];
       return { data: hit ? { ...hit } : null, error: null };
     },
-    then: (resolve: (v: { data: Row[] | null; error: { code: string } | null }) => unknown) => {
-      if (mode === 'write') return resolve({ data: null, error: write().error });
+    then: (
+      resolve: (v: {
+        data: Row[] | null;
+        error: { code: string } | null;
+      }) => unknown
+    ) => {
+      if (mode === 'write')
+        return resolve({ data: null, error: write().error });
       return resolve({ data: matching().map((r) => ({ ...r })), error: null });
     },
   });
@@ -130,7 +149,7 @@ function makeBuilder(table: string) {
   return builder;
 }
 
-vi.mock('@/lib/automations/admin-client', () => ({
+vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({ from: (table: string) => makeBuilder(table) }),
 }));
 
@@ -143,7 +162,8 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
 const enqueueReminderAudioJob = vi.fn();
 vi.mock('@/lib/voice/reminder-audio', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/voice/reminder-audio')>()),
-  enqueueReminderAudioJob: (...args: unknown[]) => enqueueReminderAudioJob(...args),
+  enqueueReminderAudioJob: (...args: unknown[]) =>
+    enqueueReminderAudioJob(...args),
 }));
 vi.mock('@/lib/voice/config', () => ({
   getVoiceConfig: async () => ({ reminder_audio_enabled: true }),
@@ -250,7 +270,10 @@ describe('checkAndSendAppointmentReminders', () => {
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
     const claims = tables.appointment_reminder_log;
     expect(claims).toHaveLength(1);
-    expect(claims[0]).toMatchObject({ contact_id: 'c-visit', wa_message_id: 'wamid.1' });
+    expect(claims[0]).toMatchObject({
+      contact_id: 'c-visit',
+      wa_message_id: 'wamid.1',
+    });
     expect(typeof claims[0].sent_at).toBe('string');
 
     tables.appointments[0].reminder_morning_sent = false;
@@ -261,7 +284,10 @@ describe('checkAndSendAppointmentReminders', () => {
 
   it('[CAL-010] after a re-arm, takes over a claim from the earlier generation and sends again — once', async () => {
     tables.appointments = [
-      { ...appointment('a-visit', 'site_visit', 'c-visit'), reminders_rearmed_at: REARMED_AT },
+      {
+        ...appointment('a-visit', 'site_visit', 'c-visit'),
+        reminders_rearmed_at: REARMED_AT,
+      },
     ];
     tables.appointment_reminder_log = [
       claim('c-visit', 'morning', '2026-08-01T05:00:00.000Z'),
@@ -269,9 +295,14 @@ describe('checkAndSendAppointmentReminders', () => {
     ];
     await checkAndSendAppointmentReminders(NOW);
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
-    const renewed = tables.appointment_reminder_log.filter((r) => r.wa_message_id === 'wamid.1');
+    const renewed = tables.appointment_reminder_log.filter(
+      (r) => r.wa_message_id === 'wamid.1'
+    );
     expect(renewed).toHaveLength(1);
-    expect(renewed[0]).toMatchObject({ rearmed_at: REARMED_AT, prior_wa_message_ids: [] });
+    expect(renewed[0]).toMatchObject({
+      rearmed_at: REARMED_AT,
+      prior_wa_message_ids: [],
+    });
     expect(String(renewed[0].created_at) > REARMED_AT).toBe(true);
     expect(tables.appointment_reminder_log).toHaveLength(2);
 
@@ -316,13 +347,18 @@ describe('checkAndSendAppointmentReminders', () => {
     await checkAndSendAppointmentReminders(NOW);
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
     expect(tables.appointment_reminder_log).toHaveLength(1);
-    expect(tables.appointment_reminder_log[0].wa_message_id).toBe('wamid.fresh');
+    expect(tables.appointment_reminder_log[0].wa_message_id).toBe(
+      'wamid.fresh'
+    );
     expect(tables.appointments[0].reminder_1h_sent).toBe(false);
   });
 
   it('[CAL-010] a claim a stale sweep made after the re-arm is taken over, not counted as coverage', async () => {
     tables.appointments = [
-      { ...appointment('a-visit', 'site_visit', 'c-visit'), reminders_rearmed_at: REARMED_AT },
+      {
+        ...appointment('a-visit', 'site_visit', 'c-visit'),
+        reminders_rearmed_at: REARMED_AT,
+      },
     ];
     tables.appointment_reminder_log = [
       claim('c-visit', 'morning', '2026-08-01T05:45:00.000Z'),
@@ -367,7 +403,9 @@ describe('checkAndSendAppointmentReminders', () => {
     ];
     await checkAndSendAppointmentReminders(NOW);
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
-    const retried = tables.appointment_reminder_log.filter((r) => typeof r.sent_at === 'string');
+    const retried = tables.appointment_reminder_log.filter(
+      (r) => typeof r.sent_at === 'string'
+    );
     expect(retried).toHaveLength(1);
     expect(retried[0].prior_wa_message_ids).toEqual(['wamid.older']);
   });
@@ -385,7 +423,10 @@ describe('checkAndSendAppointmentReminders', () => {
 
   it('[CAL-010] honours a claim from the current generation', async () => {
     tables.appointments = [
-      { ...appointment('a-visit', 'site_visit', 'c-visit'), reminders_rearmed_at: REARMED_AT },
+      {
+        ...appointment('a-visit', 'site_visit', 'c-visit'),
+        reminders_rearmed_at: REARMED_AT,
+      },
     ];
     tables.appointment_reminder_log = [
       claim('c-visit', 'morning', '2026-08-01T05:45:00.000Z', REARMED_AT),
@@ -393,7 +434,11 @@ describe('checkAndSendAppointmentReminders', () => {
     ];
     await checkAndSendAppointmentReminders(NOW);
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
-    expect(tables.appointment_reminder_log.every((r) => r.wa_message_id === 'wamid.old')).toBe(true);
+    expect(
+      tables.appointment_reminder_log.every(
+        (r) => r.wa_message_id === 'wamid.old'
+      )
+    ).toBe(true);
   });
 
   it('holds client reminders during quiet hours', async () => {
@@ -452,12 +497,15 @@ describe('reminder wording', () => {
 
   it('[CAL-013] still names a site visit by its property', async () => {
     tables.appointments = [
-      { ...appointment('a-visit', 'site_visit', 'c-visit'), property: linkedProperty },
+      {
+        ...appointment('a-visit', 'site_visit', 'c-visit'),
+        property: linkedProperty,
+      },
     ];
     await checkAndSendAppointmentReminders(NOW);
-    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0].templateParams[1]).toBe(
-      linkedProperty.title
-    );
+    expect(
+      sendWhatsAppMessageAndPersist.mock.calls[0][0].templateParams[1]
+    ).toBe(linkedProperty.title);
   });
 
   it('[CAL-013] does not ask a client who already confirmed to confirm again', async () => {
@@ -468,7 +516,11 @@ describe('reminder wording', () => {
       },
     ];
     tables.conversations = [
-      { account_id: 'acc', contact_id: 'c-visit', last_customer_message_at: new Date().toISOString() },
+      {
+        account_id: 'acc',
+        contact_id: 'c-visit',
+        last_customer_message_at: new Date().toISOString(),
+      },
     ];
     await checkAndSendAppointmentReminders(NOW);
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
@@ -476,7 +528,9 @@ describe('reminder wording', () => {
     expect(sent.kind).toBe('text');
     expect(sent.text).toContain('Thanks for confirming');
     expect(sent.text).not.toMatch(/tap a button/i);
-    expect(tables.appointment_reminder_log[0]).toMatchObject({ wa_message_id: 'wamid.1' });
+    expect(tables.appointment_reminder_log[0]).toMatchObject({
+      wa_message_id: 'wamid.1',
+    });
   });
 
   it('[CAL-013] thanks a confirmed client in text even when they prefer audio notes', async () => {
@@ -496,7 +550,11 @@ describe('reminder wording', () => {
       },
     ];
     tables.conversations = [
-      { account_id: 'acc', contact_id: 'c-visit', last_customer_message_at: new Date().toISOString() },
+      {
+        account_id: 'acc',
+        contact_id: 'c-visit',
+        last_customer_message_at: new Date().toISOString(),
+      },
     ];
     try {
       await checkAndSendAppointmentReminders(NOW);
@@ -505,8 +563,12 @@ describe('reminder wording', () => {
     }
     expect(enqueueReminderAudioJob).not.toHaveBeenCalled();
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
-    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0]).toMatchObject({ kind: 'text' });
-    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0].text).toContain('Thanks for confirming');
+    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0]).toMatchObject({
+      kind: 'text',
+    });
+    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0].text).toContain(
+      'Thanks for confirming'
+    );
   });
 
   it('[CAL-013] falls back to the template for a confirmed client outside the 24-hour window', async () => {
@@ -517,7 +579,11 @@ describe('reminder wording', () => {
       },
     ];
     tables.conversations = [
-      { account_id: 'acc', contact_id: 'c-visit', last_customer_message_at: '2026-07-30T03:21:00Z' },
+      {
+        account_id: 'acc',
+        contact_id: 'c-visit',
+        last_customer_message_at: '2026-07-30T03:21:00Z',
+      },
     ];
     await checkAndSendAppointmentReminders(NOW);
     expect(sendWhatsAppMessageAndPersist.mock.calls[0][0]).toMatchObject({
@@ -535,7 +601,11 @@ describe('reminder wording', () => {
       },
     ];
     tables.conversations = [
-      { account_id: 'acc', contact_id: 'c-visit', last_customer_message_at: new Date().toISOString() },
+      {
+        account_id: 'acc',
+        contact_id: 'c-visit',
+        last_customer_message_at: new Date().toISOString(),
+      },
     ];
     await checkAndSendAppointmentReminders(NOW);
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(2);
@@ -554,11 +624,17 @@ describe('reminder wording', () => {
       },
     ];
     tables.conversations = [
-      { account_id: 'acc', contact_id: 'c-visit', last_customer_message_at: new Date().toISOString() },
+      {
+        account_id: 'acc',
+        contact_id: 'c-visit',
+        last_customer_message_at: new Date().toISOString(),
+      },
     ];
     await checkAndSendAppointmentReminders(NOW);
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
-    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0].kind).toBe('template');
+    expect(sendWhatsAppMessageAndPersist.mock.calls[0][0].kind).toBe(
+      'template'
+    );
   });
 
   it('[CAL-013] does not double the full stop after an agenda that ends in one', () => {
@@ -571,7 +647,9 @@ describe('reminder wording', () => {
       agenda: 'To find out the official SR value of the property.',
       isSiteVisit: false,
     });
-    expect(templateParams[4]).toBe('To find out the official SR value of the property');
+    expect(templateParams[4]).toBe(
+      'To find out the official SR value of the property'
+    );
     expect(bodyText).toContain('of the property. Please tap');
     expect(bodyText).not.toContain('..');
   });

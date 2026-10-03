@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Per-node configuration form, dispatched by node_type.
@@ -24,31 +24,24 @@
  * renders the advanced rows.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Loader2,
-  Paperclip,
-  Plus,
-  Trash2,
-  Upload,
-  X,
-} from "lucide-react";
-import { toast } from "sonner";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Loader2, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react';
+import { toast } from 'sonner';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
-import { storagePublicUrl } from "@/lib/storage/url";
-import { slugify, type BuilderNode } from "../shared";
-import { NextNodeRow, NodeKeySelect, TextRow } from "./fields";
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
+import { storagePublicUrl } from '@/lib/storage/url';
+import { slugify, type BuilderNode } from '../shared';
+import { NextNodeRow, NodeKeySelect, TextRow } from './fields';
 
 interface NodeConfigFormProps {
   node: BuilderNode;
@@ -65,10 +58,10 @@ export function NodeConfigForm({
 }: NodeConfigFormProps) {
   const cfg = node.config;
   switch (node.node_type) {
-    case "start":
+    case 'start':
       return (
         <NextNodeRow
-          value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
+          value={(cfg as { next_node_key?: string }).next_node_key ?? ''}
           allNodes={allNodes}
           currentKey={node.node_key}
           onChange={(v) => onUpdateConfig({ next_node_key: v })}
@@ -76,16 +69,16 @@ export function NodeConfigForm({
         />
       );
 
-    case "send_message":
+    case 'send_message':
       return (
         <>
           <TextRow
             label="Text sent to the customer"
-            value={(cfg as { text?: string }).text ?? ""}
+            value={(cfg as { text?: string }).text ?? ''}
             onChange={(v) => onUpdateConfig({ text: v })}
           />
           <NextNodeRow
-            value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
+            value={(cfg as { next_node_key?: string }).next_node_key ?? ''}
             allNodes={allNodes}
             currentKey={node.node_key}
             onChange={(v) => onUpdateConfig({ next_node_key: v })}
@@ -94,7 +87,7 @@ export function NodeConfigForm({
         </>
       );
 
-    case "send_buttons":
+    case 'send_buttons':
       return (
         <SendButtonsForm
           cfg={cfg as SendButtonsCfg}
@@ -105,7 +98,7 @@ export function NodeConfigForm({
         />
       );
 
-    case "send_list":
+    case 'send_list':
       return (
         <SendListForm
           cfg={cfg as SendListCfg}
@@ -116,7 +109,7 @@ export function NodeConfigForm({
         />
       );
 
-    case "send_media":
+    case 'send_media':
       return (
         <SendMediaForm
           cfg={cfg as SendMediaCfg}
@@ -126,12 +119,12 @@ export function NodeConfigForm({
         />
       );
 
-    case "collect_input":
+    case 'collect_input':
       return (
         <>
           <TextRow
             label="Prompt sent to the customer"
-            value={(cfg as { prompt_text?: string }).prompt_text ?? ""}
+            value={(cfg as { prompt_text?: string }).prompt_text ?? ''}
             onChange={(v) => onUpdateConfig({ prompt_text: v })}
             rows={2}
           />
@@ -140,27 +133,27 @@ export function NodeConfigForm({
               Variable key (stored in flow_runs.vars; alphanumeric + underscore)
             </label>
             <Input
-              value={(cfg as { var_key?: string }).var_key ?? ""}
+              value={(cfg as { var_key?: string }).var_key ?? ''}
               onChange={(e) =>
                 onUpdateConfig({
-                  var_key: e.target.value.replace(/[^a-zA-Z0-9_]/g, ""),
+                  var_key: e.target.value.replace(/[^a-zA-Z0-9_]/g, ''),
                 })
               }
               placeholder="e.g. name, email, company"
               className="bg-slate-800 font-mono text-xs"
             />
             <p className="mt-1 text-[10px] text-slate-500">
-              Interpolate in downstream prompts and handoff notes with{" "}
+              Interpolate in downstream prompts and handoff notes with{' '}
               <code className="rounded bg-slate-800 px-1">
-                {"{{vars."}
-                {(cfg as { var_key?: string }).var_key || "name"}
-                {"}}"}
+                {'{{vars.'}
+                {(cfg as { var_key?: string }).var_key || 'name'}
+                {'}}'}
               </code>
               .
             </p>
           </div>
           <NextNodeRow
-            value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
+            value={(cfg as { next_node_key?: string }).next_node_key ?? ''}
             allNodes={allNodes}
             currentKey={node.node_key}
             onChange={(v) => onUpdateConfig({ next_node_key: v })}
@@ -169,7 +162,7 @@ export function NodeConfigForm({
         </>
       );
 
-    case "condition":
+    case 'condition':
       return (
         <ConditionForm
           cfg={cfg as ConditionCfg}
@@ -179,7 +172,7 @@ export function NodeConfigForm({
         />
       );
 
-    case "set_tag":
+    case 'set_tag':
       return (
         <SetTagForm
           cfg={cfg as SetTagCfg}
@@ -189,27 +182,27 @@ export function NodeConfigForm({
         />
       );
 
-    case "handoff":
+    case 'handoff':
       return (
         <TextRow
           label="Internal note (for the agent picking up)"
-          value={(cfg as { note?: string }).note ?? ""}
+          value={(cfg as { note?: string }).note ?? ''}
           onChange={(v) => onUpdateConfig({ note: v })}
           rows={2}
         />
       );
 
-    case "start_property_intake":
+    case 'start_property_intake':
       return (
         <TextRow
           label="Intake prompt (sent to kick off the listing draft)"
-          value={(cfg as { intro_text?: string }).intro_text ?? ""}
+          value={(cfg as { intro_text?: string }).intro_text ?? ''}
           onChange={(v) => onUpdateConfig({ intro_text: v })}
           rows={3}
         />
       );
 
-    case "end":
+    case 'end':
       return (
         <p className="text-xs text-slate-500">
           Terminal node. When the runner reaches this node the run is marked
@@ -245,7 +238,7 @@ function SendButtonsForm({
   const buttons = cfg.buttons ?? [];
   const updateButton = (
     idx: number,
-    patch: Partial<NonNullable<SendButtonsCfg["buttons"]>[number]>,
+    patch: Partial<NonNullable<SendButtonsCfg['buttons']>[number]>
   ) => {
     onUpdateConfig({
       buttons: buttons.map((b, i) => (i === idx ? { ...b, ...patch } : b)),
@@ -257,8 +250,8 @@ function SendButtonsForm({
         ...buttons,
         {
           reply_id: `btn_${buttons.length + 1}`,
-          title: "Option",
-          next_node_key: "",
+          title: 'Option',
+          next_node_key: '',
         },
       ],
     });
@@ -269,13 +262,13 @@ function SendButtonsForm({
     <>
       <TextRow
         label="Body text"
-        value={cfg.text ?? ""}
+        value={cfg.text ?? ''}
         onChange={(v) => onUpdateConfig({ text: v })}
         rows={3}
       />
       <TextRow
         label="Footer (optional, 60 chars)"
-        value={cfg.footer_text ?? ""}
+        value={cfg.footer_text ?? ''}
         onChange={(v) => onUpdateConfig({ footer_text: v })}
       />
       <div>
@@ -289,10 +282,10 @@ function SendButtonsForm({
             <div
               key={i}
               className={cn(
-                "grid grid-cols-1 gap-2 rounded-md border border-slate-800 bg-slate-800/40 p-3",
+                'grid grid-cols-1 gap-2 rounded-md border border-slate-800 bg-slate-800/40 p-3',
                 showAdvanced
-                  ? "md:grid-cols-[1fr_2fr_2fr_auto]"
-                  : "md:grid-cols-[2fr_2fr_auto]",
+                  ? 'md:grid-cols-[1fr_2fr_2fr_auto]'
+                  : 'md:grid-cols-[2fr_2fr_auto]'
               )}
             >
               {showAdvanced && (
@@ -318,7 +311,7 @@ function SendButtonsForm({
                 value={b.next_node_key || null}
                 nodes={allNodes}
                 excludeKey={currentKey}
-                onChange={(v) => updateButton(i, { next_node_key: v ?? "" })}
+                onChange={(v) => updateButton(i, { next_node_key: v ?? '' })}
                 placeholder="Next node…"
               />
               <Button
@@ -385,12 +378,10 @@ function SendListForm({
 
   const updateSection = (
     sIdx: number,
-    patch: Partial<NonNullable<SendListCfg["sections"]>[number]>,
+    patch: Partial<NonNullable<SendListCfg['sections']>[number]>
   ) => {
     onUpdateConfig({
-      sections: sections.map((s, i) =>
-        i === sIdx ? { ...s, ...patch } : s,
-      ),
+      sections: sections.map((s, i) => (i === sIdx ? { ...s, ...patch } : s)),
     });
   };
   const addSection = () =>
@@ -398,12 +389,12 @@ function SendListForm({
       sections: [
         ...sections,
         {
-          title: "",
+          title: '',
           rows: [
             {
               reply_id: `row_${totalRows + 1}`,
               title: `Option ${totalRows + 1}`,
-              next_node_key: "",
+              next_node_key: '',
             },
           ],
         },
@@ -414,9 +405,7 @@ function SendListForm({
   const updateRow = (
     sIdx: number,
     rIdx: number,
-    patch: Partial<
-      NonNullable<SendListCfg["sections"]>[number]["rows"][number]
-    >,
+    patch: Partial<NonNullable<SendListCfg['sections']>[number]['rows'][number]>
   ) => {
     onUpdateConfig({
       sections: sections.map((s, i) =>
@@ -425,7 +414,7 @@ function SendListForm({
               ...s,
               rows: s.rows.map((r, j) => (j === rIdx ? { ...r, ...patch } : r)),
             }
-          : s,
+          : s
       ),
     });
   };
@@ -440,17 +429,17 @@ function SendListForm({
                 {
                   reply_id: `row_${totalRows + 1}`,
                   title: `Option ${totalRows + 1}`,
-                  next_node_key: "",
+                  next_node_key: '',
                 },
               ],
             }
-          : s,
+          : s
       ),
     });
   const removeRow = (sIdx: number, rIdx: number) =>
     onUpdateConfig({
       sections: sections.map((s, i) =>
-        i === sIdx ? { ...s, rows: s.rows.filter((_, j) => j !== rIdx) } : s,
+        i === sIdx ? { ...s, rows: s.rows.filter((_, j) => j !== rIdx) } : s
       ),
     });
 
@@ -458,19 +447,19 @@ function SendListForm({
     <>
       <TextRow
         label="Body text"
-        value={cfg.text ?? ""}
+        value={cfg.text ?? ''}
         onChange={(v) => onUpdateConfig({ text: v })}
         rows={3}
       />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <TextRow
           label="Tap-to-expand button label (≤20 chars)"
-          value={cfg.button_label ?? ""}
+          value={cfg.button_label ?? ''}
           onChange={(v) => onUpdateConfig({ button_label: v })}
         />
         <TextRow
           label="Footer (optional, 60 chars)"
-          value={cfg.footer_text ?? ""}
+          value={cfg.footer_text ?? ''}
           onChange={(v) => onUpdateConfig({ footer_text: v })}
         />
       </div>
@@ -486,10 +475,8 @@ function SendListForm({
           >
             <div className="mb-2 flex items-center gap-2">
               <Input
-                value={section.title ?? ""}
-                onChange={(e) =>
-                  updateSection(sIdx, { title: e.target.value })
-                }
+                value={section.title ?? ''}
+                onChange={(e) => updateSection(sIdx, { title: e.target.value })}
                 placeholder={`Section ${sIdx + 1} title (optional)`}
                 className="bg-slate-800 text-xs"
               />
@@ -509,10 +496,10 @@ function SendListForm({
               <div
                 key={rIdx}
                 className={cn(
-                  "mb-2 grid grid-cols-1 gap-2",
+                  'mb-2 grid grid-cols-1 gap-2',
                   showAdvanced
-                    ? "md:grid-cols-[1fr_2fr_2fr_auto]"
-                    : "md:grid-cols-[2fr_2fr_auto]",
+                    ? 'md:grid-cols-[1fr_2fr_2fr_auto]'
+                    : 'md:grid-cols-[2fr_2fr_auto]'
                 )}
               >
                 {showAdvanced && (
@@ -520,10 +507,7 @@ function SendListForm({
                     value={row.reply_id}
                     onChange={(e) =>
                       updateRow(sIdx, rIdx, {
-                        reply_id: slugify(
-                          e.target.value,
-                          `row_${rIdx + 1}`,
-                        ),
+                        reply_id: slugify(e.target.value, `row_${rIdx + 1}`),
                       })
                     }
                     placeholder="reply_id"
@@ -544,7 +528,7 @@ function SendListForm({
                   nodes={allNodes}
                   excludeKey={currentKey}
                   onChange={(v) =>
-                    updateRow(sIdx, rIdx, { next_node_key: v ?? "" })
+                    updateRow(sIdx, rIdx, { next_node_key: v ?? '' })
                   }
                   placeholder="Next node…"
                 />
@@ -590,9 +574,9 @@ function SendListForm({
 // ============================================================
 
 interface ConditionCfg {
-  subject?: "var" | "tag" | "contact_field";
+  subject?: 'var' | 'tag' | 'contact_field';
   subject_key?: string;
-  operator?: "equals" | "contains" | "present" | "absent";
+  operator?: 'equals' | 'contains' | 'present' | 'absent';
   value?: string;
   true_next?: string;
   false_next?: string;
@@ -617,9 +601,9 @@ function ConditionForm({
 }) {
   const tags = useUserTags();
 
-  const subject = cfg.subject ?? "var";
-  const operator = cfg.operator ?? "equals";
-  const showValue = operator === "equals" || operator === "contains";
+  const subject = cfg.subject ?? 'var';
+  const operator = cfg.operator ?? 'equals';
+  const showValue = operator === 'equals' || operator === 'contains';
 
   return (
     <>
@@ -629,7 +613,7 @@ function ConditionForm({
           <Select
             value={subject}
             onValueChange={(v) =>
-              onUpdateConfig({ subject: v as ConditionCfg["subject"] })
+              onUpdateConfig({ subject: v as ConditionCfg['subject'] })
             }
           >
             <SelectTrigger className="bg-slate-800">
@@ -644,15 +628,15 @@ function ConditionForm({
         </div>
         <div className="md:col-span-2">
           <label className="mb-1 block text-xs text-slate-400">
-            {subject === "var"
-              ? "var name"
-              : subject === "tag"
-                ? "Tag"
-                : "Field"}
+            {subject === 'var'
+              ? 'var name'
+              : subject === 'tag'
+                ? 'Tag'
+                : 'Field'}
           </label>
-          {subject === "tag" && tags.length > 0 ? (
+          {subject === 'tag' && tags.length > 0 ? (
             <Select
-              value={cfg.subject_key ?? ""}
+              value={cfg.subject_key ?? ''}
               onValueChange={(v) => onUpdateConfig({ subject_key: v })}
             >
               <SelectTrigger className="bg-slate-800">
@@ -666,9 +650,9 @@ function ConditionForm({
                 ))}
               </SelectContent>
             </Select>
-          ) : subject === "contact_field" ? (
+          ) : subject === 'contact_field' ? (
             <Select
-              value={cfg.subject_key ?? ""}
+              value={cfg.subject_key ?? ''}
               onValueChange={(v) => onUpdateConfig({ subject_key: v })}
             >
               <SelectTrigger className="bg-slate-800">
@@ -683,11 +667,9 @@ function ConditionForm({
             </Select>
           ) : (
             <Input
-              value={cfg.subject_key ?? ""}
-              onChange={(e) =>
-                onUpdateConfig({ subject_key: e.target.value })
-              }
-              placeholder={subject === "var" ? "e.g. email" : "tag UUID"}
+              value={cfg.subject_key ?? ''}
+              onChange={(e) => onUpdateConfig({ subject_key: e.target.value })}
+              placeholder={subject === 'var' ? 'e.g. email' : 'tag UUID'}
               className="bg-slate-800 font-mono text-xs"
             />
           )}
@@ -696,8 +678,8 @@ function ConditionForm({
 
       <div
         className={cn(
-          "grid grid-cols-1 gap-3",
-          showValue ? "md:grid-cols-2" : "",
+          'grid grid-cols-1 gap-3',
+          showValue ? 'md:grid-cols-2' : ''
         )}
       >
         <div>
@@ -705,7 +687,7 @@ function ConditionForm({
           <Select
             value={operator}
             onValueChange={(v) =>
-              onUpdateConfig({ operator: v as ConditionCfg["operator"] })
+              onUpdateConfig({ operator: v as ConditionCfg['operator'] })
             }
           >
             <SelectTrigger className="bg-slate-800">
@@ -723,7 +705,7 @@ function ConditionForm({
           <div>
             <label className="mb-1 block text-xs text-slate-400">Value</label>
             <Input
-              value={cfg.value ?? ""}
+              value={cfg.value ?? ''}
               onChange={(e) => onUpdateConfig({ value: e.target.value })}
               className="bg-slate-800"
             />
@@ -733,14 +715,14 @@ function ConditionForm({
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <NextNodeRow
-          value={cfg.true_next ?? ""}
+          value={cfg.true_next ?? ''}
           allNodes={allNodes}
           currentKey={currentKey}
           onChange={(v) => onUpdateConfig({ true_next: v })}
           label="If true → advance to"
         />
         <NextNodeRow
-          value={cfg.false_next ?? ""}
+          value={cfg.false_next ?? ''}
           allNodes={allNodes}
           currentKey={currentKey}
           onChange={(v) => onUpdateConfig({ false_next: v })}
@@ -756,7 +738,7 @@ function ConditionForm({
 // ============================================================
 
 interface SetTagCfg {
-  mode?: "add" | "remove";
+  mode?: 'add' | 'remove';
   tag_id?: string;
   next_node_key?: string;
 }
@@ -780,9 +762,9 @@ function SetTagForm({
         <div>
           <label className="mb-1 block text-xs text-slate-400">Action</label>
           <Select
-            value={cfg.mode ?? "add"}
+            value={cfg.mode ?? 'add'}
             onValueChange={(v) =>
-              onUpdateConfig({ mode: v as SetTagCfg["mode"] })
+              onUpdateConfig({ mode: v as SetTagCfg['mode'] })
             }
           >
             <SelectTrigger className="bg-slate-800">
@@ -798,7 +780,7 @@ function SetTagForm({
           <label className="mb-1 block text-xs text-slate-400">Tag</label>
           {tags.length > 0 ? (
             <Select
-              value={cfg.tag_id ?? ""}
+              value={cfg.tag_id ?? ''}
               onValueChange={(v) => onUpdateConfig({ tag_id: v })}
             >
               <SelectTrigger className="bg-slate-800">
@@ -814,7 +796,7 @@ function SetTagForm({
             </Select>
           ) : (
             <Input
-              value={cfg.tag_id ?? ""}
+              value={cfg.tag_id ?? ''}
               onChange={(e) => onUpdateConfig({ tag_id: e.target.value })}
               placeholder="Tag UUID"
               className="bg-slate-800 font-mono text-xs"
@@ -823,7 +805,7 @@ function SetTagForm({
         </div>
       </div>
       <NextNodeRow
-        value={cfg.next_node_key ?? ""}
+        value={cfg.next_node_key ?? ''}
         allNodes={allNodes}
         currentKey={currentKey}
         onChange={(v) => onUpdateConfig({ next_node_key: v })}
@@ -844,7 +826,7 @@ function useUserTags(): UserTag[] {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/tags").catch(() => null);
+        const res = await fetch('/api/tags').catch(() => null);
         if (!res || !res.ok) return;
         const json = (await res.json()) as { tags?: UserTag[] };
         if (!cancelled) setTags(json.tags ?? []);
@@ -864,7 +846,7 @@ function useUserTags(): UserTag[] {
 // ============================================================
 
 interface SendMediaCfg {
-  media_type?: "image" | "video" | "document";
+  media_type?: 'image' | 'video' | 'document';
   media_url?: string;
   caption?: string;
   filename?: string;
@@ -875,14 +857,14 @@ interface SendMediaCfg {
 // sync with the storage policy so the picker rejects unsupported files
 // before they hit the network rather than failing with a confusing
 // Supabase RLS / mime-type error.
-const MEDIA_ACCEPT: Record<NonNullable<SendMediaCfg["media_type"]>, string> = {
-  image: "image/png,image/jpeg,image/webp",
-  video: "video/mp4,video/3gpp",
+const MEDIA_ACCEPT: Record<NonNullable<SendMediaCfg['media_type']>, string> = {
+  image: 'image/png,image/jpeg,image/webp',
+  video: 'video/mp4,video/3gpp',
   document:
-    "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain",
+    'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain',
 };
 
-const FLOW_MEDIA_BUCKET = "flow-media";
+const FLOW_MEDIA_BUCKET = 'flow-media';
 // 16 MB — matches the bucket file_size_limit set in migration 016.
 const FLOW_MEDIA_MAX_BYTES = 16 * 1024 * 1024;
 
@@ -900,17 +882,17 @@ function SendMediaForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  const mediaType = cfg.media_type ?? "image";
-  const isDocument = mediaType === "document";
+  const mediaType = cfg.media_type ?? 'image';
+  const isDocument = mediaType === 'document';
   const displayName =
     cfg.filename ||
-    (cfg.media_url ? cfg.media_url.split("/").pop() ?? "" : "");
+    (cfg.media_url ? (cfg.media_url.split('/').pop() ?? '') : '');
 
   const handleFile = useCallback(
     async (file: File) => {
       if (file.size > FLOW_MEDIA_MAX_BYTES) {
         toast.error(
-          `File is ${(file.size / 1024 / 1024).toFixed(1)} MB — limit is 16 MB.`,
+          `File is ${(file.size / 1024 / 1024).toFixed(1)} MB — limit is 16 MB.`
         );
         return;
       }
@@ -922,7 +904,7 @@ function SendMediaForm({
           error: userErr,
         } = await supabase.auth.getUser();
         if (userErr || !user) {
-          throw new Error("Not signed in.");
+          throw new Error('Not signed in.');
         }
         // Resolve the caller's account_id so the path is account-
         // scoped rather than user-scoped. The 020 migration's RLS
@@ -931,27 +913,27 @@ function SendMediaForm({
         // teammate leaving the account (which was a data-integrity
         // hole in the original 016 storage policies).
         const { data: profile, error: profileErr } = await supabase
-          .from("profiles")
-          .select("account_id")
-          .eq("user_id", user.id)
+          .from('profiles')
+          .select('account_id')
+          .eq('user_id', user.id)
           .maybeSingle();
         if (profileErr || !profile?.account_id) {
-          throw new Error("Could not resolve your account.");
+          throw new Error('Could not resolve your account.');
         }
         // Path convention matches migration 020's RLS policy: first
         // segment is `account-<uuid>`. Timestamp + random suffix
         // prevents collisions between two builders open at once.
-        const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
+        const ext = file.name.split('.').pop()?.toLowerCase() ?? 'bin';
         const safeBase =
           file.name
-            .replace(/\.[^.]+$/, "")
-            .replace(/[^a-zA-Z0-9_-]+/g, "_")
-            .slice(0, 40) || "file";
+            .replace(/\.[^.]+$/, '')
+            .replace(/[^a-zA-Z0-9_-]+/g, '_')
+            .slice(0, 40) || 'file';
         const path = `account-${profile.account_id}/${Date.now()}-${safeBase}.${ext}`;
         const { error: upErr } = await supabase.storage
           .from(FLOW_MEDIA_BUCKET)
           .upload(path, file, {
-            cacheControl: "3600",
+            cacheControl: '3600',
             upsert: false,
             contentType: file.type,
           });
@@ -965,19 +947,19 @@ function SendMediaForm({
           media_url: publicUrl,
           filename: file.name,
         });
-        toast.success("File uploaded.");
+        toast.success('File uploaded.');
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Upload failed.";
+        const msg = err instanceof Error ? err.message : 'Upload failed.';
         toast.error(msg);
       } finally {
         setUploading(false);
       }
     },
-    [onUpdateConfig],
+    [onUpdateConfig]
   );
 
   const handleClear = () => {
-    onUpdateConfig({ media_url: "", filename: "" });
+    onUpdateConfig({ media_url: '', filename: '' });
   };
 
   return (
@@ -991,9 +973,9 @@ function SendMediaForm({
             // accepts different MIME sets per type and a previously
             // uploaded PDF can't be sent as an image.
             onUpdateConfig({
-              media_type: v as NonNullable<SendMediaCfg["media_type"]>,
-              media_url: "",
-              filename: "",
+              media_type: v as NonNullable<SendMediaCfg['media_type']>,
+              media_url: '',
+              filename: '',
             });
           }}
         >
@@ -1063,14 +1045,14 @@ function SendMediaForm({
             const f = e.target.files?.[0];
             if (f) void handleFile(f);
             // Reset so picking the same file twice still fires onChange.
-            e.target.value = "";
+            e.target.value = '';
           }}
         />
       </div>
 
       <TextRow
         label="Caption (optional, shown under the media)"
-        value={cfg.caption ?? ""}
+        value={cfg.caption ?? ''}
         onChange={(v) => onUpdateConfig({ caption: v })}
         rows={2}
       />
@@ -1081,7 +1063,7 @@ function SendMediaForm({
             Filename shown to the customer (documents only)
           </label>
           <Input
-            value={cfg.filename ?? ""}
+            value={cfg.filename ?? ''}
             onChange={(e) => onUpdateConfig({ filename: e.target.value })}
             placeholder="invoice.pdf"
             className="bg-slate-800 text-xs"
@@ -1090,7 +1072,7 @@ function SendMediaForm({
       )}
 
       <NextNodeRow
-        value={cfg.next_node_key ?? ""}
+        value={cfg.next_node_key ?? ''}
         allNodes={allNodes}
         currentKey={currentKey}
         onChange={(v) => onUpdateConfig({ next_node_key: v })}

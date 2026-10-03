@@ -39,7 +39,10 @@ export interface ReminderClaimConfirmJob extends ClaimConfirmation {
 
 export const CLAIM_CONFIRM_RETRY = { attempts: 3, delayMs: 1_000 };
 
-function sameInstant(a: string | null | undefined, b: string | null | undefined) {
+function sameInstant(
+  a: string | null | undefined,
+  b: string | null | undefined
+) {
   if (!a || !b) return !a && !b;
   return new Date(a).getTime() === new Date(b).getTime();
 }
@@ -172,17 +175,20 @@ async function keepPriorMessageId(
   confirmation: ClaimConfirmation,
   by: 'id' | 'recipient'
 ): Promise<'gone' | 'failed' | 'no-row'> {
-  const { data, error } = await admin.rpc('appointment_reminder_keep_prior_id', {
-    p_account_id: confirmation.accountId,
-    p_claim_id: by === 'id' ? confirmation.claimId : null,
-    p_appointment_id: confirmation.appointmentId,
-    p_contact_id: confirmation.contactId,
-    p_liaison_id: confirmation.liaisonId,
-    p_reminder_type: confirmation.reminderType,
-    p_wa_message_id: confirmation.waMessageId,
-    p_rearmed_known: true,
-    p_rearmed_at: confirmation.rearmedAt,
-  });
+  const { data, error } = await admin.rpc(
+    'appointment_reminder_keep_prior_id',
+    {
+      p_account_id: confirmation.accountId,
+      p_claim_id: by === 'id' ? confirmation.claimId : null,
+      p_appointment_id: confirmation.appointmentId,
+      p_contact_id: confirmation.contactId,
+      p_liaison_id: confirmation.liaisonId,
+      p_reminder_type: confirmation.reminderType,
+      p_wa_message_id: confirmation.waMessageId,
+      p_rearmed_known: true,
+      p_rearmed_at: confirmation.rearmedAt,
+    }
+  );
   if (error) {
     console.error(
       `[Reminder] could not keep the earlier message id for claim ${confirmation.claimId}:`,

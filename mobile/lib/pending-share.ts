@@ -50,7 +50,10 @@ function snapshot() {
 
 /** Register a share on its way out. Returns the id `settlePendingShare`
  *  takes once the server has answered. */
-export function stagePendingShare(conversationId: string, bubbles: Message[]): string {
+export function stagePendingShare(
+  conversationId: string,
+  bubbles: Message[]
+): string {
   const id = `share-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   publish([...shares, { id, conversationId, bubbles, outcome: null }]);
   return id;
@@ -60,7 +63,9 @@ export function stagePendingShare(conversationId: string, bubbles: Message[]): s
  *  ignored — there is nothing on screen to react. */
 export function settlePendingShare(id: string, outcome: EngineSendOutcome) {
   if (!shares.some((share) => share.id === id)) return;
-  publish(shares.map((share) => (share.id === id ? { ...share, outcome } : share)));
+  publish(
+    shares.map((share) => (share.id === id ? { ...share, outcome } : share))
+  );
 }
 
 /** Drop a share the thread has finished reacting to. */

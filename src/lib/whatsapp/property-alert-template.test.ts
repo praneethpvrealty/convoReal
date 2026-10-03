@@ -27,31 +27,41 @@ function prop(overrides: Partial<Property>): Property {
 
 describe('buildPropertyAlertTemplatePayload', () => {
   it('passes the same validator the submit API runs', () => {
-    const payload = buildPropertyAlertTemplatePayload('https://www.convoreal.com');
+    const payload = buildPropertyAlertTemplatePayload(
+      'https://www.convoreal.com'
+    );
     expect(() => validateTemplatePayload(payload)).not.toThrow();
     expect(payload.name).toBe(PROPERTY_ALERT_TEMPLATE_NAME);
   });
 
   it('is Utility, because Marketing is what Meta frequency-caps', () => {
-    const payload = buildPropertyAlertTemplatePayload('https://www.convoreal.com');
+    const payload = buildPropertyAlertTemplatePayload(
+      'https://www.convoreal.com'
+    );
     // Marketing templates are dropped with error 131049 for any recipient
     // at their per-user cap. Flipping this back silently loses sends.
     expect(payload.category).toBe('Utility');
   });
 
   it('carries no opt-out footer, which would read as promotional', () => {
-    const payload = buildPropertyAlertTemplatePayload('https://www.convoreal.com');
+    const payload = buildPropertyAlertTemplatePayload(
+      'https://www.convoreal.com'
+    );
     expect(payload.footer_text ?? '').not.toMatch(/stop|unsubscribe/i);
   });
 
   it('is worded as a reply to a request, not as a broadcast', () => {
-    const body = buildPropertyAlertTemplatePayload('https://www.convoreal.com').body_text;
+    const body = buildPropertyAlertTemplatePayload(
+      'https://www.convoreal.com'
+    ).body_text;
     expect(body).toMatch(/enquiry/i);
     expect(body).not.toMatch(/just came up|new property match|don't miss/i);
   });
 
   it('carries no sales CTA anywhere — that is what got the predecessor re-categorised', () => {
-    const payload = buildPropertyAlertTemplatePayload('https://www.convoreal.com');
+    const payload = buildPropertyAlertTemplatePayload(
+      'https://www.convoreal.com'
+    );
     // Meta classifies mixed utility+marketing content as Marketing,
     // which error-131049 frequency caps silently drop. "Site visit",
     // "book", offers and emoji ad-card styling all read as promotional.
@@ -60,16 +70,22 @@ describe('buildPropertyAlertTemplatePayload', () => {
       ...(payload.buttons ?? []).map((b) => b.text),
       ...(payload.sample_values?.body ?? []),
     ].join('\n');
-    expect(everything).not.toMatch(/site visit|book|offer|discount|exclusive|premium|don'?t miss/i);
+    expect(everything).not.toMatch(
+      /site visit|book|offer|discount|exclusive|premium|don'?t miss/i
+    );
     expect(payload.body_text).not.toMatch(/[*_]|🏠|📍/);
   });
 
   it('orders the quick reply before the dynamic URL button', () => {
-    const payload = buildPropertyAlertTemplatePayload('https://www.convoreal.com/');
+    const payload = buildPropertyAlertTemplatePayload(
+      'https://www.convoreal.com/'
+    );
     const types = (payload.buttons ?? []).map((b) => b.type);
     expect(types).toEqual(['QUICK_REPLY', 'URL']);
     const urlBtn = payload.buttons?.find((b) => b.type === 'URL');
-    expect(urlBtn && 'url' in urlBtn ? urlBtn.url : '').toBe('https://www.convoreal.com/{{1}}');
+    expect(urlBtn && 'url' in urlBtn ? urlBtn.url : '').toBe(
+      'https://www.convoreal.com/{{1}}'
+    );
   });
 });
 
@@ -85,7 +101,7 @@ describe('buildPropertyAlertParams', () => {
         sublocality: 'Hoodi',
         city: 'Bangalore',
       }),
-      'Aryavarta Ventures',
+      'Aryavarta Ventures'
     );
     expect(params).toEqual([
       'Gopi',
@@ -99,7 +115,12 @@ describe('buildPropertyAlertParams', () => {
   it('shows rent for rental listings and BHK when present', () => {
     const [, , , specs] = buildPropertyAlertParams(
       null,
-      prop({ listing_type: 'Rent', rent_per_month: 85000, bedrooms: 3, area_sqft: 1650 }),
+      prop({
+        listing_type: 'Rent',
+        rent_per_month: 85000,
+        bedrooms: 3,
+        area_sqft: 1650,
+      })
     );
     expect(specs).toBe('₹85,000/mo rent · 1,650 Sq.Ft. · 3 BHK');
   });
@@ -107,12 +128,18 @@ describe('buildPropertyAlertParams', () => {
   it('greets a placeholder-named lead as "there", not by its portal', () => {
     // A lead whose name never parsed is filed as "Housing Lead"; greeting
     // on the first word made that "Hi Housing," to a real buyer.
-    const [name] = buildPropertyAlertParams('Housing Lead', prop({ title: 'A plot' }));
+    const [name] = buildPropertyAlertParams(
+      'Housing Lead',
+      prop({ title: 'A plot' })
+    );
     expect(name).toBe('there');
   });
 
   it('never returns empty params', () => {
-    const params = buildPropertyAlertParams(undefined, prop({ title: ' ', price: 0, location: '' }));
+    const params = buildPropertyAlertParams(
+      undefined,
+      prop({ title: ' ', price: 0, location: '' })
+    );
     expect(params).toEqual([
       'there',
       'ConvoReal',
@@ -172,8 +199,9 @@ describe('pickPropertyAlertTemplate', () => {
 
   it('still sends on a Marketing row when that is all there is', () => {
     expect(
-      pickPropertyAlertTemplate([row('new_property_alert', 'APPROVED', 'Marketing')])
-        ?.name
+      pickPropertyAlertTemplate([
+        row('new_property_alert', 'APPROVED', 'Marketing'),
+      ])?.name
     ).toBe('new_property_alert');
   });
 

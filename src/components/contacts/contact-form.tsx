@@ -534,9 +534,9 @@ export function ContactForm({
                 />
               </div>
               <p className="col-span-6 -mt-1 text-xs text-slate-500">
-                Mr./Mrs. is used in client-facing messages. Second Name and
-                Name Tag stay inside the Engine. Name + Second Name must be
-                unique across your contacts.
+                Mr./Mrs. is used in client-facing messages. Second Name and Name
+                Tag stay inside the Engine. Name + Second Name must be unique
+                across your contacts.
               </p>
             </div>
 

@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { greetingName } from '@/lib/contacts/lead-placeholder';
@@ -477,8 +477,9 @@ async function dispatchClaimedRecipients(
     .select('default_language')
     .eq('id', accountId)
     .maybeSingle();
-  const accountLanguage = (accountRow as { default_language?: string | null } | null)
-    ?.default_language;
+  const accountLanguage = (
+    accountRow as { default_language?: string | null } | null
+  )?.default_language;
 
   // Pre-load custom contact values for the batch
   const contactIds = recipients
@@ -637,7 +638,9 @@ async function dispatchClaimedRecipients(
           senderType: 'agent',
           templateName: broadcast.template_name,
           templateLanguage:
-            recipientTemplate?.language || broadcast.template_language || 'en_US',
+            recipientTemplate?.language ||
+            broadcast.template_language ||
+            'en_US',
           templateParams: truncatedParams,
           messageParams: broadcast.header_media_url
             ? {

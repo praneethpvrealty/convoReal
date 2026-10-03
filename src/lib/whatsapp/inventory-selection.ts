@@ -3,9 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { categoryForType } from '@/lib/inventory-summary-builder';
 
 export type InventorySelectionCategory =
-  | 'Residential'
-  | 'Commercial'
-  | 'Agricultural';
+  'Residential' | 'Commercial' | 'Agricultural';
 
 export interface InventorySelectionCommand {
   category: InventorySelectionCategory;

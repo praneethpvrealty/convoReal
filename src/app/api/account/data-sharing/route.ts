@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getCurrentAccount, requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import {
+  getCurrentAccount,
+  requireRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit';
 
 /**
  * Account-level data-sharing consent (DPDP opt-in for the anonymized
@@ -14,17 +22,6 @@ import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit
  *        client after the role check (accounts has no member UPDATE
  *        policy, deliberately).
  */
-
-let _admin: ReturnType<typeof createClient> | null = null;
-function admin() {
-  if (!_admin) {
-    _admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    );
-  }
-  return _admin;
-}
 
 export async function GET() {
   try {
@@ -50,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const limit = await checkRateLimit(
       `data-sharing:${ctx.userId}`,
-      RATE_LIMITS.adminAction,
+      RATE_LIMITS.adminAction
     );
     if (!limit.success) return rateLimitResponse(limit);
 
@@ -58,13 +55,13 @@ export async function POST(req: NextRequest) {
     if (typeof body.consent !== 'boolean') {
       return NextResponse.json(
         { error: "'consent' must be a boolean" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     const now = new Date().toISOString();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (admin() as any)
+    const { error } = await (supabaseAdmin() as any)
       .from('accounts')
       .update({
         data_sharing_consent: body.consent,

@@ -11,7 +11,7 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
  */
 export async function POST(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const ctx = await requireRole('agent');
@@ -26,18 +26,24 @@ export async function POST(
       .maybeSingle();
     if (propErr) throw propErr;
     if (!property) {
-      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Property not found' },
+        { status: 404 }
+      );
     }
     if (property.images_cleanup_state === 'purged') {
       return NextResponse.json(
-        { error: 'These photos were permanently deleted and cannot be restored.' },
-        { status: 409 },
+        {
+          error:
+            'These photos were permanently deleted and cannot be restored.',
+        },
+        { status: 409 }
       );
     }
     if (property.images_cleanup_state !== 'dereferenced') {
       return NextResponse.json(
         { error: 'This property has no archived photos to restore.' },
-        { status: 409 },
+        { status: 409 }
       );
     }
 
@@ -51,11 +57,12 @@ export async function POST(
       .maybeSingle();
     if (snapErr) throw snapErr;
 
-    const images = (snap?.snapshot as { images?: string[] } | null)?.images ?? [];
+    const images =
+      (snap?.snapshot as { images?: string[] } | null)?.images ?? [];
     if (images.length === 0) {
       return NextResponse.json(
         { error: 'No recoverable photo snapshot was found.' },
-        { status: 409 },
+        { status: 409 }
       );
     }
 
@@ -74,7 +81,7 @@ export async function POST(
     if (!restored?.length) {
       return NextResponse.json(
         { error: 'Property not found, or you cannot change it' },
-        { status: 404 },
+        { status: 404 }
       );
     }
 

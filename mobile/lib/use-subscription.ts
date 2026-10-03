@@ -40,5 +40,10 @@ export function useSubscription(): SubscriptionState {
     },
   });
 
-  return { plan: data?.plan, status: data?.status, isLoading, canView: isOwner };
+  return {
+    plan: data?.plan,
+    status: data?.status,
+    isLoading,
+    canView: isOwner,
+  };
 }

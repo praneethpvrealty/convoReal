@@ -8,7 +8,10 @@ export function sanitizeServices(value: unknown): LiaisonService[] {
   const out: LiaisonService[] = [];
   for (const item of value) {
     if (!item || typeof item !== 'object') continue;
-    const { name, fee, client_charge, fee_note } = item as Record<string, unknown>;
+    const { name, fee, client_charge, fee_note } = item as Record<
+      string,
+      unknown
+    >;
     if (typeof name !== 'string' || name.trim().length === 0) continue;
     out.push({
       name: name.trim(),
