@@ -55,7 +55,11 @@ export async function handleStatusUpdate(status: {
   );
   if (status.status === 'failed' || status.errors) {
     console.error(
-      `[webhook] Status FAILED for message ${logText(status.id)} to recipient ${logText(status.recipient_id)}. Errors:`,
+      '[webhook] Status FAILED for message',
+      logText(status.id),
+      'to recipient',
+      logText(status.recipient_id),
+      'Errors:',
       JSON.stringify(status.errors, null, 2)
     );
   }
