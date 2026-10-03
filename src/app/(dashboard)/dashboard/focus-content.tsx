@@ -41,14 +41,18 @@ import { Button } from '@/components/ui/button';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { JourneyEmbed } from '@/components/journey/journey-embed';
 import type {
-  FocusDeadline,
   FocusJourney,
   FocusRequest,
   FocusRequestKind,
   FocusSnapshot,
   FocusTask,
 } from '@/lib/focus/types';
-import { deadlineLabel } from '@/lib/deals/deadlines';
+import {
+  deadlineLabel,
+  groupDeadlinesByDeal,
+  summarizeDeadlines,
+  type DealDeadlineGroup,
+} from '@/lib/deals/deadlines';
 import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from '@/lib/copilot/actions';
 
 type SectionId = 'tasks' | 'deadlines' | 'journeys' | 'requests';
@@ -78,6 +82,27 @@ const URGENCY_LABEL = {
   soon: 'Soon',
   later: 'When you can',
 } as const;
+
+const STALE_REQUEST_HOURS = 72;
+
+function isStale(request: FocusRequest): boolean {
+  return request.urgency !== 'now' && request.ageHours >= STALE_REQUEST_HOURS;
+}
+
+function requestBadge(request: FocusRequest): {
+  label: string;
+  className: string;
+} {
+  if (isStale(request))
+    return {
+      label: `${Math.floor(request.ageHours / 24)} d`,
+      className: URGENCY_CLASS.later,
+    };
+  return {
+    label: URGENCY_LABEL[request.urgency],
+    className: URGENCY_CLASS[request.urgency],
+  };
+}
 
 function timeChip(iso: string): string {
   return new Date(iso).toLocaleTimeString([], {
@@ -189,9 +214,14 @@ export default function FocusContent() {
     );
   }
 
-  const deadlines = snapshot?.deadlines;
+  const deadlineGroups = groupDeadlinesByDeal(snapshot?.deadlines.items ?? []);
+  const deadlineSummary = summarizeDeadlines(deadlineGroups);
   const journeys = snapshot?.journeys;
   const requests = snapshot?.requests;
+  const requestsNow = (requests?.all ?? []).filter(
+    (r) => r.urgency === 'now'
+  ).length;
+  const requestsStale = (requests?.all ?? []).filter(isStale).length;
 
   return (
     <div className="space-y-6">
@@ -201,9 +231,9 @@ export default function FocusContent() {
             Focus
           </h2>
           <p className="mt-1.5 text-xs leading-relaxed font-medium text-slate-400 sm:text-sm">
-            Your day in three answers — what you committed to, which
-            relationships need a nudge, and who is waiting on you. Expand any
-            card to work it here.
+            Your day in four answers — what you committed to, which deal dates
+            are coming due, which relationships need a nudge, and who is waiting
+            on you. Expand any card to work it here.
           </p>
         </div>
         <Button
@@ -249,18 +279,18 @@ export default function FocusContent() {
           id="deadlines"
           title="Deal deadlines"
           icon={<CalendarClock className="size-4 text-amber-400" />}
-          count={deadlines?.total ?? 0}
+          count={deadlineSummary.total}
           summary={
-            deadlines?.total
+            deadlineSummary.total
               ? [
-                  ...(deadlines.overdue > 0
-                    ? [`${deadlines.overdue} overdue`]
+                  ...(deadlineSummary.overdue > 0
+                    ? [`${deadlineSummary.overdue} overdue`]
                     : []),
-                  ...(deadlines.dueToday > 0
-                    ? [`${deadlines.dueToday} today`]
+                  ...(deadlineSummary.dueToday > 0
+                    ? [`${deadlineSummary.dueToday} today`]
                     : []),
-                  ...(deadlines.soon > 0
-                    ? [`${deadlines.soon} in the next two weeks`]
+                  ...(deadlineSummary.soon > 0
+                    ? [`${deadlineSummary.soon} in the next two weeks`]
                     : []),
                 ].join(' · ')
               : ''
@@ -269,11 +299,8 @@ export default function FocusContent() {
           onToggle={() => toggle('deadlines')}
           emptyText="No deal date is due in the next two weeks."
         >
-          {(deadlines?.items ?? []).slice(0, 3).map((d) => (
-            <DeadlineLine
-              key={`${d.dealId}:${d.milestoneId ?? d.kind}`}
-              deadline={d}
-            />
+          {deadlineGroups.slice(0, 3).map((d) => (
+            <DeadlineLine key={d.dealId} deadline={d} />
           ))}
         </GistCard>
 
@@ -303,10 +330,17 @@ export default function FocusContent() {
           id="requests"
           title="Requests to act on"
           icon={<Sparkles className="size-4 text-sky-400" />}
-          count={requests?.all.length ?? 0}
+          count={requestsNow}
+          empty={!requests?.all.length}
           summary={
             requests?.all.length
-              ? `${requests.all.filter((r) => r.urgency === 'now').length} needing an answer now`
+              ? [
+                  `${requestsNow} needing an answer now`,
+                  `${requests.all.length} open in total`,
+                  ...(requestsStale > 0
+                    ? [`${requestsStale} waiting over 3 days`]
+                    : []),
+                ].join(' · ')
               : ''
           }
           expanded={expanded.has('requests')}
@@ -387,13 +421,13 @@ export default function FocusContent() {
           onOpenFull={() => pushUrl(router, '/deals?view=records')}
           openLabel="Open records"
         >
-          {(deadlines?.items ?? []).length === 0 ? (
+          {deadlineGroups.length === 0 ? (
             <EmptyPanel text="Nothing is due in the next two weeks." />
           ) : (
             <div className="flex flex-col gap-2">
-              {(deadlines?.items ?? []).map((d) => (
+              {deadlineGroups.map((d) => (
                 <button
-                  key={`${d.dealId}:${d.milestoneId ?? d.kind}`}
+                  key={d.dealId}
                   type="button"
                   onClick={() => pushUrl(router, `/deals/${d.dealId}`)}
                   className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3.5 text-left transition-colors hover:border-slate-600"
@@ -403,10 +437,10 @@ export default function FocusContent() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-white">
-                      {d.title}
+                      {d.subject}
                     </p>
                     <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
-                      {d.subject} · {d.dueDate}
+                      {d.titles.join(' · ')} · {d.dueDate}
                     </p>
                   </div>
                   <span
@@ -518,6 +552,7 @@ function GistCard({
   title,
   icon,
   count,
+  empty = count === 0,
   summary,
   expanded,
   onToggle,
@@ -528,6 +563,7 @@ function GistCard({
   title: string;
   icon: React.ReactNode;
   count: number;
+  empty?: boolean;
   summary: string;
   expanded: boolean;
   onToggle: () => void;
@@ -558,7 +594,7 @@ function GistCard({
       )}
 
       <div className="mt-3 flex-1 space-y-2">
-        {count === 0 ? (
+        {empty ? (
           <p className="rounded-lg border border-dashed border-slate-800 py-6 text-center text-[11px] font-medium text-slate-500">
             {emptyText}
           </p>
@@ -610,13 +646,18 @@ function TaskLine({ task }: { task: FocusTask }) {
   );
 }
 
-function DeadlineLine({ deadline }: { deadline: FocusDeadline }) {
+function DeadlineLine({ deadline }: { deadline: DealDeadlineGroup }) {
   return (
     <div className="flex items-center gap-2">
       <CalendarClock className="size-3.5 shrink-0 text-amber-400" />
-      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-200">
-        {deadline.title} · {deadline.subject}
-      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-semibold text-slate-200">
+          {deadline.subject}
+        </p>
+        <p className="truncate text-[10px] font-medium text-slate-500">
+          {deadline.titles.join(' · ')}
+        </p>
+      </div>
       <span
         className={cn(
           'shrink-0 text-[10px] font-bold',
@@ -655,6 +696,7 @@ function JourneyLine({ journey }: { journey: FocusJourney }) {
 
 function RequestLine({ request }: { request: FocusRequest }) {
   const meta = REQUEST_META[request.kind];
+  const badge = requestBadge(request);
   return (
     <div className="flex items-center gap-2">
       <meta.icon className={cn('size-3.5 shrink-0', meta.tint)} />
@@ -669,10 +711,10 @@ function RequestLine({ request }: { request: FocusRequest }) {
       <span
         className={cn(
           'shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold',
-          URGENCY_CLASS[request.urgency]
+          badge.className
         )}
       >
-        {URGENCY_LABEL[request.urgency]}
+        {badge.label}
       </span>
     </div>
   );
@@ -686,6 +728,7 @@ function RequestRow({
   onOpen: () => void;
 }) {
   const meta = REQUEST_META[request.kind];
+  const badge = requestBadge(request);
   return (
     <button
       type="button"
@@ -704,10 +747,10 @@ function RequestRow({
       <span
         className={cn(
           'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold',
-          URGENCY_CLASS[request.urgency]
+          badge.className
         )}
       >
-        {URGENCY_LABEL[request.urgency]}
+        {badge.label}
       </span>
     </button>
   );

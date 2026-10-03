@@ -184,6 +184,40 @@ export function summarizeDeadlines(
   };
 }
 
+export interface DealDeadlineGroup {
+  dealId: string;
+  subject: string;
+  titles: string[];
+  dueDate: string;
+  daysLeft: number;
+  urgency: DealDeadlineUrgency;
+  items: DealDeadline[];
+}
+
+export function groupDeadlinesByDeal(
+  items: readonly DealDeadline[]
+): DealDeadlineGroup[] {
+  const groups = new Map<string, DealDeadlineGroup>();
+  for (const d of sortDeadlines(items)) {
+    const group = groups.get(d.dealId);
+    if (!group) {
+      groups.set(d.dealId, {
+        dealId: d.dealId,
+        subject: d.subject,
+        titles: [d.title],
+        dueDate: d.dueDate,
+        daysLeft: d.daysLeft,
+        urgency: d.urgency,
+        items: [d],
+      });
+      continue;
+    }
+    group.items.push(d);
+    if (!group.titles.includes(d.title)) group.titles.push(d.title);
+  }
+  return [...groups.values()];
+}
+
 /** The deadlines one agent is reminded about: deals assigned to them,
  *  plus unassigned deals they opened — the same rule the digest applies
  *  to to-dos. `profileId` is what deals.assigned_to references. */

@@ -9,6 +9,7 @@ import {
   deadlineLabel,
   deadlineUrgency,
   deadlinesForAgent,
+  groupDeadlinesByDeal,
   loadDealDeadlineRowsForAccount,
   loadDealDeadlines,
   sortDeadlines,
@@ -140,6 +141,95 @@ describe('[TXW-020] deal deadlines', () => {
       dueToday: 1,
       soon: 2,
     });
+  });
+
+  it('folds two deals for one buyer into one row each, listing every milestone due on it', () => {
+    const today = '2026-10-03';
+    const deal = (id: string, plot: string) => ({
+      deal_id: id,
+      deal_title: `Sidharth Mahesh kumar — #${plot} JP Nagar 4th Phase`,
+      contact_name: 'Sidharth Mahesh kumar',
+      property_title: `#${plot}, 2400 Sqft Commercial Plot`,
+      property_unit_no: null,
+    });
+    const items = sortDeadlines(
+      [
+        row({
+          ...deal('d19', '19'),
+          milestone_id: 'a',
+          title: 'Registration scheduled',
+        }),
+        row({
+          ...deal('d19', '19'),
+          milestone_id: 'b',
+          title: 'Sale deed registered',
+        }),
+        row({
+          ...deal('d20', '20'),
+          milestone_id: 'c',
+          title: 'Registration scheduled',
+        }),
+        row({
+          ...deal('d20', '20'),
+          milestone_id: 'd',
+          title: 'Sale deed registered',
+        }),
+        row({
+          ...deal('d20', '20'),
+          kind: 'expected_close',
+          milestone_id: null,
+          title: 'Expected close',
+          due_date: '2026-10-12',
+        }),
+      ].map((r) => toDealDeadline(r, today))
+    );
+
+    const groups = groupDeadlinesByDeal(items);
+
+    expect(groups.map((g) => g.dealId)).toEqual(['d19', 'd20']);
+    expect(groups[0]).toMatchObject({
+      subject: 'Sidharth Mahesh kumar — #19, 2400 Sqft Commercial Plot',
+      titles: ['Registration scheduled', 'Sale deed registered'],
+      dueDate: '2026-10-10',
+      daysLeft: 7,
+      urgency: 'soon',
+    });
+    expect(groups[1].titles).toEqual([
+      'Registration scheduled',
+      'Sale deed registered',
+      'Expected close',
+    ]);
+    expect(groups[1].items).toHaveLength(3);
+    expect(summarizeDeadlines(groups)).toEqual({
+      total: 2,
+      overdue: 0,
+      dueToday: 0,
+      soon: 2,
+    });
+  });
+
+  it('heads a grouped deal with its most urgent date and names a repeated milestone once', () => {
+    const today = '2026-10-10';
+    const groups = groupDeadlinesByDeal(
+      [
+        row({ milestone_id: 'a', title: 'Possession', due_date: '2026-10-15' }),
+        row({ milestone_id: 'b', title: 'Possession', due_date: '2026-10-15' }),
+        row({
+          milestone_id: 'c',
+          title: 'Agreement signed',
+          due_date: '2026-10-08',
+        }),
+      ].map((r) => toDealDeadline(r, today))
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      titles: ['Agreement signed', 'Possession'],
+      dueDate: '2026-10-08',
+      daysLeft: -2,
+      urgency: 'overdue',
+    });
+    expect(groups[0].items).toHaveLength(3);
   });
 
   it('reminds an agent about their assigned deals and the unassigned ones they opened', () => {
