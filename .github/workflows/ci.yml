@@ -83,6 +83,7 @@ jobs:
               # [SHR-003] in src/lib/mobile-parity.test.ts keeps this list whole.
               - 'src/lib/calendar/archive-sort.ts'
               - 'src/lib/format/currency.ts'
+              - 'src/lib/pulse/viewed-listings.ts'
               - '.github/workflows/ci.yml'
             go:
               - 'go-ingress/**'

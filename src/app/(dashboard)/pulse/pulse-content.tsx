@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -30,6 +31,7 @@ import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
   loadPulseStats,
   loadPulseFeed,
+  loadPulseViewedListings,
   type PulseStats,
   type HydratedShowcaseEvent,
 } from '@/lib/pulse/queries';
@@ -37,6 +39,11 @@ import {
   nextPulseFeedCursor,
   type PulseFeedCursor,
 } from '@/lib/pulse/feed-page';
+import {
+  DEFAULT_PULSE_LISTING_SORT,
+  PULSE_LISTING_SORTS,
+  type PulseListingSort,
+} from '@/lib/pulse/viewed-listings';
 import { pulseVisitorLabel } from '@/lib/pulse/visitor-label';
 import { visitorContactHref } from '@/lib/pulse/visitor-link';
 import {
@@ -75,6 +82,17 @@ export default function PulsePage() {
   const [expandedVisitors, setExpandedVisitors] = useState<Set<string>>(
     new Set()
   );
+  const [listingSort, setListingSort] = useState<PulseListingSort>(
+    DEFAULT_PULSE_LISTING_SORT
+  );
+  const listingsQuery = useQuery({
+    queryKey: ['pulse-viewed-listings', accountId, listingSort],
+    enabled: Boolean(accountId),
+    queryFn: () =>
+      loadPulseViewedListings(createClient(), accountId!, listingSort),
+    placeholderData: keepPreviousData,
+  });
+  const listings = listingsQuery.data ?? [];
   const [viewersFor, setViewersFor] = useState<{
     id: string;
     title: string;
@@ -292,7 +310,11 @@ export default function PulsePage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => accountId && fetchStatsAndFeed(accountId, true)}
+          onClick={() => {
+            if (!accountId) return;
+            fetchStatsAndFeed(accountId, true);
+            listingsQuery.refetch();
+          }}
           disabled={!accountId || loading || refreshing}
           className="shrink-0 cursor-pointer rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-900/40 hover:text-white"
         >
@@ -573,25 +595,53 @@ export default function PulsePage() {
               )}
             </div>
 
-            {/* Right: Most Viewed Listings */}
+            {/* Right: Viewed Listings */}
             <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5 lg:col-span-4">
               <div>
                 <h2 className="flex items-center gap-2 text-sm font-black tracking-wider text-white uppercase">
                   <Building className="text-primary size-4" />
                   Viewed Listings
-                  {stats?.topProperties && stats.topProperties.length > 0 && (
-                    <span className="text-slate-500">
-                      ({stats.topProperties.length})
-                    </span>
+                  {listings.length > 0 && (
+                    <span className="text-slate-500">({listings.length})</span>
                   )}
-                  <InfoHint text="Every property that received client views across all shared Showcase links, most viewed first." />
+                  <InfoHint text="Every property that received client views across all shared Showcase links. Sort by view count or by when it was last viewed." />
                 </h2>
                 <p className="mt-0.5 text-[11px] text-slate-500">
-                  All viewed properties on client showcases, most viewed first.
+                  All viewed properties on client showcases.
                 </p>
               </div>
 
-              {!stats?.topProperties || stats.topProperties.length === 0 ? (
+              <div
+                className="flex flex-wrap items-center gap-1.5"
+                role="group"
+                aria-label="Sort viewed listings"
+              >
+                {PULSE_LISTING_SORTS.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    aria-pressed={listingSort === option.key}
+                    onClick={() => setListingSort(option.key)}
+                    className={`cursor-pointer rounded-lg border px-2.5 py-1.5 text-[10px] font-bold transition-all ${
+                      listingSort === option.key
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              {listingsQuery.isError ? (
+                <p className="rounded-xl border border-dashed border-slate-800 py-6 text-center text-xs font-bold text-slate-500">
+                  Viewed listings could not be loaded. Refresh to retry.
+                </p>
+              ) : listingsQuery.isPending ? (
+                <p className="rounded-xl border border-dashed border-slate-800 py-6 text-center text-xs font-bold text-slate-500">
+                  Loading viewed listings...
+                </p>
+              ) : listings.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-800 py-16 text-center">
                   <Building className="text-slate-650 mx-auto mb-3 size-8 animate-pulse" />
                   <p className="text-xs font-bold text-slate-500">
@@ -599,53 +649,62 @@ export default function PulsePage() {
                   </p>
                 </div>
               ) : (
-                <div className="max-h-[560px] space-y-3 overflow-y-auto pr-1">
-                  {stats.topProperties.map(
-                    ({ property, viewsCount, uniqueViewsCount }) => (
-                      <button
-                        type="button"
-                        key={property.id}
-                        onClick={() =>
-                          setViewersFor({
-                            id: property.id,
-                            title: property.title,
-                          })
-                        }
-                        className="focus-visible:ring-primary w-full space-y-2 rounded-lg border border-slate-800 bg-slate-950/20 p-3 text-left transition-colors hover:border-slate-700 hover:bg-slate-950/40 focus:outline-none focus-visible:ring-1"
-                        title="See who viewed this listing"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <h4 className="truncate text-xs leading-tight font-black text-white">
-                              {property.title}
-                            </h4>
-                            <span className="mt-0.5 block text-[9px] font-bold text-slate-500">
-                              {property.property_code || 'No code'}
-                            </span>
-                          </div>
-                          <span className="shrink-0 text-xs font-bold text-slate-300">
-                            {formatPrice(property.price)}
+                <div
+                  className={`max-h-[560px] space-y-3 overflow-y-auto pr-1 transition-opacity ${
+                    listingsQuery.isPlaceholderData ? 'opacity-60' : ''
+                  }`}
+                >
+                  {listings.map((listing) => (
+                    <button
+                      type="button"
+                      key={listing.propertyId}
+                      onClick={() =>
+                        setViewersFor({
+                          id: listing.propertyId,
+                          title: listing.title,
+                        })
+                      }
+                      className="focus-visible:ring-primary w-full space-y-2 rounded-lg border border-slate-800 bg-slate-950/20 p-3 text-left transition-colors hover:border-slate-700 hover:bg-slate-950/40 focus:outline-none focus-visible:ring-1"
+                      title="See who viewed this listing"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h4 className="truncate text-xs leading-tight font-black text-white">
+                            {listing.title}
+                          </h4>
+                          <span className="mt-0.5 block text-[9px] font-bold text-slate-500">
+                            {listing.propertyCode || 'No code'}
                           </span>
                         </div>
+                        <span className="shrink-0 text-xs font-bold text-slate-300">
+                          {formatPrice(listing.price ?? undefined)}
+                        </span>
+                      </div>
 
-                        <div className="border-slate-850 flex items-center justify-between border-t pt-1.5 text-[10px] font-extrabold">
-                          <span className="flex items-center gap-1 text-slate-400">
-                            <Users className="size-3 text-sky-400" />
-                            {uniqueViewsCount} unique visitor
-                            {uniqueViewsCount === 1 ? '' : 's'}
-                          </span>
-                          <span className="flex items-center gap-1 text-slate-400">
-                            <Eye className="size-3 text-emerald-400" />
-                            {viewsCount} views
-                          </span>
-                        </div>
-                        <span className="text-primary/80 flex items-center justify-end gap-1 text-[10px] font-bold">
+                      <div className="border-slate-850 flex items-center justify-between border-t pt-1.5 text-[10px] font-extrabold">
+                        <span className="flex items-center gap-1 text-slate-400">
+                          <Users className="size-3 text-sky-400" />
+                          {listing.uniqueViewsCount} unique visitor
+                          {listing.uniqueViewsCount === 1 ? '' : 's'}
+                        </span>
+                        <span className="flex items-center gap-1 text-slate-400">
+                          <Eye className="size-3 text-emerald-400" />
+                          {listing.viewsCount} view
+                          {listing.viewsCount === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-[10px] font-bold">
+                        <span className="flex items-center gap-1 text-slate-500">
+                          <Clock className="size-3" />
+                          Last viewed {formatTimeAgo(listing.lastViewedAt)}
+                        </span>
+                        <span className="text-primary/80 flex items-center gap-1">
                           See viewers
                           <ArrowRight className="size-3" />
                         </span>
-                      </button>
-                    )
-                  )}
+                      </div>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
