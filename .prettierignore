@@ -12,3 +12,5 @@ src/lib/copilot/knowledge-index.gen.ts
 mcp
 # Parsed back as JSON by src/lib/mobile-parity.test.ts, so it keeps JSON.stringify quoting
 mobile/lib/i18n.ts
+# No Prettier parser for this file
+.git-blame-ignore-revs
