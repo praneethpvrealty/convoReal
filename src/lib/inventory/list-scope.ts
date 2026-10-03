@@ -1,5 +1,6 @@
 export type InventoryTab = 'all' | 'review' | 'archived';
-export type InventoryTile = 'all' | 'showcased' | 'available' | 'closed';
+export type InventoryTile =
+  'all' | 'showcased' | 'available' | 'closed' | 'attention';
 export type ListingParty = 'All' | 'Owner' | 'Agent';
 
 export interface SourceBreakdownRow {
@@ -8,6 +9,24 @@ export interface SourceBreakdownRow {
   agent_referred: boolean;
   listings: number | string;
 }
+
+export interface AttentionCountRow {
+  agent_referred: boolean;
+  listings: number | string;
+  no_photos: number | string;
+  no_price: number | string;
+  no_pin: number | string;
+}
+
+export interface AttentionSummary {
+  listings: number;
+  noPhotos: number;
+  noPrice: number;
+  noPin: number;
+}
+
+export const NEEDS_ATTENTION_FILTER =
+  'images.is.null,images.eq.{},latitude.is.null,and(or(price.is.null,price.eq.0),or(rent_per_month.is.null,rent_per_month.eq.0))';
 
 export interface PartyCounts {
   All: number;
@@ -25,6 +44,7 @@ const TILE_LABELS: Record<Exclude<InventoryTile, 'all'>, string> = {
   showcased: 'Showcased',
   available: 'Available',
   closed: 'Sold or under contract',
+  attention: 'Needs attention',
 };
 
 const PARTY_LABELS: Record<Exclude<ListingParty, 'All'>, string> = {
@@ -47,12 +67,48 @@ function inScope(
   return true;
 }
 
+export function attentionSummary(rows: AttentionCountRow[]): AttentionSummary {
+  const summary: AttentionSummary = {
+    listings: 0,
+    noPhotos: 0,
+    noPrice: 0,
+    noPin: 0,
+  };
+  for (const row of rows) {
+    summary.listings += Number(row.listings) || 0;
+    summary.noPhotos += Number(row.no_photos) || 0;
+    summary.noPrice += Number(row.no_price) || 0;
+    summary.noPin += Number(row.no_pin) || 0;
+  }
+  return summary;
+}
+
+export function attentionHint(summary: AttentionSummary): string {
+  if (summary.listings === 0)
+    return 'Every available listing has photos, a price and a map pin.';
+  const parts = [
+    summary.noPhotos > 0 ? `${summary.noPhotos} without photos` : '',
+    summary.noPrice > 0 ? `${summary.noPrice} without a price` : '',
+    summary.noPin > 0 ? `${summary.noPin} without a map pin` : '',
+  ].filter(Boolean);
+  return `Available listings missing photos, a price or a map pin: ${parts.join(' · ')}. Click to show only these.`;
+}
+
 export function partyCounts(
   rows: SourceBreakdownRow[],
   tab: InventoryTab,
-  tile: InventoryTile
+  tile: InventoryTile,
+  attentionRows: AttentionCountRow[] = []
 ): PartyCounts {
   const counts: PartyCounts = { All: 0, Owner: 0, Agent: 0 };
+  if (tab === 'all' && tile === 'attention') {
+    for (const row of attentionRows) {
+      const n = Number(row.listings) || 0;
+      counts.All += n;
+      counts[row.agent_referred ? 'Agent' : 'Owner'] += n;
+    }
+    return counts;
+  }
   for (const row of rows) {
     if (!inScope(row, tab, tile)) continue;
     const n = Number(row.listings) || 0;

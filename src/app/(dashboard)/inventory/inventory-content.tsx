@@ -51,6 +51,8 @@ import {
   Rows3,
   LocateFixed,
   Users,
+  ChevronDown,
+  CircleAlert,
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyMapView } from '@/components/inventory/property-map-view';
@@ -94,8 +96,18 @@ import {
   inventoryEmptyState,
   partyCounts,
   tabCount,
+  attentionHint,
+  attentionSummary,
+  type AttentionCountRow,
+  type InventoryTile,
   type SourceBreakdownRow,
 } from '@/lib/inventory/list-scope';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 // Counts across ALL properties, independent of the current page/filters
 // so the summary cards always show accurate totals.
@@ -108,7 +120,7 @@ const EMPTY_COUNTS: Record<string, number> = {};
 const EMPTY_IMPORT_COUNTS: ImportCountMap = {};
 const NEAREST_SORT_KEY = 'nearest';
 
-type TileFilter = 'all' | 'showcased' | 'available' | 'closed';
+type TileFilter = InventoryTile;
 const DEFAULT_NEAR_ME_RADIUS_KM = 5;
 const DEFAULT_LOCALITY_RADIUS_KM = 10;
 
@@ -311,6 +323,20 @@ export default function InventoryPage() {
   // The tab and listing-party counts, grouped by the columns the list
   // filters on so each pill counts the rows it yields on the tab and
   // tile in force — not the account's active total on every tab.
+  const attentionQuery = useQuery({
+    queryKey: ['inventory', 'attention', accountId],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc('inventory_attention_counts', {
+        p_account_id: accountId,
+      });
+      if (error) throw error;
+      return (data ?? []) as AttentionCountRow[];
+    },
+    enabled: Boolean(accountId),
+  });
+  const attention = attentionSummary(attentionQuery.data ?? []);
+
   const sourceBreakdownQuery = useQuery({
     queryKey: ['inventory', 'source-breakdown', accountId],
     queryFn: async () => {
@@ -356,6 +382,7 @@ export default function InventoryPage() {
         'listing_source',
         sourceFilter === 'Owner' ? 'owner' : 'agent'
       );
+    if (tileFilter === 'attention') params.set('needs_attention', 'true');
     params.set('sort', sort.field);
     params.set('order', sort.order);
     return params.toString();
@@ -371,6 +398,7 @@ export default function InventoryPage() {
     sourceFilter,
     sort,
     reviewTab,
+    tileFilter,
   ]);
 
   // The querystring is the cache key, so paging back to a page already
@@ -1068,8 +1096,15 @@ export default function InventoryPage() {
   // the rows it yields there, and are held back until the breakdown
   // loads so the labels don't flash "(0)".
   const sourceBreakdown = sourceBreakdownQuery.data;
-  const statsReady = Boolean(sourceBreakdown);
-  const pillCounts = partyCounts(sourceBreakdown ?? [], reviewTab, tileFilter);
+  const statsReady =
+    Boolean(sourceBreakdown) &&
+    (tileFilter !== 'attention' || Boolean(attentionQuery.data));
+  const pillCounts = partyCounts(
+    sourceBreakdown ?? [],
+    reviewTab,
+    tileFilter,
+    attentionQuery.data ?? []
+  );
   const archivedCount = tabCount(sourceBreakdown ?? [], 'archived');
   const emptyStateCopy = inventoryEmptyState({
     tab: reviewTab,
@@ -1123,25 +1158,6 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {canEdit && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setImportOwnerLeadsOpen(true)}
-                className="h-9 w-full gap-2 border-slate-700 bg-slate-800 px-3 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-slate-100 sm:w-auto"
-              >
-                <Users className="size-4" /> Import Owner Leads
-              </Button>
-              <Button
-                onClick={() => setPortalSyncOpen(true)}
-                variant="outline"
-                className="flex items-center gap-2 border-slate-800 bg-slate-900 text-sm font-semibold text-slate-200 shadow hover:bg-slate-800"
-              >
-                <RefreshCw className="text-primary size-4" /> Portal Sync
-              </Button>
-            </div>
-          )}
           <Button
             onClick={() => setShowcaseShareOpen(true)}
             variant="outline"
@@ -1150,28 +1166,59 @@ export default function InventoryPage() {
             <Share2 className="text-primary size-4" /> Share Showcase Portal
           </Button>
           {canEdit && (
-            <Button
-              onClick={() => setImportSharedOpen(true)}
-              variant="outline"
-              className="flex items-center gap-2 border-slate-800 bg-slate-900 text-sm font-semibold text-slate-200 shadow hover:bg-slate-800"
-            >
-              <FolderInput className="text-primary size-4" /> Import Shared
-            </Button>
-          )}
-          {canEdit && (
-            <Button
-              onClick={handleAddClick}
-              data-tour="add-property"
-              className="bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2 text-sm font-semibold shadow"
-            >
-              <Plus className="size-4" /> Add Property
-            </Button>
+            <div className="flex items-stretch rounded-md shadow">
+              <Button
+                onClick={handleAddClick}
+                data-tour="add-property"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2 rounded-r-none text-sm font-semibold"
+              >
+                <Plus className="size-4" /> Add Property
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  aria-label="More ways to add listings"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground data-popup-open:bg-primary/80 flex items-center rounded-r-md border-l border-white/20 px-2"
+                >
+                  <ChevronDown className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  sideOffset={6}
+                  className="min-w-60 bg-slate-900 text-slate-100 ring-slate-700"
+                >
+                  <DropdownMenuItem
+                    onClick={handleAddClick}
+                    className="text-slate-200 focus:bg-slate-800 focus:text-white"
+                  >
+                    <Plus className="size-4" /> Add manually
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setImportSharedOpen(true)}
+                    className="text-slate-200 focus:bg-slate-800 focus:text-white"
+                  >
+                    <FolderInput className="size-4" /> Import a shared link
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setPortalSyncOpen(true)}
+                    className="text-slate-200 focus:bg-slate-800 focus:text-white"
+                  >
+                    <RefreshCw className="size-4" /> Sync from portals
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setImportOwnerLeadsOpen(true)}
+                    className="text-slate-200 focus:bg-slate-800 focus:text-white"
+                  >
+                    <Users className="size-4" /> Import owner leads
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
         </div>
       </div>
 
       {/* Stats Summary Panel */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {(
           [
             {
@@ -1217,6 +1264,19 @@ export default function InventoryPage() {
               pressed: tileFilter === 'closed',
               filterLabel: 'Show only sold or under-contract listings',
             },
+            {
+              key: 'attention' as const,
+              value: attention.listings,
+              label: 'Needs attention',
+              icon: CircleAlert,
+              iconClass:
+                attention.listings > 0
+                  ? 'bg-rose-500/10 text-rose-400'
+                  : 'bg-slate-800 text-slate-400',
+              hint: attentionHint(attention),
+              pressed: tileFilter === 'attention',
+              filterLabel: 'Show only listings that need attention',
+            },
           ] as const
         ).map((tile) => (
           <div
@@ -1246,6 +1306,11 @@ export default function InventoryPage() {
                 <div className="text-xs font-medium text-slate-400">
                   {tile.label}
                 </div>
+                {tile.pressed && tile.key !== 'all' && (
+                  <div className="text-primary mt-0.5 text-[11px] font-semibold">
+                    Filtering list · click to clear
+                  </div>
+                )}
               </div>
             </button>
             <div className="absolute top-2 right-2">

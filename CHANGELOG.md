@@ -39,6 +39,16 @@ than a written entry. Newest first.
   hunting for the property. Mobile gets the same banner with **Open
   listing**; updating the portal listing itself stays on web, where Post to
   Portals lives.
+- **One Add Property button instead of five.** Import Owner Leads, Portal
+  Sync and Import Shared now sit in the menu beside **Add Property** (Add
+  manually, Import a shared link, Sync from portals, Import owner leads),
+  next to Share Showcase Portal.
+- **A Needs attention tile shows which listings need work.** It counts
+  available listings missing photos, a price or a map pin (its hint breaks
+  the number down), and clicking it lists only those. The tile you have
+  selected now says it is filtering the list. On mobile, the same filter is
+  in the Filters sheet. **Migration required:**
+  `20261003133000_inventory_attention_counts.sql`.
 - **An expired Meta connection is impossible to miss on Ads.** The warning
   was dark red on near-black; it is now an amber banner with a **Reconnect
   Meta** button, and Spend, Reach, Chats started and Cost/lead are marked as

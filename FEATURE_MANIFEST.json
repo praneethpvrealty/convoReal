@@ -1563,6 +1563,43 @@
             }
           ],
           "guards": ["src/app/(dashboard)/ads/ads-content.tsx"]
+        },
+        {
+          "id": "PRP-030",
+          "rule": "The Needs attention count is the number of Available listings missing photos, a sale or rent price, or a map pin, and filtering by it on web (summary tile) or mobile (filters sheet) lists exactly those listings through the shared needs_attention API filter, with the listing-party pills splitting the same count.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/list-scope.test.ts",
+              "case": "[PRP-030]"
+            },
+            {
+              "file": "src/app/api/properties/route.test.ts",
+              "case": "[PRP-030]"
+            },
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "[PRP-030]"
+            },
+            {
+              "file": "mobile/lib/property-filters.test.ts",
+              "case": "[PRP-030]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/list-scope.ts",
+            "supabase/migrations/20261003133000_inventory_attention_counts.sql"
+          ]
+        },
+        {
+          "id": "PRP-031",
+          "rule": "The Inventory header has one primary action, Add Property, whose menu also holds every other way listings come in (import a shared link, sync from portals, import owner leads), beside Share Showcase Portal; no intake action is a separate header button.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "[PRP-031]"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/inventory/inventory-content.tsx"]
         }
       ]
     },
