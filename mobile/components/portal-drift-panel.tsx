@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   Pressable,
@@ -15,6 +16,11 @@ import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
+import {
+  driftHeadline,
+  driftToggleLabel,
+  propertyHref,
+} from '@/lib/portal-drift';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
 export type PortalDriftKind =
@@ -116,6 +122,7 @@ function findingDetail(f: PortalDriftFinding): string {
  */
 export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
   const { colors, fonts: f } = useTheme();
+  const router = useRouter();
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const storageKey = accountId ? `${DISMISS_KEY_PREFIX}:${accountId}` : null;
   const [isDismissed, setIsDismissed] = useState(false);
@@ -180,24 +187,23 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
     <View
       style={[
         styles.panel,
-        { backgroundColor: colors.dangerSoft, borderColor: colors.danger },
+        { backgroundColor: colors.warningSoft, borderColor: colors.warning },
         style,
       ]}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Ionicons name="warning-outline" size={15} color={colors.danger} />
+        <Ionicons name="warning-outline" size={15} color={colors.warning} />
         <Text
           style={{
             flex: 1,
             flexShrink: 1,
-            fontSize: 12.5,
+            fontSize: 13,
             fontFamily: f.bold,
-            color: colors.danger,
+            color: colors.text,
           }}
           numberOfLines={2}
         >
-          {active.length} portal ad{active.length === 1 ? '' : 's'} out of step
-          with your inventory
+          {driftHeadline(active.length)}
         </Text>
         <Pressable
           onPress={() => {
@@ -206,7 +212,9 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
           }}
           accessibilityRole="button"
           accessibilityLabel={
-            expanded ? 'Hide portal discrepancies' : 'Show portal discrepancies'
+            expanded
+              ? 'Hide portal discrepancies'
+              : 'Review portal discrepancies'
           }
           accessibilityState={{ expanded }}
           hitSlop={8}
@@ -215,22 +223,25 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
             flexDirection: 'row',
             alignItems: 'center',
             gap: 2,
-            height: 26,
-            paddingHorizontal: 8,
-            borderRadius: 13,
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: colors.danger,
+            height: 28,
+            paddingHorizontal: 12,
+            borderRadius: 14,
+            backgroundColor: colors.warning,
           }}
         >
           <Text
-            style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.danger }}
+            style={{
+              fontSize: 12,
+              fontFamily: f.bold,
+              color: colors.onWarning,
+            }}
           >
-            {expanded ? 'Hide' : 'Show'}
+            {driftToggleLabel(expanded)}
           </Text>
           <Ionicons
             name={expanded ? 'chevron-up' : 'chevron-down'}
             size={13}
-            color={colors.danger}
+            color={colors.onWarning}
           />
         </Pressable>
         <Pressable
@@ -243,17 +254,17 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
             height: 26,
             borderRadius: 13,
             borderWidth: StyleSheet.hairlineWidth,
-            borderColor: colors.danger,
+            borderColor: colors.warning,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Ionicons name="close" size={14} color={colors.danger} />
+          <Ionicons name="close" size={14} color={colors.warning} />
         </Pressable>
       </View>
       {expanded ? (
-        <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
-          Spotted from the leads and emails already in the Engine — the row
+        <Text style={{ fontSize: 12, color: colors.textMuted }}>
+          Spotted from the leads and emails already in the Engine. Each row
           clears itself once the ad and the listing agree again.
         </Text>
       ) : null}
@@ -270,43 +281,72 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
               },
             ]}
           >
-            <View style={{ flex: 1, gap: 2 }}>
+            <View style={{ gap: 2 }}>
               <Text
                 style={{
-                  fontSize: 12.5,
+                  fontSize: 13.5,
                   fontFamily: f.bold,
                   color: colors.text,
                 }}
-                numberOfLines={1}
               >
                 {findingHeadline(item)}
               </Text>
               <Text
-                style={{ fontSize: 11.5, color: colors.textMuted }}
-                numberOfLines={1}
+                style={{ fontSize: 12.5, color: colors.text }}
+                numberOfLines={2}
               >
                 {PORTAL_LABELS[item.portal] || item.portal} ad{' '}
                 {item.portalListingId} ·{' '}
                 {item.propertyTitle || 'Untitled listing'}
                 {item.propertyCode ? ` (${item.propertyCode})` : ''}
               </Text>
-              <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
                 {findingDetail(item)}
               </Text>
             </View>
-            {item.listingUrl ? (
+            <View style={styles.actions}>
               <Pressable
                 onPress={() => {
                   haptic.tap();
-                  void Linking.openURL(item.listingUrl as string);
+                  router.push(propertyHref(item.propertyId) as never);
                 }}
                 accessibilityRole="button"
-                accessibilityLabel={`Open the ${PORTAL_LABELS[item.portal] || item.portal} ad ${item.portalListingId}`}
-                style={[styles.openButton, { borderColor: colors.danger }]}
+                accessibilityLabel="Open listing"
+                style={[styles.actionButton, { borderColor: colors.warning }]}
               >
-                <Ionicons name="open-outline" size={14} color={colors.danger} />
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontFamily: f.bold,
+                    color: colors.text,
+                  }}
+                >
+                  Open listing
+                </Text>
               </Pressable>
-            ) : null}
+              {item.listingUrl ? (
+                <Pressable
+                  onPress={() => {
+                    haptic.tap();
+                    void Linking.openURL(item.listingUrl as string);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open the ${PORTAL_LABELS[item.portal] || item.portal} ad ${item.portalListingId}`}
+                  style={[styles.actionButton, { borderColor: colors.warning }]}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontFamily: f.bold,
+                      color: colors.text,
+                    }}
+                  >
+                    View ad
+                  </Text>
+                  <Ionicons name="open-outline" size={13} color={colors.text} />
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         ))}
     </View>
@@ -321,16 +361,24 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: spacing.sm,
     padding: 10,
     borderRadius: radius.sm,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  openButton: {
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     borderRadius: radius.full,
     borderWidth: 1,
-    padding: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
 });

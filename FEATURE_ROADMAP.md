@@ -160,6 +160,7 @@ _§2.8 gaps, stated rather than silent. They share one root cause: the mobile ap
 _A §2.8 gap, stated rather than silent._
 
 - [ ] **Portal ad ids on mobile** (`src/components/inventory/portal-post-dialog.tsx`, the `99 / MB / H` badges in `src/components/inventory/property-list.tsx`): recording where a listing is advertised, and the portal's own ad id for it, ships on web only. Mobile has no portal surface at all — posting is a copy-paste flow into the portals' own web forms, assisted by the Chrome extension, so the dialog grew where the work happens. What _is_ at parity is the part that matters for lead accuracy: the unmapped-ads queue and the one-tap assertion from a lead both run on the phone (`mobile/components/unmapped-portal-ads.tsx`), reading the same `unmapped_portal_ads` and `POST /api/contacts/[id]/portal-link`. So an agent can map every ad from mobile; they just cannot see or edit the ad id from the listing itself. Closing it means a read-only portal section on the mobile property screen, plus the ad-id editor.
+- [ ] **Fixing a portal-ad mismatch from mobile** (`mobile/components/portal-drift-panel.tsx`): the drift banner's findings offer **Update portal listing** on web, which opens the Post to Portals dialog. Mobile offers only **Open listing** and **View ad**, because that dialog does not exist there; the stale-expiry finding still points to the web dialog. It closes with the portal section above.
 
 ---
 

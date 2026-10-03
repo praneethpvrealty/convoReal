@@ -1524,7 +1524,7 @@
         },
         {
           "id": "PRP-028",
-          "rule": "The portal-ads drift banner is a warning, not an error: it says how many portal ads don't match their listings, Review expands the findings, and every finding offers a way to fix it — the Post to Portals dialog and the listing itself — on web and mobile.",
+          "rule": "The portal-ads drift banner is a warning, not an error: it says how many portal ads don't match their listings, Review expands the findings, and every finding opens the affected listing on web and mobile, with the Post to Portals dialog offered too wherever it exists (web only today; recorded in FEATURE_ROADMAP.md).",
           "tests": [
             {
               "file": "src/components/inventory/portal-drift-panel.test.tsx",
