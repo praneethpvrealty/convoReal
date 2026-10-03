@@ -14,22 +14,24 @@ import {
 import { EnterRow, PressScale } from '@/components/motion';
 import { Banner, EmptyState, FilterChip } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
-import { formatRelative } from '@/lib/format';
 import { closeGap, fetchGaps } from '@/lib/gaps';
 import {
   GAP_ICON,
   GAP_LABEL,
   countByKind,
-  gapPrimaryTarget,
   sortGaps,
   type ConversationGap,
   type GapKind,
-  type GapPrimaryTarget,
   type GapSeverity,
 } from '@/lib/gaps-feed';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { formatRelative } from '@shared/lib/format/date';
+import {
+  gapPrimaryTarget,
+  type GapPrimaryTarget,
+} from '@shared/lib/sweep/gap-actions';
 
 /**
  * Web parity: the Gaps tab on the dashboard.

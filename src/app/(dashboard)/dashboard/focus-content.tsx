@@ -55,6 +55,7 @@ import {
 } from '@/lib/deals/deadlines';
 import { COPILOT_APPOINTMENT_COMPLETED_EVENT } from '@/lib/copilot/actions';
 import { formatDate } from '@/lib/format/date';
+import { requestBadge, summarizeRequests } from '@/lib/focus/requests';
 
 type SectionId = 'tasks' | 'deadlines' | 'journeys' | 'requests';
 
@@ -77,33 +78,6 @@ const URGENCY_CLASS = {
   soon: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
   later: 'border-slate-700 bg-slate-800/60 text-slate-300',
 } as const;
-
-const URGENCY_LABEL = {
-  now: 'Now',
-  soon: 'Soon',
-  later: 'When you can',
-} as const;
-
-const STALE_REQUEST_HOURS = 72;
-
-function isStale(request: FocusRequest): boolean {
-  return request.urgency !== 'now' && request.ageHours >= STALE_REQUEST_HOURS;
-}
-
-function requestBadge(request: FocusRequest): {
-  label: string;
-  className: string;
-} {
-  if (isStale(request))
-    return {
-      label: `${Math.floor(request.ageHours / 24)} d`,
-      className: URGENCY_CLASS.later,
-    };
-  return {
-    label: URGENCY_LABEL[request.urgency],
-    className: URGENCY_CLASS[request.urgency],
-  };
-}
 
 function timeChip(iso: string): string {
   return new Date(iso).toLocaleTimeString([], {
@@ -215,10 +189,7 @@ export default function FocusContent() {
   const deadlineSummary = summarizeDeadlines(deadlineGroups);
   const journeys = snapshot?.journeys;
   const requests = snapshot?.requests;
-  const requestsNow = (requests?.all ?? []).filter(
-    (r) => r.urgency === 'now'
-  ).length;
-  const requestsStale = (requests?.all ?? []).filter(isStale).length;
+  const requestSummary = summarizeRequests(requests?.all ?? []);
 
   return (
     <div className="space-y-6">
@@ -333,19 +304,9 @@ export default function FocusContent() {
               id="requests"
               title="Requests to act on"
               icon={<Sparkles className="size-4 text-sky-400" />}
-              count={requestsNow}
+              count={requestSummary.now}
               empty={!requests?.all.length}
-              summary={
-                requests?.all.length
-                  ? [
-                      `${requestsNow} needing an answer now`,
-                      `${requests.all.length} open in total`,
-                      ...(requestsStale > 0
-                        ? [`${requestsStale} waiting over 3 days`]
-                        : []),
-                    ].join(' · ')
-                  : ''
-              }
+              summary={requestSummary.summary}
               expanded={expanded.has('requests')}
               onToggle={() => toggle('requests')}
               emptyText="Nobody is waiting on you."
@@ -716,7 +677,7 @@ function RequestLine({ request }: { request: FocusRequest }) {
       <span
         className={cn(
           'shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold',
-          badge.className
+          URGENCY_CLASS[badge.urgency]
         )}
       >
         {badge.label}
@@ -752,7 +713,7 @@ function RequestRow({
       <span
         className={cn(
           'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold',
-          badge.className
+          URGENCY_CLASS[badge.urgency]
         )}
       >
         {badge.label}

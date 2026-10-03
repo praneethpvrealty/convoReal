@@ -31,7 +31,6 @@ import {
 import { TOURS } from '@/lib/copilot/tours';
 import { AGENCY_SHOWCASE_DESIGNS, SHOWCASE_STYLES } from '@/lib/showcase/style';
 import { JOURNEY_ITEM_SOURCE_LABELS } from '@/lib/journey/captured';
-import { splitLocationApprovals } from '@/lib/dashboard/approval-order';
 import { MESSAGES } from '@/lib/i18n/messages';
 import {
   MEDIA_SIZE_LIMITS,
@@ -149,10 +148,7 @@ import {
   bundleCandidates,
   defaultBundleName,
 } from '@/lib/deals/bundles';
-import {
-  DEAL_DEADLINE_URGENCY_LABELS,
-  deadlineLabel,
-} from '@/lib/deals/deadlines';
+import { deadlineLabel } from '@/lib/deals/deadlines';
 import {
   TRANCHE_LABEL_SUGGESTIONS,
   TRANCHE_STATUS_LABELS,
@@ -495,36 +491,11 @@ describe('Overview approvals read the same on web and mobile', () => {
       'components/dashboard/location-approvals-panel.tsx'
     );
     const mobilePanel = mobileSource('components/location-approvals.tsx');
-    const output = ts.transpileModule(mobileSource('lib/approval-order.ts'), {
-      compilerOptions: {
-        module: ts.ModuleKind.CommonJS,
-        target: ts.ScriptTarget.ES2022,
-      },
-    }).outputText;
-    const sandboxModule: { exports: Record<string, unknown> } = {
-      exports: {},
-    };
-    runInNewContext(output, {
-      module: sandboxModule,
-      exports: sandboxModule.exports,
-    });
-    const mobileSplit = sandboxModule.exports
-      .splitLocationApprovals as typeof splitLocationApprovals;
-    const rows = [
-      { id: 'a1', status: 'approved' },
-      { id: 'w', status: 'pending', pending_consent_contact_name: 'Ravi' },
-      { id: 'r', status: 'rejected' },
-      { id: 'p1', status: 'pending', pending_consent_contact_name: null },
-      { id: 'a2', status: 'approved' },
-      { id: 'p2', status: 'pending' },
-      { id: 'x', status: 'expired' },
-    ];
-    expect(JSON.stringify(mobileSplit(rows))).toBe(
-      JSON.stringify(splitLocationApprovals(rows))
-    );
-
     expect(webPanel).toContain('splitLocationApprovals(rows)');
     expect(mobilePanel).toContain('splitLocationApprovals(rows)');
+    expect(mobilePanel).toContain(
+      "import { splitLocationApprovals } from '@shared/lib/dashboard/approval-order';"
+    );
     expect(webPanel).toContain('Recently approved ({approved.length})');
     expect(mobilePanel).toContain('Recently approved ({approved.length})');
   });
@@ -3739,39 +3710,13 @@ describe('[TXW-020] deal deadlines reach both surfaces from the Focus snapshot',
   const focusQueries = webSource('lib/focus/queries.ts');
 
   it('labels every urgency identically and words the distance the same way', () => {
-    for (const [urgency, label] of Object.entries(
-      DEAL_DEADLINE_URGENCY_LABELS
-    )) {
-      expect(mobileFocus, `mobile is missing the "${urgency}" label`).toContain(
-        `${urgency}: '${label}'`
-      );
-    }
-    expect(mobileFocus).toContain(
-      "return `Overdue by ${n} day${n === 1 ? '' : 's'}`;"
-    );
-    expect(mobileFocus).toContain("if (daysLeft === 0) return 'Due today';");
-    expect(mobileFocus).toContain("if (daysLeft === 1) return 'Due tomorrow';");
-    expect(mobileFocus).toContain('return `Due in ${daysLeft} days`;');
+    expect(mobileFocus).toContain("} from '@shared/lib/deals/deadline-rules';");
+    expect(mobileFocus).not.toContain('export function deadlineLabel');
     expect(deadlineLabel(-1)).toBe('Overdue by 1 day');
   });
 
   it('carries the same deadline shape on the snapshot and renders it on both screens', () => {
-    for (const field of [
-      'dealId',
-      'kind',
-      'milestoneId',
-      'title',
-      'subject',
-      'dueDate',
-      'daysLeft',
-      'urgency',
-      'assignedTo',
-      'ownerUserId',
-    ]) {
-      expect(mobileFocus, `mobile FocusDeadline lacks ${field}`).toMatch(
-        new RegExp(`^  ${field}: `, 'm')
-      );
-    }
+    expect(mobileFocus).toContain('items: DealDeadline[];');
     expect(mobileFocus).toContain('deadlines: FocusDeadlines;');
     expect(focusQueries).toContain('loadDealDeadlines(');
     expect(mobileScreen).toContain('Deal deadlines');
@@ -3782,23 +3727,12 @@ describe('[TXW-020] deal deadlines reach both surfaces from the Focus snapshot',
   });
 
   it('groups deadlines per deal and badges stale requests the same way on both screens', () => {
-    for (const line of [
-      'export function groupDeadlinesByDeal(',
-      'if (!group.titles.includes(d.title)) group.titles.push(d.title);',
-      'export const STALE_REQUEST_HOURS = 72;',
-      "return request.urgency !== 'now' && request.ageHours >= STALE_REQUEST_HOURS;",
-      'label: `${Math.floor(request.ageHours / 24)} d`,',
-      '`${now} needing an answer now`,',
-      '`${requests.length} open in total`,',
-      '`${stale} waiting over 3 days`',
-    ]) {
-      expect(mobileFocus, `mobile focus lacks ${line}`).toContain(line);
-    }
-    expect(webFocus).toContain('const STALE_REQUEST_HOURS = 72;');
+    expect(mobileFocus).toContain("} from '@shared/lib/focus/requests';");
+    expect(webFocus).toContain(
+      "import { requestBadge, summarizeRequests } from '@/lib/focus/requests';"
+    );
     expect(webFocus).toContain('groupDeadlinesByDeal(');
-    expect(webFocus).toContain('`${requestsNow} needing an answer now`');
-    expect(webFocus).toContain('`${requests.all.length} open in total`');
-    expect(webFocus).toContain('`${requestsStale} waiting over 3 days`');
+    expect(webFocus).toContain('summarizeRequests(');
     expect(mobileScreen).toContain('groupDeadlinesByDeal(');
     expect(mobileScreen).toContain('requestBadge(request)');
     expect(mobileScreen).toContain('summarizeRequests(');

@@ -6,11 +6,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { SectionLabel } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
-import { splitLocationApprovals } from '@/lib/approval-order';
 import { chatListTime } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
+import { splitLocationApprovals } from '@shared/lib/dashboard/approval-order';
 
 interface LocationApprovalRow {
   id: string;

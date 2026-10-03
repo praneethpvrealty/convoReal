@@ -57,6 +57,7 @@ describe('formatDate', () => {
 
   it('returns an empty string for an unparseable value', () => {
     expect(formatDate('', now)).toBe('');
+    expect(formatDate('not-a-date', now)).toBe('');
   });
 });
 
@@ -76,6 +77,7 @@ describe('formatRelative', () => {
 
   it('counts hours within the day', () => {
     expect(formatRelative(ago(4 * HOUR), now)).toBe('4h ago');
+    expect(formatRelative(ago(9 * HOUR), now)).toBe('9h ago');
     expect(formatRelative(ago(23 * HOUR + 30 * 60_000), now)).toBe('23h ago');
   });
 

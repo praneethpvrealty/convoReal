@@ -62,53 +62,6 @@ export function auditDateTime(iso: string | null | undefined): string {
       });
 }
 
-const MONTHS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-/**
- * Mirrored from src/lib/format/date.ts: "3 Oct", or "3 Oct 2025" when the
- * year is not the current one.
- */
-export function formatDate(iso: string, now = new Date()): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  const day = `${date.getDate()} ${MONTHS[date.getMonth()]}`;
-  return date.getFullYear() === now.getFullYear()
-    ? day
-    : `${day} ${date.getFullYear()}`;
-}
-
-/**
- * Mirrored from src/lib/format/date.ts: "just now", "5m ago", "4h ago",
- * "yesterday", "4 days ago", then a real date beyond 30 days.
- */
-export function formatRelative(iso: string, now = new Date()): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '';
-  const diff = now.getTime() - then;
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(diff / 3_600_000);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(diff / DAY_MS);
-  if (days === 1) return 'yesterday';
-  if (days <= 30) return `${days} days ago`;
-  return formatDate(iso, now);
-}
-
 /** Day-separator label inside a thread. */
 export function dayLabel(iso: string): string {
   const d = new Date(iso);

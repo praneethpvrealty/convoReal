@@ -33,15 +33,15 @@ import {
   searchRadarContacts,
   sendMatchAlert,
 } from '@/lib/radar';
-import {
-  DEFAULT_ALERT_MIN_SCORE,
-  defaultSelectedTargetIds,
-  isImplausibleListingPrice,
-} from '@/lib/radar-alerts';
 import { scoreTone } from '@/lib/match-chips';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { resolveRequirementSource } from '@/lib/requirements-profile';
+import {
+  DEFAULT_ALERT_MIN_SCORE,
+  defaultSelectedTargetIds,
+  isImplausibleListingPrice,
+} from '@shared/lib/radar/alert-defaults';
 import type { Contact, MatchEvent } from '@shared/types';
 
 /**
