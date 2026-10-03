@@ -9,10 +9,7 @@ export function PropertyFormSectionNav({
   sections,
 }: PropertyFormSectionNavProps) {
   return (
-    <nav
-      aria-label="Listing sections"
-      className="sticky top-0 hidden self-start py-1 lg:block"
-    >
+    <nav aria-label="Listing sections" className="sticky top-0 py-1">
       <ol className="space-y-0.5">
         {sections.map((section) => (
           <li key={section.id}>
