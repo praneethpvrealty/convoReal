@@ -89,7 +89,10 @@ export async function sendDueTodoReminders(
       .maybeSingle();
 
     if (claimError) {
-      console.error(`[Todo Reminder] claim failed for todo ${todo.id}:`, claimError);
+      console.error(
+        `[Todo Reminder] claim failed for todo ${todo.id}:`,
+        claimError
+      );
       continue;
     }
     if (!claim || !assigneeId) continue;
@@ -109,7 +112,11 @@ export async function sendDueTodoReminders(
       quietAudience: 'agent',
     });
 
-    if (!result.inAppId && !result.whatsapp?.success && result.pushCount === 0) {
+    if (
+      !result.inAppId &&
+      !result.whatsapp?.success &&
+      result.pushCount === 0
+    ) {
       const { error: releaseError } = await admin
         .from('todos')
         .update({ reminder_sent_at: null })

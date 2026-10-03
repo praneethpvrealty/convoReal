@@ -40,6 +40,23 @@ describe('clearedTemplateComplaints', () => {
     expect('rejection_reason' in patch).toBe(false);
   });
 
+  it('records the reason a sync reads from Meta, so a missed webhook still says why', () => {
+    expect(clearedTemplateComplaints('REJECTED', 'INCORRECT_CATEGORY')).toEqual({
+      submission_error: null,
+      rejection_reason: 'INCORRECT_CATEGORY',
+    });
+  });
+
+  it('records nothing for Meta\'s NONE placeholder or a blank reason', () => {
+    for (const reason of ['NONE', 'none', '  ', null, undefined]) {
+      expect('rejection_reason' in clearedTemplateComplaints('REJECTED', reason)).toBe(false);
+    }
+  });
+
+  it('ignores a reason Meta still reports once the template is no longer rejected', () => {
+    expect(clearedTemplateComplaints('APPROVED', 'INCORRECT_CATEGORY').rejection_reason).toBeNull();
+  });
+
   it('clears both once a rejected template is resubmitted and pending again', () => {
     expect(clearedTemplateComplaints('PENDING')).toEqual({
       submission_error: null,

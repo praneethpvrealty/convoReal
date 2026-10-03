@@ -963,6 +963,11 @@ export async function markFollowUpCold(
 
 const MAX_NAMED_OPEN_ENQUIRIES = 3;
 
+function closedLabel(p: OpenEnquiry['property']): string {
+  const code = (p.property_code || '').trim();
+  return code || enquiryLabel(p);
+}
+
 export function buildColdConfirmation(
   who: string,
   outcome: FollowUpColdOutcome
@@ -981,15 +986,10 @@ export function buildColdConfirmation(
   if (outcome.scope === 'property') {
     const named = outcome.stillOpen
       .slice(0, MAX_NAMED_OPEN_ENQUIRIES)
-      .map((p) => `• ${enquiryLabel(p)}`);
+      .map(enquiryLabel);
     const more = outcome.stillOpen.length - named.length;
-    const count = outcome.stillOpen.length;
-    return [
-      `❄️ Marked ${who} cold on ${enquiryLabel(outcome.property)} only.`,
-      `Still tracking ${count} other enquir${count === 1 ? 'y' : 'ies'}, so the lead stays hot:`,
-      ...named,
-      ...(more > 0 ? [`…and ${more} more`] : []),
-    ].join('\n');
+    const via = `${named.join(', ')}${more > 0 ? ` and ${more} more` : ''}`;
+    return `❄️ ${closedLabel(outcome.property)} closed for ${who}. Still hot via ${via}.`;
   }
   if (outcome.property) {
     return `❄️ Marked ${who} cold on ${enquiryLabel(outcome.property)}. That was their only open enquiry, so the follow-up radar will leave them alone.`;

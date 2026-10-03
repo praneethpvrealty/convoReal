@@ -269,11 +269,12 @@ function StageColumn({
 
       <div
         ref={setNodeRef}
-        className={`mt-3 flex flex-1 flex-col gap-2 rounded-lg transition-all ${
-          isOver
-            ? 'bg-primary/5 outline-primary outline outline-2 outline-offset-2 outline-dashed'
-            : ''
-        }`}
+        data-stage-scroller
+        className={cn(
+          'mt-3 flex max-h-[min(60vh,560px)] flex-1 flex-col gap-2 overflow-y-auto overscroll-contain rounded-lg transition-all',
+          isOver &&
+            'bg-primary/5 outline-primary outline outline-2 outline-offset-2 outline-dashed'
+        )}
       >
         {deals.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-lg border-2 border-dashed border-slate-700 py-10 text-xs text-slate-500">
@@ -328,6 +329,7 @@ function DraggableDealCard({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
+      data-deal-draggable
       style={{ opacity: isDragging ? 0.3 : 1, touchAction: 'none' }}
     >
       <DealCard deal={deal} stage={stage} onEdit={onEdit} currency={currency} />

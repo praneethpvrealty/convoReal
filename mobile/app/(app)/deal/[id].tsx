@@ -32,6 +32,7 @@ import {
 import { apiBase, authHeaders } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import {
+  DEAL_SAVED_QUERY_KEYS,
   BUNDLE_MAX_DEALS,
   bundleBlocker,
   bundleCandidateLabel,
@@ -152,7 +153,7 @@ import {
 } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
 import { auditDate, auditDateTime, formatInr } from '@/lib/format';
-import type { LostReasonInput } from '@/lib/lost-reasons';
+import { recordedLostReason, type LostReasonInput } from '@/lib/lost-reasons';
 import {
   dealStatusForStage,
   isLostStage,
@@ -179,6 +180,9 @@ interface DealHead {
   value: number | null;
   brokerage_amount: number | null;
   deal_group_id: string | null;
+  status: 'open' | 'won' | 'lost' | null;
+  lost_reason: string | null;
+  lost_note: string | null;
   stage: { name: string } | { name: string }[] | null;
   contact:
     | { name: string | null; second_name: string | null }
@@ -232,7 +236,7 @@ export default function DealWorkspaceScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          'id, title, contact_id, property_id, pipeline_id, stage_id, value, brokerage_amount, deal_group_id, ' +
+          'id, title, contact_id, property_id, pipeline_id, stage_id, value, brokerage_amount, deal_group_id, status, lost_reason, lost_note, ' +
             'stage:pipeline_stages(name), contact:contacts(name, second_name), group:deal_groups(id, name)'
         )
         .eq('id', dealId)
@@ -267,6 +271,11 @@ export default function DealWorkspaceScreen() {
       return;
     }
     if (isLostStage(stage)) {
+      const recorded = recordedLostReason(head);
+      if (recorded) {
+        void moveToStage(stage, undefined, recorded);
+        return;
+      }
       setLostPrompt(stage);
       return;
     }
@@ -297,7 +306,9 @@ export default function DealWorkspaceScreen() {
       haptic.success();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deal-head', dealId] }),
-        queryClient.invalidateQueries({ queryKey: ['deals'] }),
+        ...DEAL_SAVED_QUERY_KEYS.map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey })
+        ),
       ]);
     } catch (err) {
       haptic.warn();
@@ -387,6 +398,7 @@ export default function DealWorkspaceScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          style={styles.tabStrip}
           contentContainerStyle={styles.tabs}
         >
           {DEAL_WORKSPACE_TABS.map((item) => (
@@ -3948,6 +3960,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.md,
   },
+  tabStrip: { flexGrow: 0, flexShrink: 0 },
   tabs: {
     flexDirection: 'row',
     gap: spacing.sm,

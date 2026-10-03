@@ -6,12 +6,14 @@ const {
   placesAutocomplete,
   placeDetails,
   hasGoogleMapsKey,
+  lookupStore,
 } = vi.hoisted(() => ({
   selectCalls: [] as Array<[string, unknown]>,
   rows: { data: [] as unknown[] },
   placesAutocomplete: vi.fn(),
   placeDetails: vi.fn(),
   hasGoogleMapsKey: vi.fn(() => true),
+  lookupStore: new Map<string, unknown>(),
 }));
 
 vi.mock('@/lib/supabase/admin', () => ({
@@ -38,6 +40,20 @@ vi.mock('@/lib/maps/google-places', () => ({
   hasGoogleMapsKey,
 }));
 
+vi.mock('@/lib/maps/lookup-cache', () => ({
+  cachedLookup: async (
+    kind: string,
+    key: string,
+    fetcher: () => Promise<unknown>
+  ) => {
+    const id = `${kind}|${key}`;
+    if (lookupStore.has(id)) return lookupStore.get(id);
+    const value = await fetcher();
+    lookupStore.set(id, value);
+    return value;
+  },
+}));
+
 const { GET } = await import('./route');
 const { RATE_LIMITS, __resetRateLimitForTests } =
   await import('@/lib/rate-limit');
@@ -58,6 +74,7 @@ function req(q: string, opts: { account?: string; ip?: string } = {}) {
 beforeEach(() => {
   __resetRateLimitForTests();
   selectCalls.length = 0;
+  lookupStore.clear();
   placesAutocomplete.mockReset();
   placeDetails.mockReset();
   hasGoogleMapsKey.mockReturnValue(true);
@@ -132,7 +149,7 @@ describe('GET /api/public/properties/near', () => {
     ]);
   });
 
-  it('reuses a cached place for a repeated search', async () => {
+  it('[PRP-025] reuses a place held in the shared lookup cache for a repeated search', async () => {
     placesAutocomplete.mockResolvedValue([]);
     await GET(req('cached place'));
     await GET(req('Cached Place'));

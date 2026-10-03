@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { reloadTo } from '@/lib/navigation';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -30,13 +31,13 @@ function ProfileSetupPageInner() {
     });
 
     if (!authLoading && !user) {
-      window.location.href = '/login';
+      reloadTo('/login');
     } else if (!authLoading && !profileLoading && user && profile) {
       const hasName = profile.full_name && profile.full_name.trim() !== '';
       const hasEmail = profile.email && profile.email.trim() !== '';
       if (hasName && hasEmail) {
         console.log('[SETUP PAGE] profile complete, redirecting to dashboard...');
-        window.location.href = '/dashboard';
+        reloadTo('/dashboard');
       }
     }
   }, [user, profile, authLoading, profileLoading]);
@@ -82,7 +83,7 @@ function ProfileSetupPageInner() {
       toast.success('Welcome! Your profile has been created.');
       
       // Perform a hard page reload redirection to force Next.js Layout gates to read the fresh DB profile state
-      window.location.href = '/dashboard';
+      reloadTo('/dashboard');
     } catch (err) {
       console.error('Profile setup save error:', err);
       const errMsg = err instanceof Error ? err.message : 'Failed to save profile. Please try again.';
@@ -184,7 +185,7 @@ function ProfileSetupPageInner() {
             <div className="flex items-center justify-between pt-4 border-t border-slate-800/50 mt-4">
               <button
                 type="button"
-                onClick={() => { window.location.href = '/dashboard'; }}
+                onClick={() => { reloadTo('/dashboard'); }}
                 className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
               >
                 <LayoutDashboard className="size-3.5" />
@@ -196,7 +197,7 @@ function ProfileSetupPageInner() {
                 onClick={async () => {
                   const supabase = createClient();
                   await supabase.auth.signOut();
-                  window.location.href = '/login';
+                  reloadTo('/login');
                 }}
                 className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-400 transition-colors"
               >

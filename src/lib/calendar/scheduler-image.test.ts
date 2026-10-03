@@ -4,8 +4,12 @@ const parseEventsFromInput = vi.fn();
 const burnCredits = vi.fn();
 
 vi.mock('@/lib/calendar/event-parse', async () => {
-  const actual = await vi.importActual<typeof import('./event-parse')>('./event-parse');
-  return { ...actual, parseEventsFromInput: (...a: unknown[]) => parseEventsFromInput(...a) };
+  const actual =
+    await vi.importActual<typeof import('./event-parse')>('./event-parse');
+  return {
+    ...actual,
+    parseEventsFromInput: (...a: unknown[]) => parseEventsFromInput(...a),
+  };
 });
 
 vi.mock('@/lib/credits/burn', () => ({
@@ -33,11 +37,16 @@ vi.mock('@/lib/automations/admin-client', () => ({
 
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   sendTextMessage: vi.fn(async () => ({ messageId: 'wamid.stub' })),
-  getMediaUrl: vi.fn(async () => ({ url: 'https://example.test/x', mimeType: 'image/jpeg' })),
+  getMediaUrl: vi.fn(async () => ({
+    url: 'https://example.test/x',
+    mimeType: 'image/jpeg',
+  })),
   downloadMedia: vi.fn(async () => ({ buffer: Buffer.from('img') })),
 }));
 
-vi.mock('@/lib/notifications/create', () => ({ createNotification: vi.fn(async () => {}) }));
+vi.mock('@/lib/notifications/create', () => ({
+  createNotification: vi.fn(async () => {}),
+}));
 
 import { tryHandleOwnerScheduling } from './whatsapp-scheduler';
 
@@ -82,7 +91,10 @@ describe('tryHandleOwnerScheduling image handling', () => {
     expect(handled).toBe(false);
     expect(parseEventsFromInput).toHaveBeenCalledTimes(1);
     expect(parseEventsFromInput.mock.calls[0][0]).toMatchObject({
-      image: { base64: Buffer.from('screenshot').toString('base64'), mimeType: 'image/jpeg' },
+      image: {
+        base64: Buffer.from('screenshot').toString('base64'),
+        mimeType: 'image/jpeg',
+      },
     });
     expect(burnCredits.mock.calls[0][1]).toBe('image_event_parse');
   });

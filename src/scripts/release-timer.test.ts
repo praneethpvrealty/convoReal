@@ -338,6 +338,43 @@ describe('run', () => {
     expect(rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
   });
 
+  it('dispatches CI rather than holding when the only run awaits approval', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      queuedRuns: [{ status: 'completed', conclusion: 'action_required' }],
+    });
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch']
+    ).toEqual({
+      action: 'run-ci',
+      reason: 'no CI run on the release head',
+    });
+    expect(rest.actions.createWorkflowDispatch).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      workflow_id: 'ci.yml',
+      ref: 'release/batch',
+    });
+    expect(rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
+  it('reads the dispatched run past one that awaits approval', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      queuedRuns: [
+        { status: 'completed', conclusion: 'action_required' },
+        { status: 'queued', conclusion: null },
+      ],
+    });
+
+    expect(
+      (await run({ github, context, core, now: NOW }))['release/batch'].action
+    ).toBe('wait');
+    expect(rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+    expect(rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
   it('squash-merges, verifies main and deletes the release branch', async () => {
     const { github, rest } = fakeGithub({
       pulls: [member(1), member(2), releasePr()],

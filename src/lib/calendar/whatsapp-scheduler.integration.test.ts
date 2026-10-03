@@ -18,7 +18,8 @@ const warnLanguageFallback = vi.fn();
 const canSendToEveryLead = vi.fn();
 
 vi.mock('@/lib/calendar/event-parse', async () => {
-  const actual = await vi.importActual<typeof import('./event-parse')>('./event-parse');
+  const actual =
+    await vi.importActual<typeof import('./event-parse')>('./event-parse');
   return {
     ...actual,
     parseEventsFromInput: (...args: unknown[]) => parseEventsFromInput(...args),
@@ -48,7 +49,8 @@ vi.mock('@/lib/whatsapp/template-language', async () => {
   >('@/lib/whatsapp/template-language');
   return {
     ...actual,
-    loadTemplateForContact: (...args: unknown[]) => loadTemplateForContact(...args),
+    loadTemplateForContact: (...args: unknown[]) =>
+      loadTemplateForContact(...args),
     warnLanguageFallback: (...args: unknown[]) => warnLanguageFallback(...args),
   };
 });
@@ -81,12 +83,13 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
       const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const email = `convoreal-scheduler-e2e-${stamp}@convoreal-test.invalid`;
       const password = crypto.randomUUID();
-      const { data: created, error: userErr } = await admin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name: 'ConvoReal Flow Test' },
-      });
+      const { data: created, error: userErr } =
+        await admin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: { full_name: 'ConvoReal Flow Test' },
+        });
       if (userErr || !created.user) {
         throw new Error(`failed to create test user: ${userErr?.message}`);
       }
@@ -98,7 +101,9 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
         .eq('owner_user_id', ownerUserId)
         .maybeSingle();
       if (!account) {
-        throw new Error('handle_new_user() did not create an account for test user');
+        throw new Error(
+          'handle_new_user() did not create an account for test user'
+        );
       }
       accountId = account.id as string;
 
@@ -156,7 +161,8 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
           recipient_name: 'C Kumar',
           location: null,
           priority: 'medium',
-          notes: "Suleiman's 9,600 sqft Jayanagar plot has been approved by owner.",
+          notes:
+            "Suleiman's 9,600 sqft Jayanagar plot has been approved by owner.",
           transcript: null,
           day_of_week: null,
         },
@@ -242,7 +248,8 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
       expect(todos?.[0].due_date).toBe('2026-09-24T04:30:00.000Z');
       expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
       expect(createNotification).not.toHaveBeenCalled();
-      const confirmation = sendTextMessage.mock.calls[0]?.[0]?.text as string | undefined;
+      const confirmation = sendTextMessage.mock.calls[0]?.[0]?.text as
+        string | undefined;
       expect(confirmation).toContain('📨 *Update sent to C Kumar*');
       expect(confirmation).toContain('✅ *Task added to your list*');
       expect(confirmation).not.toContain('Task updated');

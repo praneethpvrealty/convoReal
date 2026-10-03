@@ -112,10 +112,13 @@ async function latestCiRun(github, owner, repo, sha) {
     repo,
     workflow_id: 'ci.yml',
     head_sha: sha,
-    per_page: 1,
+    per_page: 10,
   });
-  return runs[0]
-    ? { status: runs[0].status, conclusion: runs[0].conclusion }
+  const usable = runs.find(
+    (candidate) => candidate.conclusion !== 'action_required'
+  );
+  return usable
+    ? { status: usable.status, conclusion: usable.conclusion }
     : null;
 }
 

@@ -6,7 +6,9 @@ import {
 } from './event-parse';
 import { tryHandleOwnerScheduling } from './whatsapp-scheduler';
 
-const sendTextMessage = vi.fn().mockImplementation(async () => ({ messageId: 'wamid.sent-1' }));
+const sendTextMessage = vi
+  .fn()
+  .mockImplementation(async () => ({ messageId: 'wamid.sent-1' }));
 const burnCredits = vi.fn().mockImplementation(async () => ({ success: true }));
 const recordBotTarget = vi.fn().mockImplementation(async () => {});
 
@@ -55,7 +57,8 @@ vi.mock('@/lib/automations/admin-client', () => ({
             const hit = messagesTable.find(
               (m) =>
                 (!filters.message_id || m.message_id === filters.message_id) &&
-                (!filters.conversation_id || m.conversation_id === filters.conversation_id)
+                (!filters.conversation_id ||
+                  m.conversation_id === filters.conversation_id)
             );
             return { data: hit || null, error: null };
           }
@@ -67,16 +70,23 @@ vi.mock('@/lib/automations/admin-client', () => ({
         insert: (rows: Record<string, unknown> | Record<string, unknown>[]) => {
           const arr = Array.isArray(rows) ? rows : [rows];
           for (const r of arr) {
-            const inserted = { id: `${table}-${Date.now()}-${Math.random()}`, ...r };
+            const inserted = {
+              id: `${table}-${Date.now()}-${Math.random()}`,
+              ...r,
+            };
             if (table === 'appointments') appointmentsTable.push(inserted);
             if (table === 'todos') todosTable.push(inserted);
           }
           return {
             select: () => ({
-              single: async () => ({ data: { id: `${table}-inserted-id` }, error: null }),
+              single: async () => ({
+                data: { id: `${table}-inserted-id` },
+                error: null,
+              }),
             }),
-            then: (resolve: (v: { data: { id: string }; error: null }) => unknown) =>
-              resolve({ data: { id: `${table}-inserted-id` }, error: null }),
+            then: (
+              resolve: (v: { data: { id: string }; error: null }) => unknown
+            ) => resolve({ data: { id: `${table}-inserted-id` }, error: null }),
           };
         },
         update: (payload: Record<string, unknown>) => {
@@ -109,15 +119,29 @@ vi.mock('@/lib/automations/admin-client', () => ({
           if (table === 'contacts') {
             return resolve({
               data: [
-                { id: 'contact-naveen', name: 'Naveen Bandary', phone: '+919876543210' },
-                { id: 'contact-advocate', name: 'Kusumaraju Advocate', phone: '+919876543211' },
+                {
+                  id: 'contact-naveen',
+                  name: 'Naveen Bandary',
+                  phone: '+919876543210',
+                },
+                {
+                  id: 'contact-advocate',
+                  name: 'Kusumaraju Advocate',
+                  phone: '+919876543211',
+                },
               ],
               error: null,
             });
           }
           if (table === 'properties') {
             return resolve({
-              data: [{ id: 'prop-1', title: 'Vishweshwar layout plot', location: 'Vishweshwar layout' }],
+              data: [
+                {
+                  id: 'prop-1',
+                  title: 'Vishweshwar layout plot',
+                  location: 'Vishweshwar layout',
+                },
+              ],
               error: null,
             });
           }
@@ -192,7 +216,10 @@ describe('Contextual schedule reply handling', () => {
           },
         ],
       };
-      const items = coerceUpdatedItems(raw, new Date('2026-08-20T10:00:00+05:30'));
+      const items = coerceUpdatedItems(
+        raw,
+        new Date('2026-08-20T10:00:00+05:30')
+      );
       expect(items).toHaveLength(1);
       expect(items[0].id).toBe('appt-123');
       expect(items[0].start_time).toBe('2026-08-20T16:00');
@@ -231,55 +258,64 @@ describe('Contextual schedule reply handling', () => {
         {
           message_id: 'wamid.reminder',
           conversation_id: 'conv-1',
-          content_text: 'Meeting with property owner and KP Anand is still open.',
+          content_text:
+            'Meeting with property owner and KP Anand is still open.',
         },
       ];
 
       const eventParseMock = await import('./event-parse');
-      const spy = vi.spyOn(eventParseMock, 'parseEventsFromInput').mockImplementation(async () => {
-        const drafts: ParsedEventDraft[] = [
-          {
-            intent: 'schedule',
-            title: 'Meeting with property owner Prabha and buyer KP Anand',
-            event_type: 'meeting',
-            start_time: RESCHEDULED_START,
-            end_time: null,
-            duration_minutes: 60,
-            contact_name: 'KP Anand',
-            counterparty_name: null,
-            service_provider_role: null,
-            property_hint: 'Pebble Bay apartments',
-            assignee_name: null,
-            recipient_name: null,
-            location: "Mrs. Prabha's residence, Pebble Bay apartments, RMV layout",
-            priority: 'medium',
-            notes: null,
-            transcript: null,
-            day_of_week: null,
-          },
-        ];
-        Object.defineProperty(drafts, '_fullResult', {
-          value: {
-            drafts,
-            completedItems: [
-              {
-                id: 'appt-old',
-                type: 'appointment',
-                status: 'cancelled',
-                outcome: 'The meeting has been rescheduled.',
-              },
-            ],
-            updatedItems: [],
-            transcript: null,
-          },
-          enumerable: false,
+      const spy = vi
+        .spyOn(eventParseMock, 'parseEventsFromInput')
+        .mockImplementation(async () => {
+          const drafts: ParsedEventDraft[] = [
+            {
+              intent: 'schedule',
+              title: 'Meeting with property owner Prabha and buyer KP Anand',
+              event_type: 'meeting',
+              start_time: RESCHEDULED_START,
+              end_time: null,
+              duration_minutes: 60,
+              contact_name: 'KP Anand',
+              counterparty_name: null,
+              service_provider_role: null,
+              property_hint: 'Pebble Bay apartments',
+              assignee_name: null,
+              recipient_name: null,
+              location:
+                "Mrs. Prabha's residence, Pebble Bay apartments, RMV layout",
+              priority: 'medium',
+              notes: null,
+              transcript: null,
+              day_of_week: null,
+            },
+          ];
+          Object.defineProperty(drafts, '_fullResult', {
+            value: {
+              drafts,
+              completedItems: [
+                {
+                  id: 'appt-old',
+                  type: 'appointment',
+                  status: 'cancelled',
+                  outcome: 'The meeting has been rescheduled.',
+                },
+              ],
+              updatedItems: [],
+              transcript: null,
+            },
+            enumerable: false,
+          });
+          return drafts;
         });
-        return drafts;
-      });
 
       await tryHandleOwnerScheduling({
-        message: { id: 'msg-reschedule', type: 'text', context: { id: 'wamid.reminder' } },
-        contentText: 'Our meeting has been rescheduled for tomorrow at 12 PM at Pebble Bay apartments',
+        message: {
+          id: 'msg-reschedule',
+          type: 'text',
+          context: { id: 'wamid.reminder' },
+        },
+        contentText:
+          'Our meeting has been rescheduled for tomorrow at 12 PM at Pebble Bay apartments',
         contactRecord: { id: 'contact-agent', phone: '+919999988888' },
         conversation: { id: 'conv-1' },
         accountId: 'acc-1',
@@ -320,58 +356,62 @@ describe('Contextual schedule reply handling', () => {
           message_id: 'wamid.digest-msg-1',
           conversation_id: 'conv-1',
           content_text:
-            '☀️ Good morning, Praneeth!\n\n🗓 *Your schedule — Thursday, 20 Aug*\n\n📞 *10:00 am* — Call Naveen Bandary · Naveen Kumar\n\n✅ *Tasks due:*\n• Follow up with Kusumaraju\'s advocate',
+            "☀️ Good morning, Praneeth!\n\n🗓 *Your schedule — Thursday, 20 Aug*\n\n📞 *10:00 am* — Call Naveen Bandary · Naveen Kumar\n\n✅ *Tasks due:*\n• Follow up with Kusumaraju's advocate",
         },
       ];
 
       // 3. Mock parseEventsFromInput to simulate Gemini returning both the completion and the new meeting draft
       const eventParseMock = await import('./event-parse');
-      const spy = vi.spyOn(eventParseMock, 'parseEventsFromInput').mockImplementation(async (input) => {
-        expect(input.quotedContext).toContain('Call Naveen Bandary');
-        expect(input.candidateItems).toBeDefined();
-        expect(input.candidateItems?.some((c) => c.id === 'appt-call-naveen')).toBe(true);
+      const spy = vi
+        .spyOn(eventParseMock, 'parseEventsFromInput')
+        .mockImplementation(async (input) => {
+          expect(input.quotedContext).toContain('Call Naveen Bandary');
+          expect(input.candidateItems).toBeDefined();
+          expect(
+            input.candidateItems?.some((c) => c.id === 'appt-call-naveen')
+          ).toBe(true);
 
-        const drafts = [
-          {
-            intent: 'schedule' as const,
-            title: 'Meeting with Naveen Bandary',
-            event_type: 'meeting' as const,
-            start_time: '2026-08-21T10:00',
-            end_time: null,
-            duration_minutes: 60,
-            contact_name: 'Naveen Bandary',
-            counterparty_name: 'Naveen Kumar',
-            service_provider_role: null,
-            property_hint: null,
-            assignee_name: null,
-            recipient_name: null,
-            location: null,
-            priority: 'medium' as const,
-            notes: null,
-            transcript: null,
-            day_of_week: null,
-          },
-        ];
+          const drafts = [
+            {
+              intent: 'schedule' as const,
+              title: 'Meeting with Naveen Bandary',
+              event_type: 'meeting' as const,
+              start_time: '2026-08-21T10:00',
+              end_time: null,
+              duration_minutes: 60,
+              contact_name: 'Naveen Bandary',
+              counterparty_name: 'Naveen Kumar',
+              service_provider_role: null,
+              property_hint: null,
+              assignee_name: null,
+              recipient_name: null,
+              location: null,
+              priority: 'medium' as const,
+              notes: null,
+              transcript: null,
+              day_of_week: null,
+            },
+          ];
 
-        Object.defineProperty(drafts, '_fullResult', {
-          value: {
-            drafts,
-            completedItems: [
-              {
-                id: 'appt-call-naveen',
-                type: 'appointment',
-                status: 'completed',
-                outcome: 'Called, now scheduled to meet him tomorrow morning',
-              },
-            ],
-            updatedItems: [],
-            transcript: null,
-          },
-          enumerable: false,
+          Object.defineProperty(drafts, '_fullResult', {
+            value: {
+              drafts,
+              completedItems: [
+                {
+                  id: 'appt-call-naveen',
+                  type: 'appointment',
+                  status: 'completed',
+                  outcome: 'Called, now scheduled to meet him tomorrow morning',
+                },
+              ],
+              updatedItems: [],
+              transcript: null,
+            },
+            enumerable: false,
+          });
+
+          return drafts;
         });
-
-        return drafts;
-      });
 
       // 4. Run tryHandleOwnerScheduling with quoted message context
       const handled = await tryHandleOwnerScheduling({
@@ -392,17 +432,25 @@ describe('Contextual schedule reply handling', () => {
       expect(handled).toBe(true);
 
       // 5. Verify the existing appointment was updated to completed with outcome
-      const callAppt = appointmentsTable.find((a) => a.id === 'appt-call-naveen');
+      const callAppt = appointmentsTable.find(
+        (a) => a.id === 'appt-call-naveen'
+      );
       expect(callAppt?.status).toBe('completed');
-      expect(callAppt?.outcome).toBe('Called, now scheduled to meet him tomorrow morning');
+      expect(callAppt?.outcome).toBe(
+        'Called, now scheduled to meet him tomorrow morning'
+      );
 
       // 6. Verify the reply message sent to WhatsApp
       expect(sendTextMessage).toHaveBeenCalledTimes(1);
-      const firstCall = sendTextMessage.mock.calls[0] as unknown as [{ text: string }];
+      const firstCall = sendTextMessage.mock.calls[0] as unknown as [
+        { text: string },
+      ];
       const sentText = firstCall[0].text;
       expect(sentText).toContain('✅ *Marked done on your calendar*');
       expect(sentText).toContain('Call Naveen Bandary · Naveen Kumar');
-      expect(sentText).toContain('Called, now scheduled to meet him tomorrow morning');
+      expect(sentText).toContain(
+        'Called, now scheduled to meet him tomorrow morning'
+      );
       expect(sentText).toContain('✅ *Added to your calendar*');
       expect(sentText).toContain('Meeting with Naveen Bandary');
       expect(sentText).toContain('Naveen Bandary');
@@ -426,31 +474,34 @@ describe('Contextual schedule reply handling', () => {
         {
           message_id: 'wamid.digest-msg-2',
           conversation_id: 'conv-1',
-          content_text: '✅ *Tasks due:*\n• Follow up with Kusumaraju\'s advocate',
+          content_text:
+            "✅ *Tasks due:*\n• Follow up with Kusumaraju's advocate",
         },
       ];
 
       const eventParseMock = await import('./event-parse');
-      const spy = vi.spyOn(eventParseMock, 'parseEventsFromInput').mockImplementation(async () => {
-        const drafts: ParsedEventDraft[] = [];
-        Object.defineProperty(drafts, '_fullResult', {
-          value: {
-            drafts: [],
-            completedItems: [
-              {
-                id: 'todo-advocate-1',
-                type: 'todo',
-                status: 'completed',
-                outcome: "Advocate follow up done, agreement is ready",
-              },
-            ],
-            updatedItems: [],
-            transcript: null,
-          },
-          enumerable: false,
+      const spy = vi
+        .spyOn(eventParseMock, 'parseEventsFromInput')
+        .mockImplementation(async () => {
+          const drafts: ParsedEventDraft[] = [];
+          Object.defineProperty(drafts, '_fullResult', {
+            value: {
+              drafts: [],
+              completedItems: [
+                {
+                  id: 'todo-advocate-1',
+                  type: 'todo',
+                  status: 'completed',
+                  outcome: 'Advocate follow up done, agreement is ready',
+                },
+              ],
+              updatedItems: [],
+              transcript: null,
+            },
+            enumerable: false,
+          });
+          return drafts;
         });
-        return drafts;
-      });
 
       const handled = await tryHandleOwnerScheduling({
         message: {
@@ -458,7 +509,7 @@ describe('Contextual schedule reply handling', () => {
           type: 'text',
           context: { id: 'wamid.digest-msg-2' },
         },
-        contentText: "Advocate follow up done, agreement is ready",
+        contentText: 'Advocate follow up done, agreement is ready',
         contactRecord: { id: 'contact-agent', phone: '+919999988888' },
         conversation: { id: 'conv-1' },
         accountId: 'acc-1',
@@ -471,7 +522,9 @@ describe('Contextual schedule reply handling', () => {
       const todo = todosTable.find((t) => t.id === 'todo-advocate-1');
       expect(todo?.completed).toBe(true);
 
-      const secondCall = sendTextMessage.mock.calls[0] as unknown as [{ text: string }];
+      const secondCall = sendTextMessage.mock.calls[0] as unknown as [
+        { text: string },
+      ];
       const sentText = secondCall[0].text;
       expect(sentText).toContain('✅ *Task marked done*');
       expect(sentText).toContain("Follow up with Kusumaraju's advocate");

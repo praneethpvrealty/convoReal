@@ -76,3 +76,22 @@ export function lostReasonLabel(deal: {
     ? `${deal.lost_reason}: ${deal.lost_note}`
     : deal.lost_reason;
 }
+
+export function answeredLostReason(
+  reason: LostReason | null,
+  note: string
+): LostReasonInput | null {
+  if (!reason) return null;
+  const trimmed = note.trim();
+  if (lostReasonNeedsNote(reason) && !trimmed) return null;
+  return { lost_reason: reason, lost_note: trimmed || null };
+}
+
+export function recordedLostReason(deal: {
+  status?: string | null;
+  lost_reason?: string | null;
+  lost_note?: string | null;
+}): LostReasonInput | null {
+  if (deal.status !== 'lost' || !isLostReason(deal.lost_reason)) return null;
+  return answeredLostReason(deal.lost_reason, deal.lost_note ?? '');
+}

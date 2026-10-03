@@ -808,7 +808,7 @@
         },
         {
           "id": "CAL-011",
-          "rule": "A done or cancelled appointment can be archived and unarchived on web and mobile through POST /api/appointments/archive, which stamps appointments.archived_at for the caller's account only and never archives a scheduled event; Archive done archives every unarchived finished event in view (web: the Month or Week in view, mobile: the whole month shown, loaded in pages), sent in requests of up to 500 so none is left out, and the route refuses a read-only member. How archived events show is one three-way setting with the same modes on web and mobile, Grey out archived by default: Grey out keeps an archived event on the calendar grid (the web month grid, Week and Team views, and mobile's month dots) dimmed and greyed, and off Tasks, the Agenda and mobile's day and Upcoming lists; Hide archived takes it off the grid as well; List archived also lists it in Tasks, the Agenda and mobile's lists. The setting sits in the web calendar's filter row whenever an archived event is filtered in, and in mobile's chip row whenever the month shown or Upcoming holds one. Hide archived is the one exception to CAL-010's cancelled event staying on its day. Reopening clears the stamp, and an event whose status is scheduled is never hidden whichever writer reopened it.",
+          "rule": "A done or cancelled appointment can be archived and unarchived on web and mobile through POST /api/appointments/archive, which stamps appointments.archived_at for the caller's account only and never archives a scheduled event; Archive done archives every unarchived finished event in view (web: the Month or Week in view, mobile: the whole month shown, loaded in pages), sent in requests of up to 500 so none is left out, and the route refuses a read-only member. How archived events show is one three-way setting with the same modes on web and mobile, Grey out archived by default: Grey out keeps an archived event on the calendar grid (the web month grid, Week and Team views, and mobile's month dots) dimmed and greyed, and off Tasks, the Agenda and mobile's day and Upcoming lists; Hide archived takes it off the grid as well; List archived also lists it in Tasks, the Agenda and mobile's lists. The setting sits in the web calendar's filter row whenever an archived event is filtered in, and in mobile's chip row whenever the month shown or Upcoming holds one. It is remembered per user in profiles.calendar_archived_view, so the same choice applies on every browser and on the mobile app: saves run in the order chosen so the last choice is the one kept, the calendar re-reads the setting when it regains focus, and an unknown stored value reads as Grey out. Hide archived is the one exception to CAL-010's cancelled event staying on its day. Reopening clears the stamp, and an event whose status is scheduled is never hidden whichever writer reopened it.",
           "tests": [
             {
               "file": "src/lib/calendar/tasks-view.test.ts",
@@ -832,7 +832,8 @@
             }
           ],
           "guards": [
-            "supabase/migrations/20260929150000_appointments_archived_at.sql"
+            "supabase/migrations/20260929150000_appointments_archived_at.sql",
+            "supabase/migrations/20261001060000_profiles_calendar_archived_view.sql"
           ]
         },
         {
@@ -1455,6 +1456,32 @@
           "guards": [
             "src/app/api/contacts/merge/route.ts",
             "supabase/migrations/20260928050000_merged_enquiry_sources.sql"
+          ]
+        },
+        {
+          "id": "PRP-025",
+          "rule": "A paid Google Maps lookup is bought at most once a month: every address geocode, pin reverse-geocode and showcase area lookup is served from the shared maps_lookup_cache before Google is called, a definitive miss is remembered for a week, and a property whose address Google could not place is stamped geocode_attempted_at and left out of the radius-search self-heal for 30 days instead of being re-geocoded on every search.",
+          "tests": [
+            {
+              "file": "src/lib/maps/lookup-cache.test.ts",
+              "case": "[PRP-025]"
+            },
+            {
+              "file": "src/lib/maps/google-places.test.ts",
+              "case": "[PRP-025]"
+            },
+            {
+              "file": "src/app/api/properties/route.test.ts",
+              "case": "[PRP-025]"
+            },
+            {
+              "file": "src/app/api/public/properties/near/route.test.ts",
+              "case": "[PRP-025]"
+            }
+          ],
+          "guards": [
+            "src/lib/maps/lookup-cache.ts",
+            "supabase/migrations/20261002073439_maps_lookup_cache.sql"
           ]
         }
       ]
@@ -2386,7 +2413,7 @@
         },
         {
           "id": "TXW-025",
-          "rule": "Marking a deal lost asks why, on web (board drag, deal form, workspace header) and mobile (move sheet, deal screen, edit form): one of Price disagreement, Terms disagreement, Owner backed out, Buyer backed out, Legal or document issue, Financing fell through, Bought elsewhere or Other, with a note that Other requires. The deal routes refuse a lost status without a reason (unless the deal was already lost) and any unlisted reason, the reason and note show on the lost deal's card, a deal marked lost carries its reason to its journey branch's drop reason and a journey branch dropped with a reason carries it to its deal, and reopening a deal clears both.",
+          "rule": "Marking a deal lost asks why, on web (board drag, deal form, workspace header) and mobile (move sheet, deal screen, edit form): one of Price disagreement, Terms disagreement, Owner backed out, Buyer backed out, Legal or document issue, Financing fell through, Bought elsewhere or Other, with a note that Other requires. The deal routes refuse a lost status without a reason (unless the deal was already lost) and any unlisted reason, the reason and note show on the lost deal's card, a deal marked lost carries its reason to its journey branch's drop reason and a journey branch dropped with a reason carries it to its deal, and reopening a deal clears both. The web deal form asks once: Mark as Lost uses the reason already picked in the form's inline panel, and with none picked it moves the form to the lost stage and points at that panel instead of opening a second prompt. Moving a deal that is already lost, with a reason on record, to another lost stage (board drag on web, move sheet and deal screen on mobile) keeps that reason instead of asking again.",
           "tests": [
             {
               "file": "src/lib/pipelines/lost-reasons.test.ts",
@@ -2397,6 +2424,69 @@
             "supabase/migrations/20260928093100_deal_lost_reason.sql",
             "supabase/migrations/20260928094000_pipeline_stages_by_type.sql",
             "supabase/migrations/20260928095000_resync_stage_deals.sql"
+          ]
+        },
+        {
+          "id": "TXW-026",
+          "rule": "The Board on web and mobile opens on Focus: it shows only deals whose buyer or listing journey is in the Focus compartment (by the account's team or per-agent Focus setting) and still active on the Journey (not paused, closed or archived), decided once in board_focus_deal_ids for both surfaces, with a Focus / All switch that shows every deal on the pipeline; the stage counts, column totals and stage wheel follow the switch, moving a journey between Focus and Passive refreshes the Board, and while Focus is loading or has failed the Board shows a loading or error state with a way to All rather than every deal. On web each stage column scrolls its own cards inside a bounded height, so a busy stage never stretches the page.",
+          "tests": [
+            {
+              "file": "src/lib/deals/board-focus.test.ts",
+              "case": "[TXW-026]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-026]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261001113322_board_focus_deal_ids.sql",
+            "src/lib/deals/board-focus.ts",
+            "src/components/pipelines/pipeline-board.tsx"
+          ]
+        },
+        {
+          "id": "TXW-027",
+          "rule": "On web the active and successful stages sit on a ring that turns full circle: the focused stage faces the centre with the stages before and after it fanned out on both sides (the last stage sits left of the first), every stage's heading chip rides directly above its own column and turns with it, and the ring turns the same way from a grab anywhere on it, a horizontal trackpad or shift-scroll, a chip, the arrows and the arrow keys, settling on the nearest stage (further after a flick). Dragging a deal flattens the ring so a drop lands where it is seen even while it turns, and holding the deal at either edge keeps turning it a stage at a time.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/stage-wheel.test.ts",
+              "case": "[TXW-027]"
+            }
+          ],
+          "guards": [
+            "src/lib/pipelines/stage-wheel.ts",
+            "src/components/pipelines/stage-wheel.tsx",
+            "src/components/pipelines/pipeline-board.tsx"
+          ]
+        },
+        {
+          "id": "TXW-028",
+          "rule": "An open New Deal or Edit Deal form on the web Board keeps what was typed when the browser tab regains focus or the session token refreshes: those auth events never send the Board back to its full-page loading state or reload its pipeline list; that state shows only while the pipelines first load, when the signed-in user or account actually changes (so another account's board is never left on screen), or while a pipeline's Focus list loads for the first time.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/pipelines/pipelines-content.test.tsx",
+              "case": "[TXW-028]"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/pipelines/pipelines-content.tsx"]
+        },
+        {
+          "id": "TXW-029",
+          "rule": "A deal created on web or mobile (POST /api/deals) lands on the Board's default Focus view at once: the server puts its buyer's journey (or its listing's, when it has no buyer) in Focus, in the team split or the creating agent's own by the account's Focus scope, only for a buyer or listing in the caller's account, and a failed Focus move never fails the creation. The Focus move never reopens a journey, so a deal whose journey is paused, closed or archived stays under All as TXW-026 requires. After any deal save, stage move or delete, from the deal form, the Board or the deal record, both surfaces refresh the Focus board, the transaction records and the dashboard.",
+          "tests": [
+            { "file": "src/lib/deals/new-deal-focus.test.ts", "case": "[TXW-029]" },
+            { "file": "src/app/api/deals/route.test.ts", "case": "[TXW-029]" },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-029]" }
+          ],
+          "guards": [
+            "src/lib/deals/new-deal-focus.ts",
+            "src/lib/journey/compartment-store.ts",
+            "src/app/api/deals/route.ts",
+            "src/lib/deals/board-focus.ts",
+            "src/components/deals/deal-workspace.tsx",
+            "mobile/lib/deal-workspace.ts",
+            "mobile/app/(app)/deal/[id].tsx"
           ]
         }
       ]

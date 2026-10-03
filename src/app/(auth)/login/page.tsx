@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { MessageSquare, UsersRound, Phone, ArrowLeft } from "lucide-react";
+import { reloadTo } from "@/lib/navigation";
 
 export default function LoginPage() {
   return (
@@ -146,9 +147,9 @@ function LoginPageInner() {
     // HTTP request rather than a client-side push which can race with
     // the cookie being committed.
     if (inviteToken) {
-      window.location.href = `/join/${encodeURIComponent(inviteToken)}`;
+      reloadTo(`/join/${encodeURIComponent(inviteToken)}`);
     } else {
-      window.location.href = '/dashboard';
+      reloadTo('/dashboard');
     }
   };
 
@@ -218,9 +219,9 @@ function LoginPageInner() {
 
     console.log('[LOGIN] OTP Session established, navigating...');
     if (inviteToken) {
-      window.location.href = `/join/${encodeURIComponent(inviteToken)}`;
+      reloadTo(`/join/${encodeURIComponent(inviteToken)}`);
     } else {
-      window.location.href = '/dashboard';
+      reloadTo('/dashboard');
     }
   };
 

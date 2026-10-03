@@ -16,7 +16,7 @@
  * anything else falls back to the router as usual.
  */
 
-import type { useRouter } from "next/navigation";
+import type { useRouter } from 'next/navigation';
 
 type AppRouter = ReturnType<typeof useRouter>;
 
@@ -26,7 +26,7 @@ function targetPathname(url: string): string {
 
 function isSamePathname(url: string): boolean {
   return (
-    typeof window !== "undefined" &&
+    typeof window !== 'undefined' &&
     targetPathname(url) === window.location.pathname
   );
 }
@@ -34,7 +34,7 @@ function isSamePathname(url: string): boolean {
 /** push semantics — adds a history entry (tab switches, deep links). */
 export function pushUrl(router: AppRouter, url: string): void {
   if (isSamePathname(url)) {
-    window.history.pushState(null, "", url);
+    window.history.pushState(null, '', url);
   } else {
     router.push(url, { scroll: false });
   }
@@ -43,8 +43,16 @@ export function pushUrl(router: AppRouter, url: string): void {
 /** replace semantics — no history entry (URL-synced filter state). */
 export function replaceUrl(router: AppRouter, url: string): void {
   if (isSamePathname(url)) {
-    window.history.replaceState(null, "", url);
+    window.history.replaceState(null, '', url);
   } else {
     router.replace(url, { scroll: false });
   }
+}
+
+export function reloadTo(url: string): void {
+  const { origin } = window.location;
+  const target = new URL(url, origin);
+  window.location.assign(
+    target.origin === origin ? target : new URL('/', origin)
+  );
 }

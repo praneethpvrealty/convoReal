@@ -17,7 +17,56 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 2 October 2026
+
+- **A deal you create shows up on the Deals board straight away.** The
+  board opens on Focus, which shows only deals whose buyer or listing
+  journey is in Focus, and a new deal's buyer usually was not, so the deal
+  was saved but hidden until you switched to All. Creating a deal on web or
+  mobile now puts its buyer's journey (or its listing's, when there is no
+  buyer) into Focus, for the whole team or just you depending on your
+  Focus setting. A journey you paused, closed or archived stays that way,
+  so a deal on it still sits under All. Saving, editing, moving or
+  deleting a deal also refreshes the Dashboard and Records at once instead
+  of up to 30 seconds later.
+- **A deal you are typing no longer vanishes when you switch tabs.**
+  Coming back to the Deals board from another tab or app, or the session
+  quietly refreshing, sent the board back to its "Loading pipeline"
+  screen, which threw away a half-filled New Deal or Edit Deal form while
+  the panel stayed open. Those refreshes no longer bring the loading
+  screen back or reload the pipeline list.
+- **The Deals board's stage wheel now turns full circle and fills the
+  screen.** The focused stage sits in the centre with the stages before
+  and after it fanned out on both sides, so the last stage stands left of
+  the first instead of leaving half the board empty. Each stage's heading
+  chip rides directly above its own column and turns with it. Turn the
+  wheel by grabbing it anywhere and dragging left or right, with a
+  horizontal trackpad or shift-scroll, by tapping a chip, with the arrows,
+  or with the arrow keys on the chip row; it settles on the nearest stage,
+  further after a flick. Dragging a deal still flattens the wheel so the
+  drop lands where you see it, and holding the deal at either edge keeps
+  turning it a stage at a time. The mobile strip keeps its ends for now
+  (see `FEATURE_ROADMAP.md`).
+- **Google Maps lookups are no longer bought twice.** Address geocodes,
+  map-pin reverse geocodes and showcase area searches are now answered from
+  a shared 30-day cache before Google is called, so the same locality costs
+  one Maps API call a month across every account and no longer costs one
+  per cold start. A property whose address Google cannot place is left alone
+  by the radius-search self-heal for 30 days instead of being re-geocoded on
+  every search. **Migration required:**
+  `20261002073439_maps_lookup_cache.sql`.
+- **A shorter reply after Mark cold on a follow-up card.** When the lead
+  stays hot because another enquiry is still open, the agent's WhatsApp now
+  gets one line — the closed listing's code, then the still-open listings
+  it stays hot through — instead of a multi-line paragraph repeating every
+  title.
+
 #### 1 October 2026
+
+- **The archived setting is remembered for each user.** Whichever of
+  **Grey out archived**, **Hide archived** or **List archived** you pick is
+  saved to your profile and applies on every browser and on the mobile app.
+  **Migration required:** `20261001060000_profiles_calendar_archived_view.sql`.
 
 - **Archived events are greyed out on the calendar, with an option to hide
   them.** An archived event now stays on its day in the month grid, the Week

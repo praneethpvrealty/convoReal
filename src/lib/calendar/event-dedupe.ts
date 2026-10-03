@@ -86,7 +86,9 @@ export const SAME_SUBJECT = 0.67;
  *  the same day are candidates; the same wall-clock hour is not
  *  required, because the second telling often rounds the time. */
 export function istDayKey(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  return new Date(iso).toLocaleDateString('en-CA', {
+    timeZone: 'Asia/Kolkata',
+  });
 }
 
 export interface ExistingRow {
@@ -114,7 +116,10 @@ function normalizedTranscript(value?: string | null): string {
 
 function sameTranscript(query: DuplicateQuery, row: ExistingRow): boolean {
   const queryTranscript = normalizedTranscript(query.transcript);
-  return !!queryTranscript && queryTranscript === normalizedTranscript(row.transcript);
+  return (
+    !!queryTranscript &&
+    queryTranscript === normalizedTranscript(row.transcript)
+  );
 }
 
 /** Two rows that each name a party, naming different ones, are about
@@ -144,7 +149,10 @@ function partiesConflict(query: DuplicateQuery, row: ExistingRow): boolean {
  * restatement wins over a longer entry that merely contains it rather
  * than whichever row the database happened to return first.
  */
-export function findDuplicate(query: DuplicateQuery, rows: ExistingRow[]): ExistingRow | null {
+export function findDuplicate(
+  query: DuplicateQuery,
+  rows: ExistingRow[]
+): ExistingRow | null {
   const queryDay = query.when ? istDayKey(query.when) : null;
   const queryLength = titleTokens(query.title).length;
 
@@ -166,7 +174,10 @@ export function findDuplicate(query: DuplicateQuery, rows: ExistingRow[]): Exist
     if (similarity < SAME_SUBJECT) continue;
 
     const distance = Math.abs(titleTokens(row.title).length - queryLength);
-    if (similarity > bestScore || (similarity === bestScore && distance < bestDistance)) {
+    if (
+      similarity > bestScore ||
+      (similarity === bestScore && distance < bestDistance)
+    ) {
       best = row;
       bestScore = similarity;
       bestDistance = distance;

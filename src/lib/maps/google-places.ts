@@ -8,7 +8,19 @@
  * Uses the new Places API (places.googleapis.com/v1). Autocomplete
  * calls carry a session token so Google bills a typing session +
  * details pick as one session instead of per keystroke.
+ *
+ * Geocoding and reverse geocoding go through maps_lookup_cache
+ * (lookup-cache.ts) first, so a repeated address or pin costs one call
+ * a month across every account. A definitive miss (ZERO_RESULTS)
+ * resolves to null and is cached too; any other failure throws so it is
+ * neither cached nor mistaken for "no such place".
  */
+
+import {
+  cachedLookup,
+  coordinateLookupKey,
+  normalizeLookupKey,
+} from '@/lib/maps/lookup-cache';
 
 const FETCH_TIMEOUT_MS = 6000;
 
@@ -19,12 +31,17 @@ export function hasGoogleMapsKey(): boolean {
 function apiKey(): string {
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) {
-    throw new Error('GOOGLE_MAPS_API_KEY is not configured. Add it to .env.local.');
+    throw new Error(
+      'GOOGLE_MAPS_API_KEY is not configured. Add it to .env.local.'
+    );
   }
   return key;
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {}
+): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -52,37 +69,42 @@ export async function placesAutocomplete(
   sessionToken: string,
   options: AutocompleteOptions = {}
 ): Promise<PlaceSuggestion[]> {
-  const res = await fetchWithTimeout('https://places.googleapis.com/v1/places:autocomplete', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': apiKey(),
-    },
-    body: JSON.stringify({
-      input,
-      sessionToken,
-      includedRegionCodes: ['in'],
-      languageCode: 'en',
-      ...(options.regionsOnly ? { includedPrimaryTypes: ['(regions)'] } : {}),
-      ...(options.bias
-        ? {
-            locationBias: {
-              circle: {
-                center: {
-                  latitude: options.bias.latitude,
-                  longitude: options.bias.longitude,
+  const res = await fetchWithTimeout(
+    'https://places.googleapis.com/v1/places:autocomplete',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey(),
+      },
+      body: JSON.stringify({
+        input,
+        sessionToken,
+        includedRegionCodes: ['in'],
+        languageCode: 'en',
+        ...(options.regionsOnly ? { includedPrimaryTypes: ['(regions)'] } : {}),
+        ...(options.bias
+          ? {
+              locationBias: {
+                circle: {
+                  center: {
+                    latitude: options.bias.latitude,
+                    longitude: options.bias.longitude,
+                  },
+                  radius: Math.min(50_000, options.bias.radiusKm * 1000),
                 },
-                radius: Math.min(50_000, options.bias.radiusKm * 1000),
               },
-            },
-          }
-        : {}),
-    }),
-  });
+            }
+          : {}),
+      }),
+    }
+  );
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `Places autocomplete failed: ${res.status}`);
+    throw new Error(
+      err?.error?.message || `Places autocomplete failed: ${res.status}`
+    );
   }
 
   const data = (await res.json()) as {
@@ -121,21 +143,29 @@ export interface ResolvedPlace {
   state: string | null;
 }
 
-export async function placeDetails(placeId: string, sessionToken?: string): Promise<ResolvedPlace> {
-  const url = new URL(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`);
+export async function placeDetails(
+  placeId: string,
+  sessionToken?: string
+): Promise<ResolvedPlace> {
+  const url = new URL(
+    `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`
+  );
   url.searchParams.set('languageCode', 'en');
   if (sessionToken) url.searchParams.set('sessionToken', sessionToken);
 
   const res = await fetchWithTimeout(url.toString(), {
     headers: {
       'X-Goog-Api-Key': apiKey(),
-      'X-Goog-FieldMask': 'id,displayName,formattedAddress,location,addressComponents',
+      'X-Goog-FieldMask':
+        'id,displayName,formattedAddress,location,addressComponents',
     },
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `Place details failed: ${res.status}`);
+    throw new Error(
+      err?.error?.message || `Place details failed: ${res.status}`
+    );
   }
 
   const data = (await res.json()) as {
@@ -146,12 +176,16 @@ export async function placeDetails(placeId: string, sessionToken?: string): Prom
     addressComponents?: Array<{ longText?: string; types?: string[] }>;
   };
 
-  if (data.location?.latitude === undefined || data.location?.longitude === undefined) {
+  if (
+    data.location?.latitude === undefined ||
+    data.location?.longitude === undefined
+  ) {
     throw new Error('Place details response missing coordinates');
   }
 
   const component = (type: string) =>
-    data.addressComponents?.find((c) => c.types?.includes(type))?.longText || null;
+    data.addressComponents?.find((c) => c.types?.includes(type))?.longText ||
+    null;
 
   return {
     place_id: data.id,
@@ -160,7 +194,9 @@ export async function placeDetails(placeId: string, sessionToken?: string): Prom
     latitude: data.location.latitude,
     longitude: data.location.longitude,
     sublocality:
-      component('sublocality_level_1') || component('sublocality') || component('neighborhood'),
+      component('sublocality_level_1') ||
+      component('sublocality') ||
+      component('neighborhood'),
     city: component('locality'),
     state: component('administrative_area_level_1'),
   };
@@ -191,6 +227,17 @@ export async function reverseGeocode(
   latitude: number,
   longitude: number
 ): Promise<ReverseGeocodedPlace | null> {
+  return cachedLookup(
+    'reverse-geocode',
+    coordinateLookupKey(latitude, longitude),
+    () => fetchReverseGeocode(latitude, longitude)
+  );
+}
+
+async function fetchReverseGeocode(
+  latitude: number,
+  longitude: number
+): Promise<ReverseGeocodedPlace | null> {
   const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
   url.searchParams.set('latlng', `${latitude},${longitude}`);
   url.searchParams.set('language', 'en');
@@ -198,10 +245,11 @@ export async function reverseGeocode(
   url.searchParams.set('key', apiKey());
 
   const res = await fetchWithTimeout(url.toString());
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error(`Reverse geocode failed: ${res.status}`);
 
   const data = (await res.json()) as {
     status?: string;
+    error_message?: string;
     results?: Array<{
       place_id?: string;
       formatted_address?: string;
@@ -211,25 +259,42 @@ export async function reverseGeocode(
   };
 
   const results = data.results || [];
-  if (data.status !== 'OK' || results.length === 0) return null;
+  if (
+    data.status === 'ZERO_RESULTS' ||
+    (data.status === 'OK' && results.length === 0)
+  ) {
+    return null;
+  }
+  if (data.status !== 'OK') {
+    throw new Error(
+      data.error_message || `Reverse geocode failed: ${data.status}`
+    );
+  }
 
   // Results run most-specific first, but the most specific one is often a
   // plus code with a thin component list — scan them all for each part.
   const component = (...types: string[]): string | null => {
     for (const type of types) {
       for (const result of results) {
-        const match = result.address_components?.find((c) => c.types?.includes(type));
+        const match = result.address_components?.find((c) =>
+          c.types?.includes(type)
+        );
         if (match?.long_name) return match.long_name;
       }
     }
     return null;
   };
 
-  const named = results.find((r) => !r.types?.includes('plus_code')) || results[0];
+  const named =
+    results.find((r) => !r.types?.includes('plus_code')) || results[0];
 
   return {
     formatted_address: named.formatted_address || null,
-    sublocality: component('sublocality_level_1', 'sublocality', 'neighborhood'),
+    sublocality: component(
+      'sublocality_level_1',
+      'sublocality',
+      'neighborhood'
+    ),
     city: component('locality', 'postal_town', 'administrative_area_level_2'),
     state: component('administrative_area_level_1'),
     place_id: named.place_id || null,
@@ -241,17 +306,28 @@ export async function reverseGeocode(
  * server-side save fallback and the backfill script for properties
  * whose location was typed rather than picked from autocomplete.
  */
-export async function geocodeAddress(address: string): Promise<GeocodedLocation | null> {
+export async function geocodeAddress(
+  address: string
+): Promise<GeocodedLocation | null> {
+  return cachedLookup('geocode', normalizeLookupKey(address), () =>
+    fetchGeocodeAddress(address)
+  );
+}
+
+async function fetchGeocodeAddress(
+  address: string
+): Promise<GeocodedLocation | null> {
   const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
   url.searchParams.set('address', address);
   url.searchParams.set('region', 'in');
   url.searchParams.set('key', apiKey());
 
   const res = await fetchWithTimeout(url.toString());
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error(`Geocode failed: ${res.status}`);
 
   const data = (await res.json()) as {
     status?: string;
+    error_message?: string;
     results?: Array<{
       place_id?: string;
       formatted_address?: string;
@@ -259,9 +335,14 @@ export async function geocodeAddress(address: string): Promise<GeocodedLocation 
     }>;
   };
 
+  if (data.status === 'ZERO_RESULTS') return null;
+  if (data.status !== 'OK') {
+    throw new Error(data.error_message || `Geocode failed: ${data.status}`);
+  }
+
   const first = data.results?.[0];
   const loc = first?.geometry?.location;
-  if (data.status !== 'OK' || !first || loc?.lat === undefined || loc?.lng === undefined) {
+  if (!first || loc?.lat === undefined || loc?.lng === undefined) {
     return null;
   }
 

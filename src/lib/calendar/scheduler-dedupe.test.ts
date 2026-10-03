@@ -9,15 +9,23 @@ const updates: { table: string; row: Record<string, unknown> }[] = [];
 let tables: Record<string, Record<string, unknown>[]> = {};
 
 vi.mock('@/lib/calendar/event-parse', async () => {
-  const actual = await vi.importActual<typeof import('./event-parse')>('./event-parse');
-  return { ...actual, parseEventsFromInput: (...a: unknown[]) => parseEventsFromInput(...a) };
+  const actual =
+    await vi.importActual<typeof import('./event-parse')>('./event-parse');
+  return {
+    ...actual,
+    parseEventsFromInput: (...a: unknown[]) => parseEventsFromInput(...a),
+  };
 });
 
-vi.mock('@/lib/credits/burn', () => ({ burnCredits: (...a: unknown[]) => burnCredits(...a) }));
+vi.mock('@/lib/credits/burn', () => ({
+  burnCredits: (...a: unknown[]) => burnCredits(...a),
+}));
 vi.mock('@/lib/whatsapp/bot-message-target', () => ({
   recordBotTarget: (...a: unknown[]) => recordBotTarget(...a),
 }));
-vi.mock('@/lib/notifications/create', () => ({ createNotification: vi.fn(async () => ({})) }));
+vi.mock('@/lib/notifications/create', () => ({
+  createNotification: vi.fn(async () => ({})),
+}));
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   sendTextMessage: (...a: unknown[]) => sendTextMessage(...a),
   getMediaUrl: vi.fn(),
@@ -99,7 +107,14 @@ beforeEach(() => {
   burnCredits.mockReset().mockResolvedValue({ success: true });
   sendTextMessage.mockReset().mockResolvedValue({ messageId: 'wamid.card' });
   recordBotTarget.mockReset().mockResolvedValue(undefined);
-  tables = { contacts: [], properties: [], liaisons: [], profiles: [], todos: [], appointments: [] };
+  tables = {
+    contacts: [],
+    properties: [],
+    liaisons: [],
+    profiles: [],
+    todos: [],
+    appointments: [],
+  };
 });
 
 describe('re-dictating a to-do', () => {
@@ -116,7 +131,10 @@ describe('re-dictating a to-do', () => {
     ];
     parseEventsFromInput.mockResolvedValue([draft()]);
 
-    await tryHandleOwnerScheduling({ ...baseParams, contentText: 'remind me to follow up with the advocate' });
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText: 'remind me to follow up with the advocate',
+    });
 
     expect(inserts.filter((i) => i.table === 'todos')).toEqual([]);
     expect(updates.filter((u) => u.table === 'todos')).toHaveLength(1);
@@ -136,7 +154,10 @@ describe('re-dictating a to-do', () => {
     ];
     parseEventsFromInput.mockResolvedValue([draft()]);
 
-    await tryHandleOwnerScheduling({ ...baseParams, contentText: 'remind me to follow up with the advocate' });
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText: 'remind me to follow up with the advocate',
+    });
 
     expect(inserts.filter((i) => i.table === 'todos')).toHaveLength(1);
     expect(updates.filter((u) => u.table === 'todos')).toEqual([]);
@@ -155,7 +176,10 @@ describe('re-dictating a to-do', () => {
     ];
     parseEventsFromInput.mockResolvedValue([draft()]);
 
-    await tryHandleOwnerScheduling({ ...baseParams, contentText: 'remind me to follow up with the advocate' });
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText: 'remind me to follow up with the advocate',
+    });
 
     expect(updates.filter((u) => u.table === 'todos')).toEqual([]);
     expect(inserts.filter((i) => i.table === 'todos')).toHaveLength(1);
@@ -173,7 +197,10 @@ describe('re-dictating a to-do', () => {
     ];
     parseEventsFromInput.mockResolvedValue([draft()]);
 
-    await tryHandleOwnerScheduling({ ...baseParams, contentText: 'remind me to follow up with the advocate' });
+    await tryHandleOwnerScheduling({
+      ...baseParams,
+      contentText: 'remind me to follow up with the advocate',
+    });
 
     expect(recordBotTarget).toHaveBeenCalledTimes(1);
     expect(recordBotTarget.mock.calls[0][0]).toMatchObject({
@@ -198,7 +225,11 @@ describe('re-dictating an appointment', () => {
   it('corrects the one already on that day', async () => {
     tables.appointments = [scheduled()];
     parseEventsFromInput.mockResolvedValue([
-      draft({ intent: 'schedule', title: 'Meeting with the advocate', start_time: '2026-08-17T16:00' }),
+      draft({
+        intent: 'schedule',
+        title: 'Meeting with the advocate',
+        start_time: '2026-08-17T16:00',
+      }),
     ]);
 
     await tryHandleOwnerScheduling({
@@ -215,9 +246,15 @@ describe('re-dictating an appointment', () => {
   });
 
   it('keeps the same meeting on another day as its own event', async () => {
-    tables.appointments = [scheduled({ start_time: '2026-08-21T04:30:00.000Z' })];
+    tables.appointments = [
+      scheduled({ start_time: '2026-08-21T04:30:00.000Z' }),
+    ];
     parseEventsFromInput.mockResolvedValue([
-      draft({ intent: 'schedule', title: 'Meeting with the advocate', start_time: '2026-08-17T16:00' }),
+      draft({
+        intent: 'schedule',
+        title: 'Meeting with the advocate',
+        start_time: '2026-08-17T16:00',
+      }),
     ]);
 
     await tryHandleOwnerScheduling({
@@ -231,19 +268,22 @@ describe('re-dictating an appointment', () => {
   });
 
   it('[CAL-003] files a repeated reschedule as one update when participant resolution changes', async () => {
-    const transcript = 'Meeting with Prabha, KP Anand and Subramani tomorrow at noon.';
+    const transcript =
+      'Meeting with Prabha, KP Anand and Subramani tomorrow at noon.';
     tables.contacts = [
       { id: 'contact-prabhakar', name: 'Prabhakar', phone: '+919876543209' },
       { id: 'contact-kp', name: 'KP Anand', phone: '+919876543210' },
       { id: 'contact-subramani', name: 'Subramani', phone: '+919876543211' },
       { id: 'contact-prabha', name: 'Prabha Rao', phone: '+919876543212' },
     ];
-    tables.appointments = [scheduled({
-      title: 'Meeting with property owner Prabha and buyer KP Anand',
-      start_time: '2026-09-15T06:30:00.000Z',
-      contact_id: 'contact-kp',
-      transcript,
-    })];
+    tables.appointments = [
+      scheduled({
+        title: 'Meeting with property owner Prabha and buyer KP Anand',
+        start_time: '2026-09-15T06:30:00.000Z',
+        contact_id: 'contact-kp',
+        transcript,
+      }),
+    ];
     const drafts = [
       draft({
         intent: 'schedule',
@@ -258,11 +298,13 @@ describe('re-dictating an appointment', () => {
       value: {
         drafts,
         completedItems: [],
-        updatedItems: [{
-          id: 'appt-existing',
-          type: 'appointment',
-          start_time: '2026-09-15T12:00',
-        }],
+        updatedItems: [
+          {
+            id: 'appt-existing',
+            type: 'appointment',
+            start_time: '2026-09-15T12:00',
+          },
+        ],
         transcript,
       },
     });
@@ -271,7 +313,9 @@ describe('re-dictating an appointment', () => {
     await tryHandleOwnerScheduling({ ...baseParams, contentText: transcript });
 
     expect(inserts.filter((item) => item.table === 'appointments')).toEqual([]);
-    const appointmentUpdates = updates.filter((item) => item.table === 'appointments');
+    const appointmentUpdates = updates.filter(
+      (item) => item.table === 'appointments'
+    );
     expect(appointmentUpdates.at(-1)?.row).toMatchObject({
       contact_id: 'contact-kp',
       contact_ids: ['contact-prabha', 'contact-kp', 'contact-subramani'],
@@ -340,7 +384,8 @@ describe('re-dictating an appointment', () => {
 
     await tryHandleOwnerScheduling({
       ...baseParams,
-      contentText: 'Meeting with Prabha, KP Anand and Subramani tomorrow at noon',
+      contentText:
+        'Meeting with Prabha, KP Anand and Subramani tomorrow at noon',
     });
 
     const inserted = inserts.find((item) => item.table === 'appointments')?.row;
@@ -352,7 +397,9 @@ describe('re-dictating an appointment', () => {
   });
 
   it('surfaces a named participant that cannot be matched', async () => {
-    tables.contacts = [{ id: 'contact-kp', name: 'KP Anand', phone: '+919876543210' }];
+    tables.contacts = [
+      { id: 'contact-kp', name: 'KP Anand', phone: '+919876543210' },
+    ];
     parseEventsFromInput.mockResolvedValue([
       draft({
         intent: 'schedule',

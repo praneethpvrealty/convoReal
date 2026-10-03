@@ -124,6 +124,18 @@ _Answer and qualify phone leads with Sarvam Voice Agents — telephony is the on
 
 ---
 
+### Deferred: the mobile stage wheel turning full circle
+
+The web Deals board's stage wheel is a ring: the last stage sits left of the
+first, each heading chip turns with its column, and a grab anywhere on it, a
+horizontal scroll, a chip, the arrows or the arrow keys all turn it
+(TXW-027). The mobile strip (`mobile/components/stage-wheel.tsx`) already
+swipes, centres the active stage and wraps through its arrows, but it is a
+native snapping scroll view that stops at either end, so the first stage
+shows nothing on its left. Closing the gap means driving its offsets from
+the same ring maths (`wheelSlotOffset`) through a pan gesture instead of
+the scroll view. Deferred as a separate mobile change.
+
 ### Deferred: dictating a teammate update from web or mobile
 
 _A §2.8 gap, stated rather than silent._

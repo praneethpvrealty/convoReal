@@ -4,6 +4,10 @@
 // Which screens a user pins to their Overview dashboard, in order.
 // ------------------------------------------------------------------
 
+/** Invalidation prefix for every widget query — the Overview screen's
+ *  pull-to-refresh invalidates ['home-widget'] to refresh them all. */
+export const HOME_WIDGET_QUERY_KEY = 'home-widget';
+
 export const WIDGET_IDS = [
   'inbox',
   'calendar',

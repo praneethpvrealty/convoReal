@@ -42,12 +42,15 @@ describe('isPlaceholderLeadName', () => {
     expect(isPlaceholderLeadName('99acres User')).toBe(true);
     expect(isPlaceholderLeadName('User')).toBe(true);
     expect(isPlaceholderLeadName('Unknown')).toBe(true);
+    expect(isPlaceholderLeadName('Mbuser')).toBe(true);
+    expect(isPlaceholderLeadName('MB User')).toBe(true);
   });
 
   it('does not mistake a real name that merely contains one', () => {
     expect(isPlaceholderLeadName('Guest Rao')).toBe(false);
     expect(isPlaceholderLeadName('Omi NA')).toBe(false);
     expect(isPlaceholderLeadName('Housing Kumar')).toBe(false);
+    expect(isPlaceholderLeadName('Mbusera')).toBe(false);
   });
 });
 

@@ -2789,6 +2789,73 @@ describe('[TXW-016] the transaction index reads the same on both surfaces', () =
     ).toBe(false);
   });
 
+  it('[TXW-026] filters the Board to Focus journeys through one database rule on both surfaces', () => {
+    const webBoard = webSource(
+      'app/(dashboard)/pipelines/pipelines-content.tsx'
+    );
+    for (const source of [webBoard, mobileList]) {
+      expect(source).toContain("useState<BoardScope>('focus')");
+      expect(source).toContain("rpc('board_focus_deal_ids'");
+      expect(source).toContain('[BOARD_FOCUS_QUERY_KEY, accountId,');
+    }
+    const webFocus = webSource('lib/deals/board-focus.ts');
+    for (const line of [
+      "{ id: 'focus', label: 'Focus' },",
+      "{ id: 'all', label: 'All' },",
+      "export const BOARD_FOCUS_QUERY_KEY = 'board-focus';",
+      "if (scope === 'all') return [...deals];",
+      'if (!focusIds) return [];',
+      'return deals.filter((deal) => focus.has(deal.id));',
+    ]) {
+      expect(webFocus).toContain(line);
+      expect(mobileVocab, `mobile drifted at: ${line}`).toContain(line);
+    }
+    expect(mobileVocab).not.toContain('isFocusedDeal');
+    expect(mobileSource('app/(app)/journey.tsx')).toContain(
+      'queryKey: [BOARD_FOCUS_QUERY_KEY]'
+    );
+  });
+
+  it('[TXW-029] refreshes the Focus board, records and dashboard after every deal save on both surfaces', () => {
+    const webKeys = webSource('lib/deals/board-focus.ts');
+    for (const line of [
+      '[BOARD_FOCUS_QUERY_KEY],',
+      "['dashboard'],",
+      "['transaction-workspace-index'],",
+    ]) {
+      expect(webKeys).toContain(line);
+    }
+    for (const line of [
+      "['deals'],",
+      '[BOARD_FOCUS_QUERY_KEY],',
+      "['transaction-index'],",
+      "['overview'],",
+      '[HOME_WIDGET_QUERY_KEY],',
+    ]) {
+      expect(mobileVocab).toContain(line);
+    }
+    expect(
+      webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
+    ).toContain('onSaved={handleDealSaved}');
+    expect(
+      mobileSource('app/(app)/deal-edit.tsx').match(
+        /for \(const queryKey of DEAL_SAVED_QUERY_KEYS\)/g
+      )
+    ).toHaveLength(2);
+    for (const source of [
+      mobileSource('app/(app)/deals.tsx'),
+      mobileSource('app/(app)/deal/[id].tsx'),
+      webSource('components/deals/deal-workspace.tsx'),
+    ]) {
+      expect(source).toContain('DEAL_SAVED_QUERY_KEYS.map((queryKey)');
+    }
+    expect(
+      webSource('app/(dashboard)/pipelines/pipelines-content.tsx').match(
+        /for \(const queryKey of DEAL_SAVED_QUERY_KEYS\)/g
+      )
+    ).toHaveLength(3);
+  });
+
   it('titles rows by buyer and property and lists only closing records', () => {
     for (const source of [webIndex, mobileList]) {
       expect(source).toContain('transactionTitle(');
@@ -3920,8 +3987,23 @@ describe('[CAL-011] done and cancelled events are archived the same way on both 
       'withoutArchivedAppointments(filteredAppointments, archivedOnCalendar(archivedView))'
     );
     expect(mobileCalendar).toContain('archivedOnCalendar(archivedView)');
-    expect(webCalendar).toContain('useState<ArchivedView>("greyed")');
-    expect(mobileCalendar).toContain("useState<ArchivedView>('greyed')");
+    expect(webCalendar).toContain(
+      'const archivedView = archivedViewQuery.data ?? "greyed";'
+    );
+    expect(mobileCalendar).toContain(
+      "const archivedView = archivedViewQuery.data ?? 'greyed';"
+    );
+    for (const source of [webCalendar, mobileCalendar]) {
+      expect(source).toContain(
+        'return toArchivedView(data?.calendar_archived_view);'
+      );
+      expect(source).toContain('.update({ calendar_archived_view: view })');
+      expect(source).toContain(
+        'archivedViewWrites.current = archivedViewWrites.current.then(async () => {'
+      );
+      expect(source).toContain('if (write === archivedViewLatest.current)');
+    }
+    expect(mobileCalendar).toContain('void refetchArchivedView();');
     expect(webCalendar).toContain(
       'isArchivedAppointment(appt) && ARCHIVED_EVENT_CHIP'
     );

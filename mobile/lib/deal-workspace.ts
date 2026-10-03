@@ -1,3 +1,5 @@
+import { HOME_WIDGET_QUERY_KEY } from './home-widgets';
+
 /**
  * Invoice and deal-document vocabulary, shared by the screen and the
  * API client beside it.
@@ -1095,4 +1097,34 @@ export function sortIndexRows<T extends TransactionIndexDates>(
     }
     return b.updated_at.localeCompare(a.updated_at);
   });
+}
+
+/** Mirrored from src/lib/deals/board-focus.ts; guarded by mobile-parity.test.ts.
+ *  Which deals are in Focus is decided by board_focus_deal_ids. */
+export type BoardScope = 'focus' | 'all';
+
+export const BOARD_SCOPES: readonly { id: BoardScope; label: string }[] = [
+  { id: 'focus', label: 'Focus' },
+  { id: 'all', label: 'All' },
+];
+
+export const BOARD_FOCUS_QUERY_KEY = 'board-focus';
+
+export const DEAL_SAVED_QUERY_KEYS: readonly (readonly string[])[] = [
+  ['deals'],
+  [BOARD_FOCUS_QUERY_KEY],
+  ['transaction-index'],
+  ['overview'],
+  [HOME_WIDGET_QUERY_KEY],
+];
+
+export function boardDeals<T extends { id: string }>(
+  deals: readonly T[],
+  scope: BoardScope,
+  focusIds: readonly string[] | null | undefined
+): T[] {
+  if (scope === 'all') return [...deals];
+  if (!focusIds) return [];
+  const focus = new Set(focusIds);
+  return deals.filter((deal) => focus.has(deal.id));
 }

@@ -19,11 +19,14 @@ export interface LinkableContact {
  * property they inquired about, and a resolved property pulls in
  * the contact linked to it. Never overrides a side that is set.
  */
-export function autoLinkContactProperty<C extends LinkableContact, P extends { id: string }>(
+export function autoLinkContactProperty<
+  C extends LinkableContact,
+  P extends { id: string },
+>(
   contact: C | null,
   property: P | null,
   contacts: C[],
-  properties: P[],
+  properties: P[]
 ): { contact: C | null; property: P | null } {
   if (contact && !property && contact.last_inquired_property_id) {
     const linkedPropertyId = contact.last_inquired_property_id;
@@ -31,22 +34,29 @@ export function autoLinkContactProperty<C extends LinkableContact, P extends { i
   }
   if (property && !contact) {
     const linkedPropertyId = property.id;
-    contact = contacts.find((c) => c.last_inquired_property_id === linkedPropertyId) || null;
+    contact =
+      contacts.find((c) => c.last_inquired_property_id === linkedPropertyId) ||
+      null;
   }
   return { contact, property };
 }
 
 /** Multi-contact pickers: the first selected contact whose inquiry
  *  maps to a property we actually know about, with that property. */
-export function linkedPropertyForContacts<C extends LinkableContact, P extends { id: string }>(
+export function linkedPropertyForContacts<
+  C extends LinkableContact,
+  P extends { id: string },
+>(
   selectedIds: string[],
   contacts: C[],
-  properties: P[],
+  properties: P[]
 ): { contact: C; property: P } | null {
   for (const id of selectedIds) {
     const contact = contacts.find((c) => c.id === id);
     if (!contact?.last_inquired_property_id) continue;
-    const property = properties.find((p) => p.id === contact.last_inquired_property_id);
+    const property = properties.find(
+      (p) => p.id === contact.last_inquired_property_id
+    );
     if (property) return { contact, property };
   }
   return null;
@@ -55,7 +65,9 @@ export function linkedPropertyForContacts<C extends LinkableContact, P extends {
 /** Property pickers: the contact who inquired about this property. */
 export function linkedContactForProperty<C extends LinkableContact>(
   propertyId: string,
-  contacts: C[],
+  contacts: C[]
 ): C | null {
-  return contacts.find((c) => c.last_inquired_property_id === propertyId) || null;
+  return (
+    contacts.find((c) => c.last_inquired_property_id === propertyId) || null
+  );
 }

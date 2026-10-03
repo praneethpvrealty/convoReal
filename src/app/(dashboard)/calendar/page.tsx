@@ -89,6 +89,7 @@ import {
   TASK_SORT_MODES,
   withoutArchivedAppointments,
   type AppointmentStatus,
+  toArchivedView,
   type ArchivedView,
   type TaskSortMode,
 } from "@/lib/calendar/tasks-view";
@@ -214,7 +215,22 @@ export default function CalendarPage() {
 
   // Tasks list under the calendar (CAL-010)
   const [tasksOpen, setTasksOpen] = useState(true);
-  const [archivedView, setArchivedView] = useState<ArchivedView>("greyed");
+  const archivedViewWrites = useRef<Promise<void>>(Promise.resolve());
+  const archivedViewLatest = useRef(0);
+  const archivedViewQuery = useQuery({
+    queryKey: ["calendar-archived-view", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("calendar_archived_view")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return toArchivedView(data?.calendar_archived_view);
+    },
+  });
+  const archivedView = archivedViewQuery.data ?? "greyed";
   const [taskSort, setTaskSort] = useState<TaskSortMode>("upcoming");
   const [taskBusyKey, setTaskBusyKey] = useState<string | null>(null);
 
@@ -553,6 +569,22 @@ export default function CalendarPage() {
       }
       setTaskBusyKey(null);
     }
+  };
+  const changeArchivedView = (view: ArchivedView) => {
+    if (!user?.id) return;
+    const key = ["calendar-archived-view", user.id];
+    void queryClient.cancelQueries({ queryKey: key });
+    queryClient.setQueryData(key, view);
+    const write = ++archivedViewLatest.current;
+    archivedViewWrites.current = archivedViewWrites.current.then(async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({ calendar_archived_view: view })
+        .eq("user_id", key[1])
+        .select("id");
+      if (error || !data?.length) toast.error("Could not save the archived setting");
+      if (write === archivedViewLatest.current) await queryClient.invalidateQueries({ queryKey: key });
+    });
   };
   const archiveAppointment = (appt: CalendarEvent, archived: boolean) =>
     archiveAppointments([appt.id], archived, appt.id);
@@ -1220,7 +1252,7 @@ export default function CalendarPage() {
                 <Archive className="h-2.5 w-2.5" />
                 <select
                   value={archivedView}
-                  onChange={(e) => setArchivedView(e.target.value as ArchivedView)}
+                  onChange={(e) => changeArchivedView(toArchivedView(e.target.value))}
                   aria-label={`Archived events (${calendarAppointments.archivedCount})`}
                   title="Grey out keeps archived events on the calendar, dimmed; Hide removes them; List also shows them in Tasks and the Agenda"
                   className="bg-transparent text-[10px] font-semibold text-slate-300 focus:outline-none cursor-pointer"

@@ -5,12 +5,53 @@ import { describe, expect, it } from 'vitest';
 
 import {
   LOST_REASONS,
+  answeredLostReason,
+  recordedLostReason,
   lostReasonLabel,
   lostReasonMissing,
   parseLostReason,
 } from './lost-reasons';
 
 describe('[TXW-025] lost reasons', () => {
+  it('reuses a reason already answered in the deal form instead of asking again', () => {
+    expect(answeredLostReason('Owner backed out', '  W&B dispute ')).toEqual({
+      lost_reason: 'Owner backed out',
+      lost_note: 'W&B dispute',
+    });
+    expect(answeredLostReason('Price disagreement', '')).toEqual({
+      lost_reason: 'Price disagreement',
+      lost_note: null,
+    });
+    expect(answeredLostReason(null, 'note')).toBeNull();
+    expect(answeredLostReason('Other', '   ')).toBeNull();
+  });
+
+  it('keeps the recorded reason when a lost deal moves to another lost stage', () => {
+    expect(
+      recordedLostReason({
+        status: 'lost',
+        lost_reason: 'Buyer backed out',
+        lost_note: 'loan',
+      })
+    ).toEqual({ lost_reason: 'Buyer backed out', lost_note: 'loan' });
+    expect(
+      recordedLostReason({ status: 'open', lost_reason: 'Buyer backed out' })
+    ).toBeNull();
+    expect(
+      recordedLostReason({ status: 'lost', lost_reason: null })
+    ).toBeNull();
+    expect(
+      recordedLostReason({ status: 'lost', lost_reason: 'Not listed' })
+    ).toBeNull();
+    expect(
+      recordedLostReason({
+        status: 'lost',
+        lost_reason: 'Other',
+        lost_note: '',
+      })
+    ).toBeNull();
+  });
+
   it('accepts a listed reason with an optional note', () => {
     expect(parseLostReason({ lost_reason: 'Price disagreement' })).toEqual({
       ok: true,
