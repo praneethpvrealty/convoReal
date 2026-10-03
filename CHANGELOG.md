@@ -32,6 +32,15 @@ than a written entry. Newest first.
   create property records", a filtered list names the tab and the filters
   that match nothing and offers Clear filters, and an empty Review or
   Archived tab explains what lands there.
+- **Portal-ad mismatches are easier to read and fix.** The banner on
+  Inventory is now an amber warning that says how many portal ads don't
+  match your listings, and **Review** lists each one with **Update portal
+  listing** and **Open listing**, so you can fix it in one step instead of
+  hunting for the property. The same change is on mobile.
+- **An expired Meta connection is impossible to miss on Ads.** The warning
+  was dark red on near-black; it is now an amber banner with a **Reconnect
+  Meta** button, and Spend, Reach, Chats started and Cost/lead are marked as
+  last-sync figures so a ₹0 there is not read as current.
 
 #### 2 October 2026
 

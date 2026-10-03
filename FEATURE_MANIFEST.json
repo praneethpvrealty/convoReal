@@ -1521,6 +1521,35 @@
             "src/lib/inventory/list-scope.ts",
             "src/components/inventory/inventory-empty-state.tsx"
           ]
+        },
+        {
+          "id": "PRP-028",
+          "rule": "The portal-ads drift banner is a warning, not an error: it says how many portal ads don't match their listings, Review expands the findings, and every finding offers a way to fix it — the Post to Portals dialog and the listing itself — on web and mobile.",
+          "tests": [
+            {
+              "file": "src/components/inventory/portal-drift-panel.test.tsx",
+              "case": "[PRP-028]"
+            },
+            {
+              "file": "mobile/lib/portal-drift.test.ts",
+              "case": "[PRP-028]"
+            }
+          ],
+          "guards": [
+            "src/components/inventory/portal-drift-panel.tsx",
+            "mobile/components/portal-drift-panel.tsx"
+          ]
+        },
+        {
+          "id": "PRP-029",
+          "rule": "When the Meta ads connection has expired, the Ads tab shows a readable warning with a Reconnect Meta button and marks Spend, Reach, Chats started and Cost/lead as last-sync figures, so a zero there is never read as current.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/ads/ads-content.test.tsx",
+              "case": "[PRP-029]"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/ads/ads-content.tsx"]
         }
       ]
     },

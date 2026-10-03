@@ -16,7 +16,6 @@ import { SignalWaveLoader } from '@/components/ui/signal-wave-loader';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 
@@ -159,6 +158,14 @@ export default function AdsPage() {
     }
   }
 
+  const metaExpired = connectionStatus === 'token_expired';
+  const metaCell = metaExpired ? 'text-muted-foreground p-3' : 'p-3';
+  const staleMark = (
+    <span className="ml-1 text-[10px] font-normal text-amber-400">
+      (last sync)
+    </span>
+  );
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -185,22 +192,28 @@ export default function AdsPage() {
         </Button>
       </div>
 
-      {connectionStatus === 'token_expired' && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between gap-4">
-            <span>
-              Your Meta connection expired — spend and lead numbers may be out
-              of date.
-            </span>
-            <a
-              href="/settings?tab=ads"
-              className="text-sm font-medium whitespace-nowrap underline"
-            >
-              Reconnect
-            </a>
-          </AlertDescription>
-        </Alert>
+      {metaExpired && (
+        <div
+          role="alert"
+          className="flex flex-col gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 sm:flex-row sm:items-center"
+        >
+          <AlertTriangle className="hidden size-5 shrink-0 text-amber-400 sm:block" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-amber-200">
+              Your Meta connection expired
+            </p>
+            <p className="text-xs text-amber-200/80">
+              Spend, reach and chats below are from the last sync and may be out
+              of date until you reconnect.
+            </p>
+          </div>
+          <a
+            href="/settings?tab=ads"
+            className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-amber-500 px-3 text-sm font-semibold text-slate-950 hover:bg-amber-400"
+          >
+            Reconnect Meta
+          </a>
+        </div>
       )}
 
       {loading ? (
@@ -237,11 +250,19 @@ export default function AdsPage() {
                 <th className="p-3 font-medium">Property</th>
                 <th className="p-3 font-medium">Status</th>
                 <th className="p-3 font-medium">Daily budget</th>
-                <th className="p-3 font-medium">Spend</th>
-                <th className="p-3 font-medium">Reach</th>
-                <th className="p-3 font-medium">Chats started (Meta)</th>
+                <th className="p-3 font-medium">
+                  Spend{metaExpired && staleMark}
+                </th>
+                <th className="p-3 font-medium">
+                  Reach{metaExpired && staleMark}
+                </th>
+                <th className="p-3 font-medium">
+                  Chats started (Meta){metaExpired && staleMark}
+                </th>
                 <th className="p-3 font-medium">Leads in Engine</th>
-                <th className="p-3 font-medium">Cost/lead</th>
+                <th className="p-3 font-medium">
+                  Cost/lead{metaExpired && staleMark}
+                </th>
                 <th className="p-3 font-medium"></th>
               </tr>
             </thead>
@@ -314,11 +335,13 @@ export default function AdsPage() {
                     {c.insights ? (
                       <span
                         className={
-                          c.insights.stale ? 'text-muted-foreground' : ''
+                          c.insights.stale || metaExpired
+                            ? 'text-muted-foreground'
+                            : ''
                         }
                       >
                         {formatINR(Math.round(c.insights.spend))}
-                        {c.insights.stale && (
+                        {(c.insights.stale || metaExpired) && (
                           <span className="ml-1 text-[10px]">(stale)</span>
                         )}
                       </span>
@@ -326,14 +349,14 @@ export default function AdsPage() {
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
                   </td>
-                  <td className="p-3">
+                  <td className={metaCell}>
                     {c.insights?.reach.toLocaleString('en-IN') ?? '—'}
                   </td>
-                  <td className="p-3">
+                  <td className={metaCell}>
                     {c.insights?.conversationsStarted ?? '—'}
                   </td>
                   <td className="p-3 font-medium">{c.leadsInEngine}</td>
-                  <td className="p-3">
+                  <td className={metaCell}>
                     {c.costPerLeadInr !== null
                       ? formatINR(c.costPerLeadInr)
                       : '—'}
