@@ -4108,6 +4108,21 @@
             "src/lib/voice/reminder-call.ts",
             "src/lib/appointments/reminder.ts"
           ]
+        },
+        {
+          "id": "CRD-005",
+          "rule": "An audio announcement is charged under its own burn key, stored on its row (voice_announcements.burn_key), and refunded by that key through refundBurn on every failure. A render that fails in the worker refunds that key. A row whose insert fails, or a job that cannot be queued, is first cancelled by the charge's key, only while the row is still generating and retrying the update, so a row the insert committed before its reply was lost is cancelled too, a row that does not exist counts as cancelled, and a cancellation whose own reply was lost is recognised by the row's failed status and error; the refund follows only a confirmed cancellation. When the cancellation cannot be made at all the refund is held and the charge's key is logged for manual reconciliation, because the job may have been queued after all. The worker ignores a row that is no longer generating and marks a row ready only while it is, so a push that was committed after all cannot render an announcement whose credits were refunded. A row created before keys existed has no burn_key and is still refunded by feature and amount.",
+          "tests": [
+            {
+              "file": "src/lib/voice/keyed-refund-announcements.test.ts",
+              "case": "[CRD-005]"
+            }
+          ],
+          "guards": [
+            "src/app/api/announcements/route.ts",
+            "src/lib/voice/announcement-worker.ts",
+            "supabase/migrations/20261004190000_voice_announcements_burn_key.sql"
+          ]
         }
       ]
     },

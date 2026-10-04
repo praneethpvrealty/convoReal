@@ -12435,6 +12435,7 @@ export type Database = {
           account_id: string;
           audio_url: string | null;
           body_text: string;
+          burn_key: string | null;
           created_at: string | null;
           created_by: string;
           error: string | null;
@@ -12451,6 +12452,7 @@ export type Database = {
           account_id: string;
           audio_url?: string | null;
           body_text: string;
+          burn_key?: string | null;
           created_at?: string | null;
           created_by: string;
           error?: string | null;
@@ -12467,6 +12469,7 @@ export type Database = {
           account_id?: string;
           audio_url?: string | null;
           body_text?: string;
+          burn_key?: string | null;
           created_at?: string | null;
           created_by?: string;
           error?: string | null;

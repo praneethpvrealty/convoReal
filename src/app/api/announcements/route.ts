@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Redis from 'ioredis';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   getCurrentAccount,
   requireRole,
@@ -11,10 +12,49 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { burnCredits } from '@/lib/credits/burn';
+import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { isNarrationLanguage } from '@/lib/video/listing-video';
 
 const TEXT_MAX = 1200;
+
+const UNQUEUED_ERROR = 'Could not be queued';
+
+async function cancelAnnouncementByKey(
+  supabase: SupabaseClient,
+  accountId: string,
+  burnKey: string
+): Promise<'failed' | 'none' | 'taken' | 'unknown'> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data, error } = await supabase
+      .from('voice_announcements')
+      .update({ status: 'failed', error: UNQUEUED_ERROR })
+      .eq('burn_key', burnKey)
+      .eq('account_id', accountId)
+      .eq('status', 'generating')
+      .select('id');
+    if (!error && data?.length) return 'failed';
+    if (!error) {
+      const { data: row, error: readError } = await supabase
+        .from('voice_announcements')
+        .select('status, error')
+        .eq('burn_key', burnKey)
+        .eq('account_id', accountId)
+        .maybeSingle();
+      if (!readError) {
+        if (!row) return 'none';
+        return row.status === 'failed' && row.error === UNQUEUED_ERROR
+          ? 'failed'
+          : 'taken';
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200 * 2 ** attempt));
+  }
+  console.error(
+    `[announcements] The announcement charged under ${burnKey} for account ${accountId} could not be cancelled after it was not queued; its charge is held until reconciled manually`
+  );
+  return 'unknown';
+}
 
 // GET /api/announcements — the account's audio announcements
 export async function GET() {
@@ -83,7 +123,10 @@ export async function POST(request: NextRequest) {
     // Charge BEFORE the work is queued (credits-engine rule); the
     // worker refunds on failure.
     const cost = AI_FEATURE_COSTS.audio_announcement;
-    const burn = await burnCredits(ctx.accountId, 'audio_announcement', cost);
+    const burnKey = newBurnKey('audio_announcement');
+    const burn = await burnCredits(ctx.accountId, 'audio_announcement', cost, {
+      retryKey: burnKey,
+    });
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -102,10 +145,21 @@ export async function POST(request: NextRequest) {
         title,
         body_text: text,
         language,
+        burn_key: burnKey,
       })
       .select('id, title, status, language')
       .single();
     if (insertErr || !announcement) {
+      const outcome = await cancelAnnouncementByKey(
+        ctx.supabase,
+        ctx.accountId,
+        burnKey
+      );
+      if (outcome === 'failed' || outcome === 'none') {
+        await refundBurn(ctx.accountId, 'audio_announcement', burnKey, {
+          reason: 'audio_announcement insert failed',
+        });
+      }
       return NextResponse.json(
         { error: insertErr?.message || 'Failed to create announcement' },
         { status: 500 }
@@ -126,6 +180,18 @@ export async function POST(request: NextRequest) {
           accountId: ctx.accountId,
         })
       );
+    } catch (err) {
+      const outcome = await cancelAnnouncementByKey(
+        ctx.supabase,
+        ctx.accountId,
+        burnKey
+      );
+      if (outcome === 'failed' || outcome === 'none') {
+        await refundBurn(ctx.accountId, 'audio_announcement', burnKey, {
+          reason: 'audio_announcement could not be queued',
+        });
+      }
+      throw err;
     } finally {
       redis.disconnect();
     }
