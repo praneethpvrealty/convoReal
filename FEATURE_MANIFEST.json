@@ -4089,6 +4089,25 @@
             "src/app/api/properties/e-khata/route.ts",
             "src/app/api/guidance-value/lookup/route.ts"
           ]
+        },
+        {
+          "id": "CRD-004",
+          "rule": "A reminder voice note and a reminder call are each charged under a key that names one charge, never the subject: a reminder voice note under a key minted for each run of the worker (reminder_audio:<uuid>), so a replayed job or a claim taken over after a lost send never shares a charge with an earlier run, and a reminder call under a key minted for the call (voice_campaign_call:<uuid>), so a re-armed or taken-over reminder never shares a charge with an earlier call. Each failure refunds that key through refundBurn, which reverses only the rows written under it, and neither feature is refunded by feature and amount. A match unlock is not covered: it still refunds by feature and amount until its charge and the unlock row are written atomically.",
+          "tests": [
+            {
+              "file": "src/lib/credits/keyed-refund-reminders.test.ts",
+              "case": "[CRD-004]"
+            },
+            {
+              "file": "src/lib/appointments/reminder.test.ts",
+              "case": "[CRD-004]"
+            }
+          ],
+          "guards": [
+            "src/lib/voice/reminder-audio-worker.ts",
+            "src/lib/voice/reminder-call.ts",
+            "src/lib/appointments/reminder.ts"
+          ]
         }
       ]
     },
