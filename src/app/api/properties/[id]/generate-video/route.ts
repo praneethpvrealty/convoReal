@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import Redis from 'ioredis';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { burnCredits } from '@/lib/credits/burn';
+import { newBurnKey } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { storageObjectPath } from '@/lib/storage/url';
@@ -81,7 +82,10 @@ export async function POST(
     // Charge BEFORE the work is queued (credits-engine rule); the
     // worker refunds on failure.
     const cost = AI_FEATURE_COSTS.listing_video;
-    const burn = await burnCredits(ctx.accountId, 'listing_video', cost);
+    const burnKey = newBurnKey('listing_video');
+    const burn = await burnCredits(ctx.accountId, 'listing_video', cost, {
+      retryKey: burnKey,
+    });
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -126,6 +130,7 @@ export async function POST(
           accountId: ctx.accountId,
           language,
           requestedBy: ctx.userId,
+          burnKey,
         })
       );
     } finally {

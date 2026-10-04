@@ -12,8 +12,7 @@ import {
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
 import { interestFromTypeText } from '@/app/api/leads/email-webhook/route';
 import { assignTagsToContact } from '@/app/api/leads/email-webhook/db-utils';
-import { refundCredits } from '@/lib/credits/burn';
-import { AI_FEATURE_COSTS } from '@/lib/credits/types';
+import { refundBurn } from '@/lib/credits/refund-burn';
 import { getVoiceConfig } from '@/lib/voice/config';
 import { generateMatchEventForContact } from '@/lib/radar/engine';
 import {
@@ -21,6 +20,7 @@ import {
   parseQualification,
   qualificationTags,
   type Qualification,
+  voiceCallBurnKey,
 } from '@/lib/voice/campaigns';
 import {
   resolveDisposition,
@@ -350,9 +350,7 @@ export async function POST(request: Request) {
     if (payload.campaignId) {
       const { data: recipient } = await supabase
         .from('voice_campaign_recipients')
-        .select(
-          'id, status, attempts, charged_credits, campaign:voice_campaigns(max_attempts)'
-        )
+        .select('id, status, attempts, campaign:voice_campaigns(max_attempts)')
         .eq('account_id', accountId)
         .eq('campaign_id', payload.campaignId)
         .eq('contact_id', contactId)
@@ -386,15 +384,12 @@ export async function POST(request: Request) {
           recipient.status === 'calling' &&
           (payload.outcome === 'no_answer' || payload.outcome === 'busy')
         ) {
-          // Exactly what this attempt was charged (migration 280) —
-          // the account's mode, and so its price, may have changed
-          // since the dial.
-          await refundCredits(
+          await refundBurn(
             accountId,
             'voice_campaign_call',
-            recipient.charged_credits ?? AI_FEATURE_COSTS.voice_campaign_call,
+            voiceCallBurnKey(recipient.id, recipient.attempts),
             {
-              description: `voice_campaign_call no-answer refund (recipient ${recipient.id})`,
+              reason: `voice_campaign_call no-answer refund (recipient ${recipient.id})`,
             }
           );
         }
