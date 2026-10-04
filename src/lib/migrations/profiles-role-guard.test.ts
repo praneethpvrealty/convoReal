@@ -26,8 +26,12 @@ describe('profile role columns are not self-service', () => {
     }
     expect(sql).toContain("USING ERRCODE = '42501'");
     expect(sql).toMatch(
-      /BEFORE UPDATE OF account_id, account_role, org_role, is_read_only, team_id, role ON profiles/
+      /BEFORE INSERT OR UPDATE OF account_id, account_role, org_role, is_read_only, team_id, role ON profiles/
     );
+  });
+
+  it('[ACC-001] a signed-in client cannot insert a profile row at all', () => {
+    expect(sql).toMatch(/IF TG_OP = 'INSERT' THEN\s*RAISE EXCEPTION/);
   });
 
   it('[ACC-001] the member RPCs and the service role keep writing those columns', () => {
