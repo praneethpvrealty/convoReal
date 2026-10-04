@@ -27,14 +27,13 @@ import { apiFetch, ApiError } from '@/lib/api';
 import {
   buildAudience,
   CONTACT_FIELDS,
-  contactsLabel,
   defaultVariableMappings,
   mappingsComplete,
   previewBody,
-  recountOutcome,
   templateVariableKeys,
   type VariableMapping,
 } from '@/lib/broadcast-compose';
+import { contactsLabel, recountOutcome } from '@shared/lib/broadcasts/recount';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';

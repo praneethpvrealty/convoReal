@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
@@ -60,7 +60,11 @@ export default function BroadcastDetailScreen() {
 
   const sending = broadcast?.status === 'sending';
 
-  const { data: recipients, isLoading } = useQuery({
+  const {
+    data: recipients,
+    isLoading,
+    refetch: refetchRecipients,
+  } = useQuery({
     queryKey: ['broadcast-recipients', id],
     enabled: Boolean(id),
     queryFn: async () => {
@@ -76,6 +80,12 @@ export default function BroadcastDetailScreen() {
     },
     refetchInterval: sending ? 15_000 : false,
   });
+
+  const wasSending = useRef(false);
+  useEffect(() => {
+    if (wasSending.current && !sending) void refetchRecipients();
+    wasSending.current = sending;
+  }, [sending, refetchRecipients]);
 
   const filtered = (recipients ?? []).filter((r) =>
     filter === 'All' ? true : r.status === filter.toLowerCase()

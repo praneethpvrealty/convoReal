@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 
 import {
   buildAudience,
-  contactsLabel,
-  recountOutcome,
   defaultVariableMappings,
   mappingsComplete,
   previewBody,
@@ -122,35 +120,5 @@ describe('buildAudience', () => {
       type: 'all',
       excludeTagIds: ['opt-out'],
     });
-  });
-});
-
-describe('recountOutcome', () => {
-  it('confirms with the fresh count', () => {
-    expect(recountOutcome({ isError: false, data: 7 })).toEqual({
-      kind: 'confirm',
-      count: 7,
-      label: '7 contacts',
-    });
-  });
-
-  it('refuses to confirm when the recount failed, even with an earlier count', () => {
-    expect(recountOutcome({ isError: true, data: 5 })).toEqual({
-      kind: 'failed',
-    });
-    expect(recountOutcome({ isError: false, data: undefined })).toEqual({
-      kind: 'failed',
-    });
-  });
-
-  it('stops when nobody is left in the audience', () => {
-    expect(recountOutcome({ isError: false, data: 0 })).toEqual({
-      kind: 'empty',
-    });
-  });
-
-  it('labels one contact in the singular', () => {
-    expect(contactsLabel(1)).toBe('1 contact');
-    expect(contactsLabel(2)).toBe('2 contacts');
   });
 });

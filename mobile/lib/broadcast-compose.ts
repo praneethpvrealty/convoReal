@@ -97,25 +97,3 @@ export function buildAudience(
   if (excludeTagIds.length > 0) audience.excludeTagIds = excludeTagIds;
   return audience;
 }
-
-export function contactsLabel(count: number): string {
-  return `${count} contact${count === 1 ? '' : 's'}`;
-}
-
-export type RecountOutcome =
-  | { kind: 'failed' }
-  | { kind: 'empty' }
-  | { kind: 'confirm'; count: number; label: string };
-
-export function recountOutcome(result: {
-  isError: boolean;
-  data: number | undefined;
-}): RecountOutcome {
-  if (result.isError || result.data === undefined) return { kind: 'failed' };
-  if (result.data <= 0) return { kind: 'empty' };
-  return {
-    kind: 'confirm',
-    count: result.data,
-    label: contactsLabel(result.data),
-  };
-}

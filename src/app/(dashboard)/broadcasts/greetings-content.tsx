@@ -4,6 +4,7 @@ import { useDeferredValue, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { recountOutcome } from '@/lib/broadcasts/recount';
 import { format } from 'date-fns';
 import {
   ExternalLink,
@@ -915,6 +916,26 @@ function SendGreetingDialog({
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const sendAfterRecount = async () => {
+    const shown = recipientCount;
+    const outcome = recountOutcome(await countQuery.refetch(), shown);
+    if (outcome.kind === 'failed') {
+      toast.error(
+        "Couldn't recount the audience, so nothing was sent. Try again."
+      );
+    } else if (outcome.kind === 'empty') {
+      toast.error(
+        'Nobody in this audience can receive the greeting now. Nothing was sent.'
+      );
+    } else if (outcome.kind === 'changed') {
+      toast.info(
+        `The audience changed to ${outcome.label}. Check the number and send again.`
+      );
+    } else {
+      sendMutation.mutate();
+    }
+  };
+
   const openPersonalWhatsApp = () => {
     const contact = selectedContacts[0];
     const phone = contact?.phone?.replace(/\D/g, '') ?? '';
@@ -1297,7 +1318,7 @@ function SendGreetingDialog({
             onClick={() =>
               sendChannel === 'personal'
                 ? openPersonalWhatsApp()
-                : sendMutation.mutate()
+                : void sendAfterRecount()
             }
           >
             {sendChannel === 'personal' ? (

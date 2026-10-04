@@ -47,6 +47,7 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { useAppConfig } from '@/lib/use-app-config';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { recountOutcome } from '@shared/lib/broadcasts/recount';
 import type { Contact } from '@/lib/types';
 
 interface OccasionOption {
@@ -834,6 +835,31 @@ function SendGreetingSheet({
       dialog.show({ title: 'Could not send', message: err.message }),
   });
 
+  const sendAfterRecount = async () => {
+    const shown = reach;
+    const outcome = recountOutcome(await recount(), shown);
+    if (outcome.kind === 'failed') {
+      dialog.show({
+        title: 'Could not count recipients',
+        message:
+          'Nothing was sent. Check your connection and try again, so you send to the current number.',
+      });
+    } else if (outcome.kind === 'empty') {
+      dialog.show({
+        title: 'Nobody to send to',
+        message:
+          'Nobody in this audience can receive the greeting now. Nothing was sent.',
+      });
+    } else if (outcome.kind === 'changed') {
+      dialog.show({
+        title: 'The audience changed',
+        message: `It now reaches ${outcome.label}. Check the number and send again.`,
+      });
+    } else {
+      sendMutation.mutate();
+    }
+  };
+
   const openPersonalWhatsApp = async () => {
     const contact = selectedContacts[0];
     const phone = contact?.phone?.replace(/\D/g, '') ?? '';
@@ -1152,7 +1178,7 @@ function SendGreetingSheet({
               if (sendChannel === 'personal') {
                 void openPersonalWhatsApp();
               } else {
-                sendMutation.mutate();
+                void sendAfterRecount();
               }
             }}
           />

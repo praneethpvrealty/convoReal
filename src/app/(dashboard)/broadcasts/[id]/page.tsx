@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -193,6 +193,13 @@ export default function BroadcastDetailPage() {
     },
     refetchInterval: isSending ? RECIPIENTS_POLL_INTERVAL_MS : false,
   });
+
+  const { refetch: refetchRecipients } = recipientsQuery;
+  const wasSending = useRef(false);
+  useEffect(() => {
+    if (wasSending.current && !isSending) void refetchRecipients();
+    wasSending.current = isSending;
+  }, [isSending, refetchRecipients]);
 
   const broadcast = broadcastQuery.data ?? null;
   const recipients = useMemo(
