@@ -39,6 +39,34 @@ export async function POST(req: Request) {
     let resolvedAccountId = existingProfile?.account_id;
 
     if (!resolvedAccountId) {
+      const appContext =
+        user.user_metadata?.app_context ?? user.app_metadata?.app_context;
+      const [den, buyer] = await Promise.all([
+        admin
+          .from('den_users')
+          .select('id')
+          .eq('auth_user_id', user.id)
+          .maybeSingle(),
+        admin
+          .from('buyer_users')
+          .select('id')
+          .eq('auth_user_id', user.id)
+          .maybeSingle(),
+      ]);
+      if (
+        appContext === 'den' ||
+        appContext === 'buyer' ||
+        den.data ||
+        buyer.data
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'Portfolio owner and buyer logins cannot create a brokerage account. Sign up with an invitation link instead.',
+          },
+          { status: 403 }
+        );
+      }
       console.log(
         '[SETUP API] No account linked. Bootstrapping account via Admin Client...'
       );
