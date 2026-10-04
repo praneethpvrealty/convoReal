@@ -90,6 +90,11 @@ export const PHASE_3_EVENT_TYPES: readonly DealEventType[] = [
   'update_acknowledged',
 ];
 
+export {
+  timelineActorLabel,
+  timelineSourceLabel,
+} from './timeline-attribution';
+
 export function parseEventSource(v: unknown): DealEventSource {
   return v === 'mobile' || v === 'api' ? v : 'web';
 }

@@ -2279,7 +2279,7 @@
         },
         {
           "id": "PIPE-002",
-          "rule": "One fee rule on every board surface: a deal's fee is its saved brokerage amount, else its recorded rate applied to the value, net of co-broker payouts, and a deal with neither has no fee and says \"Fee not set\" — never a guessed 2%. A stage header leads with the deals' value and shows fees only once some are recorded; the first stat tile counts every deal the Focus / All switch is showing, lost ones included. Web and mobile compute these through the same module.",
+          "rule": "One fee rule on every board surface: a deal's fee is its saved brokerage amount, else its recorded rate applied to the value, net of co-broker payouts, and a deal with neither has no fee and says \"Fee not set\" — never a guessed 2%. A stage header leads with the deals' value and shows fees only once some are recorded; the Deals shown tile counts every deal the Focus / All switch is showing, lost ones included, the same number the switch carries. Web and mobile compute these through the same module.",
           "tests": [
             {
               "file": "src/lib/pipelines/deal-money.test.ts",
@@ -2842,6 +2842,26 @@
           "guards": [
             "src/components/deals/deal-milestones-panel.tsx",
             "mobile/app/(app)/deal/[id].tsx"
+          ]
+        },
+        {
+          "id": "TXW-032",
+          "rule": "A timeline entry is attributed to the member who made it, to the stakeholder who acknowledged an update over WhatsApp, or otherwise to \"System\" when no member is behind it, whatever free text or source the writer stored; the source is shown only for mobile and API entries. Web and mobile apply the same rule.",
+          "tests": [
+            {
+              "file": "src/lib/deals/events.test.ts",
+              "case": "[TXW-032]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-032]"
+            }
+          ],
+          "guards": [
+            "src/lib/deals/timeline-attribution.ts",
+            "src/lib/deals/events.ts",
+            "src/components/deals/deal-timeline-panel.tsx",
+            "mobile/lib/deal-workspace.ts"
           ]
         }
       ]

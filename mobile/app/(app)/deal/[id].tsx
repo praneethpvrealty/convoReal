@@ -6,7 +6,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import * as Sharing from 'expo-sharing';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -68,6 +68,8 @@ import {
   recipientStage,
   shareLinkMessage,
   snapshotItemAllowed,
+  timelineActorLabel,
+  timelineSourceLabel,
   trancheReceived,
   trancheStatus,
   TRANCHE_LABEL_SUGGESTIONS,
@@ -86,6 +88,7 @@ import {
   type DealDocumentCategory,
   type DealDocumentRow,
   type DealDocumentStatus,
+  type DealEventRow,
   type DealFinancialsRow,
   type DealMilestoneRow,
   type DealMilestoneStatus,
@@ -210,6 +213,13 @@ function brokeragePreview(
   const value = Number(raw);
   if (!Number.isFinite(value) || value <= 0) return 0;
   return type === 'fixed' ? value : ((dealValue ?? 0) * value) / 100;
+}
+
+function eventByline(ev: DealEventRow): string {
+  return [timelineActorLabel(ev), timelineSourceLabel(ev)]
+    .filter(Boolean)
+    .map((part) => ` · ${part}`)
+    .join('');
 }
 
 function one<T>(v: T | T[] | null | undefined): T | null {
@@ -816,7 +826,12 @@ function BundleSheet({
                           color: colors.text,
                         }}
                       >
-                        {formatInr(member.value)}
+                        {member.value
+                          ? formatDealAmount(
+                              member.value,
+                              member.currency ?? 'INR'
+                            )
+                          : '—'}
                       </Text>
                     </Pressable>
                   );
@@ -1256,8 +1271,7 @@ function OverviewTab({
             </Text>
             <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
               {DEAL_EVENT_LABELS[latest.event_type] ?? latest.event_type}
-              {latest.actor_name ? ` · ${latest.actor_name}` : ''} ·{' '}
-              {auditDateTime(latest.created_at)}
+              {eventByline(latest)} · {auditDateTime(latest.created_at)}
             </Text>
           </>
         ) : (
@@ -2299,6 +2313,7 @@ function TimelineTab({
   const [note, setNote] = useState('');
   const [visibility, setVisibility] = useState<DealVisibility>('internal');
   const [saving, setSaving] = useState(false);
+  const [composerOpen, setComposerOpen] = useState<boolean | null>(null);
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ['deal-events', dealId],
@@ -2313,6 +2328,7 @@ function TimelineTab({
     try {
       await addDealNoteWithVisibility(dealId, text, visibility);
       setNote('');
+      setComposerOpen(false);
       await queryClient.invalidateQueries({
         queryKey: ['deal-events', dealId],
       });
@@ -2329,6 +2345,8 @@ function TimelineTab({
 
   if (isLoading) return <Loading />;
 
+  const showComposer = composerOpen ?? events.length === 0;
+
   return (
     <ScrollView
       contentContainerStyle={styles.list}
@@ -2337,12 +2355,18 @@ function TimelineTab({
       <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
         Every change, in order. Entries cannot be edited or removed.
       </Text>
-      {canEdit ? (
-        <>
+      {canEdit && showComposer ? (
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
           <TextField
             placeholder="Add an internal note…"
             value={note}
             multiline
+            autoFocus={composerOpen === true}
             onChangeText={setNote}
           />
           <VisibilityChips value={visibility} onChange={setVisibility} />
@@ -2352,7 +2376,22 @@ function TimelineTab({
             busy={saving}
             disabled={!note.trim()}
           />
-        </>
+          <View style={styles.actions}>
+            <ActionButton
+              label="Cancel"
+              icon="close-outline"
+              onPress={() => setComposerOpen(false)}
+            />
+          </View>
+        </View>
+      ) : canEdit ? (
+        <View style={styles.actions}>
+          <ActionButton
+            label="Add a note"
+            icon="create-outline"
+            onPress={() => setComposerOpen(true)}
+          />
+        </View>
       ) : null}
       {events.length === 0 ? (
         <EmptyState
@@ -2380,8 +2419,7 @@ function TimelineTab({
               </Text>
               <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
                 {DEAL_EVENT_LABELS[ev.event_type] ?? ev.event_type}
-                {ev.actor_name ? ` · ${ev.actor_name}` : ''} ·{' '}
-                {auditDateTime(ev.created_at)}
+                {eventByline(ev)} · {auditDateTime(ev.created_at)}
               </Text>
             </View>
           );
@@ -2645,6 +2683,7 @@ function TasksTab({
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<DealTaskRow['priority']>('medium');
   const [busy, setBusy] = useState<string | null>(null);
+  const titleInput = useRef<TextInput>(null);
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['deal-tasks', dealId],
@@ -2686,6 +2725,7 @@ function TasksTab({
       {canEdit ? (
         <>
           <TextField
+            ref={titleInput}
             placeholder="What needs doing?"
             value={title}
             onChangeText={setTitle}
@@ -2722,8 +2762,17 @@ function TasksTab({
       {ordered.length === 0 ? (
         <EmptyState
           icon="list-outline"
-          title="No tasks on this deal"
-          subtitle=""
+          title="Nothing to do on this deal"
+          subtitle="Tasks you add here also show in Calendar and Today."
+          action={
+            canEdit ? (
+              <PrimaryButton
+                label="Add a task"
+                icon="add"
+                onPress={() => titleInput.current?.focus()}
+              />
+            ) : undefined
+          }
         />
       ) : (
         ordered.map((task) => (
@@ -3228,7 +3277,7 @@ function DocumentsTab({
         ))}
       </ScrollView>
 
-      {canEdit && (
+      {canEdit && documents.length > 0 && (
         <Pressable
           onPress={pickAndUpload}
           disabled={busy === 'upload'}
@@ -3246,8 +3295,18 @@ function DocumentsTab({
       {documents.length === 0 ? (
         <EmptyState
           icon="folder-open-outline"
-          title="Nothing filed yet"
-          subtitle="Aadhaars, agreement drafts and old sale deeds. Stored privately."
+          title="Nothing filed against this deal yet"
+          subtitle="Upload Aadhaar, PAN, agreement drafts or old deeds. Every view goes through a signed link that expires."
+          action={
+            canEdit ? (
+              <PrimaryButton
+                label="Upload a document"
+                icon="cloud-upload-outline"
+                busy={busy === 'upload'}
+                onPress={() => void pickAndUpload()}
+              />
+            ) : undefined
+          }
         />
       ) : (
         documents.map((doc) => {
@@ -3483,6 +3542,7 @@ function StakeholdersTab({
   const [linkFor, setLinkFor] = useState<string | null>(null);
   const [ttl, setTtl] = useState<DealShareTtlKey>('7d');
   const [otp, setOtp] = useState(false);
+  const [formOpen, setFormOpen] = useState<boolean | null>(null);
 
   const { data: stakeholders = [], isLoading } = useQuery({
     queryKey: ['deal-stakeholders', dealId],
@@ -3543,6 +3603,95 @@ function StakeholdersTab({
     }
   }
 
+  const showForm = canEdit && (formOpen ?? stakeholders.length === 0);
+
+  function resetForm() {
+    setName('');
+    setRole('buyer');
+    setSide('buyer');
+    setPhone('');
+    setEmail('');
+  }
+
+  const addForm = (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
+      <TextField label="Name" value={name} onChangeText={setName} />
+      <Text style={[styles.cardMeta, { color: colors.textMuted }]}>Role</Text>
+      <View style={styles.chipRow}>
+        {(Object.keys(STAKEHOLDER_ROLE_LABELS) as StakeholderRole[]).map(
+          (r) => (
+            <FilterChip
+              key={r}
+              label={STAKEHOLDER_ROLE_LABELS[r]}
+              active={role === r}
+              onPress={() => {
+                setRole(r);
+                setSide(defaultSideForRole(r));
+              }}
+            />
+          )
+        )}
+      </View>
+      <Text style={[styles.cardMeta, { color: colors.textMuted }]}>Side</Text>
+      <View style={styles.chipRow}>
+        {(Object.keys(STAKEHOLDER_SIDE_LABELS) as DealSide[]).map((sd) => (
+          <FilterChip
+            key={sd}
+            label={STAKEHOLDER_SIDE_LABELS[sd]}
+            active={side === sd}
+            onPress={() => setSide(sd)}
+          />
+        ))}
+      </View>
+      <TextField
+        label="WhatsApp number"
+        keyboardType="phone-pad"
+        value={phone}
+        onChangeText={setPhone}
+      />
+      <TextField
+        label="Email (needed for a code-protected link)"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        value={email}
+        onChangeText={setEmail}
+      />
+      <PrimaryButton
+        label="Save stakeholder"
+        busy={busy === 'new'}
+        disabled={!name.trim()}
+        onPress={() =>
+          void run('new', async () => {
+            await addDealStakeholder(dealId, {
+              name: name.trim(),
+              role,
+              side,
+              phone: phone.trim() || null,
+              email: email.trim() || null,
+            });
+            resetForm();
+            setFormOpen(false);
+          })
+        }
+      />
+      <View style={styles.actions}>
+        <ActionButton
+          label="Cancel"
+          icon="close-outline"
+          onPress={() => {
+            resetForm();
+            setFormOpen(false);
+          }}
+        />
+      </View>
+    </View>
+  );
+
   async function mintAndShare(s: DealStakeholderRow) {
     setBusy(`link:${s.id}`);
     try {
@@ -3599,85 +3748,20 @@ function StakeholdersTab({
         Nobody gets a login.
       </Text>
 
-      {canEdit ? (
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <TextField label="Name" value={name} onChangeText={setName} />
-          <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
-            Role
-          </Text>
-          <View style={styles.chipRow}>
-            {(Object.keys(STAKEHOLDER_ROLE_LABELS) as StakeholderRole[]).map(
-              (r) => (
-                <FilterChip
-                  key={r}
-                  label={STAKEHOLDER_ROLE_LABELS[r]}
-                  active={role === r}
-                  onPress={() => {
-                    setRole(r);
-                    setSide(defaultSideForRole(r));
-                  }}
-                />
-              )
-            )}
-          </View>
-          <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
-            Side
-          </Text>
-          <View style={styles.chipRow}>
-            {(Object.keys(STAKEHOLDER_SIDE_LABELS) as DealSide[]).map((sd) => (
-              <FilterChip
-                key={sd}
-                label={STAKEHOLDER_SIDE_LABELS[sd]}
-                active={side === sd}
-                onPress={() => setSide(sd)}
-              />
-            ))}
-          </View>
-          <TextField
-            label="WhatsApp number"
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-          />
-          <TextField
-            label="Email (needed for a code-protected link)"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
-          <PrimaryButton
-            label="Add stakeholder"
-            busy={busy === 'new'}
-            disabled={!name.trim()}
-            onPress={() =>
-              void run('new', async () => {
-                await addDealStakeholder(dealId, {
-                  name: name.trim(),
-                  role,
-                  side,
-                  phone: phone.trim() || null,
-                  email: email.trim() || null,
-                });
-                setName('');
-                setPhone('');
-                setEmail('');
-              })
-            }
-          />
-        </View>
-      ) : null}
-
-      {stakeholders.length === 0 ? (
+      {stakeholders.length === 0 && !showForm ? (
         <EmptyState
           icon="people-outline"
           title="No stakeholders yet"
           subtitle=""
+          action={
+            canEdit ? (
+              <PrimaryButton
+                label="Add stakeholder"
+                icon="person-add-outline"
+                onPress={() => setFormOpen(true)}
+              />
+            ) : undefined
+          }
         />
       ) : (
         stakeholders.map((s) => (
@@ -3823,6 +3907,18 @@ function StakeholdersTab({
           </View>
         ))
       )}
+
+      {showForm ? (
+        addForm
+      ) : canEdit && stakeholders.length > 0 ? (
+        <View style={styles.actions}>
+          <ActionButton
+            label="Add stakeholder"
+            icon="person-add-outline"
+            onPress={() => setFormOpen(true)}
+          />
+        </View>
+      ) : null}
       <AppDialog {...dialog.dialogProps} />
     </ScrollView>
   );
@@ -4373,12 +4469,12 @@ function UpdateComposer({
 function ActionButton({
   label,
   icon,
-  busy,
+  busy = false,
   onPress,
 }: {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
-  busy: boolean;
+  busy?: boolean;
   onPress: () => void;
 }) {
   const { colors } = useTheme();
@@ -4386,6 +4482,8 @@ function ActionButton({
     <Pressable
       onPress={onPress}
       disabled={busy}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={[styles.actionButton, { borderColor: colors.border }]}
     >
       {busy ? (

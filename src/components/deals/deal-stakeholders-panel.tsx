@@ -97,6 +97,7 @@ export function DealStakeholdersPanel({
     url: string;
   } | null>(null);
   const [logFor, setLogFor] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState<boolean | null>(null);
 
   const { data: stakeholders = [], isLoading } = useQuery({
     queryKey: ['deal-stakeholders', dealId],
@@ -131,6 +132,19 @@ export function DealStakeholdersPanel({
       queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
     ]);
 
+  function resetForm() {
+    setName('');
+    setRole('buyer');
+    setSide('buyer');
+    setPhone('');
+    setEmail('');
+  }
+
+  function cancelAdd() {
+    resetForm();
+    setFormOpen(false);
+  }
+
   async function add() {
     if (!name.trim()) return;
     setBusy('new');
@@ -150,9 +164,8 @@ export function DealStakeholdersPanel({
         },
         'Could not add the stakeholder'
       );
-      setName('');
-      setPhone('');
-      setEmail('');
+      resetForm();
+      setFormOpen(false);
       await refresh();
     } catch (err) {
       toast.error(
@@ -235,18 +248,35 @@ export function DealStakeholdersPanel({
     return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
   }
 
+  const showForm =
+    canEdit && (formOpen ?? (!isLoading && stakeholders.length === 0));
+
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold text-white">Stakeholders</h3>
-        <p className="text-xs text-slate-400">
-          Everyone on this transaction, by side. A person on the buyer or seller
-          side can be given a private link that shows only what their side may
-          see. Nobody here gets a login.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-white">Stakeholders</h3>
+          <p className="text-xs text-slate-400">
+            Everyone on this transaction, by side. A person on the buyer or
+            seller side can be given a private link that shows only what their
+            side may see. Nobody here gets a login.
+          </p>
+        </div>
+        {canEdit && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            aria-expanded={showForm}
+            onClick={() => (showForm ? cancelAdd() : setFormOpen(true))}
+          >
+            <Plus className="h-4 w-4" />
+            Add stakeholder
+          </Button>
+        )}
       </div>
 
-      {canEdit && (
+      {showForm && (
         <div className="grid gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Label htmlFor="sh-name">Name</Label>
@@ -313,14 +343,17 @@ export function DealStakeholdersPanel({
               className="border-slate-700 bg-slate-950"
             />
           </div>
-          <div className="flex justify-end sm:col-span-2">
+          <div className="flex justify-end gap-2 sm:col-span-2">
+            <Button variant="ghost" onClick={cancelAdd}>
+              Cancel
+            </Button>
             <Button onClick={add} disabled={!name.trim() || busy === 'new'}>
               {busy === 'new' ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Plus className="h-4 w-4" />
               )}
-              Add stakeholder
+              Save stakeholder
             </Button>
           </div>
         </div>

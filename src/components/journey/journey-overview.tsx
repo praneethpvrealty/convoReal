@@ -47,7 +47,6 @@ import {
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -88,6 +87,7 @@ import type {
 } from '@/types';
 import { CloseJourneyDialog } from './close-journey-dialog';
 import { EnquiriesDialog } from './enquiries-dialog';
+import { JourneyListSkeleton } from './journey-list-skeleton';
 import { JourneySection } from './journey-section';
 import { NewJourneyDialog } from './new-journey-dialog';
 import {
@@ -939,11 +939,7 @@ export function JourneyOverview({
   }, [loading]);
 
   if (loading) {
-    return (
-      <div className="flex h-[40vh] items-center justify-center">
-        <ConvoRealLoader />
-      </div>
-    );
+    return <JourneyListSkeleton />;
   }
 
   return (
@@ -984,6 +980,7 @@ export function JourneyOverview({
               type="button"
               onClick={() => setShowHidden((current) => !current)}
               aria-pressed={showHidden}
+              title="Journeys you hid from this browser's list. They stay active for everyone else; open this to show them again."
               className={cn(
                 'ml-1 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors',
                 showHidden
@@ -993,7 +990,7 @@ export function JourneyOverview({
             >
               <EyeOff className="h-3.5 w-3.5" />
               <span className="tabular-nums">{hiddenGroups.length}</span> hidden
-              on this device
+              by you
             </button>
           )}
         </div>
@@ -1106,7 +1103,7 @@ export function JourneyOverview({
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-slate-300">
               <span className="font-semibold text-amber-200">
-                {hiddenGroups.length} hidden on this device.
+                {hiddenGroups.length} hidden by you on this browser.
               </span>{' '}
               They stay active for everyone else; select one to show it again.
             </p>
