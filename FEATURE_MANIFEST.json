@@ -4069,6 +4069,26 @@
             "src/lib/voice/reminder-call.ts",
             "src/lib/video/listing-video-worker.ts"
           ]
+        },
+        {
+          "id": "CRD-003",
+          "rule": "The AI routes named in keyed-refund-routes.test.ts (ad copy, photo enhancement, listing descriptions, greetings, event parsing, share email, call analysis and call action items, deal document reads, guidance value lookups and e-Khata reads) charge credits before their call and return them when it fails by the charge they made: the route mints one burn key per request, burns under it, and every failure path refunds that key through refundBurn, so a refund reverses at most the rows written under that key and a refund that fails is queued for the hourly credit-refunds cron instead of failing the route. What the route then tells the user follows the refund's outcome, and never says credits were refunded unless they were.",
+          "tests": [
+            {
+              "file": "src/lib/credits/keyed-refund-routes.test.ts",
+              "case": "[CRD-003]"
+            },
+            {
+              "file": "src/app/api/greetings/generate/route.test.ts",
+              "case": "[CRD-003]"
+            }
+          ],
+          "guards": [
+            "src/lib/credits/refund-burn.ts",
+            "src/app/api/ai/ad-copy/route.ts",
+            "src/app/api/properties/e-khata/route.ts",
+            "src/app/api/guidance-value/lookup/route.ts"
+          ]
         }
       ]
     }

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {
   generateAiImage,
@@ -58,7 +59,10 @@ export async function POST(request: Request) {
     // Burn before the external call. Single flat cost regardless of
     // provider (Imagen vs HuggingFace) — no separate "full generation"
     // endpoint exists to justify pricing them differently.
-    const burn = await burnCredits(accountId, 'image_enhance', cost);
+    const burnKey = newBurnKey('image_enhance');
+    const burn = await burnCredits(accountId, 'image_enhance', cost, {
+      retryKey: burnKey,
+    });
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -90,12 +94,9 @@ export async function POST(request: Request) {
       });
     } catch (apiErr: unknown) {
       // API or network failure: refund the credits
-      await refundCredits(accountId, 'image_enhance', cost);
+      await refundBurn(accountId, 'image_enhance', burnKey);
       const err = apiErr as StatusError;
-      console.error(
-        '[AI Enhance] API call failed, refunded credits. Error:',
-        err.message
-      );
+      console.error('[AI Enhance] API call failed. Error:', err.message);
       const status = err.status || 500;
       return NextResponse.json(
         { error: err.message || 'AI generation failed' },
