@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   getCurrentAccount,
-  requireRole,
+  requireWriteRole,
   toErrorResponse,
 } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -16,7 +16,7 @@ import {
 } from '@/lib/automations/validate';
 
 // Listing is open to every member of a live account (the [id] GET is
-// too); only creating an automation carries the 'agent' gate its
+// too); only creating an automation carries the 'agent' write gate its
 // mutation siblings use.
 export async function GET() {
   try {
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   let userId: string;
   let accountId: string;
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     userId = ctx.userId;
     accountId = ctx.accountId;
   } catch (error) {
