@@ -507,12 +507,6 @@ export function reconcileContactDrafts(
   return { container: { contacts: merged }, replaced: false };
 }
 
-/**
- * Folds cards that were parsed side by side into one draft. Unlike
- * reconcileContactDrafts, nothing here is a later card superseding an
- * earlier one: both arrived together, so a stranger is appended rather
- * than allowed to discard the other card.
- */
 export function absorbContactDrafts(
   existing: ParsedContactDraftsContainer,
   incoming: ParsedContactDraftsContainer

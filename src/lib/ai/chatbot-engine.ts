@@ -243,10 +243,6 @@ async function gatedBurn(
   return (await gatedBurnReceipt(accountId, feature)).allowed;
 }
 
-/**
- * gatedBurn that also says whether credits actually left the account,
- * so a later refund never returns credits a fail-open burn did not take.
- */
 async function gatedBurnReceipt(
   accountId: string,
   feature: AiFeatureKey
@@ -843,10 +839,6 @@ async function sendContactDraftPreview(
   await saveBotMessage(conversationId, reply, sendRes.messageId);
 }
 
-/**
- * The current contact draft for a sender, or undefined when it could not
- * be read. A row that is gone (confirmed or cancelled) reads as null.
- */
 async function readCurrentContactDraft(
   contactId: string,
   accountId: string
@@ -863,11 +855,6 @@ async function readCurrentContactDraft(
   return undefined;
 }
 
-/**
- * Sends the preview for a contact draft row, then re-reads the row and
- * sends again while another handler has written it since, so the last
- * card in the chat is always the draft a Confirm would save.
- */
 async function announceLatestContactDraft(
   phoneNumberId: string,
   accessToken: string,
