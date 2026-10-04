@@ -22,6 +22,9 @@ describe('isContactSearchQuestion', () => {
     'is there a buyer for 2bhk flat in Koramangala',
     'koi buyer hai jo JP Nagar mein flat chahiye',
     'buyers in Jayanagar',
+    'Share me contacts who are interested in residential plots in JP Nagar',
+    'send me the list of buyers in Whitefield',
+    'send me the details of buyers in JP Nagar',
   ])('[CPL-003] recognises "%s"', (message) => {
     expect(isContactSearchQuestion(message)).toBe(true);
   });
@@ -44,6 +47,10 @@ describe('isContactSearchQuestion', () => {
     'how to find contacts in the app',
     'Add a contact who is looking for a flat in JP Nagar',
     'share the property with contacts who enquired',
+    'send the brochure to buyers in JP Nagar',
+    'send buyers interested in plots in JP Nagar the brochure',
+    'share with clients looking for villas in Whitefield this listing',
+    'forward this listing to clients interested in plots',
     'What is a lead temperature?',
     'open @Praveen',
     'send a broadcast to all buyers',
