@@ -54,7 +54,11 @@ export default function BroadcastDetailScreen() {
       if (error) throw error;
       return data as Broadcast;
     },
+    refetchInterval: (query) =>
+      query.state.data?.status === 'sending' ? 5_000 : false,
   });
+
+  const sending = broadcast?.status === 'sending';
 
   const { data: recipients, isLoading } = useQuery({
     queryKey: ['broadcast-recipients', id],
@@ -70,6 +74,7 @@ export default function BroadcastDetailScreen() {
       if (error) throw error;
       return (data ?? []) as BroadcastRecipient[];
     },
+    refetchInterval: sending ? 15_000 : false,
   });
 
   const filtered = (recipients ?? []).filter((r) =>

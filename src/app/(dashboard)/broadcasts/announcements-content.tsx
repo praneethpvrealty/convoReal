@@ -30,6 +30,7 @@ import {
 import { SearchableContactMultiSelect } from '@/components/ui/searchable-contact-multi-select';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { InfoHint } from '@/components/ui/info-hint';
+import { LoadError } from '@/components/broadcasts/load-error';
 
 const TEXT_MAX = 1200;
 
@@ -87,6 +88,7 @@ export default function AnnouncementsContent() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [sendTarget, setSendTarget] = useState<Announcement | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
 
   const announcementsQuery = useQuery({
     queryKey: ['voice-announcements'],
@@ -100,6 +102,7 @@ export default function AnnouncementsContent() {
       api(`/api/announcements/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['voice-announcements'] });
+      setDeleteTarget(null);
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -122,7 +125,7 @@ export default function AnnouncementsContent() {
           customers&apos; language, delivered by each contact&apos;s channel
           preference.
           <InfoHint
-            text={`The text is translated and narrated on the worker (costs ${AI_FEATURE_COSTS.audio_announcement} cr per render, refunded if it fails). Sends go only to contacts inside the 24-hour window; a contact's stated channel preference beats the send's default, and contacts preferring calls are skipped.`}
+            text={`The text is translated and narrated on the worker (costs ${AI_FEATURE_COSTS.audio_announcement} credits per render, refunded if it fails). Sends go only to contacts inside the 24-hour window; a contact's stated channel preference beats the send's default, and contacts preferring calls are skipped.`}
           />
         </p>
         <GatedButton
@@ -135,7 +138,13 @@ export default function AnnouncementsContent() {
         </GatedButton>
       </div>
 
-      {announcements.length === 0 ? (
+      {announcementsQuery.isError ? (
+        <LoadError
+          what="announcements"
+          onRetry={() => announcementsQuery.refetch()}
+          retrying={announcementsQuery.isFetching}
+        />
+      ) : announcements.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 py-16 text-center">
           <Mic className="h-8 w-8 text-slate-600" />
           <p className="text-sm font-medium text-slate-300">
@@ -205,11 +214,9 @@ export default function AnnouncementsContent() {
                     size="sm"
                     variant="ghost"
                     disabled={deleteMutation.isPending}
-                    onClick={() => {
-                      if (window.confirm(`Delete announcement "${a.title}"?`)) {
-                        deleteMutation.mutate(a.id);
-                      }
-                    }}
+                    aria-label={`Delete announcement ${a.title}`}
+                    title="Delete announcement"
+                    onClick={() => setDeleteTarget(a)}
                   >
                     <Trash2 className="h-3.5 w-3.5 text-rose-400" />
                   </GatedButton>
@@ -228,6 +235,34 @@ export default function AnnouncementsContent() {
         announcement={sendTarget}
         onClose={() => setSendTarget(null)}
       />
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete announcement?</DialogTitle>
+            <DialogDescription>
+              “{deleteTarget?.title}” and its voice note will be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() =>
+                deleteTarget && deleteMutation.mutate(deleteTarget.id)
+              }
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -269,8 +304,8 @@ function CreateAnnouncementDialog({
           <DialogTitle>New audio announcement</DialogTitle>
           <DialogDescription>
             Write it in English — it is translated and narrated in the language
-            you pick. Costs {AI_FEATURE_COSTS.audio_announcement} cr per render;
-            failed renders are refunded.
+            you pick. Costs {AI_FEATURE_COSTS.audio_announcement} credits per
+            render; failed renders are refunded.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -371,8 +406,18 @@ function SendAnnouncementDialog({
         }
       ),
     onSuccess: (result) => {
-      const summary = countsSummary(result.run) ?? 'nothing sent';
-      toast.success(`Announcement sent — ${summary}`);
+      const delivered =
+        (result.run.audio ?? 0) +
+        (result.run.text ?? 0) +
+        (result.run.video_template ?? 0);
+      const summary = countsSummary(result.run);
+      if (delivered === 0) {
+        toast.warning(
+          `Nothing was delivered${summary ? ` — ${summary}` : ' — no recipient was eligible'}.`
+        );
+      } else {
+        toast.success(`Announcement sent — ${summary}`);
+      }
       queryClient.invalidateQueries({ queryKey: ['voice-announcements'] });
       setContactIds([]);
       onClose();

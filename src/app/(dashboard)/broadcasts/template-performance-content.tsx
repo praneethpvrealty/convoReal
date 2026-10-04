@@ -22,6 +22,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { cn } from '@/lib/utils';
+import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize';
+import { LoadError } from '@/components/broadcasts/load-error';
 
 type Range = 30 | 90 | 365;
 
@@ -32,10 +34,13 @@ const RANGE_LABELS: Record<Range, string> = {
 };
 
 const STATUS_BADGES: Record<string, string> = {
-  Approved: 'bg-emerald-500/10 text-emerald-400',
-  Pending: 'bg-amber-500/10 text-amber-400',
-  Rejected: 'bg-red-500/10 text-red-400',
-  Draft: 'bg-slate-500/10 text-slate-400',
+  APPROVED: 'bg-emerald-500/10 text-emerald-400',
+  PENDING: 'bg-amber-500/10 text-amber-400',
+  IN_APPEAL: 'bg-amber-500/10 text-amber-400',
+  REJECTED: 'bg-red-500/10 text-red-400',
+  PAUSED: 'bg-red-500/10 text-red-400',
+  DISABLED: 'bg-red-500/10 text-red-400',
+  DRAFT: 'bg-slate-500/10 text-slate-400',
 };
 
 const QUALITY_BADGES: Record<string, string> = {
@@ -88,10 +93,11 @@ export default function TemplatePerformanceContent() {
 
   if (templatesQuery.isError) {
     return (
-      <p className="py-16 text-center text-sm text-red-400">
-        Failed to load template performance. Ensure the template_analytics
-        database function is deployed (migration 183).
-      </p>
+      <LoadError
+        what="template performance"
+        onRetry={() => templatesQuery.refetch()}
+        retrying={templatesQuery.isFetching}
+      />
     );
   }
 
@@ -190,12 +196,12 @@ export default function TemplatePerformanceContent() {
                   <th className="px-4 py-3">Template</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Quality</th>
-                  <th className="px-4 py-3 text-right">Campaigns</th>
-                  <th className="px-4 py-3 text-right">Broadcast Sent</th>
-                  <th className="px-4 py-3 text-right">Delivered</th>
-                  <th className="px-4 py-3 text-right">Replied</th>
-                  <th className="px-4 py-3 text-right">Direct Sends</th>
-                  <th className="px-4 py-3 text-right">Read Rate</th>
+                  <th className="px-4 py-3 text-right">Campaigns (#)</th>
+                  <th className="px-4 py-3 text-right">Broadcast Sent (#)</th>
+                  <th className="px-4 py-3 text-right">Delivered (%)</th>
+                  <th className="px-4 py-3 text-right">Replied (#)</th>
+                  <th className="px-4 py-3 text-right">Direct Sends (#)</th>
+                  <th className="px-4 py-3 text-right">Read Rate (%)</th>
                   <th className="px-4 py-3 text-right">Last Used</th>
                 </tr>
               </thead>
@@ -218,7 +224,7 @@ export default function TemplatePerformanceContent() {
                       <span
                         className={cn(
                           'rounded-md px-1.5 py-0.5 text-xs font-medium',
-                          STATUS_BADGES[row.status] ??
+                          STATUS_BADGES[normalizeStatus(row.status)] ??
                             'bg-slate-500/10 text-slate-400'
                         )}
                       >

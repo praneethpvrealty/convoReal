@@ -7,6 +7,7 @@ import {
 } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
+  onlyOptedIn,
   resolveAudienceOnServer,
   sendBroadcastRecipients,
   type AudienceConfig,
@@ -110,9 +111,7 @@ export async function POST(
     // strict mode narrows a Marketing-category send to explicit grants
     // (contacts are asked free-form the first time they message in —
     // see src/lib/buyer/consent-ask.ts for why there is no ask template).
-    const contacts = optedInOnly
-      ? resolved.filter((c) => c.buyer_alerts_consent === 'granted')
-      : resolved;
+    const contacts = optedInOnly ? onlyOptedIn(resolved) : resolved;
     if (contacts.length === 0) {
       return NextResponse.json(
         {

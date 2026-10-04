@@ -46,6 +46,7 @@ import { SearchablePropertySelect } from '@/components/ui/searchable-property-se
 import { SearchableContactMultiSelect } from '@/components/ui/searchable-contact-multi-select';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { InfoHint } from '@/components/ui/info-hint';
+import { LoadError } from '@/components/broadcasts/load-error';
 
 interface RecipientCounts {
   queued?: number;
@@ -193,6 +194,7 @@ export default function VoiceCampaignsContent() {
   const callCost = useCallCost();
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<VoiceCampaign | null>(null);
 
   const campaignsQuery = useQuery({
     queryKey: ['voice-campaigns'],
@@ -217,6 +219,7 @@ export default function VoiceCampaignsContent() {
     onSuccess: () => {
       toast.success('Campaign deleted');
       queryClient.invalidateQueries({ queryKey: ['voice-campaigns'] });
+      setDeleteTarget(null);
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -239,7 +242,7 @@ export default function VoiceCampaignsContent() {
           agent checks budget and requirements, and answers land back on the
           contact.
           <InfoHint
-            text={`Recipients are seeded from a property's enquiries — open Recipients on a campaign to add or remove people before starting it. Calls go out inside the campaign's IST window, retry unanswered numbers, and respect do-not-call. Results (stated budget, areas, opt-outs) are written back to the contact automatically. Each connected call costs ${callCost} cr — unanswered attempts are refunded.`}
+            text={`Recipients are seeded from a property's enquiries — open Recipients on a campaign to add or remove people before starting it. Calls go out inside the campaign's IST window, retry unanswered numbers, and respect do-not-call. Results (stated budget, areas, opt-outs) are written back to the contact automatically. Each connected call costs ${callCost} credits — unanswered attempts are refunded.`}
           />
         </p>
         <GatedButton
@@ -252,7 +255,13 @@ export default function VoiceCampaignsContent() {
         </GatedButton>
       </div>
 
-      {campaigns.length === 0 ? (
+      {campaignsQuery.isError ? (
+        <LoadError
+          what="voice campaigns"
+          onRetry={() => campaignsQuery.refetch()}
+          retrying={campaignsQuery.isFetching}
+        />
+      ) : campaigns.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 py-16 text-center">
           <PhoneCall className="h-8 w-8 text-slate-600" />
           <p className="text-sm font-medium text-slate-300">
@@ -401,15 +410,9 @@ export default function VoiceCampaignsContent() {
                           size="sm"
                           variant="ghost"
                           disabled={deleteMutation.isPending}
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Delete campaign "${c.name}" and its recipient list?`
-                              )
-                            ) {
-                              deleteMutation.mutate(c.id);
-                            }
-                          }}
+                          aria-label={`Delete campaign ${c.name}`}
+                          title="Delete campaign"
+                          onClick={() => setDeleteTarget(c)}
                         >
                           <Trash2 className="h-3.5 w-3.5 text-rose-400" />
                         </GatedButton>
@@ -429,6 +432,34 @@ export default function VoiceCampaignsContent() {
         onClose={() => setDetailId(null)}
         canManage={canManage}
       />
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete campaign?</DialogTitle>
+            <DialogDescription>
+              “{deleteTarget?.name}” and its recipient list will be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() =>
+                deleteTarget && deleteMutation.mutate(deleteTarget.id)
+              }
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -450,6 +481,13 @@ function CreateCampaignDialog({
   const [endHour, setEndHour] = useState(19);
   const [maxAttempts, setMaxAttempts] = useState(3);
   const [seed, setSeed] = useState(true);
+
+  const windowError =
+    endHour <= startHour ? '“Until” must be after “Calls from”.' : null;
+  const attemptsError =
+    !Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 10
+      ? 'Max attempts must be a whole number from 1 to 10.'
+      : null;
 
   const propertiesQuery = useQuery({
     queryKey: ['voice-campaigns', 'properties', accountId],
@@ -504,8 +542,9 @@ function CreateCampaignDialog({
           <DialogTitle>New voice campaign</DialogTitle>
           <DialogDescription>
             The voice agent calls each recipient about the selected listing and
-            captures their real budget and requirements. Costs {callCost} cr per
-            connected call; unanswered attempts are refunded automatically.
+            captures their real budget and requirements. Costs {callCost}{' '}
+            credits per connected call; unanswered attempts are refunded
+            automatically.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -561,7 +600,9 @@ function CreateCampaignDialog({
                 id="vc-end"
                 value={endHour}
                 onChange={(e) => setEndHour(Number(e.target.value))}
-                className="h-9 w-full rounded-md border border-slate-800 bg-slate-900 px-2 text-sm text-white"
+                aria-invalid={Boolean(windowError)}
+                aria-describedby={windowError ? 'vc-window-error' : undefined}
+                className="h-9 w-full rounded-md border border-slate-800 bg-slate-900 px-2 text-sm text-white aria-invalid:border-rose-500"
               >
                 {HOURS.map((h) => h + 1).map((h) => (
                   <option key={h} value={h}>
@@ -579,9 +620,23 @@ function CreateCampaignDialog({
                 max={10}
                 value={maxAttempts}
                 onChange={(e) => setMaxAttempts(Number(e.target.value))}
+                aria-invalid={Boolean(attemptsError)}
+                aria-describedby={
+                  attemptsError ? 'vc-attempts-error' : undefined
+                }
               />
             </div>
           </div>
+          {windowError && (
+            <p id="vc-window-error" className="text-xs text-rose-400">
+              {windowError}
+            </p>
+          )}
+          {attemptsError && (
+            <p id="vc-attempts-error" className="text-xs text-rose-400">
+              {attemptsError}
+            </p>
+          )}
           <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
             <div>
               <p className="text-sm font-medium text-white">
@@ -603,7 +658,12 @@ function CreateCampaignDialog({
             Cancel
           </Button>
           <Button
-            disabled={!name.trim() || createMutation.isPending}
+            disabled={
+              !name.trim() ||
+              Boolean(windowError) ||
+              Boolean(attemptsError) ||
+              createMutation.isPending
+            }
             onClick={() => createMutation.mutate()}
           >
             Create campaign
@@ -713,7 +773,18 @@ function CampaignDetailDialog({
       onOpenChange={(open) => !open && onClose()}
     >
       <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
-        {!detail ? (
+        {detailQuery.isError && !detail ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Voice campaign</DialogTitle>
+            </DialogHeader>
+            <LoadError
+              what="this campaign"
+              onRetry={() => detailQuery.refetch()}
+              retrying={detailQuery.isFetching}
+            />
+          </>
+        ) : !detail ? (
           <div className="flex items-center justify-center py-16">
             <ConvoRealLoader />
           </div>
@@ -842,6 +913,7 @@ function CampaignDetailDialog({
                               size="sm"
                               variant="ghost"
                               disabled={removeMutation.isPending}
+                              aria-label={`Remove ${contact?.name || 'this contact'} from the campaign`}
                               title={`Remove ${contact?.name || 'this contact'} from the campaign`}
                               onClick={() =>
                                 contact && removeMutation.mutate(contact.id)

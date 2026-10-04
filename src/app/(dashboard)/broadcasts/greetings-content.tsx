@@ -52,6 +52,11 @@ import {
 } from '@/components/ui/dialog';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { InfoHint } from '@/components/ui/info-hint';
+import { LoadError } from '@/components/broadcasts/load-error';
+import {
+  useAudienceCount,
+  type AudienceConfig,
+} from '@/hooks/use-broadcast-sending';
 
 const CUSTOM_OCCASION = 'custom';
 
@@ -98,6 +103,9 @@ export default function GreetingsContent() {
   const [editTarget, setEditTarget] = useState<OccasionGreeting | null>(null);
   const [sendTarget, setSendTarget] = useState<OccasionGreeting | null>(null);
   const [cardPreview, setCardPreview] = useState<OccasionGreeting | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<OccasionGreeting | null>(
+    null
+  );
 
   const greetingsQuery = useQuery({
     queryKey: ['occasion-greetings'],
@@ -109,6 +117,7 @@ export default function GreetingsContent() {
       api(`/api/greetings/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['occasion-greetings'] });
+      setDeleteTarget(null);
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -133,7 +142,7 @@ export default function GreetingsContent() {
           Festival and occasion greetings, written in your agency&apos;s voice
           and broadcast to your clients with a festive card image.
           <InfoHint
-            text={`AI composing costs ${AI_FEATURE_COSTS.greetings_generate} cr per greeting (text + card image, refunded if the text fails). Sends go out on the shared occasion_greeting WhatsApp template — Meta reviews it once per account, then every occasion reuses it. Contacts who replied STOP ALERTS are excluded automatically.`}
+            text={`AI composing costs ${AI_FEATURE_COSTS.greetings_generate} credits per greeting (text + card image, refunded if the text fails). Sends go out on the shared occasion_greeting WhatsApp template — Meta reviews it once per account, then every occasion reuses it. Contacts who replied STOP ALERTS are excluded automatically.`}
           />
         </p>
         <GatedButton
@@ -179,7 +188,13 @@ export default function GreetingsContent() {
         </div>
       )}
 
-      {greetings.length === 0 ? (
+      {greetingsQuery.isError ? (
+        <LoadError
+          what="greetings"
+          onRetry={() => greetingsQuery.refetch()}
+          retrying={greetingsQuery.isFetching}
+        />
+      ) : greetings.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 py-16 text-center">
           <PartyPopper className="h-8 w-8 text-slate-600" />
           <p className="text-sm font-medium text-slate-300">No greetings yet</p>
@@ -261,6 +276,8 @@ export default function GreetingsContent() {
                     gateReason="edit greetings"
                     size="sm"
                     variant="ghost"
+                    aria-label={`Edit the ${g.occasion_label} greeting`}
+                    title="Edit greeting"
                     onClick={() => setEditTarget(g)}
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -271,15 +288,9 @@ export default function GreetingsContent() {
                     size="sm"
                     variant="ghost"
                     disabled={deleteMutation.isPending}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Delete the "${g.occasion_label}" greeting?`
-                        )
-                      ) {
-                        deleteMutation.mutate(g.id);
-                      }
-                    }}
+                    aria-label={`Delete the ${g.occasion_label} greeting`}
+                    title="Delete greeting"
+                    onClick={() => setDeleteTarget(g)}
                   >
                     <Trash2 className="h-3.5 w-3.5 text-rose-400" />
                   </GatedButton>
@@ -303,6 +314,39 @@ export default function GreetingsContent() {
         greeting={sendTarget}
         onClose={() => setSendTarget(null)}
       />
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete greeting?</DialogTitle>
+            <DialogDescription>
+              The “{deleteTarget?.occasion_label}” greeting will be removed.
+              Broadcasts already sent are not affected.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() =>
+                deleteTarget && deleteMutation.mutate(deleteTarget.id)
+              }
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={!!cardPreview}
         onOpenChange={(o) => !o && setCardPreview(null)}
@@ -435,8 +479,8 @@ function ComposeGreetingDialog({
           <DialogTitle>New occasion greeting</DialogTitle>
           <DialogDescription>
             The AI writes it in your agency&apos;s name and designs a festive
-            card — costs {AI_FEATURE_COSTS.greetings_generate} cr per compose.
-            You can also write it yourself for free.
+            card — costs {AI_FEATURE_COSTS.greetings_generate} credits per
+            compose. You can also write it yourself for free.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -618,7 +662,13 @@ function ComposeGreetingDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+              reset();
+            }}
+          >
             Cancel
           </Button>
           <Button
@@ -721,9 +771,9 @@ function SendGreetingDialog({
   const [sendChannel, setSendChannel] = useState<'engine' | 'personal'>(
     'engine'
   );
-  const [audienceType, setAudienceType] = useState<'all' | 'tags' | 'contacts'>(
-    'all'
-  );
+  const [audienceType, setAudienceType] = useState<
+    'all' | 'tags' | 'contacts' | null
+  >(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<ContactRow[]>([]);
   const [contactSearch, setContactSearch] = useState('');
@@ -811,24 +861,46 @@ function SendGreetingDialog({
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const audience = useMemo<AudienceConfig | null>(() => {
+    if (audienceType === 'all') return { type: 'all' };
+    if (audienceType === 'tags' && tagIds.length > 0) {
+      return { type: 'tags', tagIds };
+    }
+    if (audienceType === 'contacts' && selectedContacts.length > 0) {
+      return {
+        type: 'contacts',
+        contactIds: selectedContacts.map((contact) => contact.id),
+      };
+    }
+    return null;
+  }, [audienceType, tagIds, selectedContacts]);
+
+  const countQuery = useAudienceCount(
+    greeting && sendChannel === 'engine' ? audience : null,
+    { optedInOnly }
+  );
+  const recipientCount =
+    audience && !countQuery.isFetching ? countQuery.data : undefined;
+
+  const resetAudience = () => {
+    setAudienceType(null);
+    setTagIds([]);
+    setSelectedContacts([]);
+    setContactSearch('');
+  };
+
+  const close = () => {
+    resetAudience();
+    onClose();
+  };
+
   const sendMutation = useMutation({
     mutationFn: () =>
       api<{ broadcastId: string; recipientsCount: number }>(
         `/api/greetings/${greeting!.id}/send`,
         {
           method: 'POST',
-          body: JSON.stringify({
-            audience:
-              audienceType === 'tags'
-                ? { type: 'tags', tagIds }
-                : audienceType === 'contacts'
-                  ? {
-                      type: 'contacts',
-                      contactIds: selectedContacts.map((contact) => contact.id),
-                    }
-                  : { type: 'all' },
-            optedInOnly,
-          }),
+          body: JSON.stringify({ audience, optedInOnly }),
         }
       ),
     onSuccess: (result) => {
@@ -836,10 +908,7 @@ function SendGreetingDialog({
         `Greeting is going out to ${result.recipientsCount} contact${result.recipientsCount === 1 ? '' : 's'}.`
       );
       queryClient.invalidateQueries({ queryKey: ['occasion-greetings'] });
-      setTagIds([]);
-      setSelectedContacts([]);
-      setContactSearch('');
-      onClose();
+      close();
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -875,9 +944,7 @@ function SendGreetingDialog({
     toast.success(
       `Opened personal WhatsApp for ${contact.name || contact.phone}.`
     );
-    setSelectedContacts([]);
-    setContactSearch('');
-    onClose();
+    close();
   };
 
   const template = templateQuery.data;
@@ -886,16 +953,10 @@ function SendGreetingDialog({
   const canSend =
     sendChannel === 'personal'
       ? selectedContacts.length === 1 && Boolean(selectedContacts[0]?.phone)
-      : approved &&
-        (audienceType === 'all' ||
-          (audienceType === 'tags' && tagIds.length > 0) ||
-          (audienceType === 'contacts' && selectedContacts.length > 0));
+      : approved && recipientCount !== undefined && recipientCount > 0;
 
   return (
-    <Dialog
-      open={Boolean(greeting)}
-      onOpenChange={(open) => !open && onClose()}
-    >
+    <Dialog open={Boolean(greeting)} onOpenChange={(open) => !open && close()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Send “{greeting?.occasion_label}” greeting</DialogTitle>
@@ -937,6 +998,15 @@ function SendGreetingDialog({
                 : 'Personal WhatsApp opens one contact at a time and does not depend on a Meta template. Use it only with contacts who expect your message.'}
             </p>
           </div>
+          {sendChannel === 'engine' && greeting?.status === 'sent' && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+              This greeting was already sent
+              {greeting.sent_at
+                ? ` on ${format(new Date(greeting.sent_at), 'd MMM yyyy')}`
+                : ''}
+              . Recipients who already received it will get it again.
+            </div>
+          )}
           {sendChannel === 'engine' && template && !approved && (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
               {template.status === null && (
@@ -1183,9 +1253,41 @@ function SendGreetingDialog({
               </p>
             </div>
           )}
+          {sendChannel === 'engine' && (
+            <div
+              className="flex items-center gap-2 text-xs text-slate-400"
+              aria-live="polite"
+            >
+              {!audience ? (
+                'Choose an audience to see how many contacts it reaches.'
+              ) : countQuery.isError ? (
+                <>
+                  <span className="text-rose-400">
+                    Couldn&apos;t count the audience.
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => countQuery.refetch()}
+                  >
+                    Retry
+                  </Button>
+                </>
+              ) : recipientCount === undefined ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Counting recipients…
+                </>
+              ) : recipientCount === 0 ? (
+                'Nobody in this audience can receive the greeting.'
+              ) : (
+                `Reaches ${recipientCount.toLocaleString()} contact${recipientCount === 1 ? '' : 's'}.`
+              )}
+            </div>
+          )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={close}>
             Cancel
           </Button>
           <Button
@@ -1203,7 +1305,11 @@ function SendGreetingDialog({
             )}
             {sendChannel === 'personal'
               ? 'Open personal WhatsApp'
-              : 'Send greeting'}
+              : recipientCount
+                ? `${greeting?.status === 'sent' ? 'Send again' : 'Send'} to ${recipientCount.toLocaleString()} contact${recipientCount === 1 ? '' : 's'}`
+                : greeting?.status === 'sent'
+                  ? 'Send again'
+                  : 'Send greeting'}
           </Button>
         </DialogFooter>
       </DialogContent>

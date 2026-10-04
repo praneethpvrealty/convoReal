@@ -21,6 +21,7 @@ import {
   SectionLabel,
   TextField,
 } from '@/components/ui';
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { TourTarget } from '@/components/copilot-tour';
 import { apiFetch, ApiError } from '@/lib/api';
 import {
@@ -53,7 +54,7 @@ export default function NewBroadcastScreen() {
   const { colors, fonts: f } = useTheme();
   const [name, setName] = useState('');
   const [template, setTemplate] = useState<MessageTemplate | null>(null);
-  const [audienceType, setAudienceType] = useState<'all' | 'tags'>('all');
+  const [audienceType, setAudienceType] = useState<'all' | 'tags' | null>(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [excludeTagIds, setExcludeTagIds] = useState<string[]>([]);
   const [variables, setVariables] = useState<Record<string, VariableMapping>>(
@@ -61,6 +62,7 @@ export default function NewBroadcastScreen() {
   );
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialog = useAppDialog();
 
   // Only APPROVED templates can be sent via Meta — anything else would
   // be rejected at the API, so they are not offered here.
@@ -103,55 +105,32 @@ export default function NewBroadcastScreen() {
     },
   });
 
-  // Recipient count, so nobody sends to a list of unknown size. Mirrors
-  // the server's resolution for the two audiences offered here; the
-  // server recounts on send, so this is a guide, not the contract.
-  const { data: recipientCount, isFetching: counting } = useQuery({
-    queryKey: ['broadcast-audience-count', audienceType, tagIds, excludeTagIds],
-    enabled: audienceType === 'all' || tagIds.length > 0,
-    queryFn: async () => {
-      let includedIds: string[] | null = null;
-      if (audienceType === 'tags') {
-        const { data } = await supabase
-          .from('contact_tags')
-          .select('contact_id')
-          .in('tag_id', tagIds);
-        includedIds = [
-          ...new Set(
-            (data ?? []).map((r: { contact_id: string }) => r.contact_id)
-          ),
-        ];
-        if (includedIds.length === 0) return 0;
-      }
-      let excludedIds: string[] = [];
-      if (excludeTagIds.length > 0) {
-        const { data } = await supabase
-          .from('contact_tags')
-          .select('contact_id')
-          .in('tag_id', excludeTagIds);
-        excludedIds = [
-          ...new Set(
-            (data ?? []).map((r: { contact_id: string }) => r.contact_id)
-          ),
-        ];
-      }
-      let query = supabase
-        .from('contacts')
-        .select('id', { count: 'exact', head: true });
-      if (includedIds) query = query.in('id', includedIds);
-      const { count } = await query;
-      if (!count) return 0;
-      if (excludedIds.length === 0) return count;
-      // Exclusions overlap the included set, so subtract only the ones
-      // that are actually in it rather than the raw excluded total.
-      let overlapQuery = supabase
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .in('id', excludedIds);
-      if (includedIds) overlapQuery = overlapQuery.in('id', includedIds);
-      const { count: overlap } = await overlapQuery;
-      return Math.max(0, count - (overlap ?? 0));
-    },
+  const audience = useMemo(
+    () =>
+      audienceType === 'all' || (audienceType === 'tags' && tagIds.length > 0)
+        ? buildAudience(audienceType, tagIds, excludeTagIds)
+        : null,
+    [audienceType, tagIds, excludeTagIds]
+  );
+
+  const {
+    data: recipientCount,
+    isFetching: counting,
+    isError: countFailed,
+    refetch: recount,
+  } = useQuery({
+    queryKey: ['broadcast-audience-count', audience],
+    enabled: audience !== null,
+    queryFn: async () =>
+      (
+        await apiFetch<{ data: { count: number } }>(
+          '/api/broadcasts/audience-count',
+          {
+            method: 'POST',
+            body: JSON.stringify({ audience }),
+          }
+        )
+      ).data.count,
   });
 
   const variableKeys = useMemo(
@@ -178,12 +157,34 @@ export default function NewBroadcastScreen() {
   const ready =
     Boolean(template) &&
     name.trim().length > 0 &&
-    (audienceType === 'all' || tagIds.length > 0) &&
+    audience !== null &&
+    !counting &&
     mappingsComplete(variableKeys, variables) &&
     (recipientCount ?? 0) > 0;
 
+  const recipientsLabel = `${recipientCount ?? 0} contact${(recipientCount ?? 0) === 1 ? '' : 's'}`;
+
+  function confirmSend() {
+    haptic.tap();
+    dialog.show({
+      title: 'Send this broadcast?',
+      message: `“${name.trim()}” goes to ${recipientsLabel} now. Sending cannot be undone.`,
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: dialog.close },
+        {
+          label: `Send to ${recipientsLabel}`,
+          variant: 'primary',
+          onPress: () => {
+            dialog.close();
+            void send();
+          },
+        },
+      ],
+    });
+  }
+
   async function send() {
-    if (!template || sending) return;
+    if (!template || !audience || sending) return;
     setSending(true);
     setError(null);
     try {
@@ -192,7 +193,7 @@ export default function NewBroadcastScreen() {
         body: JSON.stringify({
           name: name.trim(),
           template,
-          audience: buildAudience(audienceType, tagIds, excludeTagIds),
+          audience,
           variables,
         }),
       });
@@ -400,13 +401,35 @@ export default function NewBroadcastScreen() {
                     size={16}
                     color={colors.primary}
                   />
-                  <Text style={{ fontSize: 13, color: colors.text }}>
-                    {counting
-                      ? 'Counting recipients…'
+                  <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>
+                    {audienceType === null
+                      ? 'Choose who receives it'
                       : audienceType === 'tags' && tagIds.length === 0
                         ? 'Pick at least one tag'
-                        : `${recipientCount ?? 0} recipient${(recipientCount ?? 0) === 1 ? '' : 's'}`}
+                        : counting
+                          ? 'Counting recipients…'
+                          : countFailed
+                            ? 'Couldn’t count the audience'
+                            : `${recipientCount ?? 0} recipient${(recipientCount ?? 0) === 1 ? '' : 's'}`}
                   </Text>
+                  {countFailed && !counting ? (
+                    <Pressable
+                      onPress={() => recount()}
+                      accessibilityRole="button"
+                      accessibilityLabel="Retry counting recipients"
+                      hitSlop={8}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontFamily: f.semibold,
+                          color: colors.primary,
+                        }}
+                      >
+                        Retry
+                      </Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               </View>
 
@@ -515,9 +538,11 @@ export default function NewBroadcastScreen() {
                 label={
                   sending
                     ? 'Starting…'
-                    : `Send to ${recipientCount ?? 0} contact${(recipientCount ?? 0) === 1 ? '' : 's'}`
+                    : audience === null
+                      ? 'Choose an audience'
+                      : `Send to ${recipientsLabel}`
                 }
-                onPress={send}
+                onPress={confirmSend}
                 disabled={!ready || sending}
                 busy={sending}
               />
@@ -528,12 +553,13 @@ export default function NewBroadcastScreen() {
                   textAlign: 'center',
                 }}
               >
-                Sending starts immediately and cannot be undone.
+                You confirm the recipient count before anything is sent.
               </Text>
             </>
           ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
+      <AppDialog {...dialog.dialogProps} />
     </View>
   );
 }

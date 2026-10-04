@@ -405,7 +405,7 @@ function CreateCampaignSheet({
             textAlign: 'center',
           }}
         >
-          Costs {callCost} cr per connected call — unanswered attempts are
+          Costs {callCost} credits per connected call — unanswered attempts are
           refunded automatically.
         </Text>
         <PrimaryButton

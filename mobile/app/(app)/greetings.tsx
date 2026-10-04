@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -76,7 +76,7 @@ export default function GreetingsScreen() {
   const [sendTarget, setSendTarget] = useState<Greeting | null>(null);
   const [cardPreview, setCardPreview] = useState<Greeting | null>(null);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['occasion-greetings'],
     queryFn: async () =>
       (await apiFetch<{ data: Greeting[] }>('/api/greetings')).data,
@@ -205,7 +205,20 @@ export default function GreetingsScreen() {
           </View>
         }
         ListEmptyComponent={
-          isLoading ? null : (
+          isLoading ? null : isError ? (
+            <EmptyState
+              icon="cloud-offline-outline"
+              title="Couldn’t load greetings"
+              subtitle="Check your connection and try again."
+              action={
+                <PrimaryButton
+                  label="Retry"
+                  icon="refresh"
+                  onPress={() => refetch()}
+                />
+              }
+            />
+          ) : (
             <EmptyState
               icon="sparkles-outline"
               title="No greetings yet"
@@ -602,8 +615,8 @@ function ComposeGreetingSheet({
         <Text
           style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}
         >
-          Composing costs {cost} cr — refunded if the text fails. Writing it
-          yourself is free.
+          Composing costs {cost} credits — refunded if the text fails. Writing
+          it yourself is free.
         </Text>
         <PrimaryButton
           label="Save greeting"
@@ -706,7 +719,7 @@ function SendGreetingSheet({
   const [sendChannel, setSendChannel] = useState<'engine' | 'personal'>(
     'engine'
   );
-  const [audienceType, setAudienceType] = useState<AudienceType>('all');
+  const [audienceType, setAudienceType] = useState<AudienceType | null>(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
@@ -745,6 +758,37 @@ function SendGreetingSheet({
     enabled: Boolean(greeting) && sendChannel === 'engine',
   });
 
+  const audience = useMemo(() => {
+    if (audienceType === null) return null;
+    const contactIds = selectedContacts.map((contact) => contact.id);
+    if (audienceType === 'tags' && tagIds.length === 0) return null;
+    if (audienceType === 'contacts' && contactIds.length === 0) return null;
+    return buildGreetingAudience(audienceType, tagIds, contactIds);
+  }, [audienceType, tagIds, selectedContacts]);
+
+  const {
+    data: recipientCount,
+    isFetching: counting,
+    isError: countFailed,
+    refetch: recount,
+  } = useQuery({
+    queryKey: ['broadcast-audience-count', audience, optedInOnly],
+    enabled: Boolean(greeting) && sendChannel === 'engine' && audience !== null,
+    queryFn: async () =>
+      (
+        await apiFetch<{ data: { count: number } }>(
+          '/api/broadcasts/audience-count',
+          {
+            method: 'POST',
+            body: JSON.stringify({ audience, optedInOnly }),
+          }
+        )
+      ).data.count,
+  });
+  const reach = audience && !counting ? recipientCount : undefined;
+  const reachLabel =
+    reach === undefined ? '' : `${reach} contact${reach === 1 ? '' : 's'}`;
+
   const setupMutation = useMutation({
     mutationFn: () =>
       apiFetch<{ data: { status: string | null } }>('/api/greetings/template', {
@@ -770,18 +814,12 @@ function SendGreetingSheet({
         `/api/greetings/${greeting!.id}/send`,
         {
           method: 'POST',
-          body: JSON.stringify({
-            audience: buildGreetingAudience(
-              audienceType,
-              tagIds,
-              selectedContacts.map((contact) => contact.id)
-            ),
-            optedInOnly,
-          }),
+          body: JSON.stringify({ audience, optedInOnly }),
         }
       ),
     onSuccess: ({ data }) => {
       queryClient.invalidateQueries({ queryKey: ['occasion-greetings'] });
+      setAudienceType(null);
       setTagIds([]);
       setSelectedContacts([]);
       setContactPickerOpen(false);
@@ -821,6 +859,7 @@ function SendGreetingSheet({
           note_text: `Opened ${greeting.occasion_label} greeting in personal WhatsApp.`,
         });
       }
+      setAudienceType(null);
       setSelectedContacts([]);
       setContactPickerOpen(false);
       onClose();
@@ -843,7 +882,7 @@ function SendGreetingSheet({
         visible={Boolean(greeting)}
         onClose={() => {
           setSendChannel('engine');
-          setAudienceType('all');
+          setAudienceType(null);
           setTagIds([]);
           setSelectedContacts([]);
           setContactPickerOpen(false);
@@ -879,6 +918,21 @@ function SendGreetingSheet({
               ? 'Automated delivery supports all contacts, tags, or a selected group.'
               : 'Personal WhatsApp opens one contact at a time and does not depend on a Meta template. Review it, use only with contacts who expect it, and tap Send inside WhatsApp.'}
           </Text>
+
+          {sendChannel === 'engine' && greeting?.status === 'sent' ? (
+            <View
+              style={{
+                padding: spacing.md,
+                borderRadius: radius.md,
+                backgroundColor: colors.warningSoft,
+              }}
+            >
+              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+                This greeting was already sent. Recipients who already received
+                it will get it again.
+              </Text>
+            </View>
+          ) : null}
 
           {sendChannel === 'engine' && template && blocked ? (
             <View
@@ -1032,6 +1086,40 @@ function SendGreetingSheet({
                 WhatsApp. Without this, the greeting goes to everyone except
                 contacts who replied STOP ALERTS.
               </Text>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.sm,
+                }}
+              >
+                {audience && counting ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : null}
+                <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>
+                  {audience === null
+                    ? 'Choose an audience to see how many contacts it reaches.'
+                    : counting
+                      ? 'Counting recipients…'
+                      : countFailed
+                        ? 'Couldn’t count the audience.'
+                        : reach === 0
+                          ? 'Nobody in this audience can receive the greeting.'
+                          : `Reaches ${reachLabel}.`}
+                </Text>
+                {countFailed && !counting ? (
+                  <Pressable
+                    onPress={() => recount()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry counting recipients"
+                    hitSlop={8}
+                  >
+                    <Text style={{ fontSize: 13, color: colors.primary }}>
+                      Retry
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </>
           ) : null}
 
@@ -1039,13 +1127,19 @@ function SendGreetingSheet({
             label={
               sendChannel === 'personal'
                 ? 'Open personal WhatsApp'
-                : 'Send greeting'
+                : reach
+                  ? `${greeting?.status === 'sent' ? 'Send again' : 'Send'} to ${reachLabel}`
+                  : greeting?.status === 'sent'
+                    ? 'Send again'
+                    : 'Send greeting'
             }
             icon={sendChannel === 'personal' ? 'logo-whatsapp' : 'send'}
             disabled={
               sendChannel === 'personal'
                 ? selectedContacts.length !== 1 || !selectedContacts[0]?.phone
-                : !canSendGreeting(
+                : audienceType === null ||
+                  !reach ||
+                  !canSendGreeting(
                     audienceType,
                     tagIds,
                     template?.status ?? null,
