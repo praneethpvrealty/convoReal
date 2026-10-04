@@ -11,6 +11,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { burnCredits } from '@/lib/credits/burn';
+import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { isNarrationLanguage } from '@/lib/video/listing-video';
 
@@ -83,7 +84,10 @@ export async function POST(request: NextRequest) {
     // Charge BEFORE the work is queued (credits-engine rule); the
     // worker refunds on failure.
     const cost = AI_FEATURE_COSTS.audio_announcement;
-    const burn = await burnCredits(ctx.accountId, 'audio_announcement', cost);
+    const burnKey = newBurnKey('audio_announcement');
+    const burn = await burnCredits(ctx.accountId, 'audio_announcement', cost, {
+      retryKey: burnKey,
+    });
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -102,10 +106,14 @@ export async function POST(request: NextRequest) {
         title,
         body_text: text,
         language,
+        burn_key: burnKey,
       })
       .select('id, title, status, language')
       .single();
     if (insertErr || !announcement) {
+      await refundBurn(ctx.accountId, 'audio_announcement', burnKey, {
+        reason: 'audio_announcement insert failed',
+      });
       return NextResponse.json(
         { error: insertErr?.message || 'Failed to create announcement' },
         { status: 500 }

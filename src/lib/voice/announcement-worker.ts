@@ -4,6 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { refundCredits } from '@/lib/credits/burn';
+import { refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { chunkNarration } from '@/lib/video/listing-video-worker';
 import type { NarrationLanguage } from '@/lib/video/listing-video';
@@ -171,7 +172,7 @@ export async function processAnnouncementAudioJob(
   const admin = supabaseAdmin();
   const { data: announcement } = await admin
     .from('voice_announcements')
-    .select('id, account_id, title, body_text, language, status')
+    .select('id, account_id, title, body_text, language, status, burn_key')
     .eq('id', job.announcementId)
     .eq('account_id', job.accountId)
     .maybeSingle();
@@ -284,14 +285,23 @@ export async function processAnnouncementAudioJob(
       .update({ status: 'failed', error: message.slice(0, 500) })
       .eq('id', announcement.id)
       .select('id');
-    await refundCredits(
-      announcement.account_id,
-      'audio_announcement',
-      AI_FEATURE_COSTS.audio_announcement,
-      {
-        description: `audio_announcement generation refund (${announcement.id})`,
-      }
-    );
+    if (announcement.burn_key) {
+      await refundBurn(
+        announcement.account_id,
+        'audio_announcement',
+        announcement.burn_key,
+        { reason: `audio_announcement generation failed (${announcement.id})` }
+      );
+    } else {
+      await refundCredits(
+        announcement.account_id,
+        'audio_announcement',
+        AI_FEATURE_COSTS.audio_announcement,
+        {
+          description: `audio_announcement generation refund (${announcement.id})`,
+        }
+      );
+    }
   } finally {
     fs.rmSync(workDir, { recursive: true, force: true });
   }
