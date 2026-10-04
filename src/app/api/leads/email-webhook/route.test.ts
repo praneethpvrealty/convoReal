@@ -1572,4 +1572,15 @@ describe('[INB-029] an existing contact re-seeded from an enquiry', () => {
     expect(anchorWrite).toBeGreaterThan(budgetWrite);
     expect(source).not.toMatch(/updatePayload\.pref_budget_anchor\s*=/);
   });
+
+  it('never anchors a budget the lead already stated', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('./route.ts', import.meta.url), 'utf8');
+    expect(source).toMatch(
+      /hadStatedBudget\s*=\s*existingContact\.pref_budget_max != null &&\s*existingContact\.pref_budget_anchor == null/
+    );
+    expect(source).toMatch(
+      /updatePayload\.pref_budget_max != null && !hadStatedBudget/
+    );
+  });
 });

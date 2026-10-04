@@ -1003,7 +1003,7 @@ export async function POST(request: Request) {
     const cleanPhone = normalizedPhoneNum.replace(/\D/g, '');
     const { data: existingContact } = await supabase
       .from('contacts')
-      .select('id, name, pref_areas')
+      .select('id, name, pref_areas, pref_budget_max, pref_budget_anchor')
       .eq('account_id', accountId)
       .or(`phone.eq.${normalizedPhoneNum},phone.eq.${cleanPhone}`)
       .maybeSingle();
@@ -1087,8 +1087,13 @@ export async function POST(request: Request) {
 
       // Separate from the write above: the pref_budget_max trigger clears
       // the anchor on every write of the budget, so only this one marks
-      // the budget as the enquiry's (INB-029).
-      if (updatePayload.pref_budget_max != null) {
+      // the budget as the enquiry's (INB-029). A budget the lead already
+      // stated (one with no anchor) stays stated: an enquiry at the same
+      // or another price does not turn it into a floorless ceiling.
+      const hadStatedBudget =
+        existingContact.pref_budget_max != null &&
+        existingContact.pref_budget_anchor == null;
+      if (updatePayload.pref_budget_max != null && !hadStatedBudget) {
         await supabase
           .from('contacts')
           .update({ pref_budget_anchor: updatePayload.pref_budget_max })
