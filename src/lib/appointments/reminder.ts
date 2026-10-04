@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { newBurnKey } from '@/lib/credits/refund-burn';
 import { placeReminderCall } from '@/lib/voice/reminder-call';
 import { confirmClaimSent } from './claim-confirm';
 import {
@@ -672,7 +673,7 @@ async function sendToAllRecipients(
         accountId: appt.account_id,
         contactId: contact.id,
         phone: contact.phone!,
-        retryKey: `voice-reminder:${appt.id}:${contact.id}:${reminderType}`,
+        retryKey: newBurnKey('voice_campaign_call'),
         context: {
           contact_name: clientName,
           appointment_title: visitTitle,

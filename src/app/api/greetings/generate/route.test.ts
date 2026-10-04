@@ -6,7 +6,7 @@ const {
   checkRateLimit,
   checkPlanLimit,
   burnCredits,
-  refundCredits,
+  refundBurn,
   generateText,
   generateAiImage,
 } = vi.hoisted(() => ({
@@ -14,7 +14,7 @@ const {
   checkRateLimit: vi.fn(),
   checkPlanLimit: vi.fn(),
   burnCredits: vi.fn(),
-  refundCredits: vi.fn(),
+  refundBurn: vi.fn(),
   generateText: vi.fn(),
   generateAiImage: vi.fn(),
 }));
@@ -40,7 +40,11 @@ vi.mock('@/lib/billing/gates', () => ({
 
 vi.mock('@/lib/credits/burn', () => ({
   burnCredits,
-  refundCredits,
+}));
+
+vi.mock('@/lib/credits/refund-burn', () => ({
+  newBurnKey: (feature: string) => `${feature}:key-1`,
+  refundBurn,
 }));
 
 vi.mock('@/lib/ai/gemini', () => ({ generateText }));
@@ -112,9 +116,36 @@ describe('POST /api/greetings/generate', () => {
         imageUrl: null,
       },
     });
-    expect(refundCredits).not.toHaveBeenCalled();
+    expect(refundBurn).not.toHaveBeenCalled();
     expect(generateAiImage).toHaveBeenCalledWith(
       expect.objectContaining({ timeoutMs: 12_000 })
+    );
+    errorSpy.mockRestore();
+  });
+
+  it('[CRD-003] refunds the keyed burn when the greeting text fails', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    generateText.mockRejectedValue(new Error('model down'));
+
+    const response = await POST(
+      new NextRequest('https://app.convoreal.test/api/greetings/generate', {
+        method: 'POST',
+        body: JSON.stringify({ occasion: 'Diwali', generateImage: false }),
+      })
+    );
+
+    expect(response.status).toBe(401);
+    expect(burnCredits).toHaveBeenCalledWith(
+      'account-1',
+      'greetings_generate',
+      expect.any(Number),
+      { retryKey: 'greetings_generate:key-1' }
+    );
+    expect(refundBurn).toHaveBeenCalledTimes(1);
+    expect(refundBurn).toHaveBeenCalledWith(
+      'account-1',
+      'greetings_generate',
+      'greetings_generate:key-1'
     );
     errorSpy.mockRestore();
   });
