@@ -599,7 +599,7 @@ describe('mutatePropertyDraft', () => {
   });
 });
 
-describe('mutateContactDraft', () => {
+describe('[INB-025] mutateContactDraft', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-04T10:00:00.000Z'));

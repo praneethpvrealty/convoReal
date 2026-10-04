@@ -412,6 +412,20 @@
               "case": "[INB-023]"
             }
           ]
+        },
+        {
+          "id": "INB-025",
+          "rule": "A contact forwarded to the owner chatbot is announced as a saved draft only after a session row is written: a draft created concurrently for the same sender absorbs the new contacts through a compare-and-swap merge, and a draft that could not be saved refunds any parse charge and tells the owner to send it again.",
+          "tests": [
+            {
+              "file": "src/lib/ai/chatbot-engine.structure.test.ts",
+              "case": "[INB-025]"
+            },
+            {
+              "file": "src/lib/ai/draft-sessions.test.ts",
+              "case": "[INB-025]"
+            }
+          ]
         }
       ]
     },
