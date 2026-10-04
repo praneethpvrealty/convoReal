@@ -86,7 +86,7 @@ import {
   isAgencyShowcaseDesign,
   type ShowcaseStyle,
 } from '@/lib/showcase/style';
-import { useShowcaseShortlist } from '@/hooks/use-showcase-shortlist';
+import { useShowcaseShortlist } from '@/hooks/useShowcaseShortlist';
 import {
   listingAvailabilityNotice,
   listingStatusInquiryLine,

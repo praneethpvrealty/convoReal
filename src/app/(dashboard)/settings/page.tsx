@@ -65,7 +65,7 @@ import { YouTubeConnectCard } from '@/components/settings/youtube-connect-card';
 import { AiSettingsPanel } from '@/components/settings/ai-settings';
 import { NotificationSettingsPanel } from '@/components/settings/notification-settings';
 import { OtherSettingsPanel } from '@/components/settings/other-settings';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { usePlan } from '@/hooks/usePlan';
 import { BillingTab } from '@/components/settings/billing-tab';
 import { CreditsTab } from '@/components/settings/credits-tab';

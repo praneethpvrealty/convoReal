@@ -16,7 +16,7 @@ import {
   X,
 } from 'lucide-react';
 
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Skeleton, TabSkeleton } from '@/components/dashboard/skeleton';
 import { InfoHint } from '@/components/ui/info-hint';

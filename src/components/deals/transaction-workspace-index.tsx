@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Briefcase, Layers, Loader2, Search } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { todayDateKey } from '@/lib/deals/deadlines';
 import {
   expectedCloseLabel,

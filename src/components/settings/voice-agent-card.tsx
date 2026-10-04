@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Copy, Loader2, PhoneCall, RefreshCw } from 'lucide-react';
-import { useCan } from '@/hooks/use-can';
-import { useAuth } from '@/hooks/use-auth';
+import { useCan } from '@/hooks/useCan';
+import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { AI_FEATURE_COSTS, voiceCallCost } from '@/lib/credits/types';
 import {

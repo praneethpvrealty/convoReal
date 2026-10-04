@@ -16,7 +16,7 @@ import {
 import { Radio, Plus } from 'lucide-react';
 import { SignalWaveLoader } from '@/components/ui/signal-wave-loader';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import { GatedButton } from '@/components/ui/gated-button';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 import { InfoHint } from '@/components/ui/info-hint';

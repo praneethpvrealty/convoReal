@@ -16,7 +16,7 @@ import { CalendarDays, CalendarPlus, MapPin as MapPinIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import { Button } from '@/components/ui/button';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';

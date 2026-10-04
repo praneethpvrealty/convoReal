@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Handshake, Trophy, UserPlus } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { Skeleton, SkeletonCard } from '@/components/dashboard/skeleton';
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import {

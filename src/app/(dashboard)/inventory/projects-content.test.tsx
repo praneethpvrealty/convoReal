@@ -6,7 +6,7 @@ import type { ProjectWithStats } from '@/lib/inventory/projects';
 import { ProjectCard } from './projects-content';
 
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({}) }));
-vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ accountId: 'a' }) }));
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ accountId: 'a' }) }));
 vi.mock('@/components/inventory/project-form-dialog', () => ({
   ProjectFormDialog: () => null,
 }));

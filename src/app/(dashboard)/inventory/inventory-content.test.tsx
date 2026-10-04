@@ -40,17 +40,17 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => searchParams,
 }));
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
     accountId: 'acct-search-test',
   }),
 }));
 
-vi.mock('@/hooks/use-can', () => ({
+vi.mock('@/hooks/useCan', () => ({
   useCan: () => true,
 }));
 
-vi.mock('@/hooks/use-locale', () => ({
+vi.mock('@/hooks/useLocale', () => ({
   useT: () => (key: string) => key,
 }));
 

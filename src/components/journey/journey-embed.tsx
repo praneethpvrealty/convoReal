@@ -13,8 +13,8 @@ import { Expand } from 'lucide-react';
 
 import { dealsHref } from '@/lib/deals/routes';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
-import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/useAuth';
+import { useCan } from '@/hooks/useCan';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import type { JourneyStage } from '@/types';
 import { ensureJourneyStages } from '@/lib/journey/capture';

@@ -9,7 +9,7 @@ import { AlertTriangle, ChevronDown, ExternalLink, X } from 'lucide-react';
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import type { PortalDriftFinding } from '@/app/api/portals/drift/route';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 
 const DISMISS_KEY_PREFIX = 'convoreal.portalDrift.dismissed:v1';

@@ -2332,7 +2332,7 @@
           ],
           "guards": [
             "src/lib/pipelines/board-layout.ts",
-            "src/hooks/use-board-layout.ts",
+            "src/hooks/useBoardLayout.ts",
             "src/components/pipelines/pipeline-board.tsx",
             "mobile/lib/board-layout-preference.ts",
             "mobile/app/(app)/deals.tsx"

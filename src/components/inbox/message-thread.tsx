@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { dealsHref } from '@/lib/deals/routes';
 import { createClient } from '@/lib/supabase/client';
 import { contactHandle } from '@/lib/contacts/reachability';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import type {
   Conversation,

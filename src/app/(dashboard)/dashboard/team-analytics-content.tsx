@@ -12,7 +12,7 @@ import {
   Users,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { usePlan } from '@/hooks/usePlan';
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import {
